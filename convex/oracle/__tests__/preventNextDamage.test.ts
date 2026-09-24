@@ -1,16 +1,22 @@
 // "Prevent the next N damage that would be dealt to any target this turn" —
-// a prevention SHIELD of a printed size (CR 615.7, CR 615.1a, issue #4300).
+// a prevention SHIELD of a printed size (CR 615.7, CR 615.1a, issue #4300) —
+// and its bare "target creature" recipient (issue #4309).
 //
 // Two layers:
 //
 //  1. GOLDENS — one per slot the shared effect-clause rule serves: the
 //     activated slot behind a `{T}` cost (Samite Healer, Master Healer — the
 //     printed number is read, not assumed to be 1) and the spell slot (Mending
-//     Hands). Whole cards, whole Compiled Definitions.
+//     Hands); for "target creature", the activated slot behind a `{T}` cost
+//     (Oasis) and a life cost (Martyrs' Tomb), and a modal spell's mode
+//     (Recuperate). Whole cards, whole Compiled Definitions.
 //  2. REFUSALS — the neighbours the rule must NOT read: a recipient other than
-//     "any target", a shield that is not printed digits, a shield with no
+//     "any target" or a bare "target creature" (a QUALIFIED creature
+//     included — Wandering Mage's "target Cleric or Wizard creature"), a
+//     shield that is not printed digits, a shield with no
 //     duration, and the two real cards whose rider sentence is another
-//     Grammar Gap (Elvish Healer's "instead", Rakalite's delayed return) —
+//     Grammar Gap (Elvish Healer's "instead", Rakalite's delayed return, Test
+//     of Faith's "for each 1 damage prevented this way") —
 //     each pinned to the SPAN that stops the card, so the shield sentence the
 //     rule now reads is provably not the one refused.
 
@@ -76,6 +82,58 @@ const RAKALITE: OracleCard = {
     layout: "normal",
 };
 
+const OASIS: OracleCard = {
+    oracleId: "4533ce78-0594-4195-96fb-46cbadd0db69",
+    name: "Oasis",
+    manaCost: "",
+    typeLine: "Land",
+    oracleText:
+        "{T}: Prevent the next 1 damage that would be dealt to target creature this turn.",
+    layout: "normal",
+};
+
+const MARTYRS_TOMB: OracleCard = {
+    oracleId: "a0baa9eb-0b1e-4d90-a7a1-f7102f575467",
+    name: "Martyrs' Tomb",
+    manaCost: "{2}{W}{B}",
+    typeLine: "Enchantment",
+    oracleText:
+        "Pay 2 life: Prevent the next 1 damage that would be dealt to target creature this turn.",
+    layout: "normal",
+};
+
+const RECUPERATE: OracleCard = {
+    oracleId: "07d7f9d2-5414-4aaf-b6f2-1fedf16c3af7",
+    name: "Recuperate",
+    manaCost: "{3}{W}",
+    typeLine: "Instant",
+    oracleText:
+        "Choose one —\n• You gain 6 life.\n• Prevent the next 6 damage that would be dealt to target creature this turn.",
+    layout: "normal",
+};
+
+const TEST_OF_FAITH: OracleCard = {
+    oracleId: "3397aa3d-bf73-4ca3-a806-059361603079",
+    name: "Test of Faith",
+    manaCost: "{1}{W}",
+    typeLine: "Instant",
+    oracleText:
+        "Prevent the next 3 damage that would be dealt to target creature this turn. For each 1 damage prevented this way, put a +1/+1 counter on that creature.",
+    layout: "normal",
+};
+
+const WANDERING_MAGE: OracleCard = {
+    oracleId: "ac9c81a1-f444-4051-b309-f1af1b5df12a",
+    name: "Wandering Mage",
+    manaCost: "{W}{U}{B}",
+    typeLine: "Creature — Human Cleric Wizard",
+    oracleText:
+        "{W}, Pay 1 life: Prevent the next 2 damage that would be dealt to target creature this turn.\n{U}: Prevent the next 1 damage that would be dealt to target Cleric or Wizard creature this turn.\n{B}, Put a -1/-1 counter on a creature you control: Prevent the next 2 damage that would be dealt to target player or planeswalker this turn.",
+    power: "0",
+    toughness: "3",
+    layout: "normal",
+};
+
 /** An instant whose Oracle text is exactly `oracleText` — a neighbour form
  *  that no corpus card prints, so the refusal is pinned by a probe line. */
 function instant(oracleText: string) {
@@ -117,6 +175,7 @@ function shield(amount: number) {
 }
 
 const ANY_TARGET = { type: "any", count: 1 };
+const TARGET_CREATURE = { type: "Creature", count: 1 };
 
 describe("prevent the next N damage — goldens (CR 615.7)", () => {
     it("activated slot, {T} cost: Samite Healer — a 1-damage shield on the announced any-target", () => {
@@ -186,11 +245,90 @@ describe("prevent the next N damage — goldens (CR 615.7)", () => {
     });
 });
 
+describe("prevent the next N damage to target creature — goldens (CR 615.7, CR 115.1c)", () => {
+    it("activated slot, {T} cost: Oasis — a 1-damage shield on the announced creature", () => {
+        expect(sortKeys(compiled(OASIS))).toEqual(
+            sortKeys({
+                name: "Oasis",
+                types: ["Land"],
+                oracleText:
+                    "{T}: Prevent the next 1 damage that would be dealt to target creature this turn.",
+                activatedAbilities: [
+                    {
+                        id: "oasis-ability",
+                        oracleText:
+                            "{T}: Prevent the next 1 damage that would be dealt to target creature this turn.",
+                        cost: { tap: true },
+                        useStack: true,
+                        effects: [shield(1)],
+                        targetRequirement: TARGET_CREATURE,
+                    },
+                ],
+            })
+        );
+    });
+
+    it("activated slot, life cost: Martyrs' Tomb — the same shield behind 'Pay 2 life'", () => {
+        expect(sortKeys(compiled(MARTYRS_TOMB))).toEqual(
+            sortKeys({
+                name: "Martyrs' Tomb",
+                types: ["Enchantment"],
+                manaCost: { X: 2, W: 1, B: 1 },
+                oracleText:
+                    "Pay 2 life: Prevent the next 1 damage that would be dealt to target creature this turn.",
+                activatedAbilities: [
+                    {
+                        id: "martyrs-tomb-ability",
+                        oracleText:
+                            "Pay 2 life: Prevent the next 1 damage that would be dealt to target creature this turn.",
+                        cost: { life: 2 },
+                        useStack: true,
+                        effects: [shield(1)],
+                        targetRequirement: TARGET_CREATURE,
+                    },
+                ],
+            })
+        );
+    });
+
+    it("spell slot, modal: Recuperate — the shield is one mode, announcing its own creature", () => {
+        expect(sortKeys(compiled(RECUPERATE))).toEqual(
+            sortKeys({
+                name: "Recuperate",
+                types: ["Instant"],
+                manaCost: { X: 3, W: 1 },
+                oracleText:
+                    "Choose one —\n• You gain 6 life.\n• Prevent the next 6 damage that would be dealt to target creature this turn.",
+                modes: [
+                    {
+                        id: "recuperate-mode-1",
+                        label: "You gain 6 life",
+                        oracleText: "You gain 6 life.",
+                        effects: [
+                            { op: "gainLife", player: "controller", amount: 6 },
+                        ],
+                    },
+                    {
+                        id: "recuperate-mode-2",
+                        label: "Prevent the next 6 damage that would be dealt to target creature this turn",
+                        oracleText:
+                            "Prevent the next 6 damage that would be dealt to target creature this turn.",
+                        effects: [shield(6)],
+                        targetRequirement: TARGET_CREATURE,
+                    },
+                ],
+            })
+        );
+    });
+});
+
 describe("prevent the next N damage — refusals stay fail-closed", () => {
-    it("reads 'any target' only: another recipient is refused, not re-pointed", () => {
+    it("reads 'any target' or a bare 'target creature' only: another recipient is refused, not re-pointed", () => {
         for (const recipient of [
-            "target creature",
             "target player",
+            "target legendary creature",
+            "target creature you control",
+            "target attacking creature",
             "you",
             "each creature",
         ])
@@ -229,6 +367,18 @@ describe("prevent the next N damage — refusals stay fail-closed", () => {
     it("Elvish Healer's 'instead' rider is another gap: the whole card stays unparsed", () => {
         expect(refusedSpan(ELVISH_HEALER)).toBe(
             "If it's a green creature, prevent the next 2 damage instead"
+        );
+    });
+
+    it("Wandering Mage's qualified creature is refused though its bare 'target creature' line reads", () => {
+        // The first line is the accepted form; the SECOND stops the card, on
+        // the qualifier the shield rule does not read.
+        expect(refusedSpan(WANDERING_MAGE)).toBe("Cleric or Wizard creature");
+    });
+
+    it("Test of Faith's 'prevented this way' rider is another gap: the whole card stays unparsed", () => {
+        expect(refusedSpan(TEST_OF_FAITH)).toBe(
+            "For each 1 damage prevented this way, put a +1/+1 counter on that creature"
         );
     });
 
