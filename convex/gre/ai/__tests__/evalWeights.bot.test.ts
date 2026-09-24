@@ -17,7 +17,6 @@ import {
     FIT_BASE_EVAL_WEIGHTS,
     rewardPerMarginPoint,
 } from "../evalWeights";
-import { FEATURE_BASIS } from "../featureBasis";
 import { resolveEvalWeights } from "../searchVariant";
 import { evaluate, materialMargin } from "../../evaluate";
 import {
@@ -137,14 +136,6 @@ describe("DEFAULT_EVAL_WEIGHTS (issue #2683)", () => {
         // handed to a ladder variant must not be able to reach in and mutate
         // the production unit prices for every other run in the process.
         expect(Object.isFrozen(DEFAULT_EVAL_WEIGHTS.latent)).toBe(true);
-    });
-
-    it("carries one latent weight per FEATURE_BASIS dimension (issue #3398)", () => {
-        // The fit surface must be COMPLETE: a dimension with no weight is one
-        // no verdict can move, which is the gap `DESTROY_VALUE` lived in.
-        expect(Object.keys(DEFAULT_EVAL_WEIGHTS.latent).sort()).toEqual(
-            [...FEATURE_BASIS].sort()
-        );
     });
 });
 

@@ -1,13 +1,8 @@
-// debugSetupScenario admin gate (issue #768). The mutation
-// (`convex/game.ts`) calls `assertIsAdmin(ctx)` as the FIRST statement of its
-// handler, before any board state is touched — an arbitrary logged-in caller
-// must not be able to overwrite another user's game (clear hands/battlefield,
-// reseat cards, set life/mana). The project has no convex-test harness (see
-// `convex/__tests__/adminAuth.test.ts`, `convex/__tests__/decks.test.ts`), so
-// this asserts the same pure decision `assertIsAdmin` is built from —
-// `isAdminUser` — mirroring the `deletePreset` admin-gate test convention.
+// debugSetupScenario (issue #768). The mutation (`convex/game.ts`) calls
+// `assertIsAdmin(ctx)` as the FIRST statement of its handler, before any board
+// state is touched; that gate is the pure `isAdminUser`, asserted once in
+// `convex/__tests__/adminAuth.test.ts` (issue #4493 dropped the copy here).
 import { describe, it, expect } from "vitest";
-import { isAdminUser } from "../auth";
 import { debugLoadMySeatId } from "../matches";
 import {
     assertLoadableIntoLiveGame,
@@ -17,32 +12,7 @@ import { makePlayer, makeState } from "../cards/__tests__/setup";
 import { grizzlyBears } from "../cards/sets/lea/green";
 import { lightningBolt, shivanDragon } from "../cards/sets/lea/red";
 import { forest } from "../cards/sets/lea/colorless";
-import type { Doc } from "../_generated/dataModel";
 import type { ScenarioSpec } from "../debugScenarioSpec";
-
-function user(isAdmin?: boolean): Doc<"users"> {
-    return {
-        _id: "user_1" as Doc<"users">["_id"],
-        _creationTime: 0,
-        nickname: "Tester",
-        isAdmin,
-    } as Doc<"users">;
-}
-
-describe("debugSetupScenario — admin gate (issue #768)", () => {
-    it("rejects a non-admin caller (assertIsAdmin throws before state is touched)", () => {
-        expect(isAdminUser(user(false))).toBe(false);
-        expect(isAdminUser(user(undefined))).toBe(false);
-    });
-
-    it("rejects an unauthenticated caller", () => {
-        expect(isAdminUser(null)).toBe(false);
-    });
-
-    it("allows an admin caller through the gate (scenario setup proceeds unchanged)", () => {
-        expect(isAdminUser(user(true))).toBe(true);
-    });
-});
 
 /** The live game's two seats in every fixture below — deliberately NOT
  *  `p1`/`p2`, and deliberately not ending in the ADR 0001 bot suffix on the

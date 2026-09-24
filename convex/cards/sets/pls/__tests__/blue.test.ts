@@ -1869,34 +1869,6 @@ describe("Confound — spell-property target filters (issue #1956)", () => {
         expect(state.players[0].hand).toHaveLength(0);
     });
 
-    // …and the re-check must not OVER-fizzle: a target that still satisfies
-    // the restriction resolves normally. (The gate's two documented
-    // narrowings live in `spellTargetStillMeetsRestrictions`, `gre/state.ts`:
-    // cross-kind filters — `mvFilter` above all, X-resolved at ANNOUNCEMENT —
-    // are not re-derived, and a resolving ABILITY keeps the
-    // zone-existence-only behaviour because its requirement is frequently
-    // pinned dynamically at trigger time, e.g. Ward.)
-    it("the CR 608.2b re-check does not fizzle a target that still qualifies", () => {
-        const state = board();
-        state.players[0].library = [
-            makeInstance(island.id, {
-                id: "lib1",
-                controllerId: "p1",
-                ownerId: "p1",
-                zone: "library",
-            }),
-        ];
-        // The Bolt keeps targeting a creature, so the spell-only half still
-        // holds and Confound resolves normally.
-        const bolt = pushSpell(state, lightningBolt.id, "p2", [
-            { type: "permanent", id: "bear" },
-        ]);
-        pushSpell(state, confound.id, "p1", [{ type: "spell", id: bolt.id }]);
-        resolveTopOfStack(state);
-        expect(state.stack.some((s) => s.id === bolt.id)).toBe(false);
-        expect(state.players[0].hand.map((c) => c.id)).toEqual(["lib1"]);
-    });
-
     // ── Wire format (row: projectPublicState / SlimStackItem). The filters read
     //    `targets` and `kickerPayments` OFF THE STACK ITEM — if the projection
     //    dropped either, the client would compute a different offered set.

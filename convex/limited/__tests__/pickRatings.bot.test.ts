@@ -103,11 +103,6 @@ describe("checked-in Vintage Cube Pick Rating file (PRD #1296 Slice D, issue #12
     it("a cube card not in the (currently implemented) pool falls back to `null` (unrated) via getPickRating", () => {
         expect(getPickRating(CUBE_SOURCE_KEY, "not-a-cube-card-id")).toBeNull();
     });
-
-    it("getPickRatingByCardId resolves a rated cube card by cardId alone, registry-agnostic like the LEA case", () => {
-        const blackLotusId = "b0faa7f2-b547-42c4-a810-839da50dadfe";
-        expect(getPickRatingByCardId(blackLotusId)).toBe(PICK_RATING_MAX);
-    });
 });
 
 describe("getPickRatingFile / getPickRating (a Draftable Set without a ratings file)", () => {

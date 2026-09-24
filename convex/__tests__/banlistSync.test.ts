@@ -360,8 +360,4 @@ describe("syncBanlist admin gate (issue #1143) — mirrors requireAdminQuery/ass
         expect(isAdminUser(user())).toBe(false);
         expect(isAdminUser(null)).toBe(false);
     });
-
-    it("allows an admin through the same gate", () => {
-        expect(isAdminUser(user({ isAdmin: true }))).toBe(true);
-    });
 });

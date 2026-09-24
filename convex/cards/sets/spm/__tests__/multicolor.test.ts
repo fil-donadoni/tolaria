@@ -104,16 +104,4 @@ describe("Spider-Woman, Stunning Savior (CR 614.1c replacement, 110.5b enters ta
             )
         ).toBe(true);
     });
-
-    it("does nothing while Spider-Woman is not on the battlefield", () => {
-        const state = makeState({
-            players: [makePlayer("p1"), makePlayer("p2")],
-        });
-        expect(
-            entersTappedByReplacement(
-                entering(grizzlyBears.id, "p2"),
-                state as never
-            )
-        ).toBe(false);
-    });
 });

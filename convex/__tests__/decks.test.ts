@@ -12,7 +12,6 @@ import {
     type LobbyPreset,
 } from "../decks";
 import { PRESET_DECKS, type DeckPreset } from "../deckPresets";
-import { isAdminUser } from "../auth";
 import { withDefinitionId } from "../cards/catalogue";
 import type { Doc } from "../_generated/dataModel";
 
@@ -381,18 +380,11 @@ describe("createPreset — slug uniqueness (issue #469)", () => {
     });
 });
 
-describe("deletePreset — admin gate + hard delete by slug (issue #470)", () => {
+describe("deletePreset — hard delete by slug (issue #470)", () => {
     // The mutation calls `assertIsAdmin` FIRST, then looks the row up by slug
-    // and hard-deletes it. No convex-test harness — assert the same two pure
-    // decisions the mutation is built from: the admin gate (`isAdminUser`, which
-    // `assertIsAdmin` wraps) and which rows survive the delete.
-    function admin(isAdmin?: boolean): Doc<"users"> {
-        return {
-            _id: "u1" as Doc<"users">["_id"],
-            _creationTime: 0,
-            isAdmin,
-        } as Doc<"users">;
-    }
+    // and hard-deletes it. No convex-test harness — assert the pure decision
+    // the mutation is built from: which rows survive the delete. The gate
+    // (`isAdminUser`, which `assertIsAdmin` wraps) is `adminAuth.test.ts`'s.
 
     // Model `ctx.db.delete(row._id)` keyed by the `by_slug` lookup: keep every
     // row whose slug differs from the target. An absent slug deletes nothing.
@@ -414,16 +406,6 @@ describe("deletePreset — admin gate + hard delete by slug (issue #470)", () =>
         cards: p.cards.map(withDefinitionId),
         sideboard: p.sideboard?.map(withDefinitionId),
     }));
-
-    it("rejects a non-admin (assertIsAdmin gate runs first)", () => {
-        expect(isAdminUser(admin(false))).toBe(false);
-        expect(isAdminUser(admin(undefined))).toBe(false);
-        expect(isAdminUser(null)).toBe(false);
-    });
-
-    it("allows an admin through the gate", () => {
-        expect(isAdminUser(admin(true))).toBe(true);
-    });
 
     it("removes exactly the row matching the slug", () => {
         const target = PRESET_DECKS[0].presetId;
