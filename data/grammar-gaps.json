@@ -421,6 +421,11 @@
         },
         {
             "kind": "bot",
+            "key": "never-chosen › Creature › dealDamage+forEach",
+            "issue": 4468
+        },
+        {
+            "kind": "bot",
             "key": "never-chosen › Creature › destroy+forEach+if",
             "issue": 4284
         },
@@ -526,6 +531,11 @@
         },
         {
             "kind": "bot",
+            "key": "never-chosen › Sorcery target:Land › dealDamage+destroy+forEach",
+            "issue": 4469
+        },
+        {
+            "kind": "bot",
             "key": "never-chosen › Sorcery target:Land › destroy",
             "issue": 4262
         },
@@ -553,6 +563,16 @@
             "kind": "bot",
             "key": "never-chosen › Sorcery › choice+forEach+sacrifice",
             "issue": 4255
+        },
+        {
+            "kind": "bot",
+            "key": "never-chosen › Sorcery › chooseNumber+coinFlipSeries+draw+if",
+            "issue": 4470
+        },
+        {
+            "kind": "bot",
+            "key": "never-chosen › Sorcery › dealDamage+forEach",
+            "issue": 4467
         },
         {
             "kind": "bot",
