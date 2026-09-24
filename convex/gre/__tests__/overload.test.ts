@@ -46,7 +46,7 @@ import {
     isOverloadAlternativeCost,
 } from "../overload";
 import { applyPendingChoiceSubmit } from "../pendingChoiceSubmit";
-import { emitSpellCastEvent, processPendingActionTriggers } from "../state";
+import { emitSpellCastEvent } from "../state";
 import { compactState, expandState } from "../serialize";
 import { validateEffectScript } from "../effects/validate";
 import {
@@ -555,8 +555,9 @@ describe("Overload — the marker is CAST-INSTANCE scoped (CR 702.96a, PR #3288 
             overloaded: true,
         };
         state.stack.push(item);
+        // `emitSpellCastEvent` collects the self-cast trigger itself
+        // (`collectSelfCastTriggers`), as the real cast path does.
         emitSpellCastEvent(state, item);
-        processPendingActionTriggers(state);
         const triggers = state.stack.filter((queued) => queued.id !== item.id);
         // The trigger IS on the stack — without it the claim below holds of
         // an empty list, which is how this block once asserted nothing

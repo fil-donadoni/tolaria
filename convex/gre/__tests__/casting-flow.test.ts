@@ -588,6 +588,7 @@ describe("casting flow — cancelCast rollback (CR 601.2)", () => {
 
         announceCast(state, "p1", "arma");
         tapForPayment(state, "p1", "fresh");
+        expect(fresh.isTapped).toBe(true);
         expect(state.pendingCast).toBeDefined();
 
         cancelCast(state, "p1");

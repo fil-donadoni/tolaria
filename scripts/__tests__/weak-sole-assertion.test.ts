@@ -54,7 +54,11 @@ const TEST_BLOCK_CALLEES = new Set(["it", "test"]);
 const SKIPPED_MODIFIERS = new Set(["skip", "todo"]);
 const DEFINED_MATCHERS = new Set(["toBeDefined", "toBeTruthy"]);
 const THROW_MATCHERS = new Set(["toThrow", "toThrowError"]);
-const THROWING_QUERY = /^(get|find)(All)?By[A-Z]/;
+/** Testing Library's throwing queries, by their full names — a bare
+ *  `(get|find)By…` prefix would also clear engine helpers such as
+ *  `findByName` / `findByDefId`, which return undefined instead. */
+const THROWING_QUERY =
+    /^(get|find)(All)?By(Role|Text|LabelText|PlaceholderText|AltText|Title|DisplayValue|TestId)$/;
 
 type WeakKind = "defined-only" | "not-throw-only";
 
@@ -67,6 +71,9 @@ interface WeakBlock {
 function walk(dir: string, out: string[] = []): string[] {
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
         if (entry.name === "node_modules" || entry.name === "dist") continue;
+        // A symlink is neither walked nor read: one named `*.test.ts` that
+        // points at a directory would throw EISDIR and red a warning-only lint.
+        if (entry.isSymbolicLink()) continue;
         const full = path.join(dir, entry.name);
         if (entry.isDirectory()) walk(full, out);
         else out.push(full);
