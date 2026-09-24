@@ -4,7 +4,9 @@
  * three reports by hand (issue #4208, PRD #4207).
  *
  *   1. `playable` — every card `ready` or hand-written (the hand tail
- *      declared by name — never 100% grammar);
+ *      declared by name — never 100% grammar). A Target with
+ *      `completion: "ready"` (issue #4519) has the `ready` clause instead:
+ *      every card `ready`, a hand-written card listed as missing;
  *   2. `coverage-invariant` — the Coverage Invariant green on the Target
  *      (`coverageReds`, the one definition `check:targets` reds on);
  *   3. `bot-play` — `frozen` = 0; every `never-chosen` card fixed or covered
@@ -26,6 +28,7 @@ import { coverageReds, type TargetCoverage } from "./targets";
 
 export const COMPLETION_CLAUSES = [
     "playable",
+    "ready",
     "coverage-invariant",
     "bot-play",
 ] as const;
@@ -109,7 +112,10 @@ export interface BotPlayClause {
 export interface TargetCompletion {
     readonly id: string;
     readonly completed: boolean;
+    /** The first clause — named `playable`, or `ready` for a `ready` Target
+     *  (`failing` and the report line carry the same name). */
     readonly playable: {
+        readonly clause: "playable" | "ready";
         readonly green: boolean;
         readonly missing: readonly string[];
     };
@@ -221,17 +227,19 @@ export function targetCompleted(
                   harnessBound: [],
               }
             : botPlayClause(cardNames, new Set(coverage.unplayable), botPlay);
+    // Under `ready` a hand-written card is not green: everything that is not
+    // `ready` is missing (issue #4519).
+    const clause = coverage.completion === "ready" ? "ready" : "playable";
+    const missing =
+        clause === "ready" ? coverage.notReady : coverage.unplayable;
     const failing: CompletionClause[] = [];
-    if (coverage.unplayable.length > 0) failing.push("playable");
+    if (missing.length > 0) failing.push(clause);
     if (reds.length > 0) failing.push("coverage-invariant");
     if (!bot.green) failing.push("bot-play");
     return {
         id: coverage.id,
         completed: failing.length === 0,
-        playable: {
-            green: coverage.unplayable.length === 0,
-            missing: coverage.unplayable,
-        },
+        playable: { clause, green: missing.length === 0, missing },
         coverageInvariant: { green: reds.length === 0, reds },
         botPlay: bot,
         failing,
@@ -261,7 +269,9 @@ export function formatCompletion(completion: TargetCompletion): string {
     const reds = completion.coverageInvariant.reds.slice(0, RED_LINES_SHOWN);
     if (!completion.playable.green)
         lines.push(
-            `playable — ${completion.playable.missing.length} card(s) neither ready nor hand-written: ${listed(completion.playable.missing)}`
+            completion.playable.clause === "ready"
+                ? `ready — ${completion.playable.missing.length} card(s) not ready (a hand-written card does not count): ${listed(completion.playable.missing)}`
+                : `playable — ${completion.playable.missing.length} card(s) neither ready nor hand-written: ${listed(completion.playable.missing)}`
         );
     if (!completion.coverageInvariant.green)
         lines.push(

@@ -116,7 +116,10 @@ export function rankedCardIds(
 /**
  * The cards of every ENFORCED Target — the ones `check:targets` reds when
  * unclaimed, so the ones a hand-tail issue is owed for
- * ({@link KindInputs.enforced}).
+ * ({@link KindInputs.enforced}). A `completion: "ready"` Target (issue #4519)
+ * is owed its claims whether or not it is enforced: enforcing it would red
+ * `check:targets` on every card until the filer has run, a standing RED that
+ * blocks every pick, so the filer's scope reads the completion mode itself.
  */
 export function enforcedCardIds(
     registry: TargetRegistry,
@@ -124,7 +127,26 @@ export function enforcedCardIds(
 ): Set<string> {
     const ids = new Set<string>();
     for (const row of registry.targets) {
-        if (row.enforced !== true) continue;
+        if (row.enforced !== true && row.completion !== "ready") continue;
+        for (const card of resolveTarget(row, ctx).cards)
+            ids.add(card.oracleId);
+    }
+    return ids;
+}
+
+/**
+ * The cards of every `completion: "ready"` Target — the ones the hand-tail
+ * floor does not apply to (issue #4519): a gap holding one owes a `grammar`
+ * claim however few corpus cards carry it, and the card is never owed a
+ * `hand-tail` claim ({@link KindInputs.floorless}).
+ */
+export function floorlessCardIds(
+    registry: TargetRegistry,
+    ctx: ResolveContext
+): Set<string> {
+    const ids = new Set<string>();
+    for (const row of registry.targets) {
+        if (row.completion !== "ready") continue;
         for (const card of resolveTarget(row, ctx).cards)
             ids.add(card.oracleId);
     }
@@ -167,6 +189,13 @@ export interface KindInputs {
      * `handTailFiling`) and by {@link buildFragmentGapFilings}.
      */
     readonly enforced: ReadonlySet<string>;
+    /**
+     * The cards of `completion: "ready"` Targets (issue #4519,
+     * {@link floorlessCardIds}) — the hand-tail floor does not apply to them:
+     * every gap owes a `grammar` claim and none owes a `hand-tail` one. Absent
+     * means none.
+     */
+    readonly floorless?: ReadonlySet<string>;
     readonly gapKeys: (row: CardRow) => readonly string[];
     readonly leverage: ReadonlyMap<string, number>;
     /** Oracle ids already carrying a well-formed `hand-tail:` marker. */
@@ -369,7 +398,11 @@ export function buildFragmentGapFilings(inputs: KindInputs): GapFiling[] {
         if (row.state !== "unparsed") continue;
         if (!inputs.enforced.has(row.oracleId)) continue;
         for (const key of inputs.gapKeys(row)) {
-            if ((inputs.leverage.get(key) ?? 0) < inputs.floor) continue;
+            if (
+                (inputs.leverage.get(key) ?? 0) < inputs.floor &&
+                !inputs.floorless?.has(row.oracleId)
+            )
+                continue;
             let ids = held.get(key);
             if (ids === undefined) held.set(key, (ids = new Set()));
             ids.add(row.oracleId);
@@ -463,6 +496,8 @@ export function buildHandTailFilings(inputs: KindInputs): {
         if (row.state !== "unparsed") continue;
         if (!inputs.ranked.has(row.oracleId)) continue;
         if (inputs.handTail.has(row.oracleId)) continue;
+        // A `ready` Target's card is owed a Grammar Rule, never Hand Tail.
+        if (inputs.floorless?.has(row.oracleId)) continue;
         const keys = inputs.gapKeys(row);
         if (keys.length === 0) continue;
         if (keys.some((key) => (inputs.leverage.get(key) ?? 0) >= inputs.floor))
