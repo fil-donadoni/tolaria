@@ -454,7 +454,7 @@ export interface GapTracker {
 }
 
 export type GapSyncAction = {
-    readonly action: "create" | "update" | "noop" | "skip-closed";
+    readonly action: "create" | "update" | "noop" | "skip-closed" | "cluster";
     readonly kind: GapKind;
     readonly key: string;
     readonly issue: number;
@@ -589,6 +589,20 @@ export function syncGaps(
     const isCreate = (filing: GapFiling): boolean =>
         filing.currentIssue === null ||
         existing.get(claimId(filing.kind, filing.key)) === null;
+    // A Grammar Cluster: one hand-cut issue claiming several gaps. Its body
+    // and parent are authored, not derived — rewriting them per filing would
+    // let each gap clobber the others' text on every run.
+    const claimsPerIssue = new Map<number, number>();
+    for (const filing of filings) {
+        if (filing.currentIssue === null) continue;
+        claimsPerIssue.set(
+            filing.currentIssue,
+            (claimsPerIssue.get(filing.currentIssue) ?? 0) + 1
+        );
+    }
+    const isCluster = (filing: GapFiling): boolean =>
+        !isCreate(filing) &&
+        (claimsPerIssue.get(filing.currentIssue!) ?? 0) > 1;
 
     // Resolve each create's parent ONCE — `findSetUmbrella` is a network call
     // and the cap check and the create itself must agree on the answer.
@@ -603,7 +617,7 @@ export function syncGaps(
             parents.set(id, parent);
         } else {
             const current = existing.get(id)!;
-            if (current.state === "CLOSED") continue;
+            if (current.state === "CLOSED" || isCluster(filing)) continue;
             parent = planMove(filing, current.parent ?? null, originBand);
             if (parent === null) continue;
             moveTo.set(id, parent);
@@ -648,6 +662,10 @@ export function syncGaps(
         const current = existing.get(id)!;
         if (current.state === "CLOSED") {
             actions.push({ action: "skip-closed", ...common, issue });
+            continue;
+        }
+        if (isCluster(filing)) {
+            actions.push({ action: "cluster", ...common, issue });
             continue;
         }
         const to = moveTo.get(id);

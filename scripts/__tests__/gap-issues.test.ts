@@ -268,6 +268,31 @@ describe("syncGaps", () => {
         });
     });
 
+    it("never rewrites nor moves a Grammar Cluster — one issue claiming several gaps", () => {
+        const tracker = new StubTracker();
+        tracker.issues.set(4001, { state: "OPEN", body: "cluster, by hand" });
+        tracker.parents.set(4001, 4092);
+        const result = syncGaps(
+            [
+                filing({ currentIssue: 4001, body: () => "addMana text" }),
+                filing({
+                    key: "(op) › draw",
+                    currentIssue: 4001,
+                    body: () => "draw text",
+                }),
+            ],
+            tracker
+        );
+        expect(result.actions.map((a) => a.action)).toEqual([
+            "cluster",
+            "cluster",
+        ]);
+        expect(result.moves).toEqual([]);
+        expect(tracker.updateCalls).toBe(0);
+        expect(tracker.getIssue(4001)?.body).toBe("cluster, by hand");
+        expect(tracker.parents.get(4001)).toBe(4092);
+    });
+
     it("a gap gone from the allowlist is never passed in — its issue stays open", () => {
         const tracker = new StubTracker();
         tracker.issues.set(4001, { state: "OPEN", body: "still tracked" });
