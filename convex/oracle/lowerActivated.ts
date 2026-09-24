@@ -140,6 +140,11 @@ export function lowerActivatedAbility(input: {
         const result = lowerSentence(sentence, walk, {
             allowX: announcesX,
             selfName: input.cardName,
+            // CR 118.1 — a fixed "Sacrifice this <permanent>" leg took the
+            // source off the battlefield at activation.
+            ...(input.cost.atoms.some((a) => a.kind === "sacrifice-self")
+                ? { sourceSacrificed: true as const }
+                : {}),
         });
         if (!result.ok) return { ok: false, reason: result.reason };
         ops.push(...result.value);
