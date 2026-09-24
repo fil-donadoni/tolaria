@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { healthGateEnv } from "../lib/health-step";
 import {
     VITEST_FS_CACHE_ENV,
     defineCacheKeyPlugin,
@@ -7,10 +6,10 @@ import {
 } from "../lib/vitest-fs-cache";
 
 /**
- * vitest's experimental filesystem module cache, flag-gated to `health`
- * (issue #4488). What must hold: it is off unless the flag names a directory,
- * `health` is what names it, and a module that reads a `define` constant is
- * never served a transform baked with a previous commit's value.
+ * vitest's experimental filesystem module cache, behind a manual flag (issue
+ * #4488). What must hold: it is off unless the flag names a directory, and a
+ * module that reads a `define` constant is never served a transform baked
+ * with a previous commit's value.
  */
 describe("fsModuleCacheOptions — the flag", () => {
     it("is off by default — a targeted run, check:lane and land never see it", () => {
@@ -27,12 +26,6 @@ describe("fsModuleCacheOptions — the flag", () => {
                 fsModuleCachePath: "/cache/dir",
             },
         });
-    });
-
-    it("is the variable health's env carries — the restated literal in health-step.ts agrees", () => {
-        const env = healthGateEnv({}, { vitestFsCache: "/cache/dir" });
-        expect(env[VITEST_FS_CACHE_ENV]).toBe("/cache/dir");
-        expect(healthGateEnv({})[VITEST_FS_CACHE_ENV]).toBeUndefined();
     });
 });
 

@@ -207,14 +207,7 @@ async function main(): Promise<void> {
     // what the per-batch gate does (`--under-lock`, ADR 0136 §6): there the
     // three steps pass through that one hold instead of queuing three times,
     // so the block a queued `land` waits for is one block, not three.
-    //
-    // The vitest filesystem module cache lives beside the health records, not
-    // in the worktree (which is removed below), so a cycle can read what the
-    // one before it wrote (issue #4488).
-    const env = healthGateEnv(process.env, {
-        keepHold: underLock,
-        vitestFsCache: join(dir, "vitest-fs-cache"),
-    });
+    const env = healthGateEnv(process.env, { keepHold: underLock });
 
     const scripts = HEALTH_SCRIPTS;
     const steps: HealthStep[] = scripts.map((name, i) => ({

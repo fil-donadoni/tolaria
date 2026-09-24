@@ -96,21 +96,12 @@ export const HEALTH_SCRIPTS: readonly string[] = [
  * property the yield rule is built on — health takes the mutex once, for one
  * uninterrupted block, and every queued land waits exactly that block rather
  * than racing into two gaps. `release` does not pass it and is unchanged.
- *
- * `vitestFsCache` names the directory for vitest's filesystem module cache
- * (issue #4488) — see the comment at its use.
  */
 export function healthGateEnv(
     parent: NodeJS.ProcessEnv,
-    opts: { keepHold?: boolean; vitestFsCache?: string } = {}
+    opts: { keepHold?: boolean } = {}
 ): NodeJS.ProcessEnv {
     const env: NodeJS.ProcessEnv = { ...parent, TOLARIA_GUARD_CACHE: "off" };
-    // vitest's filesystem module cache (issue #4488): `health` is the one
-    // caller that turns it on, pointing it OUTSIDE the throwaway worktree so
-    // it outlives the run. The literal is `VITEST_FS_CACHE_ENV` in
-    // `vitest-fs-cache.ts`, restated for the same builtins-only reason as the
-    // guard-cache one; `vitest-fs-cache.test.ts` pins the two together.
-    if (opts.vitestFsCache) env.TOLARIA_VITEST_FS_CACHE = opts.vitestFsCache;
     if (!opts.keepHold) {
         delete env.TOLARIA_GATE_HELD;
         delete env.TOLARIA_ALLOW_FULL_SUITE;

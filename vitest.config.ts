@@ -244,8 +244,8 @@ const botExclude = BOT_FAST ? [...exclude, ...HEAVY_BOT_GLOB] : exclude;
 const WORKERS = Math.max(1, Number(process.env.TOLARIA_VITEST_WORKERS ?? 2));
 
 // Filesystem module cache — OFF unless `TOLARIA_VITEST_FS_CACHE` names a
-// directory, which only `health` does (issue #4488; the verdict is in
-// `docs/agents/quality-gates.md` § Filesystem module cache).
+// directory, which no gate does (issue #4488: measured and dropped, the
+// verdict is in `docs/agents/quality-gates.md` § Filesystem module cache).
 const FS_CACHE = fsModuleCacheOptions(process.env);
 const define = buildDefine();
 

@@ -1,3 +1,5 @@
+// `configureVitest` is vitest's augmentation of Vite's `Plugin` type.
+/// <reference types="vitest/config" />
 import type { Plugin } from "vite";
 
 /**
@@ -6,16 +8,16 @@ import type { Plugin } from "vite";
  * `experimental.fsModuleCache` persists each transformed module to disk, so a
  * later vitest invocation reads the transform back instead of re-running
  * Vite's pipeline on it. The spike asked whether that cuts the ~176 s of
- * `transform` the four suites measured (2026-09-24); the verdict and its
- * numbers are in `docs/agents/quality-gates.md` § Filesystem module cache.
+ * `transform` the four suites measured (2026-09-24). Verdict: DROP from every
+ * gate, `health` included — the numbers and why are in
+ * `docs/agents/quality-gates.md` § Filesystem module cache.
  *
- * OFF by default. It is on only when `TOLARIA_VITEST_FS_CACHE` names the
- * directory to keep the cache in — `health-main.ts` sets it, nothing else
- * does, so `check:lane` / `land` / a targeted run are untouched. A path and
- * not a boolean because the default location (`node_modules/.experimental-
- * vitest-cache`) lives inside the worktree, and health's worktree is deleted
- * at the end of every run: the cache would never outlive the cycle that wrote
- * it.
+ * OFF by default, and no script sets it: it is a manual knob kept for the one
+ * re-measurement the verdict names (a stable gate-worktree path).
+ * `TOLARIA_VITEST_FS_CACHE=<dir> bun run test` turns it on, keeping the cache
+ * in `<dir>`. A path and not a boolean because vitest's default location
+ * (`node_modules/.experimental-vitest-cache`) lives inside the worktree, and a
+ * gate worktree is deleted at the end of its run.
  */
 export const VITEST_FS_CACHE_ENV = "TOLARIA_VITEST_FS_CACHE";
 
