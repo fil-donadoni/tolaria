@@ -1,4 +1,4 @@
-import type { CSSProperties } from "react";
+import { useState, type CSSProperties } from "react";
 import { LayoutGroup } from "motion/react";
 import type { Combat, Player, StackItem } from "~/types/game";
 import {
@@ -165,6 +165,10 @@ export default function BoardSurface({
     handInteractive = true,
     rowClassifier,
 }: BoardSurfaceProps) {
+    // Issue #2930 — held here, not in `GameStack`: the desktop mount below
+    // unmounts the panel whenever the stack empties, and a fold kept in the
+    // panel would reset on every new stack run.
+    const [stackCollapsed, setStackCollapsed] = useState(false);
     return (
         <ArrowAnchorProvider>
             <ArrowHighlightProvider>
@@ -455,7 +459,13 @@ export default function BoardSurface({
                         {!isPortrait &&
                             !landscapeCompact &&
                             stackItems.length > 0 && (
-                                <GameStack stack={stackItems} />
+                                <GameStack
+                                    stack={stackItems}
+                                    collapsed={stackCollapsed}
+                                    onToggleCollapse={() =>
+                                        setStackCollapsed((v) => !v)
+                                    }
+                                />
                             )}
                         {/* Our own SVG target arrows (#257):
                     endpoints derive from the shared

@@ -1,15 +1,18 @@
+import type { ReactNode } from "react";
 import type { DragHandlers } from "~/hooks/useDraggable";
 
 type DragHandleProps = {
     label?: string;
     handlers: DragHandlers;
     className?: string;
+    action?: ReactNode;
 };
 
 export default function DragHandle({
     label,
     handlers,
     className = "",
+    action,
 }: DragHandleProps) {
     return (
         <div
@@ -35,6 +38,7 @@ export default function DragHandle({
                     {label}
                 </span>
             )}
+            {action && <span className="ml-auto flex">{action}</span>}
         </div>
     );
 }
