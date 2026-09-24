@@ -662,6 +662,9 @@ describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
                 (m) => "cardInstanceId" in m && m.cardInstanceId === instanceId
             );
             expect(moves.length).toBeGreaterThan(0);
+            // The verdict itself (issue #4282): with the spell to counter on
+            // the stack the search picks the creature at some seat.
+            expect(playBotReach(FLASH_ETB_COUNTER).outcome).toBe("played");
         });
     });
 
