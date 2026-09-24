@@ -249,9 +249,10 @@ Invoke **`grill-with-docs`**, seeded with the Phase 0 manifest and cut line.
 One question per turn, recommended answer stated each time. Drive it to:
 
 - **The acceptance target.** The set's `ready` percentage the rollout commits
-  to — default **80 %**, which is what the acceptance ticket asserts. State the
-  starting percentage and the cumulative `compiles` of the cut line beside it,
-  so the target is arithmetic and not ambition.
+  to — default **80 %**, capped by the arithmetic of the cut (baseline + the
+  cut's cumulative `compiles`): when the hand tail is large the arithmetic IS
+  the target. State the starting percentage and the cumulative `compiles` of
+  the cut line beside it, so the target is arithmetic and not ambition.
 - **The cut line itself** — how far down the rank tickets are cut, and what
   falls to the residue. A gap below `handTailFloor` is residue by default.
 - **Slice ORDER.** By corpus leverage, not by set count: a gap with
@@ -405,11 +406,21 @@ Body: the `hand-tail` names from Phase 0.4, the policy agreed in the grill, and
 the marker each hand-written card owes (`compiler-gap: <fragment> (#issue)` or
 `hand-tail:`, naming an OPEN gap issue — `check:targets` reds on a marker whose
 card is now `ready`, and on one whose residual gaps have risen above the
-floor). `enhancement` + `ready-for-agent` + `area:cards`. It authors nothing by default: it is
-the queue the migration kind drains.
+floor). `enhancement` + `area:cards`, **no `ready-for-agent`**: it authors
+nothing by default, so it is a claim holder and the queue the migration kind
+drains, never a unit of work — labelled, `/next-issue` would pick it and try to
+hand-write the whole tail. **It claims every card it lists**: one `claims` row
+per card (kind `hand-tail`, key = the card name) in `data/grammar-gaps.json`,
+committed with the cluster rows — that, not the body, is what moves a card from
+`unclaimed` to `hand-tail`. A residue of two or more cards is a Grammar Cluster
+to `gaps:sync`, which leaves its body alone.
 
 **One acceptance ticket.** Title `[<CODE>] Acceptance — <target> % ready`.
-Body: the target percentage, the command that proves it
+The target is the ARITHMETIC of the cut: the baseline `ready` plus the summed
+set `compiles` of every gap a cluster claims (the premodern-era sets landed at
+49–57 %, issue #3838). The 80 % default is only reachable when the hand tail is
+small; a target above the arithmetic is a promise no ticket keeps. Body: the
+baseline and target percentages, the command that proves it
 (`bun run oracle:report --set <code>`, header line quoted), `unclaimed == 0`
 via `bun run check:targets`, and the flip of `enforced: true` on the Target's
 row once it holds. **Blocked-by every cluster ticket and the residue ticket** — it
