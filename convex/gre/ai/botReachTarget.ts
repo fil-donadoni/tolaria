@@ -40,6 +40,8 @@ const BASE_CREATURE = "Grizzly Bears";
  *  type, and, unlike a creature, never competes with the spell for the mana
  *  the position gives the holder. */
 const DISCARD_LAND = "Plains";
+/** The opponent's land a land-targeting spell is posed against. */
+const TARGET_LAND = "Forest";
 
 /** Keys a definition may carry and still be a body with nothing else to it: no
  *  ability, no effect, no replacement — a creature the position can place
@@ -167,6 +169,35 @@ function creatureRequirement(def: CardDefinition): TargetRequirement | null {
     return types.includes("Creature") ? req : null;
 }
 
+/** The requirement a single-target LAND spell states, if it is one — a type
+ *  list of exactly Land. Its subtype / supertype / nonbasic clauses are not
+ *  read: the pose is a basic Forest, so a narrower filter is not yet posed. */
+function landRequirement(def: CardDefinition): TargetRequirement | null {
+    const req = def.targetRequirement;
+    if (!req || Array.isArray(req)) return null;
+    const types = Array.isArray(req.type) ? req.type : [req.type];
+    return types.length === 1 && types[0] === "Land" ? req : null;
+}
+
+/** The land a land-targeting spell is cast at. The position's only lands are
+ *  the holder's own (its cost), so with no land on the other side the one
+ *  legal target is the holder's own mana: the Bot declines it, correctly, and
+ *  the verdict read `never-chosen` about a position that never posed the
+ *  question (issue #4262). A land destroyer is posed on the side where it is
+ *  worth casting — the opponent's, or the holder's own for a boon. The land is
+ *  a basic Forest, legal for any plain `Land` target. */
+function landPose(def: CardDefinition, req: TargetRequirement): TargetPose {
+    const owner = favoursItsTarget(def, req) ? "me" : "opp";
+    return {
+        cards:
+            owner === "opp"
+                ? [{ name: TARGET_LAND, owner, zone: "battlefield" }]
+                : [],
+        omitToughnessBoost: false,
+        position: {},
+    };
+}
+
 /** Is the spell's effect on its target a boon, so the holder casts it on ITS
  *  OWN creature rather than the opponent's? The Bot's own sign
  *  (`targetSlotBeneficence`), so the pose and the valuation cannot disagree;
@@ -220,6 +251,8 @@ function narrows(req: TargetRequirement): boolean {
  * the holder).
  */
 export function targetPose(def: CardDefinition): TargetPose {
+    const landReq = landRequirement(def);
+    if (landReq) return landPose(def, landReq);
     const req = creatureRequirement(def);
     if (!req || !narrows(req)) return NO_POSE;
     const name = creatureFor(req);

@@ -191,3 +191,34 @@ describe("what the sweep registered for its own plays never decides the pose", (
         ).toBe(false);
     });
 });
+
+describe("the generated position poses a land target on the opponent's side (issue #4262)", () => {
+    const STONE_RAIN_SHAPE = instant(
+        "land-destroy",
+        { type: "Land" },
+        { types: ["Sorcery"], manaCost: { R: 1, generic: 2 } }
+    );
+    const oppLands = (def: CardDefinition): number =>
+        botReachSpec(def).cards.filter(
+            (c) =>
+                c.owner === "opp" &&
+                c.zone === "battlefield" &&
+                c.name === "Forest"
+        ).length;
+
+    it("gives the opponent a land, so the holder's own mana is not the only target", () => {
+        expect(oppLands(STONE_RAIN_SHAPE)).toBe(1);
+    });
+
+    it("leaves a creature spell's position without one", () => {
+        expect(oppLands(instant("creature", {}))).toBe(0);
+    });
+
+    it("the Bot casts a land destroyer at that land", () => {
+        expect(
+            withTemporaryDefinition(STONE_RAIN_SHAPE, () =>
+                playBotReach(STONE_RAIN_SHAPE)
+            )
+        ).toEqual({ outcome: "played" });
+    });
+});
