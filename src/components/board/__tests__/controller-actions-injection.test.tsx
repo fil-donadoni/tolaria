@@ -11,20 +11,12 @@
 // today's `useControllerActions`, dispatching the same mutation as before.
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, fireEvent, screen } from "@testing-library/react";
-import { GameContext } from "~/hooks/useGameContext";
-import {
-    PendingChoiceBufferContext,
-    type PendingChoiceBuffer,
-} from "~/hooks/usePendingChoiceBuffer";
-import { SkipPhasePrefsContext } from "~/hooks/useSkipPhasePreferences";
-import { MinimizedChoiceContext } from "~/hooks/useMinimizedChoice";
-import { DEFAULT_SKIP_PREFS } from "~/lib/skip-phase-prefs";
+import { withBoardContext } from "~/lib/testing/board-context";
 import {
     ControllerActionsContext,
     type ControllerActionsSource,
 } from "~/hooks/controllerActionsContext";
 import type { ControllerState } from "~/hooks/useControllerActions";
-import type { Player } from "~/types/game";
 
 const calls: { ref: unknown; args: unknown }[] = [];
 
@@ -56,22 +48,6 @@ const { default: ControllerBottomBar } =
 const { default: ControllerLandscapeStrip } =
     await import("../controller-landscape-strip");
 
-function makePlayer(overrides: Partial<Player> = {}): Player {
-    return {
-        id: "me",
-        name: "me",
-        bgColor: "#000",
-        life: 20,
-        hand: [],
-        library: [],
-        graveyard: [],
-        exile: [],
-        battlefield: [],
-        manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
-        ...overrides,
-    };
-}
-
 const STUB_LABEL = "Provider-injected action";
 
 function stubState(): ControllerState {
@@ -97,58 +73,13 @@ function stubState(): ControllerState {
     };
 }
 
-const noopMinimized = {
-    isMinimized: false,
-    minimize: () => {},
-    restore: () => {},
-};
-
-const noopBuffer: PendingChoiceBuffer = {
-    buffer: [],
-    toggle: () => {},
-    clear: () => {},
-    submit: async () => {},
-    isPending: false,
-    lastError: null,
-    reportError: () => {},
-    dismissError: () => {},
-};
-
 type Layout = React.ComponentType<{ onOpenMenu: () => void }>;
 
 function renderLayout(Layout: Layout, source?: ControllerActionsSource) {
-    const value = {
-        gameId: "game-id" as never,
-        playerId: "me",
-        activePlayerId: "me",
-        priorityPlayerId: "me",
-        phase: "PRECOMBAT_MAIN",
-        turn: 1,
-        engineTurn: 1,
-        stackCount: 0,
-        stackItems: [],
-        allPlayers: [makePlayer()],
-        showAllCards: false,
-        debugAllActions: false,
-        onSwitchGame: () => {},
-    } as React.ContextType<typeof GameContext>;
-    const body = (
-        <GameContext value={value}>
-            <SkipPhasePrefsContext
-                value={{
-                    prefs: DEFAULT_SKIP_PREFS,
-                    toggle: () => {},
-                    reset: () => {},
-                }}
-            >
-                <PendingChoiceBufferContext value={noopBuffer}>
-                    <MinimizedChoiceContext value={noopMinimized}>
-                        <Layout onOpenMenu={() => {}} />
-                    </MinimizedChoiceContext>
-                </PendingChoiceBufferContext>
-            </SkipPhasePrefsContext>
-        </GameContext>
-    );
+    const body = withBoardContext(<Layout onOpenMenu={() => {}} />, {
+        ctx: { onSwitchGame: () => {} },
+        skipPhaseToggle: () => {},
+    });
     return render(
         source ? (
             <ControllerActionsContext value={source}>

@@ -6,15 +6,14 @@
 //      and that each rendered action button dispatches the SAME mutation as the
 //      old action bar, with the SAME args.
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { render, fireEvent, screen } from "@testing-library/react";
-import { GameContext } from "~/hooks/useGameContext";
+import { fireEvent, screen } from "@testing-library/react";
 import {
-    PendingChoiceBufferContext,
-    type PendingChoiceBuffer,
-} from "~/hooks/usePendingChoiceBuffer";
-import { SkipPhasePrefsContext } from "~/hooks/useSkipPhasePreferences";
-import { DEFAULT_SKIP_PREFS } from "~/lib/skip-phase-prefs";
-import type { Player } from "~/types/game";
+    makeTestPlayer,
+    noopPendingChoiceBuffer,
+    renderWithBoardContext,
+    type GameContextValue,
+} from "~/lib/testing/board-context";
+import type { PendingChoiceBuffer } from "~/hooks/usePendingChoiceBuffer";
 
 const calls: { ref: unknown; args: unknown }[] = [];
 
@@ -55,75 +54,21 @@ vi.mock("../controller-phase-panel", () => ({
 
 const { default: ControllerPod } = await import("../controller-pod");
 
-function makePlayer(overrides: Partial<Player> = {}): Player {
-    return {
-        id: "me",
-        name: "me",
-        bgColor: "#000",
-        life: 20,
-        hand: [],
-        library: [],
-        graveyard: [],
-        exile: [],
-        battlefield: [],
-        manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
-        ...overrides,
-    };
-}
-
-const noopBuffer: PendingChoiceBuffer = {
-    buffer: [],
-    toggle: () => {},
-    clear: () => {},
-    submit: async () => {},
-    isPending: false,
-    lastError: null,
-    reportError: () => {},
-    dismissError: () => {},
-};
-
-type CtxOverrides = Partial<React.ContextType<typeof GameContext>>;
+type CtxOverrides = Partial<GameContextValue>;
 
 function renderPod(
     ctx: CtxOverrides = {},
     extra: {
         buffer?: PendingChoiceBuffer;
-        pendingChoices?: NonNullable<
-            React.ContextType<typeof GameContext>
-        >["pendingChoices"];
+        pendingChoices?: GameContextValue["pendingChoices"];
     } = {}
 ) {
-    const value = {
-        gameId: "game-id" as never,
-        playerId: "me",
-        activePlayerId: "me",
-        priorityPlayerId: "me",
-        phase: "PRECOMBAT_MAIN",
-        turn: 1,
-        engineTurn: 1,
-        stackCount: 0,
-        stackItems: [],
-        allPlayers: [makePlayer()],
-        showAllCards: false,
-        debugAllActions: false,
-        pendingChoices: extra.pendingChoices,
-        ...ctx,
-    } as React.ContextType<typeof GameContext>;
-    return render(
-        <GameContext value={value}>
-            <SkipPhasePrefsContext
-                value={{
-                    prefs: DEFAULT_SKIP_PREFS,
-                    toggle: () => {},
-                    reset: () => {},
-                }}
-            >
-                <PendingChoiceBufferContext value={extra.buffer ?? noopBuffer}>
-                    <ControllerPod onOpenMenu={() => {}} />
-                </PendingChoiceBufferContext>
-            </SkipPhasePrefsContext>
-        </GameContext>
-    );
+    return renderWithBoardContext(<ControllerPod onOpenMenu={() => {}} />, {
+        ctx: { pendingChoices: extra.pendingChoices, ...ctx },
+        buffer: extra.buffer,
+        skipPhaseToggle: () => {},
+        minimizedChoice: false,
+    });
 }
 
 function pressSpace() {
@@ -155,7 +100,7 @@ describe("ControllerPod Space hotkey", () => {
         renderPod(
             {
                 allPlayers: [
-                    makePlayer({
+                    makeTestPlayer({
                         manaPool: { W: 0, U: 0, B: 0, R: 1, G: 0, C: 0 },
                     }),
                 ],
@@ -224,7 +169,7 @@ describe("ControllerPod Space hotkey", () => {
                         prompt: "Choose a permanent.",
                     },
                 ],
-                buffer: { ...noopBuffer, buffer: ["c1"], submit },
+                buffer: { ...noopPendingChoiceBuffer, buffer: ["c1"], submit },
             }
         );
         pressSpace();
@@ -249,7 +194,7 @@ describe("ControllerPod Space hotkey", () => {
                         prompt: "Choose a permanent.",
                     },
                 ],
-                buffer: { ...noopBuffer, buffer: [], submit },
+                buffer: { ...noopPendingChoiceBuffer, buffer: [], submit },
             }
         );
         pressSpace();
@@ -386,7 +331,7 @@ describe("ControllerPod render beats", () => {
         renderPod({
             phase: "COMBAT_DAMAGE",
             allPlayers: [
-                makePlayer({
+                makeTestPlayer({
                     battlefield: [
                         { id: "a1", power: 2, toughness: 2 } as never,
                     ],
