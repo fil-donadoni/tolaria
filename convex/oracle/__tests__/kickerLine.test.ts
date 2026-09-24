@@ -76,6 +76,22 @@ describe("Kicker line — golden fixtures (CR 702.33a–c)", () => {
         ]);
     });
 
+    it("variable X (CR 107.3a): Kicker {X} carries the X marker (Verdeloth the Ancient)", () => {
+        expect(kickersOf("Kicker {X}")).toEqual([
+            { id: "kicker", description: "Kicker {X}", mana: { X: "X" } },
+        ]);
+    });
+
+    it("variable X beside a fixed part: Kicker {X}{2} (Kangee, Aerie Keeper)", () => {
+        expect(kickersOf("Kicker {X}{2}")).toEqual([
+            {
+                id: "kicker",
+                description: "Kicker {X}{2}",
+                mana: { X: "X", generic: 2 },
+            },
+        ]);
+    });
+
     it("and/or (CR 702.33b): two kickers, each named for its colours", () => {
         // Anavolver's line. The ids are the catalogue's own convention —
         // Nightscape Battlemage writes "kicker-u" / "kicker-r".
@@ -600,14 +616,8 @@ describe("Kicker gold over the hand-written catalogue", () => {
         }
         // Arctic Merfolk's "Return a creature you control to its owner's hand"
         // is a cost leg the shared cost grammar does not read (it reads a
-        // return of the SOURCE only). Verdeloth the Ancient's "Kicker {X}" is
-        // refused by `payableKickerMana` until the grammar reads a variable
-        // kicker — the engine pays one since issue #2141; the rule is the
-        // Grammar Gap of issue #4318.
-        expect(refused.sort()).toEqual([
-            "Arctic Merfolk",
-            "Verdeloth the Ancient",
-        ]);
+        // return of the SOURCE only).
+        expect(refused.sort()).toEqual(["Arctic Merfolk"]);
         expect(accepted).toBeGreaterThan(40);
     });
 });
@@ -616,7 +626,10 @@ describe("Kicker refusals — grammar", () => {
     const ctx = parseContext();
 
     it.each([
-        ["Kicker {X}", "X with no announcement (CR 107.3)"],
+        ["Kicker {X}{X}", "a repeated X pip"],
+        ["Kicker {X} and/or {B}", "a variable X in an and/or pair"],
+        ["Multikicker {X}", "a variable X on a Multikicker"],
+        ["Kicker—{X}, Sacrifice a land.", "a variable X beside a non-mana leg"],
         ["Kicker {W/U}", "hybrid pip"],
         ["Kicker {1}{U} and/or {B} and/or {G}", "three costs"],
         ["Kicker {1}{U} and/or Pay 3 life", "a non-mana cost in an and/or"],
