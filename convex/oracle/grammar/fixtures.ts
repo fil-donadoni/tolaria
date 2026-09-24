@@ -3231,7 +3231,7 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
-    // CR 109.5 + CR 608.2h (issue #4313) — "{self} deals N damage to that
+    // CR 110.2 + CR 608.2h (issue #4313) — "{self} deals N damage to that
     // creature's controller". Exhibits the "player parameter is a ref" form
     // twice over: the canned smoke scenario cannot know whom a snapshot or an
     // announced object's controller will be, so these fixtures are the evidence

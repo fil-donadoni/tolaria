@@ -2617,7 +2617,7 @@ function effectSentence(
         const sweep = damage[3]!.startsWith("each ")
             ? keywordExcludedSweepRule.run(damage[3]!, ctx)
             : null;
-        // CR 109.5 + CR 608.2h — "that creature's controller": the player who
+        // CR 110.2 + CR 608.2h — "that creature's controller": the player who
         // controls the creature an earlier sentence targeted. Read as one exact
         // phrase; the referent is the lowering's to check.
         const to: RuleResult<SubjectIR> =

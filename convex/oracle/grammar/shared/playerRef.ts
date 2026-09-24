@@ -38,7 +38,7 @@ export type PlayerRefIR =
      */
     | { readonly kind: "that-opponent" }
     /**
-     * CR 109.5 + CR 608.2h — "that creature's controller": the controller of
+     * CR 110.2 + CR 608.2h — "that creature's controller": the controller of
      * the ONE creature the spell announced as its target. Never in `PHRASES`:
      * only the damage recipient reads it (`effectClause.ts` — the corpus
      * prints no other verb under it that a fixture pins), so every other verb

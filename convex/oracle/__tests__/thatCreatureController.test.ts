@@ -1,6 +1,6 @@
 // "{self} deals N damage to that creature's controller" — the damage recipient
 // that names the controller of the ONE creature an earlier sentence targeted
-// (CR 109.5 + CR 608.2h), issue #4313.
+// (CR 110.2 + CR 608.2h), issue #4313.
 //
 // Two layers:
 //
@@ -72,7 +72,7 @@ function compiled(card: OracleCard) {
 const ONE_CREATURE = { type: "Creature", count: 1 };
 const LIVE_CONTROLLER = { player: { controllerOf: { target: 0 } } };
 
-describe("that creature's controller as a damage recipient (CR 109.5, issue #4313)", () => {
+describe("that creature's controller as a damage recipient (CR 110.2, issue #4313)", () => {
     it("Blur of Blades: a counter leaves the creature, so its controller is read live", () => {
         expect(sortKeys(compiled(BLUR_OF_BLADES))).toEqual(
             sortKeys({

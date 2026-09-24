@@ -2303,7 +2303,7 @@ function countWord(n: number): string {
 }
 
 /**
- * CR 109.5 + CR 608.2h — "that creature's controller" as a damage recipient.
+ * CR 110.2 + CR 608.2h — "that creature's controller" as a damage recipient.
  *
  * Read only when the spell announced exactly ONE target and it is a single
  * creature: with two announced objects "that creature" could name either, and
