@@ -56,6 +56,9 @@ export default defineConfig({
         maxWorkers: WORKERS,
         minWorkers: 1,
         globals: true,
+        // Same rule as `vitest.config.ts` (issue #4492): a block that reaches
+        // no `expect` fails.
+        expect: { requireAssertions: true },
         environment: "node",
         include: ["convex/gre/ai/blade/__tests__/**/*.spec.ts"],
         exclude: ["**/node_modules/**", "**/dist/**"],

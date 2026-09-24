@@ -260,6 +260,12 @@ export default defineConfig({
     test: {
         ...FS_CACHE,
         globals: true,
+        // No block passes without asserting (issue #4492): a test whose body
+        // reaches no `expect` fails instead of reporting green. Every project
+        // below `extends: true`, so this one key covers them all; an
+        // assertion made inside a helper counts, since the helper's `expect`
+        // is bound to the running test.
+        expect: { requireAssertions: true },
         maxWorkers: WORKERS,
         minWorkers: 1,
         // Longest project first, each project's files contiguous, longest

@@ -569,28 +569,32 @@ describe("casting flow — cancelCast rollback (CR 601.2)", () => {
             card: PLAINS_CARD,
             zone: "battlefield",
         });
-        const lions = makeCard({
-            id: "lions",
-            card: SAVANNAH_LIONS_CARD,
+        // Armageddon costs four, so one Plains leaves the cast pending.
+        const arma = makeCard({
+            id: "arma",
+            card: ARMAGEDDON_CARD,
             zone: "hand",
         });
         const state = makeGameState({
             players: [
                 makePlayer({
                     id: "p1",
-                    hand: [lions],
+                    hand: [arma],
                     battlefield: [preTapped, fresh],
-                    manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
                 }),
                 makePlayer({ id: "p2" }),
             ],
         });
 
-        announceCast(state, "p1", "lions");
+        announceCast(state, "p1", "arma");
         tapForPayment(state, "p1", "fresh");
-        // This would commit, but let's test cancel with a different scenario
-        // Actually this commits because Lions costs {W} and we just tapped 1 Plains
-        // Use a more expensive spell instead — tested above with Armageddon
+        expect(state.pendingCast).toBeDefined();
+
+        cancelCast(state, "p1");
+
+        // The rollback untaps only what THIS cast tapped.
+        expect(fresh.isTapped).toBe(false);
+        expect(preTapped.isTapped).toBe(true);
     });
 });
 
