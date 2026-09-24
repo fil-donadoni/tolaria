@@ -204,29 +204,38 @@ const AND_OR = " and/or ";
 /**
  * A kicker's MANA cost, read by the shared mana reader.
  *
- * Narrower than a printed mana cost in three places, each an engine fact
- * rather than a grammar one: the kicker payment path (`gre/kicker.ts`) pays a
- * fixed `ManaCost` and announces no X of its own (CR 107.3 — "Kicker {X}"
- * would need one), and neither Phyrexian nor hybrid pips are exercised on it
- * by any hand-written kicker. A cost the path might mis-pay is refused rather
+ * Narrower than a printed mana cost in one place, an engine fact rather than
+ * a grammar one: neither Phyrexian nor hybrid pips are exercised on the kicker
+ * payment path by any hand-written kicker. A variable {X} is read as-is: the
+ * caster announces one X shared by the mana cost and the kicker (CR 107.3a,
+ * `paidKickersAnnounceX`). A cost the path might mis-pay is refused rather
  * than compiled into a kicker that is free, or unpayable, in play.
  */
-function kickerMana(printed: string): RuleResult<ManaCost> {
+function kickerMana(
+    printed: string,
+    allowVariableX = false
+): RuleResult<ManaCost> {
     if (!printed.startsWith("{"))
         return fail("a kicker mana cost is a run of mana symbols", printed);
     const read = readManaCost(printed);
     if (!read.ok) return fail(read.reason, read.fragment);
-    return payableKickerMana(read.cost, printed);
+    return payableKickerMana(read.cost, printed, allowVariableX);
 }
 
 /** The engine-side half of {@link kickerMana}, for an already-read cost. */
 function payableKickerMana(
     cost: ManaCost,
-    fragment: string
+    fragment: string,
+    allowVariableX: boolean
 ): RuleResult<ManaCost> {
-    if (cost.X === "X")
+    if (cost.X === "X" && !allowVariableX)
         return fail(
-            "a kicker cost with {X} announces no X (CR 107.3)",
+            "a variable {X} is read only on a single plain kicker cost (CR 107.3a)",
+            fragment
+        );
+    if (cost.xFactor !== undefined)
+        return fail(
+            "a kicker cost repeating {X} is not exercised on the kicker payment path",
             fragment
         );
     if (cost.phyrexian !== undefined || cost.hybrid !== undefined)
@@ -257,7 +266,7 @@ function dashKicker(body: string, ctx: unknown): RuleResult<KickerIR> {
     for (const atom of parsed.value.atoms) {
         switch (atom.kind) {
             case "mana": {
-                const mana = payableKickerMana(atom.mana, body);
+                const mana = payableKickerMana(atom.mana, body, false);
                 if (!mana.ok) return mana;
                 legs.mana = mana.value;
                 break;
@@ -333,7 +342,7 @@ export const kickerRule: Rule<SlotIR> = rule("kicker", (span, ctx) => {
         );
     const kickers: KickerIR[] = [];
     for (const printed of costs) {
-        const mana = kickerMana(printed);
+        const mana = kickerMana(printed, costs.length === 1);
         if (!mana.ok) return mana;
         kickers.push({
             description: `Kicker ${printed}`,
