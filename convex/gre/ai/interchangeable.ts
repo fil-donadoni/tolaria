@@ -51,6 +51,7 @@ import type { ManaTap, Move } from "../moves";
  *  references inside a plan are order-free. */
 type RefGroup = "tap";
 import type { CardInstanceState, GameState } from "../state";
+import { assertNever } from "../assertNever";
 
 /** The two fields the descriptor does NOT compare verbatim.
  *
@@ -279,6 +280,8 @@ export function mapMoveCardRefs(
                     attackerId: one(a.attackerId),
                 })),
             };
+        default:
+            return assertNever(move, "Move kind in mapMoveCardRefs");
     }
 }
 

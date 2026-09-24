@@ -202,6 +202,7 @@ import {
     isTransientOnlyAbility,
     spendsStandingPermanent,
 } from "./ai/abilityTiming";
+import { assertNever } from "./assertNever";
 // Root-decision telemetry (issue #1893, map #1892) — off by default.
 import {
     getRootDecisionSink,
@@ -943,11 +944,12 @@ export function applyMoveInSearch(
             // the two choices had no candidate generator, so `enumerateMoves`
             // returned nothing while one was the head choice and no move of
             // either kind was ever built. Now that they ARE decision nodes,
-            // the decline is a branch the tree plays — and this switch has no
-            // `default`, so without these cases it would apply NOTHING: the
-            // choice would stay at the head of the queue, the same node would
-            // be re-expanded, and the playout would spin on it instead of
-            // moving past the window.
+            // the decline is a branch the tree plays — and this switch then
+            // had no `default` (issue #4441 added the `assertNever` tail), so
+            // without these cases it applied NOTHING: the choice would stay
+            // at the head of the queue, the same node would be re-expanded,
+            // and the playout would spin on it instead of moving past the
+            // window.
             //
             // Applied through the SAME pure resolvers the two decline
             // mutations drive (`declineMadness` / `declineRebound`,
@@ -1770,6 +1772,25 @@ export function applyMoveInSearch(
             checkStateBasedActions(state);
             return;
         }
+
+        case "mulligan-bottom":
+        case "name-card":
+            // Issue #4441 — neither kind is a search decision, and nothing
+            // under `convex/gre` constructs either Move. `mulligan-bottom`:
+            // `decidingPlayer` returns null while `mulligan.bottoming`, so the
+            // search never runs on that window. `name-card`: no engine Move
+            // constructor exists. The Brain answers both outside the tree —
+            // `mulligan-bottom` in its pre-game mulligan branch, `name-card`
+            // with the view's `nameCardDefault` (`src/lib/ai/brain.ts`). So
+            // one reaching this switch is a wiring
+            // bug upstream, and applying nothing would leave the choice at the
+            // queue head and spin the playout on it — refuse it loudly instead.
+            throw new Error(
+                `applyMoveInSearch: "${move.kind}" is answered by the Brain, never in-tree (issue #4441)`
+            );
+
+        default:
+            return assertNever(move, "Move kind in applyMoveInSearch");
     }
 }
 

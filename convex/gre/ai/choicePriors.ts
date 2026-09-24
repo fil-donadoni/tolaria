@@ -27,6 +27,7 @@
 import type { CardInstanceState, GameState, PendingChoice } from "../state";
 import { getOpponentId, getPlayer } from "../state";
 import type { Move } from "../moves";
+import { assertNever } from "../assertNever";
 import type { Color } from "../../cards/types";
 import {
     contextAwareGroundingForChoice,
@@ -356,8 +357,47 @@ export function heuristicChoicePrior(
         case "draw-replacement":
             // Denying an UNKNOWN card for life: speculative, opens second.
             return accept ? clampPrior(0.35 - lifeDrag) : 0.65;
-        default:
+        // Issue #4441 — every other kind is listed, so a NEW `PendingChoiceKind`
+        // reds `check:ts` here until its author decides its prior rather than
+        // inheriting the flat one by omission. None of these has an accept /
+        // decline shape or a structural hint this function reads: a numeric
+        // nomination is flat on purpose (issue #1701, above); the rest are
+        // zone / player / pile / order picks whose candidates carry no signed
+        // hint yet, or kinds the Brain answers outside the tree.
+        case "keep-permanents":
+        case "sacrifice-permanents":
+        case "keep-hand":
+        case "pick-source":
+        case "untap-pick":
+        case "discard-hand":
+        case "reorder-library":
+        case "reveal-hand":
+        case "choose-permanents":
+        case "partition":
+        case "choose-hand-card":
+        case "choose-graveyard-card":
+        case "choose-exile-card":
+        case "choose-library-card":
+        case "choose-damage-target":
+        case "choose-player":
+        case "draw-look-keep":
+        case "look-distribute":
+        case "choose-categorized":
+        case "legend-keep":
+        case "choose-aura-host":
+        case "mulligan-bottom":
+        case "trigger-order":
+        case "name-card":
+        case "random-reveal":
+        case "divide-piles":
+        case "pick-pile":
+        case "number-pick":
             return NEUTRAL_PRIOR;
+        default:
+            return assertNever(
+                choice.kind,
+                "PendingChoiceKind in heuristicChoicePrior"
+            );
     }
 }
 
