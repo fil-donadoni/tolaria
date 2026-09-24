@@ -72,7 +72,7 @@ export const coalitionHonorGuard: CardDefinition = {
 // makes the host answer the requirement: `satisfiesTargetChoiceRequirement`
 // matches the LIVE, layer-materialized subtypes, so an enchanted vanilla
 // creature is as good a Flagbearer as a printed one.
-// compiler-gap: "Enchanted creature is a Flagbearer." (#3795)
+// hand-tail: Enchanted creature is a Flagbearer. (#4365)
 export const coalitionFlag: CardDefinition = {
     id: "0e417461-a230-4548-bcc1-71377487f21b", // APC 2
     rarity: "uncommon",

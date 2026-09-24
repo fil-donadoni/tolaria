@@ -83,9 +83,7 @@ export const dragonArch: CardDefinition = {
 //    included when Golem is chosen; a live `pt-buff` predicate, so a creature
 //    whose types change later (layer 4 before 7c) is read on the next pass.
 //
-// compiler-gap: As this creature enters, choose a creature type. (#2693)
-// compiler-gap: When this creature enters, reveal the top four cards of your library. Put all creature cards of the chosen type revealed this way into your hand and the rest on the bottom of your library in any order. (#2693)
-// compiler-gap: Creatures of the chosen type get +1/+1. (#2693)
+// hand-tail: Creatures of the chosen type get +1/+1. (#4446)
 export const brassHerald: CardDefinition = {
     id: "89bd60a7-2ba4-4fce-bf74-2ea9b8fd4dbe", // APC 133
     name: "Brass Herald",
