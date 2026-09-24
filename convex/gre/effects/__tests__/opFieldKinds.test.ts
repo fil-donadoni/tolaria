@@ -1,7 +1,7 @@
 // Resolved-script characterisation of the Ops whose FIELD reading the
 // field-kind derivation (issue #4451) will move (issue #4477).
 //
-// Two groups, measured 2026-09-24:
+// Three groups, measured 2026-09-24:
 //   - the seven Ops no generated smoke run reaches and at most one test file
 //     exercises: `exileTopOfLibrary`, `lockDamage`, `rangedTopdeck`,
 //     `restrictActivation`, `reduceSpellCostThisTurn`, `grantManaSubstitution`,
@@ -9,7 +9,9 @@
 //   - the Ops whose only direct test was the interpreter file AND that declare
 //     a binding or read an amount: `discardAtRandom`, `digMatchingToHand`,
 //     `revealTopAndRoute`, `setBasePT` (plus `exileTopOfLibrary` and
-//     `rangedTopdeck` above).
+//     `rangedTopdeck` above);
+//   - the Ops no test named at all (every test reached them through one
+//     card): `grantCastTiming`, `grantSpellManaSubstitution`, `redirectDamage`.
 //
 // Each test feeds the field in the shape the derivation must classify — an
 // amount as a COMPUTED `EffectValue` (never the literal the interpreter file
@@ -20,7 +22,7 @@
 
 import { describe, expect, it } from "vitest";
 import type { CardDefinition, EffectOp } from "../../../cards/types";
-import { registerTokenDefinition } from "../../../cards";
+import { getDefinition, registerTokenDefinition } from "../../../cards";
 import {
     makeInstance,
     makePlayer,
@@ -28,6 +30,7 @@ import {
     pushSpell,
 } from "../../../cards/__tests__/setup";
 import {
+    getCastManaSubstitutions,
     getCostModifiers,
     getManaSubstitutions,
     isManaCostCovered,
@@ -39,6 +42,7 @@ import { replaceProducedManaColor } from "../../constants";
 import { applyPendingChoiceSubmit } from "../../pendingChoiceSubmit";
 import { activateAbilityOnState } from "../../activation";
 import { getEffectivePower, getEffectiveToughness } from "../../layers";
+import { getLegalActions } from "../../rules";
 
 /** A 2/5 vanilla Bear, mana value 2 ({1}{G}) — the number every bound-object
  *  read below expects to see (CR 202.3). */
@@ -94,6 +98,17 @@ registerTokenDefinition({
     rarity: "common",
     manaCost: { X: 3 },
     types: ["Artifact"],
+});
+
+/** A {R} sorcery held in hand, for the cast-timing and spell-mana grants. */
+const HELD_SORCERY_ID = "test-field-kinds-held-sorcery";
+registerTokenDefinition({
+    id: HELD_SORCERY_ID,
+    name: HELD_SORCERY_ID,
+    rarity: "common",
+    manaCost: { R: 1 },
+    types: ["Sorcery"],
+    effects: [{ op: "gainLife", player: "controller", amount: 1 }],
 });
 
 /** Registers a synthetic sorcery under a stable test id, through the same
@@ -563,5 +578,139 @@ describe("setBasePT — the power and toughness amounts (CR 613.4b)", () => {
         const bear = state.players[1].battlefield[0];
         expect(getEffectivePower(state, bear)).toBe(7);
         expect(getEffectiveToughness(state, bear)).toBe(1);
+    });
+});
+
+describe("grantCastTiming — the announced player slot and the card-type list (CR 601.3b)", () => {
+    it("the targeted player may cast a Sorcery on the other player's turn; the caster still may not", () => {
+        const id = registerScript(
+            "test-fk-grant-cast-timing",
+            [
+                {
+                    op: "grantCastTiming",
+                    player: { target: 0 },
+                    cardTypes: ["Sorcery"],
+                },
+            ],
+            PLAYER_TARGET
+        );
+        const pool = { W: 0, U: 0, B: 0, R: 1, G: 0, C: 0 };
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    hand: [card(HELD_SORCERY_ID, "p1", "mine", "hand")],
+                    manaPool: { ...pool },
+                }),
+                makePlayer("p2", {
+                    hand: [card(HELD_SORCERY_ID, "p2", "theirs", "hand")],
+                    manaPool: { ...pool },
+                }),
+            ],
+            activePlayerId: "p1",
+            priorityPlayerId: "p2",
+        });
+        const theirs = state.players[1].hand[0];
+        expect(getLegalActions(state, state.players[1], theirs)).not.toContain(
+            "cast"
+        );
+        pushSpell(state, id, "p1", [{ type: "player", id: "p2" }]);
+        resolveTopOfStack(state);
+        state.priorityPlayerId = "p2";
+        expect(getLegalActions(state, state.players[1], theirs)).toContain(
+            "cast"
+        );
+        // Next turn is p2's: now p1 is the non-active player, and holds no grant.
+        state.activePlayerId = "p2";
+        state.priorityPlayerId = "p1";
+        const mine = state.players[0].hand[0];
+        expect(getLegalActions(state, state.players[0], mine)).not.toContain(
+            "cast"
+        );
+    });
+});
+
+describe("grantSpellManaSubstitution — the announced player slot and the breadth (CR 609.4b)", () => {
+    it("the targeted player's next spell may be paid with mana of any COLOUR — never colourless", () => {
+        const id = registerScript(
+            "test-fk-grant-spell-substitution",
+            [
+                {
+                    op: "grantSpellManaSubstitution",
+                    player: { target: 0 },
+                    breadth: "any-color",
+                },
+            ],
+            PLAYER_TARGET
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    hand: [card(HELD_SORCERY_ID, "p1", "mine", "hand")],
+                }),
+                makePlayer("p2", {
+                    hand: [card(HELD_SORCERY_ID, "p2", "theirs", "hand")],
+                }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "player", id: "p2" }]);
+        resolveTopOfStack(state);
+        const theirs = getCastManaSubstitutions(
+            state,
+            state.players[1],
+            "theirs",
+            getDefinition(HELD_SORCERY_ID),
+            { R: 1 }
+        );
+        expect(theirs.length).toBeGreaterThan(0);
+        // "any-color", not "any-type": colourless is not a colour (CR 105.1).
+        expect(theirs.some((s) => s.to === "C")).toBe(false);
+        expect(
+            getCastManaSubstitutions(
+                state,
+                state.players[0],
+                "mine",
+                getDefinition(HELD_SORCERY_ID),
+                { R: 1 }
+            )
+        ).toEqual([]);
+    });
+});
+
+describe("redirectDamage — the two recipient slots and a computed amount (CR 614.9)", () => {
+    it("the next N damage to the first target — N computed — is dealt to the second instead", () => {
+        const redirect = registerScript(
+            "test-fk-redirect",
+            [
+                {
+                    op: "redirectDamage",
+                    from: { target: 0 },
+                    to: { target: 1 },
+                    amount: CASTER_PERMANENTS,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
+            { targetRequirement: { type: "any", count: 2 } }
+        );
+        const burn = registerScript(
+            "test-fk-redirect-burn",
+            [{ op: "dealDamage", amount: 3, to: { target: 0 } }],
+            PLAYER_TARGET
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: bears("p1", 2) }),
+                makePlayer("p2", { battlefield: bears("p2", 1) }),
+            ],
+        });
+        pushSpell(state, redirect, "p1", [
+            { type: "player", id: "p1" },
+            { type: "permanent", id: "p2-bear0" },
+        ]);
+        resolveTopOfStack(state);
+        pushSpell(state, burn, "p2", [{ type: "player", id: "p1" }]);
+        resolveTopOfStack(state);
+        // N = the caster's two permanents: 2 of the 3 move, 1 stays.
+        expect(state.players[1].battlefield[0].damageMarked).toBe(2);
+        expect(state.players[0].life).toBe(19);
     });
 });
