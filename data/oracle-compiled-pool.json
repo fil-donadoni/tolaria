@@ -101090,6 +101090,63 @@
         "setCode": "fdn"
     },
     {
+        "name": "Imagecrafter",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Wizard"
+        ],
+        "manaCost": {
+            "U": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "{T}: Choose a creature type other than Wall. Target creature becomes that type until end of turn.",
+        "activatedAbilities": [
+            {
+                "id": "imagecrafter-ability",
+                "oracleText": "{T}: Choose a creature type other than Wall. Target creature becomes that type until end of turn.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "chooseCreatureType",
+                        "player": "controller",
+                        "prompt": "Choose a creature type other than Wall.",
+                        "bind": "$chosenType",
+                        "exclude": [
+                            "Wall"
+                        ]
+                    },
+                    {
+                        "op": "setSubtype",
+                        "target": {
+                            "target": 0
+                        },
+                        "subtypes": {
+                            "ref": "$chosenType"
+                        },
+                        "family": "creature",
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "91be6441-8a45-43e4-8d12-a886dcaadbd3",
+        "rarity": "common",
+        "setCode": "ons"
+    },
+    {
         "name": "Sun-Dappled Celebrant",
         "types": [
             "Creature"
@@ -111925,6 +111982,67 @@
         "id": "a258a235-086e-429b-9ac1-3178f902658b",
         "rarity": "common",
         "setCode": "m12"
+    },
+    {
+        "name": "Mistform Mutant",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Illusion",
+            "Mutant"
+        ],
+        "manaCost": {
+            "X": 4,
+            "U": 2
+        },
+        "power": 3,
+        "toughness": 4,
+        "oracleText": "{1}{U}: Choose a creature type other than Wall. Target creature becomes that type until end of turn.",
+        "activatedAbilities": [
+            {
+                "id": "mistform-mutant-ability",
+                "oracleText": "{1}{U}: Choose a creature type other than Wall. Target creature becomes that type until end of turn.",
+                "cost": {
+                    "mana": {
+                        "X": 1,
+                        "U": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "chooseCreatureType",
+                        "player": "controller",
+                        "prompt": "Choose a creature type other than Wall.",
+                        "bind": "$chosenType",
+                        "exclude": [
+                            "Wall"
+                        ]
+                    },
+                    {
+                        "op": "setSubtype",
+                        "target": {
+                            "target": 0
+                        },
+                        "subtypes": {
+                            "ref": "$chosenType"
+                        },
+                        "family": "creature",
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "a25b2697-5d7f-490a-8474-c775096e681e",
+        "rarity": "uncommon",
+        "setCode": "ons"
     },
     {
         "name": "Watercourser",
