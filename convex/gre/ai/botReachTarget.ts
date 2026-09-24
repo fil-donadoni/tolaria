@@ -186,7 +186,7 @@ function creatureFor(req: TargetRequirement): CardDefinition | null {
         if (
             found === null ||
             rank < found.rank ||
-            (rank === found.rank && def.name < found.name)
+            (rank === found.rank && def.name < found.def.name)
         )
             found = { def, rank };
     }
