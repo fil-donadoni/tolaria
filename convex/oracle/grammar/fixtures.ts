@@ -3231,4 +3231,73 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 109.5 + CR 608.2h (issue #4313) — "{self} deals N damage to that
+    // creature's controller". Exhibits the "player parameter is a ref" form
+    // twice over: the canned smoke scenario cannot know whom a snapshot or an
+    // announced object's controller will be, so these fixtures are the evidence
+    // that the recipient the grammar emits is right — the `bind` snapshot when
+    // the earlier sentence removes the creature (Consign to the Pit), the live
+    // `controllerOf` slot read when it stays (Blur of Blades).
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "b0c50079-5376-47ff-82c5-d52dbf49afdf",
+            name: "Consign to the Pit",
+            manaCost: "{5}{B}",
+            typeLine: "Sorcery",
+            oracleText:
+                "Destroy target creature. Consign to the Pit deals 2 damage to that creature's controller.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Consign to the Pit",
+            types: ["Sorcery"],
+            manaCost: { X: 5, B: 1 },
+            oracleText:
+                "Destroy target creature. Consign to the Pit deals 2 damage to that creature's controller.",
+            effects: [
+                { op: "destroy", target: { target: 0 }, bind: "$that1" },
+                {
+                    op: "dealDamage",
+                    amount: 2,
+                    to: { player: { ref: "$that1.controller" } },
+                },
+            ],
+            targetRequirement: { type: "Creature", count: 1 },
+        },
+    },
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "65410f7a-c749-4b23-ad61-8a7136efcad2",
+            name: "Blur of Blades",
+            manaCost: "{1}{R}",
+            typeLine: "Instant",
+            oracleText:
+                "Put a -1/-1 counter on target creature. Blur of Blades deals 2 damage to that creature's controller.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Blur of Blades",
+            types: ["Instant"],
+            manaCost: { X: 1, R: 1 },
+            oracleText:
+                "Put a -1/-1 counter on target creature. Blur of Blades deals 2 damage to that creature's controller.",
+            effects: [
+                {
+                    op: "counters",
+                    action: "add",
+                    counter: "-1/-1",
+                    target: { target: 0 },
+                    count: 1,
+                },
+                {
+                    op: "dealDamage",
+                    amount: 2,
+                    to: { player: { controllerOf: { target: 0 } } },
+                },
+            ],
+            targetRequirement: { type: "Creature", count: 1 },
+        },
+    },
 ]);
