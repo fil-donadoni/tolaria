@@ -1883,11 +1883,11 @@ function rollout(
         let chosen: Move;
         if (moves.length === 1 || rng() < rolloutEpsilonFor(state, weights)) {
             // Exploration of lines the greedy probe undervalues, not a model
-            // of typical play: never draws a sacrifice conversion, whose
+            // of typical play: never draws a transient sacrifice conversion, whose
             // variants (one per sacrificable permanent and target) would
             // otherwise outnumber every other move at the node.
             const drawn = moves.filter(
-                (m) => !isSacrificeConversion(state, pid, m)
+                (m) => !isTransientSacrificeConversion(state, pid, m)
             );
             const pool = drawn.length > 0 ? drawn : moves;
             chosen = pool[Math.floor(rng() * pool.length)];
@@ -2607,12 +2607,7 @@ export function keyedMovesFor(
         seen.add(key);
         keyed.push({ move, key, prior: 0 });
     }
-    // Cost-shape only, so cheap enough for every node (unlike the dominance
-    // probe above); never emptying, `pass` is always kept.
-    const kept = keyed.filter(
-        (k) => !isDeferrableTransientSacrifice(state, pid, k.move)
-    );
-    return kept.length > 0 ? kept : keyed;
+    return keyed;
 }
 
 /** The steps where a transient payoff can matter: once blocks are declared, a
@@ -2625,14 +2620,19 @@ const TRANSIENT_PAYOFF_PHASES: ReadonlySet<string> = new Set([
     "COMBAT_DAMAGE",
 ]);
 
-/** Whether `move` activates an ability whose COST gives up a standing permanent
- *  (`spendsStandingPermanent`, CR 701.21a), whatever its payoff or window. */
-function isSacrificeConversion(
+/** Whether `move` gives up a standing permanent (`spendsStandingPermanent`,
+ *  CR 701.21a) for a payoff that expires this turn (`isTransientOnlyAbility`),
+ *  in ANY window. The rollout's random draw excludes it: an outlet's variants
+ *  (one per sacrificable permanent and target) would otherwise outnumber every
+ *  other move at the node, and a payoff that is gone by the next turn never
+ *  repays a permanent. A lasting payoff (a shot from a counter, a life gain)
+ *  stays drawable. */
+function isTransientSacrificeConversion(
     state: GameState,
     pid: string,
     move: Move
 ): boolean {
-    return isSacrificeConversionWhere(state, pid, move, () => true);
+    return isSacrificeConversionWhere(state, pid, move, isTransientOnlyAbility);
 }
 
 /** Whether `move` gives up a standing permanent for a payoff that expires this
@@ -2967,6 +2967,16 @@ function iterate(
         // never a dominance candidate so the floor always holds.
         if (depth === 0 && pid === botId && deniedRootKeys?.size) {
             const kept = keyed.filter((k) => !deniedRootKeys.has(k.key));
+            if (kept.length > 0) keyed = kept;
+        }
+        // Below the root only: the root's candidate set is what the trace and
+        // the root rules read, and a sacrifice the bot could take NOW must
+        // stay a scored option. Cost-shape only, so cheap enough for every
+        // node (unlike the dominance probe); never emptying, `pass` is kept.
+        if (depth > 0) {
+            const kept = keyed.filter(
+                (k) => !isDeferrableTransientSacrifice(world, pid, k.move)
+            );
             if (kept.length > 0) keyed = kept;
         }
         if (keyed.length === 0) break;

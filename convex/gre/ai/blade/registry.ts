@@ -8173,7 +8173,17 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         budget: { iterations: 48 },
         seeds: [0xb07, 0x5eed],
         tier: "must",
-        expect: { moves: [{ kind: "cast-spell", card: "Nantuko Husk" }] },
+        // A PREDICATE for the reason the Kicker {X} entry gives: a
+        // reachability claim, kept out of the weight fit.
+        expect: {
+            predicate: (move, state) =>
+                move !== null &&
+                move.kind === "cast-spell" &&
+                instanceIdsForName(state, "Nantuko Husk").has(
+                    move.cardInstanceId
+                ),
+            describe: "casts Nantuko Husk",
+        },
         note: "Bot Gap `never-chosen › Creature › pump` (7 cards). Issue #4261.",
     },
     {
@@ -8198,8 +8208,11 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         budget: { iterations: 200 },
         seeds: [0xb1ade, 1, 2, 3, 4],
         tier: "must",
+        // A PREDICATE, like its pair: kept out of the weight fit.
         expect: {
-            forbidden: [{ kind: "activate-ability", card: "Nantuko Husk" }],
+            predicate: (move) =>
+                move !== null && move.kind !== "activate-ability",
+            describe: "does not sacrifice a creature to Nantuko Husk",
         },
         note: "Discriminating pair of the outlet-cast entry above. Issue #4261.",
     },
