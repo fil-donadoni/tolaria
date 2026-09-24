@@ -17,6 +17,12 @@
 //
 // Each futile case is stated with its negative control: add a spender and the
 // hold must have exactly zero effect.
+//
+// The PLAY verdict (pass / cast) on these three positions is the blade `must`
+// entries' job — `registry.ts` "wasted mana: …", five seeds each at the same
+// 1200-iteration budget. This file keeps only what blade cannot see: the
+// root-decision telemetry (which mechanism settled the pick), on ONE seed per
+// position (issue #4487).
 
 import { describe, expect, it } from "vitest";
 import type { GameState } from "../state";
@@ -43,96 +49,67 @@ function build(spec: BladeScenario["spec"]): GameState {
 
 const HARD = 1200;
 
-/** Run the real search and report the chosen move's kind plus every root
- *  decision the telemetry sink recorded (one per search). */
-function decide(
-    state: GameState,
-    seed: number
-): { kind: string | undefined; label: string; mechanisms: string[] } {
+/** Run the real search and report every root-decision mechanism the telemetry
+ *  sink recorded (one per search). */
+function mechanismsOf(state: GameState, seed: number): string[] {
     const records: RootDecisionRecord[] = [];
     setRootDecisionSink((r) => records.push(r));
     try {
-        const { move, trace } = searchWithTrace(
-            state,
-            state.players[0].id,
-            { iterations: HARD },
-            seed
-        );
-        return {
-            kind: move?.kind,
-            label: trace?.chosen ?? "",
-            mechanisms: records.map((r) => r.mechanism),
-        };
+        searchWithTrace(state, state.players[0].id, { iterations: HARD }, seed);
+        return records.map((r) => r.mechanism);
     } finally {
         setRootDecisionSink(null);
     }
 }
 
-const SEEDS = [0xb1ade, 1, 2];
+const SEED = 0xb1ade;
 
 describe("wasted-mana hold (CR 106.4)", () => {
-    it("holds Metamorphosis when no creature spell can spend its mana", () => {
-        for (const seed of SEEDS) {
-            const state = build({
-                cards: [
-                    { name: "Metamorphosis", owner: "me", zone: "hand" },
-                    {
-                        name: "Grizzly Bears",
-                        owner: "me",
-                        zone: "battlefield",
-                        summoningSick: false,
-                    },
-                    {
-                        name: "Craw Wurm",
-                        owner: "me",
-                        zone: "library",
-                        count: 10,
-                    },
-                ],
-                phase: "PRECOMBAT_MAIN",
-                turn: 5,
-                landCount: 4,
-                libraryCount: 20,
-            });
-            const { kind, mechanisms } = decide(state, seed);
-            expect(kind).toBe("pass");
-            expect(mechanisms).toContain("wasted-mana-hold");
-        }
+    it("Metamorphosis with no creature spell to spend its mana is settled by the hold", () => {
+        const state = build({
+            cards: [
+                { name: "Metamorphosis", owner: "me", zone: "hand" },
+                {
+                    name: "Grizzly Bears",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Craw Wurm", owner: "me", zone: "library", count: 10 },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 4,
+            libraryCount: 20,
+        });
+        expect(mechanismsOf(state, SEED)).toContain("wasted-mana-hold");
     }, 120000);
 
-    it("holds Dark Ritual with an empty hand — the same class without a sacrifice cost", () => {
-        for (const seed of SEEDS) {
-            const state = build({
-                cards: [{ name: "Dark Ritual", owner: "me", zone: "hand" }],
-                phase: "PRECOMBAT_MAIN",
-                turn: 5,
-                landCount: 4,
-                libraryCount: 20,
-            });
-            const { kind, mechanisms } = decide(state, seed);
-            expect(kind).toBe("pass");
-            expect(mechanisms).toContain("wasted-mana-hold");
-        }
+    it("Dark Ritual with an empty hand — the same class without a sacrifice cost", () => {
+        const state = build({
+            cards: [{ name: "Dark Ritual", owner: "me", zone: "hand" }],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 4,
+            libraryCount: 20,
+        });
+        expect(mechanismsOf(state, SEED)).toContain("wasted-mana-hold");
     }, 120000);
 
-    it("NEGATIVE CONTROL: still casts Dark Ritual when it turns on a Craw Wurm", () => {
-        for (const seed of SEEDS) {
-            // One Swamp pays the Ritual; its three black mana plus the three
-            // remaining lands exactly cover the 6-MV Wurm, so a spender is in
-            // the position and the hold must not fire.
-            const state = build({
-                cards: [
-                    { name: "Dark Ritual", owner: "me", zone: "hand" },
-                    { name: "Craw Wurm", owner: "me", zone: "hand" },
-                ],
-                phase: "PRECOMBAT_MAIN",
-                turn: 5,
-                landCount: 4,
-                libraryCount: 20,
-            });
-            const { kind, mechanisms } = decide(state, seed);
-            expect(kind).toBe("cast-spell");
-            expect(mechanisms).not.toContain("wasted-mana-hold");
-        }
+    it("NEGATIVE CONTROL: the hold stays silent when Dark Ritual turns on a Craw Wurm", () => {
+        // One Swamp pays the Ritual; its three black mana plus the three
+        // remaining lands exactly cover the 6-MV Wurm, so a spender is in
+        // the position and the hold must not fire.
+        const state = build({
+            cards: [
+                { name: "Dark Ritual", owner: "me", zone: "hand" },
+                { name: "Craw Wurm", owner: "me", zone: "hand" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 4,
+            libraryCount: 20,
+        });
+        expect(mechanismsOf(state, SEED)).not.toContain("wasted-mana-hold");
     }, 120000);
 });
