@@ -405,13 +405,17 @@ describe("the upcaster chain (issue #3578)", () => {
     });
 
     it("the shipped chain has a link for every version below the current one", () => {
+        const missing: number[] = [];
         for (
             let version = VERDICT_BASE_SCHEMA_VERSION;
             version < VERDICT_SCHEMA_VERSION;
             version++
         ) {
-            expect(typeof VERDICT_UPCASTERS[version]).toBe("function");
+            if (typeof VERDICT_UPCASTERS[version] !== "function") {
+                missing.push(version);
+            }
         }
+        expect(missing).toEqual([]);
     });
 
     it("the shipped upcaster module holds only type imports and reads no clock, randomness or global", () => {

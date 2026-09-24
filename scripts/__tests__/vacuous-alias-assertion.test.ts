@@ -403,6 +403,12 @@ describe("vacuous alias assertions (proof-of-failure, shape 2)", () => {
     }, 120_000);
 
     it("every allowlist entry exists and is still needed", () => {
+        // Every key names a test file — asserted of the (empty) map as a
+        // whole, so the block asserts even when the loop has nothing to walk
+        // (issue #4492).
+        expect(
+            [...ALLOWLIST.keys()].filter((k) => !/\.test\.tsx?$/.test(k))
+        ).toEqual([]);
         for (const [file, reason] of ALLOWLIST) {
             expect(
                 reason.length,

@@ -80,9 +80,9 @@ describe("morph cards (CR 702.37)", () => {
     it.each(morphCards.map((c) => [c.name, c] as const))(
         "%s — declares no alternative cost colliding with the synthesized morph cast id",
         (_name, card) => {
-            for (const alt of card.alternativeCosts ?? []) {
-                expect(alt.id).not.toBe(MORPH_CAST_ALT_COST_ID);
-            }
+            expect(
+                (card.alternativeCosts ?? []).map((alt) => alt.id)
+            ).not.toContain(MORPH_CAST_ALT_COST_ID);
         }
     );
 });

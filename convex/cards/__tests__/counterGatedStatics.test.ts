@@ -331,6 +331,15 @@ describe("counter-gated materialized statics must declare dependsOnCounters (CR 
 
     it("every KICKER_PROXY_ALLOWLIST entry is well-formed: a real card, a real undeclared counter-gated effect of that kind, a real tracking issue", () => {
         const cards = getAllCards();
+        // One row per card and kind — and an assertion that holds of the
+        // (usually empty) list as a whole, so the block asserts even when the
+        // loop below has nothing to walk (issue #4492).
+        const rowKeys = KICKER_PROXY_ALLOWLIST.map(
+            (a) => `${a.cardId}/${a.kind}`
+        );
+        expect(new Set(rowKeys).size, "duplicate allowlist rows").toBe(
+            rowKeys.length
+        );
         for (const a of KICKER_PROXY_ALLOWLIST) {
             expect(
                 a.issue,

@@ -46,7 +46,7 @@ import {
     isOverloadAlternativeCost,
 } from "../overload";
 import { applyPendingChoiceSubmit } from "../pendingChoiceSubmit";
-import { emitSpellCastEvent } from "../state";
+import { emitSpellCastEvent, processPendingActionTriggers } from "../state";
 import { compactState, expandState } from "../serialize";
 import { validateEffectScript } from "../effects/validate";
 import {
@@ -60,6 +60,7 @@ import {
     makeState,
 } from "../../cards/__tests__/setup";
 import { getCardByName, registerTokenDefinition } from "../../cards";
+import { spellCastTrigger } from "../../cards/abilities/triggers/spellCastTrigger";
 
 const DAMN = getCardByName("Damn");
 const WINDS = getCardByName("Winds of Abandon");
@@ -104,6 +105,27 @@ registerTokenDefinition({
             select: { set: "targets" },
             effects: [{ op: "destroy", target: { ref: "$each" } }],
         },
+    ],
+});
+
+/** A permanent that watches every cast, so casting Damn puts a trigger on the
+ *  stack above it — the object that must NOT inherit the overload marker. */
+const CAST_WATCHER_ID = "test:overload-cast-watcher";
+registerTokenDefinition({
+    id: CAST_WATCHER_ID,
+    rarity: "rare",
+    name: "Overload Cast Watcher",
+    manaCost: { X: 2 },
+    types: ["Creature"],
+    power: 2,
+    toughness: 2,
+    triggeredAbilities: [
+        spellCastTrigger({
+            id: "overload-cast-watcher",
+            oracleText: "Whenever a player casts a spell, take an extra turn.",
+            scope: "any",
+            effects: [{ op: "extraTurn", player: "controller" }],
+        }),
     ],
 });
 
@@ -511,14 +533,23 @@ describe("Overload — the marker is CAST-INSTANCE scoped (CR 702.96a, PR #3288 
         // trigger is a different object, and the marker would swap ITS own
         // `ctx.targets` for the spell's sweep as it resolved.
         const state = makeState({
-            players: [makePlayer("p1"), makePlayer("p2")],
+            players: [
+                makePlayer("p1", {
+                    battlefield: [creature(CAST_WATCHER_ID, "watcher", "p1")],
+                }),
+                makePlayer("p2"),
+            ],
         });
         const item = damnOnStack(state, { overloaded: true });
         emitSpellCastEvent(state, item);
-        for (const queued of state.stack) {
-            if (queued.id === item.id) continue;
-            expect(queued.overloaded).toBeUndefined();
-        }
+        processPendingActionTriggers(state);
+        const triggers = state.stack.filter((queued) => queued.id !== item.id);
+        // The watcher's trigger IS on the stack — without it the claim below
+        // holds of an empty list (issue #4492).
+        expect(triggers.map((t) => t.triggeredAbilityId)).toEqual([
+            "overload-cast-watcher",
+        ]);
+        expect(triggers[0].overloaded).toBeUndefined();
     });
 });
 

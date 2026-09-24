@@ -249,14 +249,18 @@ describe("check:ui coverage census (issue #3420)", () => {
         // An unwalked surface's claim may coincide with a walked surface's —
         // what must never happen is the unwalked one being the ONLY reason a
         // file reads as covered.
-        for (const file of claimed) {
-            if (!covered.has(file)) continue;
-            const by = census().find((r) => r.file === file)?.by;
-            expect(
-                unwalked.has(by ?? ""),
-                `${file} reads as covered by ${by}, a surface declared UNWALKED`
-            ).toBe(false);
-        }
+        const byUnwalked = claimed
+            .filter((file) => covered.has(file))
+            .map((file) => ({
+                file,
+                by: census().find((r) => r.file === file)?.by ?? "",
+            }))
+            .filter(({ by }) => unwalked.has(by))
+            .map(
+                ({ file, by }) =>
+                    `${file} reads as covered by ${by}, a surface declared UNWALKED`
+            );
+        expect(byUnwalked).toEqual([]);
     });
 });
 

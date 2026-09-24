@@ -79,12 +79,10 @@ describe("OP_VALUERS coverage guard (PRD #1423, issue #1426)", () => {
     });
 
     it("every backfill entry is a real, still-implemented Op (no stale rows)", () => {
-        for (const op of OP_VALUER_BACKFILL) {
-            expect(
-                isRegisteredEffectOp(op),
-                `${op} is on the backfill allowlist but is not an implemented Op — remove the stale row`
-            ).toBe(true);
-        }
+        expect(
+            OP_VALUER_BACKFILL.filter((op) => !isRegisteredEffectOp(op)),
+            "on the backfill allowlist but not an implemented Op — remove the stale rows"
+        ).toEqual([]);
     });
 
     it("the backfill allowlist is sorted and free of duplicates (append-only hygiene)", () => {

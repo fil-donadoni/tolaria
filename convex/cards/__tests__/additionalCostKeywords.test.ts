@@ -97,11 +97,10 @@ describe("AdditionalCostKeyword ↔ Mechanics Registry (CR 702.33a, ADR 0085)", 
     );
 
     it("declares no pending keyword that is not a union member", () => {
-        for (const keyword of Object.keys(
+        const pending = Object.keys(
             PENDING_ADDITIONAL_COST_KEYWORDS
-        ) as AdditionalCostKeyword[]) {
-            expect(unionMembers).toContain(keyword);
-        }
+        ) as AdditionalCostKeyword[];
+        expect(pending.filter((k) => !unionMembers.includes(k))).toEqual([]);
     });
 
     // CR 702.33d — the one axis every kicked-ness reader depends on. Pinned
@@ -144,7 +143,11 @@ describe("AdditionalCostKeyword ↔ Mechanics Registry (CR 702.33a, ADR 0085)", 
         "%s: castCopyTrigger implies requiresTrigger",
         (keyword) => {
             const row = ADDITIONAL_COST_KEYWORDS[keyword];
-            if (row.castCopyTrigger) expect(row.requiresTrigger).toBe(true);
+            // The implication, asserted whole: a row without the trigger
+            // satisfies it vacuously but must still be checked.
+            expect(!row.castCopyTrigger || row.requiresTrigger === true).toBe(
+                true
+            );
         }
     );
 

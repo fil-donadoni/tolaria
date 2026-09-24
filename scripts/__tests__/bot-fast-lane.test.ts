@@ -70,18 +70,21 @@ describe("bot fast lane — deny-list stays honest (issue #1912)", () => {
     // today (issue #2436) and an empty `it.each` registers no test at all —
     // the guard would vanish silently, which is the exact rot mode this file
     // exists to prevent.
+    // ONE assertion over the whole list for the same reason: a per-entry
+    // `expect` inside the loop asserts nothing on an empty list, which
+    // `requireAssertions` reds (issue #4492).
     it("every deny-listed file still exists", () => {
-        for (const basename of HEAVY_BOT_BASENAMES) {
-            const matches = botTests.filter(
-                (f) => path.basename(f) === basename
-            );
-            expect(
-                matches,
-                `HEAVY_BOT_GLOB in vitest.config.ts excludes "${basename}", but no such bot test exists. ` +
-                    `It was renamed or deleted — update the glob (and this list), or the fast lane is ` +
-                    `excluding nothing and check:pr silently got ~3x slower.`
-            ).toHaveLength(1);
-        }
+        const unmatched = HEAVY_BOT_BASENAMES.filter(
+            (basename) =>
+                botTests.filter((f) => path.basename(f) === basename).length !==
+                1
+        );
+        expect(
+            unmatched,
+            `HEAVY_BOT_GLOB in vitest.config.ts excludes these, but no single such bot test exists. ` +
+                `Renamed or deleted — update the glob (and this list), or the fast lane is ` +
+                `excluding nothing and check:pr silently got ~3x slower.`
+        ).toEqual([]);
     });
 
     it("keeps the deny-list small — it is a cost exception, not a hiding place", () => {

@@ -317,6 +317,15 @@ describe("Guard A — keyword-must-be-implemented (issue #962)", () => {
 
     it("every KEYWORD_ALLOWLIST entry is well-formed: a real open issue, a real card, a keyword it actually declares", () => {
         const cards = getAllCards();
+        // One row per card and keyword — asserted of the (usually empty) list
+        // as a whole, so the block asserts even when the loop has nothing to
+        // walk (issue #4492).
+        const rowKeys = KEYWORD_ALLOWLIST.map(
+            (a) => `${a.cardId}/${a.keyword}`
+        );
+        expect(new Set(rowKeys).size, "duplicate allowlist rows").toBe(
+            rowKeys.length
+        );
         for (const a of KEYWORD_ALLOWLIST) {
             expect(
                 a.issue,
