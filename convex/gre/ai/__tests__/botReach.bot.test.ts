@@ -199,6 +199,34 @@ const RAISE_DEAD_CREATURE: CardDefinition = {
     ],
 };
 
+/** CR 121.1 — a plain draw spell: what it finds decides whether it is cast. */
+const DRAW_SORCERY: CardDefinition = {
+    id: "bot-reach-test:draw",
+    name: "Bot Reach Draw",
+    rarity: "common",
+    manaCost: { generic: 2, U: 2 },
+    types: ["Sorcery"],
+    effects: [{ op: "draw", player: "controller", count: 3 }],
+};
+
+/** CR 121.1 / 601.2b — the same draw, paid for with a sacrificed creature. */
+const SACRIFICE_DRAW_SORCERY: CardDefinition = {
+    ...DRAW_SORCERY,
+    id: "bot-reach-test:sacrifice-draw",
+    name: "Bot Reach Sacrifice Draw",
+    manaCost: { generic: 1, B: 1 },
+    additionalCosts: { sacrificeFilter: { types: ["Creature"] } },
+    effects: [{ op: "draw", player: "controller", count: 2 }],
+};
+
+/** CR 121.1 — a draw aimed at the opponent: not the holder's to sweeten. */
+const OPPONENT_DRAW_SORCERY: CardDefinition = {
+    ...DRAW_SORCERY,
+    id: "bot-reach-test:opponent-draw",
+    name: "Bot Reach Opponent Draw",
+    effects: [{ op: "draw", player: "opponent", count: 3 }],
+};
+
 describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
     it("played — the Bot casts an affordable creature at both seats", () => {
         expect(playTwice(getCardByName("Grizzly Bears"))).toEqual({
@@ -563,6 +591,37 @@ describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
                 expect(ahead(all, seat, "Land")).toBeGreaterThan(0);
             }
         });
+    });
+
+    // Issue #4266: the generated library was basic lands, so what a draw
+    // spell found was worth nothing and `pass` beat the cast on every seed.
+    it("played — a draw spell the Bot casts once its library holds spells", () => {
+        for (const def of [DRAW_SORCERY, SACRIFICE_DRAW_SORCERY]) {
+            withTemporaryDefinition(def, () => {
+                expect(playTwice(def)).toEqual({ outcome: "played" });
+            });
+        }
+    }, 300_000);
+
+    it("a draw spell's holder finds spells on top of the library, and only that holder", () => {
+        const topOfLibrary = (def: CardDefinition, seat: 0 | 1): unknown => {
+            const { state, holderId } = buildBotReachState(def, seat);
+            const holder = state.players.find((p) => p.id === holderId)!;
+            return holder.library[0]!.card.id;
+        };
+        const spell = getCardByName("Serra Angel").id;
+        const land = getCardByName("Plains").id;
+        for (const seat of [0, 1] as const) {
+            withTemporaryDefinition(DRAW_SORCERY, () => {
+                expect(topOfLibrary(DRAW_SORCERY, seat)).toBe(spell);
+            });
+            withTemporaryDefinition(OPPONENT_DRAW_SORCERY, () => {
+                expect(topOfLibrary(OPPONENT_DRAW_SORCERY, seat)).toBe(land);
+            });
+            expect(topOfLibrary(getCardByName("Grizzly Bears"), seat)).toBe(
+                land
+            );
+        }
     });
 
     it("frozen — the engine offers the action and no Move uses the card", () => {

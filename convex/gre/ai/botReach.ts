@@ -248,6 +248,28 @@ function pumpsOwnCreatures(def: CardDefinition): boolean {
 }
 
 /**
+ * CR 121.1 — does the SPELL script make the holder draw (a `draw` whose
+ * player is the controller)? A draw is worth the cards it finds, and the
+ * generated library is basic lands the evaluator prices at nothing once the
+ * lands are down — a draw finds nothing, so the Bot rightly passes over it.
+ * The pose puts spells on top of the library. Only the holder's own draw makes
+ * the claim: "target player draws" may be aimed at the opponent, and a draw
+ * the holder does not get is not one the pose should sweeten.
+ */
+function drawsForController(def: CardDefinition): boolean {
+    const visit = (node: unknown): boolean => {
+        if (Array.isArray(node)) return node.some(visit);
+        if (node === null || typeof node !== "object") return false;
+        const record = node as Record<string, unknown>;
+        return (
+            (record.op === "draw" && record.player === "controller") ||
+            Object.values(record).some(visit)
+        );
+    };
+    return visit(def.effects) || visit(def.modes);
+}
+
+/**
  * CR 701.21 — the permanent types the card's SPELL script makes EVERY player
  * sacrifice: a `forEach` over `set: "players"` whose body is a
  * `sacrifice-permanents` choice of the battlefield for the iteration player
@@ -397,6 +419,13 @@ const EXTRA_LANDS = 2;
  *  creatures alive through a -4/-4 sweep and read as a bad cast). */
 const SWEEP_SURPLUS = 3;
 
+/** What a card that draws finds: a 4/4 flier, a card worth more than the card
+ *  it costs and than the creature a "sacrifice a creature" cost gives up. */
+const DRAWN_SPELL = "Serra Angel";
+/** How many of them sit on top of the holder's library — more than the biggest
+ *  shipped draw takes, so every card drawn is one worth having. */
+const DRAWN_SPELLS = 8;
+
 /** The card every generated position seeds as the object a target, a
  *  sacrifice or a discard can use — a real catalogue creature, both sides, in
  *  every zone a target requirement names. */
@@ -540,6 +569,14 @@ export function botReachSpec(
             });
         }
     }
+    if (drawsForController(def))
+        cards.push({
+            name: DRAWN_SPELL,
+            owner: "me",
+            zone: "library",
+            position: 1,
+            count: DRAWN_SPELLS,
+        });
     const cost = costPose(def);
     cards.push(...target.cards, ...cost.cards);
     const stack = needsStackTarget(def);
