@@ -13,7 +13,13 @@ import type {
     TargetRequirement,
 } from "../../../cards/types";
 import { getLegalActions } from "../../rules";
-import { botReachSpec, buildBotReachState, playBotReach } from "../botReach";
+import {
+    botReachSpec,
+    buildBotReachState,
+    playBotReach,
+    TRICK_WINDOW,
+} from "../botReach";
+import { combatTrickPosition } from "../botReachTarget";
 
 const DESTROY: EffectOp[] = [{ op: "destroy", target: { target: 0 } }];
 const PUMP: EffectOp[] = [
@@ -223,33 +229,46 @@ describe("the generated position poses a land target on the opponent's side (iss
     });
 });
 
-describe("the generated position poses a combat for a combat trick (issue #4264)", () => {
+describe("a combat trick is posed in a declared combat once the main phases passed it over (issue #4264)", () => {
     const TRICK = instant("trick", {}, { effects: PUMP });
-    const pose = (def: CardDefinition) => botReachSpec(def);
+    const combat = (def: CardDefinition) => botReachSpec(def, TRICK_WINDOW);
 
-    it("declares the holder's attacker blocked, holder holding priority (CR 509.1)", () => {
-        const spec = pose(TRICK);
+    it("declares the holder's attacker blocked, holder holding priority", () => {
+        const spec = combat(TRICK);
         expect(spec.phase).toBe("DECLARE_BLOCKERS");
         expect(spec.activePlayer).toBe("me");
         expect(spec.priority).toBe("me");
         expect(spec.combat?.blockers).toHaveLength(1);
     });
 
-    it("the engine offers the cast in that position (CR 117.1a)", () => {
-        expect(castable(TRICK)).toBe(true);
+    it("the engine offers the cast in that position", () => {
+        withTemporaryDefinition(TRICK, () => {
+            const { state, holderId, instanceId } = buildBotReachState(
+                TRICK,
+                0,
+                TRICK_WINDOW
+            );
+            const player = state.players.find((p) => p.id === holderId)!;
+            const card = player.hand.find((c) => c.id === instanceId)!;
+            expect(getLegalActions(state, player, card)).toContain("cast");
+        });
     });
 
-    it("leaves a removal spell in the main phase", () => {
-        expect(pose(instant("removal", {})).phase).toBe("PRECOMBAT_MAIN");
+    it("leaves the main-phase windows exactly as they were", () => {
+        expect(botReachSpec(TRICK).phase).toBe("PRECOMBAT_MAIN");
+        expect(botReachSpec(TRICK, "POSTCOMBAT_MAIN").phase).toBe(
+            "POSTCOMBAT_MAIN"
+        );
     });
 
-    it("leaves a sorcery pump in the main phase", () => {
+    it("poses no combat for a removal spell or a sorcery pump", () => {
+        expect(combatTrickPosition(instant("removal", {}))).toBeNull();
         const sorcery = instant(
             "sorcery",
             {},
             { types: ["Sorcery"], effects: PUMP }
         );
-        expect(pose(sorcery).phase).toBe("PRECOMBAT_MAIN");
+        expect(combatTrickPosition(sorcery)).toBeNull();
     });
 
     it("the Bot casts the trick in that combat", () => {

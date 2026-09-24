@@ -239,9 +239,9 @@ function isCombatTrick(def: CardDefinition, req: TargetRequirement): boolean {
     );
 }
 
-/** CR 509.1 / 117.1a — the holder's plain creature attacks and the opponent's
- *  blocks it: the declare-blockers step, where the holder holds priority with
- *  the trick that decides the combat. Both are the position's own bodies. */
+/** The holder's plain creature attacks and the opponent's blocks it: the
+ *  declare-blockers step, where the holder holds priority with the trick that
+ *  decides the combat. Both are the position's own bodies. */
 const TRICK_COMBAT: TargetPose["position"] = {
     phase: "DECLARE_BLOCKERS",
     activePlayer: "me",
@@ -253,6 +253,22 @@ const TRICK_COMBAT: TargetPose["position"] = {
         blockersConfirmed: true,
     },
 };
+
+/**
+ * The declared combat a combat trick is posed in, or `null` when `def` is not
+ * one. It is a THIRD window, tried only after both main phases passed the card
+ * over (`playSeat`): a trick some position already plays there must not lose
+ * that position, and one a main phase never poses (a pump has nothing to pump
+ * before blockers) gets the combat it is worth casting in.
+ */
+export function combatTrickPosition(
+    def: CardDefinition
+): TargetPose["position"] | null {
+    const req = creatureRequirement(def);
+    return req && !narrows(req) && isCombatTrick(def, req)
+        ? TRICK_COMBAT
+        : null;
+}
 
 export type TargetPose = {
     readonly cards: readonly ScenarioCard[];
@@ -296,12 +312,6 @@ export function targetPose(def: CardDefinition): TargetPose {
     const landReq = landRequirement(def);
     if (landReq) return landPose(def, landReq);
     const req = creatureRequirement(def);
-    if (req && !narrows(req) && isCombatTrick(def, req))
-        return {
-            cards: [],
-            omitToughnessBoost: false,
-            position: TRICK_COMBAT,
-        };
     if (!req || !narrows(req)) return NO_POSE;
     const name = creatureFor(req);
     if (name === null) return NO_POSE;
