@@ -576,7 +576,7 @@ function isEffectOp(node: unknown): node is EffectOp {
 }
 
 /** Fields typed `EffectValue` somewhere in the `EffectOp` union — an amount. */
-const AMOUNT_KEYS: ReadonlySet<string> = new Set([
+export const AMOUNT_KEYS: ReadonlySet<string> = new Set([
     "amount",
     "count",
     "costPerKept",
