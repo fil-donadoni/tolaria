@@ -62,6 +62,9 @@ for (const f of shown) {
 }
 console.log("Open one, decide, then either:");
 console.log(
-    "  · file it     → gh issue create …, then set status: triaged + issue: N"
+    "  · file it     → gh issue create … --label <type> --label area:<area>, then set status: triaged + issue: N"
+);
+console.log(
+    "                  (the stamp: docs/agents/triage-labels.md § Every new issue is stamped at filing)"
 );
 console.log("  · drop it     → set status: declined and say why in the body\n");

@@ -324,6 +324,83 @@ describe("every queue-facing skill instructs the card-link convention (issue #36
     });
 });
 
+describe("every filing skill points at the filing stamp (issue #4457)", () => {
+    const SKILLS = path.join(REPO_ROOT, ".claude", "skills");
+    const SECTION = "Every new issue is stamped at filing";
+    const DOC = path.join(REPO_ROOT, "docs", "agents", "triage-labels.md");
+
+    /** Every skill that creates an issue — its own `gh issue create`, or
+     *  slices / umbrellas / gap issues it cuts through another skill. */
+    const FILING_SKILLS = [
+        "audit-tracker",
+        "grammar-rule",
+        "health-fix",
+        "new-card",
+        "new-op",
+        "new-qa-issue",
+        "new-set",
+        "to-prd",
+        "to-tickets",
+    ];
+    const body = (name: string) =>
+        fs.readFileSync(path.join(SKILLS, name, "SKILL.md"), "utf8");
+
+    it("covers every skill that types `gh issue create`", () => {
+        const creators = fs
+            .readdirSync(SKILLS)
+            .filter((name) =>
+                fs.existsSync(path.join(SKILLS, name, "SKILL.md"))
+            )
+            .filter((name) => body(name).includes("gh issue create"));
+        const uncovered = creators.filter((n) => !FILING_SKILLS.includes(n));
+        expect(uncovered, "add it to FILING_SKILLS").toEqual([]);
+    });
+
+    it("names the section in each of them", () => {
+        const silent = FILING_SKILLS.filter(
+            (name) =>
+                // Prose wraps: a reference split across lines still counts.
+                !body(name)
+                    .replace(/\s+/g, " ")
+                    .includes(`docs/agents/triage-labels.md\` § ${SECTION}`)
+        );
+        expect(
+            silent,
+            `filing skill(s) that never point to docs/agents/triage-labels.md § ${SECTION}`
+        ).toEqual([]);
+    });
+
+    it("stamps area and type in every `gh issue create` example", () => {
+        const bare = FILING_SKILLS.flatMap((name) =>
+            body(name)
+                .split("\n")
+                .filter((l) => l.includes("gh issue create --title"))
+                .filter(
+                    (l) =>
+                        !/--label "?area:/.test(l) ||
+                        !/--label "?(<type>|bug|enhancement|prd|user-report|needs-triage)"?/.test(
+                            l
+                        )
+                )
+                .map((l) => `${name}: ${l.trim()}`)
+        );
+        expect(bare).toEqual([]);
+    });
+
+    it("the section exists and CLAUDE.md carries its one resident line", () => {
+        expect(fs.readFileSync(DOC, "utf8")).toMatch(
+            new RegExp(`^## ${SECTION}`, "m")
+        );
+        const claude = fs.readFileSync(
+            path.join(REPO_ROOT, "CLAUDE.md"),
+            "utf8"
+        );
+        expect(
+            claude.split("\n").filter((l) => l.includes(SECTION.slice(0, 15)))
+        ).toHaveLength(1);
+    });
+});
+
 describe("/grammar-rule names only commands that exist (issue #3834)", () => {
     const rel = path.join(".claude", "skills", "grammar-rule", "SKILL.md");
     const body = () => fs.readFileSync(path.join(REPO_ROOT, rel), "utf8");

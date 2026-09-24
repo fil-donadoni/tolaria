@@ -226,14 +226,23 @@ export function umbrellaKey(
 export const SUB_ISSUE_CAP = 100;
 
 /** Labels per kind, the issue #3869 table — `ready-for-agent` on every one,
- *  because a computed gap is work an agent can pick up as filed. */
+ *  because a computed gap is work an agent can pick up as filed. The filing
+ *  stamp (`docs/agents/triage-labels.md` § Every new issue is stamped at
+ *  filing, issue #4457): one type and one `area:*` per kind, no band — every
+ *  gap issue is parented to its band's umbrella, which lends it. The type is
+ *  `enhancement` for EVERY kind, decided once: each names a capability the
+ *  engine, the grammar, the Bot or the catalogue does not have yet — a
+ *  quarantined card is held back BEFORE it ships, so nothing a player had
+ *  stops working. A regression of shipped behaviour is a `bug`, and it is
+ *  never computed: it reaches the tracker through `/new-qa-issue` or
+ *  `/health-fix`. */
 export const GAP_LABELS: Readonly<Record<GapKind, readonly string[]>> = {
-    grammar: ["ready-for-agent", "area:mechanics"],
-    mechanic: ["ready-for-agent", "area:mechanics"],
-    scenario: ["ready-for-agent", "area:mechanics"],
-    bot: ["ready-for-agent", "area:game-bot"],
-    "hand-tail": ["ready-for-agent", "area:cards", "hand-tail"],
-    migration: ["ready-for-agent", "area:cards", "migration"],
+    grammar: ["ready-for-agent", "enhancement", "area:mechanics"],
+    mechanic: ["ready-for-agent", "enhancement", "area:mechanics"],
+    scenario: ["ready-for-agent", "enhancement", "area:mechanics"],
+    bot: ["ready-for-agent", "enhancement", "area:game-bot"],
+    "hand-tail": ["ready-for-agent", "enhancement", "area:cards", "hand-tail"],
+    migration: ["ready-for-agent", "enhancement", "area:cards", "migration"],
 };
 
 export const GRAMMAR_GAP_LABELS = GAP_LABELS.grammar;

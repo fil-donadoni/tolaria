@@ -107,8 +107,14 @@ parentless. Do **not** label it `ready-for-agent` — you are implementing it in
 this session, and the queue is drained, never filled. A card named in the body
 is a Scryfall link from `bun run card:link "<Card Name>"` (`docs/agents/issue-tracker.md` § Card names are Scryfall links).
 
+It carries the filing stamp (`docs/agents/triage-labels.md` § Every new issue
+is stamped at filing): `bug` + exactly one `area:*` — `area:workflow` when
+the failure is the gate itself, else the area of the code that broke. A
+repair parented to the health PRD takes its band from it; a parentless one
+carries `## Band` / `P1 — base tip RED` (a RED tip blocks every landing).
+
 ```bash
-gh issue create --title '…' --body '…' --label bug
+gh issue create --title '…' --body '…' --label bug --label area:<area>
 cd "$(bun run --silent wt:new <N> --fix)"
 ```
 

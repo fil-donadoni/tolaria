@@ -143,7 +143,9 @@ compiler accepts, 100 % must match. A new rule that reads a hand-written card
 differently reds it. Adjudicate — do not relax:
 
 - the hand-written side is wrong (the corpus agrees with the compiler) → fix
-  the card in this PR, or file it and keep the rule refusing that form;
+  the card in this PR, or file it (`bug` + `area:cards`, the filing stamp of
+  `docs/agents/triage-labels.md` § Every new issue is stamped at filing, with
+  its `## Band` line — it has no umbrella) and keep the rule refusing that form;
 - the rule is wrong → fix the rule;
 - genuinely two encodings of one behaviour → a `KNOWN_DIVERGENCES` row with its
   argument written out in full, as every existing row has.

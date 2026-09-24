@@ -227,7 +227,9 @@ unlocks, and writing it by hand buys one card and leaves the other N-1.
    anyway, never a worktree: drop the flag by accident there and it commits the
    allowlist and pushes `HEAD` onto the base branch from its cwd. Still nothing
    → open the issue by hand, titled
-   `Grammar Gap: <key>`, labelled `ready-for-agent` + `area:mechanics`,
+   `Grammar Gap: <key>`, labelled `enhancement` + `ready-for-agent` +
+   `area:mechanics` — the filing stamp, `docs/agents/triage-labels.md`
+   § Every new issue is stamped at filing; no `## Band`, the umbrella lends it —
    parented on the Grammar Rules umbrella of its band
    (`docs/agents/issue-tracker.md` § Umbrellas partition by band). Give it a `## Target files` section — the queue planner runs an
    issue without one SOLO. Every card name in its body is a Scryfall link
@@ -262,7 +264,7 @@ protocol (`resolve()`) card is hand tail by construction.
 exists already, find it under `Hand Tail: <Card Name>`. Any other card's filing
 is COMPUTED and reported without filing: read the plan from the primary
 checkout, then open the issue yourself with the same shape —
-`Hand Tail: <Card Name>`, labels `ready-for-agent` + `area:cards` + `hand-tail`,
+`Hand Tail: <Card Name>`, labels `enhancement` + `ready-for-agent` + `area:cards` + `hand-tail` (`GAP_LABELS`' own set),
 body naming the fragment, each residual gap's leverage and the floor. The
 title keeps the bare name; in the body the card is the link
 `bun run card:link "<Card Name>"` prints (`docs/agents/issue-tracker.md` § Card names are Scryfall links):

@@ -322,11 +322,15 @@ The PRD's **Implementation Decisions** must name:
 ## Phase 3 — Cut the tickets (`to-tickets`)
 
 Invoke **`to-tickets`** with the umbrella issue number, and tell it the same
-card-link rule as `to-prd` above (`docs/agents/issue-tracker.md` § Card names are Scryfall links). Three ticket shapes, plus T0.
+card-link rule as `to-prd` above (`docs/agents/issue-tracker.md` § Card names are Scryfall links). Three ticket shapes, plus T0. Every ticket carries the filing stamp
+(`docs/agents/triage-labels.md` § Every new issue is stamped at filing): a type
+(`enhancement` on every shape below — each is a missing capability) plus the
+`area:*` each shape names, and no `## Band` — wired under the umbrella, it
+takes the umbrella's band.
 
 **T0 — register the Target** (only if Phase 0.2 found no row): the
-`data/targets.json` row + the committed MTGJSON blob. `area:cards`,
-`ready-for-agent`, no `model:*`. Every other ticket is **blocked-by** it.
+`data/targets.json` row + the committed MTGJSON blob. `enhancement` +
+`area:cards`, `ready-for-agent`, no `model:*`. Every other ticket is **blocked-by** it.
 
 **One ticket per Grammar Gap on the cut line.**
 
@@ -339,7 +343,7 @@ card-link rule as `to-prd` above (`docs/agents/issue-tracker.md` § Card names a
   one `oracle:report --gaps` ranks — unbounded, and explicitly not that
   command's (`scripts/lib/gap-issues.ts` header). Two prefixes, two backlogs,
   no duplicate filings.
-- **Labels**: `ready-for-agent` + `area:mechanics`. A `model:*` label only per
+- **Labels**: `enhancement` + `ready-for-agent` + `area:mechanics`. A `model:*` label only per
   `docs/agents/triage-labels.md` § Model-routing labels — the single authority;
   never re-derive a tier from the area a gap touches.
 - **Body**: `## Parent` (→ umbrella) · `## Grammar Gap` (the key verbatim, the
@@ -372,7 +376,7 @@ Body: the `hand-tail` names from Phase 0.4, the policy agreed in the grill, and
 the marker each hand-written card owes (`compiler-gap: <fragment> (#issue)` or
 `hand-tail:`, naming an OPEN gap issue — `check:targets` reds on a marker whose
 card is now `ready`, and on one whose residual gaps have risen above the
-floor). `ready-for-agent` + `area:cards`. It authors nothing by default: it is
+floor). `enhancement` + `ready-for-agent` + `area:cards`. It authors nothing by default: it is
 the queue the migration kind drains.
 
 **One acceptance ticket.** Title `[<CODE>] Acceptance — <target> % ready`.
@@ -461,7 +465,7 @@ nothing.
   the manifest and the ticket shapes are never delegated — they are the
   reasoning the rollout is bought with. Phases 1–3 are an interactive interview
   plus synthesis over it. Run `/new-set` itself on Opus.
-- **Downstream**: `to-tickets` stamps the `model:*` and `area:*` labels, and
+- **Downstream**: `to-tickets` stamps the type, `area:*` and `model:*` labels, and
   `/next-issue` routes each ticket's review to that tier (**no label ⇒
   Sonnet**). The criterion is `docs/agents/triage-labels.md` § Model-routing
   labels, the single authority — this skill does not restate it.
