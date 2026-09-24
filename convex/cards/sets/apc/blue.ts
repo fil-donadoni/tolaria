@@ -108,8 +108,6 @@ export const whirlpoolWarrior: CardDefinition = {
 // types only, so a land creature keeps its land types and an artifact
 // creature its artifact types (`applyCreatureTypeReplacement`, layer 4), and
 // it reverts at end of turn (CR 611.2, `setSubtypesUntil`).
-//
-// compiler-gap: {1}: Choose a creature type other than Wall. Target creature becomes that type until end of turn. (#2693)
 export const unnaturalSelection: CardDefinition = {
     id: "c575e2cb-3990-4c73-b81c-e16311ec6bbb", // APC 32
     name: "Unnatural Selection",

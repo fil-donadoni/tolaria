@@ -329,7 +329,20 @@ export type EffectSentenceIR =
      *  chosen type"). Carries no data: the chooser is always the resolving
      *  controller (no printed card lets another player choose) and the legal
      *  space is always CR 205.3m's whole table. */
-    | { readonly kind: "choose-creature-type" }
+    | {
+          readonly kind: "choose-creature-type";
+          /** CR 205.3m — "… other than <type>": creature types the chooser
+           *  may NOT name. Absent on the bare instruction. */
+          readonly exclude?: readonly string[];
+      }
+    /** CR 205.1a / 611.2 (issue #4316) — "<subject> becomes that type <duration>",
+     *  the read-back of an earlier `Choose a creature type` sentence: the
+     *  subject's CREATURE types are replaced by the chosen one. */
+    | {
+          readonly kind: "set-chosen-creature-type";
+          readonly subject: SubjectIR;
+          readonly duration: DurationIR;
+      }
     /** CR 614.1a / 106.3 (issue #3811) — "Until end of turn, spells and
      *  abilities you control that would add colored mana instead add that
      *  much <colour> mana." The replacement is always the resolving
@@ -1691,6 +1704,14 @@ const LIFE = /^(.+) (gain|gains|lose|loses) (\S+|that much) life$/;
 /** CR 205.3m — "Choose a creature type." The whole sentence; see the branch
  *  in `effectSentence` for why it is anchored at both ends. */
 const CHOOSE_CREATURE_TYPE = /^Choose a creature type$/;
+/** CR 205.3m (issue #4316) — the same instruction with ONE excluded type. The
+ *  type is validated against CR 205.3m's table by the branch, so "other than
+ *  Forest" (a land type) stays refused. */
+const CHOOSE_CREATURE_TYPE_EXCEPT = /^Choose a creature type other than (.+)$/;
+/** CR 205.1a (issue #4316) — the chosen type written onto a subject. "that
+ *  type" is the ONLY spelling read: it names the binding the choose sentence
+ *  wrote; a literal type ("becomes a Wall") is a different clause. */
+const SET_CHOSEN_CREATURE_TYPE = /^(.+) becomes that type (until .+)$/;
 /** CR 614.1a (issue #3811) — the production-colour replacement, whole. */
 const REPLACE_MANA_PRODUCTION_COLOR =
     /^Until end of turn, spells and abilities you control that would add colored mana instead add that much (white|blue|black|red|green) mana$/;
@@ -2321,6 +2342,32 @@ function effectSentence(
     // restriction this rule does not read and must not silently drop.
     if (CHOOSE_CREATURE_TYPE.test(span)) {
         return ok({ kind: "choose-creature-type" as const });
+    }
+    const chooseExcept = span.match(CHOOSE_CREATURE_TYPE_EXCEPT);
+    if (chooseExcept !== null) {
+        const excluded = chooseExcept[1]!;
+        if (!CREATURE_SUBTYPES.has(excluded))
+            return fail(`"${excluded}" is not a creature type`, span);
+        return ok({
+            kind: "choose-creature-type" as const,
+            exclude: [excluded],
+        });
+    }
+
+    // ── chosen creature type written back (CR 205.1a, issue #4316) ─────────
+    // Before the land-type branch below: "that type" is not a CR 305.6 list,
+    // and the duration is REQUIRED for the reason that branch gives.
+    const setChosen = span.match(SET_CHOSEN_CREATURE_TYPE);
+    if (setChosen !== null) {
+        const subject = subjectRule.run(setChosen[1]!, ctx);
+        if (!subject.ok) return subject;
+        const duration = durationRule.run(setChosen[2]!, ctx);
+        if (!duration.ok) return duration;
+        return ok({
+            kind: "set-chosen-creature-type" as const,
+            subject: subject.value,
+            duration: duration.value,
+        } satisfies EffectSentenceIR);
     }
 
     // ── mana colour rules (CR 614.1a / 609.4b, issue #3811) ────────────────
