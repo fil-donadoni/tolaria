@@ -38,10 +38,19 @@ const alias = {
     "@convex": path.resolve(__dirname, "convex"),
 };
 
+// Worker cap (issue #4482): the must tier is sharded over four spec files
+// (`__tests__/blade.shard-N.spec.ts`), so the pool size decides the wall.
+// Same knob and default as `vitest.config.ts`: the heavy tier (`bun run test`,
+// `test:app`, `test:bot`) exports `min(ncpu - 1, 4)` through `scripts/gate.ts`;
+// a bare `bun run test:blade` stays at 2 so concurrent light jobs fit ncpu.
+const WORKERS = Math.max(1, Number(process.env.TOLARIA_VITEST_WORKERS ?? 2));
+
 export default defineConfig({
     resolve: { alias },
     test: {
         name: "blade",
+        maxWorkers: WORKERS,
+        minWorkers: 1,
         globals: true,
         environment: "node",
         include: ["convex/gre/ai/blade/__tests__/**/*.spec.ts"],

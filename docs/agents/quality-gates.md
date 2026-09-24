@@ -620,8 +620,11 @@ nothing (46.8s seeded vs 46.4s cold), so it is not seeded.
 
 `bun run test` = `test:app` (everything not `*.bot.test.ts`, ~580 files) →
 `test:bot` (ISMCTS/eval/driver/self-play) → `test:blade` (must tier, own
-config, ~42s). `test:bot` is a separate invocation so heavy episodes get an
-uncontended run. Blade's stretch tier stays report-only and manual
+config, sharded over four spec files `blade.shard-N.spec.ts`, issue #4482: 334 s
+serial in one file → 127 s on 4 workers, both at load ≈ 15, 2026-09-24, same 164
+tests green; the old "~42 s" was stale). The blade config reads
+`TOLARIA_VITEST_WORKERS`, so the RAM cap holds. `test:bot` is a separate
+invocation so heavy episodes get an uncontended run. Blade's stretch tier stays report-only and manual
 (`bun run test:blade:stretch`).
 
 ### Timeouts are hang guards; perf assertions live in the `perf` project

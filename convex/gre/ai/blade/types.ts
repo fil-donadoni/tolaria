@@ -452,7 +452,7 @@ export type BeyondBudget = {
      *  Mandatory whenever `passesAt` is omitted for any cause but
      *  `valuation` — omitting a passing budget is a claim that none was
      *  found, and a claim needs a search. Without this field the only
-     *  evidence would be `note`, which `blade.spec.ts` deliberately asserts
+     *  evidence would be `note`, which `bladeShardRunner.ts` deliberately asserts
      *  nothing about, so an unmeasured `horizon` entry would sail through
      *  (issue #3138 review). Must exceed `budget.iterations`, exactly as
      *  `passesAt` must. */
