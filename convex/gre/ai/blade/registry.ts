@@ -502,6 +502,52 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         note: "CR 601.2c ordered announcement. `MoveMatcher.target` matches ANY target, so it cannot state an ORDER — and order is the whole decision here — hence the predicate shape (as for adventure / mdfc). Issue #4193.",
     },
     {
+        // KICKER {X} reachability (CR 107.3a / 702.33a, issue #2141). The
+        // bot's main phase, an empty board, Verdeloth the Ancient in hand and
+        // nine untapped Forests: {4}{G}{G} for the 4/7, the other three buy
+        // X = 3 on its "Kicker {X}" — three Saprolings that the anthem makes
+        // 2/2. Nothing else in hand wants the mana, so the full kick is
+        // strictly better than any smaller X and than the bare cast.
+        //
+        // What it guards is REACHABILITY. The X of a Kicker {X} lives on a
+        // card whose printed cost has none, and the enumerator used to key
+        // its X axis off the printed cost only: the kicked cast was offered
+        // with no `chosenX` at all, which `announceCast` refuses. With the
+        // per-variant axis (`kickerXValues`, `moves.ts`) the X = 3 kick is a
+        // Move, and nothing but this entry and `kickerXBot.bot.test.ts` goes
+        // red if it stops being one.
+        label: "Kicker {X}: kicks Verdeloth for every spare mana",
+        spec: {
+            cards: [
+                { name: "Verdeloth the Ancient", owner: "me", zone: "hand" },
+                ...Array.from({ length: 9 }, () => ({
+                    name: "Forest",
+                    owner: "me" as const,
+                    zone: "battlefield" as const,
+                })),
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        // A PREDICATE for the reason the depletion-land entry below gives: a
+        // reachability claim, kept out of the weight fit.
+        expect: {
+            predicate: (move) =>
+                move !== null &&
+                move.kind === "cast-spell" &&
+                (move.kickerPayments?.kicker ?? 0) > 0 &&
+                move.chosenX === 3,
+            describe:
+                "casts Verdeloth the Ancient kicked with X = 3, spending every spare mana",
+        },
+        note: "CR 107.3a / 702.33a Kicker {X} reachability — the deterministic halves (enumeration, both sandboxes charging X) are in `kickerXBot.bot.test.ts`. Issue #2141.",
+    },
+    {
         // DEPLETION-LAND reachability (CR 605.1a / 118.3 / 701.21, issue
         // #2712). The bot's main phase, an empty board, one Grizzly Bears
         // ({1}{G}) in hand and ONE land: Hickory Woodlot, untapped, entering

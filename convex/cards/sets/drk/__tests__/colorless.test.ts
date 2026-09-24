@@ -1138,11 +1138,14 @@ describe("Reflecting Mirror (retarget existing spell, CR 115.7)", () => {
     });
 
     it("integration: derived X scales with a higher-mana-value spell", () => {
-        // Use Fireball-like MV via chosenX on the target spell: a bolt cast for
-        // an extra X would raise its MV; here we simulate a spell whose stack
-        // MV is 3 (base 1 + chosenX 2) → derived ability X = 6.
+        // CR 202.3e — only an {X} IN THE MANA COST counts toward a stack
+        // spell's mana value, so the target is a real Fireball ({X}{R}) cast
+        // for X = 2: MV 3 → derived ability X = 6.
         const { state, mirror, bolt } = setup();
-        bolt.chosenX = 2; // pretend the targeted spell carried X=2
+        bolt.card = {
+            id: getDefinition("b7623c00-144b-4a8f-9c6c-f5e9e4f65ece").id, // Fireball
+        };
+        bolt.chosenX = 2;
         state.players[0].manaPool = { W: 0, U: 0, B: 0, R: 6, G: 0, C: 0 };
         const pendingTarget = {
             playerId: "p1",

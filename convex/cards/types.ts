@@ -173,7 +173,7 @@ export type ManaCost = {
      *  printed card needs at most two; a wider list is refused by
      *  `normalizeManaCost`. "Only coloured mana, at most one of each colour"
      *  (Emblazoned Golem's Kicker {X}) is a different constraint, not
-     *  expressible as pips, and waits on issue #2141. */
+     *  expressible as pips, and waits on issue #4506. */
     xSpendColors?: Color[];
 };
 

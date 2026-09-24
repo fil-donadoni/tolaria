@@ -60,7 +60,12 @@ import {
 } from "./layers";
 import { hasSupertypeLive } from "./snow";
 import { totalKickerCount } from "./kicker";
-import { isLand, isSpellStackItem, manaValue } from "./constants";
+import {
+    isLand,
+    isSpellStackItem,
+    manaValue,
+    stackManaValue,
+} from "./constants";
 import { getInstanceManaCost, tryGetDefinition } from "../cards";
 import { hasControlledSinceTurnStart } from "./controlContinuity";
 
@@ -146,7 +151,7 @@ export function mvOfStackItem(item: {
 }): number {
     const cardId = (item.card as { id?: string }).id;
     const def = cardId ? tryGetDefinition(cardId) : undefined;
-    return manaValue(def?.manaCost) + (item.chosenX ?? 0);
+    return stackManaValue(def?.manaCost, item.chosenX);
 }
 
 /** CR 114.1 — Spell Pierce's "target noncreature spell": true when `item` is

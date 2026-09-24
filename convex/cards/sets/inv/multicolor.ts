@@ -552,13 +552,10 @@ export const armoredGuardian: CardDefinition = {
 // Kangee, Aerie Keeper — {2}{W}{U} Legendary Creature — Bird Wizard, 2/2.
 // "Kicker {X}{2}. Flying. When Kangee enters, if it was kicked, put X
 // feather counters on it. Other Bird creatures get +1/+1 for each feather
-// counter on Kangee." tracked-by: #2141 (same root cause as Verdeloth the
-// Ancient, `inv/green.ts`, whose own marker points at the same issue since
-// #1097's 2026-08-04 retirement split it out: `KickerCost.cost` is a FIXED
-// `ManaCost` — there is no VARIABLE-amount kicker where the paid X is chosen
-// once and read back as the kicker count. `entersWith.counters`' `count:
-// "kicker"` reads a 0-or-1 paid flag, not an arbitrary chosen X, so it
-// cannot express "put X feather counters" for this shape.)
+// counter on Kangee." tracked-by: #4507 — the "Kicker {X}{2}" and the kicked
+// ETB's X are expressible since issue #2141 (Verdeloth the Ancient,
+// `inv/green.ts`); what remains is the anthem, a layer 7c buff whose amount
+// scales with the counters on its source.
 
 // ─────────────────────────────────────────────────────────────────────────
 // lookDistribute destination + bind cluster (issue #1101)

@@ -229,6 +229,24 @@ export function manaValue(cost?: ManaCost): number {
     return total;
 }
 
+/** CR 202.3e — the mana value of a SPELL on the stack: its mana cost with
+ *  each `{X}` IN THAT COST valued at the announced X (`{X}{X}` twice). Only
+ *  the mana cost counts (CR 202.3): an X announced for an additional cost
+ *  alone — a "Kicker {X}" on a card with no `{X}` pip (Verdeloth the
+ *  Ancient, issue #2141) — adds nothing. */
+export function stackManaValue(
+    cost: ManaCost | undefined,
+    chosenX: number | undefined
+): number {
+    const xPips =
+        typeof cost?.X === "string"
+            ? typeof cost.xFactor === "number" && cost.xFactor > 0
+                ? cost.xFactor
+                : 1
+            : 0;
+    return manaValue(cost) + xPips * (chosenX ?? 0);
+}
+
 /** Exact STRUCTURAL comparison of two printed mana costs (CR 202, issue
  *  #1881, ADR 0078 decision 8) — `EffectCardFilter.manaCostEquals`'s reader.
  *  Distinct from `manaValue` right above, which collapses a cost to one

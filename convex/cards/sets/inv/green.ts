@@ -1575,26 +1575,91 @@ export const tangle: CardDefinition = {
     ],
 };
 
-// Verdeloth the Ancient — "Kicker {X}. Saproling creatures and other
-// Treefolk creatures get +1/+1. When Verdeloth enters, if it was kicked,
-// create X 1/1 green Saproling creature tokens." The anthem is buildable
-// (`pt-buff` OR-filtered by subtype), but "Kicker {X}" is a VARIABLE-cost
-// kicker: per CR 107.3a a spell announces ONE X that its mana cost AND every
-// additional cost share, so the engine's existing per-cast `chosenX` is the
-// right model — but the Kicker path never sees it. `foldKickerCosts`
-// (`gre/kicker.ts`) calls `normalizeManaCost(kicker.mana)` with no options,
-// and the cast dialog's X stepper is gated on the PRINTED cost, which
-// Verdeloth's is not. Distinct from the ordinary
-// `entersWith.counters[count: "kicker"]` shape used elsewhere in this file,
-// which reads a FIXED per-kick count, not a caster-chosen X.
-// tracked-by: #2141
-// export const verdelothTheAncient: CardDefinition = {
-//     id: "72d5fab1-fa20-4006-b19d-179d36238c9b",
-//     name: "Verdeloth the Ancient",
-//     rarity: "rare",
-//     manaCost: { X: 4, G: 2 },
-//     types: ["Creature"],
-// };
+// Verdeloth the Ancient — {4}{G}{G} Legendary Creature — Treefolk, 4/7.
+// "Kicker {X}. Saproling creatures and other Treefolk creatures get +1/+1.
+// When Verdeloth enters, if it was kicked, create X 1/1 green Saproling
+// creature tokens." (issue #2141)
+//
+// CR 107.3a — a spell announces ONE X, shared by its mana cost and every
+// additional cost, so "Kicker {X}" is a Kicker whose mana leg carries the
+// `X: "X"` marker and is priced at the spell's own `chosenX`
+// (`foldKickerCosts`). CR 601.2b announces X only for a cost that will be
+// paid, so an unkicked cast announces none (`paidKickersAnnounceX`).
+// CR 107.3m — the ETB trigger's X is the X of the spell that became this
+// permanent. The trigger is the Verduran Emissary pair (check-time
+// `conditionOnSelf` + resolution-time `additionalCostPaid` branch).
+// CR 613.4c — the anthem covers every Saproling and every OTHER Treefolk.
+// Token art: `generated/token-prints.json` keyed by this card's id.
+// compiler-gap: "Kicker {X}" (#4318)
+// compiler-gap: "Saproling creatures and other Treefolk creatures get +1/+1." (#2693)
+// compiler-gap: "When Verdeloth enters, if it was kicked, create X 1/1 green Saproling creature tokens." (#2693)
+export const verdelothTheAncient: CardDefinition = {
+    id: "72d5fab1-fa20-4006-b19d-179d36238c9b",
+    name: "Verdeloth the Ancient",
+    rarity: "rare",
+    oracleText:
+        "Kicker {X} (You may pay an additional {X} as you cast this spell.)\nSaproling creatures and other Treefolk creatures get +1/+1.\nWhen Verdeloth enters, if it was kicked, create X 1/1 green Saproling creature tokens.",
+    manaCost: { X: 4, G: 2 },
+    supertypes: ["Legendary"],
+    types: ["Creature"],
+    subtypes: ["Treefolk"],
+    power: 4,
+    toughness: 7,
+    kickers: [
+        {
+            id: "kicker",
+            description: "Kicker {X}",
+            mana: { X: "X" },
+        },
+    ],
+    staticEffects: [
+        {
+            kind: "pt-buff",
+            applies: (target, source, ctx) =>
+                ctx.isCreature(target) &&
+                (target.subtypes.includes("Saproling") ||
+                    (target.id !== source.id &&
+                        target.subtypes.includes("Treefolk"))),
+            power: 1,
+            toughness: 1,
+        },
+    ],
+    triggeredAbilities: [
+        enteredTrigger({
+            id: "verdeloth-the-ancient-kicked",
+            oracleText:
+                "When Verdeloth enters, if it was kicked, create X 1/1 green Saproling creature tokens.",
+            scope: "self",
+            // CR 603.4 check-time gate — see Verduran Emissary above.
+            conditionOnSelf: additionalCostPaidCondition("kicker"),
+            effects: [
+                {
+                    op: "if",
+                    predicate: {
+                        left: { additionalCostPaid: "kicker" },
+                        op: "ge",
+                        right: 1,
+                    },
+                    then: [
+                        {
+                            op: "createToken",
+                            controller: "controller",
+                            count: { X: true },
+                            token: {
+                                name: "Saproling",
+                                types: ["Creature"],
+                                subtypes: ["Saproling"],
+                                power: 1,
+                                toughness: 1,
+                                colors: ["G"],
+                            },
+                        },
+                    ],
+                },
+            ],
+        }),
+    ],
+};
 
 // Vigorous Charge — "Kicker {W}. Target creature gains trample until end of
 // turn. Whenever that creature deals combat damage this turn, if this spell

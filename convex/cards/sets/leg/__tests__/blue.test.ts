@@ -932,7 +932,8 @@ describe("In the Eye of Chaos (counter instants unless controller pays mana valu
                 makePlayer("p2"),
             ],
         });
-        // partWater is {X}{U} — base mana value 1 ({U}) plus the chosen X.
+        // partWater is {X}{X}{U} — base mana value 1 ({U}) plus the chosen X
+        // once per {X} (CR 202.3e / 107.3i: both are the same X).
         const spell = pushSpell(state, partWater.id, "p2");
         spell.chosenX = 4;
         resolveTrigger(
@@ -941,8 +942,8 @@ describe("In the Eye of Chaos (counter instants unless controller pays mana valu
             "in-the-eye-of-chaos-tax",
             castEvent("p2", spell, ["Instant"])
         );
-        // Mana value on the stack = {U}(1) + chosen X(4) = 5 (CR 202.3b).
-        expect(state.pendingChoices![0].cost).toEqual({ X: 5 });
+        // Mana value on the stack = {U}(1) + 2 × chosen X(4) = 9.
+        expect(state.pendingChoices![0].cost).toEqual({ X: 9 });
     });
 
     it("ignores non-instant spells — a sorcery is not taxed", () => {

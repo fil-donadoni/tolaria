@@ -70,6 +70,7 @@ import {
     kickerLegPermanentSlotWouldCollide,
     kickedCountOfPayments,
     kickerLifeCost,
+    paidKickersAnnounceX,
     type KickerPayments,
 } from "./kicker";
 // CR 601.2c (issue #4193) — whether a group's announced slots receive
@@ -90,6 +91,7 @@ import {
     getLegalTargets,
     getProducibleManaSourceView,
     maxAffordableX,
+    maxAffordableXOverCost,
     solvePhyrexianSplit,
     genericManaShortfall,
     targetingSourceFromCard,
@@ -2953,6 +2955,38 @@ export function enumerateCastMoves(
     );
 }
 
+/** CR 107.3a / 702.33a (issue #2141) — the candidate X values for a cast
+ *  whose ONLY variable is a paid Kicker's `{X}`: `0..ceiling`, the ceiling
+ *  priced over the whole cast cost (printed cost plus every paid Kicker) by
+ *  {@link maxAffordableXOverCost}. How much one point of X costs is read off
+ *  the same fold the tap plan uses (the cost at X = 1 minus the cost at
+ *  X = 0), so a `{X}{X}` or Multikicker `{X}` leg needs no case of its own. */
+function kickerXValues(
+    state: GameState,
+    player: PlayerState,
+    card: CardInstanceState,
+    def: CardDefinition,
+    rawCost: ManaCost,
+    kickerPayments: KickerPayments | undefined
+): number[] {
+    const priced = (x: number) => {
+        const cost = normalizeManaCost(rawCost, { chosenX: x });
+        foldKickerCosts(cost, def, kickerPayments, x);
+        return cost;
+    };
+    const fixed = priced(0);
+    const total = (cost: Record<string, number>) =>
+        Object.values(cost).reduce((sum, n) => sum + n, 0);
+    const ceiling = maxAffordableXOverCost(
+        player,
+        card,
+        fixed,
+        total(priced(1)) - total(fixed),
+        state
+    );
+    return Array.from({ length: ceiling + 1 }, (_, i) => i);
+}
+
 function enumerateCastMovesFromZone(
     state: GameState,
     player: PlayerState,
@@ -3502,7 +3536,27 @@ function enumerateCastMovesFromZone(
                   )
                 : undefined;
         if (hoistedCostPicks === null) continue;
-        for (const x of xValues) {
+        // CR 107.3a / 601.2b (issue #2141) — a paid "Kicker {X}" (Verdeloth the
+        // Ancient) makes THIS variant announce an X its printed cost does not
+        // carry, so the X axis is per announce-variant, not per card: the
+        // unkicked variant keeps `[undefined]`, the kicked one ranges 0..its
+        // ceiling. A card whose printed cost already has X shares that one X
+        // (CR 107.3a) and keeps the card-level range.
+        const variantXValues =
+            def &&
+            xValues.length === 1 &&
+            xValues[0] === undefined &&
+            paidKickersAnnounceX(def, kickerPayments)
+                ? kickerXValues(
+                      state,
+                      player,
+                      card,
+                      def,
+                      rawCost,
+                      kickerPayments
+                  )
+                : xValues;
+        for (const x of variantXValues) {
             const normCost = normalizeManaCost(rawCost, { chosenX: x ?? 0 });
             // CR 702.33a / 601.2f (issue #2081) — a paid Kicker's MANA leg
             // joins the total ON TOP of the printed cost (CR 702.33a), folded
@@ -3511,7 +3565,7 @@ function enumerateCastMovesFromZone(
             // called before `foldFlashSurchargeCost`/`applyCostModifiers`
             // there). No-op for the `undefined` (unkicked) variant and for
             // every card without `kickers`.
-            if (def) foldKickerCosts(normCost, def, kickerPayments);
+            if (def) foldKickerCosts(normCost, def, kickerPayments, x);
             // CR 702.27a / 601.2f (issue #2081) — mirrors the fold above for
             // Buyback's flat extra mana cost. No-op unless this variant's
             // `buybackPaid` axis chose to pay it.

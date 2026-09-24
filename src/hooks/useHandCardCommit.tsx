@@ -27,7 +27,7 @@ import {
     modePickerConstraint,
     viewerModeSelectionFacts,
 } from "~/lib/mode-picker-constraint";
-import { kickedCountOfPayments } from "@convex/gre/kicker";
+import { kickedCountOfPayments, kickerAnnouncesX } from "@convex/gre/kicker";
 import AltCostPicker from "~/components/cards/alt-cost-picker";
 import { isCastPermissionAltCostId } from "@convex/gre/castPermissions";
 import { splitCastOptionsFor } from "@convex/gre/splitCast";
@@ -112,7 +112,14 @@ type PhyrexianPickerState = {
 type CostDialogState = {
     keepPriority: boolean | undefined;
     askX: boolean;
-    kickers: { id: string; description: string; multi: boolean }[] | undefined;
+    kickers:
+        | {
+              id: string;
+              description: string;
+              multi: boolean;
+              announcesX: boolean;
+          }[]
+        | undefined;
     buyback: boolean;
     /** CR 601.3c — the rendered surcharge ("{2}") when the server says casting
      *  this card right now owes it; `undefined` at sorcery speed. */
@@ -708,6 +715,7 @@ export function useHandCardCommit(
                     id: k.id,
                     description: k.description,
                     multi: k.multi === true,
+                    announcesX: kickerAnnouncesX(k),
                 })),
                 buyback: def.buyback !== undefined,
                 flashSurcharge,

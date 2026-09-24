@@ -246,6 +246,7 @@ import {
     MAX_CHOSEN_NUMBER,
     manaGateBattlefields,
     manaValue,
+    stackManaValue,
     MANA_COLORS,
     assignHybridPips,
     hybridCostKey,
@@ -19629,8 +19630,7 @@ export function buildSpellContext(
                 if (!stackItem) return 0;
                 const cardId = (stackItem.card as { id?: string }).id;
                 const def = cardId ? tryGetDefinition(cardId) : undefined;
-                const base = manaValue(def?.manaCost);
-                return base + (stackItem.chosenX ?? 0);
+                return stackManaValue(def?.manaCost, stackItem.chosenX);
             }
             // CR 202.3 (issue #680) — a graveyard-card target (Reanimate's
             // "lose life equal to that card's mana value"). Mirrors

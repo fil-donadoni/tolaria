@@ -379,6 +379,49 @@ describe("CastCostDialog — plural kickers (CR 702.33, ADR 0079)", () => {
     });
 });
 
+// Issue #2141 — CR 107.3a / 601.2b: a "Kicker {X}" owes the spell's one
+// announced X, but only when it is PAID. The printed cost of Verdeloth the
+// Ancient has no X, so `askX` is false and the stepper is the Kicker's alone.
+describe("CastCostDialog — Kicker {X} (CR 107.3a / 601.2b, issue #2141)", () => {
+    const kickerX = [
+        {
+            id: "kicker",
+            description: "Kicker {X}",
+            multi: false,
+            announcesX: true,
+        },
+    ];
+
+    it("hides the X stepper until the Kicker {X} is toggled on", () => {
+        renderDialog({ askX: false, kickers: kickerX });
+        expect(screen.queryByLabelText("Choose X")).toBeNull();
+        fireEvent.click(screen.getByRole("checkbox"));
+        expect(screen.getByLabelText("Choose X")).toBeTruthy();
+    });
+
+    it("sends the X with the kick", () => {
+        const { onConfirm } = renderDialog({ askX: false, kickers: kickerX });
+        fireEvent.click(screen.getByRole("checkbox"));
+        fireEvent.change(screen.getByLabelText("Choose X"), {
+            target: { value: "4" },
+        });
+        fireEvent.click(castButton());
+        expect(onConfirm).toHaveBeenCalledWith({
+            chosenX: 4,
+            kickerPayments: { kicker: 1 },
+        });
+    });
+
+    it("declining the Kicker announces no X at all", () => {
+        const { onConfirm } = renderDialog({ askX: false, kickers: kickerX });
+        fireEvent.click(castButton());
+        expect(onConfirm).toHaveBeenCalledWith({
+            chosenX: undefined,
+            kickerPayments: undefined,
+        });
+    });
+});
+
 // #2934 — CR 601.3c: the conditional-flash surcharge is a COST, so it renders
 // as mana symbols like every other cost surface in the app, not as the literal
 // characters the server sent.

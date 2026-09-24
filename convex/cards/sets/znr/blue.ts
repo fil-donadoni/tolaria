@@ -17,9 +17,9 @@
 // were 0. The bot's move enumeration (`moves.ts`) keys its X-ceiling loop off
 // the SPELL's OWN `manaCost.X`, never `kicker.cost.X` — a fixed-cost spell
 // with a variable kicker (this card's exact shape) is invisible to it too.
-// Already tracked: tracked-by #3248 (this card; its second blocker is `attach`
-// of an arbitrary object), itself blocked by #2141 (Kicker {X}, the Verdeloth
-// the Ancient gap).
+// That half closed with issue #2141 (Kicker {X}, Verdeloth the Ancient); "X
+// can't be 0" is a lower bound it still owes. Already tracked: tracked-by
+// #3248 (this card; its other blocker is `attach` of an arbitrary object).
 // export const thievingSkydiver: CardDefinition = {
 //     id: "ff84ea71-e477-44f7-a3f8-77fef708efeb",
 //     name: "Thieving Skydiver",

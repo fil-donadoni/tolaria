@@ -29,6 +29,7 @@ const OPP = "p1";
 
 const MIRROR = getCardByName("Reflecting Mirror").id;
 const BOLT = getCardByName("Lightning Bolt").id;
+const FIREBALL = getCardByName("Fireball").id;
 const MOUNTAIN = getCardByName("Mountain").id;
 const MIRROR_ABILITY = "reflecting-mirror-retarget";
 
@@ -101,11 +102,11 @@ describe("Reflecting Mirror — the enumerator prices the derived X (issue #3117
 describe("Reflecting Mirror — X is derived PER TARGET, not per ability (issue #3117)", () => {
     it("offers the cheap spell target and skips a costlier one out of the SAME tuple set", () => {
         const { state, bolt: cheapBolt } = board(2);
-        // A second single-target spell at the Bot, priced as if its mana value
-        // were 6 (1 printed + 5 "chosenX", the same simulation trick the
-        // mutation-side GRE test uses) — derived X = 12, unaffordable with two
-        // Mountains while the cheap Bolt's X = 2 stays payable.
-        const priceyBolt = pushSpell(state, BOLT, OPP, [
+        // A second single-target spell at the Bot with mana value 6 — a
+        // Fireball ({X}{R}) cast for X = 5 (CR 202.3e) — so derived X = 12,
+        // unaffordable with two Mountains while the cheap Bolt's X = 2 stays
+        // payable.
+        const priceyBolt = pushSpell(state, FIREBALL, OPP, [
             { type: "player", id: BOT },
         ]);
         priceyBolt.chosenX = 5;
