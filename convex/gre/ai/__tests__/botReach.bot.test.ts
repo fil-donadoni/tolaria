@@ -619,6 +619,24 @@ describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
         }
     }, 300_000);
 
+    // Issue #4267: a pump aimed at a creature that also draws is worth the
+    // trick AND the cards it finds; each half was posed by its own slice
+    // (issue #4264, issue #4266) and the composition is what the sweep plays.
+    it("played — an instant that pumps a target creature and draws", () => {
+        for (const name of [
+            "Aggressive Urge",
+            "Defiant Strike",
+            "Rebellious Strike",
+            "Sudden Strength",
+            "Sugar Rush",
+        ]) {
+            expect(playBotReachSeats(getCardByName(name)), name).toEqual([
+                { holderId: "p1", verdict: { outcome: "played" } },
+                { holderId: "p2", verdict: { outcome: "played" } },
+            ]);
+        }
+    }, 600_000);
+
     it("a draw spell's holder finds spells on top of the library, and only that holder", () => {
         const topOfLibrary = (def: CardDefinition, seat: 0 | 1): unknown => {
             const { state, holderId } = buildBotReachState(def, seat);
