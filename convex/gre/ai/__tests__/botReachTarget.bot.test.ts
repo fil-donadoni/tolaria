@@ -19,7 +19,9 @@ import {
     playBotReach,
     TRICK_WINDOW,
 } from "../botReach";
-import { combatTrickPosition } from "../botReachTarget";
+import { combatTrickPosition, targetPose } from "../botReachTarget";
+
+const targetPoseCards = (def: CardDefinition) => targetPose(def).cards;
 
 const DESTROY: EffectOp[] = [{ op: "destroy", target: { target: 0 } }];
 const PUMP: EffectOp[] = [
@@ -74,6 +76,15 @@ describe("the generated position poses a narrowed creature target (CR 115.1)", (
         ],
         ["a supertype", instant("legend", { supertypeFilter: ["Legendary"] })],
         ["tapped", instant("tapped", { tappedFilter: "tapped" })],
+        ["mana value N or greater", instant("mv", { mvFilter: { min: 3 } })],
+        [
+            "a keyword only defenders carry",
+            instant("defender", { requireAbility: "defender" }),
+        ],
+        [
+            "a keyword no plain body carries",
+            instant("horsemanship", { requireAbility: "horsemanship" }),
+        ],
     ];
     it.each(shapes)("%s", (_label, def) => {
         expect(castable(def)).toBe(true);
@@ -275,5 +286,46 @@ describe("a combat trick is posed in a declared combat once the main phases pass
         expect(
             withTemporaryDefinition(TRICK, () => playBotReach(TRICK))
         ).toEqual({ outcome: "played" });
+    });
+});
+
+// Issue #4265 — a sorcery whose creature target is named by a mana value or a
+// keyword no plain catalogue body carries. Each was refused by the engine for a
+// human too (`position-unmodelled`); the position now poses the body, and the
+// Bot casts the removal at it.
+describe("a sorcery removal spell's narrowed target is posed and played (CR 115.1)", () => {
+    const removal = (
+        slug: string,
+        requirement: Partial<TargetRequirement>
+    ): CardDefinition => ({
+        ...instant(slug, requirement),
+        types: ["Sorcery"],
+    });
+    const shapes: ReadonlyArray<readonly [string, CardDefinition]> = [
+        [
+            "mana value N or greater",
+            removal("sorcery-mv", { mvFilter: { min: 3 } }),
+        ],
+        [
+            "a printed keyword (defender)",
+            removal("sorcery-defender", { requireAbility: "defender" }),
+        ],
+        [
+            "a keyword only a grant can supply (horsemanship)",
+            removal("sorcery-horsemanship", { requireAbility: "horsemanship" }),
+        ],
+    ];
+    it.each(shapes)("%s", (_label, def) => {
+        expect(castable(def)).toBe(true);
+        expect(withTemporaryDefinition(def, () => playBotReach(def))).toEqual({
+            outcome: "played",
+        });
+    });
+
+    it("a mana value bound the position cannot read poses nothing", () => {
+        const def = removal("sorcery-mv-x", { mvFilter: { max: "X" } });
+        expect(
+            withTemporaryDefinition(def, () => targetPoseCards(def))
+        ).toEqual([]);
     });
 });
