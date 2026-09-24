@@ -351,6 +351,11 @@
     "claims": [
         {
             "kind": "bot",
+            "key": "harness-error › Card not found by name: gen-source-Creature|Plant-Wall|3/3",
+            "issue": 4624
+        },
+        {
+            "kind": "bot",
             "key": "never-chosen › Artifact › draw",
             "issue": 4279
         },
@@ -428,6 +433,11 @@
             "kind": "bot",
             "key": "never-chosen › Creature › dealDamage+forEach",
             "issue": 4468
+        },
+        {
+            "kind": "bot",
+            "key": "never-chosen › Creature › dealDamage+grantAbility",
+            "issue": 4625
         },
         {
             "kind": "bot",
