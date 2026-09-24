@@ -36,7 +36,15 @@ export type PlayerRefIR =
      * "that player" a referent and "that opponent" none — the words assert a
      * fact the head must have printed.
      */
-    | { readonly kind: "that-opponent" };
+    | { readonly kind: "that-opponent" }
+    /**
+     * CR 110.2 + CR 608.2h — "that creature's controller": the controller of
+     * the ONE creature the spell announced as its target. Never in `PHRASES`:
+     * only the damage recipient reads it (`effectClause.ts` — the corpus
+     * prints no other verb under it that a fixture pins), so every other verb
+     * keeps refusing the phrase. The lowering resolves the referent.
+     */
+    | { readonly kind: "that-creature-controller" };
 
 const PHRASES: ReadonlyMap<string, PlayerRefIR> = new Map<string, PlayerRefIR>([
     ["you", { kind: "you" }],

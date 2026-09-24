@@ -1527,6 +1527,62 @@
         "setCode": "otj"
     },
     {
+        "name": "Grotag Siege-Runner",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Goblin",
+            "Rogue"
+        ],
+        "manaCost": {
+            "X": 1,
+            "R": 1
+        },
+        "power": 2,
+        "toughness": 1,
+        "oracleText": "{R}, Sacrifice this creature: Destroy target creature with defender. This creature deals 2 damage to that creature's controller.",
+        "activatedAbilities": [
+            {
+                "id": "grotag-siege-runner-ability",
+                "oracleText": "{R}, Sacrifice this creature: Destroy target creature with defender. This creature deals 2 damage to that creature's controller.",
+                "cost": {
+                    "mana": {
+                        "R": 1
+                    },
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "destroy",
+                        "target": {
+                            "target": 0
+                        },
+                        "bind": "$that1"
+                    },
+                    {
+                        "op": "dealDamage",
+                        "amount": 2,
+                        "to": {
+                            "player": {
+                                "ref": "$that1.controller"
+                            }
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1,
+                    "requireAbility": "defender"
+                }
+            }
+        ],
+        "id": "01c1a241-38ad-453e-b6c2-a79006031e2d",
+        "rarity": "common",
+        "setCode": "roe"
+    },
+    {
         "name": "Gilded Sentinel",
         "types": [
             "Artifact",
@@ -7564,6 +7620,42 @@
         "id": "09950456-09d6-4675-9995-0dc540ddb6e4",
         "rarity": "common",
         "setCode": "dom"
+    },
+    {
+        "name": "Consign to the Pit",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 5,
+            "B": 1
+        },
+        "oracleText": "Destroy target creature. Consign to the Pit deals 2 damage to that creature's controller.",
+        "effects": [
+            {
+                "op": "destroy",
+                "target": {
+                    "target": 0
+                },
+                "bind": "$that1"
+            },
+            {
+                "op": "dealDamage",
+                "amount": 2,
+                "to": {
+                    "player": {
+                        "ref": "$that1.controller"
+                    }
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "09991fad-4282-4a17-bfb1-03eaa13502df",
+        "rarity": "common",
+        "setCode": "rna"
     },
     {
         "name": "Sarpadian Simulacrum",
@@ -125173,6 +125265,46 @@
         "setCode": "sok"
     },
     {
+        "name": "Blur of Blades",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 1,
+            "R": 1
+        },
+        "oracleText": "Put a -1/-1 counter on target creature. Blur of Blades deals 2 damage to that creature's controller.",
+        "effects": [
+            {
+                "op": "counters",
+                "action": "add",
+                "counter": "-1/-1",
+                "target": {
+                    "target": 0
+                },
+                "count": 1
+            },
+            {
+                "op": "dealDamage",
+                "amount": 2,
+                "to": {
+                    "player": {
+                        "controllerOf": {
+                            "target": 0
+                        }
+                    }
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "b53f5b9b-d24b-4e9a-bc90-7ed198cd1132",
+        "rarity": "common",
+        "setCode": "hou"
+    },
+    {
         "name": "Corrupted Harvester",
         "types": [
             "Creature"
@@ -143009,6 +143141,59 @@
         "id": "cfd3eadb-74bb-423b-923f-a6fc2259e0d7",
         "rarity": "common",
         "setCode": "plst"
+    },
+    {
+        "name": "Fodder Launch",
+        "types": [
+            "Kindred",
+            "Sorcery"
+        ],
+        "subtypes": [
+            "Goblin"
+        ],
+        "manaCost": {
+            "X": 3,
+            "B": 1
+        },
+        "oracleText": "As an additional cost to cast this spell, sacrifice a Goblin.\nTarget creature gets -5/-5 until end of turn. Fodder Launch deals 5 damage to that creature's controller.",
+        "effects": [
+            {
+                "op": "pump",
+                "target": {
+                    "target": 0
+                },
+                "power": -5,
+                "toughness": -5,
+                "duration": {
+                    "phase": "end-of-turn"
+                }
+            },
+            {
+                "op": "dealDamage",
+                "amount": 5,
+                "to": {
+                    "player": {
+                        "controllerOf": {
+                            "target": 0
+                        }
+                    }
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "additionalCosts": {
+            "sacrificeFilter": {
+                "subtypes": [
+                    "Goblin"
+                ]
+            }
+        },
+        "id": "d000670f-1151-4abf-a7ec-b35a6e587183",
+        "rarity": "uncommon",
+        "setCode": "lrw"
     },
     {
         "name": "Pressure Point",

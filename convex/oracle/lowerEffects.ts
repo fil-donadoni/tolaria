@@ -886,6 +886,9 @@ export class SentenceWalk {
         readonly requirement: TargetRequirement;
     } | null = null;
 
+    /** A destroy/exile/move sat behind a gate, so no live read of its target is safe. */
+    gatedRemoval = false;
+
     /** A binding name unique within this ability's script. */
     nextBind(prefix: string): string {
         this.binds.count += 1;
@@ -1255,6 +1258,11 @@ function playerRef(
         case "each-player":
         case "each-opponent":
             return unlowerable('"each player" is not in grammar v0');
+        // Resolved by the damage lowering, which owns the walk it reads.
+        case "that-creature-controller":
+            return unlowerable(
+                '"that creature\'s controller" is read only as a damage recipient'
+            );
     }
 }
 
@@ -1449,7 +1457,11 @@ function lowerSentenceBody(
                     amount: amount.value,
                     to: target,
                 }));
-            const to = damageTarget(sentence.to, slots, site);
+            const to =
+                sentence.to.kind === "player" &&
+                sentence.to.player.kind === "that-creature-controller"
+                    ? lowerThatCreatureController(walk)
+                    : damageTarget(sentence.to, slots, site);
             if (!to.ok) return to;
             return lowered([
                 { op: "dealDamage", amount: amount.value, to: to.value },
@@ -2198,6 +2210,9 @@ function gatedSentence(
     const actedOn = walk.actedOn;
     const inner = lowerSentence(sentence, walk, site);
     walk.libraryLookedAt = antecedent;
+    // A removal behind the gate may or may not have happened, and the restore
+    // below forgets it: remember that the announced object's fate is unknown.
+    if (walk.actedOn !== actedOn) walk.gatedRemoval = true;
     walk.actedOn = actedOn;
     return inner;
 }
@@ -2291,6 +2306,39 @@ function countWord(n: number): string {
         "seven",
     ];
     return words[n] ?? String(n);
+}
+
+/**
+ * CR 110.2 + CR 608.2h — "that creature's controller" as a damage recipient.
+ *
+ * Read only when the spell announced exactly ONE target and it is a single
+ * creature: with two announced objects "that creature" could name either, and
+ * a guess would hit the wrong player. A creature the earlier sentence removed
+ * (destroy) is gone from the battlefield by the time this sentence resolves, so
+ * its controller is read from the `bind` snapshot (CR 608.2h last-known
+ * information); a creature that stays (tap, pump, counter) is read live.
+ */
+function lowerThatCreatureController(
+    walk: SentenceWalk
+): Lowered<{ player: EffectPlayerRef }> {
+    const announced = walk.targets.requirements();
+    const only = announced.length === 1 ? announced[0]! : null;
+    if (
+        only === null ||
+        only.type !== "Creature" ||
+        only.count !== 1 ||
+        only.announcedOnlyIfKicked === true ||
+        walk.gatedRemoval
+    )
+        return unlowerable(
+            '"that creature\'s controller" names no single creature target announced before it (CR 608.2h)'
+        );
+    const actedOn = walk.actedOn;
+    if (actedOn === null)
+        return lowered({ player: { controllerOf: { target: 0 } } });
+    const bind = actedOn.op.bind ?? walk.nextBind("that");
+    actedOn.op.bind = bind;
+    return lowered({ player: { ref: `${bind}.controller` } });
 }
 
 /** Remember the announced object a sentence acted on (see `actedOn`). */

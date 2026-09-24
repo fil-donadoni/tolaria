@@ -1636,6 +1636,7 @@ const ANIMATE = /^(.+) become (\d+)\/(\d+) creatures (.+)$/;
 /** CR 205.1b — the rider that keeps the animated set's types. */
 const STILL_TYPES = /^They(?:'|’)re still (.+)$/;
 const DAMAGE = /^(.+) deals (\S+) damage to (.+)$/;
+const THAT_CREATURE_CONTROLLER = "that creature's controller";
 /** CR 601.2d — "deals N damage divided as you choose among <targets>". */
 const DAMAGE_DIVIDED =
     /^(.+) deals (\S+) damage divided as you choose among (.+)$/;
@@ -2616,10 +2617,18 @@ function effectSentence(
         const sweep = damage[3]!.startsWith("each ")
             ? keywordExcludedSweepRule.run(damage[3]!, ctx)
             : null;
+        // CR 110.2 + CR 608.2h — "that creature's controller": the player who
+        // controls the creature an earlier sentence targeted. Read as one exact
+        // phrase; the referent is the lowering's to check.
         const to: RuleResult<SubjectIR> =
-            sweep !== null && sweep.ok
-                ? ok({ kind: "mass" as const, ...sweep.value } as SubjectIR)
-                : subjectRule.run(damage[3]!, ctx);
+            damage[3] === THAT_CREATURE_CONTROLLER
+                ? ok({
+                      kind: "player" as const,
+                      player: { kind: "that-creature-controller" as const },
+                  })
+                : sweep !== null && sweep.ok
+                  ? ok({ kind: "mass" as const, ...sweep.value } as SubjectIR)
+                  : subjectRule.run(damage[3]!, ctx);
         if (!to.ok) return to;
         return ok({
             kind: "deal-damage" as const,

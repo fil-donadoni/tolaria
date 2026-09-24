@@ -5754,6 +5754,16 @@
         "firstPrintSet": "lea"
     },
     {
+        "name": "Blur of Blades",
+        "scryfallId": "b53f5b9b-d24b-4e9a-bc90-7ed198cd1132",
+        "oracleId": "65410f7a-c749-4b23-ad61-8a7136efcad2",
+        "firstSet": "hou",
+        "firstPrintId": "b53f5b9b-d24b-4e9a-bc90-7ed198cd1132",
+        "firstPrintSet": "hou",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Blur of Heroism",
         "scryfallId": "ca94680f-d46c-4b0f-a40f-635a0fcb16f5",
         "oracleId": "b4a9b328-f976-4390-be9a-711ef357a50d",
@@ -9690,6 +9700,16 @@
         "firstSet": "mid",
         "firstPrintId": "a211d505-4d40-4914-a9da-220770d6ddbc",
         "firstPrintSet": "mid"
+    },
+    {
+        "name": "Consign to the Pit",
+        "scryfallId": "09991fad-4282-4a17-bfb1-03eaa13502df",
+        "oracleId": "b0c50079-5376-47ff-82c5-d52dbf49afdf",
+        "firstSet": "rna",
+        "firstPrintId": "09991fad-4282-4a17-bfb1-03eaa13502df",
+        "firstPrintSet": "rna",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Conspiracy",
@@ -18578,6 +18598,16 @@
         "source": "compiled"
     },
     {
+        "name": "Fodder Launch",
+        "scryfallId": "d000670f-1151-4abf-a7ec-b35a6e587183",
+        "oracleId": "bec0127a-ab3c-4923-93c2-c43ba8998091",
+        "firstSet": "lrw",
+        "firstPrintId": "d000670f-1151-4abf-a7ec-b35a6e587183",
+        "firstPrintSet": "lrw",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Fog",
         "scryfallId": "cfba606d-bb55-43ba-aa0c-299649958788",
         "oracleId": "27e9db49-7af7-4bef-ad4c-bf5dfb92030d",
@@ -22504,6 +22534,16 @@
         "firstSet": "lea",
         "firstPrintId": "ce2d603a-3231-4a8c-bf39-1617586ea870",
         "firstPrintSet": "lea"
+    },
+    {
+        "name": "Grotag Siege-Runner",
+        "scryfallId": "01c1a241-38ad-453e-b6c2-a79006031e2d",
+        "oracleId": "f76969e7-b075-417c-bc15-1b94a17fef54",
+        "firstSet": "roe",
+        "firstPrintId": "01c1a241-38ad-453e-b6c2-a79006031e2d",
+        "firstPrintSet": "roe",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Grotesque Demise",
