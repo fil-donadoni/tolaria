@@ -631,6 +631,66 @@
         },
         {
             "kind": "grammar",
+            "key": "(card) › land with a basic land type — intrinsic mana ability (CR 305.6) is not in grammar v0",
+            "issue": 4541
+        },
+        {
+            "kind": "grammar",
+            "key": "(no slot) › Forestwalk",
+            "issue": 4540
+        },
+        {
+            "kind": "grammar",
+            "key": "(no slot) › Islandwalk",
+            "issue": 4540
+        },
+        {
+            "kind": "grammar",
+            "key": "activated › activation cost › Discard your hand",
+            "issue": 4563
+        },
+        {
+            "kind": "grammar",
+            "key": "activated › activation cost › Exile the top card of your library",
+            "issue": 4563
+        },
+        {
+            "kind": "grammar",
+            "key": "activated › activation cost › Exile this card from your hand",
+            "issue": 4563
+        },
+        {
+            "kind": "grammar",
+            "key": "activated › activation cost › Put a -N/-N counter on this creature",
+            "issue": 4563
+        },
+        {
+            "kind": "grammar",
+            "key": "activated › activation cost › Return a Forest you control to its owner's hand",
+            "issue": 4563
+        },
+        {
+            "kind": "grammar",
+            "key": "activated › activation cost › Return an Elf you control to its owner's hand",
+            "issue": 4563
+        },
+        {
+            "kind": "grammar",
+            "key": "activated › activation cost › Threshold — Put three cards from your graveyard on the bottom of your library",
+            "issue": 4551
+        },
+        {
+            "kind": "grammar",
+            "key": "activated › activation cost › Threshold — {…}",
+            "issue": 4551
+        },
+        {
+            "kind": "grammar",
+            "key": "activated › effect clause › Choose a card name, then reveal a card at random from your hand",
+            "issue": 4550
+        },
+        {
+            "kind": "grammar",
             "key": "activated › effect clause › Choose a color",
             "issue": 4307
         },
@@ -641,8 +701,18 @@
         },
         {
             "kind": "grammar",
+            "key": "activated › effect clause › Discard a card",
+            "issue": 4566
+        },
+        {
+            "kind": "grammar",
             "key": "activated › effect clause › Enchanted creature",
             "issue": 4303
+        },
+        {
+            "kind": "grammar",
+            "key": "activated › effect clause › Prevent all combat damage that would be dealt by target attacking creature this turn",
+            "issue": 4572
         },
         {
             "kind": "grammar",
@@ -656,6 +726,101 @@
         },
         {
             "kind": "grammar",
+            "key": "activated › effect clause › Reveal cards from the top of your library until you reveal a basic land card",
+            "issue": 4572
+        },
+        {
+            "kind": "grammar",
+            "key": "activated › effect clause › Search your library for a Forest or Plains card, put it onto the battlefield, then shuffle",
+            "issue": 4552
+        },
+        {
+            "kind": "grammar",
+            "key": "activated › effect clause › Search your library for a Mountain or Forest card, put it onto the battlefield, then shuffle",
+            "issue": 4552
+        },
+        {
+            "kind": "grammar",
+            "key": "activated › effect clause › Search your library for a Plains or Island card, put it onto the battlefield, then shuffle",
+            "issue": 4552
+        },
+        {
+            "kind": "grammar",
+            "key": "activated › effect clause › Search your library for a Swamp or Mountain card, put it onto the battlefield, then shuffle",
+            "issue": 4552
+        },
+        {
+            "kind": "grammar",
+            "key": "activated › effect clause › Search your library for a basic land card, put that card onto the battlefield tapped, then shuffle",
+            "issue": 4552
+        },
+        {
+            "kind": "grammar",
+            "key": "activated › effect clause › Search your library for a creature card, reveal that card, put it into your hand, then shuffle",
+            "issue": 4553
+        },
+        {
+            "kind": "grammar",
+            "key": "activated › effect clause › Search your library for a land card, reveal it, put it into your hand, then shuffle",
+            "issue": 4553
+        },
+        {
+            "kind": "grammar",
+            "key": "activated › effect clause › Search your library for an Elf permanent card, put it onto the battlefield, then shuffle",
+            "issue": 4553
+        },
+        {
+            "kind": "grammar",
+            "key": "activated › effect clause › Search your library for an Island or Swamp card, put it onto the battlefield, then shuffle",
+            "issue": 4552
+        },
+        {
+            "kind": "grammar",
+            "key": "activated › effect clause › Search your library for an enchantment card, reveal it, then shuffle and put that card on top",
+            "issue": 4554
+        },
+        {
+            "kind": "grammar",
+            "key": "activated › effect clause › Target creature you control fights target creature an opponent controls",
+            "issue": 4572
+        },
+        {
+            "kind": "grammar",
+            "key": "activated › effect clause › That artifact deals damage equal to its mana value to this creature",
+            "issue": 4572
+        },
+        {
+            "kind": "grammar",
+            "key": "activated › effect clause › The next time a red source of your choice would deal damage to you this turn, prevent that damage",
+            "issue": 4572
+        },
+        {
+            "kind": "grammar",
+            "key": "activated › effect clause › This land becomes a N/N Assembly-Worker artifact creature until end of turn",
+            "issue": 4564
+        },
+        {
+            "kind": "grammar",
+            "key": "activated › effect clause › This land becomes a N/N black Skeleton creature with \"{…}: Regenerate this creature\" until end of turn",
+            "issue": 4564
+        },
+        {
+            "kind": "grammar",
+            "key": "activated › effect clause › This land becomes a N/N blue Faerie creature with flying until end of turn",
+            "issue": 4564
+        },
+        {
+            "kind": "grammar",
+            "key": "activated › effect clause › This land becomes a N/N green Ape creature with trample until end of turn",
+            "issue": 4564
+        },
+        {
+            "kind": "grammar",
+            "key": "activated › effect clause › duration › and becomes the color of your choice until end of turn",
+            "issue": 4564
+        },
+        {
+            "kind": "grammar",
             "key": "activated › effect clause › each creature and each player",
             "issue": 4306
         },
@@ -666,8 +831,63 @@
         },
         {
             "kind": "grammar",
+            "key": "activated › effect clause › mass subject › object descriptor › artifact or creature with mana value equal to the number of fuse counters on this artifact",
+            "issue": 4557
+        },
+        {
+            "kind": "grammar",
+            "key": "activated › effect clause › target filter › object descriptor › black spell",
+            "issue": 4555
+        },
+        {
+            "kind": "grammar",
+            "key": "activated › effect clause › target filter › object descriptor › nonblack creature with mana value X",
+            "issue": 4556
+        },
+        {
+            "kind": "grammar",
+            "key": "activated › effect clause › target filter › object descriptor › player's graveyard",
+            "issue": 4556
+        },
+        {
+            "kind": "grammar",
+            "key": "activated › effect clause › the bottom card of target player's graveyard",
+            "issue": 4568
+        },
+        {
+            "kind": "grammar",
             "key": "activated › effect clause › {self} deals damage equal to its power to target creature",
             "issue": 4317
+        },
+        {
+            "kind": "grammar",
+            "key": "keyword-line › keyword ability › Cumulative upkeep {…}",
+            "issue": 4539
+        },
+        {
+            "kind": "grammar",
+            "key": "keyword-line › keyword ability › Cycling {…}",
+            "issue": 4539
+        },
+        {
+            "kind": "grammar",
+            "key": "keyword-line › keyword ability › Echo {…}",
+            "issue": 4539
+        },
+        {
+            "kind": "grammar",
+            "key": "keyword-line › keyword ability › Enchant creature card in a graveyard",
+            "issue": 4540
+        },
+        {
+            "kind": "grammar",
+            "key": "keyword-line › keyword ability › Fading N",
+            "issue": 4539
+        },
+        {
+            "kind": "grammar",
+            "key": "keyword-line › keyword ability › Flashback—{…}",
+            "issue": 4539
         },
         {
             "kind": "grammar",
@@ -676,8 +896,208 @@
         },
         {
             "kind": "grammar",
+            "key": "keyword-line › keyword ability › Madness {…}",
+            "issue": 4539
+        },
+        {
+            "kind": "grammar",
+            "key": "keyword-line › keyword ability › Morph {…}",
+            "issue": 4539
+        },
+        {
+            "kind": "grammar",
             "key": "keyword-line › keyword ability › Protection from green",
             "issue": 4312
+        },
+        {
+            "kind": "grammar",
+            "key": "mana-ability › mana ability rider › Draw a card",
+            "issue": 4542
+        },
+        {
+            "kind": "grammar",
+            "key": "mana-ability › mana ability rider › During your next untap step, as you untap your permanents, return this land to its owner's hand",
+            "issue": 4542
+        },
+        {
+            "kind": "grammar",
+            "key": "mana-ability › mana ability rider › If there are no depletion counters on this land, sacrifice it",
+            "issue": 4542
+        },
+        {
+            "kind": "grammar",
+            "key": "mana-ability › mana ability rider › If there are no mining counters on this land, sacrifice it",
+            "issue": 4542
+        },
+        {
+            "kind": "grammar",
+            "key": "mana-ability › mana ability rider › This land deals N damage to you",
+            "issue": 4542
+        },
+        {
+            "kind": "grammar",
+            "key": "mana-ability › mana production › one mana of any type that a land you control could produce",
+            "issue": 4541
+        },
+        {
+            "kind": "grammar",
+            "key": "mana-ability › mana production › {…} for each Elf on the battlefield",
+            "issue": 4541
+        },
+        {
+            "kind": "grammar",
+            "key": "mana-ability › mana production › {…} for each creature you control",
+            "issue": 4541
+        },
+        {
+            "kind": "grammar",
+            "key": "mana-ability › mana production › {…} for each enchantment you control",
+            "issue": 4541
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › activation cost › Discard X cards",
+            "issue": 4563
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › A creature dealt damage this way can't be regenerated this turn",
+            "issue": 4569
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › Add {…}",
+            "issue": 4541
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › Add {…} instead if there are seven or more cards in your graveyard",
+            "issue": 4541
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › An opponent separates those cards into two piles",
+            "issue": 4573
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › As many times as you choose, you may pay N life, put those cards on the bottom of your library in any order, then look at the top five cards of your library",
+            "issue": 4573
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › Change the target of target spell with a single target",
+            "issue": 4555
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › Choose a nonland card name",
+            "issue": 4550
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › Counter target spell unless its controller pays {…}",
+            "issue": 4555
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › Create X N/N white Angel creature tokens with flying",
+            "issue": 4574
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › Distribute three +N/+N counters among one, two, or three target creatures",
+            "issue": 4574
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › Draw a card at the beginning of the next turn's upkeep",
+            "issue": 4569
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › Draw a card, then draw cards equal to the number of cards named {self} in all graveyards",
+            "issue": 4573
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › Each player chooses from among the permanents they control an artifact, a creature, an enchantment, and a land, then sacrifices the rest",
+            "issue": 4573
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › Each player may put an artifact, creature, enchantment, or land card from their hand onto the battlefield",
+            "issue": 4568
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › Each player puts a creature card from their graveyard onto the battlefield",
+            "issue": 4568
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › Gain control of target creature with mana value X or less",
+            "issue": 4573
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › If an opponent controls a Forest and you control an Island, you may cast this spell without paying its mana cost",
+            "issue": 4558
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › If an opponent controls an Island and you control a Mountain, you may cast this spell without paying its mana cost",
+            "issue": 4558
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › If you have no land cards in hand, you may reveal your hand rather than pay this spell's mana cost",
+            "issue": 4559
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › Its controller",
+            "issue": 4573
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › Look at target player's hand",
+            "issue": 4566
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › Put one of them into your hand and the other on the bottom of your library",
+            "issue": 4573
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › Put target creature card from a graveyard onto the battlefield under your control",
+            "issue": 4568
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › Put target creature on top of its owner's library",
+            "issue": 4574
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › Scry N",
+            "issue": 4573
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › Search target player's library for up to three cards with flashback and put them into that player's graveyard",
+            "issue": 4554
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › Search your library and graveyard for five cards and exile the rest",
+            "issue": 4554
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › Search your library for a Forest card, reveal that card, put it into your hand, then shuffle",
+            "issue": 4553
         },
         {
             "kind": "grammar",
@@ -686,8 +1106,268 @@
         },
         {
             "kind": "grammar",
+            "key": "spell › effect clause › Search your library for a creature card, reveal it, then shuffle and put the card on top",
+            "issue": 4554
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › Search your library for an artifact or enchantment card, reveal it, then shuffle and put that card on top",
+            "issue": 4554
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › Search your library for three cards and reveal them",
+            "issue": 4554
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › Target artifact, creature, or land phases out",
+            "issue": 4573
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › Target creature gains swampwalk until end of turn",
+            "issue": 4540
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › Target opponent reveals their hand",
+            "issue": 4566
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › Target player mills four cards",
+            "issue": 4567
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › Target player mills three cards",
+            "issue": 4567
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › Target player shuffles up to three target cards from their graveyard into their library",
+            "issue": 4567
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › Target player shuffles up to two target cards from their graveyard into their library",
+            "issue": 4567
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › That artifact's controller",
+            "issue": 4573
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › Then that permanent's controller may sacrifice a land of their choice",
+            "issue": 4573
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › They can't be regenerated",
+            "issue": 4569
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › Until end of turn, target player can't cast instant or sorcery spells, and that player can't activate abilities that aren't mana abilities",
+            "issue": 4562
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › You gain life equal to the number of creature cards in your graveyard",
+            "issue": 4574
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › You may discard an Island card and another card rather than pay this spell's mana cost",
+            "issue": 4559
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › You may exile a blue card from your hand rather than pay this spell's mana cost",
+            "issue": 4559
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › You may exile a green card from your hand rather than pay this spell's mana cost",
+            "issue": 4559
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › You may exile the top three black cards of your graveyard rather than pay this spell's mana cost",
+            "issue": 4559
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › You may have that player shuffle",
+            "issue": 4567
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › You may return an Island you control to its owner's hand rather than pay this spell's mana cost",
+            "issue": 4558
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › You may return three Islands you control to their owner's hand rather than pay this spell's mana cost",
+            "issue": 4558
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › You may return two Islands you control to their owner's hand rather than pay this spell's mana cost",
+            "issue": 4558
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › You may reveal a sorcery card you own from outside the game and put it into your hand",
+            "issue": 4574
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › You may sacrifice two Mountains rather than pay this spell's mana cost",
+            "issue": 4558
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › all artifacts target player owns",
+            "issue": 4574
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › all cards from target player's graveyard other than basic land cards",
+            "issue": 4574
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › all enchantment cards from your graveyard",
+            "issue": 4568
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › all permanents",
+            "issue": 4557
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › each creature",
+            "issue": 4557
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › each creature target opponent controls",
+            "issue": 4557
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › each creature without flying and each player",
+            "issue": 4557
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › each of X targets",
+            "issue": 4574
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › mass subject › colors",
+            "issue": 4557
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › mass subject › object descriptor › lands target player controls and that player loses all unspent mana",
+            "issue": 4557
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › mass subject › object descriptor › non-Aura enchantments",
+            "issue": 4557
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › target filter › object descriptor › activated or triggered ability",
+            "issue": 4555
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › target filter › object descriptor › artifact and target enchantment",
+            "issue": 4556
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › target filter › object descriptor › artifact if its mana value is N or less",
+            "issue": 4556
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › target filter › object descriptor › artifact or enchantment spell",
+            "issue": 4555
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › target filter › object descriptor › blue spell",
+            "issue": 4555
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › target filter › object descriptor › creature and you gain N life",
+            "issue": 4556
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › target filter › object descriptor › red spell",
+            "issue": 4555
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › target filter › object descriptor › spell if it's blue",
+            "issue": 4555
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › target filter › object descriptor › spell if it's red",
+            "issue": 4555
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › target filter › object descriptor › spell if its mana value is N or less",
+            "issue": 4555
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › target filter › object descriptor › spell or ability an opponent controls that targets a land you control",
+            "issue": 4555
+        },
+        {
+            "kind": "grammar",
             "key": "spell › effect clause › that creature's controller",
             "issue": 4313
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › the top creature card of your graveyard",
+            "issue": 4568
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › up to X target cards from your graveyard",
+            "issue": 4568
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › up to three lands",
+            "issue": 4574
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › up to three target cards from a single graveyard",
+            "issue": 4568
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › {self} deals damage to each player equal to twice the number of nonbasic lands that player controls",
+            "issue": 4574
         },
         {
             "kind": "grammar",
@@ -696,8 +1376,113 @@
         },
         {
             "kind": "grammar",
+            "key": "static › static clause › Activated abilities of creatures can't be activated",
+            "issue": 4562
+        },
+        {
+            "kind": "grammar",
+            "key": "static › static clause › Activated abilities of white enchantments cost {…} more to activate",
+            "issue": 4560
+        },
+        {
+            "kind": "grammar",
+            "key": "static › static clause › All creatures lose all abilities and have base power and toughness N/N",
+            "issue": 4565
+        },
+        {
+            "kind": "grammar",
+            "key": "static › static clause › All creatures of the chosen type get -N/-N",
+            "issue": 4565
+        },
+        {
+            "kind": "grammar",
+            "key": "static › static clause › Artifact and enchantment spells your opponents cast cost {…} more to cast",
+            "issue": 4560
+        },
+        {
+            "kind": "grammar",
+            "key": "static › static clause › Artifacts and lands enter tapped",
+            "issue": 4561
+        },
+        {
+            "kind": "grammar",
+            "key": "static › static clause › As long as the top card of your graveyard is a creature card, this creature has the full text of that card and has the text \"{…}: Discard a card.\"",
+            "issue": 4551
+        },
+        {
+            "kind": "grammar",
+            "key": "static › static clause › As long as this artifact is untapped, players can't untap more than one land during their untap steps",
+            "issue": 4561
+        },
+        {
+            "kind": "grammar",
+            "key": "static › static clause › As long as this card is in your graveyard and you control a Mountain, creatures you control have haste",
+            "issue": 4551
+        },
+        {
+            "kind": "grammar",
+            "key": "static › static clause › As this artifact enters, choose an opponent",
+            "issue": 4545
+        },
+        {
+            "kind": "grammar",
             "key": "static › static clause › As this creature enters, choose a creature type",
             "issue": 4308
+        },
+        {
+            "kind": "grammar",
+            "key": "static › static clause › As this creature enters, choose a nonland card name",
+            "issue": 4550
+        },
+        {
+            "kind": "grammar",
+            "key": "static › static clause › As this creature enters, exile any number of creature cards from your graveyard",
+            "issue": 4570
+        },
+        {
+            "kind": "grammar",
+            "key": "static › static clause › Black creatures can't attack you",
+            "issue": 4562
+        },
+        {
+            "kind": "grammar",
+            "key": "static › static clause › Cumulative upkeep—Pay N life",
+            "issue": 4539
+        },
+        {
+            "kind": "grammar",
+            "key": "static › static clause › Each land with an activated ability that isn't a mana ability doesn't untap during its controller's untap step",
+            "issue": 4561
+        },
+        {
+            "kind": "grammar",
+            "key": "static › static clause › Each other non-Aura enchantment is a creature in addition to its other types and has base power and base toughness each equal to its mana value",
+            "issue": 4565
+        },
+        {
+            "kind": "grammar",
+            "key": "static › static clause › Each spell costs {…} more to cast except during its controller's turn",
+            "issue": 4560
+        },
+        {
+            "kind": "grammar",
+            "key": "static › static clause › If damage would be dealt to this creature, prevent that damage. Remove a +N/+N counter from this creature",
+            "issue": 4549
+        },
+        {
+            "kind": "grammar",
+            "key": "static › static clause › If this artifact would enter, you may discard a land card instead. If you do, put this artifact onto the battlefield. If you don't, put it into its owner's graveyard",
+            "issue": 4570
+        },
+        {
+            "kind": "grammar",
+            "key": "static › static clause › If this land would enter, sacrifice a Forest instead. If you do, put this land onto the battlefield. If you don't, put it into its owner's graveyard",
+            "issue": 4570
+        },
+        {
+            "kind": "grammar",
+            "key": "static › static clause › If you control a creature, damage that would reduce your life total to less than N reduces it to N instead",
+            "issue": 4570
         },
         {
             "kind": "grammar",
@@ -706,8 +1491,98 @@
         },
         {
             "kind": "grammar",
+            "key": "static › static clause › Islands don't untap during their controllers' untap steps",
+            "issue": 4561
+        },
+        {
+            "kind": "grammar",
+            "key": "static › static clause › Nonblack creatures can't attack you unless their controller pays {…} for each creature they control that's attacking you",
+            "issue": 4560
+        },
+        {
+            "kind": "grammar",
+            "key": "static › static clause › Noncreature spells cost {…} more to cast",
+            "issue": 4560
+        },
+        {
+            "kind": "grammar",
+            "key": "static › static clause › Other enchantments you control have shroud",
+            "issue": 4570
+        },
+        {
+            "kind": "grammar",
+            "key": "static › static clause › Play with the top card of your library revealed",
+            "issue": 4570
+        },
+        {
+            "kind": "grammar",
+            "key": "static › static clause › Players skip their untap steps",
+            "issue": 4561
+        },
+        {
+            "kind": "grammar",
+            "key": "static › static clause › Prevent all damage that would be dealt to you",
+            "issue": 4570
+        },
+        {
+            "kind": "grammar",
             "key": "static › static clause › Skip your draw step",
             "issue": 4304
+        },
+        {
+            "kind": "grammar",
+            "key": "static › static clause › Spells with the chosen name can't be cast",
+            "issue": 4550
+        },
+        {
+            "kind": "grammar",
+            "key": "static › static clause › Sutured Ghoul's power is equal to the total power of the exiled cards and its toughness is equal to their total toughness",
+            "issue": 4565
+        },
+        {
+            "kind": "grammar",
+            "key": "static › static clause › Terravore's power and toughness are each equal to the number of land cards in all graveyards",
+            "issue": 4565
+        },
+        {
+            "kind": "grammar",
+            "key": "static › static clause › This creature can't attack unless you control more creatures than defending player",
+            "issue": 4562
+        },
+        {
+            "kind": "grammar",
+            "key": "static › static clause › This creature can't block unless you control more creatures than attacking player",
+            "issue": 4562
+        },
+        {
+            "kind": "grammar",
+            "key": "static › static clause › This creature enters with seven +N/+N counters on it",
+            "issue": 4549
+        },
+        {
+            "kind": "grammar",
+            "key": "static › static clause › This creature enters with three +N/+N counters on it",
+            "issue": 4549
+        },
+        {
+            "kind": "grammar",
+            "key": "static › static clause › This creature enters with two +N/+N counters on it",
+            "issue": 4549
+        },
+        {
+            "kind": "grammar",
+            "key": "static › static clause › This creature gets +N/+N as long as an opponent controls a nonbasic land",
+            "issue": 4565
+        },
+        {
+            "kind": "grammar",
+            "key": "static › static clause › This land enters with three mining counters on it",
+            "issue": 4542
+        },
+        {
+            "kind": "grammar",
+            "key": "static › static clause › Threshold — This creature gets +N/+N as long as there are seven or more cards in your graveyard",
+            "issue": 4551
         },
         {
             "kind": "grammar",
@@ -716,8 +1591,323 @@
         },
         {
             "kind": "grammar",
+            "key": "static › static clause › You have shroud",
+            "issue": 4570
+        },
+        {
+            "kind": "grammar",
+            "key": "static › static clause › You may exile a green card from your hand rather than pay this spell's mana cost",
+            "issue": 4559
+        },
+        {
+            "kind": "grammar",
+            "key": "static › static clause › You may play an additional land on each of your turns",
+            "issue": 4570
+        },
+        {
+            "kind": "grammar",
+            "key": "static › static clause › You may play lands and cast spells from the top of your library",
+            "issue": 4570
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › condition › defending player controls no black nontoken permanents",
+            "issue": 4544
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › condition › it was kicked with its {…} kicker",
+            "issue": 4571
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › condition › it's on the battlefield",
+            "issue": 4551
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › condition › this card is in your graveyard",
+            "issue": 4551
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › condition › this creature is in your graveyard",
+            "issue": 4551
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › effect clause › Create a N/N green Bear creature token for each nontoken creature put into your graveyard from the battlefield this turn",
+            "issue": 4571
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › effect clause › Defending player can't cast spells this turn",
+            "issue": 4562
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › effect clause › Draw two additional cards",
+            "issue": 4571
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › effect clause › Exchange control of this creature and up to one target creature an opponent controls",
+            "issue": 4571
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › effect clause › Sacrifice it unless you return a basic land card from your graveyard to your hand",
+            "issue": 4548
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › effect clause › Sacrifice it unless you return a non-Lair land you control to its owner's hand",
+            "issue": 4548
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › effect clause › Sacrifice it unless you sacrifice a Forest",
+            "issue": 4548
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › effect clause › Sacrifice it unless you sacrifice any number of creatures with total power N or greater",
+            "issue": 4548
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › effect clause › Sacrifice this creature unless you discard a card",
+            "issue": 4548
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › effect clause › Sacrifice this enchantment unless you discard a card",
+            "issue": 4548
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › effect clause › Sacrifice this enchantment unless you pay {…}",
+            "issue": 4548
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › effect clause › Search your library for a Goblin card, reveal that card, put it into your hand, then shuffle",
+            "issue": 4553
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › effect clause › Search your library for a basic land card, put that card onto the battlefield tapped, then shuffle",
+            "issue": 4552
+        },
+        {
+            "kind": "grammar",
             "key": "triggered › effect clause › Shuffle the cards from your hand into your library, then draw that many cards",
             "issue": 4302
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › effect clause › Target opponent reveals their hand and you choose a nonland card from it",
+            "issue": 4566
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › effect clause › That player chooses target player who controls more creatures than they do and is their opponent",
+            "issue": 4571
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › effect clause › That player taps an untapped artifact, creature, or land they control for each fade counter on this artifact",
+            "issue": 4571
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › effect clause › You draw X cards and you lose X life, where X is the number of Zombies you control",
+            "issue": 4571
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › effect clause › You gain X life, where X is the number of cards in your hand minus N",
+            "issue": 4571
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › effect clause › a blue or black creature you control",
+            "issue": 4556
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › effect clause › a card from your hand",
+            "issue": 4566
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › effect clause › colors",
+            "issue": 4557
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › effect clause › duration › until end of turn for each other attacking Goblin",
+            "issue": 4571
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › effect clause › mass subject › Goblin creatures",
+            "issue": 4557
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › effect clause › target filter › object descriptor › nonartifact, nonblack creature",
+            "issue": 4556
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › effect clause › that spell and put a depletion counter on this enchantment",
+            "issue": 4542
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › effect clause › this card from your graveyard",
+            "issue": 4568
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › effect clause › up to seven lands",
+            "issue": 4571
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › At the beginning of each of your main phases",
+            "issue": 4545
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › At the beginning of each player's first main phase",
+            "issue": 4545
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › At the beginning of the chosen player's upkeep",
+            "issue": 4545
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › At the beginning of the end step",
+            "issue": 4545
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › At the beginning of the upkeep of enchanted creature's controller",
+            "issue": 4545
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › When a creature with mana value N or greater enters",
+            "issue": 4544
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › When a player casts a spell",
+            "issue": 4543
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › When an opponent casts an instant spell",
+            "issue": 4543
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › When this Aura is put into a graveyard from the battlefield",
+            "issue": 4546
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › When this card is put into your graveyard from your library",
+            "issue": 4546
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › When this creature is turned face up",
+            "issue": 4547
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › When this creature leaves the battlefield",
+            "issue": 4546
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › When this creature's power is N or greater",
+            "issue": 4544
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › When this enchantment leaves the battlefield",
+            "issue": 4546
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › When you cast a creature spell",
+            "issue": 4543
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › When you cycle this card",
+            "issue": 4547
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › Whenever a black card is put into an opponent's graveyard from anywhere",
+            "issue": 4546
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › Whenever a player casts an enchantment spell",
+            "issue": 4543
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › Whenever a spell or ability an opponent controls causes a land to be put into your graveyard from the battlefield",
+            "issue": 4546
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › Whenever another card is put into a graveyard from anywhere",
+            "issue": 4546
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › Whenever enchanted land is tapped for mana",
+            "issue": 4547
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › Whenever this creature attacks and isn't blocked",
+            "issue": 4544
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › Whenever this creature deals damage to a player",
+            "issue": 4544
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › Whenever this creature is dealt damage",
+            "issue": 4544
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › Whenever this land becomes tapped",
+            "issue": 4547
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › Whenever you cast a spell that's white",
+            "issue": 4543
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › Whenever you cast an enchantment spell",
+            "issue": 4543
         },
         {
             "kind": "hand-tail",
