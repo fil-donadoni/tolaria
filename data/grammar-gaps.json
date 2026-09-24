@@ -93,11 +93,6 @@
             "issue": 3908
         },
         {
-            "key": "(op) › exile",
-            "op": "exile",
-            "issue": 3909
-        },
-        {
             "key": "(op) › exileAndReturnTransformed",
             "op": "exileAndReturnTransformed",
             "issue": 3910
@@ -673,11 +668,6 @@
             "kind": "grammar",
             "key": "keyword-line › keyword ability › Protection from green",
             "issue": 4312
-        },
-        {
-            "kind": "grammar",
-            "key": "spell › effect clause › Exile target attacking creature",
-            "issue": 4311
         },
         {
             "kind": "grammar",

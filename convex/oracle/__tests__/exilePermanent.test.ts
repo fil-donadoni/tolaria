@@ -8,7 +8,7 @@
 //     one mode of a modal spell (Treva's Charm). Whole cards, whole Compiled
 //     Definitions.
 //  2. REFUSALS — the neighbours the rule must NOT read: a sweep ("Exile all
-//     attacking creatures", CR 701.13a has no announced target), and the two
+//     attacking creatures" announces no target), and the two
 //     real cards whose OTHER lines are separate Grammar Gaps (Resounding
 //     Silence's cycling, Nemesis Trap's copy token) — each stays unparsed
 //     under its own span, never the exile sentence.

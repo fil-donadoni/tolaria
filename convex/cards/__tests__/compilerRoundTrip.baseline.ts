@@ -1477,7 +1477,6 @@ export const COMPILER_GAP_ROWS: readonly string[] = [
     "Trailblazer",
     "Transmute Artifact",
     "Traveler's Cloak",
-    "Treva's Charm",
     "Treva's Ruins",
     "Treva, the Renewer",
     "Tribal Flames",
