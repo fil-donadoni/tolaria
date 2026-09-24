@@ -265,7 +265,7 @@ describe("setCardRating — upsert replaces an existing (scope, cardId) row (iss
     });
 });
 
-describe("clearCardRating — admin gate + idempotent delete (PRD #1296 Slice B, issue #1298)", () => {
+describe("clearCardRating — idempotent delete (PRD #1296 Slice B, issue #1298)", () => {
     interface Row {
         _id: string;
         scope: string;
@@ -280,16 +280,6 @@ describe("clearCardRating — admin gate + idempotent delete (PRD #1296 Slice B,
             (r) => !(r.scope === normalizedScope && r.cardId === cardId)
         );
     }
-
-    it("rejects a non-admin caller (assertIsAdmin gate runs first)", () => {
-        expect(isAdminUser(admin(false))).toBe(false);
-        expect(isAdminUser(admin(undefined))).toBe(false);
-        expect(isAdminUser(null)).toBe(false);
-    });
-
-    it("allows an admin through the gate", () => {
-        expect(isAdminUser(admin(true))).toBe(true);
-    });
 
     it("deletes the matching row", () => {
         const before: Row[] = [

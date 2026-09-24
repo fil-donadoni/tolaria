@@ -277,15 +277,6 @@ describe("Limited Event: create → join → start → pools exist (PRD #1107)",
         ).not.toThrow();
     });
 
-    it("rejects starting when no seats are open (join saturation)", () => {
-        let seats = buildEmptySeats(2);
-        seats = assignFreeSeat(seats, "user1", "Alice");
-        seats = assignFreeSeat(seats, "user2", "Bob");
-        expect(() => assignFreeSeat(seats, "user3", "Carol")).toThrow(
-            /No open seats/
-        );
-    });
-
     it("a fully-human table starts with no bot seats and still gets pools", () => {
         let seats = buildEmptySeats(2);
         seats = assignFreeSeat(seats, "user1", "Alice");

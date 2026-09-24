@@ -164,7 +164,7 @@ describe("The One Ring — protection bars targeting (CR 702.16b applied to a pl
         // when it returns true — the offered set (`getLegalTargets`, above)
         // and the accepted set can't diverge because both read this one
         // authority. Replicated here the same way the #1128 player-shroud
-        // suite replicates its own backend gate.
+        // suite asserts `playerHasShroud` for its backend gate.
         const state = makeState({
             players: [makePlayer("p1"), makePlayer("p2")],
             playerProtectionFromEverything: ["p1"],

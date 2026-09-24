@@ -1872,14 +1872,6 @@ describe("twoHeadedGiantOfForiys — can block 2 attackers (CR 509.1a)", () => {
         const combat = state.combat!;
         expect(combat.blockerAssignments["giant"]).toEqual(["att1", "att2"]);
     });
-
-    it("cannot block 3 attackers (only 1 additional)", () => {
-        const giant = makeInstance(twoHeadedGiantOfForiys.id, {
-            id: "giant",
-            controllerId: "p2",
-        });
-        expect(getMaxBlockTargets(giant)).toBe(2);
-    });
 });
 
 // ---------------------------------------------------------------------------

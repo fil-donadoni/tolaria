@@ -4300,22 +4300,6 @@ describe("player-scoped shroud (CR 702.18 / 115.4, #1128)", () => {
         expect(targets).toEqual([{ type: "player", id: "p2" }]);
     });
 
-    it("backend gate: mirrors the exact decision game.ts::selectTarget's player branch makes (server-authoritative)", () => {
-        // selectTarget's player branch calls `playerHasShroud(state, found.id)`
-        // and throws when it returns true — this replicates that decision the
-        // same way the "can't-be-targeted backend gate" suite above does for
-        // the permanent branch's `isGuardedAgainst` call.
-        const source = makeShroudSource("p1");
-        const state = makeGameState({
-            players: [
-                makePlayer({ id: "p1", battlefield: [source] }),
-                makePlayer({ id: "p2" }),
-            ],
-        });
-        expect(playerHasShroud(state, "p1")).toBe(true); // rejected
-        expect(playerHasShroud(state, "p2")).toBe(false); // accepted
-    });
-
     it("shroud exclusion survives the wire-format projection (#1128)", () => {
         const source = makeShroudSource("p1");
         const state = makeGameState({

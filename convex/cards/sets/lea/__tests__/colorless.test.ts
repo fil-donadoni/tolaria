@@ -47,11 +47,7 @@ import {
 import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
 import { projectPublicState } from "../../../../gameProjections";
 import { checkStateBasedActions } from "../../../../gre/sba";
-import {
-    validateBlockerEligibility,
-    mustAttack,
-    getRequiredAttackerIds,
-} from "../../../../gre/combat";
+import { mustAttack, getRequiredAttackerIds } from "../../../../gre/combat";
 import {
     advancePhase,
     untapStep,
@@ -150,7 +146,6 @@ const tropicalIsland = getDefinition("a9c6c759-aabf-44e7-ba8c-33c5df232b56");
 const tundra = getDefinition("a03e8c5b-f4ed-4fd7-ba05-db813ccc05eb");
 const undergroundSea = getDefinition("ff76ac86-8a8a-47fe-9388-8950ca3e26c3");
 const unholyStrength = getDefinition("90563f90-0127-4164-b43b-f0321dc63a1d");
-const wallOfSwords = getDefinition("99ec4723-b36c-4015-b361-736a6523e8f5");
 const weakness = getDefinition("36ca06a1-9b9a-49a2-9c47-9b72228621bc");
 const winterOrb = getDefinition("9359f60c-9a27-4e53-b35b-964a121a6fba");
 const woodenSphere = getDefinition("bcae01a2-171b-47cd-87be-f1e4e5314326");
@@ -339,40 +334,8 @@ describe("Winter Orb (modern Oracle land-only cap, CR 502.1, ADR 0004)", () => {
 });
 
 describe("Juggernaut (CR 508.1d + 509.1b)", () => {
-    it("can't be blocked by Walls (CR 509.1b) — via staticEffects", () => {
-        const jug = makeInstance(juggernaut.id, { id: "jug" });
-        const wall = makeInstance(wallOfSwords.id, {
-            id: "wall",
-            controllerId: "p2",
-        });
-        const state = makeState({
-            players: [
-                makePlayer("p1", { battlefield: [jug] }),
-                makePlayer("p2", { battlefield: [wall] }),
-            ],
-        });
-        const result = validateBlockerEligibility(jug, wall, [wall], state);
-        expect(result.eligible).toBe(false);
-        if (!result.eligible) expect(result.reason).toMatch(/Wall/);
-    });
-
-    it("can still be blocked by non-Wall creatures", () => {
-        const jug = makeInstance(juggernaut.id, { id: "jug" });
-        const bears = makeInstance(savannahLions.id, {
-            id: "bears",
-            controllerId: "p2",
-        });
-        const state = makeState({
-            players: [
-                makePlayer("p1", { battlefield: [jug] }),
-                makePlayer("p2", { battlefield: [bears] }),
-            ],
-        });
-        expect(validateBlockerEligibility(jug, bears, [bears], state)).toEqual({
-            eligible: true,
-        });
-    });
-
+    // The can't-be-blocked-by-Walls restriction is asserted once, engine-side:
+    // `gre/__tests__/combat.test.ts` (issue #4493).
     it("mustAttack is true when eligible, false when tapped or sick", () => {
         const jug = makeInstance(juggernaut.id, { id: "jug" });
         const state = makeState();

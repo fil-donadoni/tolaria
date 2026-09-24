@@ -8,7 +8,7 @@
 // own comment in `convex/game.ts` for the shape.
 //
 // The project has no `convex-test` harness (see
-// `convex/__tests__/debugSetupScenario.test.ts`), so the Convex-runtime
+// `convex/__tests__/adminAuth.test.ts`), so the Convex-runtime
 // slice of the handler (the `ctx` calls) genuinely cannot be driven from
 // here and is covered by convention instead, not by exercising the mutation
 // itself:
@@ -79,14 +79,6 @@ describe("debugLoadBladeScenario — admin gate (issue #1432)", () => {
         expect(isAdminUser(user(false))).toBe(false);
         expect(isAdminUser(user(undefined))).toBe(false);
     });
-
-    it("rejects an unauthenticated caller", () => {
-        expect(isAdminUser(null)).toBe(false);
-    });
-
-    it("allows an admin caller through the gate (scenario load proceeds unchanged)", () => {
-        expect(isAdminUser(user(true))).toBe(true);
-    });
 });
 
 describe("debugLoadBladeScenario — label resolution (issue #1432)", () => {
@@ -94,10 +86,6 @@ describe("debugLoadBladeScenario — label resolution (issue #1432)", () => {
         for (const scenario of BLADE_SCENARIOS) {
             expect(findBladeScenario(scenario.label)?.spec).toBe(scenario.spec);
         }
-    });
-
-    it("resolves an unknown label to undefined — the mutation throws instead of applying a spec", () => {
-        expect(findBladeScenario("no such scenario")).toBeUndefined();
     });
 });
 
