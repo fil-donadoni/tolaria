@@ -194,6 +194,11 @@ export default function GameStack({
 
     const folded = !!collapsed && !canTargetSpell;
 
+    // A row unmounted mid-hover fires no mouseleave; drop its arrow seed.
+    useEffect(() => {
+        if (folded) setSeed?.(null);
+    }, [folded, setSeed]);
+
     const visible = expanded ? reversed : reversed.slice(0, COLLAPSED_ROWS);
     const hidden = reversed.length - visible.length;
 
@@ -339,7 +344,7 @@ export default function GameStack({
                             : landscape
                               ? "max-h-[80vh] w-72"
                               : folded
-                                ? "w-auto"
+                                ? "w-52"
                                 : "max-h-[80vh] w-96"
                     } max-w-[92vw] overflow-visible p-0`}
                 >

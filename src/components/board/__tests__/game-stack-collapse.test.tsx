@@ -73,6 +73,31 @@ const rows = () => document.querySelectorAll("[data-arrow-anchor-stack]");
 beforeEach(() => cleanup());
 
 describe("GameStack collapse (issue #2930)", () => {
+    it("pressing the toggle never starts a drag (real useDraggable filter)", async () => {
+        const real = await vi.importActual<
+            typeof import("~/hooks/useDraggable")
+        >("~/hooks/useDraggable");
+        const { renderHook, act } = await import("@testing-library/react");
+        const { result } = renderHook(() => real.useDraggable());
+        const toggle = document.createElement("button");
+        const handle = document.createElement("div");
+        handle.appendChild(toggle);
+        act(() => {
+            result.current.dragHandlers.onPointerDown({
+                target: toggle,
+                clientX: 0,
+                clientY: 0,
+            } as never);
+            result.current.dragHandlers.onPointerMove({
+                clientX: 50,
+                clientY: 50,
+                currentTarget: handle,
+                pointerId: 1,
+            } as never);
+        });
+        expect(result.current.offset).toEqual({ x: 0, y: 0 });
+    });
+
     it("shows no toggle when the caller passes none (portrait/landscape keep their chips)", () => {
         renderStack([makeStackItem("a")]);
         expect(screen.queryByTestId("stack-collapse-toggle")).toBeNull();
