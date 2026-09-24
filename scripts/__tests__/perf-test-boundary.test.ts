@@ -52,7 +52,7 @@ const PERF_GLOB = "**/*.perf.test.ts";
  */
 const ALLOWLIST = new Map([
     [
-        "scripts/__tests__/loop-drain.test.ts",
+        "scripts/__tests__/loop-drain-retry.test.ts",
         "the stop-file must abort a 30s error backoff; elapsed < 10s is the only " +
             "observable that separates 'aborted' from 'slept the whole backoff', and " +
             "the 3x margin is not a speed claim",

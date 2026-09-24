@@ -510,19 +510,26 @@ describe("gate.ts — liveness wiring (issue #2999)", () => {
             stdio: "ignore",
         } as never);
         await waitForLock();
-        // The line is printed on the first poll; the bound only has to outlast
-        // a bun start, and the holder's 60s is never reached.
-        const waiter = spawnSync("bun", [GATE, "heavy", "echo NOPE"], {
-            encoding: "utf8",
+        // The line is printed on the first poll: wait for it, then kill —
+        // the waiter is blocked by design and never exits on its own.
+        const waiter = spawn("bun", [GATE, "heavy", "echo NOPE"], {
             cwd: lockRoot,
             env: env(),
-            timeout: 10_000,
-        });
-        holder.kill("SIGKILL");
+            stdio: ["ignore", "ignore", "pipe"],
+        } as never);
+        let waiterErr = "";
+        waiter.stderr!.on("data", (d) => (waiterErr += d));
+        try {
+            expect(await waitFor(() => waiterErr.includes("\n"))).toBe(true);
+        } finally {
+            waiter.kill("SIGKILL");
+            holder.kill("SIGKILL");
+        }
+        await new Promise<void>((r) => waiter.on("exit", () => r()));
 
         // Three sessions sat blocked for two hours with no way to tell who
         // held the mutex; every field below was already in owner.json.
-        expect(waiter.stderr).toMatch(
+        expect(waiterErr).toMatch(
             /\[gate\] waiting \S+ for the heavy mutex — pid \d+ · held \S+ · last progress \S+ ago · \S+ · sleep 60/
         );
     }, 30_000);
