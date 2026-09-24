@@ -52,7 +52,7 @@ import { hasInstantSpeed, manaValue } from "../constants";
 import { basicLandsForColors, getCardColors } from "../../cards/colors";
 import type { CardDefinition, EffectForEachSelector } from "../../cards/types";
 import { castShape } from "./botReachForm";
-import { costPose, targetPose } from "./botReachTarget";
+import { combatTrickPosition, costPose, targetPose } from "./botReachTarget";
 export { castShape } from "./botReachForm";
 
 /** CR 115.1 — a spell that targets a SPELL needs one on the stack. Lives
@@ -377,6 +377,10 @@ export const BOT_REACH_BUDGET: BotReachBudget = {
  */
 export const REACH_WINDOWS = ["PRECOMBAT_MAIN", "POSTCOMBAT_MAIN"] as const;
 export type ReachWindow = (typeof REACH_WINDOWS)[number];
+/** The position a combat trick is posed in once both main phases passed it
+ *  over (issue #4264) — see `combatTrickPosition`. */
+export const TRICK_WINDOW = "TRICK_COMBAT";
+type PoseWindow = ReachWindow | typeof TRICK_WINDOW;
 
 /** Upper bound on follow-through decisions after the card's move. */
 const MAX_FOLLOW_THROUGH_STEPS = 12;
@@ -435,7 +439,7 @@ const FILLER_TYPES: Readonly<Record<string, readonly SweepableType[]>> = {
  */
 export function botReachSpec(
     def: CardDefinition,
-    window: ReachWindow = REACH_WINDOWS[0]
+    window: PoseWindow = REACH_WINDOWS[0]
 ): ScenarioSpec {
     const isLand = def.types.includes("Land");
     const landCount = isLand ? 1 : manaValue(def.manaCost) + EXTRA_LANDS;
@@ -541,7 +545,7 @@ export function botReachSpec(
     const stack = needsStackTarget(def);
     return {
         cards,
-        phase: window,
+        phase: window === TRICK_WINDOW ? "PRECOMBAT_MAIN" : window,
         turn: 3,
         libraryCount: 20,
         // CR 400.2 — a card the holder can discard or reveal that is never a
@@ -554,6 +558,7 @@ export function botReachSpec(
         activePlayer: "me",
         priority: "me",
         ...target.position,
+        ...(window === TRICK_WINDOW ? combatTrickPosition(def) : null),
         ...(cost.manaPool ? { manaPool: cost.manaPool } : {}),
         ...(stack
             ? {
@@ -610,7 +615,7 @@ function humanCouldAct(
 export function buildBotReachState(
     def: CardDefinition,
     holderSeat: 0 | 1,
-    window: ReachWindow = REACH_WINDOWS[0]
+    window: PoseWindow = REACH_WINDOWS[0]
 ): { state: GameState; holderId: string; instanceId: string } {
     const base = buildBladeBaseState();
     const holderId = base.players[holderSeat]!.id;
@@ -740,7 +745,9 @@ function playSeat(
         opening.instanceId,
         budget
     );
-    for (const window of later) {
+    const trick: PoseWindow[] =
+        combatTrickPosition(def) === null ? [] : [TRICK_WINDOW];
+    for (const window of [...later, ...trick]) {
         // Only a card the search passed over is posed again: `frozen` and
         // `position-unmodelled` describe the position or the driver, which a
         // later window of the same turn does not change. A later `played` or

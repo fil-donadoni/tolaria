@@ -212,6 +212,64 @@ function favoursItsTarget(
     );
 }
 
+/** Does the spell's script raise a creature's power or toughness with a
+ *  literal amount — the shape of a combat trick? (A `negate`d or computed
+ *  amount is not read: it is not a trick the pose can size.) */
+function raisesStats(node: unknown): boolean {
+    if (Array.isArray(node)) return node.some(raisesStats);
+    if (node === null || typeof node !== "object") return false;
+    const record = node as Record<string, unknown>;
+    const up = (v: unknown): boolean => typeof v === "number" && v > 0;
+    return (
+        (record.op === "pump" && (up(record.power) || up(record.toughness))) ||
+        Object.values(record).some(raisesStats)
+    );
+}
+
+/** Is the spell an instant that raises its one target creature's stats — a
+ *  combat trick? Its value lies in a declared combat, so a main phase with no
+ *  combat in it never poses the question and the Bot rightly passes: the
+ *  verdict read `never-chosen` about a timing the position did not offer
+ *  (issue #4264). */
+function isCombatTrick(def: CardDefinition, req: TargetRequirement): boolean {
+    return (
+        def.types.includes("Instant") &&
+        favoursItsTarget(def, req) &&
+        raisesStats(def.effects)
+    );
+}
+
+/** The holder's plain creature attacks and the opponent's blocks it: the
+ *  declare-blockers step, where the holder holds priority with the trick that
+ *  decides the combat. Both are the position's own bodies. */
+const TRICK_COMBAT: TargetPose["position"] = {
+    phase: "DECLARE_BLOCKERS",
+    activePlayer: "me",
+    priority: "me",
+    combat: {
+        attackers: [BASE_CREATURE],
+        confirmed: true,
+        blockers: [{ blocker: BASE_CREATURE, blocking: [0] }],
+        blockersConfirmed: true,
+    },
+};
+
+/**
+ * The declared combat a combat trick is posed in, or `null` when `def` is not
+ * one. It is a THIRD window, tried only after both main phases passed the card
+ * over (`playSeat`): a trick some position already plays there must not lose
+ * that position, and one a main phase never poses (a pump has nothing to pump
+ * before blockers) gets the combat it is worth casting in.
+ */
+export function combatTrickPosition(
+    def: CardDefinition
+): TargetPose["position"] | null {
+    const req = creatureRequirement(def);
+    return req && !narrows(req) && isCombatTrick(def, req)
+        ? TRICK_COMBAT
+        : null;
+}
+
 export type TargetPose = {
     readonly cards: readonly ScenarioCard[];
     /** The position's global enchantment gives its controller's untapped
