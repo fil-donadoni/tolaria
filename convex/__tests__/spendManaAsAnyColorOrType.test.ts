@@ -17,6 +17,7 @@ import { describe, expect, it } from "vitest";
 import {
     activateAbilityOnState,
     announceCast,
+    selectTargets,
     tryAutoCommitPendingCast,
 } from "../game";
 import {
@@ -31,6 +32,8 @@ import { finalizeCleanup } from "../gre/phases";
 import { makeInstance, makePlayer, makeState } from "../cards/__tests__/setup";
 import { northStar } from "../cards/sets/leg";
 import { darkRitual, forest, mountain, savannahLions } from "../cards/sets/lea";
+import { earthquake } from "../cards/sets/lea/red";
+import { howlFromBeyond } from "../cards/sets/lea/black";
 import { faerieSquadron } from "../cards/sets/inv";
 import { hogaakArisenNecropolis } from "../cards/sets/mh1";
 import { getLegalActions } from "../gre/rules";
@@ -479,5 +482,102 @@ describe("the grant never reaches a 'rather than pay that mana' cost (CR 702.51a
         expect(getLegalActions(state, state.players[0], hogaak)).not.toContain(
             "cast"
         );
+    });
+});
+
+describe("an X spell spends the one-shot grant on BOTH commit paths (CR 609.4b / 118.14 / 107.3)", () => {
+    // The predicate that decides whether the grant is offered and spent
+    // compares the PRINTED cost — `{X}` priced at the announced X — with the
+    // cost being paid. Threading the announced X through only the deferred
+    // commit left the immediate one pricing `{X}` as 0, so an X >= 1 cast was
+    // never offered the grant and never consumed it.
+    const BASE = { gameId: "game-1" as Id<"games">, playerId: "p1" };
+
+    /** p1: North Star armed with {4}, then {G}{G} floating — X = 1 costs
+     *  {1}{R}/{B}, and no green mana can pay the coloured pip without the
+     *  grant. */
+    function xBoard(spellDef: { id: string }): GameState {
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    hand: [
+                        makeInstance(spellDef.id, {
+                            id: "spell",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "hand",
+                        }),
+                    ],
+                    battlefield: [
+                        makeInstance(northStar.id, {
+                            id: "star",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "battlefield",
+                        }),
+                        makeInstance(savannahLions.id, {
+                            id: "lion",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                            zone: "battlefield",
+                            enteredOnTurn: 1,
+                        }),
+                    ],
+                    manaPool: { W: 0, U: 0, B: 0, R: 0, G: 2, C: 4 },
+                }),
+                makePlayer("p2"),
+            ],
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            turn: 5,
+        });
+        armNorthStar(state);
+        return state;
+    }
+
+    it("IMMEDIATE commit: Earthquake for X=1 (pool covers it) consumes the grant", async () => {
+        const harness = makeMutationCtx("p1", [
+            gameStateSeed(xBoard(earthquake)),
+        ]);
+        await runMutation<AnnounceCastArgs & { chosenX: number }, void>(
+            announceCast as unknown as Handler<
+                AnnounceCastArgs & { chosenX: number },
+                void
+            >,
+            harness.ctx,
+            { ...BASE, cardInstanceId: "spell", chosenX: 1 }
+        );
+        const after = harness.state();
+        expect(after.stack).toHaveLength(1);
+        expect(after.pendingCast).toBeUndefined();
+        expect(after.players[0].manaPool.G).toBe(0);
+        expect(after.spellManaSubstitutionGrants).toBeUndefined();
+    });
+
+    it("DEFERRED commit: Howl from Beyond for X=1 (target chosen after) consumes the grant", async () => {
+        const harness = makeMutationCtx("p1", [
+            gameStateSeed(xBoard(howlFromBeyond)),
+        ]);
+        await runMutation<AnnounceCastArgs & { chosenX: number }, void>(
+            announceCast as unknown as Handler<
+                AnnounceCastArgs & { chosenX: number },
+                void
+            >,
+            harness.ctx,
+            { ...BASE, cardInstanceId: "spell", chosenX: 1 }
+        );
+        await runMutation(
+            selectTargets as unknown as Handler<Record<string, unknown>, void>,
+            harness.ctx,
+            {
+                ...BASE,
+                targets: [{ targetType: "permanent", targetId: "lion" }],
+            }
+        );
+        const after = harness.state();
+        expect(after.stack).toHaveLength(1);
+        expect(after.pendingCast).toBeUndefined();
+        expect(after.players[0].manaPool.G).toBe(0);
+        expect(after.spellManaSubstitutionGrants).toBeUndefined();
     });
 });
