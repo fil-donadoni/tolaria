@@ -427,6 +427,51 @@ through reached modules: the split is now 97 `scripts` tests in `node-engine`
 and 34 in `node-tooling` (was 84 / 47). Re-derive at a quiet moment before quoting a speed-up; the split's
 counts (predicate-fixed at config load) are the stable part.
 
+### File order — longest project first, contiguous, longest file first (issue #4483)
+
+One vitest invocation feeds every project's files into ONE worker pool, in
+the order its sequencer returns. Vitest's `BaseSequencer` orders projects by
+NAME, so the longest could start last: measured 2026-09-24, `loop-drain`
+(59 s, `node-tooling`) started at +55 s and ended exactly at the 114 s node
+wall, because `node-engine` sorts first; `bot-node` started at +36 s behind
+`bot-dom`. `LongestFirstSequencer` (`scripts/lib/vitest-sequencer.ts`,
+registered as `sequence.sequencer`) orders by `groupOrder`, then project by the
+SUM of its cached file durations descending, each project's files contiguous (a
+non-isolated worker is reused only while the next queued file is the same
+project's — interleaving would re-import the catalogue per switch), then
+never-seen files first and longest first. The only input is vitest's own
+results cache — how long a file took, never whether it changed (ADR 0104); it
+reorders and never filters. `vitest-sequencer.test.ts` pins the rule on a fake
+cache.
+
+The cache is gitignored (`node_modules/.vite/vitest/`), so a gate worktree
+starts without it and the order would silently fall back to names;
+`worktree:init` seeds it from the primary (`scripts/lib/worktree-seed.ts`),
+keyed by relative path, so a byte copy hits. A stale seed costs wall time,
+never a test. The primary's copy refreshes only when vitest runs there.
+
+Measured 2026-09-24, fresh detached worktrees on the same base (`origin/staging`
+7b05fb01f; after = + this change), `TOLARIA_VITEST_WORKERS=4` via the heavy
+tier. The machine was at load 20–59 throughout, which swings the wall more
+than the targets (−35–45 s `test:app`, −20–25 s `test:bot`), so read the rows
+as direction, not size:
+
+| Run                               | Before              | After               | Load avg (1m)     |
+| --------------------------------- | ------------------- | ------------------- | ----------------- |
+| `test:app`                        | 237.1 s, 1587 files | 306.4 s, 1588 files | 8 → 21 / 14 → 28  |
+| `test:bot`                        | 134.1 s, 259 files  | 108.9 s, 259 files  | 25 → 59 / 59 → 41 |
+| `check:lane` engine (total)       | 347.1 s / 291.5 s   | 301.2 s             | 39 → 36 / 43 → 49 |
+| — `node-engine` inside the lane   | 128.1 s / 148.9 s   | 106.1 s             | same              |
+| — `bot fast lane` inside the lane | 126.7 s / 122.2 s   | 171.0 s             | same              |
+
+Test counts are identical but for this change's own file (+1 file, +9 tests:
+25870 → 25879 in `test:app`, 21153 → 21162 in `node-engine`); every project
+still ran whole. The `test:app` after-run sat at load 28 against the before's
+21 and is not evidence of a regression — an earlier after-run one base commit
+behind measured 219.6 s at load 21 → 12. The lane's `node-engine` step, where
+the reorder acts inside one project, is the cleanest signal (−22 to −43 s).
+Re-derive at a quiet moment before quoting a speed-up.
+
 ### Batch homogeneity and the batch-level `check:ui`
 
 `scripts/lib/queue-plan.ts`'s `planBatch` (issue #2743) computes each
