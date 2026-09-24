@@ -64,6 +64,9 @@
  *                              before taking the mutex anyway (default 30 min)
  *   TOLARIA_ALLOW_FULL_SUITE=1 escape hatch for the issue-worktree guard
  *   TOLARIA_VITEST_WORKERS     worker cap read by vitest.config.ts
+ *   TOLARIA_VITEST_FS_CACHE    forced to "0" for the child on EVERY tier: no
+ *                              gate touches vitest's module cache, which is
+ *                              on for a bare targeted run (issue #4614)
  *   TOLARIA_HEAVY_WORKERS_CAP  ceiling on the heavy tier's worker count
  *                              (default 4) — RAM-bound, see HEAVY_WORKERS
  *   TOLARIA_GATE_LOCK_ROOT     lock location override (tests only)
@@ -92,6 +95,7 @@ import {
     yieldVerdict,
     type GateWaiter,
 } from "./lib/gate-liveness";
+import { gateChildEnv } from "./lib/vitest-fs-cache";
 
 // Overridable so the test suite can exercise the mutex against a temp dir
 // instead of contending with (or blocking) a real gate run on this machine.
@@ -699,13 +703,7 @@ async function main() {
         installTeardown(true);
     }
 
-    const env = {
-        ...process.env,
-        TOLARIA_GATE_HELD: heavy ? "1" : process.env.TOLARIA_GATE_HELD,
-        TOLARIA_VITEST_WORKERS:
-            process.env.TOLARIA_VITEST_WORKERS ??
-            (heavy ? String(HEAVY_WORKERS) : undefined),
-    } as NodeJS.ProcessEnv;
+    const env = gateChildEnv(process.env, heavy, HEAVY_WORKERS);
 
     child = spawn("sh", ["-c", command], {
         stdio: "inherit",

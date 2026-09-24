@@ -472,15 +472,41 @@ behind measured 219.6 s at load 21 → 12. The lane's `node-engine` step, where
 the reorder acts inside one project, is the cleanest signal (−22 to −43 s).
 Re-derive at a quiet moment before quoting a speed-up.
 
-### Filesystem module cache — measured, dropped (issue #4488)
+### Filesystem module cache — on for targeted runs, off in gates (issues #4488, #4614)
 
 Vitest 4's `experimental.fsModuleCache` writes every transformed module to
-disk and serves it back to a later invocation. The question was whether it
-cuts the `transform` phase (≈176 s summed across the four
-vitest runs the issue measured on 2026-09-24 — node, dom, bot, blade) on `health`. **Verdict: drop — from every tier, `health`
-included.** It stays in the tree only as a manual knob,
-`TOLARIA_VITEST_FS_CACHE=<dir>` (`scripts/lib/vitest-fs-cache.ts`), which no
-script sets.
+disk and serves it back to a later invocation. **Verdict: ON for a bare
+`bunx vitest run <path>` (both configs), OFF in every gate.** The switch is
+`fsModuleCacheOptions` (`scripts/lib/vitest-fs-cache.ts`):
+`TOLARIA_VITEST_FS_CACHE` unset → on, at vitest's default location
+(`node_modules/.experimental-vitest-cache`, inside the worktree — `land`
+deletes it with the worktree, nothing to prune); `0` → off; a directory → on,
+cached there (the knob a re-measurement would use). `scripts/gate.ts` exports
+`0` to every command it fronts on every tier (`gateChildEnv`), and every gate
+— `check:pr`, `check:all`, `test`, `test:app`, `test:bot`, `test:blade`,
+`check:lane`, `land`, `health`, `release` — reaches `gate.ts`;
+`vitest-fs-cache.test.ts` asserts both halves.
+
+**Targeted runs (issue #4614).** An issue worktree re-runs the same file
+again and again, from one directory — exactly the shape the cache keys on.
+Every node test file pays the catalogue transform (the node setup file
+imports the card catalogue to freeze it, ~1 350 modules), so even a tooling
+test gains. Measured 2026-09-24 in a throwaway worktree, interleaved off/on,
+load 14 → 28, wall clock per run:
+
+| File                         | off                         | on, cold | on, warm          |
+| ---------------------------- | --------------------------- | -------- | ----------------- |
+| `combat` (GRE)               | 11.8 / 16.0 / 17.1 / 16.9 s | 9.5 s    | 8.1 / 7.3 / 9.5 s |
+| `vitest-sequencer` (scripts) | 31.7 / 32.8 / 12.3 s        | 17.3 s   | 6.8 / 10.0 s      |
+
+Warm beats off in 7 pairs of 7, about −50 % wall; `transform` 10–11 s →
+3–4 s. The cold write costs nothing visible. The catalogue graph's cache is
+~75 MB, 1 362 entries — per worktree, gone at `land`.
+
+**`health` (issue #4488): measured, dropped.** The question was whether it
+cuts the `transform` phase (≈176 s summed across the four vitest runs the
+issue measured on 2026-09-24 — node, dom, bot, blade) on `health`. It does
+not, and the gates stay off for the reasons below.
 
 Why it cannot pay on `health` as built: vitest hashes the module's ABSOLUTE
 id and the config `root` into every cache key, and `health` gates each tip in
@@ -513,13 +539,18 @@ at load 40–72. C2 is the ceiling a stable path would reach: **−67 s (−15 %
 against A2, transform 180 → 59 s.
 
 Correctness: no stale module was served. The key covers source content,
-`NODE_ENV`, the config file's bytes and plugin names — but not plugin
-OPTIONS, so a `define` constant (`__BUILD_COMMIT__`) would be served with the
-previous commit's value; `defineCacheKeyPlugin` adds the define values to the
-key of exactly the modules that mention one (pinned by
-`vitest-fs-cache.test.ts`). The one red seen (C, load 61),
-`health-cadence-spawn.test.ts` CONTROL, is a process-group timing race,
-green 3/3 re-run with the cache on — it transforms nothing.
+`NODE_ENV`, the config file's bytes and plugin names — not plugin OPTIONS —
+and that is enough, `define` included: vitest strips `define` from the Vite
+config and assigns the values on `globalThis` at runtime, so a transform
+never contains a define value and a new commit's `__BUILD_COMMIT__` is always
+fresh. The define cache-key plugin issue #4488 shipped guarded a hole vitest does not
+have and was removed by issue #4614. `vitest-fs-cache-invalidation.test.ts` pins
+the four cases against a warm cache, in a child vitest: an edit to a directly
+imported lib, to a module reached only transitively (setup → mid → deep, as
+setup → catalogue → constants), to the test file itself, and a new commit.
+The one red seen (C, load 61), `health-cadence-spawn.test.ts` CONTROL, is a
+process-group timing race, green 3/3 re-run with the cache on — it transforms
+nothing.
 
 What would reopen it: a stable gate-worktree path — `health` reusing one
 directory per checkout, with the concurrency that implies — plus a pruning

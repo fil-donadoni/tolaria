@@ -49,8 +49,8 @@ const WORKERS = Math.max(1, Number(process.env.TOLARIA_VITEST_WORKERS ?? 2));
 export default defineConfig({
     resolve: { alias },
     test: {
-        // Same manual flag as `vitest.config.ts` (issue #4488), off unless
-        // set by hand. No `define` here, so no key plugin.
+        // Same switch as `vitest.config.ts` (issue #4614): on for a bare
+        // run, off under `scripts/gate.ts`.
         ...fsModuleCacheOptions(process.env),
         name: "blade",
         maxWorkers: WORKERS,

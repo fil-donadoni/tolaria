@@ -3,10 +3,7 @@ import path from "path";
 import { splitScriptsTests, splitSrcTests } from "./scripts/test-env-split";
 import { buildDefine } from "./scripts/lib/build-define";
 import { LongestFirstSequencer } from "./scripts/lib/vitest-sequencer";
-import {
-    defineCacheKeyPlugin,
-    fsModuleCacheOptions,
-} from "./scripts/lib/vitest-fs-cache";
+import { fsModuleCacheOptions } from "./scripts/lib/vitest-fs-cache";
 
 // Shared resolve aliases — must match tsconfig paths so both projects resolve
 // `~`, `@`, and `@convex` identically.
@@ -243,11 +240,11 @@ const botExclude = BOT_FAST ? [...exclude, ...HEAVY_BOT_GLOB] : exclude;
 // ─────────────────────────────────────────────────────────────────────────────
 const WORKERS = Math.max(1, Number(process.env.TOLARIA_VITEST_WORKERS ?? 2));
 
-// Filesystem module cache — OFF unless `TOLARIA_VITEST_FS_CACHE` names a
-// directory, which no gate does (issue #4488: measured and dropped, the
-// verdict is in `docs/agents/quality-gates.md` § Filesystem module cache).
+// Filesystem module cache — ON for a bare `bunx vitest run <path>`, OFF in
+// every gate: `scripts/gate.ts` exports `TOLARIA_VITEST_FS_CACHE=0` (issue
+// #4614; the measurements are in `docs/agents/quality-gates.md`
+// § Filesystem module cache).
 const FS_CACHE = fsModuleCacheOptions(process.env);
-const define = buildDefine();
 
 export default defineConfig({
     resolve: { alias },
@@ -255,8 +252,7 @@ export default defineConfig({
     // #3256). Without it `__BUILD_COMMIT__` is an undeclared global under test
     // and the guard asserting the bug-report payload carries a build identity
     // could only ever assert a fallback.
-    define,
-    plugins: FS_CACHE.experimental ? [defineCacheKeyPlugin(define)] : [],
+    define: buildDefine(),
     test: {
         ...FS_CACHE,
         globals: true,
