@@ -6,7 +6,11 @@
 import { describe, expect, it } from "vitest";
 import { getCardByName } from "../../../cards";
 import { withTemporaryDefinition } from "../../../cards/registry";
-import type { CardDefinition, EffectSignedValue } from "../../../cards/types";
+import type {
+    CardDefinition,
+    CardType,
+    EffectSignedValue,
+} from "../../../cards/types";
 import { decidingPlayer } from "../../search";
 import { enumerateMoves } from "../../moves";
 import {
@@ -423,7 +427,7 @@ describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
     const ownersOf = (
         def: CardDefinition,
         seat: 0 | 1,
-        kind: string
+        kind: CardType
     ): { holder: number; opponent: number } => {
         const { state, holderId } = buildBotReachState(def, seat);
         const count = (own: boolean): number =>
