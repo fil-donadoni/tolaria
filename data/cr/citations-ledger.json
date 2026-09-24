@@ -34637,6 +34637,7 @@
         {"id":"701.21","line":"/** CR 701.21 / 118.5 — permanents sacrificed to pay `cost.sacrificeFilter`","sites":1,"status":"baseline"},
         {"id":"701.21","line":"/** CR 701.21 / 601.2f — one call per victim; the server routes it to","sites":1,"status":"baseline"},
         {"id":"701.21","line":"/** CR 701.21 — \"sacrifice a <filter>\" leg. See","sites":1,"status":"baseline"},
+        {"id":"701.21","line":"/** CR 701.21 — an \"each player sacrifices\" edict of `filter`. */","sites":1,"status":"confirmed","ruleHash":"c08513a53c3304fa"},
         {"id":"701.21","line":"/** CR 701.21 — sacrifice the permanents a `choice` Op picked (a bare","sites":1,"status":"baseline"},
         {"id":"701.21","line":"/** Filter by token-ness (CR 111.5 / 701.21 — \"sacrifice a nontoken","sites":1,"status":"baseline"},
         {"id":"701.21","line":"/** PERMANENT leg (CR 701.21 sacrifice / 400.7 return): permanents matching","sites":1,"status":"baseline"},

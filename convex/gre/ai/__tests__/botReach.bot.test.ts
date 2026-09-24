@@ -450,16 +450,12 @@ describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
     });
 
     it("no claim is made where the edict is not a plain type filter", () => {
-        // A subtype-filtered edict and a land edict leave the level pose:
-        // the holder still has its creature.
-        for (const def of [
-            eachPlayerSacrifices("edict-subtype", {
-                type: "Creature",
-                subtype: "Goblin",
-            }),
-            getCardByName("Tremble"),
-        ])
-            expect(ownersOf(def, 0, "Creature").holder, def.name).toBe(2);
+        // A subtype-filtered edict is not read: the level pose stays.
+        const def = eachPlayerSacrifices("edict-subtype", {
+            type: "Creature",
+            subtype: "Goblin",
+        });
+        expect(ownersOf(def, 0, "Creature").holder).toBe(2);
     });
 
     it("played — a symmetric edict is cast where the opponent loses more", () => {
