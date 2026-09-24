@@ -117,7 +117,7 @@ export const coalitionFlag: CardDefinition = {
 //
 // The Oracle line is a Grammar Gap worth two corpus cards, below the hand-tail
 // floor, so the card is written by hand rather than paid for with a rule.
-// hand-tail: "Prevent all damage that would be dealt this turn to creatures you control." (#3810)
+// hand-tail: "Prevent all damage that would be dealt this turn to creatures you control." (#4321)
 export const divineLight: CardDefinition = {
     id: "8f596ce1-b754-4e34-98e3-e1ddda2fd9b0", // APC 8
     rarity: "common",

@@ -32,7 +32,7 @@ import { colorChoiceModes } from "../../abilities/chooseColor";
 // information; any part of the effect that requires that information won't
 // happen".
 //
-// hand-tail: "Destroy two target nonblack creatures unless either one is a color the other isn't. They can't be regenerated." (#3806)
+// hand-tail: "Destroy two target nonblack creatures unless either one is a color the other isn't. They can't be regenerated." (#4326)
 export const deadRingers: CardDefinition = {
     id: "9b78028c-3ebd-432d-b628-e1fa284f08f3", // APC 37
     name: "Dead Ringers",
@@ -84,7 +84,7 @@ export const deadRingers: CardDefinition = {
 // filter fails CLOSED to, and it is also what the card does: the reveal still
 // happens, the discard finds no matches.
 //
-// hand-tail: "Target player reveals their hand and discards all cards of each of the sacrificed creature's colors." (#3806)
+// hand-tail: "Target player reveals their hand and discards all cards of each of the sacrificed creature's colors." (#4338)
 export const mindExtraction: CardDefinition = {
     id: "7d77ddcc-e66b-4036-8a55-ec42953918d1", // APC 42
     name: "Mind Extraction",
