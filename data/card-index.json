@@ -56016,6 +56016,14 @@
         "source": "compiled"
     },
     {
+        "name": "Verdeloth the Ancient",
+        "scryfallId": "72d5fab1-fa20-4006-b19d-179d36238c9b",
+        "oracleId": "8222321f-b74d-4f74-9ee7-79455433345a",
+        "firstSet": "inv",
+        "firstPrintId": "72d5fab1-fa20-4006-b19d-179d36238c9b",
+        "firstPrintSet": "inv"
+    },
+    {
         "name": "Verdigris",
         "scryfallId": "0c79664d-3461-44e7-afe6-33ec54e312ad",
         "oracleId": "fb41ea1d-3491-4193-a390-8eb202fbae12",
