@@ -167,15 +167,15 @@ describe("shuffle from anywhere — refusals (fail-closed neighbours)", () => {
     const refused: readonly [string, string][] = [
         [
             "the CR 603 trigger (Emrakul, the Aeons Torn), not a replacement",
-            "When {self} is put into a graveyard from anywhere, shuffle it into its owner's library.",
+            "When Test Card is put into a graveyard from anywhere, shuffle it into its owner's library.",
         ],
         [
             "an exile redirect",
-            "If {self} would be put into a graveyard from anywhere, exile it instead.",
+            "If Test Card would be put into a graveyard from anywhere, exile it instead.",
         ],
         [
             "no reveal",
-            "If {self} would be put into a graveyard from anywhere, shuffle it into its owner's library instead.",
+            "If Test Card would be put into a graveyard from anywhere, shuffle it into its owner's library instead.",
         ],
         [
             "a subject that is not this object",
@@ -183,9 +183,20 @@ describe("shuffle from anywhere — refusals (fail-closed neighbours)", () => {
         ],
         [
             "a revealed object that is not this one",
-            "If {self} would be put into a graveyard from anywhere, reveal target card and shuffle it into its owner's library instead.",
+            "If Test Card would be put into a graveyard from anywhere, reveal target card and shuffle it into its owner's library instead.",
         ],
     ];
+    it("control: the accepted sentence on the same card compiles ready", () => {
+        const outcome = compileCard(
+            oracleCard({
+                name: "Test Card",
+                oracleText:
+                    "If Test Card would be put into a graveyard from anywhere, reveal Test Card and shuffle it into its owner's library instead.",
+            })
+        );
+        expect(outcome.state).toBe("ready");
+    });
+
     for (const [why, text] of refused)
         it(`refuses ${why}`, () => {
             const outcome = compileCard(
