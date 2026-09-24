@@ -366,6 +366,16 @@
         },
         {
             "kind": "bot",
+            "key": "never-chosen › Creature [flash,protection from red] › (no Ops)",
+            "issue": 4498
+        },
+        {
+            "kind": "bot",
+            "key": "never-chosen › Creature [flash,protection from white] › (no Ops)",
+            "issue": 4499
+        },
+        {
+            "kind": "bot",
             "key": "never-chosen › Creature [flash] › (no Ops)",
             "issue": 4263
         },
