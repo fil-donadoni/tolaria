@@ -614,6 +614,14 @@ _Avoid_: View, snapshot, DTO
 A single-user game where one human controls both **Players**. The UI auto-switches the viewer to whoever has **Priority**. Removes the need for two browser tabs during development and play.
 _Avoid_: Single player, practice mode
 
+**Focus View**:
+The multiplayer board mode that shows two **Players** at full size — the viewer and one chosen **Opponent** — as the two-player board does today, with every other Opponent reduced to a compact portrait strip (life, **Commander Damage** dealt to the viewer, Commander whereabouts, what they are doing to the viewer). Which Opponent is in focus is the viewer's choice, nudged by the action (an attack or a target aimed at the viewer). One of two board modes, with the **Mosaic View**.
+_Avoid_: Split screen, duel view, 1v1 view
+
+**Mosaic View**:
+The multiplayer board mode that shows every **Player**'s **Battlefield** at once as real miniatures — the actual boards scaled down, cards recognisable by art and position rather than readable — for "who has what" at a glance. A mode the viewer switches to and stays in, not a transient peek. The other board mode is the **Focus View**.
+_Avoid_: Overview, minimap, summary tiles (a summary is not the board)
+
 **vs-AI Game**:
 A single-user game where one seat is controlled by the **AI Opponent** instead of the human. Structurally a **Solo Mode** game in which one seat's moves are chosen by the **Bot** rather than clicked by the user. Authority stays server-side: the **Bot**'s move is submitted and validated like any human move (see ADR 0001).
 _Avoid_: AI mode, bot match, practice mode
@@ -745,6 +753,10 @@ _Avoid_: Sampling, guessing, simulation
 **Deck Knowledge**:
 The decklists the search is permitted to know, named one seat at a time. A seat with no entry is blind and keeps anonymous placeholders — that absence is the permission check, so knowledge is never acquired by accident.
 _Avoid_: Cheating, peeking, perfect information
+
+**Paranoid Reduction**:
+How the **Brain** searches a game of more than two **Players**: every other Player is treated as one adversary who shares a goal — beating the Brain — so the N-player game collapses into the two-sided search the Brain already runs. Pessimistic by construction (real opponents also fight each other), chosen so a multiplayer game is one the Bot plays without freezing, not one it wins; a strength claim on top of it (max^n, threat weighting) is a later, ladder-gated change.
+_Avoid_: Max-n, coalition, 2v1
 
 **Unseen Remainder**:
 What a seat's decklist could still be hiding: the whole list minus every copy already accounted for somewhere public (**Battlefield**, **Graveyard**, exile, a spell on the **Stack**). It is what keeps an imagined **Hand** honest — a four-of with three copies already visible admits exactly one more, so the **Brain** can never imagine a fifth.
@@ -1059,8 +1071,40 @@ A user's manual override placing one card in a chosen **Column**, recorded per *
 _Avoid_: Column override (the pre-unification name), assignment, manual placement
 
 **Format**:
-A named set of deck-construction constraints a **Deck** is built under, chosen at deck creation and **immutable** thereafter. Determines the **Maindeck**/**Sideboard** size bounds, the copy/category limits, and — for most Formats — which **Sets** are legal; **Premodern** is the one exception (issue #2695): its legality is a generated, name-keyed map of Scryfall's `legalities.premodern` per card, not a Set list, so a card is legal exactly when Scryfall says the CARD is, regardless of which Set its only built printing sits in. Registered today: **Freeform** (no constraints), **Limited** (pool-scoped rather than set-scoped — legality is membership in the **Deck Pool**, ≥40 main, no sideboard cap), **Premodern** (Scryfall-legality by name, ≥60 main, ≤15 sideboard, 4-copy + code-seed/DB-backed **Banned** list, no Restricted list), **Manual** (Tabletop, unvalidated and unplayable by the engine), **Alpha 40** (Alpha/Beta only, ≥40 main, no sideboard, rarity- and category-based limits), **Old School** (Alpha/Beta/Arabian Nights/Antiquities/Legends/The Dark, ≥60 main, ≤15 sideboard, 4-copy + **Restricted**/**Banned** lists). A **Format** constrains deck authoring only — it is **not** a property of a **Game**, and two **Players** may bring **Decks** of different **Formats** to the same **Match**.
+A named set of deck-construction constraints a **Deck** is built under, chosen at deck creation and **immutable** thereafter. Determines the **Maindeck**/**Sideboard** size bounds, the copy/category limits, and — for most Formats — which **Sets** are legal; **Premodern** is the one exception (issue #2695): its legality is a generated, name-keyed map of Scryfall's `legalities.premodern` per card, not a Set list, so a card is legal exactly when Scryfall says the CARD is, regardless of which Set its only built printing sits in. Registered today: **Freeform** (no constraints), **Limited** (pool-scoped rather than set-scoped — legality is membership in the **Deck Pool**, ≥40 main, no sideboard cap), **Premodern** (Scryfall-legality by name, ≥60 main, ≤15 sideboard, 4-copy + code-seed/DB-backed **Banned** list, no Restricted list), **Manual** (Tabletop, unvalidated and unplayable by the engine), **Alpha 40** (Alpha/Beta only, ≥40 main, no sideboard, rarity- and category-based limits), **Old School** (Alpha/Beta/Arabian Nights/Antiquities/Legends/The Dark, ≥60 main, ≤15 sideboard, 4-copy + **Restricted**/**Banned** lists). A **Format** constrains deck authoring only — it is **not** a property of a **Game**. Which **Decks** may meet in one **Match** is a separate question, **Format Compatibility**: today any two Formats meet (the joiner sees the host's Format as a hint, nothing enforces it); the Commander family is the first to require it, and the rule generalises to the lobby (grilled 2026-09-24).
 _Avoid_: Mode, ruleset (overloaded — see **Format Ruleset**), variant
+
+**Game Variant**:
+The rule set a **Match** is played under, chosen at Match creation and fixed for the Match's life: _Standard_ (the ordinary game) or _Commander_ (CR 903 — a **Command Zone**, a **Commander** per Player, the commander tax). Distinct from a **Format**: a Format constrains deck authoring and is never a property of a **Game**; a Game Variant IS a property of the **Game** and changes which rules apply. The Commander Variant's numbers come from its **Commander Profile**. Planned order: the two-player Formats (**Brawl**, **Duel Commander**) first, multiplayer **EDH** last.
+_Avoid_: Format (deck-construction only), mode, ruleset (that is **Format Ruleset**, a banned-list policy), "Commander" alone (ambiguous between the Variant family and EDH)
+
+**Commander Profile**:
+The game-rule numbers of a Commander **Game Variant**, a pure function of a **Deck**'s **Format** — never chosen at the table: _brawl_ (life 25 in two-player / 30 in multiplayer, no **Commander Damage**, the first mulligan free, planeswalker Commanders allowed — CR 903.12), _duel-commander_ (life 20, Commander Damage), _edh_ (life 40, Commander Damage). Deck size belongs to the Format, not the Profile: **Brawl** (100 cards, Arena's ex-"Historic Brawl") and **Standard Brawl** (60 cards, CR 903.12d) share the _brawl_ Profile. A **Match** admits only **Decks** whose Formats map to the same Profile — the one place a Match reads a Deck's Format.
+_Avoid_: Variant (the family), house rules, settings
+
+**Format Compatibility**:
+Whether two **Decks** may meet in one **Match** — a pure function of their two **Formats**, held in one place and enforced at join, never only hinted at in the lobby: a Commander-family Deck meets only a Deck of the same **Commander Profile**; a Standard-Variant Deck meets any other Standard-Variant Deck (today's behaviour, kept); a **Limited** Deck meets within its **Limited Event**. An **Open Game** advertises its host Deck's Format so a joiner is offered only compatible Decks, and the join mutation refuses the rest.
+_Avoid_: Same format (too strict — Brawl meets Standard Brawl), matchmaking rules (that is a lobby feature; this is the predicate it reads)
+
+**Command Zone**:
+The per-**Player** **Zone** (CR 408) that holds that Player's **Commander** while it is not on the **Battlefield** — where the game starts it, and where its owner may return it instead of any other zone it would move to. Per CR 114/408 the command zone also holds a Player's emblems, but they are modelled and displayed apart: no rule ever counts commander and emblems together, and on the board they appear as two distinct areas. Not the **Companion Slot**, which is outside the game.
+_Avoid_: Emblem area (that is a separate holder), outside-game zone, sideboard
+
+**Commander**:
+The legendary creature card designated as a **Deck**'s leader in the **Commander** **Game Variant** (CR 903). Starts the **Game** in its owner's **Command Zone**, may be cast from there paying two more generic mana per previous cast from that zone (the commander tax), and may be returned to the Command Zone by its owner whenever it would change zone. Its colour identity bounds the Deck.
+_Avoid_: General (historical name), leader, companion
+
+**Command Slot** (deck zone):
+The third zone of a Commander-family **Deck**, beside **Maindeck** and **Sideboard**: the card or cards designated as **Commander**. A list, not a single card — Partner and Background put two there — though only one is supported until that mechanic ships whole. Counts toward the Format's deck size (CR 903.5a, "including its commander") and owns its own **Column Layout** like every zone. A Commander-family Format refuses a non-empty **Sideboard** (CR 903.11 — no cards from outside the game; no wishboard).
+_Avoid_: Command zone (the in-game **Zone**), commander field, flag on a Maindeck entry
+
+**Color Identity**:
+The colours a card contributes to a Commander deck's bounds (CR 903.4): every mana symbol in its cost AND its rules text, its colour indicator and its characteristic-defining abilities — so a basic land has one (its intrinsic mana ability) and a colourless artifact with a coloured activation cost has one too. One notion, used both for Commander **Deck Legality** and for what the deck builder groups by, the search index filters on and the draft Bot counts. Authority: Scryfall's per-card `color_identity` as a generated, name-keyed map — the same shape as Premodern legality. Until that map exists, the definition-side scan (costs, basic land types, declared mana abilities — never rules text) is the interim implementation of the same term, to be replaced, not renamed.
+_Avoid_: Colours (a characteristic; a colourless card can have a colour identity), casting colours, deck colours
+
+**Commander Damage**:
+The running total of combat damage one **Commander** has dealt to one **Player** over a **Game** (CR 903.10a): at 21 or more, that Player loses — a state-based action beside life and **Poison Counters**. Tracked per (commander's owner, victim), never per object: the total survives the Commander dying, returning to the **Command Zone** and being cast again as a new object. A copy of a Commander is not a Commander (CR 903.3) and deals none; a Commander controlled by another Player still deals it, credited to its owner.
+_Avoid_: General damage, commander poison, infect
 
 **Format Tier**:
 What a player is told about how complete a **Format** is, derived from its **Target List** and never set by hand: _Supported_ (the Target List is completed), _Beta_ (a registered Target List at 85% playable or more, shown with its count — "Beta — 472 of 542 cards"), _Experimental_ (everything else, including a Format with no Target List). A Format changes tier only because cards became playable.

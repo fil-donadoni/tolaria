@@ -315,6 +315,35 @@ any script; a hand-set `P0` on the umbrella is how a family is put first.
 Not changed: one level of inheritance; `P3` strictly above unprioritised
 (issue #4051); the residue's causes; the labels default.
 
+### v2 is Commander — Amendment III (grilled 2026-09-24)
+
+The Long term above named v2 "constructed formats beyond premodern (pauper,
+legacy, vintage, modern, …)" and put multiplayer for three or more players
+"after v2, ordered but unplanned". **Amended**: v2 is **Commander**, and
+multiplayer moves inside it. Concretely, v2 opens when `format-premodern` is
+`completed` (unchanged) and is the fourth Target in registry order:
+`commander-staples`, a name-list Target (EDHREC's most-played cards, cut to a
+list when the term opens — the count is decided then, not here), with the
+non-card work the Target drags in, in this internal order:
+
+1. the Commander **Game Variant** at two players — Command Zone, commander
+   tax, Commander Damage, the **Commander Profile** family (Brawl, Duel
+   Commander) and the Formats that map to it;
+2. the engine at N players in the Standard Variant — Free-for-All
+   (CR 806), players leaving the game (CR 800.4), the Bot under **Paranoid
+   Reduction**;
+3. EDH at three or more players — the `edh` Profile over that engine, the
+   **Focus View** / **Mosaic View** board.
+
+The other constructed formats (pauper, legacy, vintage, modern) become v3:
+each is one more Target List over the same grammar and no rule change, so
+they are cheap whenever they come; Commander is cards PLUS two deep rule
+changes, and it is the most-played format by a wide margin — the diffusion
+value sits there. Terms in `CONTEXT.md`: **Game Variant**, **Commander
+Profile**, **Command Zone**, **Commander**, **Command Slot**, **Color
+Identity**, **Commander Damage**, **Paranoid Reduction**, **Focus View**,
+**Mosaic View**.
+
 ### Format Tiers
 
 What a player is told about a format is derived from the Target registry,
