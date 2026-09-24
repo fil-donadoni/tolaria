@@ -108,24 +108,37 @@ registerTokenDefinition({
     ],
 });
 
-/** A permanent that watches every cast, so casting Damn puts a trigger on the
- *  stack above it — the object that must NOT inherit the overload marker. */
-const CAST_WATCHER_ID = "test:overload-cast-watcher";
+/** An overload card with its own "when you cast this spell" trigger. That
+ *  trigger is built by SPREADING the cast spell (`collectSelfCastTriggers`),
+ *  which is exactly how it could inherit the spell's overload marker (PR #3288
+ *  review finding 1). Synthetic: no shipped overload card has a cast trigger. */
+const SELF_CAST_PROBE_ID = "test:overload-self-cast-probe";
 registerTokenDefinition({
-    id: CAST_WATCHER_ID,
+    id: SELF_CAST_PROBE_ID,
     rarity: "rare",
-    name: "Overload Cast Watcher",
-    manaCost: { X: 2 },
-    types: ["Creature"],
-    power: 2,
-    toughness: 2,
+    name: "Overload Self-Cast Probe",
+    manaCost: { W: 1 },
+    types: ["Sorcery"],
+    overload: {
+        id: "overload",
+        description: "Overload {2}{W}{W}",
+        mana: { X: 2, W: 2 },
+    },
+    targetRequirement: { type: "Creature", count: 1 },
     triggeredAbilities: [
         spellCastTrigger({
-            id: "overload-cast-watcher",
-            oracleText: "Whenever a player casts a spell, take an extra turn.",
-            scope: "any",
+            id: "overload-self-cast",
+            oracleText: "When you cast this spell, take an extra turn.",
+            scope: "self",
             effects: [{ op: "extraTurn", player: "controller" }],
         }),
+    ],
+    effects: [
+        {
+            op: "forEach",
+            select: { set: "targets" },
+            effects: [{ op: "destroy", target: { ref: "$each" } }],
+        },
     ],
 });
 
@@ -533,23 +546,26 @@ describe("Overload — the marker is CAST-INSTANCE scoped (CR 702.96a, PR #3288 
         // trigger is a different object, and the marker would swap ITS own
         // `ctx.targets` for the spell's sweep as it resolved.
         const state = makeState({
-            players: [
-                makePlayer("p1", {
-                    battlefield: [creature(CAST_WATCHER_ID, "watcher", "p1")],
-                }),
-                makePlayer("p2"),
-            ],
+            players: [makePlayer("p1"), makePlayer("p2")],
         });
-        const item = damnOnStack(state, { overloaded: true });
+        const item: StackItem = {
+            ...handCard(SELF_CAST_PROBE_ID, "probe"),
+            zone: "stack",
+            castById: "p1",
+            overloaded: true,
+        };
+        state.stack.push(item);
         emitSpellCastEvent(state, item);
         processPendingActionTriggers(state);
         const triggers = state.stack.filter((queued) => queued.id !== item.id);
-        // The watcher's trigger IS on the stack — without it the claim below
-        // holds of an empty list (issue #4492).
+        // The trigger IS on the stack — without it the claim below holds of
+        // an empty list, which is how this block once asserted nothing
+        // (issue #4492).
         expect(triggers.map((t) => t.triggeredAbilityId)).toEqual([
-            "overload-cast-watcher",
+            "overload-self-cast",
         ]);
         expect(triggers[0].overloaded).toBeUndefined();
+        expect(item.overloaded).toBe(true);
     });
 });
 
