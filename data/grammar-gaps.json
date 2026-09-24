@@ -1961,6 +1961,11 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Emblazoned Golem",
+            "issue": 4577
+        },
+        {
+            "kind": "hand-tail",
             "key": "False Dawn",
             "issue": 4329
         },
