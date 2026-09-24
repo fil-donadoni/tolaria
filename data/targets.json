@@ -6,7 +6,8 @@
             "id": "premodern-metagame",
             "kind": "deck-list",
             "source": "data/premodern-metagame-decks.json",
-            "priority": 1
+            "priority": 1,
+            "completion": "ready"
         },
         {
             "id": "vintage-cube",

@@ -38,6 +38,17 @@ export const TARGET_KINDS = [
 export type TargetKind = (typeof TARGET_KINDS)[number];
 
 /**
+ * How a Target completes (issue #4519). `playable` (the default) is the v1
+ * gate of ADR 0143: every card `ready` or hand-written, the hand tail
+ * declared by name and held to the registry-global `handTailFloor`. `ready`
+ * is stricter: EVERY card `ready`, so the floor does not apply — a gap that
+ * holds one of the Target's cards owes a `grammar` claim however few corpus
+ * cards carry it, and a `hand-tail` claim or marker never settles the card.
+ */
+export const COMPLETION_MODES = ["playable", "ready"] as const;
+export type CompletionMode = (typeof COMPLETION_MODES)[number];
+
+/**
  * One registered Target List.
  *
  * `source` by kind:
@@ -66,6 +77,8 @@ export interface TargetRow {
      * card of an ENFORCED Target.
      */
     readonly enforced?: boolean;
+    /** How the Target completes — absent means `"playable"` (issue #4519). */
+    readonly completion?: CompletionMode;
 }
 
 export interface TargetRegistry {
@@ -141,6 +154,13 @@ export function parseTargetRegistry(
         }
         if (row.enforced !== undefined && typeof row.enforced !== "boolean")
             fail(`${row.id}: \`enforced\` must be a boolean`);
+        if (
+            row.completion !== undefined &&
+            !(COMPLETION_MODES as readonly unknown[]).includes(row.completion)
+        )
+            fail(
+                `${row.id}: unknown \`completion\` \`${String(row.completion)}\` (one of: ${COMPLETION_MODES.join(", ")})`
+            );
     }
     return doc;
 }
@@ -617,8 +637,11 @@ export interface CoverageVerdict {
  *  both read it, so there is no second definition of the five states. */
 export function coverageVerdict(
     row: CardRow,
-    ctx: CoverageContext
+    ctx: CoverageContext,
+    completion: CompletionMode = "playable"
 ): CoverageVerdict {
+    // A `ready` Target has no Hand Tail: the floor does not apply (issue #4519).
+    const floor = completion === "ready" ? 1 : ctx.floor;
     const marked = ctx.handTail.has(row.oracleId);
     if (marked && ctx.closure.has(row.oracleId)) return { state: "hand-tail" };
     if (row.state === "ready") return { state: "ready" };
@@ -643,9 +666,7 @@ export function coverageVerdict(
     // whatever stays below the floor makes the card Hand Tail — so a card with
     // mixed gaps is pending, never stuck with no green state.
     const keys = ctx.gapKeys(row);
-    const above = keys.filter(
-        (key) => (ctx.leverage.get(key) ?? 0) >= ctx.floor
-    );
+    const above = keys.filter((key) => (ctx.leverage.get(key) ?? 0) >= floor);
     if (above.length > 0) {
         const open = above.find(
             (key) => !ctx.claims.has(claimId("grammar", key))
@@ -656,6 +677,21 @@ export function coverageVerdict(
                   state: "unclaimed",
                   why: `gap \`${open}\` (${ctx.leverage.get(open)} corpus cards, floor ${ctx.floor}) has no \`grammar\` claim`,
               };
+    }
+    if (completion === "ready") {
+        const settledByHandTail =
+            marked || ctx.claims.has(claimId("hand-tail", row.name));
+        return {
+            state: "unclaimed",
+            why:
+                (keys.length === 0
+                    ? "no Grammar Gap attributed"
+                    : "no gap holds it that a `grammar` claim covers") +
+                (settledByHandTail
+                    ? "; its `hand-tail` claim or marker does not satisfy a `ready` Target"
+                    : "") +
+                " — a `ready` Target completes at 100 % ready, so it owes a Grammar Rule, never Hand Tail",
+        };
     }
     if (marked || ctx.claims.has(claimId("hand-tail", row.name)))
         return { state: "hand-tail" };
@@ -671,9 +707,10 @@ export function coverageVerdict(
 
 export function coverageState(
     row: CardRow,
-    ctx: CoverageContext
+    ctx: CoverageContext,
+    completion: CompletionMode = "playable"
 ): CoverageState {
-    return coverageVerdict(row, ctx).state;
+    return coverageVerdict(row, ctx, completion).state;
 }
 
 /** A `hand-tail:` card the tooling has caught up with. */
@@ -687,6 +724,8 @@ export interface TargetCoverage {
     readonly kind: TargetKind;
     readonly priority?: number;
     readonly enforced: boolean;
+    /** How the Target completes (issue #4519). */
+    readonly completion: CompletionMode;
     readonly total: number;
     /** Card names per coverage state, sorted. */
     readonly byState: Readonly<Record<CoverageState, readonly string[]>>;
@@ -694,6 +733,9 @@ export interface TargetCoverage {
     readonly playable: number;
     /** The cards that are neither, by name in list order — `total - playable`. */
     readonly unplayable: readonly string[];
+    /** Every card whose state is not `ready`, in list order — what a `ready`
+     *  Target still owes (issue #4519). */
+    readonly notReady: readonly string[];
     readonly migrable: readonly MigrableCard[];
     /** Every `unclaimed` card with the claim it lacks, in list order. */
     readonly unclaimed: readonly MigrableCard[];
@@ -735,20 +777,26 @@ export function targetCoverage(
         "hand-tail": [],
         unclaimed: [],
     };
+    const completion = target.row.completion ?? "playable";
     const unplayable: string[] = [];
+    const notReady: string[] = [];
     const migrable: MigrableCard[] = [];
     const unclaimed: MigrableCard[] = [];
     const closureCompiles: string[] = [];
     for (const card of target.cards) {
         const row = ctx.byOracleId.get(card.oracleId)!;
-        const { state, why: missing } = coverageVerdict(row, ctx);
+        const { state, why: missing } = coverageVerdict(row, ctx, completion);
         byState[state].push(card.name);
+        if (state !== "ready") notReady.push(card.name);
         if (missing !== undefined)
             unclaimed.push({ name: card.name, why: missing });
         if (ctx.closure.has(card.oracleId)) closureCompiles.push(card.name);
         if (state !== "ready" && !ctx.handWritten.has(card.oracleId))
             unplayable.push(card.name);
-        const why = migrableReason(row, ctx);
+        // A `ready` Target has no Hand Tail to migrate: its hand-tail marker is
+        // already an `unclaimed` red (issue #4519).
+        const why =
+            completion === "ready" ? undefined : migrableReason(row, ctx);
         if (why !== undefined) migrable.push({ name: card.name, why });
     }
     return {
@@ -758,10 +806,12 @@ export function targetCoverage(
             ? {}
             : { priority: target.row.priority }),
         enforced: target.row.enforced === true,
+        completion,
         total: target.cards.length,
         byState,
         playable: target.cards.length - unplayable.length,
         unplayable,
+        notReady,
         migrable,
         unclaimed,
         closureCompiles,
