@@ -197,7 +197,7 @@ comes FROM:
 | `/mtg-rules-check`   | Before any game mechanic        | CR text + implementation status                                          |
 | `/gre-test`          | Adding/modifying GRE logic      | Generates vitest tests per project patterns                              |
 | `/new-op`            | Card needs a missing DSL verb   | Walks all eight Op sites (+ emitting Grammar Rule) + permanent test      |
-| `/grammar-rule`      | One Grammar Gap                 | Rule + golden fixture per form → recompile → `ready` delta → graduation  |
+| `/grammar-rule`      | One Grammar Cluster             | Rules + golden fixture per form → recompile → `ready` delta → graduation |
 | `/bot-slice`         | Any play-Bot / draft-Bot change | Maps the AI subsystem, walks seams, enforces verification doctrine       |
 
 **Workflow skills are versioned in this repo** (`.claude/skills/…`), changed
