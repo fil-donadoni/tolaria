@@ -207,7 +207,7 @@ describe("splice — the reveal is offered off the SPELL's subtype (CR 702.47a)"
         expect(() => resolveKickerPayments(lavaSpike, { [id]: 1 })).toThrow();
         // CR 702.47a — "you pay [cost] as an additional cost": {R} + {2}{R}{R}.
         const cost = { R: 1 };
-        foldKickerCosts(cost, augmented, { [id]: 1 });
+        foldKickerCosts(cost, augmented, { [id]: 1 }, undefined);
         expect(cost).toEqual({ R: 3, X: 2 });
     });
 

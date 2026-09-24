@@ -327,6 +327,7 @@ import {
     foldKickerCosts,
     kickedCountOfPayments,
     kickerLifeCost,
+    paidKickersAnnounceX,
     resolveCastPermanentSelection,
     resolveKickerPayments,
 } from "./gre/kicker";
@@ -6277,7 +6278,7 @@ export function finalizeTargetSelection(
     // clobbering the other. `foldKickerCosts` iterates only the PAID kickers, so
     // this is a no-op for a plain alt-cost cast. Folded BEFORE cost modifiers so
     // reductions/increases apply to the total (CR 601.2f).
-    foldKickerCosts(manaCost, cardDef, kickerPayments);
+    foldKickerCosts(manaCost, cardDef, kickerPayments, chosenX);
     // CR 702.27a / 601.2f — mirrors the Kicker fold above for Buyback's
     // additional cost.
     foldBuybackCost(manaCost, cardDef, buybackPaid);
@@ -7442,10 +7443,27 @@ export const announceCast = mutation({
             if (prohibition !== undefined) throw new Error(prohibition);
         }
 
+        // CR 702.33 — validate and canonicalize the optional PER-KICKER tally
+        // chosen for this cast (undefined = not kicked). Throws for a kicker id
+        // the card does not declare, a bad count, or a single (non-Multikicker)
+        // kicker asked to be paid more than once (ADR 0079). Resolved BEFORE the
+        // X gate below: CR 601.2b announces the intention to pay a kicker
+        // before the value of a variable cost, and a paid "Kicker {X}" is what
+        // makes the X owed.
+        const kickerPayments = resolveKickerPayments(
+            cardDef,
+            args.kickerPayments
+        );
+
         // Validate X is provided iff the cost contains a string X (CR 107.3).
         const hasX =
             typeof (cardDef.manaCost as { X?: unknown } | undefined)?.X ===
             "string";
+        // CR 107.3a / 601.2b — a PAID "Kicker {X}" (Verdeloth the Ancient) is
+        // a variable cost paid as the spell is cast, so it owes the same one
+        // announced X even on a card whose printed cost has none. An unpaid one
+        // owes nothing: X is not announced for a cost that will not be paid.
+        const kickerX = paidKickersAnnounceX(cardDef, kickerPayments);
         // CR 107.3b (issue #2398) — "If a player is casting a spell that has an
         // {X} in its mana cost … and an effect lets that player cast that spell
         // while paying neither its mana cost nor an alternative cost that
@@ -7479,7 +7497,10 @@ export const announceCast = mutation({
                     "The only legal choice for X is 0 for a spell cast without paying its mana cost (CR 107.3b)"
                 );
             }
-        } else if (hasX && (args.chosenX === undefined || args.chosenX < 0)) {
+        } else if (
+            (hasX || kickerX) &&
+            (args.chosenX === undefined || args.chosenX < 0)
+        ) {
             throw new Error("Must choose X (≥ 0) for this spell");
         }
         // CR 107.3 — a board-count upper bound on X ("X can't be greater than
@@ -7604,7 +7625,7 @@ export const announceCast = mutation({
               // item's X, `normalizeManaCost`) then reads the one legal value
               // instead of re-deriving it from a cost that no longer has an X.
               0
-            : hasX
+            : hasX || kickerX
               ? args.chosenX
               : payXLife || discardXLeg
                 ? args.chosenX
@@ -7641,15 +7662,6 @@ export const announceCast = mutation({
                 "Card is not modal — chosenModeIds must not be supplied"
             );
         }
-
-        // CR 702.33 — validate and canonicalize the optional PER-KICKER tally
-        // chosen for this cast (undefined = not kicked). Throws for a kicker id
-        // the card does not declare, a bad count, or a single (non-Multikicker)
-        // kicker asked to be paid more than once (ADR 0079).
-        const kickerPayments = resolveKickerPayments(
-            cardDef,
-            args.kickerPayments
-        );
 
         // CR 700.2a / 601.2b (ADR 0094) — the announced mode list, validated
         // against the list's cardinality AFTER the kicker choice is known:
@@ -8100,7 +8112,7 @@ export const announceCast = mutation({
             // it: the kicker's mana folds ON TOP of the alt cost's mana leg, and
             // its permanent / hand / life legs join the alt cost's in the same
             // pickers (ADR 0079).
-            foldKickerCosts(altManaCost, cardDef, kickerPayments);
+            foldKickerCosts(altManaCost, cardDef, kickerPayments, chosenX);
             // CR 601.3c / 601.2f (issue #2146 review, finding 3) — the
             // conditional-flash surcharge composes with an alternative cost the
             // same way the Kicker above does: the alt cost replaces the PRINTED
@@ -8495,7 +8507,7 @@ export const announceCast = mutation({
         const manaCost = rawCost ? normalizeManaCost(rawCost, { chosenX }) : {};
         // CR 702.33a — fold the optional Kicker cost into the total (before cost
         // modifiers, CR 601.2f). No-op when the caster didn't kick.
-        foldKickerCosts(manaCost, cardDef, kickerPayments);
+        foldKickerCosts(manaCost, cardDef, kickerPayments, chosenX);
         // CR 702.27a — fold the optional Buyback cost into the total the same
         // way. No-op when the caster didn't pay it.
         foldBuybackCost(manaCost, cardDef, buybackPaid);

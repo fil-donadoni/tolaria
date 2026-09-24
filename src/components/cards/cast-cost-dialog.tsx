@@ -25,8 +25,15 @@ type CastCostDialogProps = {
      *  independently payable Kicker (ADR 0079). Each renders its OWN control with
      *  its `description` legible before commit: a yes/no toggle, or — for a
      *  Multikicker (CR 702.33e) — a numeric "times to pay" stepper. Omitted /
-     *  empty for a card with no Kicker. */
-    kickers?: { id: string; description: string; multi: boolean }[];
+     *  empty for a card with no Kicker. `announcesX` marks a Kicker whose cost
+     *  carries `{X}` ("Kicker {X}", CR 107.3a): paying it owes the spell's one
+     *  announced X, so toggling it on reveals the X stepper (CR 601.2b). */
+    kickers?: {
+        id: string;
+        description: string;
+        multi: boolean;
+        announcesX?: boolean;
+    }[];
     /** CR 702.27 — true when the card has an optional Buyback cost: render a
      *  single yes/no "pay the buyback cost" toggle, mirroring the single
      *  (non-multi) Kicker checkbox — Buyback has no repeatable variant. */
@@ -98,7 +105,6 @@ export default function CastCostDialog({
         }
     }
 
-    const xValue = askX ? parseNonNegInt(xRaw) : 0;
     // CR 702.33 — resolve every Kicker's raw entry to a count. A malformed
     // Multikicker entry (empty, `-1`, `1.5`) blocks submit exactly as a malformed
     // X does; a toggle is 0/1 and can never be malformed.
@@ -106,6 +112,14 @@ export default function CastCostDialog({
         id: k.id,
         count: parseNonNegInt(kickerRaw[k.id] ?? "0"),
     }));
+    // CR 107.3a / 601.2b — a PAID "Kicker {X}" owes the announced X even when
+    // the printed cost has none (Verdeloth the Ancient); an unpaid one owes
+    // nothing, so the stepper appears only while such a Kicker is toggled on.
+    const kickerAsksX = (kickers ?? []).some(
+        (k, i) => k.announcesX === true && (kickerCounts[i].count ?? 0) > 0
+    );
+    const showX = askX || kickerAsksX;
+    const xValue = showX ? parseNonNegInt(xRaw) : 0;
     const kickersValid = kickerCounts.every((k) => k.count !== null);
     // CR 702.34a / 118.5 — a typed X above the flashback exile cap is invalid,
     // not silently clamped: the stepper buttons already stop at `maxX`, but a
@@ -124,13 +138,38 @@ export default function CastCostDialog({
             if (k.count && k.count > 0) payments[k.id] = k.count;
         }
         onConfirm({
-            chosenX: askX ? (xValue as number) : undefined,
+            chosenX: showX ? (xValue as number) : undefined,
             kickerPayments:
                 Object.keys(payments).length > 0 ? payments : undefined,
             buyback: buyback ? buybackPay : undefined,
             payFlashSurcharge: flashSurcharge !== undefined ? true : undefined,
         });
     };
+
+    const xField = (
+        <div className="flex flex-col gap-1.5">
+            <label
+                htmlFor="cast-cost-x"
+                className="text-sm font-medium text-text"
+            >
+                Choose X
+            </label>
+            <NumberStepper
+                id="cast-cost-x"
+                aria-label="Choose X"
+                value={xRaw}
+                onChange={setXRaw}
+                max={maxX}
+                autoFocus
+            />
+            {maxX !== undefined && (
+                <span className="text-xs text-text-muted">
+                    Max {maxX} — you must exile X cards from your graveyard to
+                    pay the flashback cost.
+                </span>
+            )}
+        </div>
+    );
 
     return (
         <GameDialog
@@ -151,30 +190,7 @@ export default function CastCostDialog({
                 }}
                 className="flex flex-col gap-4"
             >
-                {askX && (
-                    <div className="flex flex-col gap-1.5">
-                        <label
-                            htmlFor="cast-cost-x"
-                            className="text-sm font-medium text-text"
-                        >
-                            Choose X
-                        </label>
-                        <NumberStepper
-                            id="cast-cost-x"
-                            aria-label="Choose X"
-                            value={xRaw}
-                            onChange={setXRaw}
-                            max={maxX}
-                            autoFocus
-                        />
-                        {maxX !== undefined && (
-                            <span className="text-xs text-text-muted">
-                                Max {maxX} — you must exile X cards from your
-                                graveyard to pay the flashback cost.
-                            </span>
-                        )}
-                    </div>
-                )}
+                {askX && xField}
 
                 {(kickers ?? []).map((k, i) => (
                     <CastCostKickerField
@@ -189,6 +205,10 @@ export default function CastCostDialog({
                         autoFocus={!askX && i === 0 && k.multi}
                     />
                 ))}
+
+                {/* A Kicker-only X sits BELOW the toggle that reveals it, so
+                    turning the Kicker on never shifts the toggle itself. */}
+                {!askX && kickerAsksX && xField}
 
                 {buyback && (
                     <label className="flex items-center gap-2.5">

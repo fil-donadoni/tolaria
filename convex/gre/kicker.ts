@@ -537,19 +537,47 @@ export function buildSpellKickedEvents(
     return events;
 }
 
+/** CR 107.3a / 601.2b — does this Kicker's MANA leg carry a variable `{X}`
+ *  ("Kicker {X}", Verdeloth the Ancient; "Kicker {X}{2}", Kangee)? Paying such
+ *  a Kicker is paying a variable cost as the spell is cast, so the caster
+ *  announces X for it. */
+export function kickerAnnouncesX(kicker: Pick<KickerCost, "mana">): boolean {
+    return typeof kicker.mana?.X === "string";
+}
+
+/** CR 107.3a / 601.2b — does THIS cast owe an announced X because of a paid
+ *  Kicker? True iff at least one Kicker the caster chose to pay carries `{X}`
+ *  in its mana leg. An unpaid `{X}` Kicker is not a cost "that will be paid as
+ *  it's being cast" (CR 601.2b), so it announces nothing. There is ONE X per
+ *  spell (CR 107.3a — "any X in its mana cost or in any … additional cost it
+ *  has equals the announced value"), so this never adds a second variable: it
+ *  only widens WHEN the one `chosenX` is owed. */
+export function paidKickersAnnounceX(
+    cardDef: CardDefinition,
+    payments: KickerPayments | undefined
+): boolean {
+    return paidKickers(cardDef, payments).some(({ kicker }) =>
+        kickerAnnouncesX(kicker)
+    );
+}
+
 /** CR 702.33a / 601.2f — fold every paid Kicker's MANA leg into a normalized
  *  mana-cost record, mutating it in place. A Multikicker paid N times contributes
  *  its mana leg N times (CR 702.33e). No-op when nothing was kicked. Applied to
  *  the total mana cost BEFORE cost modifiers (CR 601.2f — an additional cost
- *  joins the total, then increases/reductions apply). */
+ *  joins the total, then increases/reductions apply).
+ *
+ *  CR 107.3a — a `{X}` in a Kicker's mana leg equals the spell's ONE announced
+ *  X, so `chosenX` is the same value the printed cost is normalized with. */
 export function foldKickerCosts(
     cost: Record<string, number>,
     cardDef: CardDefinition,
-    payments: KickerPayments | undefined
+    payments: KickerPayments | undefined,
+    chosenX: number | undefined
 ): void {
     for (const { kicker, times } of paidKickers(cardDef, payments)) {
         if (!kicker.mana) continue;
-        const per = normalizeManaCost(kicker.mana);
+        const per = normalizeManaCost(kicker.mana, { chosenX });
         for (const [sym, amt] of Object.entries(per)) {
             cost[sym] = (cost[sym] ?? 0) + amt * times;
         }

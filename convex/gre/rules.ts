@@ -2606,6 +2606,27 @@ export function maxAffordableX(
     return best;
 }
 
+/** CR 107.3a / 702.33a (issue #2141) — the X ceiling for a cast whose X lives
+ *  in a paid Kicker's `{X}` rather than the printed cost ("Kicker {X}",
+ *  Verdeloth the Ancient). `fixedCost` is the WHOLE normalized cast cost with
+ *  X priced at 0 (printed cost plus every paid Kicker's fixed part);
+ *  `xPerUnit` is how much generic mana one point of X adds across the paid
+ *  Kickers. Same greedy leftover as {@link maxAffordableX}, so both X sources
+ *  are bounded by the one castability model; each candidate X is still
+ *  re-priced by the caller's tap plan, so this only bounds the search. */
+export function maxAffordableXOverCost(
+    player: PlayerState,
+    card: CardInstanceState,
+    fixedCost: Record<string, number>,
+    xPerUnit: number,
+    state?: GameState
+): number {
+    if (xPerUnit <= 0) return 0;
+    const leftover = coloredCostLeftover(player, card, fixedCost, { state });
+    if (leftover === null) return 0;
+    return Math.floor(Math.max(0, leftover - (fixedCost.X ?? 0)) / xPerUnit);
+}
+
 /** CR 601.2g (`payWith`, ADR 0063) — how many GENERIC pips of `cost` the
  *  caster's MANA alone cannot cover, i.e. the minimum number of chosen
  *  resources (delve exiles) they are FORCED to spend on this cast. Uses the
