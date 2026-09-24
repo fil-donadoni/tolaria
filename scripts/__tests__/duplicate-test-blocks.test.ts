@@ -90,14 +90,18 @@ function testFiles(): string[] {
     return files.sort();
 }
 
+/** Every test block in the repo, parsed once per run (~15 s of AST work). */
+let repoBlocks: TestBlock[] | undefined;
 function scanRepo(exempt: ReadonlySet<string>): TestBlock[][] {
-    const blocks: TestBlock[] = [];
-    for (const file of testFiles()) {
-        if (exempt.has(file)) continue;
-        const source = fs.readFileSync(path.join(REPO_ROOT, file), "utf-8");
-        blocks.push(...collectTestBlocks(file, source));
-    }
-    return findDuplicateTestBlocks(blocks);
+    repoBlocks ??= testFiles().flatMap((file) =>
+        collectTestBlocks(
+            file,
+            fs.readFileSync(path.join(REPO_ROOT, file), "utf-8")
+        )
+    );
+    return findDuplicateTestBlocks(
+        repoBlocks.filter((b) => !exempt.has(b.file))
+    );
 }
 
 /** Fixtures are ASSEMBLED, never written as literal test blocks, so the repo
