@@ -52,6 +52,7 @@ import {
 } from "./features";
 import { buildVerdictState, candidateMoves } from "./position";
 import type { Verdict, VerdictCandidate } from "./types";
+import { CLASS_OF_MOVE_KIND } from "./coverage";
 
 /** One constraint the evaluation must satisfy: `right` must outrank `other`. */
 export type EvalPair = {
@@ -182,6 +183,20 @@ export function evalPairsOf(
         try {
             stored = JSON.parse(key) as Move;
         } catch {
+            return undefined;
+        }
+        // Issue #4441 — a stored key is untrusted JSON, and the cast above does
+        // not make it a `Move`: a kind the union no longer admits would reach
+        // the keyer's exhaustive switch and throw. Refuse it here as the stale
+        // candidate it is; `CLASS_OF_MOVE_KIND` is the exhaustive kind table.
+        if (
+            typeof stored !== "object" ||
+            stored === null ||
+            !Object.prototype.hasOwnProperty.call(
+                CLASS_OF_MOVE_KIND,
+                stored.kind
+            )
+        ) {
             return undefined;
         }
         // Only a key naming cards the rebuilt position still holds can be
