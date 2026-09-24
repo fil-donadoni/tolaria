@@ -32,6 +32,10 @@ import {
  *    name from this module"; any other declaration contributes its own token
  *    text plus, recursively, the bindings IT reads.
  *
+ * A `let` / `var` binding contributes its whole declaring scope instead of
+ * its declaration, so a fixture seeded by `beforeEach` counts. A cycle between
+ * helpers contributes the name of the helper that closes it.
+ *
  * Part 2 is what makes the guard safe to red on. The same text reading a
  * different `describe`-local `setup()` / `gyState()` / `castKickedWith()` is
  * a different test — issue #4493 found 12 such look-alikes and kept them —
@@ -206,6 +210,29 @@ describe("duplicate test blocks (issue #4620)", () => {
                 "convex/__tests__/b.test.ts": withSetup(2),
             })
         ).toEqual([]);
+    });
+
+    it("does NOT flag identical bodies whose `let` fixture beforeEach seeds differently", () => {
+        const seeded = (value: number) =>
+            [
+                'describe("d", () => {',
+                "    let current: number;",
+                `    beforeEach(() => { current = ${value}; });`,
+                block("x", ["expect(current).toBe(1);"]),
+                "});",
+            ].join("\n");
+        expect(
+            dups({
+                "convex/__tests__/a.test.ts": seeded(1),
+                "convex/__tests__/b.test.ts": seeded(2),
+            })
+        ).toEqual([]);
+        expect(
+            dups({
+                "convex/__tests__/a.test.ts": seeded(1),
+                "convex/__tests__/b.test.ts": seeded(1),
+            })
+        ).toHaveLength(1);
     });
 
     it("does NOT flag the same name imported from different modules", () => {

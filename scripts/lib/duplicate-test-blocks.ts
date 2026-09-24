@@ -160,6 +160,20 @@ function isReference(id: ts.Identifier): boolean {
     return true;
 }
 
+/**
+ * A `let` / `var` binding's value is whatever its scope assigns to it — a
+ * `beforeEach(() => { current = … })` is the fixture, not the bare
+ * declaration. Such a binding contributes its WHOLE declaring scope (the
+ * `describe` body or the module), so two blocks reading `current` match only
+ * when everything that can assign it matches too. Null for a `const`.
+ */
+function mutableScope(decl: ts.Node): ts.Node | null {
+    if (!ts.isVariableStatement(decl)) return null;
+    const flags = decl.declarationList.flags;
+    if (flags & ts.NodeFlags.Const) return null;
+    return decl.parent;
+}
+
 function isWithin(node: ts.Node, container: ts.Node): boolean {
     return node.pos >= container.pos && node.end <= container.end;
 }
@@ -192,7 +206,13 @@ function fingerprintOf(
                     let d = memo.get(b.node);
                     if (d === undefined) {
                         inProgress.add(b.node);
-                        d = fingerprintOf(b.node, sf, file, memo, inProgress);
+                        d = fingerprintOf(
+                            mutableScope(b.node) ?? b.node,
+                            sf,
+                            file,
+                            memo,
+                            inProgress
+                        );
                         inProgress.delete(b.node);
                         memo.set(b.node, d);
                     }
