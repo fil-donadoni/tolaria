@@ -219,6 +219,22 @@ const SACRIFICE_DRAW_SORCERY: CardDefinition = {
     effects: [{ op: "draw", player: "controller", count: 2 }],
 };
 
+/** CR 700.2 — the draw lives in a mode, not in `effects`. */
+const MODAL_DRAW_SORCERY: CardDefinition = {
+    ...DRAW_SORCERY,
+    id: "bot-reach-test:modal-draw",
+    name: "Bot Reach Modal Draw",
+    effects: undefined,
+    modes: [
+        {
+            id: "draw",
+            label: "Draw three cards",
+            oracleText: "Draw three cards.",
+            effects: [{ op: "draw", player: "controller", count: 3 }],
+        },
+    ],
+};
+
 /** CR 121.1 — a draw aimed at the opponent: not the holder's to sweeten. */
 const OPPONENT_DRAW_SORCERY: CardDefinition = {
     ...DRAW_SORCERY,
@@ -614,6 +630,9 @@ describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
         for (const seat of [0, 1] as const) {
             withTemporaryDefinition(DRAW_SORCERY, () => {
                 expect(topOfLibrary(DRAW_SORCERY, seat)).toBe(spell);
+            });
+            withTemporaryDefinition(MODAL_DRAW_SORCERY, () => {
+                expect(topOfLibrary(MODAL_DRAW_SORCERY, seat)).toBe(spell);
             });
             withTemporaryDefinition(OPPONENT_DRAW_SORCERY, () => {
                 expect(topOfLibrary(OPPONENT_DRAW_SORCERY, seat)).toBe(land);
