@@ -30598,6 +30598,16 @@
         "firstPrintSet": "atq"
     },
     {
+        "name": "Martyrs' Tomb",
+        "scryfallId": "a906a775-7c2d-47b7-a20e-a325dd28d0bd",
+        "oracleId": "a0baa9eb-0b1e-4d90-a7a1-f7102f575467",
+        "firstSet": "apc",
+        "firstPrintId": "a906a775-7c2d-47b7-a20e-a325dd28d0bd",
+        "firstPrintSet": "apc",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Mask of Intolerance",
         "scryfallId": "f623ae51-5f15-4153-b2ed-d03b57b7db54",
         "oracleId": "990d4798-3f59-462d-952c-777da5af1c41",
@@ -39646,6 +39656,16 @@
         "firstPrintSet": "inv"
     },
     {
+        "name": "Recuperate",
+        "scryfallId": "a5945397-0906-48dd-80d1-c65bfa2b31a6",
+        "oracleId": "07d7f9d2-5414-4aaf-b6f2-1fedf16c3af7",
+        "firstSet": "scg",
+        "firstPrintId": "a5945397-0906-48dd-80d1-c65bfa2b31a6",
+        "firstPrintSet": "scg",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Recurring Nightmare",
         "scryfallId": "c8173030-1c33-417c-b8e9-79231b6a85a7",
         "oracleId": "a6708b11-1bcd-4208-a967-fe91f2e3313c",
@@ -41846,6 +41866,16 @@
         "firstSet": "pls",
         "firstPrintId": "c12529e4-f4b1-45be-8252-28783badbec5",
         "firstPrintSet": "pls"
+    },
+    {
+        "name": "Samite Sanctuary",
+        "scryfallId": "022ebeba-b61a-497a-a698-e75b130c468c",
+        "oracleId": "9e6e1ea6-4682-4056-b70e-fe45d0c9fdee",
+        "firstSet": "pcy",
+        "firstPrintId": "022ebeba-b61a-497a-a698-e75b130c468c",
+        "firstPrintSet": "pcy",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Sanctifier of Souls",
@@ -47364,6 +47394,16 @@
         "firstSet": "apc",
         "firstPrintId": "2b391ee3-c1cd-47bc-9540-977cbc32913e",
         "firstPrintSet": "apc"
+    },
+    {
+        "name": "Squee's Toy",
+        "scryfallId": "2b524ae7-cb24-41af-b41b-3cb3ee8cf3b0",
+        "oracleId": "d0e33a3f-659a-4889-98f6-d0f385e259f1",
+        "firstSet": "tmp",
+        "firstPrintId": "2b524ae7-cb24-41af-b41b-3cb3ee8cf3b0",
+        "firstPrintSet": "tmp",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Squeeze",
