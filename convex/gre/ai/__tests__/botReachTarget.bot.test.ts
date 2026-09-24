@@ -171,3 +171,23 @@ describe("the pose puts the target on the side where the spell is cast", () => {
         expect(spec.activePlayer).toBe("me");
     });
 });
+
+describe("what the sweep registered for its own plays never decides the pose", () => {
+    it("a creature registered under the sweep's id prefix is not posed", () => {
+        const type = "Bot Reach Sweep Only Type";
+        const sweepCreature: CardDefinition = {
+            id: "oracle-bot-reach:sweep-only",
+            name: "Bot Reach Sweep Only",
+            rarity: "common",
+            manaCost: { generic: 1 },
+            types: ["Creature"],
+            subtypes: [type],
+            power: 1,
+            toughness: 1,
+        };
+        const def = instant("sweep-only", { subtypeFilter: [type] });
+        expect(
+            withTemporaryDefinition(sweepCreature, () => castable(def))
+        ).toBe(false);
+    });
+});
