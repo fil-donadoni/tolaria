@@ -48,7 +48,7 @@ import { applyMoveInSearch, decidingPlayer, searchWithTrace } from "../search";
 import { enumerateMoves, type Move } from "../moves";
 import { getLegalActions } from "../rules";
 import { allocInstanceId, type GameState } from "../state";
-import { manaValue } from "../constants";
+import { hasInstantSpeed, manaValue } from "../constants";
 import { basicLandsForColors, getCardColors } from "../../cards/colors";
 import type { CardDefinition, EffectForEachSelector } from "../../cards/types";
 import { castShape } from "./botReachForm";
@@ -57,15 +57,35 @@ export { castShape } from "./botReachForm";
 
 /** CR 115.1 — a spell that targets a SPELL needs one on the stack. Lives
  *  HERE, not beside `castShape`: it decides what the generated position
- *  CONTAINS, so it is a verdict input and must be inside the Bot hash. */
+ *  CONTAINS, so it is a verdict input and must be inside the Bot hash.
+ *
+ *  The target may be the card's own (a counterspell) or its ENTERS trigger's
+ *  (a flash creature that counters on entering, CR 603.6a): the trigger's
+ *  target needs the spell on the stack when the trigger is put there, so the
+ *  creature has to be cast in response to it. That is only possible at instant
+ *  speed (CR 117.1a, CR 702.8a), so a trigger's spell target poses the stack
+ *  only for a card that has it — a sorcery-speed permanent cannot be cast onto
+ *  a non-empty stack, and posing one would make it unplayable, not pose it. */
 function needsStackTarget(def: CardDefinition): boolean {
-    const reqs = [
+    const cardReqs = [
         ...(def.targetRequirement ? [def.targetRequirement] : []),
         ...(def.modes ?? []).flatMap((m) =>
             m.targetRequirement ? [m.targetRequirement] : []
         ),
     ];
-    return reqs
+    const triggerReqs = hasInstantSpeed({
+        types: def.types,
+        staticAbilities: def.staticAbilities ?? [],
+    })
+        ? [
+              ...(def.triggeredAbilities ?? []),
+              // The compiler's descriptors: the caller hands this module the
+              // definition BEFORE `expandDefinition` rebuilds them into
+              // `triggeredAbilities`.
+              ...(def.compiledTriggeredAbilities ?? []),
+          ].flatMap((a) => (a.targetRequirement ? [a.targetRequirement] : []))
+        : [];
+    return [...cardReqs, ...triggerReqs]
         .flatMap((r) => (Array.isArray(r.type) ? r.type : [r.type]))
         .some((t) => t === "spell" || t === "spell-or-permanent");
 }
