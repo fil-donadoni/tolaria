@@ -375,6 +375,64 @@ function pickRequirements(
     return owner;
 }
 
+/** CR 608.2h — the victim's characteristics as they stand BEFORE it leaves the
+ *  battlefield, where layers 5 and 7c still apply. The ONE projection both a
+ *  chosen victim (`applySacrificeSelection`) and a source that sacrifices
+ *  itself (`sacrificeSourceSnapshot`) are read through. */
+function victimCharacteristics(
+    state: GameState,
+    victim: CardInstanceState
+): Omit<SacrificeResult, "id" | "snapshot"> {
+    const subtypes =
+        victim.subtypes && victim.subtypes.length > 0
+            ? [...victim.subtypes]
+            : undefined;
+    const isCreature = victim.types.includes("Creature");
+    const power = isCreature ? getEffectivePower(state, victim) : undefined;
+    const toughness = isCreature
+        ? getEffectiveToughness(state, victim)
+        : undefined;
+    // CR 105.2 / 613.1e (issue #3806) — the victim's LIVE colours, taken
+    // before `removePermanentTo` puts it in the graveyard, where layer 5 no
+    // longer applies (CR 608.2h last known information). Always an array,
+    // never omitted: a colourless victim's empty set is the answer Mind
+    // Extraction needs ("no cards are of those colours"), and omitting it
+    // would be indistinguishable from "no snapshot".
+    const colors = STATIC_EFFECT_CTX.getColors(victim);
+    return {
+        mv: manaValueOf(victim),
+        ...(subtypes ? { subtypes } : {}),
+        ...(power !== undefined ? { power } : {}),
+        ...(toughness !== undefined ? { toughness } : {}),
+        colors,
+    };
+}
+
+/**
+ * CR 118.1 + CR 608.2h — the stack item's cost-victim snapshot for an ability
+ * whose cost is "Sacrifice this <permanent>" (`cost.sacrifice`), taken from the
+ * source while it is still on the battlefield.
+ *
+ * A fixed self-sacrifice has no `SacrificeSelection` (it has no choice), so it
+ * never reached `sacrificeSnapshotFromSelection` and the ability's effect read
+ * `{ sacrificed: { read: "power" } }` off a snapshot that was never written —
+ * a silent CR 608.2b skip (Cinder Shade, issue #1417). MUST be called BEFORE
+ * the source leaves the battlefield: power, toughness and colours are the
+ * layer-applied values, which a graveyard card no longer has.
+ */
+export function sacrificeSourceSnapshot(
+    state: GameState,
+    source: CardInstanceState
+): StackItem["additionalSacrificeSnapshot"] {
+    return sacrificeSnapshotFromResults([
+        {
+            id: source.id,
+            ...victimCharacteristics(state, source),
+            snapshot: true,
+        },
+    ]);
+}
+
 /** Execute the chosen permanent-cost picks. The ONLY place
  *  removePermanentTo(…, "sacrifice") runs for the converted seams. Re-checks
  *  each victim is still on the battlefield (CR 608.2b); a vanished victim is
@@ -399,31 +457,8 @@ export function applySacrificeSelection(
         // declares one, so one selection can return a ninjutsu attacker AND
         // sacrifice a static tax's victim in the same payment.
         const isReturn = (req?.action ?? sel.action) === "return";
-        const subtypes =
-            victim.subtypes && victim.subtypes.length > 0
-                ? [...victim.subtypes]
-                : undefined;
-        const isCreature = victim.types.includes("Creature");
-        const power = isCreature ? getEffectivePower(state, victim) : undefined;
-        const toughness = isCreature
-            ? getEffectiveToughness(state, victim)
-            : undefined;
-        // CR 105.2 / 613.1e (issue #3806) — the victim's LIVE colours, taken
-        // before `removePermanentTo` below puts it in the graveyard, where
-        // layer 5 no longer applies (CR 608.2h last known information). Always
-        // an array, never omitted: a colourless victim's empty set is the
-        // answer Mind Extraction needs ("no cards are of those colours"), and
-        // omitting it would be indistinguishable from "no snapshot".
-        const colors = STATIC_EFFECT_CTX.getColors(victim);
-        results.push({
-            id,
-            mv: manaValueOf(victim),
-            ...(subtypes ? { subtypes } : {}),
-            ...(power !== undefined ? { power } : {}),
-            ...(toughness !== undefined ? { toughness } : {}),
-            colors,
-            snapshot,
-        });
+        const characteristics = victimCharacteristics(state, victim);
+        results.push({ id, ...characteristics, snapshot });
         if (isReturn) {
             removePermanentTo(state, id, "hand");
         } else {

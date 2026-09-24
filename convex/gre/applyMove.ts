@@ -121,6 +121,7 @@ import {
 import {
     applySacrificeSelection,
     sacrificeSnapshotFromResults,
+    sacrificeSourceSnapshot,
     isSacrificeSelectionComplete,
 } from "./sacrificeChoice";
 import { captureNinjutsuAttackTarget } from "./ninjutsu";
@@ -865,6 +866,14 @@ export function applyActivationCostsForSearch(
     // later) to keep the evaluated position honest. Self-sacrifice removes
     // the source; a FILTERED sacrifice is a named victim and rides on the
     // move with the other deferred legs below.
+    // CR 118.1 + CR 608.2h — the source's own last-known characteristics, taken
+    // BEFORE it leaves, exactly as the mutation path stamps them
+    // (`sacrificeSourceSnapshot`, `gre/sacrificeChoice.ts`): without it the tree
+    // pays "Sacrifice this creature" and resolves "It deals damage equal to its
+    // power" for nothing (Cinder Shade, issue #1417).
+    const selfSacrificeSnapshot = ability.cost.sacrifice
+        ? sacrificeSourceSnapshot(state, src)
+        : undefined;
     if (ability.cost.sacrifice) {
         removePermanentTo(state, src.id, "graveyard", "sacrifice");
     }
@@ -938,6 +947,12 @@ export function applyActivationCostsForSearch(
         );
         if (out && snapshot) out.additionalSacrificeSnapshot = snapshot;
     }
+    // The self-sacrifice snapshot is the LAST of the three legs to win, the
+    // mutation path's `sacrifice-filter ?? exile ?? self` order — so it is
+    // stamped only when the filtered leg wrote nothing, and the exile leg below
+    // may still replace it.
+    if (out && selfSacrificeSnapshot && !out.additionalSacrificeSnapshot)
+        out.additionalSacrificeSnapshot = selfSacrificeSnapshot;
     if (!picks) return true;
     for (const id of picks.tapOtherIds ?? []) {
         const perm = owner.battlefield.find((c) => c.id === id);
@@ -968,7 +983,8 @@ export function applyActivationCostsForSearch(
         // whole out-collector exists to prevent.
         if (
             out &&
-            !out.additionalSacrificeSnapshot &&
+            (!out.additionalSacrificeSnapshot ||
+                out.additionalSacrificeSnapshot === selfSacrificeSnapshot) &&
             exile.cardInstanceIds.length === 1
         ) {
             const snap = gyOwner?.graveyard.find(

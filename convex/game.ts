@@ -108,6 +108,7 @@ import {
     isSacrificeSelectionComplete,
     isSacrificeCandidateLegal,
     applySacrificeSelection,
+    sacrificeSourceSnapshot,
     sacrificeCandidates,
 } from "./gre/sacrificeChoice";
 
@@ -6018,6 +6019,12 @@ export function finalizeTargetSelection(
         // CR 606.4 — pay a targeted loyalty ability's signed loyalty cost as it
         // goes on the stack (Liliana's "-2"). No-op for a non-loyalty ability.
         payLoyaltyCost(card, ability);
+        // CR 118.1 + CR 608.2h — the source's last-known characteristics, taken
+        // BEFORE the sacrifice below moves it (Cinder Shade: "It deals damage
+        // equal to its power to target creature").
+        const selfSacrificeSnapshot = ability.cost.sacrifice
+            ? sacrificeSourceSnapshot(state, card)
+            : undefined;
         if (ability.cost.sacrifice) {
             removePermanentTo(state, card.id, "graveyard", "sacrifice");
         }
@@ -6093,8 +6100,11 @@ export function finalizeTargetSelection(
                 : {}),
             ...(grantedSourceCardId ? { grantedSourceCardId } : {}),
             ...(grantedAbilityOrigin ? { grantedAbilityOrigin } : {}),
-            ...(targetedSacSnapshot
-                ? { additionalSacrificeSnapshot: targetedSacSnapshot }
+            ...((targetedSacSnapshot ?? selfSacrificeSnapshot)
+                ? {
+                      additionalSacrificeSnapshot:
+                          targetedSacSnapshot ?? selfSacrificeSnapshot,
+                  }
                 : {}),
             ...(notedManaSpent ? { notedManaSpent } : {}),
         });
