@@ -1688,7 +1688,8 @@ export function tryAutoCommitPendingCast(
                 state.pendingCast.chosenX
             ),
             castInstanceId,
-            genericSpendOrder
+            genericSpendOrder,
+            state.pendingCast.chosenX
         );
     commitLandsForCost(player, state.pendingCast.manaCost);
 
