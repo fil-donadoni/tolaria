@@ -1831,6 +1831,22 @@ const PREVENT_NEXT_DAMAGE =
     /^Prevent the next (\d+) damage that would be dealt to (.+?) (this turn)$/;
 
 /**
+ * CR 615.7 — the announced recipients a prevention shield is read for: "any
+ * target", or a single bare "target creature". The creature requirement must
+ * carry NOTHING beyond `type` and `count` — a qualifier the subject rule reads
+ * ("legendary", "you control", "attacking") is a recipient this rule has no
+ * fixture for, and is refused rather than silently dropped.
+ */
+function isPreventionShieldRecipient(requirement: TargetRequirement): boolean {
+    if (requirement.type === "any") return true;
+    return (
+        requirement.type === "Creature" &&
+        requirement.count === 1 &&
+        Object.keys(requirement).every((k) => k === "type" || k === "count")
+    );
+}
+
+/**
  * CR 614.9 — the redirection shield's printed form. The budget is the printed
  * DIGITS or the announced {X} (Captain's Maneuver is the corpus's only {X}
  * spelling); "that much" and a spelled number are refused, not read. Both
@@ -2472,17 +2488,20 @@ function effectSentence(
     if (preventNext !== null) {
         const to = subjectRule.run(preventNext[2]!, ctx);
         if (!to.ok) return to;
-        // CR 115.4 — read for "any target" only, the one recipient the corpus
-        // prints this shield under; every other recipient phrase is refused
-        // under its own reason so it stays its own Grammar Gap. CR 120.3's
-        // fixed two-set union is the one exception, read by its own kind
-        // rather than an announced target.
+        // CR 115.4 / CR 115.1c — read for the two announced recipients the
+        // corpus prints this shield under: "any target" and a bare "target
+        // creature" (Oasis, Martyrs' Tomb). A qualified creature ("target
+        // legendary creature") and every other recipient phrase are refused
+        // under their own reason so each stays its own Grammar Gap. CR
+        // 120.3's fixed two-set union is the one exception, read by its own
+        // kind rather than an announced target.
         if (
             to.value.kind !== "each-creature-and-player" &&
-            (to.value.kind !== "target" || to.value.requirement.type !== "any")
+            (to.value.kind !== "target" ||
+                !isPreventionShieldRecipient(to.value.requirement))
         )
             return fail(
-                `a prevention shield is read for "any target" only, not "${preventNext[2]}" (CR 615.7)`,
+                `a prevention shield is read for "any target" or "target creature" only, not "${preventNext[2]}" (CR 615.7)`,
                 span
             );
         const duration = durationRule.run(preventNext[3]!, ctx);
