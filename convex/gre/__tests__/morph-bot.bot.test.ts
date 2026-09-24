@@ -223,6 +223,7 @@ describe("morph — Bot search appliers put the right object on the board", () =
         // Five Plains for the {2}{W}{W} morph cost: the payment leg must tap
         // four and leave one (issue #4478).
         const state = faceDownBoard(5);
+        state.passCount = 1;
         applyMoveInSearch(state, "p1", {
             kind: "turn-face-up",
             cardInstanceId: "morphed",

@@ -145,7 +145,7 @@ describe("summon-companion — GRE move loop (CR 116.2, ADR 0064)", () => {
     });
 });
 
-describe("summon-companion — ISMCTS in-tree applier (CR 116.2, issue #4478)", () => {
+describe("summon-companion — ISMCTS in-tree applier (CR 116.2g, issue #4478)", () => {
     it("applyMoveInSearch: taps exactly the {3}, moves the companion to hand, marks it used, no stack item, keeps priority", () => {
         // Four Mountains for a {3} cost: the payment leg must tap three and
         // leave one, so "tapped everything" and "tapped nothing" both red.
@@ -179,8 +179,8 @@ describe("summon-companion — ISMCTS in-tree applier (CR 116.2, issue #4478)", 
         ).toBe(true);
         expect(p1.battlefield.filter((c) => c.isTapped)).toHaveLength(3);
         expect(state.stack).toHaveLength(0);
-        // CR 116.2a — a special action: the pass cycle restarts and the
-        // actor keeps priority.
+        // CR 116.3 — after a special action the actor receives priority and
+        // the pass cycle restarts.
         expect(state.passCount).toBe(0);
         expect(state.priorityPlayerId).toBe("p1");
     });
