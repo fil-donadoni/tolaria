@@ -212,6 +212,48 @@ function favoursItsTarget(
     );
 }
 
+/** Does the spell's script raise a creature's power or toughness with a
+ *  literal amount — the shape of a combat trick? (A `negate`d or computed
+ *  amount is not read: it is not a trick the pose can size.) */
+function raisesStats(node: unknown): boolean {
+    if (Array.isArray(node)) return node.some(raisesStats);
+    if (node === null || typeof node !== "object") return false;
+    const record = node as Record<string, unknown>;
+    const up = (v: unknown): boolean => typeof v === "number" && v > 0;
+    return (
+        (record.op === "pump" && (up(record.power) || up(record.toughness))) ||
+        Object.values(record).some(raisesStats)
+    );
+}
+
+/** Is the spell an instant that raises its one target creature's stats — a
+ *  combat trick? Its value lies in a declared combat, so a main phase with no
+ *  combat in it never poses the question and the Bot rightly passes: the
+ *  verdict read `never-chosen` about a timing the position did not offer
+ *  (issue #4264). */
+function isCombatTrick(def: CardDefinition, req: TargetRequirement): boolean {
+    return (
+        def.types.includes("Instant") &&
+        favoursItsTarget(def, req) &&
+        raisesStats(def.effects)
+    );
+}
+
+/** CR 509.1 / 117.1a — the holder's plain creature attacks and the opponent's
+ *  blocks it: the declare-blockers step, where the holder holds priority with
+ *  the trick that decides the combat. Both are the position's own bodies. */
+const TRICK_COMBAT: TargetPose["position"] = {
+    phase: "DECLARE_BLOCKERS",
+    activePlayer: "me",
+    priority: "me",
+    combat: {
+        attackers: [BASE_CREATURE],
+        confirmed: true,
+        blockers: [{ blocker: BASE_CREATURE, blocking: [0] }],
+        blockersConfirmed: true,
+    },
+};
+
 export type TargetPose = {
     readonly cards: readonly ScenarioCard[];
     /** The position's global enchantment gives its controller's untapped
@@ -254,6 +296,12 @@ export function targetPose(def: CardDefinition): TargetPose {
     const landReq = landRequirement(def);
     if (landReq) return landPose(def, landReq);
     const req = creatureRequirement(def);
+    if (req && !narrows(req) && isCombatTrick(def, req))
+        return {
+            cards: [],
+            omitToughnessBoost: false,
+            position: TRICK_COMBAT,
+        };
     if (!req || !narrows(req)) return NO_POSE;
     const name = creatureFor(req);
     if (name === null) return NO_POSE;

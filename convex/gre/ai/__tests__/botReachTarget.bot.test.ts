@@ -222,3 +222,39 @@ describe("the generated position poses a land target on the opponent's side (iss
         ).toEqual({ outcome: "played" });
     });
 });
+
+describe("the generated position poses a combat for a combat trick (issue #4264)", () => {
+    const TRICK = instant("trick", {}, { effects: PUMP });
+    const pose = (def: CardDefinition) => botReachSpec(def);
+
+    it("declares the holder's attacker blocked, holder holding priority (CR 509.1)", () => {
+        const spec = pose(TRICK);
+        expect(spec.phase).toBe("DECLARE_BLOCKERS");
+        expect(spec.activePlayer).toBe("me");
+        expect(spec.priority).toBe("me");
+        expect(spec.combat?.blockers).toHaveLength(1);
+    });
+
+    it("the engine offers the cast in that position (CR 117.1a)", () => {
+        expect(castable(TRICK)).toBe(true);
+    });
+
+    it("leaves a removal spell in the main phase", () => {
+        expect(pose(instant("removal", {})).phase).toBe("PRECOMBAT_MAIN");
+    });
+
+    it("leaves a sorcery pump in the main phase", () => {
+        const sorcery = instant(
+            "sorcery",
+            {},
+            { types: ["Sorcery"], effects: PUMP }
+        );
+        expect(pose(sorcery).phase).toBe("PRECOMBAT_MAIN");
+    });
+
+    it("the Bot casts the trick in that combat", () => {
+        expect(
+            withTemporaryDefinition(TRICK, () => playBotReach(TRICK))
+        ).toEqual({ outcome: "played" });
+    });
+});
