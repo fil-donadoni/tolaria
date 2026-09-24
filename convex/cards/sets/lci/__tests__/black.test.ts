@@ -11,7 +11,12 @@
 //
 // Fixtures from `convex/cards/__tests__/setup.ts`.
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+    submitChoice,
+} from "../../../__tests__/setup";
 import { getDefinition, getCardByName } from "../../..";
 import { projectPublicState } from "../../../../gameProjections";
 import {
@@ -22,7 +27,6 @@ import {
     type GameState,
     type StackItem,
 } from "../../../../gre/state";
-import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { raiseTriggerTargetSelection } from "../../../../gre/rules";
 import { finalizeCleanup } from "../../../../gre/phases";
 
@@ -84,17 +88,6 @@ function etbTriggerOnStack(state: GameState, source: CardInstanceState): void {
 }
 
 /** Answers the head PendingChoice with `ids` (`[]` declines the "may"). */
-function answer(state: GameState, ids: string[]): void {
-    const head = state.pendingChoices![0];
-    applyPendingChoiceSubmit(state, {
-        playerId: head.playerId,
-        stackItemId: head.stackItemId,
-        step: head.step,
-        choiceId: head.choiceId,
-        cardInstanceIds: ids,
-    });
-}
-
 /** Sends the Bat to the graveyard and resolves its leave trigger. */
 function batLeaves(state: GameState): void {
     removePermanentTo(state, "bat", "graveyard");
@@ -135,7 +128,7 @@ describe("Deep-Cavern Bat (LCI — private look + optional linked exile, returne
         // "a nonland card" — the land is not offerable.
         expect(head.candidateIds).toEqual(["bears"]);
 
-        answer(state, ["bears"]);
+        submitChoice(state, ["bears"]);
         expect(state.players[1].hand.map((c) => c.id)).toEqual(["land"]);
         expect(state.players[0].exile).toHaveLength(0); // never the controller's
         const exiled = state.players[1].exile.find((c) => c.id === "bears");
@@ -152,7 +145,7 @@ describe("Deep-Cavern Bat (LCI — private look + optional linked exile, returne
         // "You MAY exile" — count { min: 0, max: 1 }, so the empty submission
         // is legal and is a real branch, not a degenerate one.
         expect(state.pendingChoices![0].count).toEqual({ min: 0, max: 1 });
-        answer(state, []);
+        submitChoice(state, []);
         expect(state.players[1].hand.map((c) => c.id)).toEqual(["bears"]);
         expect(state.players[1].exile).toHaveLength(0);
         expect(state.stack).toHaveLength(0);
@@ -168,7 +161,7 @@ describe("Deep-Cavern Bat (LCI — private look + optional linked exile, returne
         const { state } = setup([handCard(grizzlyBears, "bears")]);
         etbTriggerOnStack(state, state.players[0].battlefield[0]);
         resolveTopOfStack(state);
-        answer(state, ["bears"]);
+        submitChoice(state, ["bears"]);
         expect(state.players[1].exile.map((c) => c.id)).toEqual(["bears"]);
 
         batLeaves(state);
@@ -182,7 +175,7 @@ describe("Deep-Cavern Bat (LCI — private look + optional linked exile, returne
         const { state } = setup([handCard(grizzlyBears, "bears")]);
         etbTriggerOnStack(state, state.players[0].battlefield[0]);
         resolveTopOfStack(state);
-        answer(state, ["bears"]);
+        submitChoice(state, ["bears"]);
 
         // The retired stub blocked this card on `scheduleDelayedTrigger`'s
         // `leaves-battlefield` timing being THIS-TURN scoped (purged at
@@ -235,7 +228,7 @@ describe("Deep-Cavern Bat (LCI — private look + optional linked exile, returne
         ]);
         etbTriggerOnStack(state, state.players[0].battlefield[0]);
         resolveTopOfStack(state);
-        answer(state, ["bears"]);
+        submitChoice(state, ["bears"]);
 
         // CR 406.3 — exile is a public zone (CR 400.2) and this card's text
         // grants no face-down clause, so entering exile cleared `knownTo`

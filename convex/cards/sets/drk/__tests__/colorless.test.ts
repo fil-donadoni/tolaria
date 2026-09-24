@@ -12,7 +12,6 @@ import {
     PLAINS,
     SWAMP,
     UPKEEP,
-    resolveActivated,
     resolveTrigger,
 } from "./helpers";
 import {
@@ -20,6 +19,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
+    resolveActivated,
 } from "../../../__tests__/setup";
 import {
     finalizeTargetSelection,

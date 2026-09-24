@@ -6,13 +6,13 @@ import {
     makePlayer,
     makeState,
     pushSpell,
+    submitChoice,
 } from "../../../__tests__/setup";
 import {
     type CardInstanceState,
     type GameState,
     resolveTopOfStack,
 } from "../../../../gre/state";
-import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { projectPublicState } from "../../../../gameProjections";
 import { getDefinition } from "../../../index";
 
@@ -22,17 +22,6 @@ const FOREST = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b").id;
 
 /** Submit the head pending choice (the per-set shim every colour-split test
  *  file carries — see `sets/atq/__tests__/helpers.ts`). */
-function submitChoice(state: GameState, cardInstanceIds: string[]): void {
-    const head = state.pendingChoices![0];
-    applyPendingChoiceSubmit(state, {
-        playerId: head.playerId,
-        stackItemId: head.stackItemId,
-        step: head.step,
-        choiceId: head.choiceId,
-        cardInstanceIds,
-    });
-}
-
 const card = (id: string): CardInstanceState =>
     makeInstance(FOREST, {
         id,

@@ -9,6 +9,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
+    resolveActivated,
 } from "../../../__tests__/setup";
 import { projectPublicState } from "../../../../gameProjections";
 import {
@@ -23,7 +24,7 @@ import {
     type StackItem,
 } from "../../../../gre/state";
 import type { Color } from "../../../types";
-import { resolveActivated, resolveTrigger } from "./helpers";
+import { resolveTrigger } from "./helpers";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { buildStateView } from "../../../../gre/replacements";
 import { getDefinition } from "../../../index";

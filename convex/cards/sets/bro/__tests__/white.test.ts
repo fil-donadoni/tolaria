@@ -1,7 +1,12 @@
 // BRO (The Brothers' War) — white behavior tests (ADR 0043 colour split).
 
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+    resolveActivated,
+} from "../../../__tests__/setup";
 import {
     resolveTopOfStack,
     type GameState,
@@ -16,22 +21,6 @@ const loranOfTheThirdPath = getDefinition(
     "59faa45d-868b-4bc7-934c-0e077642e129"
 );
 const ornithopter = getDefinition("59cc9bdb-7cf2-4795-bac7-ffff605c9eb0");
-
-function resolveActivated(
-    state: GameState,
-    source: CardInstanceState,
-    abilityId: string,
-    targets: StackItem["targets"] = []
-): void {
-    state.stack.push({
-        ...source,
-        zone: "stack",
-        castById: source.controllerId,
-        abilityId,
-        targets,
-    });
-    resolveTopOfStack(state);
-}
 
 /** Puts Loran's ETB trigger on the stack with an UN-set target slot
  *  (`targets: undefined`), mirroring `buildTriggerItem` for a targeted

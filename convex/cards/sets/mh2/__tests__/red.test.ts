@@ -4,6 +4,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
+    resolveActivated,
 } from "../../../__tests__/setup";
 import type {
     CardInstanceState,
@@ -65,22 +66,6 @@ describe("Mine Collapse (pitch: sacrifice a Mountain, your turn)", () => {
 });
 
 /** Push an activated ability onto the stack (cost assumed paid), then resolve. */
-function resolveActivated(
-    state: GameState,
-    source: CardInstanceState,
-    abilityId: string
-): void {
-    const item: StackItem = {
-        ...source,
-        zone: "stack",
-        castById: source.controllerId,
-        abilityId,
-        targets: [],
-    };
-    state.stack.push(item);
-    resolveTopOfStack(state);
-}
-
 describe("Blazing Rootwalla — Madness {0} + once-per-turn pump (CR 702.35 / 602.5)", () => {
     it("gives +2/+0 until end of turn", () => {
         const walla = makeInstance(blazingRootwalla.id, { controllerId: "p1" });

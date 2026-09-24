@@ -1,13 +1,12 @@
 // M20 — colorless card behavior tests (ADR 0043 colour split).
 
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
-import { resolveTopOfStack } from "../../../../gre/state";
-import type {
-    CardInstanceState,
-    GameState,
-    StackItem,
-} from "../../../../gre/state";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+    resolveActivated,
+} from "../../../__tests__/setup";
 import { getDefinition } from "../../../index";
 
 const manifoldKey = getDefinition("715e637a-dfd8-45a0-b1ea-53e4abd29307");
@@ -15,22 +14,6 @@ const balduvianBears = getDefinition("ef5297cb-e763-4871-9cd3-0e2dbcc52095");
 
 /** Push an activated ability onto the stack with its cost assumed already
  *  paid, then resolve it (mirrors post-activateAbility state). */
-function resolveActivated(
-    state: GameState,
-    source: CardInstanceState,
-    abilityId: string,
-    targets: StackItem["targets"] = []
-): void {
-    state.stack.push({
-        ...source,
-        zone: "stack",
-        castById: source.controllerId,
-        abilityId,
-        targets,
-    });
-    resolveTopOfStack(state);
-}
-
 // Manifold Key — {1} Artifact (CR 701.26 untap; "can't be blocked" via the
 // engine's `unblockable` keyword grant, CR 613.1f temporary keyword grant).
 describe("Manifold Key (CR 701.26 untap-another; CR 613.1f unblockable grant)", () => {

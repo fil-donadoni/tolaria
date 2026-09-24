@@ -11,6 +11,8 @@ import {
     makePlayer,
     makeState,
     pushSpell,
+    resolveActivated,
+    submitChoice,
 } from "../../../__tests__/setup";
 import { collectTriggers } from "../../../../gre/triggers";
 import { effectiveTriggeredAbilities } from "../../../../gre/copy";
@@ -29,13 +31,7 @@ import {
 } from "../../../../gre/state";
 import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
 import { applyMayPaySubmit } from "../../../../gre/pendingChoiceSubmit";
-import {
-    UPKEEP_P1,
-    resolveActivated,
-    submitChoice,
-    vanilla,
-    withEnergyFlux,
-} from "./helpers";
+import { UPKEEP_P1, vanilla, withEnergyFlux } from "./helpers";
 
 const ornithopter = getDefinition("59cc9bdb-7cf2-4795-bac7-ffff605c9eb0");
 const transmuteArtifact = getDefinition("6eab6765-eba3-4844-81ca-ae37a6e903df");

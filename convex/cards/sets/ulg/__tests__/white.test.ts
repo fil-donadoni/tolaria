@@ -1,14 +1,13 @@
 // ULG — white card behavior tests (ADR 0043 colour split).
 
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
-import { resolveTopOfStack } from "../../../../gre/state";
-import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
-import type {
-    CardInstanceState,
-    GameState,
-    StackItem,
-} from "../../../../gre/state";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+    resolveActivated,
+    submitChoice,
+} from "../../../__tests__/setup";
 import { getDefinition } from "../../../index";
 
 const motherOfRunes = getDefinition("0b1a46ab-95cb-4c24-924f-fc2afd4fcac7");
@@ -16,34 +15,7 @@ const balduvianBears = getDefinition("ef5297cb-e763-4871-9cd3-0e2dbcc52095");
 
 /** Push an activated ability onto the stack with its cost assumed already
  *  paid, then resolve it (mirrors post-activateAbility state). */
-function resolveActivated(
-    state: GameState,
-    source: CardInstanceState,
-    abilityId: string,
-    targets: StackItem["targets"] = []
-): void {
-    state.stack.push({
-        ...source,
-        zone: "stack",
-        castById: source.controllerId,
-        abilityId,
-        targets,
-    });
-    resolveTopOfStack(state);
-}
-
 /** Submit the current head option-pick choice by mode id. */
-function submitOption(state: GameState, modeId: string): void {
-    const head = state.pendingChoices![0];
-    applyPendingChoiceSubmit(state, {
-        playerId: head.playerId,
-        stackItemId: head.stackItemId,
-        step: head.step,
-        choiceId: head.choiceId,
-        cardInstanceIds: [modeId],
-    });
-}
-
 // Mother of Runes — {W} Creature — Human Cleric (CR 702.16 protection;
 // CR 613.1f temporary keyword grant; CR 700.2 modal color choice).
 describe("Mother of Runes (CR 702.16 protection; CR 700.2 color choice)", () => {
@@ -75,7 +47,7 @@ describe("Mother of Runes (CR 702.16 protection; CR 700.2 color choice)", () => 
         // suspends on the color-pick
         expect(state.pendingChoices).toHaveLength(1);
         expect(state.pendingChoices![0].kind).toBe("option-pick");
-        submitOption(state, "protection-black");
+        submitChoice(state, ["protection-black"]);
         const target = state.players[0].battlefield.find((c) => c.id === "t")!;
         expect(target.staticAbilities).toContain("protection from black");
     });
@@ -85,7 +57,7 @@ describe("Mother of Runes (CR 702.16 protection; CR 700.2 color choice)", () => 
         resolveActivated(state, mother, "mother-of-runes-protect", [
             { type: "permanent", id: "mother" },
         ]);
-        submitOption(state, "protection-red");
+        submitChoice(state, ["protection-red"]);
         const self = state.players[0].battlefield.find(
             (c) => c.id === "mother"
         )!;

@@ -10,6 +10,7 @@ import type {
     PlayerState,
     StackItem,
 } from "../../gre/state";
+import { resolveTopOfStack } from "../../gre/state";
 import {
     assertExpectedInputCoherent,
     refreshExpectedInput,
@@ -113,6 +114,42 @@ export function pushSpell(
     };
     state.stack.push(item);
     return item;
+}
+
+/** Puts `source`'s activated ability `abilityId` on the stack (costs taken as
+ *  paid, activator = the source's controller) and resolves it — the shortcut
+ *  every card test uses to exercise an ability's effect. */
+export function resolveActivated(
+    state: GameState,
+    source: CardInstanceState,
+    abilityId: string,
+    targets: StackItem["targets"] = []
+): void {
+    state.stack.push({
+        ...source,
+        zone: "stack",
+        castById: source.controllerId,
+        abilityId,
+        targets,
+    });
+    resolveTopOfStack(state);
+}
+
+/** Answers the head PendingChoice with `cardInstanceIds` through the real
+ *  submit seam (`applyPendingChoiceSubmit`), as its chooser. Option picks pass
+ *  the option id the same way (`[optionId]`). */
+export function submitChoice(
+    state: GameState,
+    cardInstanceIds: string[]
+): void {
+    const head = state.pendingChoices![0];
+    applyPendingChoiceSubmit(state, {
+        playerId: head.playerId,
+        stackItemId: head.stackItemId,
+        step: head.step,
+        choiceId: head.choiceId,
+        cardInstanceIds,
+    });
 }
 
 /** CR 603.3b (ADR 0058) — when two or more DISTINCT triggered abilities under one

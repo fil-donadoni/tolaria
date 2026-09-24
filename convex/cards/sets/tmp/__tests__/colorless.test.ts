@@ -2,7 +2,12 @@
 // Each card's describe block cites the CR section it exercises.
 
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+    resolveActivated,
+} from "../../../__tests__/setup";
 import {
     applyUnconditionalTapSelfDamage,
     tapSourceIntoPayment,
@@ -12,8 +17,6 @@ import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
 import {
     resolveTopOfStack,
     type CardInstanceState,
-    type GameState,
-    type StackItem,
 } from "../../../../gre/state";
 import { applyNameCardSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { getDefinition } from "../../../index";
@@ -28,22 +31,6 @@ const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 
 /** Push an activated ability onto the stack with its cost assumed already
  *  paid, then resolve it (mirrors the per-set `resolveActivated` shim). */
-function resolveActivated(
-    state: GameState,
-    source: CardInstanceState,
-    abilityId: string,
-    targets: StackItem["targets"] = []
-): void {
-    state.stack.push({
-        ...source,
-        zone: "stack",
-        castById: source.controllerId,
-        abilityId,
-        targets,
-    });
-    resolveTopOfStack(state);
-}
-
 // Ancient Tomb — "{T}: Add {C}{C}. This land deals 2 damage to you." The
 // self-damage rides the NEW `dealsDamageToControllerOnTap` rider (issue
 // #675) — the unconditional sibling of the painland

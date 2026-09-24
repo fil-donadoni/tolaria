@@ -9,6 +9,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
+    resolveActivated,
 } from "../../../__tests__/setup";
 import { projectPublicState } from "../../../../gameProjections";
 import {
@@ -19,12 +20,7 @@ import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
 import { checkStateBasedActions } from "../../../../gre/sba";
 import { validateBlockerEligibility } from "../../../../gre/combat";
 import { resolveTopOfStack, type StackItem } from "../../../../gre/state";
-import {
-    resolveActivated,
-    resolveTrigger,
-    answerChoice,
-    upkeepEvent,
-} from "./helpers";
+import { resolveTrigger, answerChoice, upkeepEvent } from "./helpers";
 import { getDefinition } from "../../../index";
 
 const dandan = getDefinition("414d3cae-b8cf-4d53-bd6b-1aa83a828ba9");

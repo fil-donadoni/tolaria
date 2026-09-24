@@ -13,11 +13,15 @@
 // categorized pick survives the wire projection the client actually reads.
 
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+    submitChoice,
+} from "../../../__tests__/setup";
 import { resolveTopOfStack } from "../../../../gre/state";
 import type { GameState } from "../../../../gre/state";
 import { collectTriggers } from "../../../../gre/triggers";
-import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { projectPublicState } from "../../../../gameProjections";
 import { getDefinition } from "../../../index";
 
@@ -67,17 +71,6 @@ function atraxaEntering(library: { id: string; defId: string }[]): GameState {
     return state;
 }
 
-function answer(state: GameState, picks: string[]): void {
-    const head = state.pendingChoices![0];
-    applyPendingChoiceSubmit(state, {
-        playerId: head.playerId,
-        stackItemId: head.stackItemId,
-        step: head.step,
-        choiceId: head.choiceId,
-        cardInstanceIds: picks,
-    });
-}
-
 describe("Atraxa, Grand Unifier (ONE, {3}{G}{W}{U}{B} — CR 701.20a reveal + CR 401.4)", () => {
     it("ETB: reveals the top ten and keeps one card of each type, bottoming the rest", () => {
         // Top ten: two creatures, two lands, an instant and an artifact, then
@@ -107,7 +100,7 @@ describe("Atraxa, Grand Unifier (ONE, {3}{G}{W}{U}{B} — CR 701.20a reveal + CR
         // so at most four cards are keepable — not nine (the category count).
         expect(head.count).toEqual({ min: 0, max: 4 });
 
-        answer(state, ["bear1", "swamp1", "bolt1", "lotus1"]);
+        submitChoice(state, ["bear1", "swamp1", "bolt1", "lotus1"]);
 
         const p1 = state.players[0];
         expect(p1.hand.map((c) => c.id).sort()).toEqual([
@@ -129,11 +122,11 @@ describe("Atraxa, Grand Unifier (ONE, {3}{G}{W}{U}{B} — CR 701.20a reveal + CR
             { id: "swamp1", defId: swamp.id },
         ]);
         resolveTopOfStack(state);
-        expect(() => answer(state, ["bear1", "bear2"])).toThrow(
+        expect(() => submitChoice(state, ["bear1", "bear2"])).toThrow(
             /different category/
         );
         // One creature plus one land is the legal shape.
-        answer(state, ["bear1", "swamp1"]);
+        submitChoice(state, ["bear1", "swamp1"]);
         expect(state.players[0].hand.map((c) => c.id).sort()).toEqual([
             "bear1",
             "swamp1",
@@ -146,7 +139,7 @@ describe("Atraxa, Grand Unifier (ONE, {3}{G}{W}{U}{B} — CR 701.20a reveal + CR
             { id: "swamp1", defId: swamp.id },
         ]);
         resolveTopOfStack(state);
-        answer(state, []);
+        submitChoice(state, []);
         expect(state.players[0].hand).toHaveLength(0);
         expect(state.players[0].library).toHaveLength(2);
     });

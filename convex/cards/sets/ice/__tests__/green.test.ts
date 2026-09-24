@@ -58,6 +58,8 @@ import {
     makePlayer,
     makeState,
     pushSpell,
+    resolveActivated,
+    submitChoice,
 } from "../../../__tests__/setup";
 import type {
     CardInstanceState,
@@ -67,15 +69,12 @@ import type {
 import type { StackItem } from "../../../../gre/state";
 import type { CardType } from "../../../types";
 import {
-    resolveActivated,
-    submitChoice,
     resolveTrigger,
     vanilla,
     library,
     castCantrip,
     enterUpkeepAndFire,
     collectAndStack,
-    submitPick,
     answerHeadMayPay,
     fireCU,
     makeLand,
@@ -2072,19 +2071,19 @@ describe("Forgotten Lore (iterative may-pay over a shrinking set, CR 608.2 / 117
         // Iteration 0: opponent (p2) picks g0 from p1's graveyard.
         resolveTopOfStack(state);
         expect(state.pendingChoices![0].playerId).toBe("p2");
-        submitPick(state, ["g0"]);
+        submitChoice(state, ["g0"]);
         // Controller (p1) may pay {G} to repeat — yes.
         expect(state.pendingChoices![0].playerId).toBe("p1");
         answerHeadMayPay(state, true);
         // Iteration 1: opponent picks g1 (g0 already chosen, excluded).
         expect(state.pendingChoices![0].playerId).toBe("p2");
         expect(state.pendingChoices![0].candidateIds).not.toContain("g0");
-        submitPick(state, ["g1"]);
+        submitChoice(state, ["g1"]);
         // Controller pays {G} again — yes.
         answerHeadMayPay(state, true);
         // Iteration 2: only g2 left.
         expect(state.pendingChoices![0].candidateIds).toEqual(["g2"]);
-        submitPick(state, ["g2"]);
+        submitChoice(state, ["g2"]);
         // Controller declines — loop stops, LAST chosen (g2) → hand.
         answerHeadMayPay(state, false);
         expect(state.pendingChoices ?? []).toEqual([]);
@@ -2106,7 +2105,7 @@ describe("Forgotten Lore (iterative may-pay over a shrinking set, CR 608.2 / 117
             { type: "player", id: "p2" },
         ]);
         resolveTopOfStack(state);
-        submitPick(state, ["g0"]);
+        submitChoice(state, ["g0"]);
         // Controller declines immediately — g0 goes to hand, no {G} spent.
         answerHeadMayPay(state, false);
         expect(state.pendingChoices ?? []).toEqual([]);

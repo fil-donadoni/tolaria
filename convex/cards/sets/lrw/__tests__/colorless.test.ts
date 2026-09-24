@@ -15,7 +15,13 @@
 // land branch stayed narrow by CR 305.2a / 305.3 / 305.2b.
 
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+    resolveActivated,
+    submitChoice,
+} from "../../../__tests__/setup";
 import {
     removePermanentTo,
     resolveTopOfStack,
@@ -23,10 +29,7 @@ import {
     type GameState,
     type StackItem,
 } from "../../../../gre/state";
-import {
-    applyPendingChoiceSubmit,
-    applyLandEntrySubmit,
-} from "../../../../gre/pendingChoiceSubmit";
+import { applyLandEntrySubmit } from "../../../../gre/pendingChoiceSubmit";
 import { projectPublicState } from "../../../../gameProjections";
 import { applyPlayLand } from "../../../../gre/playLand";
 import { FACE_DOWN_CARD_ID, getDefinition } from "../../../index";
@@ -72,47 +75,10 @@ function resolveTrigger(
     resolveTopOfStack(state);
 }
 
-function resolveActivated(
-    state: GameState,
-    source: CardInstanceState,
-    abilityId: string
-): void {
-    state.stack.push({
-        ...source,
-        zone: "stack",
-        castById: source.controllerId,
-        abilityId,
-        targets: [],
-    } as StackItem);
-    resolveTopOfStack(state);
-}
-
 /** Answers the suspended hideaway look-distribute pick with `pick`. */
-function submitPick(state: GameState, pick: string): void {
-    const head = state.pendingChoices![0];
-    applyPendingChoiceSubmit(state, {
-        playerId: head.playerId,
-        stackItemId: head.stackItemId,
-        step: head.step,
-        choiceId: head.choiceId,
-        cardInstanceIds: [pick],
-    });
-}
-
 /** Answers the CR 608.2g Cast/Play-or-Decline `option-pick` the play ability
  *  raises mid-resolution. `option` is the accept token `"cast"` (the shared
  *  accept id for both the cast and the land-play branch) or `"decline"`. */
-function answerOffer(state: GameState, option: "cast" | "decline"): void {
-    const head = state.pendingChoices![0];
-    applyPendingChoiceSubmit(state, {
-        playerId: head.playerId,
-        stackItemId: head.stackItemId,
-        step: head.step,
-        choiceId: head.choiceId,
-        cardInstanceIds: [option],
-    });
-}
-
 /** Shelldock Isle on p1's battlefield, p1's library `own` cards deep and p2's
  *  `opp` deep. Returns the land instance plus the state. `topCardId` overrides
  *  the printed card of p1's TOP library card (`p1-lib-0`) so a test can hide a
@@ -181,7 +147,7 @@ describe("Shelldock Isle — hideaway ETB leg (CR 702.75a / 406.3 / 607)", () =>
         ]);
         expect(head.count).toEqual({ min: 1, max: 1 });
 
-        submitPick(state, "p1-lib-2");
+        submitChoice(state, ["p1-lib-2"]);
         const hidden = state.players[0].exile.find((c) => c.id === "p1-lib-2");
         expect(hidden).toBeDefined();
         // CR 406.3 — face down: only the land's controller may look.
@@ -202,7 +168,7 @@ describe("Shelldock Isle — hideaway ETB leg (CR 702.75a / 406.3 / 607)", () =>
     it("wire format — the controller sees the hidden card, the opponent sees a face-down placeholder pinned to the land", () => {
         const { state, isle } = setup(6, 40);
         resolveTrigger(state, isle, HIDEAWAY_TRIGGER_ID);
-        submitPick(state, "p1-lib-0");
+        submitChoice(state, ["p1-lib-0"]);
 
         const own = projectPublicState(state, 1, "p1");
         const ownHidden = own.players[0].exile.find(
@@ -226,7 +192,7 @@ describe("Shelldock Isle — linked play ability (CR 607 / 608.2g / 305)", () =>
     /** ETB-exiles a card face down and returns its instance id. */
     function hideOne(state: GameState, isle: CardInstanceState): string {
         resolveTrigger(state, isle, HIDEAWAY_TRIGGER_ID);
-        submitPick(state, "p1-lib-0");
+        submitChoice(state, ["p1-lib-0"]);
         return "p1-lib-0";
     }
 
@@ -265,7 +231,7 @@ describe("Shelldock Isle — linked play ability (CR 607 / 608.2g / 305)", () =>
         resolveActivated(state, isle, PLAY_ABILITY_ID);
         expect(state.pendingChoices![0].kind).toBe("option-pick");
 
-        answerOffer(state, "cast");
+        submitChoice(state, ["cast"]);
         // CR 608.2g — the spell became the TOPMOST object on the stack and the
         // granting ability finished resolving (it is gone), with no priority in
         // between.
@@ -290,7 +256,7 @@ describe("Shelldock Isle — linked play ability (CR 607 / 608.2g / 305)", () =>
         const { state, isle } = setup(6, 40);
         const hidden = hideOne(state, isle);
         resolveActivated(state, isle, PLAY_ABILITY_ID);
-        answerOffer(state, "decline");
+        submitChoice(state, ["decline"]);
 
         expect(state.pendingChoices).toBeUndefined();
         expect(state.stack).toHaveLength(0);
@@ -343,7 +309,7 @@ describe("Shelldock Isle — linked play ability (CR 607 / 608.2g / 305)", () =>
         state.players[0].exile.push(other);
 
         resolveActivated(state, isle, PLAY_ABILITY_ID);
-        answerOffer(state, "cast");
+        submitChoice(state, ["cast"]);
         expect(state.stack[state.stack.length - 1].id).toBe(hidden);
         // The unlinked card never moved and gained no permission at all.
         const untouched = state.players[0].exile.find(
@@ -448,7 +414,7 @@ describe("Shelldock Isle — linked play ability (CR 607 / 608.2g / 305)", () =>
         // by the hidden card's actual type, or it would leak it (CR 406.3).
         expect(offer.options?.map((o) => o.label)).toEqual(["Play", "Decline"]);
 
-        answerOffer(state, "cast");
+        submitChoice(state, ["cast"]);
         expect(state.pendingChoices).toBeUndefined();
         expect(state.stack).toHaveLength(0); // a land never uses the stack
         expect(state.players[0].battlefield.some((c) => c.id === hidden)).toBe(
@@ -470,7 +436,7 @@ describe("Shelldock Isle — linked play ability (CR 607 / 608.2g / 305)", () =>
         const lifeBefore = state.players[0].life;
 
         resolveActivated(state, isle, PLAY_ABILITY_ID);
-        answerOffer(state, "cast");
+        submitChoice(state, ["cast"]);
 
         // The ability's own resolution has finished (a land never uses the
         // stack), but the land has NOT entered: it waits in exile on the
@@ -513,7 +479,7 @@ describe("Shelldock Isle — linked play ability (CR 607 / 608.2g / 305)", () =>
         const lifeBefore = state.players[0].life;
 
         resolveActivated(state, isle, PLAY_ABILITY_ID);
-        answerOffer(state, "cast");
+        submitChoice(state, ["cast"]);
         applyLandEntrySubmit(state, { playerId: "p1", accept: false });
 
         const land = state.players[0].battlefield.find((c) => c.id === hidden);
@@ -561,7 +527,7 @@ describe("Shelldock Isle — linked play ability (CR 607 / 608.2g / 305)", () =>
         const { state, isle } = setup(6, 15, ISLAND_ID);
         const hidden = hideOne(state, isle);
         resolveActivated(state, isle, PLAY_ABILITY_ID);
-        answerOffer(state, "decline");
+        submitChoice(state, ["decline"]);
 
         const card = state.players[0].exile.find((c) => c.id === hidden)!;
         expect(card).toBeDefined();
@@ -608,11 +574,11 @@ describe("Shelldock Isle — linked play ability (CR 607 / 608.2g / 305)", () =>
         // push, which would double up the trigger.
         resolveTopOfStack(state);
         const second = state.pendingChoices![0].candidateIds![0];
-        submitPick(state, second);
+        submitChoice(state, [second]);
         expect(second).not.toBe(first);
 
         resolveActivated(state, returned, PLAY_ABILITY_ID);
-        answerOffer(state, "cast");
+        submitChoice(state, ["cast"]);
         // Only the card THIS incarnation hid was played.
         expect(state.stack[state.stack.length - 1].id).toBe(second);
         expect(state.players[0].exile.some((c) => c.id === first)).toBe(true);

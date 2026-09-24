@@ -8,10 +8,7 @@ import { resolveTopOfStack } from "../../../../gre/state";
 import { raiseTriggerTargetSelection } from "../../../../gre/rules";
 import { collectTriggers } from "../../../../gre/triggers";
 import { fireDelayedTriggers } from "../../../../gre/phases";
-import {
-    applyPendingChoiceSubmit,
-    applyMayPaySubmit,
-} from "../../../../gre/pendingChoiceSubmit";
+import { applyMayPaySubmit } from "../../../../gre/pendingChoiceSubmit";
 import { makeInstance, pushSpell } from "../../../__tests__/setup";
 import type { CardInstanceState, GameState } from "../../../../gre/state";
 import type { StackItem } from "../../../../gre/state";
@@ -27,38 +24,8 @@ const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
 
 /** Push an activated ability onto the stack with its cost assumed already paid,
  *  then resolve it (mirrors post-activateAbility state). */
-export function resolveActivated(
-    state: GameState,
-    source: CardInstanceState,
-    abilityId: string,
-    targets: StackItem["targets"] = []
-): void {
-    state.stack.push({
-        ...source,
-        zone: "stack",
-        castById: source.controllerId,
-        abilityId,
-        targets,
-    });
-    resolveTopOfStack(state);
-}
-
 /** Submit the current head pending choice (zone-pick) with the given ordered
  *  ids, auto-resuming the suspended resolution (mirrors the game.ts mutation). */
-export function submitChoice(
-    state: GameState,
-    cardInstanceIds: string[]
-): void {
-    const head = state.pendingChoices![0];
-    applyPendingChoiceSubmit(state, {
-        playerId: head.playerId,
-        stackItemId: head.stackItemId,
-        step: head.step,
-        choiceId: head.choiceId,
-        cardInstanceIds,
-    });
-}
-
 /** Push a triggered ability onto the stack with the given trigger event, then
  *  resolve it (mirrors the engine after a trigger is put on the stack). */
 export function resolveTrigger(
@@ -434,17 +401,6 @@ export function collectAndStack(
 
 /** Submit the head pending zone-pick choice with the given ids (mirrors the
  *  game.ts mutation), auto-resuming the suspended resolution. */
-export function submitPick(state: GameState, cardInstanceIds: string[]): void {
-    const head = state.pendingChoices![0];
-    applyPendingChoiceSubmit(state, {
-        playerId: head.playerId,
-        stackItemId: head.stackItemId,
-        step: head.step,
-        choiceId: head.choiceId,
-        cardInstanceIds,
-    });
-}
-
 /** Answer the head may-pay choice (yes/no), auto-resuming resolution. */
 export function answerHeadMayPay(state: GameState, accept: boolean): void {
     const head = state.pendingChoices![0];

@@ -46,8 +46,9 @@ import {
     makePlayer,
     makeState,
     pushSpell,
+    resolveActivated,
 } from "../../../__tests__/setup";
-import { resolveActivated, answerPendingChoices } from "./helpers";
+import { answerPendingChoices } from "./helpers";
 
 const brassclawOrcs = getDefinition("fc0cb8f6-6ba7-402c-9829-251f7443e871");
 const dwarvenArmorer = getDefinition("1d50bf06-97ab-4874-a484-9289f41dc98e");

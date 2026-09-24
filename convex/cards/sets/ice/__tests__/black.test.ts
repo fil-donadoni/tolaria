@@ -54,6 +54,8 @@ import {
     makePlayer,
     makeState,
     pushSpell,
+    resolveActivated,
+    submitChoice,
 } from "../../../__tests__/setup";
 import type {
     CardInstanceState,
@@ -63,8 +65,6 @@ import type {
 import type { StackItem } from "../../../../gre/state";
 import type { CardType } from "../../../types";
 import {
-    resolveActivated,
-    submitChoice,
     resolveTrigger,
     vanilla,
     answerMayPay,
@@ -79,7 +79,6 @@ import {
     BASIC_MANA,
     answerMayPayHead,
     collectAndStack,
-    submitPick,
 } from "./helpers";
 
 const balduvianBears = getDefinition("ef5297cb-e763-4871-9cd3-0e2dbcc52095");
@@ -2893,7 +2892,7 @@ describe("Gaze of Pain — turn-scoped unblocked rider (CR 603.7a)", () => {
         state.stack.push(trig!);
         resolveTopOfStack(state);
         // Suspends on the target-creature choice; pick the victim.
-        submitPick(state, ["victim"]);
+        submitChoice(state, ["victim"]);
         // 2 damage (attacker power) is lethal to the 2/2 victim (CR 704.5g),
         // which is destroyed — proving the power-based damage landed.
         expect(

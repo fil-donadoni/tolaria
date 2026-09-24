@@ -2,13 +2,18 @@
 // in `convex/cards/sets/tla/white.ts` (set split by colour, ADR 0043).
 
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+    resolveActivated,
+    submitChoice,
+} from "../../../__tests__/setup";
 import {
     removePermanentTo,
     processPendingActionTriggers,
     resolveTopOfStack,
 } from "../../../../gre/state";
-import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { raiseTriggerTargetSelection } from "../../../../gre/rules";
 import { finalizeTargetSelection } from "../../../../game";
 import { checkStateBasedActions } from "../../../../gre/sba";
@@ -64,32 +69,6 @@ function chooseIcebergTarget(state: GameState, targetId: string | null) {
         state.pendingTarget!,
         state.pendingTarget!.playerId
     );
-}
-
-function resolveActivated(
-    state: GameState,
-    source: ReturnType<typeof makeInstance>,
-    abilityId: string
-) {
-    state.stack.push({
-        ...source,
-        zone: "stack",
-        castById: source.controllerId,
-        abilityId,
-        targets: [],
-    });
-    resolveTopOfStack(state);
-}
-
-function submitChoice(state: GameState, cardInstanceIds: string[]) {
-    const head = state.pendingChoices![0];
-    applyPendingChoiceSubmit(state, {
-        playerId: head.playerId,
-        stackItemId: head.stackItemId,
-        step: head.step,
-        choiceId: head.choiceId,
-        cardInstanceIds,
-    });
 }
 
 describe("Aang's Iceberg (CR 603.6a exile-until-leaves + CR 701.22-style scry)", () => {

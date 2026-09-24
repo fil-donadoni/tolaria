@@ -52,15 +52,11 @@ import {
     makePlayer,
     makeState,
     pushSpell,
+    resolveActivated,
 } from "../../../__tests__/setup";
 import { applyMayPaySubmit } from "../../../../gre/pendingChoiceSubmit";
 import { raiseTriggerTargetSelection } from "../../../../gre/rules";
-import {
-    resolveTrigger,
-    UPKEEP,
-    resolveActivated,
-    answerPendingChoices,
-} from "./helpers";
+import { resolveTrigger, UPKEEP, answerPendingChoices } from "./helpers";
 
 const armorThrull = getDefinition("a98384d1-8e7d-4c41-9f23-47bc2ae2ad6a");
 const basalThrull = getDefinition("0c1d5d13-0160-48cb-8fac-dd86102569b4");

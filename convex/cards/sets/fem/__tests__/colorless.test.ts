@@ -26,13 +26,13 @@ import {
 import { tapSourceIntoPayment } from "../../../../game";
 import { getEffectiveManaChoices } from "../../../../gre/constants";
 import { collectTriggers } from "../../../../gre/triggers";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import {
-    resolveTrigger,
-    UPKEEP,
+    makeInstance,
+    makePlayer,
+    makeState,
     resolveActivated,
-    answerPendingChoices,
-} from "./helpers";
+} from "../../../__tests__/setup";
+import { resolveTrigger, UPKEEP, answerPendingChoices } from "./helpers";
 
 const aeolipile = getDefinition("a09030ee-415c-45af-bf08-7623197a314f");
 const balmOfRestoration = getDefinition("7f95de4a-7fae-42bc-9660-39ea7685ca02");

@@ -19,6 +19,8 @@ import {
     makePlayer,
     makeState,
     pushSpell,
+    resolveActivated,
+    submitChoice,
 } from "../../../__tests__/setup";
 import {
     resolveTopOfStack,
@@ -51,7 +53,7 @@ import {
 import { effectiveTriggeredAbilities } from "../../../../gre/copy";
 import { collectTriggers } from "../../../../gre/triggers";
 import { applyMayPaySubmit } from "../../../../gre/pendingChoiceSubmit";
-import { resolveActivated, resolveTrigger, submitChoice } from "./helpers";
+import { resolveTrigger } from "./helpers";
 import { getDefinition } from "../../../index";
 
 const orderedMigration = getDefinition("04d83a07-6054-45f1-bdf9-07f2006238d2");

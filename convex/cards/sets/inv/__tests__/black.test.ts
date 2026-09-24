@@ -30,6 +30,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
+    resolveActivated,
 } from "../../../__tests__/setup";
 import {
     resolveTopOfStack,
@@ -112,22 +113,6 @@ function resolveTrigger(
 }
 
 /** Resolves an activated ability directly, mirroring the same per-set shim. */
-function resolveActivated(
-    state: GameState,
-    source: ReturnType<typeof makeInstance>,
-    abilityId: string,
-    targets: StackItem["targets"] = []
-): void {
-    state.stack.push({
-        ...source,
-        zone: "stack",
-        castById: source.controllerId,
-        abilityId,
-        targets,
-    });
-    resolveTopOfStack(state);
-}
-
 describe("Andradite Leech (controller's black spells cost {B} more, CR 601.2f)", () => {
     it("taxes the controller's OWN black spell by {B}", () => {
         const leech = makeInstance(andraditeLeech.id, {

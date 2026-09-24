@@ -1,7 +1,12 @@
 // mrd (Mirrodin) — colorless behavior tests (ADR 0043 colour split).
 
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+    submitChoice,
+} from "../../../__tests__/setup";
 import { tapSourceIntoPayment } from "../../../../game";
 import { projectPublicState } from "../../../../gameProjections";
 import {
@@ -10,7 +15,6 @@ import {
     type StackItem,
     resolveTopOfStack,
 } from "../../../../gre/state";
-import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { isGuardedAgainst } from "../../../../gre/permanentGuard";
 import {
     applyCostModifiers,
@@ -110,17 +114,6 @@ function pushEtbTrigger(
         targets: [],
     });
     resolveTopOfStack(state);
-}
-
-function submitChoice(state: GameState, cardInstanceIds: string[]) {
-    const head = state.pendingChoices![0];
-    applyPendingChoiceSubmit(state, {
-        playerId: head.playerId,
-        stackItemId: head.stackItemId,
-        step: head.step,
-        choiceId: head.choiceId,
-        cardInstanceIds,
-    });
 }
 
 describe("Chrome Mox ({0} Artifact — imprint exile + colour-gated mana, CR 603.6a / 605.1a)", () => {

@@ -1,12 +1,16 @@
 // TLA — colorless card behavior tests (ADR 0043 colour split).
 
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+    resolveActivated,
+} from "../../../__tests__/setup";
 import { applyPlayLand } from "../../../../gre/playLand";
-import { getPlayer, resolveTopOfStack } from "../../../../gre/state";
+import { getPlayer } from "../../../../gre/state";
 import { getEffectivePower } from "../../../../gre/layers";
 import { projectPublicState } from "../../../../gameProjections";
-import type { GameState, StackItem } from "../../../../gre/state";
 import { getDefinition } from "../../../index";
 
 const abandonedAirTemple = getDefinition(
@@ -18,26 +22,6 @@ const tundra = getDefinition("a03e8c5b-f4ed-4fd7-ba05-db813ccc05eb");
 /** Pushes an activated ability onto the stack with its cost assumed already
  *  paid (mirrors post-`activateAbility` state), then resolves it. Mirrors the
  *  established `resolveActivated` shim (`sets/atq/__tests__/helpers.ts`). */
-function resolveActivated(
-    state: GameState,
-    sourceId: string,
-    controllerId: string,
-    abilityId: string
-): void {
-    const source = state.players
-        .find((p) => p.id === controllerId)!
-        .battlefield.find((c) => c.id === sourceId)!;
-    const item: StackItem = {
-        ...source,
-        zone: "stack",
-        castById: controllerId,
-        abilityId,
-        targets: [],
-    };
-    state.stack.push(item);
-    resolveTopOfStack(state);
-}
-
 // Abandoned Air Temple — Land (CR 614.1c conditional tapped entry; CR 605.1a
 // mana ability; CR 122 mass counter placement). "This land enters tapped
 // unless you control a basic land.\n{T}: Add {W}.\n{3}{W}, {T}: Put a +1/+1
@@ -121,12 +105,7 @@ describe("Abandoned Air Temple (CR 614.1c conditional tapped entry; CR 605.1a ma
                 makePlayer("p2", { battlefield: [oppBear] }),
             ],
         });
-        resolveActivated(
-            state,
-            "temple",
-            "p1",
-            "abandoned-air-temple-counters"
-        );
+        resolveActivated(state, temple, "abandoned-air-temple-counters");
         const bearLive = state.players[0].battlefield.find(
             (c) => c.id === "bear"
         )!;
@@ -163,12 +142,7 @@ describe("Abandoned Air Temple (CR 614.1c conditional tapped entry; CR 605.1a ma
                 makePlayer("p2"),
             ],
         });
-        resolveActivated(
-            state,
-            "temple",
-            "p1",
-            "abandoned-air-temple-counters"
-        );
+        resolveActivated(state, temple, "abandoned-air-temple-counters");
         const projected = projectPublicState(state, 1, "p1");
         const bearLive = projected.players[0].battlefield.find(
             (c) => c.id === "bear"

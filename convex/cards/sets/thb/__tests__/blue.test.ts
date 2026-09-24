@@ -1,13 +1,17 @@
 // Theros Beyond Death (THB) — blue behavior tests (ADR 0043 colour split).
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+    submitChoice,
+} from "../../../__tests__/setup";
 import {
     type CardInstanceState,
     type GameState,
     type StackItem,
     resolveTopOfStack,
 } from "../../../../gre/state";
-import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { getDefinition, getCardByName } from "../../../index";
 
 const thassasOracle = getDefinition("726e8b29-13e9-4138-b6a9-d2a0d8188d1c");
@@ -52,17 +56,6 @@ function pushEtb(state: GameState, source: CardInstanceState): void {
             types: ["Creature"],
         },
     } as StackItem);
-}
-
-function submitKeep(state: GameState, keep: string[]): void {
-    const head = state.pendingChoices![0];
-    applyPendingChoiceSubmit(state, {
-        playerId: head.playerId,
-        stackItemId: head.stackItemId,
-        step: head.step,
-        choiceId: head.choiceId,
-        cardInstanceIds: keep,
-    });
 }
 
 describe("Thassa's Oracle (CR 401.4 / 700.5 / 104.2a, issue #2070)", () => {
@@ -116,7 +109,7 @@ describe("Thassa's Oracle (CR 401.4 / 700.5 / 104.2a, issue #2070)", () => {
         expect(head.keepTo).toBe("library-top");
         expect(head.candidateIds).toEqual(["c1", "c2"]);
 
-        submitKeep(state, ["c2"]);
+        submitChoice(state, ["c2"]);
         expect(state.pendingChoices ?? []).toHaveLength(0);
         expect(state.gameOver).toBeUndefined();
         // "c2" is kept on the true TOP; nothing left the library (5 cards
@@ -140,7 +133,7 @@ describe("Thassa's Oracle (CR 401.4 / 700.5 / 104.2a, issue #2070)", () => {
         });
         pushEtb(state, oracle);
         expect(resolveTopOfStack(state)).toBeNull();
-        submitKeep(state, []); // "you may" — decline the keep entirely
+        submitChoice(state, []); // "you may" — decline the keep entirely
         expect(state.pendingChoices ?? []).toHaveLength(0);
         // Devotion (2) >= library count (still 2, nothing left) — wins even
         // on a decline.

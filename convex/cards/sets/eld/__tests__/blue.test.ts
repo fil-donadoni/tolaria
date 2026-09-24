@@ -5,7 +5,12 @@
 // `convex/cards/__tests__/setup.ts`.
 
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+    resolveActivated,
+} from "../../../__tests__/setup";
 import { projectPublicState } from "../../../../gameProjections";
 import {
     getLegalActions,
@@ -16,10 +21,8 @@ import {
     applyCostModifiers,
     getCostModifiers,
     normalizeManaCost,
-    resolveTopOfStack,
     type CardInstanceState,
     type GameState,
-    type StackItem,
 } from "../../../../gre/state";
 import { getDefinition } from "../../../index";
 
@@ -232,22 +235,6 @@ describe("Emry, Lurker of the Loch (count-driven self cost-reduction, CR 601.2f 
 
 /** Push an activated ability on the stack (costs assumed paid) and resolve —
  *  the same shim the DRK/INV colour suites use (`sets/drk/__tests__/helpers`). */
-function resolveActivated(
-    state: GameState,
-    source: CardInstanceState,
-    abilityId: string,
-    targets: StackItem["targets"] = []
-): void {
-    state.stack.push({
-        ...source,
-        zone: "stack",
-        castById: source.controllerId,
-        abilityId,
-        targets,
-    });
-    resolveTopOfStack(state);
-}
-
 const EMRY_GRANT_ABILITY = "emry-lurker-of-the-loch-graveyard-cast";
 
 /** Emry on the battlefield + `graveyard` in p1's graveyard. */

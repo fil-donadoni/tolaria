@@ -24,6 +24,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
+    resolveActivated,
 } from "../../../__tests__/setup";
 import {
     resolveTopOfStack,
@@ -1181,22 +1182,6 @@ function resolveTrigger(
 }
 
 /** Push an activated ability onto the stack with its source, then resolve. */
-function resolveActivated(
-    state: GameState,
-    source: CardInstanceState,
-    abilityId: string,
-    targets: StackItem["targets"] = []
-): void {
-    state.stack.push({
-        ...source,
-        zone: "stack",
-        castById: source.controllerId,
-        abilityId,
-        targets,
-    });
-    resolveTopOfStack(state);
-}
-
 describe("Ancient Kavu — {2}: becomes colorless until EOT (CR 613.1e / 105.2c)", () => {
     function activateColorless() {
         const kavu = makeInstance(ancientKavu.id, {

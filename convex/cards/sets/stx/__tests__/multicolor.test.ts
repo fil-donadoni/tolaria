@@ -6,9 +6,9 @@ import {
     makePlayer,
     makeState,
     pushSpell,
+    submitChoice,
 } from "../../../__tests__/setup";
 import { resolveTopOfStack } from "../../../../gre/state";
-import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { projectPublicState } from "../../../../gameProjections";
 import { getDefinition } from "../../../index";
 
@@ -26,17 +26,6 @@ const lib = (ids: string[]) =>
         })
     );
 
-function submit(state: ReturnType<typeof makeState>, ids: string[]) {
-    const head = state.pendingChoices![0];
-    applyPendingChoiceSubmit(state, {
-        playerId: head.playerId,
-        stackItemId: head.stackItemId,
-        step: head.step,
-        choiceId: head.choiceId,
-        cardInstanceIds: ids,
-    });
-}
-
 describe("Expressive Iteration (look 3: hand / bottom / exile-playable; CR 401.4 / 601.3)", () => {
     it("puts one card to hand, one to bottom, exiles one (playable this turn)", () => {
         const state = makeState({
@@ -51,9 +40,9 @@ describe("Expressive Iteration (look 3: hand / bottom / exile-playable; CR 401.4
 
         // Top three are a, b, c. Suspends on the hand choice.
         expect(resolveTopOfStack(state)).toBeNull();
-        submit(state, ["a"]); // a → hand
+        submitChoice(state, ["a"]); // a → hand
         // Suspends again on the bottom choice (b, c remain).
-        submit(state, ["b"]); // b → bottom, c → exile
+        submitChoice(state, ["b"]); // b → bottom, c → exile
 
         const p1 = state.players[0];
         expect(p1.hand.map((c) => c.id)).toEqual(["a"]);
@@ -80,7 +69,7 @@ describe("Expressive Iteration (look 3: hand / bottom / exile-playable; CR 401.4
         });
         pushSpell(state, expressiveIteration.id, "p1");
         expect(resolveTopOfStack(state)).toBeNull();
-        submit(state, ["only"]);
+        submitChoice(state, ["only"]);
         expect(state.players[0].hand.map((c) => c.id)).toEqual(["only"]);
         expect(state.players[0].library).toHaveLength(0);
         expect(state.players[0].exile).toHaveLength(0);
@@ -95,8 +84,8 @@ describe("Expressive Iteration (look 3: hand / bottom / exile-playable; CR 401.4
         });
         pushSpell(state, expressiveIteration.id, "p1");
         resolveTopOfStack(state);
-        submit(state, ["a"]);
-        submit(state, ["b"]);
+        submitChoice(state, ["a"]);
+        submitChoice(state, ["b"]);
         const projected = projectPublicState(state, 1, "p1");
         expect(projected.players[0].hand.length).toBe(1);
         expect(projected.players[0].exile.length).toBe(1);

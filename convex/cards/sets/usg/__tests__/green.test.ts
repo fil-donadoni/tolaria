@@ -2,14 +2,17 @@
 // non-trivial card gets a describe block referencing the CR it validates.
 
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+    submitChoice,
+} from "../../../__tests__/setup";
 import {
     resolveTopOfStack,
     emitPermanentTapped,
     processPendingActionTriggers,
-    type GameState,
 } from "../../../../gre/state";
-import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import type { CardType } from "../../../types";
 import { getDefinition } from "../../../index";
 
@@ -22,17 +25,6 @@ const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
 /** Answer the head pending choice with `picks` (an option id for
  *  requestOptionChoice) — drives the staged-resume resolution forward one
  *  round-trip. */
-function answer(state: GameState, picks: string[]): void {
-    const head = state.pendingChoices![0];
-    applyPendingChoiceSubmit(state, {
-        playerId: head.playerId,
-        stackItemId: head.stackItemId,
-        step: head.step,
-        choiceId: head.choiceId,
-        cardInstanceIds: picks,
-    });
-}
-
 describe("Argothian Enchantress (draw on enchantment cast, CR 603.2 / 601.2i / 121.1)", () => {
     const trig = argothianEnchantress.triggeredAbilities?.[0];
 
@@ -177,7 +169,7 @@ describe("Fertile Ground (CR 603.2 tapped-for-mana trigger, additional mana of c
         // resolves (CR 605.4a), so processing suspends on that choice rather
         // than parking the trigger on the stack for a later priority pass.
         processPendingActionTriggers(state);
-        answer(state, ["W"]);
+        submitChoice(state, ["W"]);
 
         expect(state.players[0].manaPool.W).toBe(1);
     });

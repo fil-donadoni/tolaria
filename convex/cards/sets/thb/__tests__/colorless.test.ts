@@ -1,6 +1,11 @@
 // Theros Beyond Death (THB) — colorless behavior tests (ADR 0043 colour split).
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+    resolveActivated,
+} from "../../../__tests__/setup";
 import {
     type CardInstanceState,
     type GameState,
@@ -15,20 +20,6 @@ import { getDefinition, getCardByName } from "../../../index";
 const soulGuideLantern = getDefinition("7c850b94-75c9-4457-8b5e-1193352d6fcb");
 
 const FOREST = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b").id;
-
-function resolveActivated(
-    state: GameState,
-    source: CardInstanceState,
-    abilityId: string
-): void {
-    state.stack.push({
-        ...source,
-        zone: "stack",
-        castById: source.controllerId,
-        abilityId,
-    } as StackItem);
-    resolveTopOfStack(state);
-}
 
 /** Puts the ETB trigger on the stack WITHOUT resolving it — the caller drives
  *  the CR 603.3d target selection (raiseTriggerTargetSelection →

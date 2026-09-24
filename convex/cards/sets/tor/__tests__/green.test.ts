@@ -4,13 +4,12 @@
 // Basking Rootwalla's definition + its once-per-turn pump.
 
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
-import type {
-    CardInstanceState,
-    GameState,
-    StackItem,
-} from "../../../../gre/state";
-import { resolveTopOfStack } from "../../../../gre/state";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+    resolveActivated,
+} from "../../../__tests__/setup";
 import {
     getEffectivePower,
     getEffectiveToughness,
@@ -21,22 +20,6 @@ import { getDefinition } from "../../../index";
 const baskingRootwalla = getDefinition("1a67768a-6cd9-4163-b941-752f29c87a8d");
 
 /** Push an activated ability onto the stack (cost assumed paid), then resolve. */
-function resolveActivated(
-    state: GameState,
-    source: CardInstanceState,
-    abilityId: string
-): void {
-    const item: StackItem = {
-        ...source,
-        zone: "stack",
-        castById: source.controllerId,
-        abilityId,
-        targets: [],
-    };
-    state.stack.push(item);
-    resolveTopOfStack(state);
-}
-
 describe("Basking Rootwalla — Madness {0} + once-per-turn pump (CR 702.35 / 602.5)", () => {
     it("gives +2/+2 until end of turn, surviving the wire projection", () => {
         const walla = makeInstance(baskingRootwalla.id, { controllerId: "p1" });

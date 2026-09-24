@@ -1,10 +1,14 @@
 // BIG — green card behavior tests (ADR 0043 colour split).
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+    resolveActivated,
+} from "../../../__tests__/setup";
 import {
     type CardInstanceState,
     type GameState,
-    type StackItem,
     processPendingActionTriggers,
     removePermanentTo,
     resolveTopOfStack,
@@ -46,20 +50,6 @@ registerTokenDefinition({
 });
 
 /** Push an activated ability onto the stack (cost assumed paid) and resolve. */
-function resolveActivated(
-    state: GameState,
-    source: CardInstanceState,
-    abilityId: string
-): void {
-    state.stack.push({
-        ...source,
-        zone: "stack",
-        castById: source.controllerId,
-        abilityId,
-    } as StackItem);
-    resolveTopOfStack(state);
-}
-
 // The auto-generated canned-scenario smoke sweep (`scenarioGenerator.ts`)
 // categorically skips every `forEach`-bearing script ("covered by the card's
 // own tests") — this ability's mass counter placement + trample grant needs

@@ -10,7 +10,6 @@ import {
     answerChoice,
     drawStepEvent,
     makeSylvanState,
-    resolveActivated,
     resolveTrigger,
     withTabernacle,
 } from "./helpers";
@@ -41,7 +40,12 @@ import {
     type GameState,
 } from "../../../../gre/state";
 import { collectTriggers } from "../../../../gre/triggers";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+    resolveActivated,
+} from "../../../__tests__/setup";
 import { getDefinition } from "../../../index";
 
 const adventurersGuildhouse = getDefinition(

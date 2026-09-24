@@ -36,9 +36,10 @@ import {
     makePlayer,
     makeState,
     pushSpell,
+    resolveActivated,
 } from "../../../__tests__/setup";
 import { applyMayPaySubmit } from "../../../../gre/pendingChoiceSubmit";
-import { resolveTrigger, UPKEEP, resolveActivated } from "./helpers";
+import { resolveTrigger, UPKEEP } from "./helpers";
 
 const deepSpawn = getDefinition("69c9e4a5-735f-471c-ab1a-6e6d50ba5724");
 const highTide = getDefinition("4686bbb9-517f-4cce-aa7a-5db41e22c02b");

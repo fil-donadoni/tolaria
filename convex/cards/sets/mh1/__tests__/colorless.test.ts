@@ -1,12 +1,13 @@
 // MH1 (Modern Horizons) — colorless behavior tests (ADR 0043 colour split).
 
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import {
-    resolveTopOfStack,
-    type GameState,
-    type CardInstanceState,
-} from "../../../../gre/state";
+    makeInstance,
+    makePlayer,
+    makeState,
+    resolveActivated,
+} from "../../../__tests__/setup";
+import { resolveTopOfStack } from "../../../../gre/state";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import type { CardDefinition as Def } from "../../../types";
 import { getDefinition } from "../../../index";
@@ -15,21 +16,6 @@ const waterloggedGrove = getDefinition("0ab6bfbd-d2e1-4c4c-9f91-6f69c5b8e3bb");
 const sunbakedCanyon = getDefinition("c36820fa-ee86-4206-9a0d-737a67cf5208");
 const prismaticVista = getDefinition("e37da81e-be12-45a2-9128-376f1ad7b3e8");
 const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
-
-function resolveActivated(
-    state: GameState,
-    source: CardInstanceState,
-    abilityId: string
-): void {
-    state.stack.push({
-        ...source,
-        zone: "stack",
-        castById: source.controllerId,
-        abilityId,
-        targets: [],
-    });
-    resolveTopOfStack(state);
-}
 
 const cases: { card: Def; draw: string }[] = [
     { card: waterloggedGrove, draw: "waterlogged-grove-draw" },

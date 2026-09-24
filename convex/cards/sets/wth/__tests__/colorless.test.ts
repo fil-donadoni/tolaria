@@ -1,7 +1,12 @@
 // Weatherlight (WTH) — colorless card behavior tests (ADR 0043 colour split).
 // Each describe block cites the CR section it exercises.
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+    resolveActivated,
+} from "../../../__tests__/setup";
 import {
     type CardInstanceState,
     type GameState,
@@ -16,20 +21,6 @@ const mindStone = getDefinition("162e81d3-6cd4-4cb8-8ed8-cfbd8d34ca71");
 const FOREST = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b").id;
 
 /** Push an activated ability onto the stack (cost assumed paid) and resolve. */
-function resolveActivated(
-    state: GameState,
-    source: CardInstanceState,
-    abilityId: string
-): void {
-    state.stack.push({
-        ...source,
-        zone: "stack",
-        castById: source.controllerId,
-        abilityId,
-    } as StackItem);
-    resolveTopOfStack(state);
-}
-
 function libraryOf(n: number, owner = "p1"): CardInstanceState[] {
     return Array.from({ length: n }, (_, i) =>
         makeInstance(FOREST, {

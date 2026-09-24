@@ -62,13 +62,13 @@ import {
     makePlayer,
     makeState,
     pushSpell,
+    resolveActivated,
+    submitChoice,
 } from "../../../__tests__/setup";
 import type { CardInstanceState, GameState } from "../../../../gre/state";
 import type { StackItem } from "../../../../gre/state";
 import type { CardType } from "../../../types";
 import {
-    resolveActivated,
-    submitChoice,
     resolveTrigger,
     resolveAnnouncedTrigger,
     vanilla,

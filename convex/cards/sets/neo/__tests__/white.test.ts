@@ -3,13 +3,13 @@
 // `.claude/rules/gre-development.md`.
 
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import {
-    type CardInstanceState,
-    type GameState,
-    type StackItem,
-    resolveTopOfStack,
-} from "../../../../gre/state";
+    makeInstance,
+    makePlayer,
+    makeState,
+    resolveActivated,
+} from "../../../__tests__/setup";
+import { type CardInstanceState } from "../../../../gre/state";
 import { checkStateBasedActions } from "../../../../gre/sba";
 import {
     getEffectivePower,
@@ -20,22 +20,6 @@ import { getDefinition } from "../../../index";
 
 const lionSash = getDefinition("3e1766e9-2fa7-4446-a255-7beea1467ece");
 const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
-
-function resolveActivated(
-    state: GameState,
-    source: CardInstanceState,
-    abilityId: string,
-    targets: StackItem["targets"] = []
-): void {
-    state.stack.push({
-        ...source,
-        zone: "stack",
-        castById: source.controllerId,
-        abilityId,
-        targets,
-    } as StackItem);
-    resolveTopOfStack(state);
-}
 
 // A non-permanent graveyard card (Instant) for the "wasn't a permanent card"
 // branch of Lion Sash's first ability.

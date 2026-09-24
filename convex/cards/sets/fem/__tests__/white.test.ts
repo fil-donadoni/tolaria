@@ -31,8 +31,9 @@ import {
     makePlayer,
     makeState,
     pushSpell,
+    resolveActivated,
 } from "../../../__tests__/setup";
-import { resolveActivated, resolveTrigger, UPKEEP } from "./helpers";
+import { resolveTrigger, UPKEEP } from "./helpers";
 import { getDefinition } from "../../../index";
 
 const combatMedic = getDefinition("9cfd96cb-03d6-4845-8595-50bf17b35726");

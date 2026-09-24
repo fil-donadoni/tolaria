@@ -3,17 +3,14 @@
 // `.claude/rules/gre-development.md`.
 
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import {
-    resolveTopOfStack,
-    type CardInstanceState,
-    type GameState,
-    type StackItem,
-} from "../../../../gre/state";
-import {
-    applyMayPaySubmit,
-    applyPendingChoiceSubmit,
-} from "../../../../gre/pendingChoiceSubmit";
+    makeInstance,
+    makePlayer,
+    makeState,
+    resolveActivated,
+    submitChoice,
+} from "../../../__tests__/setup";
+import { applyMayPaySubmit } from "../../../../gre/pendingChoiceSubmit";
 import { projectPublicState } from "../../../../gameProjections";
 import { getDefinition } from "../../../index";
 
@@ -31,33 +28,6 @@ const WASTELAND_ID = "99ff731b-8399-40c8-b539-ba6ba5783771";
 const TUNDRA_ID = "a03e8c5b-f4ed-4fd7-ba05-db813ccc05eb";
 // Grizzly Bears (LEA) — a plain vanilla Creature, reused as generic filler.
 const GRIZZLY_BEARS_ID = "ce2d603a-3231-4a8c-bf39-1617586ea870";
-
-function resolveActivated(
-    state: GameState,
-    source: CardInstanceState,
-    abilityId: string,
-    targets: StackItem["targets"] = []
-): void {
-    state.stack.push({
-        ...source,
-        zone: "stack",
-        castById: source.controllerId,
-        abilityId,
-        targets,
-    } as StackItem);
-    resolveTopOfStack(state);
-}
-
-function submitSearchChoice(state: GameState, cardInstanceIds: string[]): void {
-    const head = state.pendingChoices![0];
-    applyPendingChoiceSubmit(state, {
-        playerId: head.playerId,
-        stackItemId: head.stackItemId,
-        step: head.step,
-        choiceId: head.choiceId,
-        cardInstanceIds,
-    });
-}
 
 describe("Boseiju, Who Endures (Channel ability word, CR 207.2c; snapshot-idiom controller-of-target search, issue #2287/#2290)", () => {
     it("destroys the opponent's nonbasic land, then offers the OPTIONAL search to THAT PLAYER (the destroyed permanent's controller), never the activator", () => {
@@ -169,7 +139,7 @@ describe("Boseiju, Who Endures (Channel ability word, CR 207.2c; snapshot-idiom 
         applyMayPaySubmit(state, { playerId: "p2", accept: true });
         expect(state.pendingChoices?.[0]?.kind).toBe("search-library");
         expect(state.pendingChoices?.[0]?.playerId).toBe("p2");
-        submitSearchChoice(state, ["opp-lib-tundra"]);
+        submitChoice(state, ["opp-lib-tundra"]);
         expect(state.pendingChoices).toBeUndefined();
         // Onto the BATTLEFIELD (not hand), under p2's control, library empty
         // (proving the shuffle/search actually ran).
@@ -208,7 +178,7 @@ describe("Boseiju, Who Endures (Channel ability word, CR 207.2c; snapshot-idiom 
             { type: "permanent", id: "opp-wasteland" },
         ]);
         applyMayPaySubmit(state, { playerId: "p2", accept: true });
-        submitSearchChoice(state, ["opp-lib-tundra"]);
+        submitChoice(state, ["opp-lib-tundra"]);
         // Projected from p1's (the activator's) view: the projection strips
         // fat fields (`card.card` → `{ id }`), so this proves the outcome is
         // visible to the CLIENT, not just to a GRE-only reader.

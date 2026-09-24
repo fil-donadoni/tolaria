@@ -9,7 +9,12 @@
 // ADR 0041).
 
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+    resolveActivated,
+} from "../../../__tests__/setup";
 import { applyPlayLand } from "../../../../gre/playLand";
 import { advancePhase } from "../../../../gre/phases";
 import {
@@ -21,7 +26,6 @@ import {
     resolveTopOfStack,
     type CardInstanceState,
     type GameState,
-    type StackItem,
 } from "../../../../gre/state";
 import { getDefinition } from "../../../index";
 
@@ -38,22 +42,6 @@ const everflowingChalice = getDefinition(
  *  of the ATQ helper of the same name — this set has no shared helpers.ts
  *  yet, and the shared fixture file (setup.ts) is fixtures-only by
  *  convention. */
-function resolveActivated(
-    state: GameState,
-    source: CardInstanceState,
-    abilityId: string,
-    targets: StackItem["targets"] = []
-): void {
-    state.stack.push({
-        ...source,
-        zone: "stack",
-        castById: source.controllerId,
-        abilityId,
-        targets,
-    });
-    resolveTopOfStack(state);
-}
-
 function manaChoices(
     state: GameState,
     land: CardInstanceState,

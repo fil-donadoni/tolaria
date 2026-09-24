@@ -15,7 +15,6 @@ import {
     STONE_RAIN_ID,
     UPKEEP_C5,
     answerChoice,
-    resolveActivated,
     resolveTrigger,
 } from "./helpers";
 import { projectPublicState } from "../../../../gameProjections";
@@ -70,6 +69,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
+    resolveActivated,
 } from "../../../__tests__/setup";
 import { entersTappedByReplacement } from "../../../entersTapped";
 import { continuousEffectsInLayer } from "../../../../gre/continuousEffects";

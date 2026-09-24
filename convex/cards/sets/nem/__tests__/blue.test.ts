@@ -17,9 +17,10 @@ import {
     makePlayer,
     makeState,
     pushSpell,
+    resolveActivated,
 } from "../../../__tests__/setup";
 import { applyMayPaySubmit } from "../../../../gre/pendingChoiceSubmit";
-import { resolveActivated, resolveTrigger, LEFT } from "./helpers";
+import { resolveTrigger, LEFT } from "./helpers";
 import { getDefinition } from "../../../index";
 
 const accumulatedKnowledge = getDefinition(

@@ -14,13 +14,13 @@ import {
     makePlayer,
     makeState,
     pushSpell,
+    submitChoice,
 } from "../../../__tests__/setup";
 import {
     resolveTopOfStack,
     type CardInstanceState,
     type GameState,
 } from "../../../../gre/state";
-import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { validateBlockerEligibility } from "../../../../gre/combat";
 import { projectPublicState } from "../../../../gameProjections";
 import { getDefinition } from "../../../index";
@@ -76,17 +76,6 @@ function etbOnTheStack(): { state: GameState; wanShiTong: CardInstanceState } {
     return { state, wanShiTong };
 }
 
-function pickOption(state: GameState, optionId: string): void {
-    const head = state.pendingChoices![0];
-    applyPendingChoiceSubmit(state, {
-        playerId: head.playerId,
-        stackItemId: head.stackItemId,
-        step: head.step,
-        choiceId: head.choiceId,
-        cardInstanceIds: [optionId],
-    });
-}
-
 function spiritTokens(state: GameState): CardInstanceState[] {
     return state.players[0].battlefield.filter(
         (c) => c.id !== "wst" && c.subtypes.includes("Spirit")
@@ -106,7 +95,7 @@ describe("Wan Shi Tong, All-Knowing (issue #3242)", () => {
             "bottom",
         ]);
 
-        pickOption(state, "second-from-top");
+        submitChoice(state, ["second-from-top"]);
         expect(
             state.players[0].battlefield.some((c) => c.id === "stolen")
         ).toBe(false);
@@ -122,7 +111,7 @@ describe("Wan Shi Tong, All-Knowing (issue #3242)", () => {
     it("puts it on the bottom when the owner picks the bottom", () => {
         const { state } = etbOnTheStack();
         resolveTopOfStack(state);
-        pickOption(state, "bottom");
+        submitChoice(state, ["bottom"]);
         expect(state.players[1].library.map((c) => c.id)).toEqual([
             "libA",
             "libB",
@@ -148,7 +137,7 @@ describe("Wan Shi Tong, All-Knowing (issue #3242)", () => {
     it("its own ETB move triggers the library ability once: two 1/1 colorless Spirit tokens", () => {
         const { state } = etbOnTheStack();
         resolveTopOfStack(state);
-        pickOption(state, "second-from-top");
+        submitChoice(state, ["second-from-top"]);
         while (state.stack.length > 0) resolveTopOfStack(state);
         const spirits = spiritTokens(state);
         expect(spirits).toHaveLength(2);
@@ -183,7 +172,7 @@ describe("Wan Shi Tong, All-Knowing (issue #3242)", () => {
     it("the Spirit token can't block or be blocked by non-Spirit creatures, but Spirits fight Spirits (CR 509.1b)", () => {
         const { state } = etbOnTheStack();
         resolveTopOfStack(state);
-        pickOption(state, "bottom");
+        submitChoice(state, ["bottom"]);
         while (state.stack.length > 0) resolveTopOfStack(state);
         const [spirit, otherSpirit] = spiritTokens(state);
         const bears = makeInstance(GRIZZLY_BEARS_ID, {

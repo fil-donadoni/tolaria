@@ -28,6 +28,8 @@ import {
     makePlayer,
     makeState,
     pushSpell,
+    resolveActivated,
+    submitChoice,
 } from "../../../__tests__/setup";
 import {
     beginApplyingStaticEffects,
@@ -65,7 +67,7 @@ import {
     tryCommitAttackManaTax,
     tapSourceIntoPayment,
 } from "../../../../game";
-import { resolveActivated, resolveTrigger, submitChoice } from "./helpers";
+import { resolveTrigger } from "./helpers";
 import { buildActivatedAbilityStackItem } from "../../../../gre/activationCommit";
 import type { CardDefinition } from "../../../types";
 import { getDefinition } from "../../../index";

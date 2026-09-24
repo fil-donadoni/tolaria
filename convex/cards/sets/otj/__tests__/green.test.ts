@@ -17,7 +17,12 @@ import {
     getEffectiveToughness,
 } from "../../../../gre/layers";
 import { projectPublicState } from "../../../../gameProjections";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+    resolveActivated,
+} from "../../../__tests__/setup";
 import type { GameState, StackItem } from "../../../../gre/state";
 import { getDefinition } from "../../../index";
 
@@ -30,26 +35,6 @@ const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 /** Pushes an activated ability onto the stack with its cost assumed already
  *  paid (mirrors post-`activateAbility` state), then resolves it. Mirrors the
  *  established `resolveActivated` shim (`sets/tla/__tests__/colorless.test.ts`). */
-function resolveActivated(
-    state: GameState,
-    sourceId: string,
-    controllerId: string,
-    abilityId: string
-): void {
-    const source = state.players
-        .find((p) => p.id === controllerId)!
-        .battlefield.find((c) => c.id === sourceId)!;
-    const item: StackItem = {
-        ...source,
-        zone: "stack",
-        castById: controllerId,
-        abilityId,
-        targets: [],
-    };
-    state.stack.push(item);
-    resolveTopOfStack(state);
-}
-
 /** Synthesizes the PERMANENT_ENTERED event a land drop emits (CR 603.6a). */
 function landEntered(instanceId: string, controllerId: string) {
     return {
@@ -242,7 +227,7 @@ describe("Bristly Bill — {3}{G}{G}: double +1/+1 counters on each creature you
             ],
         });
 
-        resolveActivated(state, "bill", "p1", "bristly-bill-double-counters");
+        resolveActivated(state, bill, "bristly-bill-double-counters");
 
         const live = (pid: number, id: string) =>
             state.players[pid].battlefield.find((c) => c.id === id)!;
@@ -272,7 +257,7 @@ describe("Bristly Bill — {3}{G}{G}: double +1/+1 counters on each creature you
             ],
         });
 
-        resolveActivated(state, "bill", "p1", "bristly-bill-double-counters");
+        resolveActivated(state, bill, "bristly-bill-double-counters");
 
         const projected = projectPublicState(state, 1, "p1");
         const bearLive = projected.players[0].battlefield.find(

@@ -7,10 +7,10 @@ import {
     makePlayer,
     makeState,
     pushSpell,
+    submitChoice,
 } from "../../../__tests__/setup";
 import { resolveTopOfStack } from "../../../../gre/state";
 import type { GameState, StackItem } from "../../../../gre/state";
-import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { advancePhase } from "../../../../gre/phases";
 import { projectPublicState } from "../../../../gameProjections";
 import { getDefinition } from "../../../index";
@@ -24,17 +24,6 @@ const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 /** Answer the head pending choice with `picks` (an option id for
  *  requestOptionChoice, or permanent ids for requestChoice). Drives the
  *  staged-resume resolution forward one round-trip. */
-function answer(state: GameState, picks: string[]): void {
-    const head = state.pendingChoices![0];
-    applyPendingChoiceSubmit(state, {
-        playerId: head.playerId,
-        stackItemId: head.stackItemId,
-        step: head.step,
-        choiceId: head.choiceId,
-        cardInstanceIds: picks,
-    });
-}
-
 /** Pushes Vision Charm onto the stack with its mode (and target) already
  *  chosen — mirroring the cast-time `announceCast` flow (CR 601.2b–c / 700.2c):
  *  the mode is locked and the chosen mode's target announced BEFORE the spell
@@ -120,8 +109,8 @@ describe("Vision Charm (VIS, {U} modal instant — CR 700.2)", () => {
         // RESOLUTION-time choices (CR 608.2).
         pushModalVisionCharm(state, "land-type");
         expect(resolveTopOfStack(state)).toBeNull(); // suspends on land-from
-        answer(state, ["Island"]); // from type
-        answer(state, ["Swamp"]); // to type
+        submitChoice(state, ["Island"]); // from type
+        submitChoice(state, ["Swamp"]); // to type
 
         // WITH the effect: only the Island became a Swamp; the Forest is
         // untouched, and the change is scoped to end of turn.

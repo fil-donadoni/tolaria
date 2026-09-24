@@ -24,6 +24,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
+    submitChoice,
 } from "../../../__tests__/setup";
 import {
     putReanimatedSetOnBattlefield,
@@ -31,7 +32,6 @@ import {
     type CardInstanceState,
     type GameState,
 } from "../../../../gre/state";
-import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { computeExpectedInput } from "../../../../gre/expectedInput";
 import { projectPublicState } from "../../../../gameProjections";
 import { submitResolutionChoice, tapUntap } from "../../../../game";
@@ -74,17 +74,6 @@ function land(id: string, def = forest): CardInstanceState {
 
 function head(state: GameState) {
     return (state.pendingChoices ?? [])[0];
-}
-
-function answer(state: GameState, ids: string[]): void {
-    const h = head(state);
-    applyPendingChoiceSubmit(state, {
-        playerId: h.playerId,
-        stackItemId: h.stackItemId,
-        step: h.step,
-        choiceId: h.choiceId,
-        cardInstanceIds: ids,
-    });
 }
 
 const battlefieldIds = (state: GameState): string[] =>
@@ -135,7 +124,7 @@ describe("Mox Diamond — as-enters discard (CR 614.1a / 614.12a, issue #2389)",
         const state = castingMox([land("forest")]);
         resolveTopOfStack(state);
 
-        answer(state, ["forest"]);
+        submitChoice(state, ["forest"]);
 
         expect(battlefieldIds(state)).toContain("mox");
         expect(graveyardIds(state)).toContain("forest");
@@ -160,7 +149,7 @@ describe("Mox Diamond — as-enters discard (CR 614.1a / 614.12a, issue #2389)",
         const state = castingMox([land("forest")]);
         resolveTopOfStack(state);
 
-        answer(state, []);
+        submitChoice(state, []);
 
         expect(battlefieldIds(state)).not.toContain("mox");
         expect(graveyardIds(state)).toContain("mox");
@@ -228,7 +217,7 @@ describe("Mox Diamond — as-enters discard (CR 614.1a / 614.12a, issue #2389)",
         ]);
         resolveTopOfStack(state);
 
-        expect(() => answer(state, ["bears"])).toThrow(
+        expect(() => submitChoice(state, ["bears"])).toThrow(
             /not an eligible choice/i
         );
         // Still owed — nothing was spent and nothing entered.
@@ -260,7 +249,7 @@ describe("Mox Diamond — as-enters discard (CR 614.1a / 614.12a, issue #2389)",
         expect(head(state).asEntersKind).toBe("discard");
         expect(head(state).candidateIds).toEqual(["forest"]);
 
-        answer(state, []);
+        submitChoice(state, []);
 
         // CR 614.1a — declined on the non-cast route too: it goes to its
         // owner's graveyard rather than entering.
@@ -288,7 +277,7 @@ describe("Mox Diamond — as-enters discard (CR 614.1a / 614.12a, issue #2389)",
         putReanimatedSetOnBattlefield(state, [
             { card: mox, controllerId: "p1" },
         ]);
-        answer(state, ["forest"]);
+        submitChoice(state, ["forest"]);
 
         expect(battlefieldIds(state)).toContain("mox");
         expect(graveyardIds(state)).toContain("forest");
@@ -387,7 +376,7 @@ describe("Mox Diamond — the discard filter is CR 205.2 type-based (issue #2389
         resolveTopOfStack(state);
 
         expect(head(state).candidateIds).toEqual(["mtn", "forest"]);
-        answer(state, ["forest"]);
+        submitChoice(state, ["forest"]);
 
         expect(battlefieldIds(state)).toContain("mox");
         expect(graveyardIds(state)).toContain("forest");

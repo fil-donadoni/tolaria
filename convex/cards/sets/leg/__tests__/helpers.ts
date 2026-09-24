@@ -51,22 +51,6 @@ export function resolveTrigger(
 
 /** Push an activated ability onto the stack with its cost assumed already
  *  paid (mirrors the post-`activateAbility` state), then resolve it. */
-export function resolveActivated(
-    state: GameState,
-    source: CardInstanceState,
-    abilityId: string,
-    targets: StackItem["targets"] = []
-): void {
-    state.stack.push({
-        ...source,
-        zone: "stack",
-        castById: source.controllerId,
-        abilityId,
-        targets,
-    });
-    resolveTopOfStack(state);
-}
-
 export function answerChoice(state: GameState, picks: string[]): void {
     const head = state.pendingChoices?.[0];
     if (!head) throw new Error("no pending choice to answer");

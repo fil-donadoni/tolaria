@@ -44,22 +44,6 @@ export const UPKEEP = (playerId: string): StackItem["triggerEvent"] =>
     }) as StackItem["triggerEvent"];
 
 /** Push an activated ability onto the stack (cost assumed paid), then resolve. */
-export function resolveActivated(
-    state: GameState,
-    source: CardInstanceState,
-    abilityId: string,
-    targets: StackItem["targets"] = []
-): void {
-    state.stack.push({
-        ...source,
-        zone: "stack",
-        castById: source.controllerId,
-        abilityId,
-        targets,
-    });
-    resolveTopOfStack(state);
-}
-
 /** Drives any suspended mid-resolution pending choices to completion by
  *  auto-answering each head: an `option-pick` takes its first option; any
  *  permanent/card pick takes (up to `count`) candidate ids — the simple

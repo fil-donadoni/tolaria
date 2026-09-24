@@ -5,12 +5,7 @@
 // convex/cards/__tests__/setup.ts.
 
 import { describe, it, expect } from "vitest";
-import {
-    END_STEP_C5,
-    UPKEEP_C5,
-    resolveActivated,
-    resolveTrigger,
-} from "./helpers";
+import { END_STEP_C5, UPKEEP_C5, resolveTrigger } from "./helpers";
 import { projectPublicState } from "../../../../gameProjections";
 import {
     isLegalBandComposition,
@@ -44,6 +39,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
+    resolveActivated,
 } from "../../../__tests__/setup";
 import { getDefinition } from "../../../index";
 import { continuousEffectsInLayer } from "../../../../gre/continuousEffects";

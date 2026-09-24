@@ -18,7 +18,12 @@
 // his own casting, or every Ugin would exile two permanents instead of one.
 
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+    submitChoice,
+} from "../../../__tests__/setup";
 import type { GameState } from "../../../../gre/state";
 import {
     emitSpellCastEvent,
@@ -30,7 +35,6 @@ import {
     placeTriggersOnStack,
 } from "../../../../gre/triggers";
 import { finalizeTargetSelection } from "../../../../game";
-import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { projectPublicState } from "../../../../gameProjections";
 import { getDefinition } from "../../../index";
 import type { GameEvent } from "../../../types";
@@ -91,17 +95,6 @@ function activate(state: GameState, abilityId: string): void {
 
 /** Submits a `search-library` pending choice, the shared idiom every tutor test
  *  uses (Skyship Weatherlight, `sets/pls/__tests__/colorless.test.ts`). */
-function submitLibraryPick(state: GameState, cardInstanceIds: string[]): void {
-    const head = state.pendingChoices![0];
-    applyPendingChoiceSubmit(state, {
-        playerId: head.playerId,
-        stackItemId: head.stackItemId,
-        step: head.step,
-        choiceId: head.choiceId,
-        cardInstanceIds,
-    });
-}
-
 describe("Ugin, Eye of the Storms — targeted cast trigger (CR 113.6k / 603.3d, issue #3229)", () => {
     it("announces the trigger above its own spell and RAISES its target, then exiles the coloured permanent", () => {
         const state = makeState({
@@ -310,7 +303,7 @@ describe("Ugin, Eye of the Storms — loyalty abilities (CR 606, ADR 0058)", () 
             "libSolRing",
         ]);
 
-        submitLibraryPick(state, ["libSolRing", "libJuggernaut"]);
+        submitChoice(state, ["libSolRing", "libJuggernaut"]);
         expect(state.pendingChoices ?? []).toHaveLength(0);
 
         // CR 607 — every exiled card is LINKED to Ugin…
