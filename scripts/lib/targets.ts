@@ -675,7 +675,7 @@ export function coverageVerdict(
             ? { state: "gap-pending" }
             : {
                   state: "unclaimed",
-                  why: `gap \`${open}\` (${ctx.leverage.get(open)} corpus cards, floor ${ctx.floor}) has no \`grammar\` claim`,
+                  why: `gap \`${open}\` (${ctx.leverage.get(open)} corpus cards, floor ${floor}) has no \`grammar\` claim`,
               };
     }
     if (completion === "ready") {
