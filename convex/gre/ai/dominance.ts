@@ -159,6 +159,7 @@ import {
 // Type-only: erased at compile time, so `moves.ts` importing this module back
 // is NOT a runtime import cycle.
 import type { Move } from "../moves";
+import { assertNever } from "../assertNever";
 import { announcedModeFields } from "../modeSelection";
 
 /** Bound on stack resolutions per probe branch. A spell plus its triggers
@@ -1069,7 +1070,32 @@ function applyProbeChoice(
         checkStateBasedActions(branch);
         return true;
     }
-    return false;
+    // Issue #4441 — no other Move answers a mid-resolution choice the probe
+    // can replay, so each is unprovable; listed, so a new kind reds `check:ts`.
+    switch (move.kind) {
+        case "pass":
+        case "mulligan":
+        case "mulligan-bottom":
+        case "land-entry":
+        case "draw-replacement":
+        case "madness-decline":
+        case "rebound-decline":
+        case "name-card":
+        case "number-choice":
+        case "random-reveal-ack":
+        case "play-land":
+        case "summon-companion":
+        case "turn-face-up":
+        case "cast-spell":
+        case "activate-ability":
+        case "activate-granted-ability":
+        case "submit-target":
+        case "declare-attackers":
+        case "declare-blockers":
+            return false;
+        default:
+            return assertNever(move, "Move kind in applyProbeChoice");
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1478,5 +1504,30 @@ export function isProbeEligibleMove(
             cost.loyalty !== undefined
         );
     }
-    return false;
+    // Issue #4441 — only a cast or an activation can be dropped as dominated;
+    // listed, so a new Move kind reds `check:ts` until someone decides.
+    switch (move.kind) {
+        case "pass":
+        case "mulligan":
+        case "mulligan-bottom":
+        case "resolution-choice":
+        case "may-pay":
+        case "land-entry":
+        case "draw-replacement":
+        case "madness-decline":
+        case "rebound-decline":
+        case "name-card":
+        case "number-choice":
+        case "random-reveal-ack":
+        case "play-land":
+        case "summon-companion":
+        case "turn-face-up":
+        case "activate-granted-ability":
+        case "submit-target":
+        case "declare-attackers":
+        case "declare-blockers":
+            return false;
+        default:
+            return assertNever(move, "Move kind in isProbeEligibleMove");
+    }
 }
