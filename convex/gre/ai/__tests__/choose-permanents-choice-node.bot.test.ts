@@ -31,7 +31,6 @@ import {
 import { cloneGameState } from "../../clone";
 import type { GameState, PendingChoice } from "../../state";
 import {
-    emitPermanentTapped,
     processPendingActionTriggers,
     resolveTopOfStack,
     tapPermanent,
@@ -253,8 +252,8 @@ describe("the settle gets past a MANDATORY choose-permanents owed to the mover (
         const forest = state.players[0].battlefield.find(
             (c) => (c.card as { id?: string }).id === getCardByName("Forest").id
         )!;
+        // `tapPermanent` queues the PERMANENT_TAPPED itself (issue #3787).
         tapPermanent(state, forest);
-        emitPermanentTapped(state, forest, false);
         processPendingActionTriggers(state);
         expect(state.stack).toHaveLength(1);
         resolveTopOfStack(state);
