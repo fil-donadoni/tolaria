@@ -4,9 +4,10 @@
 // declare scope (relation between the tapped permanent and the source),
 // optional permanent filter (types/subtypes/keywords), and optional
 // `forMana` discriminator that gates on whether the tap paid a mana
-// ability's cost (CR 605). Emitted by every tap site so non-mana taps
-// (Twiddle, combat declaration) feed Lifetap-style triggers and mana taps
-// feed Mana Flare / Manabarbs / Wild Growth.
+// ability's cost (CR 605). Emitted by the shared tap choke point
+// (`tapPermanent`: attack taps, tap-other costs, Twiddle-style effects) so
+// non-mana taps feed Lifetap-style / Magda triggers, and by the mana-payment
+// paths so mana taps feed Mana Flare / Manabarbs / Wild Growth.
 //
 // `condition` runs at trigger-check time only (CR 603.4). `interveningIf`
 // runs both at check time and is re-evaluated at resolve time by the

@@ -2147,12 +2147,35 @@ export function emitAttackersDeclaredEvents(state: GameState): void {
     // is deliberate: this function is the one choke point the server mutation,
     // the auto-pass auto-confirm, `applyMove` and the ISMCTS sandbox all reach.
     const exertEvents = payDeclaredExertCosts(state);
+    // CR 508.1f — attackers tap as they are declared, so the "becomes tapped"
+    // events `tapPermanent` queued join the SAME batch as `ATTACKERS_DECLARED`
+    // (CR 508.2b / 603.3b): Magda's Treasure triggers and the attack triggers
+    // are ordered together and placed before the active player gets priority.
+    // Mana-ability taps (attack tax, CR 605) are excluded: they never use the
+    // stack and are drained by `processPendingActionTriggers`.
+    const attackerIds = new Set(state.combat.attackerIds);
+    const tapEvents = (state.pendingEvents ?? []).filter(
+        (e) =>
+            e.type === "PERMANENT_TAPPED" &&
+            !e.forMana &&
+            attackerIds.has(e.permanentId)
+    );
+    if (tapEvents.length > 0) {
+        const rest = (state.pendingEvents ?? []).filter(
+            (e) => !tapEvents.includes(e)
+        );
+        state.pendingEvents = rest.length === 0 ? undefined : rest;
+    }
     const event: GameEvent = {
         type: "ATTACKERS_DECLARED",
         attackingPlayerId: state.activePlayerId,
         attackerIds: [...state.combat.attackerIds],
     };
-    const triggers = collectTriggers(state, [...exertEvents, event]);
+    const triggers = collectTriggers(state, [
+        ...tapEvents,
+        ...exertEvents,
+        event,
+    ]);
     // CR 603.3b (ADR 0058) — order same-controller simultaneous attack triggers.
     if (placeTriggersOnStack(state, triggers)) {
         state.priorityPlayerId = state.activePlayerId;

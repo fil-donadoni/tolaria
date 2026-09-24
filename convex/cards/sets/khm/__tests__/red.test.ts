@@ -9,6 +9,7 @@
 
 import { describe, it, expect } from "vitest";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import { finalizeConfirmAttackers } from "../../../../game";
 import type { GameState } from "../../../../gre/state";
 import { getPlayer, resolveTopOfStack } from "../../../../gre/state";
 import {
@@ -137,6 +138,47 @@ describe("Magda, Brazen Outlaw — Dwarf tap makes a Treasure (CR 701.26a / 111.
         const state = board();
         expect(tap(state, "opp-dwarf")).toBe(0);
         expect(tap(state, "bear")).toBe(0);
+        expect(treasures(state)).toHaveLength(0);
+    });
+});
+
+describe("Magda, Brazen Outlaw — attack taps through the real declaration path (CR 508.1f / 701.26a)", () => {
+    /** Declares `ids` as attackers and runs the same finalize the
+     *  `confirmAttackers` mutation does. */
+    function declare(state: GameState, ids: string[]): void {
+        state.phase = "DECLARE_ATTACKERS";
+        state.activePlayerId = "p1";
+        state.priorityPlayerId = "p1";
+        state.combat = {
+            attackerIds: ids,
+            confirmed: false,
+            blockerAssignments: {},
+            blockersConfirmed: false,
+        };
+        finalizeConfirmAttackers(state);
+    }
+    const magdaTriggers = (state: GameState) =>
+        state.stack.filter((s) => s.triggeredAbilityId === TAP_TRIGGER);
+
+    it("Magda + another Dwarf attacking put two triggers on the stack, then make two Treasures", () => {
+        const state = board();
+        declare(state, ["magda", "dwarf"]);
+        expect(magdaTriggers(state)).toHaveLength(2);
+        expect(state.priorityPlayerId).toBe("p1");
+        while (state.stack.length > 0) resolveTopOfStack(state);
+        expect(treasures(state)).toHaveLength(2);
+        // exactly one tap event per real transition, none left queued
+        expect(state.pendingEvents ?? []).toHaveLength(0);
+    });
+
+    it("a vigilance Dwarf makes no Treasure; a non-Dwarf attacker makes none", () => {
+        const state = board();
+        getPlayer(state, "p1").battlefield.find(
+            (c) => c.id === "dwarf"
+        )!.staticAbilities = ["vigilance"];
+        declare(state, ["dwarf", "bear"]);
+        expect(magdaTriggers(state)).toHaveLength(0);
+        while (state.stack.length > 0) resolveTopOfStack(state);
         expect(treasures(state)).toHaveLength(0);
     });
 });
