@@ -2149,7 +2149,7 @@ export function emitAttackersDeclaredEvents(state: GameState): void {
     const exertEvents = payDeclaredExertCosts(state);
     // CR 508.1f — attackers tap as they are declared, so the "becomes tapped"
     // events `tapPermanent` queued join the SAME batch as `ATTACKERS_DECLARED`
-    // (CR 508.2 / 603.3b): Magda's Treasure triggers and the attack triggers
+    // (CR 508.2b / 603.3b): Magda's Treasure triggers and the attack triggers
     // are ordered together and placed before the active player gets priority.
     // Mana-ability taps (attack tax, CR 605) are excluded: they never use the
     // stack and are drained by `processPendingActionTriggers`.
