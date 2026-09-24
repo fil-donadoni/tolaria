@@ -13524,6 +13524,16 @@ export interface EffectCardFilter {
      *  keywords); a future OR-across-keywords need is `any` (already OR
      *  across filter dimensions) wrapping two single-`hasAbility` clauses. */
     hasAbility?: string;
+    /** "Without <keyword>" (CR 702, issue #4310 — Earthquake's "each creature
+     *  WITHOUT flying"). The exclusion twin of `hasAbility`: a BATTLEFIELD
+     *  permanent is dropped when its live `staticAbilities` contains this
+     *  keyword string. Propagated 1:1 onto `PermanentFilter.excludeAbility`
+     *  by `toPermanentFilter`, and gated exactly like `hasAbility` — the
+     *  validator admits it only at battlefield-guaranteed sites, because a
+     *  hidden-zone card has no ability data and `matchesCardFilter` would
+     *  ignore the field (fail OPEN). Single keyword; ANDed with every other
+     *  field. */
+    excludeAbility?: string;
     /** "That's attacking" (CR 508.1, issue #1097 — Tangle's "each creature
      *  that's attacking"). Matches a BATTLEFIELD permanent whose live combat
      *  role is attacker, mirroring `PermanentFilter.isAttacking`

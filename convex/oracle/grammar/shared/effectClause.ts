@@ -59,6 +59,7 @@ import {
 } from "./condition";
 import {
     controlledPluralRule,
+    keywordExcludedSweepRule,
     massSubjectRule,
     type MassSubjectIR,
 } from "./massSubject";
@@ -2608,7 +2609,17 @@ function effectSentence(
         const amount = readAmount(damage[2]!);
         if (amount === null)
             return fail(`"${damage[2]}" is not a damage amount`, span);
-        const to = subjectRule.run(damage[3]!, ctx);
+        // CR 702 + CR 120.3 — "to each creature without flying": a creature
+        // sweep with one keyword exclusion, the damage recipient Earthquake
+        // prints. Tried by its own rule so the general sweep grammar keeps
+        // refusing "without <keyword>" for every other verb.
+        const sweep = damage[3]!.startsWith("each ")
+            ? keywordExcludedSweepRule.run(damage[3]!, ctx)
+            : null;
+        const to: RuleResult<SubjectIR> =
+            sweep !== null && sweep.ok
+                ? ok({ kind: "mass" as const, ...sweep.value } as SubjectIR)
+                : subjectRule.run(damage[3]!, ctx);
         if (!to.ok) return to;
         return ok({
             kind: "deal-damage" as const,

@@ -25,8 +25,9 @@
  * ── What is refused, and why it is not a gap in the reader ─────────────────
  *
  * The `forEach` selector expresses type, subtype, negated type and "you
- * control" — the descriptor fields whose engine meaning is one-to-one. A field
- * outside them (a colour, a keyword, a combat role, a power bound, another
+ * control" — the descriptor fields whose engine meaning is one-to-one — and,
+ * for the one verb that opts in ({@link keywordExcludedSweepRule}), "without
+ * <keyword>". A field outside them (a colour, a keyword, a combat role, a power bound, another
  * controller) is refused HERE, by name, rather than dropped: a sweep that
  * silently ignored "white" would destroy every creature, and that is the
  * fail-open shape this compiler exists to prevent (ADR 0105). Each refusal
@@ -44,7 +45,14 @@
 
 import { PERMANENT_TYPES } from "../../../cards/types";
 import type { CardType, EffectForEachSelector } from "../../../cards/types";
-import { fail, ok, rule, type Rule, subGrammar } from "../../rule";
+import {
+    fail,
+    ok,
+    rule,
+    type Rule,
+    type RuleResult,
+    subGrammar,
+} from "../../rule";
 import { descriptorRule, type DescriptorIR } from "./targetFilter";
 
 export const MASS_SUBJECT = "mass subject";
@@ -113,7 +121,8 @@ const ALL_PERMANENT_TYPES: ReadonlySet<CardType> = new Set(PERMANENT_TYPES);
 function sweepSelector(
     descriptor: DescriptorIR,
     other: boolean,
-    list: boolean
+    list: boolean,
+    allowKeywordExclusion: boolean
 ):
     | { readonly ok: true; readonly value: PermanentSweepSelector }
     | {
@@ -129,6 +138,7 @@ function sweepSelector(
                 "excludeTypes",
                 "controller",
                 "plural",
+                ...(allowKeywordExclusion ? ["excludeAbility"] : []),
             ].includes(field)
         )
             return {
@@ -187,6 +197,9 @@ function sweepSelector(
     if (excluded !== undefined)
         filter.excludeType =
             excluded.length === 1 ? excluded[0]! : [...excluded];
+    // CR 702 — "without flying": the exclusion the sweep filter names 1:1.
+    if (descriptor.excludeAbility !== undefined)
+        filter.excludeAbility = descriptor.excludeAbility;
     const select: PermanentSweepSelector = {
         set: "permanents",
         zone: "battlefield",
@@ -207,9 +220,10 @@ function sweepSelector(
  * are peeled off the span whole, and the remainder is the descriptor's to read
  * or refuse.
  */
-export const massSubjectRule: Rule<MassSubjectIR> = subGrammar(
-    MASS_SUBJECT,
-    rule(MASS_SUBJECT, (span, ctx) => {
+function readMassSubject(
+    allowKeywordExclusion: boolean
+): (span: string, ctx: unknown) => RuleResult<MassSubjectIR> {
+    return (span, ctx) => {
         let determiner: "all" | "each";
         let other = false;
         let rest: string;
@@ -242,10 +256,44 @@ export const massSubjectRule: Rule<MassSubjectIR> = subGrammar(
         const selector = sweepSelector(
             descriptor.value,
             other,
-            /, | and | or /.test(rest)
+            /, | and | or /.test(rest),
+            allowKeywordExclusion
         );
         if (!selector.ok) return fail(selector.reason, selector.fragment);
         return ok({ select: selector.value, manaValueAtMostX: bounded });
+    };
+}
+
+export const massSubjectRule: Rule<MassSubjectIR> = subGrammar(
+    MASS_SUBJECT,
+    rule(MASS_SUBJECT, readMassSubject(false))
+);
+
+/**
+ * CR 702 + CR 120.3 — "each creature without flying": a creature sweep
+ * narrowed by ONE keyword exclusion, the recipient of a damage sweep
+ * (Earthquake's shape). A sibling of {@link massSubjectRule}, not a widening
+ * of it: the general rule keeps refusing "without <keyword>" for every other
+ * verb (a destroy or pump sweep has no fixture for it), and this one refuses
+ * every sweep that carries no keyword exclusion, so "each creature" alone
+ * stays a form nobody has shown this grammar.
+ */
+export const keywordExcludedSweepRule: Rule<MassSubjectIR> = subGrammar(
+    MASS_SUBJECT,
+    rule(MASS_SUBJECT, (span, ctx) => {
+        const mass = readMassSubject(true)(span, ctx);
+        if (!mass.ok) return mass;
+        const filter = mass.value.select.filter;
+        if (
+            filter?.excludeAbility === undefined ||
+            filter.type !== "Creature" ||
+            !span.startsWith("each ")
+        )
+            return fail(
+                'a keyword-excluded sweep is "each creature without <keyword>"',
+                span
+            );
+        return mass;
     })
 );
 
@@ -295,7 +343,8 @@ export const controlledPluralRule: Rule<MassSubjectIR> = subGrammar(
         const selector = sweepSelector(
             descriptor.value,
             false,
-            /, | and | or /.test(noun)
+            /, | and | or /.test(noun),
+            false
         );
         if (!selector.ok) return fail(selector.reason, selector.fragment);
         return ok({
