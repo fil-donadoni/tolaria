@@ -65,7 +65,7 @@ import {
     getOpponentId,
     tapPermanent,
 } from "./state";
-import type { Color } from "../cards/types";
+import type { ActivatedAbility, Color } from "../cards/types";
 import { observedOpponentColors } from "./ai/observedColors";
 import { checkStateBasedActions } from "./sba";
 import {
@@ -1882,7 +1882,15 @@ function rollout(
 
         let chosen: Move;
         if (moves.length === 1 || rng() < rolloutEpsilonFor(state, weights)) {
-            chosen = moves[Math.floor(rng() * moves.length)];
+            // Exploration of lines the greedy probe undervalues, not a model
+            // of typical play: never draws a sacrifice conversion, whose
+            // variants (one per sacrificable permanent and target) would
+            // otherwise outnumber every other move at the node.
+            const drawn = moves.filter(
+                (m) => !isSacrificeConversion(state, pid, m)
+            );
+            const pool = drawn.length > 0 ? drawn : moves;
+            chosen = pool[Math.floor(rng() * pool.length)];
         } else {
             chosen = selectRolloutMove(state, pid, botId, moves, rng, weights);
         }
@@ -1980,6 +1988,10 @@ export function isDiscouragedRolloutMove(
         // A mana ability is payment plumbing, not a play (CR 605.3a), and an
         // ability that CANNOT be used later carries nothing to defer.
         if (!ability || !isDeferrableStackAbility(ability)) return false;
+
+        // (0) A transient payoff bought with a standing permanent, outside a
+        // window where the payoff can matter (issue #4261).
+        if (isDeferrableTransientSacrifice(state, pid, move)) return true;
 
         // (a) Pointless self-animation after the mover's own combat — issue
         // #1890 item 4, shared with the root tie-break.
@@ -2595,7 +2607,83 @@ export function keyedMovesFor(
         seen.add(key);
         keyed.push({ move, key, prior: 0 });
     }
-    return keyed;
+    // Cost-shape only, so cheap enough for every node (unlike the dominance
+    // probe above); never emptying, `pass` is always kept.
+    const kept = keyed.filter(
+        (k) => !isDeferrableTransientSacrifice(state, pid, k.move)
+    );
+    return kept.length > 0 ? kept : keyed;
+}
+
+/** The steps where a transient payoff can matter: once blocks are declared, a
+ *  pump or shrink decides the exchange. BEFORE blocks it is premature (ADR
+ *  0021 slice 3, case (c) of `isDiscouragedRolloutMove`), and outside combat it
+ *  changes nothing that survives the turn. A non-empty stack is a response
+ *  window and is excluded separately. */
+const TRANSIENT_PAYOFF_PHASES: ReadonlySet<string> = new Set([
+    "DECLARE_BLOCKERS",
+    "COMBAT_DAMAGE",
+]);
+
+/** Whether `move` activates an ability whose COST gives up a standing permanent
+ *  (`spendsStandingPermanent`, CR 701.21a), whatever its payoff or window. */
+function isSacrificeConversion(
+    state: GameState,
+    pid: string,
+    move: Move
+): boolean {
+    return isSacrificeConversionWhere(state, pid, move, () => true);
+}
+
+/** Whether `move` gives up a standing permanent for a payoff that expires this
+ *  turn, in a window where the payoff cannot matter — an activation the tree
+ *  has no reason to open.
+ *
+ *  Each clause is one the deferral rules already rest on. The ability can be
+ *  activated at instant speed (`isDeferrableStackAbility`), so a later window
+ *  — a declared block, the opponent's removal in response — is still
+ *  available and reachable in the tree. Its whole effect is transient
+ *  (`isTransientOnlyAbility`), so waiting forfeits nothing the payoff would
+ *  have bought. And its cost is a permanent (`spendsStandingPermanent`), which
+ *  keeps blocking and tapping for mana until the moment it is given up. Opened
+ *  anyway, every such edge collects visits from a subtree strictly worse than
+ *  passing, and the average over a node's children drags down every line that
+ *  reaches it: a sacrifice outlet's cast edge read worse than `pass` for that
+ *  reason alone (issue #4261), while a twin whose ability cost mana was cast.
+ *  Per-card-agnostic, never a card name (ADR 0102). */
+function isDeferrableTransientSacrifice(
+    state: GameState,
+    pid: string,
+    move: Move
+): boolean {
+    if (state.stack.length > 0 || TRANSIENT_PAYOFF_PHASES.has(state.phase))
+        return false;
+    return isSacrificeConversionWhere(
+        state,
+        pid,
+        move,
+        (ability) =>
+            isDeferrableStackAbility(ability) && isTransientOnlyAbility(ability)
+    );
+}
+
+function isSacrificeConversionWhere(
+    state: GameState,
+    pid: string,
+    move: Move,
+    accepts: (ability: ActivatedAbility) => boolean
+): boolean {
+    if (move.kind !== "activate-ability") return false;
+    const source = state.players
+        .find((p) => p.id === pid)
+        ?.battlefield.find((c) => c.id === move.cardInstanceId);
+    if (!source) return false;
+    const ability = effectiveAbilityOf(source, move.abilityId);
+    return (
+        !!ability &&
+        accepts(ability) &&
+        spendsStandingPermanent(state, source, ability)
+    );
 }
 
 /** Floor under every normalised action prior (issue #2684). The rule is BIAS,

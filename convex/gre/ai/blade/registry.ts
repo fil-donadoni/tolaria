@@ -8127,6 +8127,68 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         },
         note: 'CR 614.9 recipient-keyed redirection (issue #3810). A redirect conserves the stake, so its per-OP beneficence sign is genuinely `"neutral"` and its two announced slots carry OPPOSITE signs — carried per FIELD by `SPLIT_SIGN_OPS` (`gre/ai/beneficence.ts`), which `misdirectedTargetCount` reads to rank sibling target tuples. Proof-of-failure: dropping the `redirectDamage` row from `SPLIT_SIGN_OPS` reds this at EVERY seed — the bot shields the opponent and redirects the damage onto its own face, the Wild Growth gift in a new costume.',
     },
+    {
+        // SACRIFICE-OUTLET reachability (CR 701.21a, issue #4261). The bot's
+        // precombat main, a Grizzly Bears on each side, Nantuko Husk in hand
+        // and three untapped Swamps for its {2}{B}: a 2/2 body that can turn
+        // any creature into +2/+2 until end of turn. Casting it is strictly
+        // better than holding it.
+        //
+        // Before the fix the cast edge read WORSE than `pass` on every seed:
+        // the tree opened a "sacrifice a creature" child at each node after
+        // the cast, and the rollouts drew it at random, so each rollout that
+        // held the outlet stripped its own board. A twin whose ability cost
+        // mana instead of a creature was cast. Fixed by class, not by card:
+        // `isDeferrableTransientSacrifice` and `isSacrificeConversion`
+        // (`search.ts`).
+        label: "Sacrifice outlet with a transient payoff: casts the creature",
+        spec: {
+            cards: [
+                { name: "Nantuko Husk", owner: "me", zone: "hand" },
+                { name: "Swamp", owner: "me", zone: "battlefield" },
+                { name: "Swamp", owner: "me", zone: "battlefield" },
+                { name: "Swamp", owner: "me", zone: "battlefield" },
+                { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
+                { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: { moves: [{ kind: "cast-spell", card: "Nantuko Husk" }] },
+        note: "Bot Gap `never-chosen › Creature › pump` (7 cards). Issue #4261.",
+    },
+    {
+        // The other half of the pair (CR 701.21a, issue #4261): Nantuko Husk
+        // already on the battlefield in its controller's precombat main, with
+        // a spare Grizzly Bears to feed it. +2/+2 until end of turn with no
+        // combat in sight is a creature thrown away for nothing, and the
+        // activation is still available in a window where the payoff matters.
+        label: "Sacrifice outlet with a transient payoff: no sacrifice in the main phase",
+        spec: {
+            cards: [
+                { name: "Nantuko Husk", owner: "me", zone: "battlefield" },
+                { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
+                { name: "Swamp", owner: "me", zone: "battlefield" },
+                { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [{ kind: "activate-ability", card: "Nantuko Husk" }],
+        },
+        note: "Discriminating pair of the outlet-cast entry above. Issue #4261.",
+    },
 ];
 
 /** "The bot answered the ENGINE-RAISED target selection with a submission the
