@@ -3236,6 +3236,7 @@ describe("Word of Command (controlled cast — land branch, CR 305.2 / 608.2, AD
      *  by `checkStateBasedActions` — exercising the GRE → game.ts boundary, not
      *  just the engine in isolation. */
     function submitChoiceThenSba(state: GameState, picks: string[]): void {
+        expect(state.pendingChoices?.[0]).toBeDefined();
         submitChoice(state, picks);
         checkStateBasedActions(state);
     }
