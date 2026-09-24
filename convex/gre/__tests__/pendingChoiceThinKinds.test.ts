@@ -4,7 +4,8 @@
 // `keep-permanents` / `keep-hand` had none (its tests wrote the answer into
 // the stack item by hand), `choose-player` had none. The Pending Choice
 // handler registry (issue #4443) replaces the ladder these tests drive, so
-// every test here raises the choice through production code, answers it
+// every test here raises the choice through production code (or, where no
+// producer exists, a minimal fixture), answers it
 // through the public submit seam and asserts the resulting STATE — never the
 // branch that got it there — so the same tests stay green across the refactor
 // and go red on a kind the registry drops.
@@ -335,6 +336,15 @@ describe("draw-look-keep (Aladdin's Lamp, CR 614 draw replacement)", () => {
         expect(ids(state.players[0].library)).toEqual(["c2", "c3", "c1"]);
     });
 
+    it("keeping a NON-top card draws that card, not the top one", () => {
+        const state = raise(2);
+
+        submitHead(state, ["c1"]);
+
+        expect(ids(state.players[0].hand)).toEqual(["c1"]);
+        expect(ids(state.players[0].library)).toEqual(["c2", "c3", "c0"]);
+    });
+
     it("rejects a library card below the looked-at window", () => {
         const state = raise(2);
         expect(() => submitHead(state, ["c3"])).toThrow(
@@ -382,7 +392,7 @@ describe("legend-keep (CR 704.5j — raised by a resolving legend)", () => {
 });
 
 describe("choose-aura-host (CR 303.4f — Aura entering without being cast)", () => {
-    it("an empty submission is refused (count 1), then a legal host attaches the Aura", () => {
+    it("refuses an empty submission and a non-host, then a legal host attaches the Aura", () => {
         const bear = (id: string) =>
             makeInstance(grizzlyBears.id, {
                 id,
@@ -398,7 +408,15 @@ describe("choose-aura-host (CR 303.4f — Aura entering without being cast)", ()
         const state = makeState({
             players: [
                 makePlayer("p1", {
-                    battlefield: [bear("bear-1"), bear("bear-2")],
+                    battlefield: [
+                        bear("bear-1"),
+                        bear("bear-2"),
+                        makeInstance(plains.id, {
+                            id: "land",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                        }),
+                    ],
                     graveyard: [aura],
                 }),
                 makePlayer("p2"),
@@ -414,6 +432,11 @@ describe("choose-aura-host (CR 303.4f — Aura entering without being cast)", ()
         });
 
         expect(() => submitHead(state, [])).toThrow("Select at least 1 card");
+        // A permanent on the battlefield that Unholy Strength cannot enchant
+        // (a land — "Enchant creature") is outside `candidateIds`.
+        expect(() => submitHead(state, ["land"])).toThrow(
+            "Card is not an eligible choice"
+        );
         expect(state.pendingChoices?.[0].kind).toBe("choose-aura-host");
 
         submitHead(state, ["bear-2"]);
