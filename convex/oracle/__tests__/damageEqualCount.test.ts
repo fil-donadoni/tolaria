@@ -1,6 +1,6 @@
 // Damage equal to a counted set — "{self} deals damage to target creature
 // equal to the number of Mountains you control" (issue #4314, CR 107.1 /
-// 119.3 / 120.1).
+// 120.1).
 //
 //  1. GOLDEN — Seismic Strike's real Oracle row, compiled whole.
 //  2. REFUSALS — neighbours the grammar must NOT read: a singular noun, another

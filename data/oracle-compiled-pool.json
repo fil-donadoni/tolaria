@@ -4020,6 +4020,41 @@
         "setCode": "exo"
     },
     {
+        "name": "Rockslide Ambush",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 1,
+            "R": 1
+        },
+        "oracleText": "Rockslide Ambush deals damage to target creature equal to the number of Mountains you control.",
+        "effects": [
+            {
+                "op": "dealDamage",
+                "amount": {
+                    "count": {
+                        "zone": "battlefield",
+                        "controller": "controller",
+                        "filter": {
+                            "subtype": "Mountain"
+                        }
+                    }
+                },
+                "to": {
+                    "target": 0
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "04e5faf1-25c9-46c0-88f2-c59e7b9c08c5",
+        "rarity": "uncommon",
+        "setCode": "ptk"
+    },
+    {
         "name": "Master's Call",
         "types": [
             "Instant"
@@ -16378,6 +16413,58 @@
         "id": "1646cb67-e0ac-4f2d-af21-618ff3613d69",
         "rarity": "uncommon",
         "setCode": "m13"
+    },
+    {
+        "name": "Volley Veteran",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Goblin",
+            "Warrior"
+        ],
+        "manaCost": {
+            "X": 3,
+            "R": 1
+        },
+        "power": 4,
+        "toughness": 2,
+        "oracleText": "When this creature enters, it deals damage to target creature an opponent controls equal to the number of Goblins you control.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "volley-veteran-trigger",
+                "oracleText": "When this creature enters, it deals damage to target creature an opponent controls equal to the number of Goblins you control.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1,
+                    "controller": "opponent"
+                },
+                "effects": [
+                    {
+                        "op": "dealDamage",
+                        "amount": {
+                            "count": {
+                                "zone": "battlefield",
+                                "controller": "controller",
+                                "filter": {
+                                    "subtype": "Goblin"
+                                }
+                            }
+                        },
+                        "to": {
+                            "target": 0
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "164960fc-6e80-4a53-90d7-5a18c0a28083",
+        "rarity": "uncommon",
+        "setCode": "m19"
     },
     {
         "name": "Capashen Standard",
@@ -68960,6 +69047,41 @@
         "setCode": "apc"
     },
     {
+        "name": "Seismic Strike",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 2,
+            "R": 1
+        },
+        "oracleText": "Seismic Strike deals damage to target creature equal to the number of Mountains you control.",
+        "effects": [
+            {
+                "op": "dealDamage",
+                "amount": {
+                    "count": {
+                        "zone": "battlefield",
+                        "controller": "controller",
+                        "filter": {
+                            "subtype": "Mountain"
+                        }
+                    }
+                },
+                "to": {
+                    "target": 0
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "6526a501-9402-44c1-8e3c-ce01b4ed5b87",
+        "rarity": "common",
+        "setCode": "m10"
+    },
+    {
         "name": "Windreaper Falcon",
         "types": [
             "Creature"
@@ -73279,6 +73401,43 @@
         "id": "6aa0dc1f-6c83-4ac9-b4f2-428e0e0bbf88",
         "rarity": "common",
         "setCode": "spm"
+    },
+    {
+        "name": "Stonefury",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 3,
+            "R": 2
+        },
+        "oracleText": "Stonefury deals damage to target creature equal to the number of lands you control.",
+        "effects": [
+            {
+                "op": "dealDamage",
+                "amount": {
+                    "count": {
+                        "zone": "battlefield",
+                        "controller": "controller",
+                        "filter": {
+                            "type": [
+                                "Land"
+                            ]
+                        }
+                    }
+                },
+                "to": {
+                    "target": 0
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "6aa37f74-50dd-4013-b48a-c33f1dbfb3e1",
+        "rarity": "common",
+        "setCode": "bfz"
     },
     {
         "name": "Deadly Recluse",
@@ -91026,6 +91185,108 @@
         "setCode": "apc"
     },
     {
+        "name": "Foundry Champion",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Elemental",
+            "Soldier"
+        ],
+        "manaCost": {
+            "X": 4,
+            "W": 1,
+            "R": 1
+        },
+        "power": 4,
+        "toughness": 4,
+        "oracleText": "When this creature enters, it deals damage to any target equal to the number of creatures you control.\n{R}: This creature gets +1/+0 until end of turn.\n{W}: This creature gets +0/+1 until end of turn.",
+        "activatedAbilities": [
+            {
+                "id": "foundry-champion-ability",
+                "oracleText": "{R}: This creature gets +1/+0 until end of turn.",
+                "cost": {
+                    "mana": {
+                        "R": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "ref": "$source"
+                        },
+                        "power": 1,
+                        "toughness": 0,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            },
+            {
+                "id": "foundry-champion-ability-2",
+                "oracleText": "{W}: This creature gets +0/+1 until end of turn.",
+                "cost": {
+                    "mana": {
+                        "W": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "ref": "$source"
+                        },
+                        "power": 0,
+                        "toughness": 1,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            }
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "foundry-champion-trigger",
+                "oracleText": "When this creature enters, it deals damage to any target equal to the number of creatures you control.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "targetRequirement": {
+                    "type": "any",
+                    "count": 1
+                },
+                "effects": [
+                    {
+                        "op": "dealDamage",
+                        "amount": {
+                            "count": {
+                                "zone": "battlefield",
+                                "controller": "controller",
+                                "filter": {
+                                    "type": [
+                                        "Creature"
+                                    ]
+                                }
+                            }
+                        },
+                        "to": {
+                            "target": 0
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "84e39703-db78-4d3d-aacd-5396848253ed",
+        "rarity": "rare",
+        "setCode": "gtc"
+    },
+    {
         "name": "Ithilien Kingfisher",
         "types": [
             "Creature"
@@ -96034,6 +96295,43 @@
         "id": "8b0f5d29-5342-4591-bdc9-c2bc9289ed41",
         "rarity": "uncommon",
         "setCode": "scg"
+    },
+    {
+        "name": "Massive Raid",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 1,
+            "R": 2
+        },
+        "oracleText": "Massive Raid deals damage to any target equal to the number of creatures you control.",
+        "effects": [
+            {
+                "op": "dealDamage",
+                "amount": {
+                    "count": {
+                        "zone": "battlefield",
+                        "controller": "controller",
+                        "filter": {
+                            "type": [
+                                "Creature"
+                            ]
+                        }
+                    }
+                },
+                "to": {
+                    "target": 0
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": "any",
+            "count": 1
+        },
+        "id": "8b16fbd8-fb62-4f75-92b3-a6295d95b327",
+        "rarity": "common",
+        "setCode": "gtc"
     },
     {
         "name": "Scrivener",
@@ -104057,6 +104355,43 @@
         "id": "96e42dbe-3eeb-4367-bb6d-0f5c71f5da80",
         "rarity": "common",
         "setCode": "uds"
+    },
+    {
+        "name": "Rumbling Rockslide",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 3,
+            "R": 1
+        },
+        "oracleText": "Rumbling Rockslide deals damage to target creature equal to the number of lands you control.",
+        "effects": [
+            {
+                "op": "dealDamage",
+                "amount": {
+                    "count": {
+                        "zone": "battlefield",
+                        "controller": "controller",
+                        "filter": {
+                            "type": [
+                                "Land"
+                            ]
+                        }
+                    }
+                },
+                "to": {
+                    "target": 0
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "96f9aaa7-11c7-4cd0-9803-9471c14ab846",
+        "rarity": "common",
+        "setCode": "iko"
     },
     {
         "name": "Mobilize",
@@ -113112,6 +113447,43 @@
         "id": "a419c9e3-5615-44f9-9256-94a3022bb69f",
         "rarity": "common",
         "setCode": "fem"
+    },
+    {
+        "name": "Ground Assault",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "R": 1,
+            "G": 1
+        },
+        "oracleText": "Ground Assault deals damage to target creature equal to the number of lands you control.",
+        "effects": [
+            {
+                "op": "dealDamage",
+                "amount": {
+                    "count": {
+                        "zone": "battlefield",
+                        "controller": "controller",
+                        "filter": {
+                            "type": [
+                                "Land"
+                            ]
+                        }
+                    }
+                },
+                "to": {
+                    "target": 0
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "a4220348-f030-4639-b1a9-6f61ac6bb6a8",
+        "rarity": "uncommon",
+        "setCode": "gtc"
     },
     {
         "name": "Fencing Ace",
@@ -124051,6 +124423,42 @@
         "setCode": "c14"
     },
     {
+        "name": "Outnumber",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "R": 1
+        },
+        "oracleText": "Outnumber deals damage to target creature equal to the number of creatures you control.",
+        "effects": [
+            {
+                "op": "dealDamage",
+                "amount": {
+                    "count": {
+                        "zone": "battlefield",
+                        "controller": "controller",
+                        "filter": {
+                            "type": [
+                                "Creature"
+                            ]
+                        }
+                    }
+                },
+                "to": {
+                    "target": 0
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "b3373281-7319-4320-8afb-4546fb55ab4c",
+        "rarity": "common",
+        "setCode": "bfz"
+    },
+    {
         "name": "Turntimber Ascetic",
         "types": [
             "Creature"
@@ -126039,6 +126447,46 @@
         "id": "b5f6256e-5d24-4fa0-a83b-5ff971f7e1cc",
         "rarity": "uncommon",
         "setCode": "eve"
+    },
+    {
+        "name": "Earth Tremor",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 3,
+            "R": 1
+        },
+        "oracleText": "Earth Tremor deals damage to target creature or planeswalker equal to the number of lands you control.",
+        "effects": [
+            {
+                "op": "dealDamage",
+                "amount": {
+                    "count": {
+                        "zone": "battlefield",
+                        "controller": "controller",
+                        "filter": {
+                            "type": [
+                                "Land"
+                            ]
+                        }
+                    }
+                },
+                "to": {
+                    "target": 0
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": [
+                "Creature",
+                "Planeswalker"
+            ],
+            "count": 1
+        },
+        "id": "b5f700c6-7591-481d-b223-21f5b820e831",
+        "rarity": "common",
+        "setCode": "clb"
     },
     {
         "name": "Slimebind",
@@ -132966,6 +133414,59 @@
         "id": "bf1ea89d-4b9d-455f-a7f4-a26026e0c272",
         "rarity": "rare",
         "setCode": "exo"
+    },
+    {
+        "name": "Fire Dragon",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Dragon"
+        ],
+        "manaCost": {
+            "X": 6,
+            "R": 3
+        },
+        "power": 6,
+        "toughness": 6,
+        "oracleText": "Flying\nWhen this creature enters, it deals damage to target creature equal to the number of Mountains you control.",
+        "staticAbilities": [
+            "flying"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "fire-dragon-trigger",
+                "oracleText": "When this creature enters, it deals damage to target creature equal to the number of Mountains you control.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                },
+                "effects": [
+                    {
+                        "op": "dealDamage",
+                        "amount": {
+                            "count": {
+                                "zone": "battlefield",
+                                "controller": "controller",
+                                "filter": {
+                                    "subtype": "Mountain"
+                                }
+                            }
+                        },
+                        "to": {
+                            "target": 0
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "bf1f26d1-4381-470a-bfbf-ef226f980597",
+        "rarity": "rare",
+        "setCode": "por"
     },
     {
         "name": "Boros Swiftblade",
@@ -153472,6 +153973,59 @@
         "setCode": "phpr"
     },
     {
+        "name": "Spawn of Thraxes",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Dragon"
+        ],
+        "manaCost": {
+            "X": 5,
+            "R": 2
+        },
+        "power": 5,
+        "toughness": 5,
+        "oracleText": "Flying\nWhen this creature enters, it deals damage to any target equal to the number of Mountains you control.",
+        "staticAbilities": [
+            "flying"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "spawn-of-thraxes-trigger",
+                "oracleText": "When this creature enters, it deals damage to any target equal to the number of Mountains you control.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "targetRequirement": {
+                    "type": "any",
+                    "count": 1
+                },
+                "effects": [
+                    {
+                        "op": "dealDamage",
+                        "amount": {
+                            "count": {
+                                "zone": "battlefield",
+                                "controller": "controller",
+                                "filter": {
+                                    "subtype": "Mountain"
+                                }
+                            }
+                        },
+                        "to": {
+                            "target": 0
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "e13aa40e-c626-486d-8abc-10aa68542c5b",
+        "rarity": "rare",
+        "setCode": "jou"
+    },
+    {
         "name": "Field Creeper",
         "types": [
             "Artifact",
@@ -156291,6 +156845,57 @@
         "setCode": "fin"
     },
     {
+        "name": "Roar of the Crowd",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 3,
+            "R": 1
+        },
+        "oracleText": "Choose a creature type. Roar of the Crowd deals damage to any target equal to the number of permanents you control of the chosen type.",
+        "effects": [
+            {
+                "op": "chooseCreatureType",
+                "player": "controller",
+                "prompt": "Choose a creature type",
+                "bind": "$chosenType"
+            },
+            {
+                "op": "dealDamage",
+                "amount": {
+                    "count": {
+                        "zone": "battlefield",
+                        "controller": "controller",
+                        "filter": {
+                            "type": [
+                                "Artifact",
+                                "Battle",
+                                "Creature",
+                                "Enchantment",
+                                "Land",
+                                "Planeswalker"
+                            ],
+                            "subtype": {
+                                "ref": "$chosenType"
+                            }
+                        }
+                    }
+                },
+                "to": {
+                    "target": 0
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": "any",
+            "count": 1
+        },
+        "id": "e4b0e072-c51a-4e97-a089-8e5b540355aa",
+        "rarity": "common",
+        "setCode": "mor"
+    },
+    {
         "name": "Blinkmoth Well",
         "types": [
             "Land"
@@ -157698,6 +158303,41 @@
         "id": "e6b3bcfe-be82-458b-ba59-ecb84436d747",
         "rarity": "uncommon",
         "setCode": "scg"
+    },
+    {
+        "name": "Spitting Earth",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 1,
+            "R": 1
+        },
+        "oracleText": "Spitting Earth deals damage to target creature equal to the number of Mountains you control.",
+        "effects": [
+            {
+                "op": "dealDamage",
+                "amount": {
+                    "count": {
+                        "zone": "battlefield",
+                        "controller": "controller",
+                        "filter": {
+                            "subtype": "Mountain"
+                        }
+                    }
+                },
+                "to": {
+                    "target": 0
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "e6b774d2-1272-4cd2-b5f8-dfe3ca6e41ee",
+        "rarity": "common",
+        "setCode": "mir"
     },
     {
         "name": "Maraleaf Pixie",
@@ -169255,6 +169895,41 @@
         "id": "f8bacb12-da46-4b00-804f-9ff6bff452bc",
         "rarity": "common",
         "setCode": "dom"
+    },
+    {
+        "name": "Spire Barrage",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 4,
+            "R": 1
+        },
+        "oracleText": "Spire Barrage deals damage to any target equal to the number of Mountains you control.",
+        "effects": [
+            {
+                "op": "dealDamage",
+                "amount": {
+                    "count": {
+                        "zone": "battlefield",
+                        "controller": "controller",
+                        "filter": {
+                            "subtype": "Mountain"
+                        }
+                    }
+                },
+                "to": {
+                    "target": 0
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": "any",
+            "count": 1
+        },
+        "id": "f8c8fe2a-3203-4545-bb25-b1f107b13cca",
+        "rarity": "common",
+        "setCode": "zen"
     },
     {
         "name": "Two-Headed Cerberus",

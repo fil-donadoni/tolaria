@@ -1721,7 +1721,7 @@ const DAMAGE_EQUAL_MANA_VALUE = new RegExp(
     `^(.+) deals damage equal to ${actedOnNounGroup(["permanent"])} mana value to (.+)$`
 );
 /**
- * CR 107.1 + CR 119.3 — "{self} deals damage to target creature equal to the
+ * CR 107.1 + CR 120.1 — "{self} deals damage to target creature equal to the
  * number of Mountains you control" (Rockslide Ambush). Recipient and count are
  * both open spans; "equal to the number of" is the only anchor between them,
  * so the recipient is read lazily up to it.
