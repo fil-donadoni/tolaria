@@ -886,6 +886,9 @@ export class SentenceWalk {
         readonly requirement: TargetRequirement;
     } | null = null;
 
+    /** A destroy/exile/move sat behind a gate, so no live read of its target is safe. */
+    gatedRemoval = false;
+
     /** A binding name unique within this ability's script. */
     nextBind(prefix: string): string {
         this.binds.count += 1;
@@ -2207,6 +2210,9 @@ function gatedSentence(
     const actedOn = walk.actedOn;
     const inner = lowerSentence(sentence, walk, site);
     walk.libraryLookedAt = antecedent;
+    // A removal behind the gate may or may not have happened, and the restore
+    // below forgets it: remember that the announced object's fate is unknown.
+    if (walk.actedOn !== actedOn) walk.gatedRemoval = true;
     walk.actedOn = actedOn;
     return inner;
 }
@@ -2317,7 +2323,13 @@ function lowerThatCreatureController(
 ): Lowered<{ player: EffectPlayerRef }> {
     const announced = walk.targets.requirements();
     const only = announced.length === 1 ? announced[0]! : null;
-    if (only === null || only.type !== "Creature" || only.count !== 1)
+    if (
+        only === null ||
+        only.type !== "Creature" ||
+        only.count !== 1 ||
+        only.announcedOnlyIfKicked === true ||
+        walk.gatedRemoval
+    )
         return unlowerable(
             '"that creature\'s controller" names no single creature target announced before it (CR 608.2h)'
         );

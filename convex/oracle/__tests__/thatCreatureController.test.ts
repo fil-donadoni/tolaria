@@ -182,6 +182,18 @@ describe("that creature's controller as a damage recipient (CR 110.2, issue #431
             ).toBe("unparsed");
         });
 
+        it("a target announced only if kicked, then destroyed behind the gate", () => {
+            expect(
+                compileCard(
+                    oracleCard({
+                        typeLine: "Sorcery",
+                        oracleText:
+                            "Kicker {2}\nIf {self} was kicked, destroy target creature. {self} deals 2 damage to that creature's controller.",
+                    })
+                ).state
+            ).toBe("unparsed");
+        });
+
         it("no earlier target at all", () => {
             expect(
                 refused("{self} deals 2 damage to that creature's controller.")
