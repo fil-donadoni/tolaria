@@ -215,6 +215,10 @@ describe("the generated position poses a land target on the opponent's side (iss
     });
 
     it("the Bot casts a land destroyer at that land", () => {
-        expect(playBotReach(STONE_RAIN_SHAPE)).toEqual({ outcome: "played" });
+        expect(
+            withTemporaryDefinition(STONE_RAIN_SHAPE, () =>
+                playBotReach(STONE_RAIN_SHAPE)
+            )
+        ).toEqual({ outcome: "played" });
     });
 });
