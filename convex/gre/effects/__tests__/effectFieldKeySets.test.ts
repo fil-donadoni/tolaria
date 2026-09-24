@@ -55,7 +55,11 @@ function hiddenHandErrors(effects: EffectOp[]): string[] {
 const OUTER_PREFIX = `${HOST} (key-set-probe): effects[0]: a count`;
 
 /** The one `NESTED_SCRIPT_KEYS` member that is not an Op-list nesting shape:
- *  `token` holds a whole card spec, whose abilities carry their own scripts. */
+ *  `token` holds a whole card spec, whose abilities carry their own scripts.
+ *  Every script a token spec can carry today sits under `effects` — itself a
+ *  member — so the outer walk stops there even without `token`; dropping
+ *  `token` alone is caught by the membership pin, and this row pins the other
+ *  half: the token ability's script IS re-entered and checked in its scope. */
 const TOKEN_HOST: EffectOp = {
     op: "createToken",
     controller: "controller",
