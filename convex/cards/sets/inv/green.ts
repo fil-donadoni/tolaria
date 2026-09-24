@@ -1590,7 +1590,6 @@ export const tangle: CardDefinition = {
 // `conditionOnSelf` + resolution-time `additionalCostPaid` branch).
 // CR 613.4c — the anthem covers every Saproling and every OTHER Treefolk.
 // Token art: `generated/token-prints.json` keyed by this card's id.
-// compiler-gap: "Kicker {X}" (#4318)
 // compiler-gap: "Saproling creatures and other Treefolk creatures get +1/+1." (#2693)
 // compiler-gap: "When Verdeloth enters, if it was kicked, create X 1/1 green Saproling creature tokens." (#2693)
 export const verdelothTheAncient: CardDefinition = {
