@@ -1147,7 +1147,7 @@ function isEffectTokenSpec(value: unknown): boolean {
  *  sits outside their scope — the same list scoping `revealedBindings` uses.
  *  Unfiltered hand counts are not returned: their cardinality is public
  *  information (CR 402.3) and they need no reveal. */
-const NESTED_SCRIPT_KEYS = new Set([
+export const NESTED_SCRIPT_KEYS: ReadonlySet<string> = new Set([
     "then",
     "else",
     "effects",
