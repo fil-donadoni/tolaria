@@ -44,6 +44,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
+    submitChoice,
 } from "../../../__tests__/setup";
 import { activatePump, pushDelayedTrigger, runUntapForJ } from "./helpers";
 import { getDefinition } from "../../../index";
@@ -3230,19 +3231,12 @@ describe("Word of Command (controlled cast — land branch, CR 305.2 / 608.2, AD
 
     /** Submit the head pending choice through the backend integration path.
      *  Mirrors the `submitResolutionChoice` mutation handler in `game.ts`
-     *  exactly: `applyPendingChoiceSubmit` (which re-runs resolution) followed
+     *  exactly: `applyPendingChoiceSubmit` (via the shared `submitChoice`, which
+     *  re-runs resolution) followed
      *  by `checkStateBasedActions` — exercising the GRE → game.ts boundary, not
      *  just the engine in isolation. */
-    function submitChoice(state: GameState, picks: string[]): void {
-        const head = (state.pendingChoices ?? [])[0];
-        expect(head).toBeDefined();
-        applyPendingChoiceSubmit(state, {
-            playerId: head.playerId,
-            stackItemId: head.stackItemId,
-            step: head.step,
-            choiceId: head.choiceId,
-            cardInstanceIds: picks,
-        });
+    function submitChoiceThenSba(state: GameState, picks: string[]): void {
+        submitChoice(state, picks);
         checkStateBasedActions(state);
     }
 
@@ -3290,7 +3284,7 @@ describe("Word of Command (controlled cast — land branch, CR 305.2 / 608.2, AD
     it("picking a land plays it under the opponent's control, consuming their land drop (CR 305.2)", () => {
         const state = seed();
         resolveTopOfStack(state);
-        submitChoice(state, ["p2-forest"]);
+        submitChoiceThenSba(state, ["p2-forest"]);
 
         const p2 = state.players[1];
         // Forest left p2's hand and is on p2's battlefield, controlled by p2.
@@ -3311,7 +3305,7 @@ describe("Word of Command (controlled cast — land branch, CR 305.2 / 608.2, AD
     it("if the opponent already played a land this turn, the chosen land is not played (CR 305.2 'if able')", () => {
         const state = seed({ p2LandsPlayedThisTurn: 1 });
         resolveTopOfStack(state);
-        submitChoice(state, ["p2-forest"]);
+        submitChoiceThenSba(state, ["p2-forest"]);
 
         const p2 = state.players[1];
         // The Forest stays in hand — playing it is not "able".
@@ -3326,7 +3320,7 @@ describe("Word of Command (controlled cast — land branch, CR 305.2 / 608.2, AD
     it("picking a non-land is a no-op this slice (TODO #577 spell branch)", () => {
         const state = seed();
         resolveTopOfStack(state);
-        submitChoice(state, ["p2-bear"]);
+        submitChoiceThenSba(state, ["p2-bear"]);
 
         const p2 = state.players[1];
         // The Bear stays in hand — the spell branch is not implemented yet.
@@ -3360,7 +3354,7 @@ describe("Word of Command (controlled cast — land branch, CR 305.2 / 608.2, AD
     it("wire format: the played land is public on the opponent's battlefield", () => {
         const state = seed();
         resolveTopOfStack(state);
-        submitChoice(state, ["p2-forest"]);
+        submitChoiceThenSba(state, ["p2-forest"]);
         // Viewer = p1: the opponent's battlefield is always public.
         const projected = projectPublicState(state, 1, "p1");
         const bfIds = projected.players[1].battlefield.map((c) => c.id);
