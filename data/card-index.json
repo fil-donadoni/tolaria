@@ -14630,6 +14630,16 @@
         "source": "compiled"
     },
     {
+        "name": "Earth Tremor",
+        "scryfallId": "b5f700c6-7591-481d-b223-21f5b820e831",
+        "oracleId": "1dd7d11b-e3f3-4886-b412-0c085187869c",
+        "firstSet": "clb",
+        "firstPrintId": "b5f700c6-7591-481d-b223-21f5b820e831",
+        "firstPrintSet": "clb",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Earth-Origin Yak",
         "scryfallId": "abcde784-d0cd-4bac-b1bf-bd686ac2f73d",
         "oracleId": "c2b659ef-68f6-452c-94b5-2872f4e7b069",
@@ -17720,6 +17730,16 @@
         "source": "compiled"
     },
     {
+        "name": "Fire Dragon",
+        "scryfallId": "bf1f26d1-4381-470a-bfbf-ef226f980597",
+        "oracleId": "349d8ef9-e07a-416f-a5b1-2c2be6bb322d",
+        "firstSet": "por",
+        "firstPrintId": "bf1f26d1-4381-470a-bfbf-ef226f980597",
+        "firstPrintSet": "por",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Fire Drake",
         "scryfallId": "d3419db6-1c38-4aa4-b953-1dde7d22b927",
         "oracleId": "fd3bcc9b-7d84-478e-aef5-2e44610107c7",
@@ -19045,6 +19065,16 @@
         "firstPrintId": "e83a2862-a2d7-4d87-a4b8-def9f441f5fa",
         "firstPrintSet": "aer",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Foundry Champion",
+        "scryfallId": "84e39703-db78-4d3d-aacd-5396848253ed",
+        "oracleId": "d1c44856-ca53-4b6e-902e-8d9c6fe1f61c",
+        "firstSet": "gtc",
+        "firstPrintId": "84e39703-db78-4d3d-aacd-5396848253ed",
+        "firstPrintSet": "gtc",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -22553,6 +22583,16 @@
         "firstPrintId": "b698c5e1-3816-4f35-8e39-65dc68f5c64f",
         "firstPrintSet": "rna",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Ground Assault",
+        "scryfallId": "a4220348-f030-4639-b1a9-6f61ac6bb6a8",
+        "oracleId": "13613f6e-a6e4-4493-b029-8ec11610c29f",
+        "firstSet": "gtc",
+        "firstPrintId": "a4220348-f030-4639-b1a9-6f61ac6bb6a8",
+        "firstPrintSet": "gtc",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -31358,6 +31398,16 @@
         "source": "compiled"
     },
     {
+        "name": "Massive Raid",
+        "scryfallId": "8b16fbd8-fb62-4f75-92b3-a6295d95b327",
+        "oracleId": "032367fd-e869-463e-aa0f-65e3c6567e60",
+        "firstSet": "gtc",
+        "firstPrintId": "8b16fbd8-fb62-4f75-92b3-a6295d95b327",
+        "firstPrintSet": "gtc",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Master Decoy",
         "scryfallId": "f3e11097-1ace-4ae8-a9e8-d00b9f709e54",
         "oracleId": "94a16609-8529-4301-8a3d-47ced194f7cd",
@@ -36218,6 +36268,16 @@
         "firstSet": "otj",
         "firstPrintId": "2feaa51e-47fb-4849-b420-ee7278f3489a",
         "firstPrintSet": "otj",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Outnumber",
+        "scryfallId": "b3373281-7319-4320-8afb-4546fb55ab4c",
+        "oracleId": "b72efd67-a234-44af-8296-3e182292c7e6",
+        "firstSet": "bfz",
+        "firstPrintId": "b3373281-7319-4320-8afb-4546fb55ab4c",
+        "firstPrintSet": "bfz",
         "rarity": "common",
         "source": "compiled"
     },
@@ -41710,6 +41770,16 @@
         "source": "compiled"
     },
     {
+        "name": "Roar of the Crowd",
+        "scryfallId": "e4b0e072-c51a-4e97-a089-8e5b540355aa",
+        "oracleId": "0ab56978-7add-4427-b10d-4f59ab4b2c5d",
+        "firstSet": "mor",
+        "firstPrintId": "e4b0e072-c51a-4e97-a089-8e5b540355aa",
+        "firstPrintSet": "mor",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Roar of the Wurm",
         "scryfallId": "ddf54317-4c08-4a66-9fd2-9983384e2374",
         "oracleId": "b8b9e6fd-b3ed-4fbc-8753-74018fa33caa",
@@ -41820,6 +41890,16 @@
         "firstSet": "atq",
         "firstPrintId": "d5bb2093-78a8-4a6c-abe7-9a5afc181ec5",
         "firstPrintSet": "atq"
+    },
+    {
+        "name": "Rockslide Ambush",
+        "scryfallId": "04e5faf1-25c9-46c0-88f2-c59e7b9c08c5",
+        "oracleId": "13958d6f-25f9-4a6c-a16c-e7a20e1b9117",
+        "firstSet": "ptk",
+        "firstPrintId": "04e5faf1-25c9-46c0-88f2-c59e7b9c08c5",
+        "firstPrintSet": "ptk",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Rod of Ruin",
@@ -42252,6 +42332,16 @@
         "firstSet": "jmp",
         "firstPrintId": "93a56610-482b-4ddf-88e1-e4a2edf4fa0f",
         "firstPrintSet": "jmp",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Rumbling Rockslide",
+        "scryfallId": "96f9aaa7-11c7-4cd0-9803-9471c14ab846",
+        "oracleId": "0909cbce-b4a0-42bb-8a97-47eeb99606c0",
+        "firstSet": "iko",
+        "firstPrintId": "96f9aaa7-11c7-4cd0-9803-9471c14ab846",
+        "firstPrintSet": "iko",
         "rarity": "common",
         "source": "compiled"
     },
@@ -44140,6 +44230,16 @@
         "firstSet": "zen",
         "firstPrintId": "20365082-6102-4e3b-8791-c9b66846270d",
         "firstPrintSet": "zen",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Seismic Strike",
+        "scryfallId": "6526a501-9402-44c1-8e3c-ce01b4ed5b87",
+        "oracleId": "3513d862-ef0d-4949-b33a-3fa9437cc444",
+        "firstSet": "m10",
+        "firstPrintId": "6526a501-9402-44c1-8e3c-ce01b4ed5b87",
+        "firstPrintSet": "m10",
         "rarity": "common",
         "source": "compiled"
     },
@@ -47702,6 +47802,16 @@
         "source": "compiled"
     },
     {
+        "name": "Spawn of Thraxes",
+        "scryfallId": "e13aa40e-c626-486d-8abc-10aa68542c5b",
+        "oracleId": "52289774-d292-4028-91fb-8826fa004dc8",
+        "firstSet": "jou",
+        "firstPrintId": "e13aa40e-c626-486d-8abc-10aa68542c5b",
+        "firstPrintSet": "jou",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Spawning Grounds",
         "scryfallId": "356f0766-2cdc-469e-8488-27e528871dd5",
         "oracleId": "1961dd92-db0b-4f02-b9c8-08f760f4051b",
@@ -47978,6 +48088,16 @@
         "source": "compiled"
     },
     {
+        "name": "Spire Barrage",
+        "scryfallId": "f8c8fe2a-3203-4545-bb25-b1f107b13cca",
+        "oracleId": "ef84d5e2-5db7-40e7-af49-a2f6f494a8a4",
+        "firstSet": "zen",
+        "firstPrintId": "f8c8fe2a-3203-4545-bb25-b1f107b13cca",
+        "firstPrintSet": "zen",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Spire Mangler",
         "scryfallId": "a3ce548d-764a-4397-bae3-d348dca78421",
         "oracleId": "6416dae0-0d40-4d88-b30b-e1a0c8380e78",
@@ -48133,6 +48253,16 @@
         "firstPrintId": "c9f6ef97-587f-4f7b-98a2-e3cc8b39df8b",
         "firstPrintSet": "vis",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Spitting Earth",
+        "scryfallId": "e6b774d2-1272-4cd2-b5f8-dfe3ca6e41ee",
+        "oracleId": "0c3bf4e1-d91e-4dd3-a800-e40971222c71",
+        "firstSet": "mir",
+        "firstPrintId": "e6b774d2-1272-4cd2-b5f8-dfe3ca6e41ee",
+        "firstPrintSet": "mir",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -49188,6 +49318,16 @@
         "firstSet": "wwk",
         "firstPrintId": "19557351-b65f-4b04-b971-66abdc07000a",
         "firstPrintSet": "wwk"
+    },
+    {
+        "name": "Stonefury",
+        "scryfallId": "6aa37f74-50dd-4013-b48a-c33f1dbfb3e1",
+        "oracleId": "577554de-78c3-4fa2-a866-06b80280bc97",
+        "firstSet": "bfz",
+        "firstPrintId": "6aa37f74-50dd-4013-b48a-c33f1dbfb3e1",
+        "firstPrintSet": "bfz",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Stonehands",
@@ -56747,6 +56887,16 @@
         "firstPrintId": "4f663979-a778-4fb2-97c4-67ab82926f13",
         "firstPrintSet": "ody",
         "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Volley Veteran",
+        "scryfallId": "164960fc-6e80-4a53-90d7-5a18c0a28083",
+        "oracleId": "bf4268e6-170a-445b-b215-718f7494ae28",
+        "firstSet": "m19",
+        "firstPrintId": "164960fc-6e80-4a53-90d7-5a18c0a28083",
+        "firstPrintSet": "m19",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {

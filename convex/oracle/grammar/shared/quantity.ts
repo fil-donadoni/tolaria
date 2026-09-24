@@ -146,3 +146,30 @@ export const countedSetRule: Rule<CountedSetIR> = subGrammar(
         });
     })
 );
+
+/**
+ * CR 107.1 — "the number of Mountains you control": the same counted set as
+ * "for each Mountain you control", printed as a plural noun phrase after
+ * "equal to". The descriptor is `descriptorRule`'s read whole and must be
+ * plural (a singular "the number of Mountain" is a phrase we have misread);
+ * whether the engine's `count` can express every clause it carries is the
+ * LOWERING's refusal to make, as for `countedSetRule`.
+ */
+export const numberOfSetRule: Rule<CountedSetIR> = subGrammar(
+    "number of set",
+    rule<CountedSetIR>("number of set", (span, ctx) => {
+        if (!span.startsWith("the number of "))
+            return fail('not a "the number of" phrase', span);
+        const descriptor = descriptorRule.run(
+            span.slice("the number of ".length),
+            ctx
+        );
+        if (!descriptor.ok) return descriptor;
+        if (descriptor.value.plural !== true)
+            return fail('"the number of" counts a plural descriptor', span);
+        return ok({
+            kind: "permanents" as const,
+            descriptor: descriptor.value,
+        });
+    })
+);

@@ -238,7 +238,10 @@ function lowerCountedSet(
         return unlowerable('a counted set must be permanents "you control"');
     const filter: EffectCardFilter = {};
     for (const [key, value] of Object.entries(descriptor)) {
-        if (value === undefined || key === "controller") continue;
+        // `plural` is the noun's number ("the number of Mountains"), not a
+        // clause: it narrows nothing about what is counted.
+        if (value === undefined || key === "controller" || key === "plural")
+            continue;
         if (key === "types") filter.type = [...(value as CardType[])];
         else if (key === "subtypes" && (value as string[]).length === 1)
             filter.subtype = (value as string[])[0]!;
@@ -1423,14 +1426,9 @@ function lowerSentenceBody(
             // CR 202.3 — the magnitude may be the mana value of the object an
             // earlier sentence acted on, which only the walk can resolve
             // (Orim's Thunder, issue #4221).
-            const amount =
-                sentence.amount.kind === "acted-on-characteristic"
-                    ? lowerActedOnCharacteristic(
-                          sentence.amount.noun,
-                          sentence.amount.characteristic,
-                          walk
-                      )
-                    : lowerAmount(sentence.amount, site);
+            // CR 107.1 — or a counted set ("equal to the number of Mountains
+            // you control"), which needs the walk's target slots.
+            const amount = lowerLifeAmount(sentence.amount, walk, site);
             if (!amount.ok) return amount;
             // CR 120.3 — "to each creature and each player" names two
             // disjoint recipient sets; `dealDamage.to` names one, so this

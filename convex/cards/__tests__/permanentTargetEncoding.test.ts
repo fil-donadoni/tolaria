@@ -24,8 +24,10 @@ const byName = (name: string): CardDefinition => {
     return def;
 };
 
-/** A "target <words> permanent" phrase, read off one Oracle sentence. */
-const TARGET_PERMANENT = /\btarget (?:[\w'-]+ )*?permanents?\b/i;
+/** A "target <words> permanent" phrase, read off one Oracle sentence. The
+ *  words never include "equal": "any target equal to the number of permanents
+ *  you control" counts permanents, it does not target one. */
+const TARGET_PERMANENT = /\btarget (?:(?!equal\b)[\w'-]+ )*?permanents?\b/i;
 
 interface RequirementSite {
     readonly card: string;
