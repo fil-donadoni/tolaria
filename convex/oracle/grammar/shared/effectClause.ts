@@ -576,6 +576,16 @@ export type EffectSentenceIR =
       }
     | {
           /**
+           * CR 701.13a — exile a permanent: put it into the exile zone from the
+           * battlefield. The subject is always an announced target; a sweep
+           * ("exile all creatures") and a card in a graveyard (`move-zone`) are
+           * other shapes.
+           */
+          readonly kind: "exile";
+          readonly subject: SubjectIR;
+      }
+    | {
+          /**
            * CR 701.6a — counter a spell on the stack.
            *
            * The subject is always an announced spell target: nothing else is
@@ -2881,7 +2891,8 @@ function effectSentence(
         } satisfies EffectSentenceIR);
     }
 
-    // ── exile a card from a graveyard (CR 701.13a) ─────────────────────────
+    // ── exile (CR 701.13a) ─────────────────────────────────────────────────
+    // An announced permanent (`exile`) or a card in a graveyard (`move-zone`).
     if (span.startsWith("Exile ")) {
         const subject = subjectRule.run(span.slice("Exile ".length), ctx);
         if (!subject.ok) return subject;
@@ -2889,6 +2900,14 @@ function effectSentence(
         // catalogue writes the graveyard case as `moveZone`/`to: "exile"` and
         // the battlefield case as the dedicated `exile` Op, and picking one for
         // both would encode half the corpus in the wrong shape.
+        if (
+            subject.value.kind === "target" &&
+            subject.value.requirement.zone === undefined
+        )
+            return ok({
+                kind: "exile" as const,
+                subject: subject.value,
+            } satisfies EffectSentenceIR);
         if (
             subject.value.kind !== "target" ||
             subject.value.requirement.zone !== "graveyard"
