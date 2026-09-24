@@ -5,347 +5,347 @@
         {
             "key": "(op) › addMana",
             "op": "addMana",
-            "issue": 3883
+            "issue": 4529
         },
         {
             "key": "(op) › addPlayerCounter",
             "op": "addPlayerCounter",
-            "issue": 3884
+            "issue": 4536
         },
         {
             "key": "(op) › addSubtype",
             "op": "addSubtype",
-            "issue": 3885
+            "issue": 4533
         },
         {
             "key": "(op) › armGraveyardRedirect",
             "op": "armGraveyardRedirect",
-            "issue": 3887
+            "issue": 4526
         },
         {
             "key": "(op) › attach",
             "op": "attach",
-            "issue": 3888
+            "issue": 4530
         },
         {
             "key": "(op) › becomeCopy",
             "op": "becomeCopy",
-            "issue": 3889
+            "issue": 4533
         },
         {
             "key": "(op) › becomeMonarch",
             "op": "becomeMonarch",
-            "issue": 3890
+            "issue": 4536
         },
         {
             "key": "(op) › captureBinding",
             "op": "captureBinding",
-            "issue": 3891
+            "issue": 4526
         },
         {
             "key": "(op) › cascade",
             "op": "cascade",
-            "issue": 3892
+            "issue": 4532
         },
         {
             "key": "(op) › castDuringResolution",
             "op": "castDuringResolution",
-            "issue": 3893
+            "issue": 4532
         },
         {
             "key": "(op) › chooseCategorized",
             "op": "chooseCategorized",
-            "issue": 3895
+            "issue": 4524
         },
         {
             "key": "(op) › coinFlip",
             "op": "coinFlip",
-            "issue": 3897
+            "issue": 4537
         },
         {
             "key": "(op) › coinFlipSync",
             "op": "coinFlipSync",
-            "issue": 3898
+            "issue": 4537
         },
         {
             "key": "(op) › createTokenCopy",
             "op": "createTokenCopy",
-            "issue": 3901
+            "issue": 4533
         },
         {
             "key": "(op) › delayedTrigger",
             "op": "delayedTrigger",
-            "issue": 3903
+            "issue": 4531
         },
         {
             "key": "(op) › digMatchingToHand",
             "op": "digMatchingToHand",
-            "issue": 3904
+            "issue": 4524
         },
         {
             "key": "(op) › divideIntoPiles",
             "op": "divideIntoPiles",
-            "issue": 3906
+            "issue": 4524
         },
         {
             "key": "(op) › emblem",
             "op": "emblem",
-            "issue": 3908
+            "issue": 4536
         },
         {
             "key": "(op) › exileAndReturnTransformed",
             "op": "exileAndReturnTransformed",
-            "issue": 3910
+            "issue": 4534
         },
         {
             "key": "(op) › exileOnDeath",
             "op": "exileOnDeath",
-            "issue": 3911
+            "issue": 4526
         },
         {
             "key": "(op) › exileSelf",
             "op": "exileSelf",
-            "issue": 3912
+            "issue": 4526
         },
         {
             "key": "(op) › exileTopOfLibrary",
             "op": "exileTopOfLibrary",
-            "issue": 3913
+            "issue": 4525
         },
         {
             "key": "(op) › exileWithAttachments",
             "op": "exileWithAttachments",
-            "issue": 3914
+            "issue": 4526
         },
         {
             "key": "(op) › explore",
             "op": "explore",
-            "issue": 3915
+            "issue": 4525
         },
         {
             "key": "(op) › extraCombat",
             "op": "extraCombat",
-            "issue": 3916
+            "issue": 4535
         },
         {
             "key": "(op) › extraTurn",
             "op": "extraTurn",
-            "issue": 3917
+            "issue": 4535
         },
         {
             "key": "(op) › gainControl",
             "op": "gainControl",
-            "issue": 3919
+            "issue": 4530
         },
         {
             "key": "(op) › grantCastFromExile",
             "op": "grantCastFromExile",
-            "issue": 3920
+            "issue": 4532
         },
         {
             "key": "(op) › grantCastFromGraveyard",
             "op": "grantCastFromGraveyard",
-            "issue": 3921
+            "issue": 4532
         },
         {
             "key": "(op) › grantCastTiming",
             "op": "grantCastTiming",
-            "issue": 3922
+            "issue": 4532
         },
         {
             "key": "(op) › grantGraveyardPlay",
             "op": "grantGraveyardPlay",
-            "issue": 3923
+            "issue": 4532
         },
         {
             "key": "(op) › grantSpellManaSubstitution",
             "op": "grantSpellManaSubstitution",
-            "issue": 3924
+            "issue": 4529
         },
         {
             "key": "(op) › hideaway",
             "op": "hideaway",
-            "issue": 3925
+            "issue": 4526
         },
         {
             "key": "(op) › lockDamage",
             "op": "lockDamage",
-            "issue": 3927
+            "issue": 4527
         },
         {
             "key": "(op) › lookHand",
             "op": "lookHand",
-            "issue": 3929
+            "issue": 4528
         },
         {
             "key": "(op) › lookRandomHand",
             "op": "lookRandomHand",
-            "issue": 3930
+            "issue": 4528
         },
         {
             "key": "(op) › loseAllAbilities",
             "op": "loseAllAbilities",
-            "issue": 3931
+            "issue": 4533
         },
         {
             "key": "(op) › loseAllAbilitiesWhileSourceRemains",
             "op": "loseAllAbilitiesWhileSourceRemains",
-            "issue": 3932
+            "issue": 4533
         },
         {
             "key": "(op) › markAssignsNoCombatDamage",
             "op": "markAssignsNoCombatDamage",
-            "issue": 3933
+            "issue": 4527
         },
         {
             "key": "(op) › mill",
             "op": "mill",
-            "issue": 3934
+            "issue": 4525
         },
         {
             "key": "(op) › moveSpellFromStack",
             "op": "moveSpellFromStack",
-            "issue": 3935
+            "issue": 4532
         },
         {
             "key": "(op) › nameCard",
             "op": "nameCard",
-            "issue": 3936
+            "issue": 4528
         },
         {
             "key": "(op) › payVariableMana",
             "op": "payVariableMana",
-            "issue": 3938
+            "issue": 4529
         },
         {
             "key": "(op) › preventRegeneration",
             "op": "preventRegeneration",
-            "issue": 3940
+            "issue": 4527
         },
         {
             "key": "(op) › putBack",
             "op": "putBack",
-            "issue": 3941
+            "issue": 4525
         },
         {
             "key": "(op) › randomExileToHand",
             "op": "randomExileToHand",
-            "issue": 3942
+            "issue": 4528
         },
         {
             "key": "(op) › rangedTopdeck",
             "op": "rangedTopdeck",
-            "issue": 3943
+            "issue": 4524
         },
         {
             "key": "(op) › recallCapturedBinding",
             "op": "recallCapturedBinding",
-            "issue": 3944
+            "issue": 4526
         },
         {
             "key": "(op) › reduceSpellCostThisTurn",
             "op": "reduceSpellCostThisTurn",
-            "issue": 3945
+            "issue": 4529
         },
         {
             "key": "(op) › reflexiveTrigger",
             "op": "reflexiveTrigger",
-            "issue": 3946
+            "issue": 4531
         },
         {
             "key": "(op) › restrictActivation",
             "op": "restrictActivation",
-            "issue": 3947
+            "issue": 4527
         },
         {
             "key": "(op) › restrictCasting",
             "op": "restrictCasting",
-            "issue": 3948
+            "issue": 4527
         },
         {
             "key": "(op) › restrictCombat",
             "op": "restrictCombat",
-            "issue": 3949
+            "issue": 4527
         },
         {
             "key": "(op) › returnExiledForSource",
             "op": "returnExiledForSource",
-            "issue": 3950
+            "issue": 4526
         },
         {
             "key": "(op) › revealAndCategorize",
             "op": "revealAndCategorize",
-            "issue": 3952
+            "issue": 4524
         },
         {
             "key": "(op) › revealTopAndRoute",
             "op": "revealTopAndRoute",
-            "issue": 3953
+            "issue": 4524
         },
         {
             "key": "(op) › revealUntilMatch",
             "op": "revealUntilMatch",
-            "issue": 3954
+            "issue": 4524
         },
         {
             "key": "(op) › setBasePT",
             "op": "setBasePT",
-            "issue": 3957
+            "issue": 4533
         },
         {
             "key": "(op) › setCardTypes",
             "op": "setCardTypes",
-            "issue": 3958
+            "issue": 4533
         },
         {
             "key": "(op) › setIslandSanctuaryProtection",
             "op": "setIslandSanctuaryProtection",
-            "issue": 3961
+            "issue": 4527
         },
         {
             "key": "(op) › setLevel",
             "op": "setLevel",
-            "issue": 3962
+            "issue": 4534
         },
         {
             "key": "(op) › setProtectionFromEverything",
             "op": "setProtectionFromEverything",
-            "issue": 3963
+            "issue": 4533
         },
         {
             "key": "(op) › shuffleSelfIntoLibrary",
             "op": "shuffleSelfIntoLibrary",
-            "issue": 3965
+            "issue": 4525
         },
         {
             "key": "(op) › skipDrawStepThisTurn",
             "op": "skipDrawStepThisTurn",
-            "issue": 3966
+            "issue": 4535
         },
         {
             "key": "(op) › skipNextTurn",
             "op": "skipNextTurn",
-            "issue": 3967
+            "issue": 4535
         },
         {
             "key": "(op) › skipNextUntap",
             "op": "skipNextUntap",
-            "issue": 3968
+            "issue": 4535
         },
         {
             "key": "(op) › transform",
             "op": "transform",
-            "issue": 3969
+            "issue": 4534
         },
         {
             "key": "(op) › unattach",
             "op": "unattach",
-            "issue": 3970
+            "issue": 4530
         },
         {
             "key": "(op) › winGame",
             "op": "winGame",
-            "issue": 3971
+            "issue": 4536
         }
     ],
     "claims": [

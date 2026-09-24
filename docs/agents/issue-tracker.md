@@ -158,7 +158,9 @@ whenever the roster shifts, and children inherit it (issue #3212).
   stays listed until it is closed and the command is re-run by hand. Retired
   umbrellas are not in the census; `gaps:sync` empties those.
 - **A hand-filed `[Grammar]` ticket** goes under the Grammar Rules umbrella of
-  the Target its cards compute — `gaps:sync` does not file those.
+  the Target its cards compute — `gaps:sync` does not file those. It is a
+  **Grammar Cluster** (`/new-set` Phase 3): it claims several gap keys, and
+  `gaps:sync` leaves a multi-claimed issue's body and parent alone.
 
 A new family gets one umbrella per ranked Target plus a `P0`, a
 `BAND_UMBRELLAS` row and a row here — never one umbrella by type.

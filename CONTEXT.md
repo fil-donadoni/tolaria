@@ -926,6 +926,10 @@ _Avoid_: Mass removal, board wipe, sweeper (those name the card's role, not the 
 A **Grammar Rule** the corpus needs and the grammar does not have, attributed from **Fragments** and ranked by the cards it **Compiles**, then the cards it **Refuses** — in a **Ranking Target** and across the corpus. The attribution is mechanical: for every refused line the compiler records the deepest failing path — the slot, the shared sub-grammar, and the span that sub-grammar could not consume — and two Fragments failing on the same path at the same span (amounts folded) are the same gap. The backlog unit of grammar-first work, and the reason an Op may exist without the grammar that emits it: every such Op names its gap, and the list of them only shrinks.
 _Avoid_: Missing feature, TODO, unparsed (that is a **Compile State**)
 
+**Grammar Cluster**:
+The unit a **Grammar Gap** is ticketed and landed in: the gaps one rule family closes — one shared sub-grammar, or one clause shape and its variants — cut as ONE issue that claims every member key, so the recompile, the lane, the review and the landing are paid once while the golden fixture is still paid per form. A slot's unrelated one-card gaps form that slot's long-tail cluster. An issue claimed by two or more keys is a cluster by definition, and `gaps:sync` never rewrites its body or moves its parent.
+_Avoid_: Batch, epic, umbrella (an umbrella parents tickets; a cluster IS one ticket)
+
 **Ranking Target**:
 The set of cards a **Grammar Gap** ranking counts against — a set's printings, a format pool, or a named list (Vintage Cube, a metagame's decks) — reduced to a set of oracle ids so the ranking never learns which kind it is. The corpus count is printed beside every Target count as the leverage tie-break.
 _Avoid_: Target (that is the gameplay term — an object an effect is aimed at), scope, filter

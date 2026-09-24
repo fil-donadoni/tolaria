@@ -454,7 +454,7 @@ export interface GapTracker {
 }
 
 export type GapSyncAction = {
-    readonly action: "create" | "update" | "noop" | "skip-closed";
+    readonly action: "create" | "update" | "noop" | "skip-closed" | "cluster";
     readonly kind: GapKind;
     readonly key: string;
     readonly issue: number;
@@ -561,6 +561,22 @@ export function planMove(
 }
 
 /**
+ * The Grammar Clusters: issues two or more allowlist rows (`ops` + `claims`)
+ * point at. A cluster's body and parent are hand-authored, so `syncGaps`
+ * never rewrites nor moves them. Counted from the ROWS, never from one run's
+ * filings: a member whose gap has closed files nothing, and counting filings
+ * would demote a half-done cluster to a plain issue and clobber it.
+ */
+export function clusterIssues(allowlist: Allowlist): ReadonlySet<number> {
+    const seen = new Map<number, number>();
+    for (const row of [...allowlist.ops, ...(allowlist.claims ?? [])]) {
+        if (row.issue === PRD_ISSUE) continue;
+        seen.set(row.issue, (seen.get(row.issue) ?? 0) + 1);
+    }
+    return new Set([...seen].filter(([, n]) => n > 1).map(([issue]) => issue));
+}
+
+/**
  * Create, update, move or leave alone — one decision per filing, entirely
  * through `tracker`. Reads every filed issue first and refuses, before any
  * write, a run whose creates and moves would push ANY parent past GitHub's
@@ -575,7 +591,8 @@ export function planMove(
 export function syncGaps(
     filings: readonly GapFiling[],
     tracker: GapTracker,
-    originBand?: UmbrellaBand
+    originBand?: UmbrellaBand,
+    clusters: ReadonlySet<number> = new Set()
 ): GapSyncResult {
     const existing = new Map<string, TrackedIssue | null>();
     for (const filing of filings) {
@@ -589,6 +606,8 @@ export function syncGaps(
     const isCreate = (filing: GapFiling): boolean =>
         filing.currentIssue === null ||
         existing.get(claimId(filing.kind, filing.key)) === null;
+    const isCluster = (filing: GapFiling): boolean =>
+        !isCreate(filing) && clusters.has(filing.currentIssue!);
 
     // Resolve each create's parent ONCE — `findSetUmbrella` is a network call
     // and the cap check and the create itself must agree on the answer.
@@ -603,7 +622,7 @@ export function syncGaps(
             parents.set(id, parent);
         } else {
             const current = existing.get(id)!;
-            if (current.state === "CLOSED") continue;
+            if (current.state === "CLOSED" || isCluster(filing)) continue;
             parent = planMove(filing, current.parent ?? null, originBand);
             if (parent === null) continue;
             moveTo.set(id, parent);
@@ -648,6 +667,10 @@ export function syncGaps(
         const current = existing.get(id)!;
         if (current.state === "CLOSED") {
             actions.push({ action: "skip-closed", ...common, issue });
+            continue;
+        }
+        if (isCluster(filing)) {
+            actions.push({ action: "cluster", ...common, issue });
             continue;
         }
         const to = moveTo.get(id);
