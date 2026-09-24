@@ -1,5 +1,6 @@
 import { defineConfig } from "vitest/config";
 import path from "path";
+import { fsModuleCacheOptions } from "./scripts/lib/vitest-fs-cache";
 
 /**
  * Blade-suite vitest config (issue #1427, PRD #1423).
@@ -48,6 +49,9 @@ const WORKERS = Math.max(1, Number(process.env.TOLARIA_VITEST_WORKERS ?? 2));
 export default defineConfig({
     resolve: { alias },
     test: {
+        // Same flag as `vitest.config.ts` (issue #4488): off unless `health`
+        // names a cache directory. No `define` here, so no key plugin.
+        ...fsModuleCacheOptions(process.env),
         name: "blade",
         maxWorkers: WORKERS,
         minWorkers: 1,
