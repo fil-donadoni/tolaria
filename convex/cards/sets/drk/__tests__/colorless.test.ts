@@ -1142,7 +1142,9 @@ describe("Reflecting Mirror (retarget existing spell, CR 115.7)", () => {
         // spell's mana value, so the target is a real Fireball ({X}{R}) cast
         // for X = 2: MV 3 → derived ability X = 6.
         const { state, mirror, bolt } = setup();
-        bolt.card = { id: getCardByName("Fireball").id };
+        bolt.card = {
+            id: getDefinition("b7623c00-144b-4a8f-9c6c-f5e9e4f65ece").id, // Fireball
+        };
         bolt.chosenX = 2;
         state.players[0].manaPool = { W: 0, U: 0, B: 0, R: 6, G: 0, C: 0 };
         const pendingTarget = {
