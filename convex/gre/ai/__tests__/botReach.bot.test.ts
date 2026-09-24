@@ -65,6 +65,29 @@ const COUNTER_INSTANT: CardDefinition = {
     effects: [{ op: "counter", target: { target: 0 } }],
 };
 
+/** CR 603.6a / 702.8a — a flash creature whose ENTERS trigger targets a spell:
+ *  cast in response to one, so its position needs a spell on the stack. */
+const FLASH_ETB_COUNTER: CardDefinition = {
+    id: "bot-reach-test:flash-etb-counter",
+    name: "Bot Reach Flash Snake",
+    rarity: "common",
+    manaCost: { generic: 1, G: 1, U: 2 },
+    types: ["Creature"],
+    subtypes: ["Snake"],
+    power: 2,
+    toughness: 2,
+    staticAbilities: ["flash"],
+    compiledTriggeredAbilities: [
+        {
+            id: "bot-reach-test:flash-etb-counter:trigger",
+            oracleText: "When this creature enters, counter target spell.",
+            head: { kind: "entered", scope: "self" },
+            targetRequirement: { type: "spell", count: 1 },
+            effects: [{ op: "counter", target: { target: 0 } }],
+        },
+    ],
+};
+
 /** CR 702.10 — a 2/2 for three with printed haste. Into the generated
  *  position's untapped 2/2 the Bot passes it precombat and casts it postcombat. */
 const HASTE_CREATURE: CardDefinition = {
@@ -621,6 +644,39 @@ describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
             );
             expect(moves.length).toBeGreaterThan(0);
             expect(playBotReach(COUNTER_INSTANT).outcome).not.toBe("frozen");
+        });
+    });
+
+    it("a flash permanent whose enters trigger targets a spell gets one to target", () => {
+        // CR 603.6a — the target lives on the TRIGGER, not the card (Mystic
+        // Snake, issue #4282): without a spell on the stack the trigger has
+        // no target and the creature is only a vanilla 2/2 for four.
+        withTemporaryDefinition(FLASH_ETB_COUNTER, () => {
+            const { state, holderId, instanceId } = buildBotReachState(
+                FLASH_ETB_COUNTER,
+                0
+            );
+            expect(state.stack).toHaveLength(1);
+            expect(state.stack[0]!.castById).not.toBe(holderId);
+            const moves = enumerateMoves(state, holderId).filter(
+                (m) => "cardInstanceId" in m && m.cardInstanceId === instanceId
+            );
+            expect(moves.length).toBeGreaterThan(0);
+        });
+    });
+
+    it("a sorcery-speed permanent with a spell-targeting trigger is not posed a stack", () => {
+        // CR 117.1a — a noninstant is castable only on an empty stack, so a
+        // spell on the stack would make the card unplayable, not pose it.
+        const sorcerySpeed: CardDefinition = {
+            ...FLASH_ETB_COUNTER,
+            id: "bot-reach-test:sorcery-speed-etb-counter",
+            name: "Bot Reach Slow Snake",
+            staticAbilities: [],
+        };
+        withTemporaryDefinition(sorcerySpeed, () => {
+            const { state } = buildBotReachState(sorcerySpeed, 0);
+            expect(state.stack).toHaveLength(0);
         });
     });
 
