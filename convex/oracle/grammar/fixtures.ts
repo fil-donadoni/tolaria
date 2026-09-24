@@ -3041,7 +3041,7 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
-    // CR 120.3 + CR 702 (issue #4310) — "<self> deals N damage to each creature
+    // CR 120.3 + CR 702.9a (issue #4310) — "<self> deals N damage to each creature
     // without <keyword>": one `forEach` over battlefield creatures whose
     // selector carries `filter.excludeAbility`. Exhibits the "$each object ref"
     // form the canned smoke scenario cannot build, and is the evidence the

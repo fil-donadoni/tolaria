@@ -1442,7 +1442,7 @@ function lowerSentenceBody(
                         })
                     )
                 );
-            // CR 120.3 + CR 702 — "to each creature without flying": one sweep.
+            // CR 120.3 + CR 702.9a — "to each creature without flying": one sweep.
             if (sentence.to.kind === "mass")
                 return sweepOps(sentence.to, site, slots, (target) => ({
                     op: "dealDamage",

@@ -1,5 +1,5 @@
 // "<self> deals N damage to each creature without <keyword>" — CR 120.3 +
-// CR 702 (issue #4310). The recipient is a creature sweep narrowed by ONE
+// CR 702.9a (issue #4310). The recipient is a creature sweep narrowed by ONE
 // keyword exclusion, lowered to a single `forEach` whose selector carries
 // `filter.excludeAbility` (the exclusion twin of `hasAbility`).
 //
@@ -86,7 +86,7 @@ const FLYING_SWEEP = {
     effects: [{ op: "dealDamage", amount: 1, to: { ref: "$each" } }],
 };
 
-describe("each creature without <keyword> (CR 120.3 + CR 702) — goldens", () => {
+describe("each creature without <keyword> (CR 120.3 + CR 702.9a) — goldens", () => {
     it("Ashen Firebeast: one forEach over creatures without flying", () => {
         expect(sortKeys(compiled(ASHEN_FIREBEAST))).toEqual(
             sortKeys({

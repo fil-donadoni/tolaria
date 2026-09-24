@@ -2609,7 +2609,7 @@ function effectSentence(
         const amount = readAmount(damage[2]!);
         if (amount === null)
             return fail(`"${damage[2]}" is not a damage amount`, span);
-        // CR 702 + CR 120.3 — "to each creature without flying": a creature
+        // CR 702.9a + CR 120.3 — "to each creature without flying": a creature
         // sweep with one keyword exclusion, the damage recipient Earthquake
         // prints. Tried by its own rule so the general sweep grammar keeps
         // refusing "without <keyword>" for every other verb.

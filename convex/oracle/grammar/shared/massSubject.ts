@@ -197,7 +197,7 @@ function sweepSelector(
     if (excluded !== undefined)
         filter.excludeType =
             excluded.length === 1 ? excluded[0]! : [...excluded];
-    // CR 702 — "without flying": the exclusion the sweep filter names 1:1.
+    // CR 702.9a — "without flying": the exclusion the sweep filter names 1:1.
     if (descriptor.excludeAbility !== undefined)
         filter.excludeAbility = descriptor.excludeAbility;
     const select: PermanentSweepSelector = {
@@ -270,7 +270,7 @@ export const massSubjectRule: Rule<MassSubjectIR> = subGrammar(
 );
 
 /**
- * CR 702 + CR 120.3 — "each creature without flying": a creature sweep
+ * CR 702.9a + CR 120.3 — "each creature without flying": a creature sweep
  * narrowed by ONE keyword exclusion, the recipient of a damage sweep
  * (Earthquake's shape). A sibling of {@link massSubjectRule}, not a widening
  * of it: the general rule keeps refusing "without <keyword>" for every other

@@ -1132,7 +1132,7 @@ function toPermanentFilter(
         // separate effective-abilities helper needed (see `EffectCardFilter.
         // hasAbility`'s own doc comment).
         requireAbility: filter.hasAbility,
-        // CR 702 (issue #4310) — "without <keyword>" (Earthquake's "each
+        // CR 702.9a (issue #4310) — "without <keyword>" (Earthquake's "each
         // creature without flying"), the exclusion twin of `requireAbility`
         // right above. Dropping it here would be fail-OPEN: the sweep would
         // hit every creature.

@@ -10317,7 +10317,7 @@ describe("EffectCardFilter.hasAbility (CR 702, issue #1097)", () => {
     });
 });
 
-describe("EffectCardFilter.excludeAbility (CR 702, issue #4310)", () => {
+describe("EffectCardFilter.excludeAbility (CR 702.9a, issue #4310)", () => {
     // The exclusion twin of `hasAbility` — Earthquake's "each creature WITHOUT
     // flying". Propagated onto `PermanentFilter.excludeAbility` by
     // `toPermanentFilter`; dropping it would make the sweep hit every creature.
@@ -10374,7 +10374,7 @@ describe("EffectCardFilter.excludeAbility (CR 702, issue #4310)", () => {
         ]);
     });
 
-    it("spares a creature GRANTED flying by a static effect (Flight aura, CR 611)", () => {
+    it("spares a creature GRANTED flying by a static effect (Flight aura)", () => {
         const id = registerScript("test-excludeability-granted", sweep);
         const bear = makeInstance(BEAR_ID, {
             id: "bear-granted-x",
