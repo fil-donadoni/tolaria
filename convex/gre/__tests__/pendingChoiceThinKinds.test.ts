@@ -52,7 +52,7 @@ function ids(cards: { id: string }[]): string[] {
     return cards.map((c) => c.id);
 }
 
-describe("keep-permanents (Balance, CR 608.2 mid-resolution keep)", () => {
+describe("keep-permanents (Balance, CR 608.2d — a keep chosen while resolving)", () => {
     it("keeps the picked lands, sacrifices the rest, and resolves Balance", () => {
         const land = (id: string, owner: string) =>
             makeInstance(plains.id, {
@@ -139,7 +139,7 @@ describe("keep-permanents (Balance, CR 608.2 mid-resolution keep)", () => {
     });
 });
 
-describe("keep-hand (Balance, CR 608.2 mid-resolution keep)", () => {
+describe("keep-hand (Balance, CR 608.2d — a keep chosen while resolving)", () => {
     it("keeps the picked card, discards the rest, and resolves Balance", () => {
         const card = (id: string, owner: string) =>
             makeInstance(grizzlyBears.id, {
@@ -221,7 +221,7 @@ const CHOOSE_PLAYER_FIXTURE: CardDefinition = {
     id: "test-only-choose-player-drain",
     rarity: "common",
     name: "Test Choose-Player Drain",
-    oracleText: "Up to one target player loses 3 life.",
+    oracleText: "Choose up to one player. That player loses 3 life.",
     manaCost: { B: 1 },
     types: ["Sorcery"],
     resolve: (ctx) => {
@@ -239,7 +239,7 @@ const CHOOSE_PLAYER_FIXTURE: CardDefinition = {
     },
 };
 
-describe("choose-player (CR 115.1a — a player picked mid-resolution)", () => {
+describe("choose-player (CR 608.2d — a player chosen while resolving, not a target)", () => {
     function raise(): GameState {
         const state = makeState({
             players: [makePlayer("p1"), makePlayer("p2")],
