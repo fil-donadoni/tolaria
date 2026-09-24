@@ -60,19 +60,24 @@ function legCount(k: KickerCost): number {
     ).length;
 }
 
-// Minimal, LOCAL mana-cost -> symbol-string serializer (generic + WUBRG pips
-// only — every Kicker cost in the catalogue today is one of those two
-// shapes: "{2}", "{1}{U}", "{G}"). Deliberately NOT a reuse of the frontend's
+// Minimal, LOCAL mana-cost -> symbol-string serializer (a variable {X},
+// generic and WUBRG pips — every Kicker cost in the catalogue today is one of
+// those shapes: "{2}", "{1}{U}", "{G}", "{X}" (issue #2141, Verdeloth the
+// Ancient)). Deliberately NOT a reuse of the frontend's
 // full `manaCostToString` (`src/lib/card-utils.ts`) — this is a `convex/`
 // test, and the project boundary is one-directional (the frontend may import
 // pure `convex/gre`/`convex/limited` modules per ADR 0074; the reverse never
-// happens). If a Kicker cost ever needs Phyrexian/hybrid/X pips this helper
+// happens). If a Kicker cost ever needs Phyrexian/hybrid pips this helper
 // will need extending — an unhandled shape falls through to an incomplete
 // string and fails the comparison below loudly, never a silent pass.
 function manaCostToString(mana: KickerCost["mana"]): string {
     if (!mana) return "";
     const parts: string[] = [];
-    const generic = typeof mana.X === "number" ? mana.X : 0;
+    // CR 107.3 — the variable {X} leads, then the fixed generic: numeric `X`
+    // when there is no variable, the `generic` key beside one ({X}{2}).
+    if (typeof mana.X === "string") parts.push(`{${mana.X}}`);
+    const generic =
+        (typeof mana.X === "number" ? mana.X : 0) + (mana.generic ?? 0);
     if (generic > 0) parts.push(`{${generic}}`);
     for (const c of ["W", "U", "B", "R", "G"] as const) {
         const n = mana[c] ?? 0;
