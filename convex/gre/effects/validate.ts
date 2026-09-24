@@ -486,7 +486,7 @@ function isCardFilter(
         // sibling `zone` is confirmed `"battlefield"`) — every other site
         // rejects it as a static authoring error instead of a silent runtime
         // wrong answer.
-        if (k === "hasAbility") {
+        if (k === "hasAbility" || k === "excludeAbility") {
             if (!allowHasAbility) return false;
             return typeof v === "string" && v.length > 0;
         }
@@ -539,7 +539,10 @@ function filterUsesHasAbility(value: unknown): boolean {
         return false;
     }
     const f = value as Record<string, unknown>;
-    if (typeof f.hasAbility === "string" && f.hasAbility.length > 0) {
+    if (
+        (typeof f.hasAbility === "string" && f.hasAbility.length > 0) ||
+        (typeof f.excludeAbility === "string" && f.excludeAbility.length > 0)
+    ) {
         return true;
     }
     return (
@@ -5624,7 +5627,7 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
                 filterUsesHasAbility(entry.filter)
             ) {
                 errors.push(
-                    '"filter.hasAbility" is valid only with zone: "battlefield" — a hand/library/graveyard/exile card carries no ability data to match against'
+                    '"filter.hasAbility" / "filter.excludeAbility" are valid only with zone: "battlefield" — a hand/library/graveyard/exile card carries no ability data to match against'
                 );
             }
             // `isAttacking` (issue #1097) — the `hasAbility` rule right above,

@@ -1132,6 +1132,11 @@ function toPermanentFilter(
         // separate effective-abilities helper needed (see `EffectCardFilter.
         // hasAbility`'s own doc comment).
         requireAbility: filter.hasAbility,
+        // CR 702.9a (issue #4310) — "without <keyword>" (Earthquake's "each
+        // creature without flying"), the exclusion twin of `requireAbility`
+        // right above. Dropping it here would be fail-OPEN: the sweep would
+        // hit every creature.
+        excludeAbility: filter.excludeAbility,
         // CR 400.7 (issue #1458) — "entered the battlefield this turn",
         // propagated 1:1 onto `PermanentFilter.enteredThisTurn`, mirroring
         // `isToken`'s own mapping exactly (battlefield-only, no hidden-zone

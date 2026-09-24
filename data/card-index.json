@@ -2768,6 +2768,16 @@
         "source": "compiled"
     },
     {
+        "name": "Ashen Firebeast",
+        "scryfallId": "ebaef0bd-8288-49ba-a889-d897a4aae64c",
+        "oracleId": "7246e3a0-f8b7-4c1b-ae75-a1eb8990a728",
+        "firstSet": "ody",
+        "firstPrintId": "ebaef0bd-8288-49ba-a889-d897a4aae64c",
+        "firstPrintSet": "ody",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Ashen Ghoul",
         "scryfallId": "6bb83301-5662-4628-b536-6a3ee0296f2e",
         "oracleId": "46fbcbdf-73d0-4fa2-8db7-3b19bfc7ac22",
@@ -5447,6 +5457,16 @@
         "firstPrintId": "518145f3-9919-4ed6-9e2e-772ee349ea57",
         "firstPrintSet": "apc",
         "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Bloodfire Dwarf",
+        "scryfallId": "86b5c38e-7d74-4862-8187-f5db4a3d1e0f",
+        "oracleId": "ff42551a-a08e-4d0c-a5b1-d1c1bbff4915",
+        "firstSet": "apc",
+        "firstPrintId": "86b5c38e-7d74-4862-8187-f5db4a3d1e0f",
+        "firstPrintSet": "apc",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -27902,6 +27922,16 @@
         "source": "compiled"
     },
     {
+        "name": "Krark-Clan Shaman",
+        "scryfallId": "975f9ea8-af2c-456f-acd0-ffa9ea0d98c1",
+        "oracleId": "198d1792-d638-4760-a476-7ec3af495610",
+        "firstSet": "mrd",
+        "firstPrintId": "975f9ea8-af2c-456f-acd0-ffa9ea0d98c1",
+        "firstPrintSet": "mrd",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Krark-Clan Stoker",
         "scryfallId": "a90da818-ffa1-435d-8734-fc7a1330d323",
         "oracleId": "756b4bc9-6f3f-4eae-b6b0-63c94ed8482f",
@@ -30091,6 +30121,16 @@
         "firstPrintId": "ee526306-6959-421c-9969-3c19b666d6da",
         "firstPrintSet": "zen",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Magma Vein",
+        "scryfallId": "69ed2b52-2862-423c-8ce3-6c8232d9d92c",
+        "oracleId": "9ae2bf71-c443-4814-b7c3-b3b82d595983",
+        "firstSet": "ody",
+        "firstPrintId": "69ed2b52-2862-423c-8ce3-6c8232d9d92c",
+        "firstPrintSet": "ody",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -41390,6 +41430,16 @@
         "source": "compiled"
     },
     {
+        "name": "Rolling Temblor",
+        "scryfallId": "060ce982-94dd-4b9e-b240-15da297e29f9",
+        "oracleId": "e450014f-7152-476b-ae6e-0d49fcb91d18",
+        "firstSet": "isd",
+        "firstPrintId": "060ce982-94dd-4b9e-b240-15da297e29f9",
+        "firstPrintSet": "isd",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Rolling Thunder",
         "scryfallId": "0bb07402-d526-4938-89a3-9174d5b5a4de",
         "oracleId": "9c47888b-28a5-4c43-9ee4-a9059e3c367d",
@@ -43634,6 +43684,26 @@
         "source": "compiled"
     },
     {
+        "name": "Seismic Rupture",
+        "scryfallId": "9b952e4e-c1ed-4455-90d5-46b56478e6b0",
+        "oracleId": "3b1f1a57-d83a-443f-b190-03df63d2bfe6",
+        "firstSet": "dtk",
+        "firstPrintId": "9b952e4e-c1ed-4455-90d5-46b56478e6b0",
+        "firstPrintSet": "dtk",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Seismic Shudder",
+        "scryfallId": "20365082-6102-4e3b-8791-c9b66846270d",
+        "oracleId": "10c0f705-4c23-4761-afa9-4a29cf90e8ae",
+        "firstSet": "zen",
+        "firstPrintId": "20365082-6102-4e3b-8791-c9b66846270d",
+        "firstPrintSet": "zen",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Seizures",
         "scryfallId": "da369c86-7e17-43d8-b626-b6842e3d2d50",
         "oracleId": "550921f5-ec65-460d-9ada-f2c5a4c4b2c4",
@@ -44228,6 +44298,16 @@
         "firstSet": "mkm",
         "firstPrintId": "69c1b656-1d67-499c-bf0f-417682a86c7d",
         "firstPrintSet": "mkm"
+    },
+    {
+        "name": "Shake the Foundations",
+        "scryfallId": "b5bd4bdd-3a2a-40d9-9f86-fefe0a462cd2",
+        "oracleId": "99eb5cda-684d-4f6c-bc34-1f03c8797150",
+        "firstSet": "rix",
+        "firstPrintId": "b5bd4bdd-3a2a-40d9-9f86-fefe0a462cd2",
+        "firstPrintSet": "rix",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Shalai's Acolyte",
@@ -51648,6 +51728,16 @@
         "firstPrintSet": "fem"
     },
     {
+        "name": "Thunder Dragon",
+        "scryfallId": "7e9b06a8-c3f3-4174-b992-7da7ca163990",
+        "oracleId": "70d9579f-c8a6-4406-afe1-9291fe5ee736",
+        "firstSet": "s99",
+        "firstPrintId": "7e9b06a8-c3f3-4174-b992-7da7ca163990",
+        "firstPrintSet": "s99",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Thunder Spirit",
         "scryfallId": "61a59775-b1cd-4ed0-8abf-c2b37f7be0d5",
         "oracleId": "6efad3d6-4886-4b62-a4ff-bc0622f9672a",
@@ -51771,6 +51861,16 @@
         "firstPrintId": "2985520d-dfce-414e-a4ac-61695be67406",
         "firstPrintSet": "war",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Tibor and Lumia",
+        "scryfallId": "149ce3cc-5df6-4158-b732-5bd2c1b3007f",
+        "oracleId": "ee6d6f2f-68d5-466a-86c6-20fdb360e629",
+        "firstSet": "gpt",
+        "firstPrintId": "149ce3cc-5df6-4158-b732-5bd2c1b3007f",
+        "firstPrintSet": "gpt",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -52922,6 +53022,16 @@
         "firstSet": "ody",
         "firstPrintId": "7e1dc36f-3fdd-42cf-9d3a-695f4bf60c68",
         "firstPrintSet": "ody",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Tremor",
+        "scryfallId": "a9d64665-c1e0-40ab-a358-247f82966379",
+        "oracleId": "4281a153-665b-44cf-bcff-9cf88c14c2b5",
+        "firstSet": "vis",
+        "firstPrintId": "a9d64665-c1e0-40ab-a358-247f82966379",
+        "firstPrintSet": "vis",
         "rarity": "common",
         "source": "compiled"
     },

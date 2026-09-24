@@ -1489,6 +1489,73 @@ describe("EffectCardFilter.hasAbility — rejected outside a live battlefield re
     });
 });
 
+// --- EffectCardFilter.excludeAbility — battlefield-only (issue #4310) -------
+//
+// The exclusion twin of `hasAbility`, gated at exactly the same sites: a
+// hidden-zone card carries no ability data, so `matchesCardFilter` would ignore
+// the field and match every card (fail OPEN).
+describe("EffectCardFilter.excludeAbility — rejected outside a live battlefield read (issue #4310)", () => {
+    it("accepts excludeAbility on a forEach permanents (battlefield) selector", () => {
+        const effects: EffectOp[] = [
+            {
+                op: "forEach",
+                select: {
+                    set: "permanents",
+                    zone: "battlefield",
+                    filter: { type: "Creature", excludeAbility: "flying" },
+                },
+                effects: [
+                    { op: "dealDamage", amount: 1, to: { ref: "$each" } },
+                ],
+            },
+        ];
+        expect(validateEffectScript(host({ effects }))).toEqual([]);
+    });
+
+    it("rejects excludeAbility on a forEach graveyard selector", () => {
+        const effects: EffectOp[] = [
+            {
+                op: "forEach",
+                select: {
+                    set: "graveyard",
+                    controller: "controller",
+                    filter: { type: "Creature", excludeAbility: "flying" },
+                },
+                effects: [
+                    {
+                        op: "moveZone",
+                        target: { ref: "$each" },
+                        to: "hand",
+                    },
+                ],
+            },
+        ];
+        const errors = validateEffectScript(host({ effects }));
+        expect(errors.some((e) => /field "select"/.test(e))).toBe(true);
+    });
+
+    it("rejects excludeAbility on a choice Op scoped to zone: graveyard", () => {
+        const effects: EffectOp[] = [
+            {
+                op: "choice",
+                kind: "choose-graveyard-card",
+                player: { target: 0 },
+                zone: "graveyard",
+                filter: { type: "Creature", excludeAbility: "flying" },
+                count: 1,
+                prompt: "Choose a creature card without flying.",
+                bind: "$picked",
+            },
+        ];
+        const errors = validateEffectScript(host({ effects }));
+        expect(
+            errors.some((e) =>
+                /filter\.excludeAbility.*zone: "battlefield"/.test(e)
+            )
+        ).toBe(true);
+    });
+});
+
 // --- EffectCardFilter.isAttacking — battlefield-only (issue #1097) ----------
 //
 // `isAttacking` is `hasAbility`'s combat-role sibling: it reads the LIVE

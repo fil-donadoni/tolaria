@@ -3041,6 +3041,65 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 120.3 + CR 702.9a (issue #4310) — "<self> deals N damage to each creature
+    // without <keyword>": one `forEach` over battlefield creatures whose
+    // selector carries `filter.excludeAbility`. Exhibits the "$each object ref"
+    // form the canned smoke scenario cannot build, and is the evidence the
+    // keyword exclusion rides the selector filter (Earthquake's shape, which
+    // the hand-written catalogue writes with `dealDamageToEach`).
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "7246e3a0-f8b7-4c1b-ae75-a1eb8990a728",
+            name: "Ashen Firebeast",
+            manaCost: "{6}{R}{R}",
+            typeLine: "Creature — Elemental Beast",
+            oracleText:
+                "{1}{R}: This creature deals 1 damage to each creature without flying.",
+            power: "6",
+            toughness: "6",
+            layout: "normal",
+        },
+        expected: {
+            name: "Ashen Firebeast",
+            types: ["Creature"],
+            subtypes: ["Elemental", "Beast"],
+            manaCost: { X: 6, R: 2 },
+            power: 6,
+            toughness: 6,
+            oracleText:
+                "{1}{R}: This creature deals 1 damage to each creature without flying.",
+            activatedAbilities: [
+                {
+                    id: "ashen-firebeast-ability",
+                    oracleText:
+                        "{1}{R}: This creature deals 1 damage to each creature without flying.",
+                    cost: { mana: { X: 1, R: 1 } },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "forEach",
+                            select: {
+                                set: "permanents",
+                                zone: "battlefield",
+                                filter: {
+                                    type: "Creature",
+                                    excludeAbility: "flying",
+                                },
+                            },
+                            effects: [
+                                {
+                                    op: "dealDamage",
+                                    amount: 1,
+                                    to: { ref: "$each" },
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+    },
     // CR 120.3 + CR 615.7 — the same two-set union under "prevent the next N
     // damage that would be dealt to <recipient> this turn": `preventDamage`'s
     // `to` mirrors `dealDamage`'s, so the same fan-out applies, this time

@@ -10317,6 +10317,114 @@ describe("EffectCardFilter.hasAbility (CR 702, issue #1097)", () => {
     });
 });
 
+describe("EffectCardFilter.excludeAbility (CR 702.9a, issue #4310)", () => {
+    // The exclusion twin of `hasAbility` — Earthquake's "each creature WITHOUT
+    // flying". Propagated onto `PermanentFilter.excludeAbility` by
+    // `toPermanentFilter`; dropping it would make the sweep hit every creature.
+    const FLYER_ID = "test-effects-flyer-exclude";
+    registerTokenDefinition({
+        id: FLYER_ID,
+        name: FLYER_ID,
+        rarity: "common",
+        manaCost: { X: 1, G: 1 },
+        types: ["Creature"],
+        subtypes: ["Bird"],
+        power: 1,
+        toughness: 1,
+        staticAbilities: ["flying"],
+    });
+
+    const sweep: EffectOp[] = [
+        {
+            op: "forEach",
+            select: {
+                set: "permanents",
+                zone: "battlefield",
+                filter: { type: "Creature", excludeAbility: "flying" },
+            },
+            effects: [{ op: "destroy", target: { ref: "$each" } }],
+        },
+    ];
+
+    it("destroys a creature WITHOUT flying but spares one with printed flying", () => {
+        const id = registerScript("test-excludeability-foreach", sweep);
+        const flyer = makeInstance(FLYER_ID, {
+            id: "flyerX",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const grounded = makeInstance(BEAR_ID, {
+            id: "groundedX",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [flyer, grounded] }),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[1].battlefield.map((c) => c.id)).toEqual([
+            "flyerX",
+        ]);
+        expect(state.players[1].graveyard.map((c) => c.id)).toEqual([
+            "groundedX",
+        ]);
+    });
+
+    it("spares a creature GRANTED flying by a static effect (Flight aura)", () => {
+        const id = registerScript("test-excludeability-granted", sweep);
+        const bear = makeInstance(BEAR_ID, {
+            id: "bear-granted-x",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, flight.id, "p2", [
+            { type: "permanent", id: "bear-granted-x" },
+        ]);
+        resolveTopOfStack(state);
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[1].battlefield.map((c) => c.id)).toContain(
+            "bear-granted-x"
+        );
+    });
+
+    it("wire format — the excludeAbility sweep survives projectPublicState", () => {
+        const id = registerScript("test-excludeability-wire", sweep);
+        const flyer = makeInstance(FLYER_ID, {
+            id: "flyerWireX",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const grounded = makeInstance(BEAR_ID, {
+            id: "groundedWireX",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [flyer, grounded] }),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players[1].battlefield.map((c) => c.id)).toEqual([
+            "flyerWireX",
+        ]);
+    });
+});
+
 // EffectCardFilter.isAttacking (CR 508.1, issue #1097) — `hasAbility`'s
 // combat-role sibling above, but paired with a genuinely NEW construct
 // combination (`forEach` + `isAttacking` feeding `skipNextUntap` via `{ ref:

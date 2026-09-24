@@ -4815,6 +4815,46 @@
         "setCode": "tla"
     },
     {
+        "name": "Rolling Temblor",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 2,
+            "R": 1
+        },
+        "oracleText": "Rolling Temblor deals 2 damage to each creature without flying.\nFlashback {4}{R}{R} (You may cast this card from your graveyard for its flashback cost. Then exile it.)",
+        "effects": [
+            {
+                "op": "forEach",
+                "select": {
+                    "set": "permanents",
+                    "zone": "battlefield",
+                    "filter": {
+                        "type": "Creature",
+                        "excludeAbility": "flying"
+                    }
+                },
+                "effects": [
+                    {
+                        "op": "dealDamage",
+                        "amount": 2,
+                        "to": {
+                            "ref": "$each"
+                        }
+                    }
+                ]
+            }
+        ],
+        "flashback": {
+            "X": 4,
+            "R": 2
+        },
+        "id": "060ce982-94dd-4b9e-b240-15da297e29f9",
+        "rarity": "uncommon",
+        "setCode": "isd"
+    },
+    {
         "name": "Forked Bolt",
         "types": [
             "Sorcery"
@@ -14715,6 +14755,96 @@
         "setCode": "usg"
     },
     {
+        "name": "Tibor and Lumia",
+        "types": [
+            "Creature"
+        ],
+        "supertypes": [
+            "Legendary"
+        ],
+        "subtypes": [
+            "Human",
+            "Wizard"
+        ],
+        "manaCost": {
+            "X": 2,
+            "U": 1,
+            "R": 1
+        },
+        "power": 3,
+        "toughness": 3,
+        "oracleText": "Whenever you cast a blue spell, target creature gains flying until end of turn.\nWhenever you cast a red spell, Tibor and Lumia deals 1 damage to each creature without flying.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "tibor-and-lumia-trigger",
+                "oracleText": "Whenever you cast a blue spell, target creature gains flying until end of turn.",
+                "head": {
+                    "kind": "spell-cast",
+                    "scope": "you",
+                    "filter": {
+                        "colors": [
+                            "U"
+                        ]
+                    }
+                },
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                },
+                "effects": [
+                    {
+                        "op": "grantAbility",
+                        "target": {
+                            "target": 0
+                        },
+                        "ability": "flying",
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            },
+            {
+                "id": "tibor-and-lumia-trigger-2",
+                "oracleText": "Whenever you cast a red spell, {self} deals 1 damage to each creature without flying.",
+                "head": {
+                    "kind": "spell-cast",
+                    "scope": "you",
+                    "filter": {
+                        "colors": [
+                            "R"
+                        ]
+                    }
+                },
+                "effects": [
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "permanents",
+                            "zone": "battlefield",
+                            "filter": {
+                                "type": "Creature",
+                                "excludeAbility": "flying"
+                            }
+                        },
+                        "effects": [
+                            {
+                                "op": "dealDamage",
+                                "amount": 1,
+                                "to": {
+                                    "ref": "$each"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "149ce3cc-5df6-4158-b732-5bd2c1b3007f",
+        "rarity": "rare",
+        "setCode": "gpt"
+    },
+    {
         "name": "Slith Predator",
         "types": [
             "Creature"
@@ -23429,6 +23559,42 @@
         "id": "20275678-3488-43d8-a93b-993e2267ab07",
         "rarity": "common",
         "setCode": "leg"
+    },
+    {
+        "name": "Seismic Shudder",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 1,
+            "R": 1
+        },
+        "oracleText": "Seismic Shudder deals 1 damage to each creature without flying.",
+        "effects": [
+            {
+                "op": "forEach",
+                "select": {
+                    "set": "permanents",
+                    "zone": "battlefield",
+                    "filter": {
+                        "type": "Creature",
+                        "excludeAbility": "flying"
+                    }
+                },
+                "effects": [
+                    {
+                        "op": "dealDamage",
+                        "amount": 1,
+                        "to": {
+                            "ref": "$each"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "20365082-6102-4e3b-8791-c9b66846270d",
+        "rarity": "common",
+        "setCode": "zen"
     },
     {
         "name": "Nightguard Patrol",
@@ -71366,6 +71532,59 @@
         "setCode": "hou"
     },
     {
+        "name": "Magma Vein",
+        "types": [
+            "Enchantment"
+        ],
+        "manaCost": {
+            "X": 2,
+            "R": 1
+        },
+        "oracleText": "{R}, Sacrifice a land: This enchantment deals 1 damage to each creature without flying.",
+        "activatedAbilities": [
+            {
+                "id": "magma-vein-ability",
+                "oracleText": "{R}, Sacrifice a land: This enchantment deals 1 damage to each creature without flying.",
+                "cost": {
+                    "mana": {
+                        "R": 1
+                    },
+                    "sacrificeFilter": {
+                        "types": [
+                            "Land"
+                        ]
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "permanents",
+                            "zone": "battlefield",
+                            "filter": {
+                                "type": "Creature",
+                                "excludeAbility": "flying"
+                            }
+                        },
+                        "effects": [
+                            {
+                                "op": "dealDamage",
+                                "amount": 1,
+                                "to": {
+                                    "ref": "$each"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "69ed2b52-2862-423c-8ce3-6c8232d9d92c",
+        "rarity": "uncommon",
+        "setCode": "ody"
+    },
+    {
         "name": "Accelerate",
         "types": [
             "Instant"
@@ -85124,6 +85343,60 @@
         "setCode": "ori"
     },
     {
+        "name": "Thunder Dragon",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Dragon"
+        ],
+        "manaCost": {
+            "X": 5,
+            "R": 2
+        },
+        "power": 5,
+        "toughness": 5,
+        "oracleText": "Flying\nWhen this creature enters, it deals 3 damage to each creature without flying.",
+        "staticAbilities": [
+            "flying"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "thunder-dragon-trigger",
+                "oracleText": "When this creature enters, it deals 3 damage to each creature without flying.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "permanents",
+                            "zone": "battlefield",
+                            "filter": {
+                                "type": "Creature",
+                                "excludeAbility": "flying"
+                            }
+                        },
+                        "effects": [
+                            {
+                                "op": "dealDamage",
+                                "amount": 3,
+                                "to": {
+                                    "ref": "$each"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "7e9b06a8-c3f3-4174-b992-7da7ca163990",
+        "rarity": "rare",
+        "setCode": "s99"
+    },
+    {
         "name": "Hanna's Custody",
         "types": [
             "Enchantment"
@@ -90519,6 +90792,59 @@
         "id": "869fee23-df75-448d-9fca-6ba6713d459f",
         "rarity": "common",
         "setCode": "thb"
+    },
+    {
+        "name": "Bloodfire Dwarf",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Dwarf"
+        ],
+        "manaCost": {
+            "R": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "{R}, Sacrifice this creature: It deals 1 damage to each creature without flying.",
+        "activatedAbilities": [
+            {
+                "id": "bloodfire-dwarf-ability",
+                "oracleText": "{R}, Sacrifice this creature: It deals 1 damage to each creature without flying.",
+                "cost": {
+                    "mana": {
+                        "R": 1
+                    },
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "permanents",
+                            "zone": "battlefield",
+                            "filter": {
+                                "type": "Creature",
+                                "excludeAbility": "flying"
+                            }
+                        },
+                        "effects": [
+                            {
+                                "op": "dealDamage",
+                                "amount": 1,
+                                "to": {
+                                    "ref": "$each"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "86b5c38e-7d74-4862-8187-f5db4a3d1e0f",
+        "rarity": "common",
+        "setCode": "apc"
     },
     {
         "name": "Thrashing Wumpus",
@@ -102554,6 +102880,61 @@
         "setCode": "5dn"
     },
     {
+        "name": "Krark-Clan Shaman",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Goblin",
+            "Shaman"
+        ],
+        "manaCost": {
+            "R": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "Sacrifice an artifact: This creature deals 1 damage to each creature without flying.",
+        "activatedAbilities": [
+            {
+                "id": "krark-clan-shaman-ability",
+                "oracleText": "Sacrifice an artifact: This creature deals 1 damage to each creature without flying.",
+                "cost": {
+                    "sacrificeFilter": {
+                        "types": [
+                            "Artifact"
+                        ]
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "permanents",
+                            "zone": "battlefield",
+                            "filter": {
+                                "type": "Creature",
+                                "excludeAbility": "flying"
+                            }
+                        },
+                        "effects": [
+                            {
+                                "op": "dealDamage",
+                                "amount": 1,
+                                "to": {
+                                    "ref": "$each"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "975f9ea8-af2c-456f-acd0-ffa9ea0d98c1",
+        "rarity": "common",
+        "setCode": "mrd"
+    },
+    {
         "name": "Devotee of Strength",
         "types": [
             "Creature"
@@ -105650,6 +106031,42 @@
         "id": "9b911124-3646-4014-b574-13fee44bfad5",
         "rarity": "common",
         "setCode": "m10"
+    },
+    {
+        "name": "Seismic Rupture",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 2,
+            "R": 1
+        },
+        "oracleText": "Seismic Rupture deals 2 damage to each creature without flying.",
+        "effects": [
+            {
+                "op": "forEach",
+                "select": {
+                    "set": "permanents",
+                    "zone": "battlefield",
+                    "filter": {
+                        "type": "Creature",
+                        "excludeAbility": "flying"
+                    }
+                },
+                "effects": [
+                    {
+                        "op": "dealDamage",
+                        "amount": 2,
+                        "to": {
+                            "ref": "$each"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "9b952e4e-c1ed-4455-90d5-46b56478e6b0",
+        "rarity": "uncommon",
+        "setCode": "dtk"
     },
     {
         "name": "Mournful Zombie",
@@ -115481,6 +115898,41 @@
         "setCode": "lci"
     },
     {
+        "name": "Tremor",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "R": 1
+        },
+        "oracleText": "Tremor deals 1 damage to each creature without flying.",
+        "effects": [
+            {
+                "op": "forEach",
+                "select": {
+                    "set": "permanents",
+                    "zone": "battlefield",
+                    "filter": {
+                        "type": "Creature",
+                        "excludeAbility": "flying"
+                    }
+                },
+                "effects": [
+                    {
+                        "op": "dealDamage",
+                        "amount": 1,
+                        "to": {
+                            "ref": "$each"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "a9d64665-c1e0-40ab-a358-247f82966379",
+        "rarity": "common",
+        "setCode": "vis"
+    },
+    {
         "name": "Agent of Atlas",
         "types": [
             "Creature"
@@ -123563,6 +124015,47 @@
         "id": "b5b5180f-5a1c-4df8-9019-195e65a50ce3",
         "rarity": "common",
         "setCode": "blb"
+    },
+    {
+        "name": "Shake the Foundations",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 2,
+            "R": 1
+        },
+        "oracleText": "Shake the Foundations deals 1 damage to each creature without flying.\nDraw a card.",
+        "effects": [
+            {
+                "op": "forEach",
+                "select": {
+                    "set": "permanents",
+                    "zone": "battlefield",
+                    "filter": {
+                        "type": "Creature",
+                        "excludeAbility": "flying"
+                    }
+                },
+                "effects": [
+                    {
+                        "op": "dealDamage",
+                        "amount": 1,
+                        "to": {
+                            "ref": "$each"
+                        }
+                    }
+                ]
+            },
+            {
+                "op": "draw",
+                "player": "controller",
+                "count": 1
+            }
+        ],
+        "id": "b5bd4bdd-3a2a-40d9-9f86-fefe0a462cd2",
+        "rarity": "uncommon",
+        "setCode": "rix"
     },
     {
         "name": "Tendrils of Despair",
@@ -158104,6 +158597,61 @@
         "id": "ebacbf23-4b69-481c-aaf7-5de7b4a6db6f",
         "rarity": "common",
         "setCode": "wth"
+    },
+    {
+        "name": "Ashen Firebeast",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Elemental",
+            "Beast"
+        ],
+        "manaCost": {
+            "X": 6,
+            "R": 2
+        },
+        "power": 6,
+        "toughness": 6,
+        "oracleText": "{1}{R}: This creature deals 1 damage to each creature without flying.",
+        "activatedAbilities": [
+            {
+                "id": "ashen-firebeast-ability",
+                "oracleText": "{1}{R}: This creature deals 1 damage to each creature without flying.",
+                "cost": {
+                    "mana": {
+                        "X": 1,
+                        "R": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "permanents",
+                            "zone": "battlefield",
+                            "filter": {
+                                "type": "Creature",
+                                "excludeAbility": "flying"
+                            }
+                        },
+                        "effects": [
+                            {
+                                "op": "dealDamage",
+                                "amount": 1,
+                                "to": {
+                                    "ref": "$each"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "ebaef0bd-8288-49ba-a889-d897a4aae64c",
+        "rarity": "rare",
+        "setCode": "ody"
     },
     {
         "name": "Memorial to Folly",
