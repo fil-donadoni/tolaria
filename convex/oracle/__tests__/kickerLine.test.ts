@@ -600,8 +600,14 @@ describe("Kicker gold over the hand-written catalogue", () => {
         }
         // Arctic Merfolk's "Return a creature you control to its owner's hand"
         // is a cost leg the shared cost grammar does not read (it reads a
-        // return of the SOURCE only).
-        expect(refused.sort()).toEqual(["Arctic Merfolk"]);
+        // return of the SOURCE only). Verdeloth the Ancient's "Kicker {X}" is
+        // refused by `payableKickerMana` until the grammar reads a variable
+        // kicker — the engine pays one since issue #2141; the rule is the
+        // Grammar Gap of issue #4318.
+        expect(refused.sort()).toEqual([
+            "Arctic Merfolk",
+            "Verdeloth the Ancient",
+        ]);
         expect(accepted).toBeGreaterThan(40);
     });
 });

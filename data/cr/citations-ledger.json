@@ -1780,6 +1780,7 @@
         {"id":"107.3","line":"// CR 107.3 — fixed generic that coexists with a variable `{X}` pip","sites":1,"status":"baseline"},
         {"id":"107.3","line":"// CR 107.3 — fold the chosen X into the generic cost (xFactor","sites":1,"status":"baseline"},
         {"id":"107.3","line":"// CR 107.3 — the announced X rides the stack item, so the effect reads","sites":1,"status":"baseline"},
+        {"id":"107.3","line":"// CR 107.3 — the variable {X} leads, then the fixed generic: numeric `X`","sites":1,"status":"confirmed","ruleHash":"7f7a58c8b2f02ca8"},
         {"id":"107.3","line":"// CR 107.3 — {X}{X}-style multiplier; defaults to 1 ({X} alone).","sites":1,"status":"baseline"},
         {"id":"107.3","line":"// CR 107.3) or a required count ≤ 0 leaves the cast legal regardless of","sites":1,"status":"baseline"},
         {"id":"107.3","line":"// CR 107.3: X chosen on cast. CR 120.3: damage respects flying at","sites":1,"status":"baseline"},
