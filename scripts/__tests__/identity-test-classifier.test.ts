@@ -2,6 +2,8 @@ import { describe, it, expect } from "vitest";
 import {
     classifyTestBlocks,
     findIdentityBlocks,
+    type CardFact,
+    type CardFacts,
 } from "../lib/identity-test-classifier";
 
 /**
@@ -241,6 +243,223 @@ describe("identity-test classifier", () => {
                 "identity",
                 "identity",
             ]);
+        });
+    });
+
+    describe("the definition-read rule (issue #4489)", () => {
+        const lines = (body: string) =>
+            classifyTestBlocks(
+                "x.test.ts",
+                src(`const bolt = getDefinition("d573ef03-4730-45aa-93dd-e45ac1dbaf4a");
+it("t", () => {
+    const state = makeState();
+${body}
+});`)
+            )[0];
+
+        it("flags an expect(<cardDef>.field) line inside a behavioural block", () => {
+            const b = lines(`    expect(bolt.manaCost).toEqual({ R: 1 });
+    expect(state.players[1].life).toBe(20);`);
+            expect(b.verdict).toBe("behavioural");
+            expect(b.definitionReads).toEqual([5]);
+        });
+
+        it("follows neutral methods, an inline lookup, and a field alias", () => {
+            const b =
+                lines(`    expect(bolt.activatedAbilities.map((a) => a.id)).toEqual([]);
+    expect(getCardByName("Serra Angel")!.power).toBe(4);
+    const ab = bolt.activatedAbilities[0];
+    expect(ab.cost).toBeDefined();`);
+            expect(b.definitionReads).toEqual([5, 6, 8]);
+        });
+
+        it("does not flag the definition used as the EXPECTED value, or read whole", () => {
+            const b =
+                lines(`    expect(state.players[0].graveyard[0].definitionId).toBe(bolt.id);
+    expect(bolt).toBeDefined();`);
+            expect(b.definitionReads).toEqual([]);
+        });
+
+        it("treats an import from a card-set module as a definition", () => {
+            const blocks = classifyTestBlocks(
+                "x.test.ts",
+                src(`import { giantGrowth } from "../../cards/sets/lea/green";
+it("t", () => {
+    const state = makeState();
+    expect(giantGrowth.types).toContain("Instant");
+});`)
+            );
+            expect(blocks[0].definitionReads).toEqual([5]);
+        });
+
+        it("reports nothing on an identity block — that one is flagged whole", () => {
+            const b = classifyTestBlocks(
+                "x.test.ts",
+                src(`const DEF = { power: 1 };
+it("t", () => { expect(DEF.power).toBe(1); });`)
+            )[0];
+            expect(b.verdict).toBe("identity");
+            expect(b.definitionReads).toEqual([]);
+        });
+    });
+
+    describe("the Op-only class (issue #4489)", () => {
+        const BOLT = "d573ef03-4730-45aa-93dd-e45ac1dbaf4a";
+        const LIONS = "d05b92bd-797e-413f-a8b0-32e0937a1ee0";
+        const facts = (owns: Record<string, string | null> = {}): CardFacts => {
+            const all: CardFact[] = [
+                { id: BOLT, name: "Lightning Bolt", ownsCode: null },
+                { id: LIONS, name: "Savannah Lions", ownsCode: null },
+            ].map((f) => ({ ...f, ownsCode: owns[f.name] ?? f.ownsCode }));
+            return {
+                byId: (id) => all.find((f) => f.id === id),
+                byName: (name) => all.find((f) => f.name === name),
+            };
+        };
+        const header = `const bolt = getDefinition("${BOLT}");
+const lions = getDefinition("${LIONS}");
+`;
+        /** Classify one block (after the two definitions) against `facts`. */
+        const opOnly = (
+            body: string,
+            cards: CardFacts = facts(),
+            prelude = ""
+        ) =>
+            classifyTestBlocks(
+                "x.test.ts",
+                src(`${header}${prelude}it("t", () => {\n${body}\n});`),
+                { cards }
+            )[0].opOnly;
+
+        /** The Lightning Bolt block from `lea/__tests__/red.test.ts`. */
+        const BOLT_TO_FACE = `    const state = makeState();
+    pushSpell(state, bolt.id, "p1", [{ type: "player", id: "p2" }]);
+    resolveTopOfStack(state);
+    expect(state.players[1].life).toBe(17);`;
+
+        it("flags a block that only casts a pure-DSL card and asserts the Op's outcome", () => {
+            expect(opOnly(BOLT_TO_FACE)).toEqual({
+                kind: "op-only",
+                cards: ["Lightning Bolt"],
+            });
+        });
+
+        it("names every card the block touches, filler included", () => {
+            const v =
+                opOnly(`    const lion = makeInstance(lions.id, { id: "lion", controllerId: "p2" });
+    const state = makeState({ players: [makePlayer("p1"), makePlayer("p2", { battlefield: [lion] })] });
+    pushSpell(state, bolt.id, "p1", [{ type: "permanent", id: "lion" }]);
+    resolveTopOfStack(state);
+    checkStateBasedActions(state);
+    expect(state.players[1].graveyard.map((c) => c.id)).toContain("lion");`);
+            expect(v).toEqual({
+                kind: "op-only",
+                cards: ["Lightning Bolt", "Savannah Lions"],
+            });
+        });
+
+        it("clears it when a named card owns code", () => {
+            expect(
+                opOnly(BOLT_TO_FACE, facts({ "Lightning Bolt": "resolve()" }))
+            ).toMatchObject({ kind: "cleared", rule: "card-owns-code" });
+        });
+
+        it("clears a block that names no catalogue card", () => {
+            expect(
+                opOnly(`    const state = makeState();
+    resolveTopOfStack(state);
+    expect(state.players[1].life).toBe(17);`)
+            ).toMatchObject({ kind: "cleared", rule: "no-catalogue-card" });
+        });
+
+        it("clears a block that reaches card-owned code through a call outside the vocabulary", () => {
+            expect(
+                opOnly(`${BOLT_TO_FACE}
+    expect(projectPublicState(state, "p1").players[1].life).toBe(17);`)
+            ).toMatchObject({
+                kind: "cleared",
+                rule: "foreign-call",
+                reason: "calls projectPublicState",
+            });
+        });
+
+        it("clears a block that names card-owned code, even through a vocabulary call", () => {
+            expect(
+                opOnly(`    const state = makeState();
+    pushSpell(state, bolt.id, "p1", [], { kicked: true });
+    const kicker = 1;
+    resolveTopOfStack(state);
+    expect(state.players[1].life).toBe(17 - kicker);`)
+            ).toMatchObject({ kind: "cleared", rule: "card-owned-name" });
+        });
+
+        it("clears a block asserting something other than an Op outcome", () => {
+            expect(
+                opOnly(`    const state = makeState();
+    pushSpell(state, bolt.id, "p1", []);
+    resolveTopOfStack(state);
+    expect(state.stack).toHaveLength(0);`)
+            ).toMatchObject({ kind: "cleared", rule: "non-outcome-assertion" });
+        });
+
+        it("clears a block reading a binding filled in by a beforeEach", () => {
+            expect(
+                opOnly(
+                    `    pushSpell(state, bolt.id, "p1", []);
+    resolveTopOfStack(state);
+    expect(state.players[1].life).toBe(17);`,
+                    facts(),
+                    `let state;\nbeforeEach(() => { state = makeState(); });\n`
+                )
+            ).toMatchObject({ kind: "cleared", rule: "opaque-binding" });
+        });
+
+        it("sees through a file-local helper to the calls inside it", () => {
+            const pure = `const cast = (id) => { const state = makeState(); pushSpell(state, id, "p1", []); resolveTopOfStack(state); return state; };\n`;
+            const owned = `const cast = (id) => { const state = makeState(); pushSpell(state, id, "p1", []); resolveTopOfStack(state); collectTriggers(state); return state; };\n`;
+            const body = `    expect(cast(bolt.id).players[1].life).toBe(17);`;
+            expect(opOnly(body, facts(), pure)).toMatchObject({
+                kind: "op-only",
+            });
+            expect(opOnly(body, facts(), owned)).toMatchObject({
+                kind: "cleared",
+                reason: "calls collectTriggers",
+            });
+        });
+
+        it("sees through an imported test helper only when the caller can read it", () => {
+            const source = src(`${header}import { cast } from "./helpers";
+it("t", () => {
+    expect(cast(bolt.id).players[1].life).toBe(17);
+});`);
+            const helpers = `export function cast(id) {
+    const state = makeState();
+    pushSpell(state, id, "p1", []);
+    resolveTopOfStack(state);
+    return state;
+}`;
+            const read = (from: string, spec: string) =>
+                from === "x.test.ts" && spec === "./helpers"
+                    ? helpers
+                    : undefined;
+            expect(
+                classifyTestBlocks("x.test.ts", source, {
+                    cards: facts(),
+                    readImport: read,
+                })[0].opOnly
+            ).toEqual({ kind: "op-only", cards: ["Lightning Bolt"] });
+            expect(
+                classifyTestBlocks("x.test.ts", source, { cards: facts() })[0]
+                    .opOnly
+            ).toMatchObject({ kind: "cleared", reason: "calls cast" });
+        });
+
+        it("is not evaluated without CardFacts, nor on a non-behavioural block", () => {
+            const source = src(`${header}it("t", () => {\n${BOLT_TO_FACE}\n});
+it("identity", () => { expect(bolt.manaCost).toEqual({ R: 1 }); });`);
+            expect(
+                classifyTestBlocks("x.test.ts", source).map((b) => b.opOnly)
+            ).toEqual([null, null]);
         });
     });
 });
