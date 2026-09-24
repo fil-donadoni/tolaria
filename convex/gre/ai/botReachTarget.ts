@@ -16,7 +16,7 @@
  *  - {@link costPose} adds what an additional cost or a colourless mana symbol
  *    needs (CR 601.2h: unpayable costs can't be paid): a real card to discard
  *    (an opaque placeholder has no definition, so it matches no discard
- *    filter) and floating {C} (no basic land produces colourless, CR 106.1b).
+ *    filter) and floating {C} (a basic land type's intrinsic ability adds a coloured mana, CR 305.6).
  *
  * Lives beside `botReach.ts` for the same reason as its sibling helpers: it
  * decides what the position CONTAINS, so it is a verdict input and sits inside
@@ -35,9 +35,9 @@ import type { ScenarioCard, ScenarioSpec } from "../../debugScenarioSpec";
 /** The plain creature every generated position seeds (both sides), and the
  *  first choice for a requirement it already satisfies. */
 const BASE_CREATURE = "Grizzly Bears";
-/** CR 305.6 — a land card is a legal thing to discard for any cost that does
- *  not name a type, and, unlike a creature, never competes with the spell for
- *  the mana the position gives the holder. */
+/** A land card is a legal thing to discard for any cost that does not name a
+ *  type, and, unlike a creature, never competes with the spell for the mana
+ *  the position gives the holder. */
 const DISCARD_LAND = "Plains";
 
 /** Keys a definition may carry and still be a body with nothing else to it: no
@@ -180,7 +180,12 @@ function favoursItsTarget(
     return (
         onTarget.length > 0 &&
         onTarget.every(
-            (op) => op.op === "pump" && op.power >= 0 && op.toughness >= 0
+            (op) =>
+                op.op === "pump" &&
+                typeof op.power === "number" &&
+                typeof op.toughness === "number" &&
+                op.power >= 0 &&
+                op.toughness >= 0
         )
     );
 }
