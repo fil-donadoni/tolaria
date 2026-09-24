@@ -821,6 +821,11 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Last Stand",
+            "issue": 4504
+        },
+        {
+            "kind": "hand-tail",
             "key": "Manacles of Decay",
             "issue": 4356
         },
