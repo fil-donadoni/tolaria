@@ -394,6 +394,9 @@ export function targetPose(def: CardDefinition): TargetPose {
               ];
     const omitToughnessBoost = req.toughnessFilter?.max !== undefined;
     const roles = asList(req.combatRoleFilter);
+    // A granted keyword rides a second copy of the body, and the combat seed
+    // resolves the FIRST card of that name: the role would land on the filler.
+    if (granted && roles.length > 0) return NO_POSE;
     if (roles.includes("attacking")) {
         // CR 508.1 — the target attacks, its controller is the active player
         // and the holder answers at instant speed (CR 117.1a).

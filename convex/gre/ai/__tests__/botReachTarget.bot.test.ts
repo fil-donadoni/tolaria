@@ -323,9 +323,24 @@ describe("a sorcery removal spell's narrowed target is posed and played (CR 115.
     });
 
     it("a mana value bound the position cannot read poses nothing", () => {
-        const def = removal("sorcery-mv-x", { mvFilter: { max: "X" } });
+        const def = removal("sorcery-mv-x", { mvFilter: { min: 3, max: "X" } });
         expect(
             withTemporaryDefinition(def, () => targetPoseCards(def))
         ).toEqual([]);
+    });
+});
+
+describe("mana value equality and granted keyword with a combat role (issue #4265)", () => {
+    it("an exact mana value is posed", () => {
+        const def = { ...instant("mv-eq", { mvFilter: { equals: 3 } }) };
+        expect(castable(def)).toBe(true);
+    });
+
+    it("a granted keyword with a combat role poses nothing", () => {
+        const def = instant("hm-attacking", {
+            requireAbility: "horsemanship",
+            combatRoleFilter: ["attacking"],
+        });
+        expect(targetPose(def).cards).toEqual([]);
     });
 });
