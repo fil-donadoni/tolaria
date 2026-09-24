@@ -122,7 +122,7 @@ export const mindExtraction: CardDefinition = {
 // and each activation adds its own, so two activations naming the same colour
 // destroy a blocker twice over — harmlessly — exactly as two instances would.
 //
-// compiler-gap: {1}{B}: Choose a color. Whenever this creature becomes blocked by a creature of that color this turn, destroy that creature. Activate only as a sorcery. (#4388)
+// hand-tail: {1}{B}: Choose a color. Whenever this creature becomes blocked by a creature of that color this turn, destroy that creature. Activate only as a sorcery. (#4388)
 export const zombieBoa: CardDefinition = {
     id: "1fb8c277-3154-47c9-835f-327cac297a5e", // APC 54
     name: "Zombie Boa",
