@@ -123,6 +123,15 @@ export interface SiteOptions {
      * refused rather than bound to a guess.
      */
     readonly antecedents?: SiteAntecedents;
+    /**
+     * CR 118.1 + CR 608.2h — the site's activation cost SACRIFICED the source,
+     * so the ability's stack item carries the source's last known
+     * characteristics (`sacrificeSourceSnapshot`) and "its power" is readable
+     * as `{ sacrificed: { read: "power" } }`. Absent = the source is still in
+     * play, or was never the cost's victim, and the phrase is refused rather
+     * than read off a snapshot that was never written.
+     */
+    readonly sourceSacrificed?: true;
 }
 
 /** The referents a site's anaphora may name (see `SiteOptions.antecedents`). */
@@ -193,6 +202,12 @@ function lowerAmount(
         return site.antecedents?.amount !== undefined
             ? lowered(site.antecedents.amount)
             : unlowerable('"that much" names no amount at this site');
+    if (amount.kind === "sacrificed-source-characteristic")
+        return site.sourceSacrificed === true
+            ? lowered({ sacrificed: { read: amount.characteristic } })
+            : unlowerable(
+                  '"its power" names a source its own cost did not sacrifice (CR 608.2h)'
+              );
     if (amount.kind === "counted" || amount.kind === "acted-on-characteristic")
         return unlowerable(
             `a ${amount.kind} amount is read only at a life-change site`

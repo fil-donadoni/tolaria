@@ -97,6 +97,7 @@ import { announcementModeFacts, modeHasLegalTargets } from "./modeAnnouncement";
 import {
     applySacrificeSelection,
     sacrificeSnapshotFromResults,
+    sacrificeSourceSnapshot,
     canAffordSacrifice,
     isSacrificeSelectionComplete,
     type SacrificeSelection,
@@ -1038,6 +1039,13 @@ export function tryAutoCommitPendingActivation(
     if (pa.lifeCost !== undefined) {
         player.life -= pa.lifeCost;
     }
+    // CR 118.1 + CR 608.2h — the source's own last-known characteristics,
+    // taken BEFORE it leaves the battlefield ("It deals damage equal to its
+    // power"); the twin sites are `finalizeTargetSelection` and the immediate
+    // commit below.
+    const selfSacrificeSnapshot = pa.sacrificeSource
+        ? sacrificeSourceSnapshot(state, card)
+        : undefined;
     if (pa.sacrificeSource) {
         removePermanentTo(state, card.id, "graveyard", "sacrifice");
     }
@@ -1205,10 +1213,14 @@ export function tryAutoCommitPendingActivation(
         // graveyard-exile cost; if one ever does, the SACRIFICE leg wins, so
         // adding an exile leg can never silently change what an existing card
         // (Priest of Yawgmoth, Freyalise Supplicant) reads back.
-        ...((activationSacrificeSnapshot ?? activationExileSnapshot)
+        ...((activationSacrificeSnapshot ??
+        activationExileSnapshot ??
+        selfSacrificeSnapshot)
             ? {
                   additionalSacrificeSnapshot:
-                      activationSacrificeSnapshot ?? activationExileSnapshot,
+                      activationSacrificeSnapshot ??
+                      activationExileSnapshot ??
+                      selfSacrificeSnapshot,
               }
             : {}),
         ...(notedManaSpent ? { notedManaSpent } : {}),
@@ -2978,6 +2990,11 @@ export function activateAbilityOnState(
     // CR 606.4 — pay a non-targeted loyalty ability's signed loyalty cost as
     // it goes on the stack (Liliana's "+1", Garruk's "-4"). No-op otherwise.
     payLoyaltyCost(card, ability);
+    // CR 118.1 + CR 608.2h — the source's last-known characteristics, taken
+    // BEFORE the sacrifice below moves it (see the deferred-commit twin).
+    const selfSacrificeSnapshot = ability.cost.sacrifice
+        ? sacrificeSourceSnapshot(state, card)
+        : undefined;
     if (ability.cost.sacrifice) {
         removePermanentTo(state, card.id, "graveyard", "sacrifice");
     }
@@ -3047,8 +3064,11 @@ export function activateAbilityOnState(
         ...(chosenX !== undefined ? { chosenX } : {}),
         ...(grantedSourceCardId ? { grantedSourceCardId } : {}),
         ...(grantedAbilityOrigin ? { grantedAbilityOrigin } : {}),
-        ...(immediateSacSnapshot
-            ? { additionalSacrificeSnapshot: immediateSacSnapshot }
+        ...((immediateSacSnapshot ?? selfSacrificeSnapshot)
+            ? {
+                  additionalSacrificeSnapshot:
+                      immediateSacSnapshot ?? selfSacrificeSnapshot,
+              }
             : {}),
         ...(notedManaSpent ? { notedManaSpent } : {}),
     });

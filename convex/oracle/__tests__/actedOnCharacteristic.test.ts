@@ -338,16 +338,25 @@ describe("acted-on characteristic — refusals stay fail-closed (issue #4248)", 
     // cards) — a different referent and a different Op. The damage site's
     // pattern keeps its literal "mana value", so the widened characteristic
     // set cannot leak into it.
-    for (const stat of ["power", "toughness"])
-        it(`refuses at a damage site: "its ${stat}" is not this rule's family`, () => {
-            expect(
-                refusal(
-                    sorcery(
-                        `Destroy target creature. Characteristic Probe deals damage equal to its ${stat} to another target creature.`
-                    )
-                )
-            ).toBe("no slot consumed the line");
-        });
+    //
+    // "its toughness" is read by no rule at all. "its power" IS read, by the
+    // sacrificed-source rule (issue #4317, `sacrificedSourcePower.test.ts`),
+    // which binds it only where the cost sacrificed the source — a spell has no
+    // cost to have done so, so the LOWERING refuses it for that reason.
+    const DAMAGE_ITS = (stat: string) =>
+        sorcery(
+            `Destroy target creature. Characteristic Probe deals damage equal to its ${stat} to another target creature.`
+        );
+    it('refuses at a damage site: "its toughness" is not this rule\'s family', () => {
+        expect(refusal(DAMAGE_ITS("toughness"))).toBe(
+            "no slot consumed the line"
+        );
+    });
+    it('refuses at a spell\'s damage site: "its power" names a source no cost sacrificed', () => {
+        expect(refusal(DAMAGE_ITS("power"))).toBe(
+            '"its power" names a source its own cost did not sacrifice (CR 608.2h)'
+        );
+    });
 });
 
 describe("acted-on characteristic — behaviour (CR 608.2h)", () => {

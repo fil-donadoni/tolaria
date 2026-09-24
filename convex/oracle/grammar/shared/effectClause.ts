@@ -148,6 +148,22 @@ export type AmountIR =
           readonly kind: "acted-on-characteristic";
           readonly noun: ActedOnNounIR;
           readonly characteristic: ActedOnCharacteristicIR;
+      }
+    /**
+     * CR 608.2h + CR 208.1 — "its power" where "its" is the SOURCE its own
+     * activation cost sacrificed ("{R}, Sacrifice this creature: It deals
+     * damage equal to its power to target creature"): the source's last known
+     * information, since it has left the battlefield before the ability
+     * resolves.
+     *
+     * Read here as words; only a site whose cost sacrificed the source can
+     * bind it (`SiteOptions.sourceSacrificed`), because on any other site
+     * "its power" is the LIVE value of an object still in play, which the
+     * value grammar has no member for. Such a site refuses the line.
+     */
+    | {
+          readonly kind: "sacrificed-source-characteristic";
+          readonly characteristic: "power";
       };
 
 /**
@@ -1750,6 +1766,18 @@ const DAMAGE_EQUAL_MANA_VALUE = new RegExp(
 const DAMAGE_EQUAL_COUNT =
     /^(.+) deals damage to (.+?) equal to (the number of .+)$/;
 /**
+ * CR 608.2h + CR 208.1 — "{self} deals damage equal to its power to target
+ * creature" (Cinder Shade): the dealer's OWN power, last known because the
+ * cost sacrificed it.
+ *
+ * Pinned to the literal "its power": "its toughness" and "its mana value" name
+ * the same object but no corpus card prints them at a damage site, so neither
+ * has a fixture (ADR 0137 anti-leniency). The neighbouring
+ * {@link DAMAGE_EQUAL_MANA_VALUE} reads "that permanent's" — an object an
+ * EARLIER SENTENCE acted on — so the two patterns cannot claim one line.
+ */
+const DAMAGE_EQUAL_OWN_POWER = /^(.+) deals damage equal to its power to (.+)$/;
+/**
  * CR 608.2c — a drain: "Target player loses 2 life and you gain 2 life". The
  * loss reads through `LIFE` like any other, and the gain is pinned to exactly
  * "you gain N life" (anti-leniency, as `YOU_DRAW_AND_LOSE_LIFE`): every other
@@ -2647,6 +2675,29 @@ function effectSentence(
         return ok({
             kind: "deal-damage" as const,
             amount: { kind: "counted" as const, times: 1, set: set.value },
+            to: to.value,
+            ...(dealerIsPronoun ? { sourceIsPronoun: true as const } : {}),
+        } satisfies EffectSentenceIR);
+    }
+
+    // ── damage equal to the dealer's own power (CR 608.2h) ────────────────
+    const damageOwnPower = span.match(DAMAGE_EQUAL_OWN_POWER);
+    if (damageOwnPower !== null) {
+        const dealer = uncapitalise(damageOwnPower[1]!);
+        const dealerIsPronoun = dealer === PRONOUN_MARKER;
+        if (!dealerIsPronoun && !isSelfPhrase(dealer))
+            return fail(
+                `"${damageOwnPower[1]}" is not a damage source this grammar knows`,
+                span
+            );
+        const to = subjectRule.run(damageOwnPower[2]!, ctx);
+        if (!to.ok) return to;
+        return ok({
+            kind: "deal-damage" as const,
+            amount: {
+                kind: "sacrificed-source-characteristic" as const,
+                characteristic: "power" as const,
+            },
             to: to.value,
             ...(dealerIsPronoun ? { sourceIsPronoun: true as const } : {}),
         } satisfies EffectSentenceIR);

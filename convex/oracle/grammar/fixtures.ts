@@ -3351,4 +3351,51 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             targetRequirement: { type: "Creature", count: 1 },
         },
     },
+    // CR 118.1 + CR 608.2h + CR 208.1 — "its power" where "its" is the source
+    // its own cost sacrificed (Flame Elemental; Cinder Shade, Minotaur
+    // Illusionist): the last-known power read off the cost snapshot as the
+    // `sacrificed` value. The canned smoke scenario never pays a cost, so no
+    // snapshot exists to read and the form would sit in quarantine without
+    // evidence (issue #4317).
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "975226a4-2d03-4993-9337-cfd6595011bd",
+            name: "Flame Elemental",
+            manaCost: "{2}{R}{R}",
+            typeLine: "Creature — Elemental",
+            oracleText:
+                "{R}, {T}, Sacrifice this creature: It deals damage equal to its power to target creature.",
+            power: "3",
+            toughness: "2",
+            layout: "normal",
+        },
+        expected: {
+            name: "Flame Elemental",
+            types: ["Creature"],
+            subtypes: ["Elemental"],
+            manaCost: { X: 2, R: 2 },
+            power: 3,
+            toughness: 2,
+            oracleText:
+                "{R}, {T}, Sacrifice this creature: It deals damage equal to its power to target creature.",
+            activatedAbilities: [
+                {
+                    id: "flame-elemental-ability",
+                    oracleText:
+                        "{R}, {T}, Sacrifice this creature: It deals damage equal to its power to target creature.",
+                    cost: { mana: { R: 1 }, tap: true, sacrifice: true },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "dealDamage",
+                            amount: { sacrificed: { read: "power" } },
+                            to: { target: 0 },
+                        },
+                    ],
+                    targetRequirement: { type: "Creature", count: 1 },
+                },
+            ],
+        },
+    },
 ]);

@@ -14095,6 +14095,54 @@
         "setCode": "apc"
     },
     {
+        "name": "Ghitu Fire-Eater",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Nomad"
+        ],
+        "manaCost": {
+            "X": 2,
+            "R": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "{T}, Sacrifice this creature: It deals damage equal to its power to any target.",
+        "activatedAbilities": [
+            {
+                "id": "ghitu-fire-eater-ability",
+                "oracleText": "{T}, Sacrifice this creature: It deals damage equal to its power to any target.",
+                "cost": {
+                    "tap": true,
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "dealDamage",
+                        "amount": {
+                            "sacrificed": {
+                                "read": "power"
+                            }
+                        },
+                        "to": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "any",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "131dce1c-e9c8-437a-b7aa-36a47049d2d2",
+        "rarity": "uncommon",
+        "setCode": "ulg"
+    },
+    {
         "name": "Spearbreaker Behemoth",
         "types": [
             "Creature"
@@ -51384,6 +51432,56 @@
         "id": "49651dd4-a489-42d3-b4eb-51f5353b334e",
         "rarity": "rare",
         "setCode": "uds"
+    },
+    {
+        "name": "Flame Elemental",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Elemental"
+        ],
+        "manaCost": {
+            "X": 2,
+            "R": 2
+        },
+        "power": 3,
+        "toughness": 2,
+        "oracleText": "{R}, {T}, Sacrifice this creature: It deals damage equal to its power to target creature.",
+        "activatedAbilities": [
+            {
+                "id": "flame-elemental-ability",
+                "oracleText": "{R}, {T}, Sacrifice this creature: It deals damage equal to its power to target creature.",
+                "cost": {
+                    "mana": {
+                        "R": 1
+                    },
+                    "tap": true,
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "dealDamage",
+                        "amount": {
+                            "sacrificed": {
+                                "read": "power"
+                            }
+                        },
+                        "to": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "498e813d-b0b3-4040-b87a-4fa2be681ec5",
+        "rarity": "uncommon",
+        "setCode": "mir"
     },
     {
         "name": "Parapet Watchers",
@@ -92417,6 +92515,62 @@
         "setCode": "vow"
     },
     {
+        "name": "Heartfire Immolator",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Wizard"
+        ],
+        "manaCost": {
+            "X": 1,
+            "R": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "Prowess (Whenever you cast a noncreature spell, this creature gets +1/+1 until end of turn.)\n{R}, Sacrifice this creature: It deals damage equal to its power to target creature or planeswalker.",
+        "staticAbilities": [
+            "prowess"
+        ],
+        "activatedAbilities": [
+            {
+                "id": "heartfire-immolator-ability",
+                "oracleText": "{R}, Sacrifice this creature: It deals damage equal to its power to target creature or planeswalker.",
+                "cost": {
+                    "mana": {
+                        "R": 1
+                    },
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "dealDamage",
+                        "amount": {
+                            "sacrificed": {
+                                "read": "power"
+                            }
+                        },
+                        "to": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": [
+                        "Creature",
+                        "Planeswalker"
+                    ],
+                    "count": 1
+                }
+            }
+        ],
+        "id": "869fb9f1-0d59-4874-aa52-ac665c3cc0e8",
+        "rarity": "uncommon",
+        "setCode": "m21"
+    },
+    {
         "name": "Vexing Gull",
         "types": [
             "Creature"
@@ -128571,6 +128725,79 @@
         "setCode": "blb"
     },
     {
+        "name": "Cinder Shade",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Shade"
+        ],
+        "manaCost": {
+            "X": 1,
+            "B": 1,
+            "R": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "{B}: This creature gets +1/+1 until end of turn.\n{R}, Sacrifice this creature: It deals damage equal to its power to target creature.",
+        "activatedAbilities": [
+            {
+                "id": "cinder-shade-ability",
+                "oracleText": "{B}: This creature gets +1/+1 until end of turn.",
+                "cost": {
+                    "mana": {
+                        "B": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "ref": "$source"
+                        },
+                        "power": 1,
+                        "toughness": 1,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            },
+            {
+                "id": "cinder-shade-ability-2",
+                "oracleText": "{R}, Sacrifice this creature: It deals damage equal to its power to target creature.",
+                "cost": {
+                    "mana": {
+                        "R": 1
+                    },
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "dealDamage",
+                        "amount": {
+                            "sacrificed": {
+                                "read": "power"
+                            }
+                        },
+                        "to": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "b8dd933a-19ed-4d30-a94a-bfb2f66f8f13",
+        "rarity": "uncommon",
+        "setCode": "inv"
+    },
+    {
         "name": "Blade Splicer",
         "types": [
             "Creature"
@@ -149292,6 +149519,80 @@
         "id": "d8823bdc-0467-47f1-9bef-a281b4a7071d",
         "rarity": "rare",
         "setCode": "avr"
+    },
+    {
+        "name": "Minotaur Illusionist",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Minotaur",
+            "Wizard"
+        ],
+        "manaCost": {
+            "X": 3,
+            "U": 1,
+            "R": 1
+        },
+        "power": 3,
+        "toughness": 4,
+        "oracleText": "{1}{U}: This creature gains shroud until end of turn. (It can't be the target of spells or abilities.)\n{R}, Sacrifice this creature: It deals damage equal to its power to target creature.",
+        "activatedAbilities": [
+            {
+                "id": "minotaur-illusionist-ability",
+                "oracleText": "{1}{U}: This creature gains shroud until end of turn.",
+                "cost": {
+                    "mana": {
+                        "X": 1,
+                        "U": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "grantAbility",
+                        "target": {
+                            "ref": "$source"
+                        },
+                        "ability": "shroud",
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            },
+            {
+                "id": "minotaur-illusionist-ability-2",
+                "oracleText": "{R}, Sacrifice this creature: It deals damage equal to its power to target creature.",
+                "cost": {
+                    "mana": {
+                        "R": 1
+                    },
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "dealDamage",
+                        "amount": {
+                            "sacrificed": {
+                                "read": "power"
+                            }
+                        },
+                        "to": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "d8a49d29-6d01-4b1d-80c8-9e5378a76878",
+        "rarity": "uncommon",
+        "setCode": "apc"
     },
     {
         "name": "Sagu Wildling",

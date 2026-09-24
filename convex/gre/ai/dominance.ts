@@ -130,6 +130,7 @@ import {
 } from "../state";
 import { checkStateBasedActions } from "../sba";
 import { cloneGameState } from "../clone";
+import { sacrificeSourceSnapshot } from "../sacrificeChoice";
 import {
     isCreature,
     manaGateBattlefields,
@@ -886,6 +887,15 @@ function applyProbeActivation(
     // transformed body, so an item cloned earlier would resolve against a
     // RICHER object than the real one (Icatian Moneychanger reads its own
     // credit counters at resolve, CR 608.2g).
+    //
+    // CR 118.1 + CR 608.2h — the source's last-known characteristics are taken
+    // first, exactly as the real payment stamps them
+    // (`sacrificeSourceSnapshot`): a probe that resolved "It deals damage equal
+    // to its power" with no snapshot would skip the damage, see no delta but the
+    // cost, and prune a line that wins the game (issue #4317).
+    const selfSacrificeSnapshot = ability.cost.sacrifice
+        ? sacrificeSourceSnapshot(probe, located)
+        : undefined;
     if (ability.cost.sacrifice) {
         removePermanentTo(probe, move.cardInstanceId, "graveyard", "sacrifice");
     }
@@ -905,6 +915,9 @@ function applyProbeActivation(
         abilityId: move.abilityId,
         ...(move.targets.length > 0 ? { targets: move.targets } : {}),
         ...(move.chosenX !== undefined ? { chosenX: move.chosenX } : {}),
+        ...(selfSacrificeSnapshot
+            ? { additionalSacrificeSnapshot: selfSacrificeSnapshot }
+            : {}),
     };
     probe.stack.push(stackItem);
     // CR 603.3b — the payment's triggers are put on the stack the next time a
