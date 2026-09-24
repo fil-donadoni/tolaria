@@ -76,6 +76,7 @@ interface Accumulator {
     compiledStaticEffects: CompiledStaticEffect[];
     entersTapped: boolean;
     drawStepReplacement: boolean;
+    shuffleFromAnywhere: boolean;
     /** CR 614.12a — the "as this enters, choose a creature type" lines read. */
     asEntersCreatureTypeLines: string[];
     entersWithCounters: {
@@ -447,6 +448,8 @@ function lowerLine(
             if (out.entersTapped === true) acc.entersTapped = true;
             if (out.drawStepReplacement === true)
                 acc.drawStepReplacement = true;
+            if (out.shuffleFromAnywhere === true)
+                acc.shuffleFromAnywhere = true;
             if (out.asEntersCreatureType === true) {
                 // Two such lines are two choices; `entersWith.asEnters` would
                 // ask both, but "the chosen type" (CR 607.2d) could no longer
@@ -615,6 +618,7 @@ export function lowerCard(
         compiledStaticEffects: [],
         entersTapped: false,
         drawStepReplacement: false,
+        shuffleFromAnywhere: false,
         asEntersCreatureTypeLines: [],
         entersWithCounters: [],
         kickerRiders: [],
@@ -715,6 +719,9 @@ export function lowerCard(
     // CR 614.10 — "Skip your draw step" is a replacement effect the phase code
     // reads off the definition, never a trigger and never a continuous effect.
     if (acc.drawStepReplacement) definition.drawStepReplacement = true;
+    // CR 614.1a — a replacement is a closure; the compiler emits the flag and
+    // `expandDefinition` rebuilds the `replacementEffects[]` entry from it.
+    if (acc.shuffleFromAnywhere) definition.shuffleFromAnywhere = true;
     // CR 702.33d — `count: "kicker"` reads how many times the spell was
     // kicked. "If this creature was kicked, it enters with N counters" means
     // 0 or N, which that tally gives only for a lone, single kicker: a second

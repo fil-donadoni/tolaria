@@ -20128,6 +20128,15 @@ export interface CardDefinition {
      *  draw is suppressed; the DRAW step still runs and its beginning-of-step
      *  triggers still fire. */
     drawStepReplacement?: boolean;
+    /** CR 614.1a — "If <this card> would be put into a graveyard from
+     *  anywhere, reveal <this card> and shuffle it into its owner's library
+     *  instead." The Oracle compiler's JSON-pure declaration of the clause:
+     *  `expandShuffleFromAnywhere` (`abilities/shuffleFromAnywhereReplacement.ts`)
+     *  rebuilds it at the `expandDefinition` seam into the same
+     *  `replacementEffects[]` entry the hand-written catalogue writes with
+     *  `shuffleFromAnywhereReplacement`, and REMOVES the field — no engine
+     *  read ever sees it. */
+    shuffleFromAnywhere?: boolean;
     /** Continuous "plays with hand revealed" static (CR 702-adjacent — Zur's
      *  Weirding, Enduring Renewal; issue #735). While ANY permanent with this
      *  flag is on the battlefield, the affected player's hand is projected

@@ -17,6 +17,9 @@
  *                                                   → kicker-counted riders
  *   "<self> doesn't untap during your untap step"   → the `does-not-untap` marker
  *   "Skip your draw step"                          → CR 614.10 `drawStepReplacement`
+ *   "If <self> would be put into a graveyard from anywhere, reveal <self>
+ *    and shuffle it into its owner's library instead"
+ *                                                   → CR 614.1a `shuffleFromAnywhere`
  *   "<grantee> may cast <class> spells [without paying
  *    their mana costs] [as though they had flash]"  → CR 601.3 `cast-permission`
  *   "While an opponent is choosing targets as part of casting a spell they
@@ -172,6 +175,10 @@ export type StaticClauseIR =
      *  replacement of the controller's own turn-based draw. Lowered to
      *  `drawStepReplacement`, which suppresses the draw but not the step. */
     | { readonly kind: "skip-draw-step" }
+    /** CR 614.1a — "If <self> would be put into a graveyard from anywhere,
+     *  reveal <self> and shuffle it into its owner's library instead".
+     *  Lowered to `shuffleFromAnywhere`. */
+    | { readonly kind: "shuffle-from-anywhere" }
     /**
      * CR 601.2c — "While an opponent is choosing targets as part of casting a
      * spell they control or activating an ability they control, that player
@@ -1064,6 +1071,41 @@ const skipDrawStepRule: Rule<StaticClauseIR> = pattern(
     (): RuleResult<StaticClauseIR> => ok({ kind: "skip-draw-step" as const })
 );
 
+// ── Frame: the self-shuffle replacement (CR 614.1a) ─────────────────────────
+
+/**
+ * "If <self> would be put into a graveyard from anywhere, reveal <self> and
+ * shuffle it into its owner's library instead." (Blightsteel Colossus,
+ * Darksteel Colossus, Progenitus, Legacy Weapon.) CR 614.1a: "instead" makes it
+ * a replacement effect, so the card never reaches the graveyard — no
+ * dies/discarded/milled event fires for it. The engine encoding is the one the
+ * hand-written Blightsteel Colossus already carries
+ * (`shuffleFromAnywhereReplacement`, issue #2106), including its one confessed
+ * simplification: the CR 701.20a reveal is not modelled (tracked-by: #2557).
+ *
+ * Both self references must name THIS object (CR 201.5). Every neighbour stays
+ * refused by the anchored regex: the "When <self> is put into a graveyard from
+ * anywhere" TRIGGER (Emrakul, the Aeons Torn — CR 603, not a replacement), an
+ * exile redirect, and a wording without "reveal". The same sentence on an
+ * instant (Nexus of Fate) is a separate Grammar Gap under the spell slot.
+ */
+const SHUFFLE_FROM_ANYWHERE =
+    /^If (.+) would be put into a graveyard from anywhere, reveal (.+) and shuffle it into its owner's library instead$/;
+
+const shuffleFromAnywhereRule: Rule<StaticClauseIR> = pattern(
+    "shuffle from anywhere",
+    SHUFFLE_FROM_ANYWHERE,
+    (match): RuleResult<StaticClauseIR> => {
+        for (const phrase of [match[1]!, match[2]!])
+            if (!isSelfPhrase(phrase))
+                return fail(
+                    `"${phrase}" is not this object (CR 201.5)`,
+                    phrase
+                );
+        return ok({ kind: "shuffle-from-anywhere" as const });
+    }
+);
+
 // ── Frames: the enchanted host (CR 303.4b) ────────────────────────────────
 
 /** The nouns "enchanted" is printed with, and the card type each names. */
@@ -1383,6 +1425,7 @@ export const staticClauseRule: Rule<StaticClauseIR> = subGrammar(
         doesNotUntapRule,
         targetChoiceRequirementRule,
         skipDrawStepRule,
+        shuffleFromAnywhereRule,
         selfConditionalPumpRule,
         enchantedHostRule,
         youControlHostRule,

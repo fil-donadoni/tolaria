@@ -2,7 +2,7 @@
  * Lowering: static-clause IR → the `CardDefinition` fields a continuous static
  * ability lives in (CR 113.3d, ADR 0045 / ADR 0105).
  *
- * There are four destinations, and which one a clause takes is a statement
+ * There are five destinations, and which one a clause takes is a statement
  * about the ENGINE, not about the sentence — which is why this file exists
  * rather than the clause carrying its own encoding:
  *
@@ -18,6 +18,10 @@
  *    turn-based draw: a per-card flag `gre/phases.ts` reads live, exactly as
  *    the hand-written Necropotence / Solitary Confinement declare it (it
  *    suppresses the draw, not the step — see the frame in `staticClause.ts`);
+ *  - `shuffleFromAnywhere` — CR 614.1a, the self-referential "shuffle it into
+ *    its owner's library instead" replacement: a JSON-pure flag
+ *    `expandDefinition` rebuilds into the hand-written catalogue's
+ *    `replacementEffects[]` entry (a replacement is a closure);
  *  - `staticAbilities[]` — the `does-not-untap` marker, which the untap step
  *    reads directly (`gre/phases.ts`). A filtered `untap-restriction` static
  *    would be the wrong encoding for a permanent talking about itself; the
@@ -76,6 +80,8 @@ export interface LoweredStatic {
     readonly entersTapped?: true;
     /** CR 614.10 — "Skip your draw step". */
     readonly drawStepReplacement?: true;
+    /** CR 614.1a — the self-shuffle replacement. */
+    readonly shuffleFromAnywhere?: true;
     readonly entersWithCounters?: {
         readonly type: string;
         readonly count: number;
@@ -334,6 +340,8 @@ export function lowerStaticClause(
             };
         case "skip-draw-step":
             return { ok: true, lowered: { drawStepReplacement: true } };
+        case "shuffle-from-anywhere":
+            return { ok: true, lowered: { shuffleFromAnywhere: true } };
         case "enchanted-host":
             return lowerHostClause(clause, nextId);
         default: {
