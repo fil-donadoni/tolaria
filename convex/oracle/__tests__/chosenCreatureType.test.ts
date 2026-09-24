@@ -46,9 +46,9 @@ const EXPECTED_EFFECTS = [
 
 describe("chosen creature type (CR 205.3m / 205.1a, issue #4316)", () => {
     it.each([
-        ["Imagecrafter", "{T}", { X: 0 }],
-        ["Mistform Mutant", "{1}{U}", { X: 0 }],
-        ["Unnatural Selection", "{1}", { X: 0 }],
+        ["Imagecrafter", "{T}"],
+        ["Mistform Mutant", "{1}{U}"],
+        ["Unnatural Selection", "{1}"],
     ])("%s: %s compiles to the exclude + setSubtype pair", (name, cost) => {
         const outcome = compileCard(
             oracleCard({
@@ -88,14 +88,14 @@ describe("chosen creature type (CR 205.3m / 205.1a, issue #4316)", () => {
         ).toBe("unparsed");
     });
 
-    it("never reaches ready when the write-back has no preceding choice", () => {
+    it("is quarantined, never ready, when the write-back has no preceding choice", () => {
         // The ref names a binding nothing wrote; the compiled script is
         // quarantined rather than shipped with a dangling read.
         const outcome = abilityEffects(
             "{1}",
             "Target creature becomes that type until end of turn."
         );
-        expect(outcome.state).not.toBe("ready");
+        expect(outcome.state).toBe("quarantine");
     });
 
     it("REFUSES a subject that is not one announced creature", () => {
