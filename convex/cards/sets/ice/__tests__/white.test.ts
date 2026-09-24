@@ -18,14 +18,12 @@ import {
     tryAutoCommitPendingCast,
     selectTarget,
     tapSourceIntoPayment,
+    confirmBlockers,
 } from "../../../../game";
 import { getManaTapOptionsDetailed } from "../../../../gre/constants";
 import { applyDamageReplacements } from "../../../../gre/replacements";
 import {
     resolveTopOfStack,
-    getManaSubstitutions,
-    payManaCost,
-    commitLandsForCost,
     normalizeManaCost,
     runDamageReplacement,
     applyTargetPrevention,
@@ -42,11 +40,6 @@ import {
     applySacrificeSelection,
     type SacrificeSelection,
 } from "../../../../gre/sacrificeChoice";
-import {
-    buildAutoTapSources,
-    solveSmartAutoTap,
-    manaFromPlan,
-} from "../../../../gre/autoTap";
 import {
     getEffectivePower,
     getEffectiveToughness,
@@ -1405,32 +1398,29 @@ describe("Arctic Foxes (CR 509.1b snow-gated block restriction)", () => {
 // ===========================================================================
 
 describe("Hipparion (can't block power 3+ unless you pay {1}, CR 509.1b)", () => {
-    /** Mirrors the bypass-payment loop in game.ts `confirmBlockers`: for each
-     *  charge, auto-tap the blocker controller's mana and pay it. Returns the
-     *  rejection reason when a charge is unpayable, else null. */
-    function payBypassSeam(state: GameState): string | null {
-        for (const charge of collectBlockBypassCharges(state)) {
-            const payer = state.players.find(
-                (p) => p.id === charge.controllerId
-            )!;
-            const subs = getManaSubstitutions(state, charge.controllerId);
-            const sources = buildAutoTapSources(payer.battlefield);
-            const cost = normalizeManaCost(charge.cost);
-            const plan = solveSmartAutoTap(payer.manaPool, cost, subs, sources);
-            if (plan === null) return charge.reason;
-            const tappedIds = new Set(plan.map((s) => s.cardId));
-            for (const src of payer.battlefield) {
-                if (tappedIds.has(src.id)) src.isTapped = true;
-            }
-            const produced = manaFromPlan(sources, plan);
-            for (const [c, amt] of Object.entries(produced)) {
-                if (amt) {
-                    payer.manaPool[c] = (payer.manaPool[c] ?? 0) + amt;
-                }
-            }
-            payManaCost(payer.manaPool, cost, subs);
-            commitLandsForCost(payer, cost);
+    /** The bypass is charged by `confirmBlockers` itself (CR 509.1b) —
+     *  driven through the REGISTERED mutation (issue #4475), never a copy of
+     *  its payment loop. Returns the rejection message when a charge is
+     *  unpayable (nothing is written then), else null; on success `state`
+     *  is replaced by the persisted post-confirm state. */
+    async function payBypassSeam(state: GameState): Promise<string | null> {
+        const harness = makeMutationCtx("p2", [gameStateSeed(state)]);
+        try {
+            await runMutation<{ gameId: Id<"games">; playerId: string }, void>(
+                confirmBlockers as unknown as Handler<
+                    { gameId: Id<"games">; playerId: string },
+                    void
+                >,
+                harness.ctx,
+                { gameId: "game-1" as Id<"games">, playerId: "p2" }
+            );
+        } catch (e) {
+            expect(harness.writes).toHaveLength(0);
+            return (e as Error).message;
         }
+        const after = harness.state();
+        expect(after.combat?.blockersConfirmed).toBe(true);
+        Object.assign(state, after);
         return null;
     }
 
@@ -1471,7 +1461,7 @@ describe("Hipparion (can't block power 3+ unless you pay {1}, CR 509.1b)", () =>
         return { state };
     }
 
-    it("blocks a power-2 creature for free (no bypass charge)", () => {
+    it("blocks a power-2 creature for free (no bypass charge)", async () => {
         const { state } = setup(2, 0);
         const atk = state.players[0].battlefield[0];
         const hipp = state.players[1].battlefield[0];
@@ -1484,10 +1474,10 @@ describe("Hipparion (can't block power 3+ unless you pay {1}, CR 509.1b)", () =>
             ).eligible
         ).toBe(true);
         expect(collectBlockBypassCharges(state)).toHaveLength(0);
-        expect(payBypassSeam(state)).toBeNull();
+        expect(await payBypassSeam(state)).toBeNull();
     });
 
-    it("permits blocking a power-4 creature and auto-pays {1} from a Plains", () => {
+    it("permits blocking a power-4 creature and auto-pays {1} from a Plains", async () => {
         const { state } = setup(4, 1);
         const atk = state.players[0].battlefield[0];
         const hipp = state.players[1].battlefield.find((c) => c.id === "hipp")!;
@@ -1503,16 +1493,16 @@ describe("Hipparion (can't block power 3+ unless you pay {1}, CR 509.1b)", () =>
         // The charge is collected and paid by tapping the Plains.
         const charges = collectBlockBypassCharges(state);
         expect(charges).toHaveLength(1);
-        expect(payBypassSeam(state)).toBeNull();
+        expect(await payBypassSeam(state)).toBeNull();
         const land = state.players[1].battlefield.find(
             (c) => c.id === "plains-0"
         )!;
         expect(land.isTapped).toBe(true);
     });
 
-    it("rejects the block when the {1} can't be paid (no mana)", () => {
+    it("rejects the block when the {1} can't be paid (no mana)", async () => {
         const { state } = setup(4, 0);
-        const reason = payBypassSeam(state);
+        const reason = await payBypassSeam(state);
         expect(reason).not.toBeNull();
         expect(reason).toMatch(/pay \{1\}/i);
     });
