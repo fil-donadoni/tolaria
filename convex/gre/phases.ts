@@ -2151,9 +2151,14 @@ export function emitAttackersDeclaredEvents(state: GameState): void {
     // events `tapPermanent` queued join the SAME batch as `ATTACKERS_DECLARED`
     // (CR 508.2 / 603.3b): Magda's Treasure triggers and the attack triggers
     // are ordered together and placed before the active player gets priority.
+    // Mana-ability taps (attack tax, CR 605) are excluded: they never use the
+    // stack and are drained by `processPendingActionTriggers`.
     const attackerIds = new Set(state.combat.attackerIds);
     const tapEvents = (state.pendingEvents ?? []).filter(
-        (e) => e.type === "PERMANENT_TAPPED" && attackerIds.has(e.permanentId)
+        (e) =>
+            e.type === "PERMANENT_TAPPED" &&
+            !e.forMana &&
+            attackerIds.has(e.permanentId)
     );
     if (tapEvents.length > 0) {
         const rest = (state.pendingEvents ?? []).filter(

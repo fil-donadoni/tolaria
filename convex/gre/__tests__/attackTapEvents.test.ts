@@ -11,9 +11,11 @@ import {
     pushSpell,
 } from "../../cards/__tests__/setup";
 import { applyMoveForSearch } from "../applyMove";
+import { emitAttackersDeclaredEvents } from "../phases";
 import { applyMoveInSearch } from "../search";
 import {
     buildSpellContext,
+    emitPermanentTapped,
     getPlayer,
     resolveTopOfStack,
     type GameState,
@@ -70,6 +72,28 @@ describe("attack taps reach Magda on every path (CR 508.1f / 701.26a)", () => {
         const state = board();
         applyMoveInSearch(state, "p1", ATTACK);
         expect(treasuresAfterResolving(state)).toBe(2);
+    });
+});
+
+describe("mana-ability taps stay out of the attack batch (CR 605)", () => {
+    it("a queued forMana tap of an attacker is left in pendingEvents", () => {
+        const state = board();
+        const magda = getPlayer(state, "p1").battlefield[0];
+        magda.isTapped = true;
+        emitPermanentTapped(state, magda, true, { G: 1 });
+        state.combat = {
+            attackerIds: ["magda", "dwarf"],
+            confirmed: false,
+            blockerAssignments: {},
+            blockersConfirmed: false,
+        };
+        emitAttackersDeclaredEvents(state);
+        expect(
+            (state.pendingEvents ?? []).filter(
+                (e) => e.type === "PERMANENT_TAPPED" && e.forMana
+            )
+        ).toHaveLength(1);
+        expect(state.stack).toHaveLength(0);
     });
 });
 
