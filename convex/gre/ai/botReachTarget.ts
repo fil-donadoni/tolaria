@@ -31,6 +31,7 @@ import type {
     TargetRequirement,
 } from "../../cards/types";
 import type { ScenarioCard, ScenarioSpec } from "../../debugScenarioSpec";
+import { manaValue } from "../constants";
 import { targetSlotBeneficence } from "./beneficence";
 
 /** The plain creature every generated position seeds (both sides), and the
@@ -65,8 +66,10 @@ const PLAIN_KEYS: ReadonlySet<string> = new Set([
 
 /** 0 — a body with nothing else to it; 1 — the same body with `defender`
  *  (CR 702.3), which changes nothing about a target a spell answers (every
- *  Wall is one); `null` — anything with a behaviour of its own. */
-function plainRank(def: CardDefinition): 0 | 1 | null {
+ *  Wall is one), or with the one keyword `required` names (CR 115.1 — "target
+ *  creature with horsemanship" needs a body that carries it); `null` —
+ *  anything with a behaviour of its own. */
+function plainRank(def: CardDefinition, required?: string): 0 | 1 | null {
     if (def.types.length !== 1 || def.types[0] !== "Creature") return null;
     if (typeof def.power !== "number" || typeof def.toughness !== "number")
         return null;
@@ -77,7 +80,9 @@ function plainRank(def: CardDefinition): 0 | 1 | null {
         if (
             key === "staticAbilities" &&
             Array.isArray(value) &&
-            value.every((ability) => ability === "defender")
+            value.every(
+                (ability) => ability === "defender" || ability === required
+            )
         ) {
             rank = 1;
             continue;
@@ -103,6 +108,25 @@ function withinRange(
     );
 }
 
+/** Does a mana value meet an `mvFilter`? An `"X"` / `"sourcePower"` bound is
+ *  read off an announcement or a source the position has not got, so no body
+ *  is posed for it (the spell stays unposed, as before). */
+function withinManaValue(
+    mv: number,
+    filter: NonNullable<TargetRequirement["mvFilter"]>
+): boolean {
+    const bounds = [filter.min, filter.max, filter.equals];
+    if (bounds.some((b) => b !== undefined && typeof b !== "number"))
+        return false;
+    return (
+        withinRange(mv, {
+            min: filter.min as number | undefined,
+            max: filter.max as number | undefined,
+        }) &&
+        (filter.equals === undefined || mv === filter.equals)
+    );
+}
+
 /** Does `def` satisfy the CHARACTERISTIC clauses of `req` — the ones a body
  *  carries by itself. (Tapped and combat role are position, not printed.) */
 function satisfiesCharacteristics(
@@ -113,6 +137,13 @@ function satisfiesCharacteristics(
         return false;
     if (!withinRange(def.power, req.powerFilter)) return false;
     if (!withinRange(def.toughness, req.toughnessFilter)) return false;
+    if (req.mvFilter && !withinManaValue(manaValue(def.manaCost), req.mvFilter))
+        return false;
+    if (
+        req.requireAbility &&
+        !(def.staticAbilities ?? []).includes(req.requireAbility)
+    )
+        return false;
     if (req.colorFilter && !getCardColors(def).includes(req.colorFilter))
         return false;
     if (
@@ -134,31 +165,48 @@ function satisfiesCharacteristics(
  *  what the sweep has registered so far must not decide who is posed. */
 const SWEEP_ID_PREFIX = "oracle-bot-reach:";
 
-const creatureCache = new Map<string, string | null>();
+const creatureCache = new Map<string, CardDefinition | null>();
 
-/** The name of a plain creature satisfying `req`: the base creature when it
+/** A plain creature satisfying `req`: the base creature when it
  *  already does, else the best plain one in the catalogue — by rank, then by
  *  name, because the registry's load order must not move a verdict. `null`
  *  when there is none. */
-function creatureFor(req: TargetRequirement): string | null {
+function creatureFor(req: TargetRequirement): CardDefinition | null {
     const key = JSON.stringify(req);
     const cached = creatureCache.get(key);
     if (cached !== undefined) return cached;
-    let found: { name: string; rank: number } | null = null;
+    let found: { def: CardDefinition; rank: number } | null = null;
     for (const def of registeredDefinitions()) {
         if (def.id.startsWith(SWEEP_ID_PREFIX)) continue;
-        const rank = def.name === BASE_CREATURE ? -1 : plainRank(def);
+        const rank =
+            def.name === BASE_CREATURE
+                ? -1
+                : plainRank(def, req.requireAbility);
         if (rank === null || !satisfiesCharacteristics(def, req)) continue;
         if (
             found === null ||
             rank < found.rank ||
-            (rank === found.rank && def.name < found.name)
+            (rank === found.rank && def.name < found.def.name)
         )
-            found = { name: def.name, rank };
+            found = { def, rank };
     }
-    const name = found?.name ?? null;
-    creatureCache.set(key, name);
-    return name;
+    const body = found?.def ?? null;
+    creatureCache.set(key, body);
+    return body;
+}
+
+/** The body a "creature with <keyword>" requirement is posed with when no
+ *  catalogue creature carries the keyword (nothing prints horsemanship, CR
+ *  702.31): a plain body that satisfies the rest of the requirement, with the
+ *  keyword GRANTED to it (CR 613.1f, layer 6), which is what a granted
+ *  keyword is for. `null` when the requirement names no keyword or no body. */
+function grantedBody(
+    req: TargetRequirement
+): { body: CardDefinition; keyword: string } | null {
+    const keyword = req.requireAbility;
+    if (keyword === undefined) return null;
+    const body = creatureFor({ ...req, requireAbility: undefined });
+    return body === null ? null : { body, keyword };
 }
 
 /** The requirement a single-target creature spell states, if it is one. */
@@ -299,6 +347,8 @@ function narrows(req: TargetRequirement): boolean {
         req.subtypeFilter !== undefined ||
         req.supertypeFilter !== undefined ||
         req.tappedFilter !== undefined ||
+        req.mvFilter !== undefined ||
+        req.requireAbility !== undefined ||
         req.combatRoleFilter !== undefined
     );
 }
@@ -313,14 +363,17 @@ export function targetPose(def: CardDefinition): TargetPose {
     if (landReq) return landPose(def, landReq);
     const req = creatureRequirement(def);
     if (!req || !narrows(req)) return NO_POSE;
-    const name = creatureFor(req);
-    if (name === null) return NO_POSE;
+    const printed = creatureFor(req);
+    const granted = printed === null ? grantedBody(req) : null;
+    const body = printed ?? granted?.body ?? null;
+    if (body === null) return NO_POSE;
+    const name = body.name;
     const owner = favoursItsTarget(def, req) ? "me" : "opp";
     const other = owner === "me" ? "opp" : "me";
     // The position already seeds the base creature on both sides.
     const tapped = req.tappedFilter === "tapped";
     const cards: ScenarioCard[] =
-        name === BASE_CREATURE && !tapped
+        name === BASE_CREATURE && !tapped && !granted
             ? []
             : [
                   {
@@ -328,10 +381,22 @@ export function targetPose(def: CardDefinition): TargetPose {
                       owner,
                       zone: "battlefield",
                       ...(tapped ? { tapped: true } : {}),
+                      ...(granted
+                          ? {
+                                animated: {
+                                    power: body.power as number,
+                                    toughness: body.toughness as number,
+                                    grantedAbilities: [granted.keyword],
+                                },
+                            }
+                          : {}),
                   },
               ];
     const omitToughnessBoost = req.toughnessFilter?.max !== undefined;
     const roles = asList(req.combatRoleFilter);
+    // A granted keyword rides a second copy of the body, and the combat seed
+    // resolves the FIRST card of that name: the role would land on the filler.
+    if (granted && roles.length > 0) return NO_POSE;
     if (roles.includes("attacking")) {
         // CR 508.1 — the target attacks, its controller is the active player
         // and the holder answers at instant speed (CR 117.1a).
