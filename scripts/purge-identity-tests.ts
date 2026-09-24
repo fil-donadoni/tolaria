@@ -11,6 +11,22 @@
  *     bun scripts/purge-identity-tests.ts --dry     # report, touch nothing
  *     bun scripts/purge-identity-tests.ts           # rewrite in place
  *
+ * ── The dry run is repo-wide (issue #4489) ───────────────────────────────────
+ * `--dry` scans EVERY tracked test file, not just the card sets, and reports
+ * three classes, each counted per area (`set:<code>` for a card-set suite, the
+ * first two path segments otherwise):
+ *
+ *   - identity blocks, minus the named allow-list
+ *     (`scripts/lib/identity-test-allowlist.ts`);
+ *   - definition-read LINES inside behavioural blocks;
+ *   - Op-only blocks on pure-DSL cards (`scripts/lib/card-code-ownership.ts`
+ *     decides which cards are pure-DSL), with the reasons the rest were
+ *     cleared, so a sampled review can see where the boundary fell.
+ *
+ * `--list <path>` also writes one TSV row per flagged block/line for that
+ * review. The REWRITE (no `--dry`) is unchanged: identity blocks in the card
+ * sets only — the Op-only purge is its own ticket, driven by this report.
+ *
  * `--keep <file:line>` (repeatable) spares one block — used during the triage
  * pass for the handful of identity blocks that were CONVERTED to behaviour
  * tests by hand rather than deleted.
@@ -47,7 +63,17 @@
 import * as fs from "fs";
 import * as path from "path";
 import * as ts from "typescript";
-import { classifyTestBlocks } from "./lib/identity-test-classifier";
+import { execFileSync } from "child_process";
+import {
+    classifyTestBlocks,
+    type CardFacts,
+    type TestBlock,
+} from "./lib/identity-test-classifier";
+import {
+    isAllowListed,
+    staleEntries,
+    testName,
+} from "./lib/identity-test-allowlist";
 
 const REPO_ROOT = path.resolve(__dirname, "..");
 const SETS_ROOT = path.join(REPO_ROOT, "convex/cards/sets");
@@ -362,7 +388,10 @@ export function purgeFile(
     const blocks = classifyTestBlocks(relFile, source);
     const before = blocks.length;
     const doomed = blocks.filter(
-        (b) => b.verdict === "identity" && !keep.has(`${relFile}:${b.line}`)
+        (b) =>
+            b.verdict === "identity" &&
+            !isAllowListed(b) &&
+            !keep.has(`${relFile}:${b.line}`)
     );
 
     let text = source;
@@ -409,12 +438,230 @@ export function purgeFile(
     };
 }
 
-function main() {
+const isCardSetSuite = (relFile: string) =>
+    relFile.startsWith("convex/cards/sets/");
+
+/** `set:<code>` for a card-set suite, else the first two path segments. */
+export function areaOf(relFile: string): string {
+    const set = /^convex\/cards\/sets\/([^/]+)\//.exec(relFile);
+    return set ? `set:${set[1]}` : relFile.split("/").slice(0, 2).join("/");
+}
+
+export interface DryRunReport {
+    files: number;
+    blocks: number;
+    identity: { flagged: number; allowListed: number };
+    definitionReads: { lines: number; blocks: number };
+    /** Op-only blocks, the cards they name, and every asserting behavioural block on pure-DSL cards only. */
+    opOnly: { blocks: number; cards: number; onPureDslCards: number };
+    /** Area → [identity, definition-read lines, Op-only blocks]. */
+    byArea: Map<string, [number, number, number]>;
+    /** Why a behavioural, asserting block was NOT Op-only — reason kind → count. */
+    cleared: Map<string, number>;
+    stale: string[];
+    /** Entries whose name matches more than one block — each exempts them all. */
+    ambiguous: string[];
+    rows: string[];
+}
+
+/**
+ * Reads a relative import of a repo test file (`./helpers` → `./helpers.ts`)
+ * — but only a TEST-SUPPORT module, one under a `__tests__/` directory. An
+ * engine module (`../state`) is the code under test, never a fixture helper:
+ * seeing through `advancePhase` to the calls inside it would launder an engine
+ * surface into the Op-only vocabulary.
+ */
+export function readRelativeImport(
+    fromFile: string,
+    specifier: string
+): string | undefined {
+    const base = path.join(REPO_ROOT, path.dirname(fromFile), specifier);
+    for (const candidate of [
+        `${base}.ts`,
+        `${base}.tsx`,
+        path.join(base, "index.ts"),
+    ]) {
+        if (!candidate.includes(`${path.sep}__tests__${path.sep}`)) continue;
+        if (fs.existsSync(candidate))
+            return fs.readFileSync(candidate, "utf-8");
+    }
+    return undefined;
+}
+
+/** The repo-wide dry run over already-read sources — pure, so it is unit-testable. */
+export function dryRun(
+    sources: readonly { file: string; source: string }[],
+    cards: CardFacts,
+    readImport?: (fromFile: string, specifier: string) => string | undefined
+): DryRunReport {
+    const report: DryRunReport = {
+        files: sources.length,
+        blocks: 0,
+        identity: { flagged: 0, allowListed: 0 },
+        definitionReads: { lines: 0, blocks: 0 },
+        opOnly: { blocks: 0, cards: 0, onPureDslCards: 0 },
+        byArea: new Map(),
+        cleared: new Map(),
+        stale: [],
+        ambiguous: [],
+        rows: [],
+    };
+    const opOnlyCards = new Set<string>();
+    const all: TestBlock[] = [];
+    const bump = (area: string, slot: 0 | 1 | 2, n = 1) => {
+        const row = report.byArea.get(area) ?? [0, 0, 0];
+        row[slot] += n;
+        report.byArea.set(area, row);
+    };
+    const row = (b: TestBlock, kind: string, line: number, detail: string) =>
+        report.rows.push(
+            [kind, `${b.file}:${line}`, testName(b), detail].join("\t")
+        );
+
+    for (const { file, source } of sources) {
+        // The Op-only class is a per-CARD-suite verdict: outside the card sets a
+        // block on a pure-DSL card is an engine test using it as a fixture.
+        const blocks = classifyTestBlocks(file, source, {
+            cards: isCardSetSuite(file) ? cards : undefined,
+            readImport,
+        });
+        all.push(...blocks);
+        report.blocks += blocks.length;
+        const area = areaOf(file);
+        for (const b of blocks) {
+            const allowed = isAllowListed(b);
+            if (b.verdict === "identity") {
+                if (allowed) {
+                    report.identity.allowListed++;
+                } else {
+                    report.identity.flagged++;
+                    bump(area, 0);
+                    row(b, "identity", b.line, "");
+                }
+            }
+            if (b.definitionReads.length > 0 && !allowed) {
+                report.definitionReads.lines += b.definitionReads.length;
+                report.definitionReads.blocks++;
+                bump(area, 1, b.definitionReads.length);
+                for (const l of b.definitionReads)
+                    row(b, "definition-read", l, "");
+            }
+            if (b.opOnly?.kind === "op-only") {
+                report.opOnly.blocks++;
+                report.opOnly.onPureDslCards++;
+                bump(area, 2);
+                for (const c of b.opOnly.cards) opOnlyCards.add(c);
+                row(b, "op-only", b.line, b.opOnly.cards.join(", "));
+            } else if (b.opOnly) {
+                const { rule, reason } = b.opOnly;
+                if (
+                    rule !== "no-catalogue-card" &&
+                    rule !== "unknown-card" &&
+                    rule !== "card-owns-code"
+                )
+                    report.opOnly.onPureDslCards++;
+                // A foreign call is broken out by callee: that is the list a
+                // sampled review reads to see where the vocabulary stops.
+                const kind =
+                    rule === "foreign-call"
+                        ? `${rule}: ${reason.slice("calls ".length)}`
+                        : rule === "card-owns-code"
+                          ? `${rule}: ${reason.replace(/^.*?: /, "").replace(/ \(.*$/, "")}`
+                          : rule;
+                report.cleared.set(kind, (report.cleared.get(kind) ?? 0) + 1);
+            }
+        }
+    }
+    report.opOnly.cards = opOnlyCards.size;
+    const { stale, ambiguous } = staleEntries(all);
+    report.stale = stale.map((e) => `${e.file} :: ${e.test}`);
+    report.ambiguous = ambiguous.map((e) => `${e.file} :: ${e.test}`);
+    return report;
+}
+
+function trackedTestFiles(): string[] {
+    return execFileSync("git", ["ls-files", "--", "*.test.ts", "*.test.tsx"], {
+        cwd: REPO_ROOT,
+        encoding: "utf-8",
+    })
+        .split("\n")
+        .filter(Boolean)
+        .sort();
+}
+
+async function loadCardFacts(): Promise<CardFacts> {
+    // Imported lazily: the rewrite mode never needs the catalogue.
+    const { getAllCards } = await import("../convex/cards");
+    const { buildCardFacts, smokeCoverage } =
+        await import("./lib/card-code-ownership");
+    const cards = getAllCards();
+    return buildCardFacts(cards, smokeCoverage(cards));
+}
+
+function printReport(r: DryRunReport, top: number) {
+    console.log(
+        `[dry] ${r.files} test files, ${r.blocks} blocks\n` +
+            `  identity blocks:        ${r.identity.flagged} (+${r.identity.allowListed} allow-listed)\n` +
+            `  definition-read lines:  ${r.definitionReads.lines} in ${r.definitionReads.blocks} blocks\n` +
+            `  Op-only blocks:         ${r.opOnly.blocks} on ${r.opOnly.cards} pure-DSL cards ` +
+            `(of ${r.opOnly.onPureDslCards} asserting blocks naming only pure-DSL cards)`
+    );
+    console.log("\nper area (identity / definition-read lines / Op-only):");
+    const areas = [...r.byArea].sort(
+        (a, b) =>
+            b[1][2] + b[1][0] - (a[1][2] + a[1][0]) || a[0].localeCompare(b[0])
+    );
+    for (const [area, [id, dr, op]] of areas)
+        console.log(
+            `  ${area.padEnd(28)} ${String(id).padStart(4)} ${String(dr).padStart(5)} ${String(op).padStart(5)}`
+        );
+    console.log(
+        `\nwhy asserting behavioural blocks were NOT Op-only (top ${top}):`
+    );
+    for (const [k, n] of [...r.cleared]
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, top))
+        console.log(`  ${String(n).padStart(6)}  ${k}`);
+    if (r.ambiguous.length > 0) {
+        console.log(
+            `\nAMBIGUOUS allow-list entries (${r.ambiguous.length}) — one name, several blocks; retitle them:`
+        );
+        for (const a of r.ambiguous) console.log("  " + a);
+    }
+    if (r.stale.length > 0) {
+        console.log(
+            `\nSTALE allow-list entries (${r.stale.length}) — delete them:`
+        );
+        for (const s of r.stale) console.log("  " + s);
+    }
+}
+
+async function main() {
     const args = process.argv.slice(2);
     const dry = args.includes("--dry");
     const keep = new Set<string>();
+    let list: string | null = null;
     for (let i = 0; i < args.length; i++) {
         if (args[i] === "--keep" && args[i + 1]) keep.add(args[++i]);
+        if (args[i] === "--list" && args[i + 1]) list = args[++i];
+    }
+
+    if (dry) {
+        const sources = trackedTestFiles().map((file) => ({
+            file,
+            source: fs.readFileSync(path.join(REPO_ROOT, file), "utf-8"),
+        }));
+        const report = dryRun(
+            sources,
+            await loadCardFacts(),
+            readRelativeImport
+        );
+        printReport(report, 15);
+        if (list) {
+            fs.writeFileSync(list, report.rows.join("\n") + "\n");
+            console.log(`\n${report.rows.length} rows → ${list}`);
+        }
+        return;
     }
 
     let totalRemoved = 0;
@@ -429,11 +676,11 @@ function main() {
         totalRemoved += result.removed;
         touched.push(rel);
         if (result.emptied) emptied.push(rel);
-        if (!dry) fs.writeFileSync(abs, result.text);
+        fs.writeFileSync(abs, result.text);
     }
 
     console.log(
-        `${dry ? "[dry] " : ""}removed ${totalRemoved} identity blocks across ${touched.length} files`
+        `removed ${totalRemoved} identity blocks across ${touched.length} files`
     );
     if (emptied.length > 0) {
         console.log(`\nfiles left with ZERO tests (${emptied.length}):`);
@@ -441,4 +688,4 @@ function main() {
     }
 }
 
-if (import.meta.main) main();
+if (import.meta.main) await main();

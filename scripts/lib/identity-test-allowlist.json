@@ -1,0 +1,992 @@
+[
+    {
+        "file": "convex/__tests__/activationModuleSplit.test.ts",
+        "test": "convex/game.ts re-exports the pure activation path (issue #3479) > \\`${name}\\` is the SAME function object, not a copy",
+        "reason": "Proves re-export not re-implementation via object identity across two modules."
+    },
+    {
+        "file": "convex/__tests__/activationModuleSplit.test.ts",
+        "test": "convex/game.ts re-exports the pure activation path (issue #3479) > covers the names the two modules actually share",
+        "reason": "Relates two independently derived module namespaces (game vs activation), not a literal."
+    },
+    {
+        "file": "convex/__tests__/activationModuleSplit.test.ts",
+        "test": "convex/game.ts re-exports the pure activation path (issue #3479) > the mutation's entry point is the one the browser can reach",
+        "reason": "Pins that the mutation's entry point equals the pure activation function (drift guard)."
+    },
+    {
+        "file": "convex/__tests__/debugSetupScenarioArgsLockStep.test.ts",
+        "test": "debugSetupScenario args validator declares `life` (issue #2147, sixth site) > carries the same optional field names as scenarioSpecValidator, minus gameId (drift guard)",
+        "reason": "Drift guard: args validator keys must match scenarioSpecValidator keys minus gameId."
+    },
+    {
+        "file": "convex/__tests__/deckArgsDefinitionId.test.ts",
+        "test": "game-start args accept a deck carrying definitionId (issue #4117) > ${name} declares definitionId on a Maindeck card",
+        "reason": "Each of 3 independently-declared mutation validators must declare definitionId."
+    },
+    {
+        "file": "convex/__tests__/deckPresets.test.ts",
+        "test": "PRESET_DECKS (seed source) > %s has at least 40 cards",
+        "reason": "Invariant floor (>=40 cards) over every preset deck, not a copied count."
+    },
+    {
+        "file": "convex/__tests__/formats.test.ts",
+        "test": "Banlist seeds (issue #1141) — non-empty, Parallax Tide present > OLD_SCHOOL_BANLIST_SEED is non-empty and covers both statuses",
+        "reason": "OLD_SCHOOL_BANLIST_SEED must contain both restricted and banned statuses."
+    },
+    {
+        "file": "convex/__tests__/formats.test.ts",
+        "test": "Banlist seeds (issue #1141) — non-empty, Parallax Tide present > PREMODERN_BANLIST_SEED is non-empty and includes Parallax Tide",
+        "reason": "Every PREMODERN_BANLIST_SEED row must have status \"banned\" (collection invariant)."
+    },
+    {
+        "file": "convex/__tests__/formats.test.ts",
+        "test": "FORMAT_IDS / FORMAT_RULES registry (ADR 0036) > has a registry entry with a label for every FormatId",
+        "reason": "Coverage: every FormatId has a defined FORMAT_RULES entry with a non-empty label."
+    },
+    {
+        "file": "convex/__tests__/joinCodes.test.ts",
+        "test": "join codes — alphabet > is Crockford Base32: 32 chars, no I/L/O/U",
+        "reason": "Uniqueness (32 distinct chars) plus exclusion invariant on the alphabet."
+    },
+    {
+        "file": "convex/__tests__/limitedPlayPhaseSchema.test.ts",
+        "test": "poolArrangement entry ↔ PoolArrangementEntry (both storage sites, issue #1621) > %s declares poolArrangement as an OPTIONAL array (an untouched seat has none)",
+        "reason": "Both storage sites (legacy inline + live) must declare the field consistently."
+    },
+    {
+        "file": "convex/__tests__/resendOtpPasswordReset.test.ts",
+        "test": "the provider config handed to Password({ reset }) > keeps the address check — the code alone is not a credential",
+        "reason": "Object-identity wiring guard: config.authorize is the real authorizeReset function."
+    },
+    {
+        "file": "convex/__tests__/resendOtpPasswordReset.test.ts",
+        "test": "the provider config handed to Password({ reset }) > overrides `Email()`'s hardcoded id and one-hour maxAge",
+        "reason": "Proves the Email() default id/maxAge were actually overridden, not just restated."
+    },
+    {
+        "file": "convex/__tests__/scenarioGeneratorSchemaCoverage.test.ts",
+        "test": "generator JSON schema coverage over ScenarioSpec (issue #3463) > invents no property the spec does not have",
+        "reason": "Coverage: every schema property key must exist in the validator-derived spec keys."
+    },
+    {
+        "file": "convex/__tests__/scenarioGeneratorSchemaCoverage.test.ts",
+        "test": "generator JSON schema coverage over ScenarioSpec (issue #3463) > offers the SHARED phase vocabulary",
+        "reason": "Cross-source drift guard: schema's phase enum must match SCENARIO_PHASES."
+    },
+    {
+        "file": "convex/__tests__/scenarioGeneratorSchemaCoverage.test.ts",
+        "test": "generator JSON schema coverage over ScenarioSpec (issue #3463) > sweeps a non-empty, validator-derived key list",
+        "reason": "Floor guard that the validator-derived key sweep below is non-vacuous."
+    },
+    {
+        "file": "convex/cards/__tests__/additionalCostKeywords.test.ts",
+        "test": "AdditionalCostKeyword ↔ Mechanics Registry (CR 702.33a, ADR 0085) > %s: castCopyTrigger implies requiresTrigger",
+        "reason": "Implication invariant over every union member: castCopyTrigger implies requiresTrigger."
+    },
+    {
+        "file": "convex/cards/__tests__/additionalCostKeywords.test.ts",
+        "test": "AdditionalCostKeyword ↔ Mechanics Registry (CR 702.33a, ADR 0085) > %s's printed labels agree with allowsMulti (CR 702.33c)",
+        "reason": "Consistency invariant: printedLabel.repeated presence must agree with allowsMulti."
+    },
+    {
+        "file": "convex/cards/__tests__/additionalCostKeywords.test.ts",
+        "test": "AdditionalCostKeyword ↔ Mechanics Registry (CR 702.33a, ADR 0085) > declares no pending keyword that is not a union member",
+        "reason": "Cross-source check: every pending keyword must be a real union member."
+    },
+    {
+        "file": "convex/cards/__tests__/additionalCostKeywords.test.ts",
+        "test": "AdditionalCostKeyword ↔ Mechanics Registry (CR 702.33a, ADR 0085) > has at least the two identities the split exists to tell apart",
+        "reason": "Floor guard that the kicked/non-kicked partition below is non-vacuous."
+    },
+    {
+        "file": "convex/cards/__tests__/compilerRoundTrip.test.ts",
+        "test": "Guard C — hand-written cards round-trip or declare a compiler gap (issue #2701) > the baseline never grows",
+        "reason": "Ratchet guard: baseline list may only shrink, never regrow past its ceiling."
+    },
+    {
+        "file": "convex/cards/__tests__/drawPrimitiveGuard.test.ts",
+        "test": "Guard C -- draw-in-closure guard (issue #1264, closes #1250) > every planned-migratable DRAW_PRIMITIVE_ALLOWLIST entry carries a real open tracking issue",
+        "reason": "Coverage: every planned-migratable allowlist entry carries a real tracking issue."
+    },
+    {
+        "file": "convex/cards/__tests__/drawPrimitiveGuard.test.ts",
+        "test": "Guard C -- draw-in-closure guard (issue #1264, closes #1250) > sanity: the scanner counts multiple occurrences in one file",
+        "reason": "Behavioral unit test proving the scanner regex counts multiple occurrences."
+    },
+    {
+        "file": "convex/cards/__tests__/effectRegistry.test.ts",
+        "test": "effectRegistry > EFFECT_REGISTRY has a closure for every declared shorthand",
+        "reason": "Coverage: every EFFECT_REGISTRY entry must resolve to an actual function."
+    },
+    {
+        "file": "convex/cards/__tests__/effectScripts.test.ts",
+        "test": "Effect Script catalogue sweep (ADR 0045) > every effects[] survives a JSON.stringify round-trip unchanged (ADR 0046 purity)",
+        "reason": "Purity invariant: every card's effects[] must survive a JSON round-trip unchanged."
+    },
+    {
+        "file": "convex/cards/__tests__/kickerDeclarations.test.ts",
+        "test": "Kicker declarations (CR 702.33 / 702.33e, ADR 0079) > %s — kicker ids are unique and non-empty",
+        "reason": "Uniqueness/non-empty invariant over every card's kicker ids."
+    },
+    {
+        "file": "convex/cards/__tests__/kickerDeclarations.test.ts",
+        "test": "Kicker declarations (CR 702.33 / 702.33e, ADR 0079) > %s — permanent legs agree on one terminal action (one selection slot)",
+        "reason": "Consistency invariant: a card's permanent-kicker legs share one terminal action."
+    },
+    {
+        "file": "convex/cards/__tests__/mechanicsRegistry.test.ts",
+        "test": "Effect Script Op census (ADR 0045/0046, PRD #826) > backlog Op names are disjoint from the live registry and internally unique",
+        "reason": "Disjointness/uniqueness invariant between backlog and live Op registry."
+    },
+    {
+        "file": "convex/cards/__tests__/mechanicsRegistry.test.ts",
+        "test": "Effect Script Op census (ADR 0045/0046, PRD #826) > every EFFECT_OP_BACKLOG row is a planned reservation with no interpreter binding",
+        "reason": "Coverage: every backlog Op row is planned with no interpreter binding, non-empty."
+    },
+    {
+        "file": "convex/cards/__tests__/mechanicsRegistry.test.ts",
+        "test": "Effect Script Op census (ADR 0045/0046, PRD #826) > every EFFECT_OP_REGISTRY row is implemented with a SpellContext or interpreter binding",
+        "reason": "Coverage: every implemented Op row has a SpellContext/interpreter binding."
+    },
+    {
+        "file": "convex/cards/__tests__/mechanicsRegistry.test.ts",
+        "test": "Effect Script Op census (ADR 0045/0046, PRD #826) > the demonstrated wave-1 Op backlog (still-planned named Ops) is present as planned stubs",
+        "reason": "Membership+floor check that a specific still-planned Op remains in the backlog."
+    },
+    {
+        "file": "convex/cards/__tests__/mechanicsRegistry.test.ts",
+        "test": "Event field registry ($event.<field>, ADR 0049, issue #865) > every row carries a valid family and a callable resolve",
+        "reason": "Coverage: every event-field registry row carries a valid family and resolve fn."
+    },
+    {
+        "file": "convex/cards/__tests__/mechanicsRegistry.test.ts",
+        "test": "Mechanics Registry (CR 701 keyword actions + CR 702 keyword abilities, ADR 0045/0046) > every `implemented` row carries a binding or bindingPattern",
+        "reason": "Coverage: every implemented mechanics row carries a binding or bindingPattern."
+    },
+    {
+        "file": "convex/cards/__tests__/mechanicsRegistry.test.ts",
+        "test": "Mechanics Registry (CR 701 keyword actions + CR 702 keyword abilities, ADR 0045/0046) > every `out-of-scope` / `planned` row with a gap has a note (documentation, not silence)",
+        "reason": "Coverage: every out-of-scope/planned-with-gap row carries a justification note."
+    },
+    {
+        "file": "convex/cards/__tests__/mechanicsRegistry.test.ts",
+        "test": "Mechanics Registry (CR 701 keyword actions + CR 702 keyword abilities, ADR 0045/0046) > has no duplicate or ambiguous registry ids",
+        "reason": "Uniqueness invariant: no duplicate registry ids."
+    },
+    {
+        "file": "convex/cards/__tests__/mechanicsRegistry.test.ts",
+        "test": "Mechanics Registry (CR 701 keyword actions + CR 702 keyword abilities, ADR 0045/0046) > has no duplicate/ambiguous plain bindings among rows that declare one",
+        "reason": "Uniqueness invariant: no duplicate/ambiguous plain bindings among rows."
+    },
+    {
+        "file": "convex/cards/__tests__/mechanicsRegistry.test.ts",
+        "test": "Mechanics Registry (CR 701 keyword actions + CR 702 keyword abilities, ADR 0045/0046) > is a total census: ~240+ rows spanning both CR 701 and CR 702",
+        "reason": "Floor count (>=240) plus non-empty partition by keyword-action/ability kind."
+    },
+    {
+        "file": "convex/cards/__tests__/mechanicsRegistry.test.ts",
+        "test": "Mechanics Registry (CR 701 keyword actions + CR 702 keyword abilities, ADR 0045/0046) > registry ids don't collide with engine-internal marker ids",
+        "reason": "Cross-source check: registry ids must not collide with engine-internal marker ids."
+    },
+    {
+        "file": "convex/cards/__tests__/morphCards.test.ts",
+        "test": "morph cards (CR 702.37) > %s — a morph card is a creature card (CR 702.37c face-down spell timing)",
+        "reason": "Catalogue sweep: every morph card must be a Creature (CR 702.37c)."
+    },
+    {
+        "file": "convex/cards/__tests__/morphCards.test.ts",
+        "test": "morph cards (CR 702.37) > %s — declares no alternative cost colliding with the synthesized morph cast id",
+        "reason": "Catalogue sweep: no morph card's alt-cost id collides with the synthesized morph id."
+    },
+    {
+        "file": "convex/cards/__tests__/morphCards.test.ts",
+        "test": "morph cards (CR 702.37) > %s — declares no clause the face-down spell would lose (CR 702.37c 'no text')",
+        "reason": "Catalogue sweep: every morph card declares none of the lost-text clauses."
+    },
+    {
+        "file": "convex/cards/__tests__/morphCards.test.ts",
+        "test": "morph cards (CR 702.37) > %s — the morph TURN-UP cost is fixed (CR 702.37f X is unreachable)",
+        "reason": "Catalogue sweep: every morph card's turn-up cost has no {X}."
+    },
+    {
+        "file": "convex/cards/__tests__/opBeneficenceCensus.bot.test.ts",
+        "test": "OP_BENEFICENCE census (issue #3006) > every implemented Op is signed, parametrized, or structural — nothing falls through to the `?? \"neutral\"` fallback",
+        "reason": "Coverage: every implemented Op has a beneficence sign, none falls to the fallback."
+    },
+    {
+        "file": "convex/cards/__tests__/opBeneficenceCensus.bot.test.ts",
+        "test": "OP_BENEFICENCE census (issue #3006) > structural constructs are recursed into, never signed",
+        "reason": "Coverage: structural constructs never appear in either beneficence table."
+    },
+    {
+        "file": "convex/cards/__tests__/opBeneficenceCensus.bot.test.ts",
+        "test": "OP_BENEFICENCE census (issue #3006) > the parametrized set is disjoint from the static table (a listed neutral Op that later gains a sign reds)",
+        "reason": "Disjointness invariant between parametrized and static beneficence tables."
+    },
+    {
+        "file": "convex/cards/__tests__/opBeneficenceCensus.bot.test.ts",
+        "test": "OP_BENEFICENCE census (issue #3006) > the signed + parametrized + structural sets exactly partition the implemented Ops",
+        "reason": "Partition invariant: signed+parametrized+structural exactly cover implemented Ops."
+    },
+    {
+        "file": "convex/cards/__tests__/opValuerCoverage.bot.test.ts",
+        "test": "OP_VALUERS coverage guard (PRD #1423, issue #1426) > every implemented Op is valued, structural, or on the backfill allowlist",
+        "reason": "Coverage: every implemented Op is valued, structural, or backfill-allowlisted."
+    },
+    {
+        "file": "convex/cards/__tests__/opValuerCoverage.bot.test.ts",
+        "test": "OP_VALUERS coverage guard (PRD #1423, issue #1426) > structural constructs are handled by the walker, never on OP_VALUERS or the allowlist",
+        "reason": "Coverage: structural constructs excluded from OP_VALUERS and the backfill allowlist."
+    },
+    {
+        "file": "convex/cards/__tests__/opValuerCoverage.bot.test.ts",
+        "test": "OP_VALUERS coverage guard (PRD #1423, issue #1426) > the backfill allowlist is disjoint from the valued/structural sets (removing a row is #1430's only change)",
+        "reason": "Disjointness invariant between backfill allowlist and valued/structural sets."
+    },
+    {
+        "file": "convex/cards/__tests__/opValuerCoverage.bot.test.ts",
+        "test": "OP_VALUERS coverage guard (PRD #1423, issue #1426) > the backfill allowlist is sorted and free of duplicates (append-only hygiene)",
+        "reason": "Sortedness + uniqueness invariant over the backfill allowlist."
+    },
+    {
+        "file": "convex/cards/__tests__/opValuerCoverage.bot.test.ts",
+        "test": "OP_VALUERS coverage guard (PRD #1423, issue #1426) > the charter Ops (issue #1426) are all valued, not backfilled",
+        "reason": "Coverage: charter Ops list is valued via OP_VALUERS, never on the backfill list."
+    },
+    {
+        "file": "convex/cards/__tests__/opValuerCoverage.bot.test.ts",
+        "test": "OP_VALUERS coverage guard (PRD #1423, issue #1426) > the valued + structural + backfill sets exactly partition the implemented Ops",
+        "reason": "Partition invariant: valued+structural+backfill exactly cover implemented Ops."
+    },
+    {
+        "file": "convex/cards/__tests__/playerTargetDeclarations.catalogue.test.ts",
+        "test": "player-target declaration catalogue guard (CR 601.2c / 603.3d, issue #2801) > every allowlist entry carries a reason, and exactly one of a proof or a ticket",
+        "reason": "Coverage: every allowlist entry carries a reason and exactly one proof/ticket."
+    },
+    {
+        "file": "convex/cards/__tests__/splice.test.ts",
+        "test": "Splice declarations (CR 702.47, issue #2394) > declares a real cost — a free reveal is a mis-declared card (CR 702.47a)",
+        "reason": "Collection invariant: no splice card has an empty cost or empty description."
+    },
+    {
+        "file": "convex/cards/__tests__/splice.test.ts",
+        "test": "Splice declarations (CR 702.47, issue #2394) > the mechanic has at least one shipped card, so the guards below are not vacuous",
+        "reason": "Floor guard that the splice sweep below is non-vacuous."
+    },
+    {
+        "file": "convex/cards/__tests__/splice.test.ts",
+        "test": "Splice declarations (CR 702.47, issue #2394) > the splice ability's subtype is one the card's own type line could ever meet",
+        "reason": "Consistency invariant: splice ability's subtype matches the card's own type line."
+    },
+    {
+        "file": "convex/gre/__tests__/castCostPicksInSearch.bot.test.ts",
+        "test": "cast-side payment parks travel on the move (issue #2135) > the K table records K=1 for every cast-side park (the single authority)",
+        "reason": "Uniformity invariant: every cast-side park K-value in the table equals 1."
+    },
+    {
+        "file": "convex/gre/__tests__/continuousEffects.test.ts",
+        "test": "entry-shape invariants are type errors > a layer-7 entry cannot omit its sublayer (CR 613.4)",
+        "reason": "Type-level discriminated-union invariant (layer-7 requires sublayer) via ts-expect-error."
+    },
+    {
+        "file": "convex/gre/__tests__/continuousEffects.test.ts",
+        "test": "entry-shape invariants are type errors > a non-layer-7 entry cannot carry a sublayer",
+        "reason": "Type-level invariant: non-layer-7 entries cannot carry a sublayer."
+    },
+    {
+        "file": "convex/gre/__tests__/continuousEffects.test.ts",
+        "test": "entry-shape invariants are type errors > a predicate entry cannot carry an inline payload",
+        "reason": "Type-level invariant: predicate entries cannot carry an inline payload."
+    },
+    {
+        "file": "convex/gre/__tests__/continuousEffects.test.ts",
+        "test": "entry-shape invariants are type errors > a predicate entry cannot have a non-source expiry (CR 611.2c)",
+        "reason": "Type-level invariant: predicate entries cannot have a non-source expiry."
+    },
+    {
+        "file": "convex/gre/__tests__/continuousEffects.test.ts",
+        "test": "entry-shape invariants are type errors > a source-expiry entry cannot snapshot a controllerId",
+        "reason": "Type-level invariant: source-expiry entries cannot snapshot a controllerId."
+    },
+    {
+        "file": "convex/gre/__tests__/dependency.test.ts",
+        "test": "CR 613.8a clause (c) — the CDA guard > every StaticEffect kind has a read-set row",
+        "reason": "Coverage check: every StaticEffect kind's read-set row is populated (non-vacuous Record)."
+    },
+    {
+        "file": "convex/gre/__tests__/dependency.test.ts",
+        "test": "CR 613.8a clause (c) — the CDA guard > no layer-2-to-6 static effect kind generates a characteristic-defining ability",
+        "reason": "Checks no layer-2-6 static-effect kind set overlaps the independently-maintained CDA kind set."
+    },
+    {
+        "file": "convex/gre/__tests__/difficulty.bot.test.ts",
+        "test": "difficulty presets — one knob (issue #114) > defines a budget for every difficulty",
+        "reason": "Coverage check: every DIFFICULTIES member has a DIFFICULTY_BUDGETS row."
+    },
+    {
+        "file": "convex/gre/__tests__/difficulty.bot.test.ts",
+        "test": "difficulty presets — one knob (issue #114) > presets differ only by search effort, strictly increasing",
+        "reason": "Monotonicity invariant: iterations/timeMs strictly increase across difficulty presets."
+    },
+    {
+        "file": "convex/gre/__tests__/grantedActivatedAbilities.test.ts",
+        "test": "getEffectiveActivatedAbilities moved to gre/activatedAbilities (issue #1880) > `game.ts` re-exports the very same function (every existing caller resolves the same set)",
+        "reason": "Cross-file guard: game.ts re-export is reference-identical to the gre source function."
+    },
+    {
+        "file": "convex/gre/__tests__/owedPayment.test.ts",
+        "test": "payment park census (ADR 0091, issue #1209) > gives every park key a ParkKind (and so a gate branch + a pick)",
+        "reason": "Coverage check: every park key maps to a ParkKind and counts reconcile."
+    },
+    {
+        "file": "convex/gre/__tests__/owedPayment.test.ts",
+        "test": "payment park census (ADR 0091, issue #1209) > partitions every PendingActivation key exactly once",
+        "reason": "Partition invariant: every PendingActivation key is in exactly one of park/non-park sets."
+    },
+    {
+        "file": "convex/gre/__tests__/owedPayment.test.ts",
+        "test": "payment park census (ADR 0091, issue #1209) > partitions every PendingCast key exactly once",
+        "reason": "Partition invariant: every PendingCast key is in exactly one of park/non-park sets."
+    },
+    {
+        "file": "convex/gre/__tests__/phases.test.ts",
+        "test": "CR 514.2 — turn-scoped global flags clear at CLEANUP, not END_OF_COMBAT (issue #1864) > structural guard > tickAllDurations has no bespoke global-flag clear left",
+        "reason": "Structural guard: source regex scan finds no bespoke global-flag clear bypassing the table."
+    },
+    {
+        "file": "convex/gre/__tests__/raisedPendingTarget.bot.test.ts",
+        "test": "pending-target ORIGIN census (issue #2283) > is COMPILE-TIME exhaustive: an unclassified kind fails tsc",
+        "reason": "Compile-time exhaustiveness witness that every PendingTarget kind is classified."
+    },
+    {
+        "file": "convex/gre/__tests__/targeting.test.ts",
+        "test": "target-filter registry — FilterKey exhaustiveness keystone (ADR 0068, issue #1411) > does not register any StructuralKey field (type/count/zone/divideAsChosen/excludeSource/spellTargetsSelfSource)",
+        "reason": "Partition invariant: REGISTRY keys never overlap the StructuralKey field names."
+    },
+    {
+        "file": "convex/gre/__tests__/targeting.test.ts",
+        "test": "target-filter registry — FilterKey exhaustiveness keystone (ADR 0068, issue #1411) > every registered filter has a `lower` function and at least one `checks` predicate",
+        "reason": "Structural invariant: every REGISTRY entry has a lower fn and a non-empty checks map."
+    },
+    {
+        "file": "convex/gre/ai/__tests__/choiceDepth.bot.test.ts",
+        "test": "resolution-choice depth > bounds the WORK a probe may spend, not only its depth",
+        "reason": "Cross-parameter invariant relating MAX_CHOICE_BRANCH_WORK to MAX_CHOICE_DEPTH bounds."
+    },
+    {
+        "file": "convex/gre/ai/__tests__/choiceDepth.bot.test.ts",
+        "test": "resolution-choice depth > classifies every Op in the union — no silent 'raises nothing' default",
+        "reason": "Non-vacuous coverage check: every EffectOp is classified, both true and false rows exist."
+    },
+    {
+        "file": "convex/gre/ai/__tests__/evalWeights.bot.test.ts",
+        "test": "DEFAULT_EVAL_WEIGHTS (issue #2683) > a TAPPED source is worth strictly less than an untapped one (issue #3377)",
+        "reason": "Ordering invariant: tappedManaWeight strictly less than manaWeight, and positive."
+    },
+    {
+        "file": "convex/gre/ai/__tests__/evalWeights.bot.test.ts",
+        "test": "DEFAULT_EVAL_WEIGHTS (issue #2683) > carries one latent weight per FEATURE_BASIS dimension (issue #3398)",
+        "reason": "Coverage check: DEFAULT_EVAL_WEIGHTS.latent keys match the independent FEATURE_BASIS list."
+    },
+    {
+        "file": "convex/gre/ai/__tests__/evalWeights.bot.test.ts",
+        "test": "DEFAULT_EVAL_WEIGHTS (issue #2683) > is frozen — a mutation attempt is a no-op / throws in strict mode",
+        "reason": "Invariant check that exported weight objects (incl. nested latent) are frozen."
+    },
+    {
+        "file": "convex/gre/ai/__tests__/latentWeights.bot.test.ts",
+        "test": "EvalWeights.latent is the complete fit surface (issue #3398) > carries exactly one weight per FEATURE_BASIS dimension",
+        "reason": "Coverage check: latent weight keys match the independently maintained FEATURE_BASIS list."
+    },
+    {
+        "file": "convex/gre/ai/__tests__/rootRuleMoratorium.bot.test.ts",
+        "test": "RootDecisionMechanism is frozen behind an allowlist (issue #3399) > every mechanism carries an allowlist row, and every row a mechanism",
+        "reason": "Coverage check: ROOT_DECISION_MECHANISMS and ROOT_RULE_ALLOWLIST keys match exactly."
+    },
+    {
+        "file": "convex/gre/ai/__tests__/rootRuleMoratorium.bot.test.ts",
+        "test": "RootDecisionMechanism is frozen behind an allowlist (issue #3399) > every row names a real issue number",
+        "reason": "Structural invariant: every allowlist row names a real issue and a non-trivial reason."
+    },
+    {
+        "file": "convex/gre/ai/__tests__/verdictCoverage.bot.test.ts",
+        "test": "decision classes come from the engine's move kinds (issue #3588) > maps every move kind the engine has",
+        "reason": "Coverage check: every CLASS_OF_MOVE_KIND entry maps to a real (truthy) class."
+    },
+    {
+        "file": "convex/gre/ai/__tests__/verdictLockSource.bot.test.ts",
+        "test": "the upcaster chain (issue #3578) > the shipped chain has a link for every version below the current one",
+        "reason": "Coverage check: every schema version below current has an upcaster function."
+    },
+    {
+        "file": "convex/gre/ai/__tests__/verdicts.bot.test.ts",
+        "test": "verdictsFromRegistry (issue #3400) > reports `predicate` entries by label instead of skipping them",
+        "reason": "Cross-set check: reported predicate gaps match the registry's predicate entries exactly."
+    },
+    {
+        "file": "convex/gre/ai/__tests__/verdicts.bot.test.ts",
+        "test": "verdictsFromRegistry (issue #3400) > turns a `forbidden` entry into the weaker forbidden constraint",
+        "reason": "Non-literal invariant: every forbidden verdict carries at least one forbidden index."
+    },
+    {
+        "file": "convex/gre/ai/__tests__/verdicts.bot.test.ts",
+        "test": "verdictsFromRegistry (issue #3400) > yields one `right` verdict per positive `moves` entry",
+        "reason": "Partition invariant: right-verdict count plus unlowered-gap count equals registry moves count."
+    },
+    {
+        "file": "convex/gre/effects/__tests__/scenarioGenerator.test.ts",
+        "test": "Op vocabulary coverage guard (issue #804) > ASSERTED_OP_KINDS matches the registry exactly",
+        "reason": "Coverage check: ASSERTED_OP_KINDS matches EFFECT_OP_REGISTRY's op names exactly."
+    },
+    {
+        "file": "convex/gre/effects/__tests__/scenarioGenerator.test.ts",
+        "test": "smoke skip classes (ADR 0105 § 7.1, issue #3823) > every skip code has exactly one class, and every class key is a code",
+        "reason": "Coverage check: SMOKE_SKIP_CLASS keys match SMOKE_SKIP_CODES and every value is valid."
+    },
+    {
+        "file": "convex/gre/effects/__tests__/validate.test.ts",
+        "test": "Op coverage guard — registry ↔ interpreter ↔ validator (1:1) > every registered Op carries a CR reference and a SpellContext binding",
+        "reason": "Structural invariant: every registered Op row has a CR ref and a SpellContext binding."
+    },
+    {
+        "file": "convex/gre/effects/__tests__/validate.test.ts",
+        "test": "Op coverage guard — registry ↔ interpreter ↔ validator (1:1) > every registered Op has a validator field schema, and vice versa",
+        "reason": "Coverage check: validator SCHEMA_OP_NAMES match registry Op names exactly (both directions)."
+    },
+    {
+        "file": "convex/gre/effects/__tests__/validate.test.ts",
+        "test": "Op coverage guard — registry ↔ interpreter ↔ validator (1:1) > every registered Op has an interpreter executor, and vice versa",
+        "reason": "Coverage check: OP_EXECUTORS keys match registry Op names exactly (both directions)."
+    },
+    {
+        "file": "convex/gre/effects/__tests__/validate.test.ts",
+        "test": "Op coverage guard — registry ↔ interpreter ↔ validator (1:1) > Op names in EFFECT_OP_REGISTRY are unique",
+        "reason": "Uniqueness invariant: no duplicate Op names in EFFECT_OP_REGISTRY."
+    },
+    {
+        "file": "convex/gre/effects/__tests__/validate.test.ts",
+        "test": "validateEffectScript — forEach construct (ADR 0045, issue #807) > a valid forEach script survives a JSON round-trip unchanged (ADR 0046 purity)",
+        "reason": "JSON-purity round-trip invariant (ADR 0046) on a forEach fixture, not a data copy."
+    },
+    {
+        "file": "convex/gre/effects/__tests__/validate.test.ts",
+        "test": "validateEffectScript — forEach simultaneous batch reanimation (CR 400.7 / 614-batch, issue #1094) > a valid simultaneous forEach script survives a JSON round-trip unchanged (ADR 0046 purity)",
+        "reason": "JSON-purity round-trip invariant (ADR 0046) on a simultaneous forEach fixture."
+    },
+    {
+        "file": "convex/gre/effects/__tests__/validate.test.ts",
+        "test": "validateEffectScript — forEach simultaneous players choices-then-actions (CR 101.4, issue #1872) > a valid simultaneous players forEach survives a JSON round-trip unchanged (ADR 0046 purity)",
+        "reason": "JSON-purity round-trip invariant (ADR 0046) on a simultaneous players forEach fixture."
+    },
+    {
+        "file": "convex/gre/effects/__tests__/validate.test.ts",
+        "test": "validateEffectScript — JSON purity (ADR 0046) > a valid script round-trips through JSON.stringify unchanged",
+        "reason": "JSON-purity round-trip invariant (ADR 0046) proving no lossy/non-serializable fields."
+    },
+    {
+        "file": "convex/limited/__tests__/archetypeRegistry.bot.test.ts",
+        "test": "Archetype Registry (ADR 0072, issue #3597) > every row carries a non-trivial description (the review-repeatability requirement)",
+        "reason": "Structural invariant: every row's description exceeds a minimum length."
+    },
+    {
+        "file": "convex/limited/__tests__/archetypeRegistry.bot.test.ts",
+        "test": "Archetype Registry (ADR 0072, issue #3597) > every row has a unique id",
+        "reason": "Uniqueness invariant: every ARCHETYPE_REGISTRY row has a distinct id."
+    },
+    {
+        "file": "convex/limited/__tests__/archetypeRegistry.bot.test.ts",
+        "test": "Archetype Registry (ADR 0072, issue #3597) > every row states BOTH sides of its own boundary — a TAG WHEN: and a NOT: clause",
+        "reason": "Structural invariant: every row's description contains both a TAG WHEN: and a NOT: clause."
+    },
+    {
+        "file": "convex/limited/__tests__/archetypeRegistry.bot.test.ts",
+        "test": "Archetype Registry (ADR 0072, issue #3597) > every row's id is a non-empty lowercase kebab-case string",
+        "reason": "Format invariant: every row id matches lowercase kebab-case via regex."
+    },
+    {
+        "file": "convex/limited/__tests__/archetypeRegistry.bot.test.ts",
+        "test": "Archetype Registry (ADR 0072, issue #3597) > seeds the exact eight names the Vintage Cube census already uses (issue #3597 scope)",
+        "reason": "Backward-compat check: registry still contains the eight names real seed data uses."
+    },
+    {
+        "file": "convex/limited/__tests__/archetypeRegistry.bot.test.ts",
+        "test": "Archetype Registry (ADR 0072, issue #3597) > stays small and coarse — growth past ~25 rows is the signal to check Capability/Combo Edge instead",
+        "reason": "Bound invariant: registry stays non-empty and under a 25-row ceiling."
+    },
+    {
+        "file": "convex/limited/__tests__/capabilityRegistry.bot.test.ts",
+        "test": "Capability Registry (ADR 0072, issue #1608) > every row carries a non-trivial description (the census-repeatability requirement)",
+        "reason": "Structural invariant: every row's description exceeds a minimum length."
+    },
+    {
+        "file": "convex/limited/__tests__/capabilityRegistry.bot.test.ts",
+        "test": "Capability Registry (ADR 0072, issue #1608) > every row documents BOTH a PROVIDES and a REQUIRES side (ADR 0072's two-sided matching requirement)",
+        "reason": "Structural invariant: every row's description documents both PROVIDES: and REQUIRES:."
+    },
+    {
+        "file": "convex/limited/__tests__/capabilityRegistry.bot.test.ts",
+        "test": "Capability Registry (ADR 0072, issue #1608) > every row has a unique id",
+        "reason": "Uniqueness invariant: every CAPABILITY_REGISTRY row has a distinct id."
+    },
+    {
+        "file": "convex/limited/__tests__/capabilityRegistry.bot.test.ts",
+        "test": "Capability Registry (ADR 0072, issue #1608) > every row's id is a non-empty kebab-case string",
+        "reason": "Format invariant: every row id matches kebab-case via regex."
+    },
+    {
+        "file": "convex/limited/__tests__/capabilityRegistry.bot.test.ts",
+        "test": "Capability Registry (ADR 0072, issue #1608) > seeds the vocabulary this design was built on (ADR 0072 / issue #1608 scope)",
+        "reason": "Backward-compat check: registry still contains the four names the design was built on."
+    },
+    {
+        "file": "convex/limited/__tests__/capabilityRegistry.bot.test.ts",
+        "test": "Capability Registry (ADR 0072, issue #1608) > stays small — growth past ~25 rows is the signal to check Combo Edge/Archetype instead (ADR 0072 Consequences)",
+        "reason": "Bound invariant: registry stays non-empty and under a 25-row ceiling."
+    },
+    {
+        "file": "convex/limited/__tests__/cube.test.ts",
+        "test": "cube names data (derived from the canonical worklist) > is a clean, deduplicated, non-empty list of names",
+        "reason": "Invariant check: CUBE_CARD_NAMES has no blanks and no case-insensitive duplicates."
+    },
+    {
+        "file": "convex/limited/__tests__/eventStatus.test.ts",
+        "test": "Limited Event phase predicates (ADR 0076) > covers every declared status (a new member must be answered here too)",
+        "reason": "Coverage check: hand-written EXPECTED table's keys match LIMITED_EVENT_STATUSES exactly."
+    },
+    {
+        "file": "convex/limited/__tests__/eventStatus.test.ts",
+        "test": "LIMITED_EVENT_STATUSES (PRD #1628, ADR 0076) > has no duplicate members",
+        "reason": "Uniqueness invariant: LIMITED_EVENT_STATUSES has no duplicate members."
+    },
+    {
+        "file": "convex/oracle/__tests__/battlefieldSelector.test.ts",
+        "test": "the two refusals rank as two gaps, not one > carry distinct reasons, neither shared with a neighbour",
+        "reason": "Distinctness invariant: the two refusal reasons are unique and don't collide with other reasons."
+    },
+    {
+        "file": "convex/oracle/__tests__/goldenFixtures.test.ts",
+        "test": "golden fixtures (ADR 0137) > every registered fixture is golden",
+        "reason": "Correctness invariant: every GOLDEN_FIXTURES entry actually compiles to its expected definition."
+    },
+    {
+        "file": "convex/oracle/__tests__/landTypeChange.test.ts",
+        "test": "becomes a basic land type — the mode order is a compiled byte > matches the catalogue's BASIC_LAND_SUBTYPES exactly",
+        "reason": "Drift guard: grammar's BASIC_LAND_SUBTYPE_ORDER matches catalogue's independently maintained BASIC_LAND_SUBTYPES."
+    },
+    {
+        "file": "dashboard/lib/__tests__/historyState.test.ts",
+        "test": "History URL round trip (#2635) > the walked key set IS the slice's key set — a field the round trip does not know about cannot exist",
+        "reason": "Drift guard: SLICE_KEYS matches DEFAULT_SLICE's own keys (codec/field parity)."
+    },
+    {
+        "file": "scripts/__tests__/bot-fast-lane.test.ts",
+        "test": "bot fast lane — deny-list stays honest (issue #1912) > keeps the deny-list small — it is a cost exception, not a hiding place",
+        "reason": "Bound invariant: HEAVY_BOT_BASENAMES deny-list stays under MAX_DENY_LIST."
+    },
+    {
+        "file": "scripts/__tests__/catalogue-artifact.test.ts",
+        "test": "catalogue artifact — divergence is a RED (ADR 0114 §3) > every baseline row states its direction, and a card defect names its ticket",
+        "reason": "Structural invariant: every baseline row has a reason and card-defect rows name an issue."
+    },
+    {
+        "file": "scripts/__tests__/catalogue-artifact.test.ts",
+        "test": "catalogue artifact — divergence is a RED (ADR 0114 §3) > the baseline only shrinks: the ceiling is not raised",
+        "reason": "Bound + uniqueness invariant: baseline stays under its ceiling with no duplicate keys."
+    },
+    {
+        "file": "scripts/__tests__/check-gaps.test.ts",
+        "test": "check:gaps runs in health, and nowhere else > is a health step",
+        "reason": "Membership check: HEALTH_SCRIPTS (independent list) includes \"check:gaps\"."
+    },
+    {
+        "file": "scripts/__tests__/check-gaps.test.ts",
+        "test": "check:gaps runs in health, and nowhere else > runs after check:all, which owns the lockfile drift guard",
+        "reason": "Ordering invariant: check:gaps runs after check:all in HEALTH_SCRIPTS."
+    },
+    {
+        "file": "scripts/__tests__/check-guards-scope.test.ts",
+        "test": "check:guards scope — the light gate runs the whole node project > runs the CR-citation sweep (#2429)",
+        "reason": "Regression guard: guards script string still contains the cr:lint invocation."
+    },
+    {
+        "file": "scripts/__tests__/check-guards-scope.test.ts",
+        "test": "check:guards scope — the light gate runs the whole node project > still runs the bot fast lane (#1912 is not undone)",
+        "reason": "Regression guard: guards script string still contains the bot-fast-lane flags."
+    },
+    {
+        "file": "scripts/__tests__/check-guards-scope.test.ts",
+        "test": "the dom project is the whole DOM-dependent half of the app suite (#2655) > includes src/**",
+        "reason": "Regression guard: vitest config's dom project block still includes src/**."
+    },
+    {
+        "file": "scripts/__tests__/check-targets.test.ts",
+        "test": "check:targets runs in health, and nowhere else > is a health step, after check:all (lockfile drift) and check:gaps",
+        "reason": "Membership + ordering invariant: check:targets is a health step after check:gaps/check:all."
+    },
+    {
+        "file": "scripts/__tests__/dashboard-now-port.test.ts",
+        "test": "mirrored constants — the ported modules restate three server numbers > the activity chart's window equals the server's",
+        "reason": "Drift guard: dashboard's ACTIVITY_WINDOW_HOURS matches the independently maintained server constant."
+    },
+    {
+        "file": "scripts/__tests__/dashboard-now-port.test.ts",
+        "test": "mirrored constants — the ported modules restate three server numbers > the claims table's amber threshold equals the classifier's own",
+        "reason": "Drift guard: dashboard's MIN_AGE_HOURS matches the independently maintained classifier constant."
+    },
+    {
+        "file": "scripts/__tests__/dashboard-now-port.test.ts",
+        "test": "mirrored constants — the ported modules restate three server numbers > the timeline window equals the gather layer's own",
+        "reason": "Drift guard: dashboard's WINDOW_HOURS matches the independently maintained gather-layer constant."
+    },
+    {
+        "file": "scripts/__tests__/gap-issues.test.ts",
+        "test": "BAND_UMBRELLAS is keyed by Target, not by band letter (issue #4211) > no umbrella number appears twice, and the Hand Tail family is the four issues #4209 created",
+        "reason": "Checks no umbrella number repeats across all families, not just the hand-tail literal"
+    },
+    {
+        "file": "scripts/__tests__/gaps-sync.test.ts",
+        "test": "GAP_LABELS carries the filing stamp (issue #4457) > %s: exactly one type and exactly one area:*",
+        "reason": "Every gap kind has exactly one type and one area label, none model:*"
+    },
+    {
+        "file": "scripts/__tests__/gaps-sync.test.ts",
+        "test": "umbrellas partition by band — the triage's cards source picks the parent (issue #4056) > every kind's fallback is its LOWEST-ranked Target's umbrella — never a PRD",
+        "reason": "Cross-checks KIND_FALLBACK against GRAMMAR/OPS/BOTS/BAND_UMBRELLAS and RETIRED_UMBRELLAS"
+    },
+    {
+        "file": "scripts/__tests__/generated-artifact-merge.test.ts",
+        "test": "generated-artifact class — wiring > the corpus path has one authority",
+        "reason": "Drift guard: CORPUS_PATH must end with the independently-defined CORPUS_CACHE_REL"
+    },
+    {
+        "file": "scripts/__tests__/ladder-plan.test.ts",
+        "test": "ladder pairing registry (decision #1895 §1) > every row references existing preset decks and declares dynamics",
+        "reason": "Cross-checks LADDER_PAIRINGS deck refs against the independent PRESET_DECKS table"
+    },
+    {
+        "file": "scripts/__tests__/ladder-plan.test.ts",
+        "test": "ladder pairing registry (decision #1895 §1) > has 17 rows after the R1/R2 rungs (issue #2689), every row tagged",
+        "reason": "Pins exact row count but also checks every row declares a rung (completeness)"
+    },
+    {
+        "file": "scripts/__tests__/ladder-plan.test.ts",
+        "test": "pairing-subset filter (issue #2681) > every row carries a rung",
+        "reason": "Every LADDER_PAIRINGS row's rung is one of the valid enum values"
+    },
+    {
+        "file": "scripts/__tests__/merge-driver-io.test.ts",
+        "test": "merge driver stderr survives process.exit (issue #3857) > $name names no queueing channel",
+        "reason": "Every driver source file checked against a denylist of queueing channels"
+    },
+    {
+        "file": "scripts/__tests__/merge-driver-io.test.ts",
+        "test": "merge driver stderr survives process.exit (issue #3857) > $name reports through writeStderrSync",
+        "reason": "Every driver source checked to report through the shared writeStderrSync helper"
+    },
+    {
+        "file": "scripts/__tests__/oracle-compile.test.ts",
+        "test": "oracle:compile classifies the synthetic corpus as expected > a keyword creature is ready with the keyword lowered",
+        "reason": "Real compiler output: keyword text lowered into staticAbilities, a derived value"
+    },
+    {
+        "file": "scripts/__tests__/oracle-compile.test.ts",
+        "test": "oracle:compile classifies the synthetic corpus as expected > a mana ability is ready with useStack false (CR 605.3b)",
+        "reason": "Real compiler output: mana ability derivation (useStack/manaProduced) from oracle text"
+    },
+    {
+        "file": "scripts/__tests__/oracle-compile.test.ts",
+        "test": "oracle:compile classifies the synthetic corpus as expected > a vanilla creature is ready with no abilities",
+        "reason": "Real compiler output on synthetic input; asserts derived classification not copied data"
+    },
+    {
+        "file": "scripts/__tests__/oracle-compile.test.ts",
+        "test": "oracle:compile classifies the synthetic corpus as expected > spell text is ready with the effect lowered onto the CARD (#2699)",
+        "reason": "Real compiler output: spell effect lowered onto the card definition from oracle text"
+    },
+    {
+        "file": "scripts/__tests__/oracle-subtypes.test.ts",
+        "test": "CR 205.3 subtype tables match the vendored document > the parse is not vacuous — every list has a plausible size",
+        "reason": "Sanity guard that the CR-parsed subtype tables are not vacuously empty"
+    },
+    {
+        "file": "scripts/__tests__/perf-test-boundary.test.ts",
+        "test": "perf project — vitest.config.ts keeps perf tests out of every gate > declares a `perf` project that selects the suffix",
+        "reason": "Real vitest.config.ts parsed and tied to the independently-defined PERF_GLOB constant"
+    },
+    {
+        "file": "scripts/__tests__/purge-identity-tests.test.ts",
+        "test": "the named allow-list (issue #4489) > every entry carries a reason and a unique name, and none sits in the card sets",
+        "reason": "Census over this list: unique names, a non-empty reason per entry, no card-set entry"
+    },
+    {
+        "file": "scripts/__tests__/tier1-decks.test.ts",
+        "test": "M1 acceptance — every Tier 1 list is playable today (issue #2719) > %s — every card is `ours` or `ready`",
+        "reason": "Cross-checks real Tier-1 deck lists against the real lockfile and card-index pool"
+    },
+    {
+        "file": "scripts/__tests__/tier1-smoke.test.ts",
+        "test": "freeze classification > counts every harness guard as a freeze and every MTG ending as fine",
+        "reason": "Partitions every GameEndReason into freeze vs fine, exhaustive over the enum"
+    },
+    {
+        "file": "scripts/__tests__/tsconfig-incremental.test.ts",
+        "test": "root tsconfig references (sanity — pins the leaf-config list this guard walks) > has at least the five known leaf projects",
+        "reason": "Real tsconfig.json references drift-guarded against a hand-maintained leaf list"
+    },
+    {
+        "file": "scripts/__tests__/ui-census.test.ts",
+        "test": "check:ui coverage census (issue #3420) > DEBT has not grown — a NEW uncovered element may not be recorded as debt",
+        "reason": "Monotonicity guard: live DEBT size compared to independently pinned DEBT_AT_LANDING"
+    },
+    {
+        "file": "scripts/__tests__/ui-gate-assertions.test.ts",
+        "test": "check:ui surface table — Named Assertions > leaves no surface without assertions",
+        "reason": "Coverage: ASSERTION_DEBT is empty and every surface declares at least one assertion"
+    },
+    {
+        "file": "scripts/__tests__/ui-gate-assertions.test.ts",
+        "test": "check:ui surface table — Named Assertions > the auth and lobby surfaces declare theirs",
+        "reason": "Named surfaces cross-checked against SURFACES and ASSERTION_DEBT (two sources)"
+    },
+    {
+        "file": "scripts/__tests__/ui-gate-assertions.test.ts",
+        "test": "check:ui surface table — Named Assertions > the debt list only names surfaces that exist and still declare nothing",
+        "reason": "ASSERTION_DEBT entries cross-checked against real SURFACES data"
+    },
+    {
+        "file": "scripts/__tests__/ui-gate-assertions.test.ts",
+        "test": "check:ui surface table — Named Assertions > the lobby promises every entry point its runbook names",
+        "reason": "Runbook entry-point selectors checked for coverage in the lobby surface's asserts"
+    },
+    {
+        "file": "scripts/__tests__/ui-gate-floors.test.ts",
+        "test": "UNWALKED_SURFACES — the declared-unwalked list lives in code (ADR 0132 §1) > every entry names a defined surface, once, with a reason and an issue",
+        "reason": "UNWALKED_SURFACES entries checked for membership, uniqueness, reason and issue"
+    },
+    {
+        "file": "scripts/__tests__/ui-gate-surface-ready.test.ts",
+        "test": "check:ui walked routes raise the Settled Screen's ready marker > every route exempted as rendering no screen is still a walked route",
+        "reason": "Stale-exemption drift guard: RENDERS_NO_SCREEN keys checked against real walkedRoutes"
+    },
+    {
+        "file": "scripts/__tests__/usage-window.test.ts",
+        "test": "classifyModel / weightedTokens — unknown model fails expensive > cache write is ~1.25x input and cache read is ~0.1x input for every class",
+        "reason": "Ratio invariant (cacheCreation/cacheRead vs input) checked for every weight class"
+    },
+    {
+        "file": "scripts/__tests__/usage-window.test.ts",
+        "test": "classifyModel / weightedTokens — unknown model fails expensive > DEFAULT_WEIGHTS anchors sonnet input at 1 and prices opus output above sonnet output",
+        "reason": "Pins sonnet.input=1 but also checks cacheRead<input holds for every weight class"
+    },
+    {
+        "file": "scripts/__tests__/usage-window.test.ts",
+        "test": "classifyModel / weightedTokens — unknown model fails expensive > fable is priced at $10/$50 per MTok, the genuinely most expensive class",
+        "reason": "Price pin plus a real ordering check that fable outprices opus on both axes"
+    },
+    {
+        "file": "scripts/__tests__/vitest-sequencer.test.ts",
+        "test": "LongestFirstSequencer — the vitest seam > is the sequencer `vitest.config.ts` registers",
+        "reason": "Real vitest.config.ts checked to register the actual LongestFirstSequencer class"
+    },
+    {
+        "file": "src/__tests__/design-tokens.test.ts",
+        "test": "design tokens v3 — CSS ↔ typed mirror > every fluid-type step is a clamp() between two rem bounds",
+        "reason": "Every fluid-type token value checked to match the clamp() format, not a literal snapshot"
+    },
+    {
+        "file": "src/components/board/__tests__/cards-pile.test.tsx",
+        "test": "CardsPile — grid layout mobile density arithmetic (issue #1817, round 2) > PILE_GRID_TILE_W's arbitrary-value literal stays in sync with PILE_GRID_TILE_PX",
+        "reason": "Drift guard tying the Tailwind literal PILE_GRID_TILE_W to the numeric PILE_GRID_TILE_PX"
+    },
+    {
+        "file": "src/components/board/__tests__/game-stack-narrow.test.tsx",
+        "test": "GameStack narrow/portrait variant (issue #1816) > issue #1816 review fixup finding 2 — the narrow panel clears the FULL stack chip (44px touch target) > the panel's top offset past the midline is at least the chip's own half-height plus a real gap",
+        "reason": "Offset formula relating three independent layout constants (chip height, gap, offset)"
+    },
+    {
+        "file": "src/components/board/__tests__/game-stack-narrow.test.tsx",
+        "test": "GameStack narrow/portrait variant (issue #1816) > issue #1816 review fixup finding 2 — the narrow panel clears the FULL stack chip (44px touch target) > the published `top` class matches that offset arithmetic exactly (guards drift between the number and the literal Tailwind class)",
+        "reason": "Published top-offset class tied to the computed numeric offset constant"
+    },
+    {
+        "file": "src/components/board/__tests__/game-stack-narrow.test.tsx",
+        "test": "GameStack narrow/portrait variant (issue #1816) > issue #1816 review fixup finding 6 — NARROW_BOTTOM_CLASS is the literal, guarded against the shared constant it must match > is a verbatim substring of PORTRAIT_VIEWER_BATTLEFIELD_BAND — a refactor of that shared fragment fails HERE instead of silently breaking this class",
+        "reason": "NARROW_BOTTOM_CLASS drift-guarded as a substring of the independent shared band constant"
+    },
+    {
+        "file": "src/components/debug/__tests__/debug-board-area.test.tsx",
+        "test": "DebugBoardArea — the push (issue #3493) > reserves exactly the width the sheet takes",
+        "reason": "DEBUG_SHEET_PUSH_CLASS tied to the independently-defined DEBUG_SHEET_DESKTOP_WIDTH_PX"
+    },
+    {
+        "file": "src/components/debug/__tests__/scenario-spec-fields.test.tsx",
+        "test": "the scenario form renders every form-owned spec field > classifies exactly the keys the VALIDATOR declares",
+        "reason": "Field-owner table keys cross-checked against the validator-derived key list"
+    },
+    {
+        "file": "src/components/debug/__tests__/scenario-spec-fields.test.tsx",
+        "test": "the scenario form renders every form-owned spec field > has something to check (the derivation is not vacuous)",
+        "reason": "Non-vacuous guard that the derived LABELLED_KEYS list actually has entries"
+    },
+    {
+        "file": "src/components/ui/__tests__/not-found-page.test.tsx",
+        "test": "pickLostInCard > every pooled card is a real Scryfall print id and an actual 'Lost in' name",
+        "reason": "Every pooled card checked against name and Scryfall-id format regexes, not one snapshot"
+    },
+    {
+        "file": "src/hooks/__tests__/useVsAiDriver-liveness.bot.test.ts",
+        "test": "bot liveness invariant (issue #2284) > the fixture covers EVERY Expected Input kind",
+        "reason": "BOARDS fixture keys cross-checked for coverage against EXPECTED_INPUT_KINDS"
+    },
+    {
+        "file": "src/hooks/__tests__/useVsAiDriver.bot.test.ts",
+        "test": "useVsAiDriver (issue #110) > settles the decision path strictly inside the watchdog interval",
+        "reason": "Ordering invariant: DRIVER_SETTLE_MS must stay below the independent BOT_WATCHDOG_MS"
+    },
+    {
+        "file": "src/lib/__tests__/adminNav.test.ts",
+        "test": "ADMIN_NAV > every entry carries a label and a description",
+        "reason": "Every ADMIN_NAV entry checked for a non-empty label and description"
+    },
+    {
+        "file": "src/lib/__tests__/adminNav.test.ts",
+        "test": "ADMIN_NAV > every entry lives under /admin/",
+        "reason": "Every ADMIN_NAV entry checked to live under the /admin/ prefix"
+    },
+    {
+        "file": "src/lib/__tests__/adminNav.test.ts",
+        "test": "ADMIN_NAV > is non-empty and free of duplicate paths",
+        "reason": "Non-empty and no duplicate paths across the whole ADMIN_NAV list"
+    },
+    {
+        "file": "src/lib/__tests__/board-layout.test.ts",
+        "test": "mirrorVertical (opponent-side projection) > keeps the standard card aspect ratio constant",
+        "reason": "CARD_HEIGHT/CARD_WIDTH ratio invariant tying two independent size constants together"
+    },
+    {
+        "file": "src/lib/__tests__/card-utils.test.ts",
+        "test": "buildTriggerStateView — TRIGGER_STATE_VIEW_CENSUS (issue #1951 review round 3, MAJOR 5) > every 'populated'/'conditional-on-turnState' census key is exercised by the tests above",
+        "reason": "Non-vacuous guard that the census's populated/conditional key set isn't empty"
+    },
+    {
+        "file": "src/lib/__tests__/landscape-board-bands.test.ts",
+        "test": "landscape-compact band budget (#1768) > gives both seats the SAME battlefield height",
+        "reason": "Relational invariant tying midline/hand fractions to the battlefield fraction"
+    },
+    {
+        "file": "src/lib/__tests__/landscape-board-bands.test.ts",
+        "test": "landscape-compact band budget (#1768) > makes a battlefield ROW exactly as tall as the hand band",
+        "reason": "Battlefield row height ratio tied to the independent hand-band fraction"
+    },
+    {
+        "file": "src/lib/__tests__/landscape-board-bands.test.ts",
+        "test": "landscape-compact band budget (#1768) > tiles the board height exactly — no gap, no overlap",
+        "reason": "Sum of independent layout-fraction constants must tile to exactly 1"
+    },
+    {
+        "file": "src/lib/__tests__/landscape-board-bands.test.ts",
+        "test": "pile columns are capped at the midline (#1768) > caps each column at its OWN half of the board",
+        "reason": "Pile anchor classes drift-tied to the independent LANDSCAPE_MIDLINE_VAR constant"
+    },
+    {
+        "file": "src/lib/__tests__/landscape-board-bands.test.ts",
+        "test": "published landscape custom properties (#1768) > pins the composable strip clearance to its class spelling",
+        "reason": "BESIDE_CONTROLLER_STRIP class drift-tied to the independent CONTROLLER_STRIP_CLEARANCE_EXPR"
+    },
+    {
+        "file": "src/lib/__tests__/phase-labels.test.ts",
+        "test": "phase-labels (#331) > COMBAT_PHASES is exactly the combat group's steps, and non-empty",
+        "reason": "COMBAT_PHASES size cross-checked against the independent combat group's step count"
+    },
+    {
+        "file": "src/lib/__tests__/phase-labels.test.ts",
+        "test": "phase-labels (#331) > covers all turn phases across its groups",
+        "reason": "Coverage check that PHASE_GROUPS still includes every named turn phase"
+    },
+    {
+        "file": "src/lib/__tests__/portrait-board-bands.test.ts",
+        "test": "band budget is derived, not hand-tuned > pins the composable clearance to the class spelling (#1759 seam)",
+        "reason": "ABOVE_CONTROLLER_BAR class drift-tied to the independent CONTROLLER_BAR_CLEARANCE_EXPR"
+    },
+    {
+        "file": "src/lib/__tests__/shellChrome.test.ts",
+        "test": "return-affordance ownership census (issue #2582, #2619 review) > declares a non-empty, well-formed claim wherever it declares one",
+        "reason": "Every declared ownsReturn checked non-empty and duplicate-free"
+    },
+    {
+        "file": "src/lib/__tests__/shellChrome.test.ts",
+        "test": "return-affordance ownership census (issue #2582, #2619 review) > keeps the owning routes to the ones that really render a return",
+        "reason": "Closed-list exhaustiveness check of every route that owns the return affordance"
+    },
+    {
+        "file": "src/lib/__tests__/shellChrome.test.ts",
+        "test": "return-affordance ownership census (issue #2582, #2619 review) > never declares ownsReturn on a route that renders no band anyway",
+        "reason": "Mutual-exclusion invariant: ownChrome routes must never also declare ownsReturn"
+    },
+    {
+        "file": "src/lib/__tests__/shellChrome.test.ts",
+        "test": "shell route census: every router route is classified (issue #2582) > gives own chrome to exactly the two surfaces that draw their own bar",
+        "reason": "Closed-list exhaustiveness check of every route carrying ownChrome"
+    },
+    {
+        "file": "src/lib/__tests__/shellChrome.test.ts",
+        "test": "shell route census: every router route is classified (issue #2582) > says WHY every route is classified the way it is",
+        "reason": "Every SHELL_ROUTE_RULES entry checked to carry a real (non-trivial) why reason"
+    },
+    {
+        "file": "src/lib/__tests__/user-preferences.test.ts",
+        "test": "option lists > every default value is present among its own option list",
+        "reason": "Each default cross-checked for membership in its own independent option list"
+    },
+    {
+        "file": "src/lib/ai/__tests__/brain-client-timeout.bot.test.ts",
+        "test": "consultBrain always settles (issue #2284) > sits between the hardest search budget and the watchdog deadline",
+        "reason": "Timeout ordering tied to DIFFICULTY_BUDGETS-derived max and the independent BOT_WATCHDOG_MS"
+    },
+    {
+        "file": "src/lib/ai/__tests__/decision-phrases.bot.test.ts",
+        "test": "mechanism sentences (issue #3404) > gives every root mechanism exactly one sentence",
+        "reason": "MECHANISM_SENTENCES keys cross-checked for coverage against ROOT_DECISION_MECHANISMS"
+    },
+    {
+        "file": "src/lib/ai/__tests__/decision-phrases.bot.test.ts",
+        "test": "mechanism sentences (issue #3404) > names no engine vocabulary a tester would have to look up",
+        "reason": "Every mechanism sentence checked against a jargon denylist, not one snapshot"
+    },
+    {
+        "file": "src/lib/ai/__tests__/eval-term-labels.bot.test.ts",
+        "test": "eval-term labels (issue #2686 drift guard) > gives every term a unique, non-empty glyph and name",
+        "reason": "Uniqueness and non-empty invariant over every EVAL_TERM_ORDER label"
+    },
+    {
+        "file": "src/lib/ai/__tests__/owed-input.bot.test.ts",
+        "test": "ESCALATION_POLICY — exhaustive over the Expected Input union > allows a bare priority pass ONLY in a priority window",
+        "reason": "canPass formula invariant (true only for \"priority\") checked over every kind"
+    },
+    {
+        "file": "src/lib/ai/__tests__/owed-input.bot.test.ts",
+        "test": "ESCALATION_POLICY — exhaustive over the Expected Input union > classifies EVERY kind, named explicitly",
+        "reason": "ESCALATION_POLICY keys cross-checked for coverage against EXPECTED_INPUT_KINDS"
+    },
+    {
+        "file": "src/lib/ai/__tests__/owed-payment.bot.test.ts",
+        "test": "payment-park answer census (ADR 0091, issue #1209) > routes every ParkKind to a dedicated or generic bot answer",
+        "reason": "PARK_ANSWER_ROUTE checked for coverage and valid format over every PARK_KINDS entry"
+    },
+    {
+        "file": "src/lib/ai/__tests__/verdict-quiz.bot.test.ts",
+        "test": "the refusal a panel renders (issue #3457) > titles every kind the quiz can refuse with, the lowering's and its own",
+        "reason": "Refusal-kind coverage, length formula, and title-uniqueness cross-checked across two sources"
+    },
+    {
+        "file": "src/lib/ai/selfplay/ladder.bot.test.ts",
+        "test": "placebo variant / searchSeedMask (issue #1929) > is registered and carries a seed mask, not a policy knob",
+        "reason": "Structural neutrality invariant: placebo variant must not set policy-changing knobs"
+    },
+    {
+        "file": "src/lib/ai/selfplay/loweringSweep.bot.test.ts",
+        "test": "lowering sweep: dropped-message classes (issue #3461) > keeps genuinely different causes apart",
+        "reason": "Real classifier run on four distinct synthetic messages, asserts it keeps them distinct"
+    }
+]

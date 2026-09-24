@@ -1,6 +1,15 @@
 import { describe, it, expect } from "vitest";
-import { purgeFile } from "../purge-identity-tests";
-import { classifyTestBlocks } from "../lib/identity-test-classifier";
+import { areaOf, dryRun, purgeFile } from "../purge-identity-tests";
+import {
+    classifyTestBlocks,
+    type CardFacts,
+} from "../lib/identity-test-classifier";
+import {
+    IDENTITY_ALLOWLIST,
+    isAllowListed,
+    staleEntries,
+    testName,
+} from "../lib/identity-test-allowlist";
 
 /**
  * Regression test for the #2363 codemod (`scripts/purge-identity-tests.ts`).
@@ -111,5 +120,140 @@ ${body}
         const once = purgeFile("t/__tests__/x.test.ts", source, new Set()).text;
         const twice = purgeFile("t/__tests__/x.test.ts", once, new Set()).text;
         expect(twice).toBe(once);
+    });
+});
+
+describe("the named allow-list (issue #4489)", () => {
+    // A real entry, so the case below exercises the shipped list, not a fixture.
+    const entry = IDENTITY_ALLOWLIST[0];
+    const [title, ...chainReversed] = entry.test.split(" > ").reverse();
+    const chain = chainReversed.reverse();
+    /** A census block whose name is exactly the entry's, in the entry's file. */
+    const censusSource =
+        HEADER +
+        chain.map((d) => `describe(${JSON.stringify(d)}, () => {\n`).join("") +
+        `it(${JSON.stringify(title)}, () => {\n    expect(new Set(IDS).size).toBe(IDS.length);\n});\n` +
+        chain.map(() => "});\n").join("");
+
+    it("builds the census fixture the cases below assume", () => {
+        const [b] = classifyTestBlocks(entry.file, censusSource);
+        expect(b.verdict).toBe("identity");
+        expect(testName(b)).toBe(entry.test);
+    });
+
+    it("clears an allow-listed census block, by name", () => {
+        const [b] = classifyTestBlocks(entry.file, censusSource);
+        expect(isAllowListed(b)).toBe(true);
+        // Same block in another file is NOT covered — the key is file + name.
+        expect(isAllowListed({ ...b, file: "elsewhere.test.ts" })).toBe(false);
+    });
+
+    it("the dry run counts it as allow-listed, not flagged", () => {
+        const noCards: CardFacts = {
+            byId: () => undefined,
+            byName: () => undefined,
+        };
+        const r = dryRun([{ file: entry.file, source: censusSource }], noCards);
+        expect(r.identity).toEqual({ flagged: 0, allowListed: 1 });
+    });
+
+    it("the rewrite spares it", () => {
+        const result = purgeFile(entry.file, censusSource, new Set());
+        expect(result.removed).toBe(0);
+        expect(result.text).toBe(censusSource);
+    });
+
+    it("every entry carries a reason and a unique name, and none sits in the card sets", () => {
+        const keys = IDENTITY_ALLOWLIST.map((e) => `${e.file}::${e.test}`);
+        expect(new Set(keys).size).toBe(keys.length);
+        for (const e of IDENTITY_ALLOWLIST) {
+            expect(e.reason.trim().length, e.test).toBeGreaterThan(0);
+            expect(e.file.startsWith("convex/cards/sets/"), e.file).toBe(false);
+        }
+    });
+
+    it("reports an entry that no longer exempts anything as stale", () => {
+        const [b] = classifyTestBlocks(entry.file, censusSource);
+        const gone = { ...entry, test: "gone > block" };
+        expect(staleEntries([b], [entry, gone]).stale).toEqual([gone]);
+        // The block gained a call: it exists, but the entry exempts nothing.
+        const behavioural = { ...b, verdict: "behavioural" as const };
+        expect(staleEntries([behavioural], [entry]).stale).toEqual([entry]);
+    });
+
+    it("reports an entry whose name matches several blocks as ambiguous", () => {
+        const [b] = classifyTestBlocks(entry.file, censusSource);
+        expect(staleEntries([b, b], [entry]).ambiguous).toEqual([entry]);
+        expect(staleEntries([b], [entry]).ambiguous).toEqual([]);
+    });
+});
+
+describe("the repo-wide dry run (issue #4489)", () => {
+    const BOLT = "d573ef03-4730-45aa-93dd-e45ac1dbaf4a";
+    const cards: CardFacts = {
+        byId: (id) =>
+            id === BOLT
+                ? { id, name: "Lightning Bolt", ownsCode: null, smokeRun: true }
+                : undefined,
+        byName: () => undefined,
+    };
+    const SET_FILE = "convex/cards/sets/lea/__tests__/red.test.ts";
+    const SET_SOURCE = `${HEADER}const bolt = getDefinition("${BOLT}");
+describe("Lightning Bolt", () => {
+    it("deals 3 to a player", () => {
+        const state = makeState();
+        pushSpell(state, bolt.id, "p1", [{ type: "player", id: "p2" }]);
+        resolveTopOfStack(state);
+        expect(bolt.manaCost).toEqual({ R: 1 });
+        expect(state.players[1].life).toBe(17);
+    });
+});
+`;
+    const GRE_FILE = "convex/gre/__tests__/x.test.ts";
+
+    it("counts each class per area", () => {
+        const r = dryRun(
+            [
+                { file: SET_FILE, source: SET_SOURCE },
+                {
+                    file: GRE_FILE,
+                    source: `${HEADER}${IDENTITY_BLOCK}\n`,
+                },
+            ],
+            cards
+        );
+        expect(r.identity.flagged).toBe(1);
+        expect(r.definitionReads).toEqual({ lines: 1, blocks: 1 });
+        expect(r.opOnly).toMatchObject({ blocks: 0, onPureDslCards: 1 });
+        expect(r.byArea.get("set:lea")).toEqual([0, 1, 0]);
+        expect(r.byArea.get("convex/gre")).toEqual([1, 0, 0]);
+        expect(r.rows.map((row) => row.split("\t")[0]).sort()).toEqual([
+            "definition-read",
+            "identity",
+        ]);
+    });
+
+    it("reports the Op-only block once its definition read is gone", () => {
+        const source = SET_SOURCE.replace(
+            "        expect(bolt.manaCost).toEqual({ R: 1 });\n",
+            ""
+        );
+        const r = dryRun([{ file: SET_FILE, source }], cards);
+        expect(r.opOnly).toEqual({ blocks: 1, cards: 1, onPureDslCards: 1 });
+        expect(r.byArea.get("set:lea")).toEqual([0, 0, 1]);
+    });
+
+    it("evaluates the Op-only class in the card-set suites only", () => {
+        const source = SET_SOURCE.replace(
+            "        expect(bolt.manaCost).toEqual({ R: 1 });\n",
+            ""
+        );
+        const r = dryRun([{ file: GRE_FILE, source }], cards);
+        expect(r.opOnly).toEqual({ blocks: 0, cards: 0, onPureDslCards: 0 });
+    });
+
+    it("names an area by set code inside the card sets, by directory elsewhere", () => {
+        expect(areaOf(SET_FILE)).toBe("set:lea");
+        expect(areaOf("src/lib/__tests__/x.test.ts")).toBe("src/lib");
     });
 });
