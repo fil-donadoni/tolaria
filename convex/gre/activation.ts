@@ -56,7 +56,11 @@ import {
     reboundCastStackFlags,
 } from "./castCost";
 import type { CastFromZone } from "./castCost";
-import { isTapLockedBySummoningSickness, manaValue } from "./constants";
+import {
+    isTapLockedBySummoningSickness,
+    manaValue,
+    stackManaValue,
+} from "./constants";
 import { findEscapeCastable } from "./escape";
 import { payExertActivationCost } from "./exert";
 import { assertExpectedInput } from "./expectedInput";
@@ -560,7 +564,7 @@ export function deriveXFromTargetSpellMv(
     }
     const spellCardId = (spell.card as { id?: string }).id;
     const spellDef = spellCardId ? tryGetDefinition(spellCardId) : undefined;
-    const spellMv = manaValue(spellDef?.manaCost) + (spell.chosenX ?? 0);
+    const spellMv = stackManaValue(spellDef?.manaCost, spell.chosenX);
     return ability.cost.xFromTargetSpellMv.multiplier * spellMv;
 }
 

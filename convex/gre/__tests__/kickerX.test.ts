@@ -28,6 +28,7 @@ import {
     type PendingTarget,
 } from "../state";
 import { compactState, expandState } from "../serialize";
+import { mvOfStackItem } from "../targetFilters";
 import {
     makeInstance,
     makePlayer,
@@ -36,6 +37,7 @@ import {
 } from "../../cards/__tests__/setup";
 import { verdelothTheAncient } from "../../cards/sets/inv/green";
 import { burstLightning } from "../../cards/sets/zen/red";
+import { fireball } from "../../cards/sets/lea";
 
 function verdelothInHand(id: string) {
     return makeInstance(verdelothTheAncient.id, {
@@ -141,5 +143,22 @@ describe("Verdeloth the Ancient — Kicker {X} cast to resolution (CR 107.3a / 1
         expect(
             getPlayer(after, "p1").battlefield.some((c) => c.id === "verdeloth")
         ).toBe(true);
+    });
+});
+
+describe("mana value of a spell kicked for X (CR 202.3 / 202.3e)", () => {
+    it("the Kicker's X is not part of the mana cost, so it adds nothing", () => {
+        const state = castVerdeloth(9, {
+            kickerPayments: { kicker: 1 },
+            chosenX: 3,
+        });
+        const item = state.stack.find((s) => s.id === "verdeloth")!;
+        expect(mvOfStackItem(item)).toBe(6);
+    });
+
+    it("an {X} in the mana cost still counts at the announced value", () => {
+        expect(mvOfStackItem({ card: { id: fireball.id }, chosenX: 3 })).toBe(
+            4
+        );
     });
 });
