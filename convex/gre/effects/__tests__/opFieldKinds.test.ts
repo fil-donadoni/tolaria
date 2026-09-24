@@ -146,7 +146,7 @@ const CASTER_PERMANENTS = {
     count: { zone: "battlefield" as const, controller: "controller" as const },
 };
 
-describe("exileTopOfLibrary — computed count, bindAll read back (CR 406.3 / 608.2h)", () => {
+describe("exileTopOfLibrary — computed count, bindAll read back (CR 608.2h)", () => {
     it("exiles as many cards as the computed count, and the bound set sizes a later amount", () => {
         const id = registerScript("test-fk-exile-top", [
             {
