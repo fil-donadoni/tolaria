@@ -21497,7 +21497,7 @@ describe("Effect Script Op: lookDistribute (CR 401.4, issue #984)", () => {
             ],
         });
         pushSpell(state, id, "p1");
-        // First execution suspends on the look-top pick over exactly the top 4.
+        // First execution suspends on the look-distribute pick over exactly the top 4.
         expect(resolveTopOfStack(state)).toBeNull();
         const head = state.pendingChoices![0];
         expect(head.kind).toBe("look-distribute");

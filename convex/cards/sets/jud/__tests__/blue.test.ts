@@ -13,7 +13,7 @@
 //     flashback flags, and commit is BLOCKED until the picks are in
 //   - the pick validator (`recordCastExileCostPick`): count / colour / own-
 //     graveyard / exclude-self / duplicate rules (CR 601.2a)
-//   - a full flashback resolve: `resolveTopOfStack` drives the look-top keep and
+//   - a full flashback resolve: `resolveTopOfStack` drives the look-distribute keep and
 //     `exileOnResolve` sends Flash of Insight to exile, not the graveyard
 //   - the frontend wiring SURFACE: `projectPublicState` carries the picker +
 //     its candidate blue cards to the viewer (the dialog reads them)

@@ -5095,7 +5095,7 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
     // `look` cards, put `take` (default 1) to `keepTo` (hand, or the library
     // top — Thassa's Oracle), the rest to `destination` (library bottom by
     // default, graveyard — Reviving Vapors — when set). Suspends on a
-    // `look-top` choice over the looked-at ids. `player` names whose
+    // `look-distribute` choice over the looked-at ids. `player` names whose
     // library; `look` is how many top cards to look at; `take` (optional,
     // default 1) is how many to keep; `prompt` is an optional choice header.
     // `bind` (issue #1101) snapshot-binds the FIRST kept card for a later

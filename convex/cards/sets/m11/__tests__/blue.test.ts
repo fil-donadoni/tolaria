@@ -65,7 +65,7 @@ describe("Preordain (scry 2 then draw; CR 701.22 / 121.1)", () => {
             ],
         });
         pushSpell(state, preordain.id, "p1");
-        resolveTopOfStack(state); // suspends on the scry (look-top) choice
+        resolveTopOfStack(state); // suspends on the scry (order-top) choice
 
         // Chooser's view: exactly the top two are face-up as `libraryPeek` —
         // the fix for `partition` exposing NOTHING on the wire (the scry was a

@@ -74,7 +74,7 @@ describe("Consult the Star Charts (Kicker {1}{U}, CR 702.33 / 401.4)", () => {
             ],
         });
         pushSpell(state, consultTheStarCharts.id, "p1");
-        // Suspends on a look-top pick over exactly the top 2 (= lands).
+        // Suspends on a look-distribute pick over exactly the top 2 (= lands).
         expect(resolveTopOfStack(state)).toBeNull();
         expect(state.pendingChoices![0].candidateIds?.length).toBe(2);
         submitKeep(state, ["a"]);

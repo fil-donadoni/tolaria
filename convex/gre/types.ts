@@ -96,25 +96,13 @@ export type ZonePickKind =
     // random order. A phase-level choice (stackItemId === "") raised by the
     // draw step's replacement, committed by `finalizeDrawLookKeep`.
     | "draw-look-keep"
-    // "Look at the top N cards of your library, then pick a subset" (CR 401.4 /
-    // 701.42 scry, #942). A mid-resolution stack-coupled choice: `candidateIds`
-    // are exactly the looked-at top N (from `peekLibraryTop`), and the wire
-    // projection exposes ONLY those N face-up as `libraryPeek` — never the whole
-    // library (that is `search-library`) and never nothing (the gap `partition`
-    // left). `count` is the pickable range; the card's resolve step interprets
-    // the picked subset (Stock Up: the 2 to keep; Preordain: the ones to
-    // bottom). The single shared top-N look path — a third such card wires no
-    // new projection/UI. Validated + committed by the generic mid-resolution
-    // path in `applyPendingChoiceSubmit` (library-zone allow-list on
-    // `candidateIds`).
-    | "look-top"
     // Ordered top-of-library placement (CR 701.22 Scry / 701.25 Surveil /
     // "look at the top N, put them back in any order" — Ponder). The drag
     // picker's kind: `candidateIds` are the looked-at top N (from
     // `peekLibraryTop`), exposed face-up as `libraryPeek` exactly like
-    // `look-top`. Unlike `look-top` the submit carries TWO ordered lists — the
-    // kept top order (`cardInstanceIds`, topmost first) and the cards sent to
-    // the second zone (`secondZoneIds`) — and `PendingChoice.destination` names
+    // `draw-look-keep`. Unlike that single pick the submit carries TWO ordered
+    // lists — the kept top order (`cardInstanceIds`, topmost first) and the
+    // cards sent to the second zone (`secondZoneIds`) — and `PendingChoice.destination` names
     // that second zone (`library-bottom` scry, `graveyard` surveil, or `none`
     // for order-only Ponder). Applied by `SpellContext.orderTop`, which reorders
     // the kept cards on top, sends the rest to the destination, and marks the

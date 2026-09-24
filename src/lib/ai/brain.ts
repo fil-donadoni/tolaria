@@ -995,11 +995,6 @@ export function chooseResolution(choice: OwedChoice): string[] {
         // Neutral pick of exactly `min` legal candidates in zone order. For the
         // range kinds `min` is 0 ("up to" partitions; optional Illusionary
         // Mask), so these resolve to an empty, always-legal submission.
-        // `look-top` (Stock Up / Preordain, #942): the picked subset means
-        // "keep" (Stock Up) or "bottom" (Preordain) — no single smart default
-        // spans both, so the first `min` in exposed (top) order is always a
-        // legal submission (ADR 0016); the engine never freezes. Smart
-        // keep/bottom selection is deferred.
         // ADR 0053 (pile division) — the divider's partition (step 1 of the
         // divide-then-choose family) is exactly the `partition` shape: a
         // subset of the object set becomes pile A, the rest pile B. The
@@ -1035,7 +1030,6 @@ export function chooseResolution(choice: OwedChoice): string[] {
         case "choose-hand-card":
         case "partition":
         case "divide-piles":
-        case "look-top":
             return candidates.slice(0, min).map((c) => c.id);
 
         // "Any target of an opponent's choice" (CR 115.4, Cuombajj Witches):

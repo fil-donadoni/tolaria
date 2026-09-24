@@ -45,7 +45,7 @@ describe("listCandidates library zone (issue #2689 fixup 2)", () => {
         const allow = library.slice(0, 2).map((c) => c.id);
         const choice = baseChoice({
             playerId: "A",
-            kind: "look-top",
+            kind: "draw-look-keep",
             zone: "library",
             candidateIds: allow,
         });

@@ -276,10 +276,11 @@ describe("PlayerLibrary", () => {
         expect(toggle).toHaveBeenCalledWith("forest-1");
     });
 
-    it("renders exactly the looked-at top N as a face-up grid for a look-top pick (Stock Up, #942)", () => {
-        // Stock Up looks at the top five and keeps two. The projection exposes
-        // ONLY those five as `libraryPeek` (never the whole library), and the
-        // picker renders exactly them face-up with clicks routed to the buffer.
+    it("renders exactly the looked-at top N as a face-up grid for a draw-look-keep pick (Aladdin's Lamp)", () => {
+        // Aladdin's Lamp looks at the top X and keeps one to draw. The
+        // projection exposes ONLY those X as `libraryPeek` (never the whole
+        // library), and the picker renders exactly them face-up with clicks
+        // routed to the buffer.
         cardsPileSpy.mockClear();
         const peek = [
             makeCard("t1"),
@@ -295,15 +296,15 @@ describe("PlayerLibrary", () => {
         renderWithContext(<PlayerLibrary player={player} />, "me", {
             pendingChoices: [
                 {
-                    stackItemId: "stk",
+                    stackItemId: "",
                     step: 0,
-                    choiceId: "stock-up",
+                    choiceId: "draw-look-me",
                     playerId: "me",
-                    kind: "look-top",
+                    kind: "draw-look-keep",
                     zone: "library",
                     candidateIds: ["t1", "t2", "t3", "t4", "t5"],
-                    count: 2,
-                    prompt: "Put up to two of these cards into your hand.",
+                    count: 1,
+                    prompt: "Choose a card to draw",
                 },
             ],
             buffer: { ...noopBuffer, toggle },
@@ -320,6 +321,7 @@ describe("PlayerLibrary", () => {
         expect(pileProps.isFaceDown).toBe(false);
         expect(pileProps.layout).toBe("grid");
         expect(pileProps.forceOpen).toBe(true);
+        expect(pileProps.title).toBe("Keep one card to draw");
         // Clicks route to the choice submission buffer.
         pileProps.onCardClick({ id: "t3" });
         expect(toggle).toHaveBeenCalledWith("t3");

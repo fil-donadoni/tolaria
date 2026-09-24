@@ -1148,14 +1148,11 @@ function computeChoiceExposure(
     // CR 401.4: reorder-library exposes the top N cards of the zone owner's
     // library to the chooser so the UI can render them for reordering;
     // draw-look-keep (Aladdin's Lamp) exposes the looked-at top X so the
-    // chooser can pick the one to keep; look-top (Stock Up / Preordain, #942)
-    // exposes exactly the looked-at top N (`candidateIds`) — never the whole
-    // library, never nothing.
+    // chooser can pick the one to keep.
     const exposeLibraryPeek =
         isChooser &&
         (head.kind === "reorder-library" ||
             head.kind === "draw-look-keep" ||
-            head.kind === "look-top" ||
             // order-top (scry/surveil/ponder drag picker, #942) — exposes the
             // looked-at top N (`candidateIds`) so the picker can render them.
             head.kind === "order-top" ||
@@ -1182,7 +1179,7 @@ function computeChoiceExposure(
             // owner's, projected into the CHOOSER's view.
             head.kind === "choose-library-card") &&
         head.zone === "library";
-    // reorder-library shows `count` cards; draw-look-keep, look-top and
+    // reorder-library shows `count` cards; draw-look-keep and
     // order-top show all the looked-at cards named in `candidateIds`.
     const peekCount = !exposeLibraryPeek
         ? 0
@@ -1315,7 +1312,7 @@ export function projectPublicState(
     allActions: boolean = false
 ): PublicGameState {
     // CR 401.4 / 701.23: while the viewer is the chooser of an active
-    // search-library / reorder-library / draw-look-keep / look-top / reveal-hand
+    // search-library / reorder-library / draw-look-keep / reveal-hand
     // choice, expose the looked-at zone face-up so the UI can render its picker
     // pile.
     const {
@@ -1666,7 +1663,7 @@ export function projectFullState(
     allActions: boolean = false
 ): FullGameState {
     // CR 401.4 / 701.23: an active search-library / reorder-library /
-    // draw-look-keep / look-top / reveal-hand choice exposes the looked-at zone
+    // draw-look-keep / reveal-hand choice exposes the looked-at zone
     // face-up so the picker pile can open. The full debug view shows every zone,
     // but the
     // pickers still key off these fields — mirror the public projection so the
