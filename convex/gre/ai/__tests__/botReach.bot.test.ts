@@ -718,6 +718,21 @@ describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
         }
     }, 600_000);
 
+    // Issue #4273: an instant whose only effect grants an ability to a target
+    // creature; the race it decides is posed by the sweep's positions.
+    it("played — an instant that grants an ability to a target creature", () => {
+        for (const name of [
+            "Defy Gravity",
+            "Double Cleave",
+            "Unnatural Speed",
+        ]) {
+            expect(playBotReachSeats(getCardByName(name)), name).toEqual([
+                { holderId: "p1", verdict: { outcome: "played" } },
+                { holderId: "p2", verdict: { outcome: "played" } },
+            ]);
+        }
+    }, 600_000);
+
     it("a draw spell's holder finds spells on top of the library, and only that holder", () => {
         const topOfLibrary = (def: CardDefinition, seat: 0 | 1): unknown => {
             const { state, holderId } = buildBotReachState(def, seat);

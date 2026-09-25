@@ -443,6 +443,62 @@ function activationIsDiscouraged(
 
 export const BLADE_SCENARIOS: BladeScenario[] = [
     {
+        // A BOON is not self-harm (issue #4273). Unnatural Speed grants haste
+        // until end of turn to the creature it targets: the bot's main phase,
+        // two Mountains, a summoning-sick Grizzly Bears beside a ready one, and
+        // the opponent at 3 behind a single Grizzly Bears. Pass leaves one
+        // attacker for one blocker; the hasty spare makes it three swings for
+        // one blocker, which is lethal.
+        //
+        // What it guards is the `self-harm-removal` hold. The rule keys on the
+        // settled MATERIAL margin dropping after a cast aimed only at the
+        // bot's own permanents, and a keyword until end of turn is not on the
+        // board that margin sums: the drop is just the card and the mana. The
+        // search ranked the cast first and the hold handed the pick to `pass`
+        // (`trace.mechanism === "self-harm-removal"`), so no card of this shape
+        // was ever cast. `boonsEveryTarget` exempts a cast whose every
+        // announced slot the script signs beneficial.
+        label: "boon on own creature: casts the haste grant instead of holding the card",
+        spec: {
+            cards: [
+                { name: "Unnatural Speed", owner: "me", zone: "hand" },
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
+                {
+                    name: "Grizzly Bears",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: true,
+                },
+                { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            libraryCount: 20,
+            life: { opp: 3 },
+        },
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            predicate: (move, state) => {
+                if (move === null || move.kind !== "cast-spell") return false;
+                const me = state.players.find((p) => p.id === "p1");
+                const target = move.targets?.[0];
+                // Either of its own bodies: WHICH one is rollout noise the hold
+                // is not about; that it is cast at all is.
+                return (
+                    target !== undefined &&
+                    (me?.battlefield.some((c) => c.id === target.id) ?? false)
+                );
+            },
+            describe: "casts Unnatural Speed on one of its own Grizzly Bears",
+        },
+        note: "Issue #4273. Pins the class 'a boon on the bot's own permanent is not self-harm' at the root hold. The predicate does not name the sick body: the target choice among the bot's own Bears is a separate, rollout-noise preference this entry does not claim.",
+    },
+    {
         // ORDERED TARGET GROUP reachability (CR 601.2c / 702.33g, issue
         // #4193). Kicked Jilt announces TWO targets through one widened
         // requirement and reads them positionally: slot 0 is returned to its

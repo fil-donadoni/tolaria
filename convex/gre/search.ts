@@ -187,7 +187,7 @@ import {
     MAX_CHOICE_DEPTH,
     definitionChoiceDepth,
 } from "./ai/choiceDepth";
-import { misdirectedTargetCount } from "./ai/beneficence";
+import { boonsEveryTarget, misdirectedTargetCount } from "./ai/beneficence";
 import {
     beginDominanceDecision,
     endDominanceDecision,
@@ -4077,6 +4077,10 @@ function isSelfHarmRemovalCast(
     ) {
         return false;
     }
+    // A boon on the bot's own permanent is not self-harm however the margin
+    // reads it: the payoff (a keyword until end of turn, issue #4273) is not
+    // on the board the margin sums, so the drop is only the card and the mana.
+    if (boonsEveryTarget(state, move)) return false;
     return resolvedMarginDelta(state, move, botId, weights) < 0;
 }
 
