@@ -50,6 +50,7 @@ import { applyMulliganBottomChoice } from "./mulligan";
 import { tryGetCardByName } from "../cards";
 import { finalizeLandEntry } from "./playLand";
 import { raiseTriggerTargetSelection } from "./rules";
+import { assertNever } from "./assertNever";
 
 /** Categorized legality for a `choose-categorized` submission (issue #1945) —
  *  ONE authority for both zone branches (hand: Noxious Vapors' colours;
@@ -817,6 +818,31 @@ export function applyPendingChoiceSubmit(
     if (head.kind === "name-card") {
         throw new Error("Use submitNameCard for name-card choices");
     }
+    // The other kinds answered by their own mutation (issue #4440). Each used
+    // to fall through to the zone-pick tail below, which would write the ids
+    // into `collectedChoices` where no resolve step reads them.
+    if (head.kind === "land-entry-tapped") {
+        throw new Error(
+            "Use submitLandEntryChoice for land-entry-tapped choices"
+        );
+    }
+    if (head.kind === "number-pick") {
+        throw new Error("Use submitNumberChoice for number-pick choices");
+    }
+    if (head.kind === "random-reveal") {
+        throw new Error("Use submitRandomRevealAck for random-reveal choices");
+    }
+    if (head.kind === "madness-cast") {
+        throw new Error("Use submitMadnessDecline for madness-cast choices");
+    }
+    if (head.kind === "rebound-cast") {
+        throw new Error("Use submitReboundDecline for rebound-cast choices");
+    }
+    if (head.kind === "draw-replacement") {
+        throw new Error(
+            "Use submitDrawReplacementPay for draw-replacement choices"
+        );
+    }
 
     if (new Set(args.cardInstanceIds).size !== args.cardInstanceIds.length) {
         throw new Error("Duplicate ids in submission");
@@ -1326,6 +1352,37 @@ export function applyPendingChoiceSubmit(
         // advancement.
         finalizeCleanupDiscard(state, args.cardInstanceIds);
         return;
+    }
+
+    // Every kind still here is one the generic mid-resolution tail below
+    // serves, named one by one; a kind with no arm anywhere in this function
+    // is a compile error, never a silent fall into the tail (issue #4440).
+    // `legend-keep` and `discard-hand` reach it when they are NOT their
+    // phase-level forms above.
+    switch (head.kind) {
+        case "keep-permanents":
+        case "sacrifice-permanents":
+        case "keep-hand":
+        case "search-library":
+        case "pick-source":
+        case "discard-hand":
+        case "reorder-library":
+        case "reveal-hand":
+        case "choose-permanents":
+        case "partition":
+        case "choose-hand-card":
+        case "choose-graveyard-card":
+        case "choose-exile-card":
+        case "choose-library-card":
+        case "order-top":
+        case "look-distribute":
+        case "choose-categorized":
+        case "legend-keep":
+        case "choose-aura-host":
+        case "divide-piles":
+            break;
+        default:
+            assertNever(head.kind, "pending choice kind");
     }
 
     // Mid-resolution choice (CR 608.2): write picks into the stack item's

@@ -58,6 +58,7 @@ import {
     type Move,
 } from "./moves";
 import { eligibleZonePickCards } from "./zonePickEligibility";
+import { assertNever } from "./assertNever";
 
 // ---------------------------------------------------------------------------
 // Action vocabulary
@@ -395,10 +396,60 @@ function choiceActions(
         ].map((id) => submit([id]));
     }
 
-    // Zone-pick family + mulligan-bottom (CR 608.2 / 103.5): every valid
-    // submission is a duplicate-free subset of the eligible pool with size in
-    // [min, max] — mirroring `applyPendingChoiceSubmit`'s validation. Capped
-    // at MAX_COMBINATIONS like every combinatorial window in moves.ts.
+    // Every kind the arms above did not answer is named here, and a kind with
+    // no arm at all is a compile error (issue #4440) — never a silent fall
+    // into the zone-pick enumerator, which would answer it with `submit-choice`
+    // payloads its own mutation never reads.
+    switch (head.kind) {
+        case "keep-permanents":
+        case "sacrifice-permanents":
+        case "keep-hand":
+        case "search-library":
+        case "pick-source":
+        case "untap-pick":
+        case "discard-hand":
+        case "reorder-library":
+        case "reveal-hand":
+        case "choose-permanents":
+        case "partition":
+        case "choose-hand-card":
+        case "choose-graveyard-card":
+        case "choose-exile-card":
+        case "choose-library-card":
+        case "draw-look-keep":
+        case "order-top":
+        case "look-distribute":
+        case "choose-categorized":
+        case "legend-keep":
+        case "choose-aura-host":
+        case "divide-piles":
+        case "mulligan-bottom":
+        // `choose-player` picks a PLAYER id, which the zone enumerator cannot
+        // see: with no `zone` it offers only the empty "up to one" pick.
+        // Unchanged here — the handler registry (issue #4443) owns the fix.
+        case "choose-player":
+            return zonePickActions(state, head, submit);
+        // CR 614 (ADR 0061) — `draw-replacement` is answered by
+        // `submitDrawReplacementPay`, and no `ChoiceAction` variant carries
+        // that answer yet. It has no `zone` and `count: 1`, so the zone-pick
+        // enumerator it used to fall into yielded nothing; that is kept
+        // verbatim, now as a named arm.
+        case "draw-replacement":
+            return [];
+        default:
+            return assertNever(head.kind, "pending choice kind");
+    }
+}
+
+/** Zone-pick family + mulligan-bottom (CR 608.2 / 103.5): every valid
+ *  submission is a duplicate-free subset of the eligible pool with size in
+ *  [min, max] — mirroring `applyPendingChoiceSubmit`'s validation. Capped at
+ *  MAX_COMBINATIONS like every combinatorial window in moves.ts. */
+function zonePickActions(
+    state: GameState,
+    head: PendingChoice,
+    submit: (cardInstanceIds: string[]) => LegalAction
+): LegalAction[] {
     const ids = eligibleZonePickIds(state, head);
     const min = Math.max(0, getPendingChoiceMin(head.count));
     const max = Math.min(getPendingChoiceMax(head.count), ids.length);
