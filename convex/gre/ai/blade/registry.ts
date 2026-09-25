@@ -8435,6 +8435,58 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         note: "Bot Gap `never-chosen › Creature › choice+discard` (2 cards). Issue #4276.",
     },
     {
+        // SACRIFICE-FOR-DRAIN reachability (CR 701.21a, CR 119.3, issue #4277).
+        // The sweep's own position for a creature whose only ability is
+        // "Sacrifice this creature: Target player loses 1 life and you gain 1
+        // life": Death Cultist in hand, five Swamps, a spare body on each side.
+        //
+        // Before the fix the cast edge read WORSE than `pass` at the sweep's
+        // budget: below the cast the rollout drew "sacrifice, aim the drain at
+        // the opponent" at random and the tree opened it at the node after the
+        // cast, and those subtrees dragged the cast edge's mean margin under
+        // `pass`'s. Fixed by class, not by card: `isDrainExchangeSacrifice`
+        // (`search.ts`).
+        label: "Sacrifice-for-drain outlet: casts the creature",
+        spec: {
+            cards: [
+                { name: "Death Cultist", owner: "me", zone: "hand" },
+                { name: "Swamp", owner: "me", zone: "battlefield" },
+                { name: "Swamp", owner: "me", zone: "battlefield" },
+                { name: "Swamp", owner: "me", zone: "battlefield" },
+                { name: "Swamp", owner: "me", zone: "battlefield" },
+                { name: "Swamp", owner: "me", zone: "battlefield" },
+                { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
+                { name: "Ornithopter", owner: "me", zone: "battlefield" },
+                { name: "Castle", owner: "me", zone: "battlefield" },
+                { name: "Grizzly Bears", owner: "me", zone: "graveyard" },
+                { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+                { name: "Ornithopter", owner: "opp", zone: "battlefield" },
+                { name: "Castle", owner: "opp", zone: "battlefield" },
+                { name: "Grizzly Bears", owner: "opp", zone: "graveyard" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            libraryCount: 20,
+        },
+        bot: "me",
+        // The Bot-play sweep's own position at four times its budget — a
+        // REACHABILITY claim, so a PREDICATE, kept out of the weight fit for
+        // the reason the Nantuko Husk entry gives.
+        budget: { iterations: 200 },
+        seeds: [0xb07, 0x5eed, 1, 2, 3],
+        tier: "must",
+        expect: {
+            predicate: (move, state) =>
+                move !== null &&
+                move.kind === "cast-spell" &&
+                instanceIdsForName(state, "Death Cultist").has(
+                    move.cardInstanceId
+                ),
+            describe: "casts Death Cultist",
+        },
+        note: "Bot Gap `never-chosen › Creature › gainLife+loseLife` (2 cards). Issue #4277.",
+    },
+    {
         // A BOON is not self-harm (issue #4273). Unnatural Speed grants haste
         // until end of turn to the creature it targets: the bot's main phase,
         // two Mountains, a summoning-sick Grizzly Bears beside a ready one, and
