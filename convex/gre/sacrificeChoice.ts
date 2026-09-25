@@ -13,7 +13,11 @@ import type {
     PlayerState,
     StackItem,
 } from "./state";
-import { getPlayer, removePermanentTo } from "./state";
+import {
+    emitCardsExiledFromBattlefield,
+    getPlayer,
+    removePermanentTo,
+} from "./state";
 import type { Color } from "../cards/types";
 import type { PermanentFilter } from "../cards/filters";
 import { matchesPermanentFilter } from "../cards/filters";
@@ -462,7 +466,15 @@ export function applySacrificeSelection(
         if (isReturn) {
             removePermanentTo(state, id, "hand");
         } else {
-            removePermanentTo(state, id, "graveyard", "sacrifice");
+            // issue #1558 — a CR 614 graveyard-bound replacement can redirect
+            // the sacrifice to exile; the departure is then announced as an
+            // exile from the battlefield (the resolution-time cast primitive
+            // did so on its own before it joined this layer, issue #4445; the
+            // fixed self-sacrifice legs in `gre/activation.ts` still do not).
+            emitCardsExiledFromBattlefield(
+                state,
+                removePermanentTo(state, id, "graveyard", "sacrifice")
+            );
         }
     }
     return results;

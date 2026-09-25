@@ -57,7 +57,17 @@ const REPO_ROOT = path.resolve(__dirname, "..", "..", "..");
  *  client bundle may never reach, ADR 0074), while `announceCast` and
  *  `finalizeTargetSelection` stayed behind. The guard reads BOTH: a commit site
  *  that escapes the seam by moving to the sibling file is the same bug. */
-const COMMIT_SOURCES = ["convex/game.ts", "convex/gre/activation.ts"] as const;
+const COMMIT_SOURCES = [
+    "convex/game.ts",
+    "convex/gre/activation.ts",
+    // Issue #4445 — the Cast Commit kernel: the ONE place the five server
+    // commit sites now pay, stamp and announce. The seam call lives here.
+    "convex/gre/castCommit.ts",
+    // The resolution-time cast primitive (`castChosenSpell`, CR 608.2g) used
+    // to pay its mana OUTSIDE the seam; since issue #4445 it commits through
+    // the kernel, and this file is read so it cannot quietly go back.
+    "convex/gre/state.ts",
+] as const;
 
 function readCommitSources(): { rel: string; lines: string[] }[] {
     return COMMIT_SOURCES.map((rel) => ({
@@ -243,7 +253,10 @@ describe("cast-commit sites all route through payCastManaCost (issue #2378)", ()
         for (const { rel, lines } of readCommitSources()) {
             const callLines = lines.flatMap((line, i) =>
                 /payManaCostForSpell\(/.test(line) &&
-                !/^\s*payManaCostForSpell,/.test(line)
+                !/^\s*payManaCostForSpell,/.test(line) &&
+                // `state.ts` DEFINES the primitive; the definition is not a
+                // call site.
+                !/^export function payManaCostForSpell\(/.test(line)
                     ? [i]
                     : []
             );
@@ -308,22 +321,88 @@ describe("cast-commit sites all route through payCastManaCost (issue #2378)", ()
                     (line, i) => i > start && line.includes("state.stack.push(")
                 );
                 expect(push).toBeGreaterThan(start);
-                // The SPREAD form (`notedManaSpent: <var>`), not merely a
-                // mention of the captured local — reading the field off the
-                // payment and then never spreading it is exactly the shipped
-                // bug.
+                // The SPREAD form (`notedManaSpent: <var>`, or the shorthand
+                // `{ notedManaSpent }`), not merely a mention of the captured
+                // local — reading the field off the payment and then never
+                // spreading it is exactly the shipped bug.
                 const between = lines.slice(start, push).join("\n");
-                if (!/notedManaSpent:/.test(between)) {
+                if (!/notedManaSpent(:|\s*\})/.test(between)) {
                     missing.push(
                         `${rel}:${start + 1} → commit at :${push + 1} drops notedManaSpent`
                     );
                 }
             }
         }
-        // Four cast-commit paths (the table at the top of this file), now
-        // spread over two files. A fifth is not forbidden — it just has to make
-        // the same decision explicitly.
-        expect(total).toBe(4);
+        // ONE payment call, inside the Cast Commit kernel (issue #4445): the
+        // four cast-commit paths of the table at the top of this file, plus
+        // the resolution-time cast, all route through `commitCast`, which is
+        // the only site left that calls the seam. A second call is not
+        // forbidden — it just has to make the same decision explicitly.
+        expect(total).toBe(1);
         expect(missing).toEqual([]);
+    });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Issue #4445 — the Cast Commit kernel. Every server site that puts a CAST on
+// the stack does so through `commitCast` (`convex/gre/castCommit.ts`); no site
+// keeps an inline pay → record → legs → stack sequence of its own. Two reads
+// of the same fact: the kernel is CALLED from every commit site, and the
+// zone → stack move a cast makes (`removeFromZone`) happens nowhere else —
+// except the CR 708 face-down cast (`castFaceDown`, Illusionary Mask), which
+// pays nothing and is not a cost-paying commit.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Line indices (0-based) of every CALL of `name(` in one source — never its
+ *  definition, never an import/export list entry. */
+function callLinesOf(lines: string[], name: string): number[] {
+    const call = new RegExp(`\\b${name}\\(`);
+    const decl = new RegExp(`^export function ${name}\\(`);
+    const listEntry = new RegExp(`^\\s*${name},$`);
+    return lines.flatMap((line, i) =>
+        call.test(line) && !decl.test(line) && !listEntry.test(line) ? [i] : []
+    );
+}
+
+describe("every server cast-commit site routes through the Cast Commit kernel (issue #4445)", () => {
+    it("commitCast is called from the five server commit sites and defined once", () => {
+        const calls: Record<string, number> = {};
+        let definitions = 0;
+        for (const { rel, lines } of readCommitSources()) {
+            calls[rel] = callLinesOf(lines, "commitCast").length;
+            definitions += lines.filter((line) =>
+                line.startsWith("export function commitCast(")
+            ).length;
+        }
+        expect(definitions).toBe(1);
+        expect(calls).toEqual({
+            // `finalizeTargetSelection`'s immediate branch and `announceCast`'s
+            // two immediate branches (normal cost, alternative cost).
+            "convex/game.ts": 3,
+            // `tryAutoCommitPendingCast`, the deferred commit.
+            "convex/gre/activation.ts": 1,
+            // The kernel's own file calls nothing.
+            "convex/gre/castCommit.ts": 0,
+            // `castChosenSpell`, the resolution-time cast primitive.
+            "convex/gre/state.ts": 1,
+        });
+    });
+
+    it("no commit site moves a card zone → stack outside the kernel, save the CR 708 face-down cast", () => {
+        const offenders: string[] = [];
+        for (const { rel, lines } of readCommitSources()) {
+            if (rel === "convex/gre/castCommit.ts") continue;
+            for (const i of callLinesOf(lines, "removeFromZone")) {
+                // The face-down cast declares itself in the comment paragraph
+                // around its call (CR 708.2), the same self-declaration idiom
+                // the special-action exemption above uses.
+                const context = lines.slice(Math.max(0, i - 40), i + 4);
+                if (context.some((line) => /castFaceDown\(/.test(line))) {
+                    continue;
+                }
+                offenders.push(`${rel}:${i + 1} → ${lines[i].trim()}`);
+            }
+        }
+        expect(offenders).toEqual([]);
     });
 });

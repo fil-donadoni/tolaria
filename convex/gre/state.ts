@@ -110,6 +110,7 @@ setControlRelocation((state, card, previousControllerId, nextControllerId) => {
 });
 import { isFaceDownExile, turnFaceDown, turnFaceUp } from "./faceDown";
 import { revertAdventureIdentity, wasCastAsAdventure } from "./adventure";
+import { commitCast } from "./castCommit";
 import { revertSplitIdentity } from "./splitCast";
 import {
     isModalDoubleFaced,
@@ -18238,15 +18239,13 @@ export function buildSpellContext(
                 }
             }
 
-            // CR 106.6 riders (issue #1559 / #3354) — which riders the mana
-            // paid below carried; stamped onto the pushed stack item further
-            // down. All false on a free cast (no mana paid).
-            let usedRiderMana: SpellManaRiders = { ...NO_SPELL_MANA_RIDERS };
             // CR 601.2b (issue #1477) — a free cast ("without paying its mana
             // cost", Malcolm) waives the mana cost entirely: no auto-tap, no
             // payment, and X in the waived cost is 0 (CR 107.3b, the Op never
             // collects X for a free cast). Additional costs (the sacrifice
-            // above) still apply. Otherwise pay normally.
+            // above) still apply. Otherwise auto-tap the controlled player's
+            // own lands into their pool; the Cast Commit below pays from it.
+            let cost: Record<string, number> = {};
             if (!free) {
                 // CR 107.3 — fold the chosen X into the generic cost (xFactor
                 // honored). CR 601.2f — apply cost modifiers, mirroring a normal
@@ -18255,7 +18254,7 @@ export function buildSpellContext(
                 // auto-tap over THEIR battlefield and THEIR floating pool;
                 // unpayable => the card is not played ("if able", CR 117.3 /
                 // 608.2).
-                const cost = normalizeManaCost(def.manaCost ?? {}, { chosenX });
+                cost = normalizeManaCost(def.manaCost ?? {}, { chosenX });
                 applyCostModifiers(
                     cost,
                     getCostModifiers(state, handCard, "spell")
@@ -18295,124 +18294,70 @@ export function buildSpellContext(
                             (owner.manaPool[color] ?? 0) + v;
                     }
                 }
-                // CR 601.2g — pay the cost from the controlled player's pool
-                // only.
-                if (Object.keys(cost).length > 0) {
-                    usedRiderMana = payManaCostForSpell(
-                        owner,
-                        cost,
-                        def.types,
-                        subs,
-                        undefined,
-                        undefined,
-                        def.supertypes ?? []
-                    );
-                    commitLandsForCost(owner, cost);
-                }
             }
 
-            // CR 118.8 — pay the additional sacrifice from the opponent's
-            // battlefield, snapshotting its pre-sacrifice mana value for the
-            // stack item so `getAdditionalSacrificeMv()` reads it at resolve
-            // (mirrors the normal-cast snapshot in tryCommitCast).
-            let additionalSacrificeSnapshot:
-                | StackItem["additionalSacrificeSnapshot"]
-                | undefined;
-            // The snapshot names "the sacrificed permanent", which only has a
-            // referent when the cost ate exactly one (issue #3808; the same
-            // rule `gre/activation.ts` states for the activated twin). A
-            // counted cost leaves it undefined rather than picking an
-            // arbitrary one of five.
-            if (sacrificed.length === 1) {
-                const only = sacrificed[0];
-                const sacCardId = (only.card as { id?: string }).id;
-                const sacDef = sacCardId
-                    ? tryGetDefinition(sacCardId)
-                    : undefined;
-                const mv = sacDef?.manaCost
-                    ? Object.entries(sacDef.manaCost).reduce<number>(
-                          (acc, [, v]) => acc + (typeof v === "number" ? v : 0),
-                          0
-                      )
-                    : 0;
-                additionalSacrificeSnapshot = { cardInstanceId: only.id, mv };
-            }
-            for (const victim of sacrificed) {
-                const movedSac = removePermanentTo(
-                    state,
-                    victim.id,
-                    "graveyard",
-                    "sacrifice"
-                );
-                // issue #1558 — a CR 614 graveyard-bound replacement can
-                // redirect this additional-cost sacrifice to exile.
-                emitCardsExiledFromBattlefield(state, movedSac);
-            }
-
-            // Move source zone -> stack as a real spell controlled by the
-            // caster, with the acting-player override so any choice during the
-            // cast / resolution routes to the acting player (ADR 0037). For a
-            // graveyard/exile source (issue #1477) the card leaves that zone
-            // exactly as a hand cast leaves the hand.
-            const card = removeFromZone(
-                state,
-                owner,
+            // The Cast Commit (issue #4445): the mini-cast commits through the
+            // ONE server kernel (`commitCast`, `gre/castCommit.ts`), which pays
+            // the mana from the controlled player's pool through the shared
+            // cast-payment seam, sacrifices the additional-cost victims through
+            // the unified layer (snapshotting the single victim's mana value
+            // for `getAdditionalSacrificeMv`), moves the card source zone →
+            // stack as a real spell controlled by `controllerId` with the
+            // acting-player override so any choice during the cast /
+            // resolution routes to the acting player (ADR 0037), and splices
+            // it directly BELOW the resolving item so it resolves next
+            // (`during-resolution` placement). The timing SNAPSHOT is keyed on
+            // the spell's CASTER (`controllerId`), matching the
+            // `castProhibitionReason` gate above — never the Acting Player;
+            // mid-resolution the stack is provably non-empty so it is
+            // near-always `true`, still computed, not hardcoded, exactly like
+            // `castFaceDown` above (the KEYING is pinned by
+            // `castOffSorceryTiming.test.ts`).
+            const committed = commitCast(state, {
+                casterId: controllerId,
                 cardInstanceId,
-                sourceZone,
-                controllerId
-            );
-            const stackItem: StackItem = {
-                ...card,
-                zone: "stack",
-                castById: controllerId,
-                actingPlayerId,
-                ...manaRiderStackStamps(usedRiderMana),
-                // CR 307.1 / 117.1a / 601.3a / 608.2g (issue #2473) — the
-                // timing SNAPSHOT is keyed on the spell's CASTER
-                // (`controllerId`), matching the `castProhibitionReason`
-                // gate above and the doc comment there — never the Acting
-                // Player. Word of Command's controlled cast and the DSL
-                // `castDuringResolution` Op both reach this site; both are
-                // mid-resolution casts (the resolving spell/ability is still
-                // on the stack), so the stack is provably non-empty and this
-                // is near-always `true` by construction — still computed,
-                // not hardcoded, exactly like `castFaceDown` above. The
-                // KEYING is pinned by a pair of tests that force the stack
-                // empty so the predicate's answer differs between the two
-                // players (`castOffSorceryTiming.test.ts`); mid-resolution it
-                // is `true` for everyone and no assertion could tell them
-                // apart.
-                ...(wasCastOffSorceryTiming(state, controllerId)
-                    ? { castOffSorceryTiming: true }
-                    : {}),
-            };
-            // CR 601.2c — the targets chosen by the Acting Player ride onto the
-            // stack item so the spell resolves against them, exactly like a
-            // normal cast (the resolve step reads `ctx.targets`). Omitted for a
-            // non-targeted spell (`targets` undefined) so the field stays clean.
-            if (targets && targets.length > 0) stackItem.targets = targets;
-            // CR 107.3 / 700.2c / 118.8 — the X / mode / sacrifice-snapshot
-            // chosen by the Acting Player ride onto the stack item so the
-            // resolve reads them back via getX / chosenModeIds dispatch /
-            // getAdditionalSacrificeMv. Omitted when absent so the item stays
-            // clean (matches the normal-cast stack item shape).
-            if (chosenX !== undefined) stackItem.chosenX = chosenX;
-            if (chosenModeIds && chosenModeIds.length > 0)
-                stackItem.chosenModeIds = chosenModeIds;
-            if (additionalSacrificeSnapshot) {
-                stackItem.additionalSacrificeSnapshot =
-                    additionalSacrificeSnapshot;
-            }
-            // Insert directly below the resolving item (Word of Command) so it
-            // becomes the new top after the pop and resolves next (CR 608.2f),
-            // mirroring `castFaceDown` / `copyStackItem`.
-            const idx = state.stack.findIndex((s) => s.id === item.id);
-            if (idx === -1) state.stack.push(stackItem);
-            else state.stack.splice(idx, 0, stackItem);
-            // CR 601.2i — the spell is cast: make it a public object and let
-            // cast triggers fire.
-            emitSpellCastEvent(state, stackItem);
-            return true;
+                cardDef: def,
+                manaCost: cost,
+                chosenX,
+                source: { zone: sourceZone },
+                legs: {
+                    ...(sacrificeFilter
+                        ? {
+                              sacrificeSelection: {
+                                  playerId: controllerId,
+                                  reason: def.name,
+                                  requirements: [
+                                      {
+                                          filter: sacrificeFilter,
+                                          count: sacrificeCount,
+                                          // "the sacrificed permanent" has a
+                                          // referent only when the cost ate
+                                          // exactly one (issue #3808).
+                                          snapshot: sacrificeCount === 1,
+                                      },
+                                  ],
+                                  picked: sacrificed.map((c) => c.id),
+                              },
+                          }
+                        : {}),
+                },
+                record: {
+                    targets:
+                        targets && targets.length > 0 ? targets : undefined,
+                    chosenModeIds,
+                    castOffSorceryTiming: wasCastOffSorceryTiming(
+                        state,
+                        controllerId
+                    ),
+                    actingPlayerId,
+                },
+                mode: {},
+                placement: {
+                    kind: "during-resolution",
+                    resolvingItemId: item.id,
+                },
+            });
+            return committed !== null;
         },
     };
     return ctx;
