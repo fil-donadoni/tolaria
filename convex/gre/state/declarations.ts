@@ -5388,7 +5388,8 @@ export interface StackTransformStamp {
 }
 
 // Loose structural mana-cost shape used by the mana-payment helpers in
-// `gre/state.ts` and by the declarations here. The value union includes the `phyrexian` object (CR 107.4f, ADR: Phyrexian mana)
+// `gre/state.ts` and by the declarations here. The
+// value union includes the `phyrexian` object (CR 107.4f, ADR: Phyrexian mana)
 // AND the `hybrid` array (CR 202.1a, issue #1338 — guild-hybrid pips) so a real
 // `CardManaCost` carrying either is assignable here; the payment helpers ignore
 // both keys (Phyrexian pips resolve to mana/life before payment, hybrid pips are
