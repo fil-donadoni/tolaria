@@ -3301,6 +3301,7 @@ export const SURFACES: readonly Surface[] = [
         ],
         async walk(page, ctx) {
             await goto(page, ctx, "/decks/create");
+            const stepper = '[aria-label="Add five Island"]';
             let opener: string | null = null;
             for (const name of ["Lands", "Add Basic"]) {
                 const count = await page
@@ -3312,28 +3313,38 @@ export const SURFACES: readonly Surface[] = [
                     break;
                 }
             }
-            if (opener === null) {
-                // The inline regime: nothing to open, the bar is on the page.
-                if (
-                    !(await visible(
-                        page,
-                        '[aria-label="Add five Island"]',
-                        STEP_TIMEOUT
-                    ))
-                ) {
+            const sheet = "[data-basics-sheet]";
+            if (opener !== null) {
+                await pressNamed(page, opener, "the deck builder");
+                if (!(await visible(page, sheet, STEP_TIMEOUT))) {
                     throw new Unreachable(
-                        "the deck builder showed neither a basics opener nor the inline basics bar"
+                        `\`${opener}\` opened no basic-lands sheet within 8s`
                     );
                 }
+            }
+            // On compact chrome the bar folds its steppers behind its own
+            // `Add Basic ▾` disclosure (`CompactChromeDisclosure`, issue
+            // #2511) — inside the sheet as much as inline — so the steppers
+            // this row promises are one more press away there.
+            if (!(await visible(page, stepper, 2000))) {
+                await pressNamed(
+                    page,
+                    "Add Basic \u25be",
+                    "the basics bar's fold",
+                    opener === null ? undefined : sheet
+                );
+            }
+            if (!(await visible(page, stepper, STEP_TIMEOUT))) {
+                throw new Unreachable(
+                    "the deck builder's basics bar showed no steppers"
+                );
+            }
+            if (opener === null) {
+                // The inline regime: nothing to open, the bar is on the page.
+                await settle(page, [stepper]);
                 return;
             }
-            await pressNamed(page, opener, "the deck builder");
-            await settleOnLayer(
-                page,
-                "[data-basics-sheet]",
-                `\`${opener}\``,
-                "Basic lands"
-            );
+            await settleOnLayer(page, sheet, `\`${opener}\``, "Basic lands");
         },
     },
     {

@@ -70,7 +70,17 @@ export default function DeckBanlistPanel({ format }: DeckBanlistPanelProps) {
                 ) : entries.length === 0 ? (
                     <EmptyState message="No cards are banned or restricted." />
                 ) : (
-                    <ul className="flex max-h-[60vh] flex-col gap-1 overflow-y-auto">
+                    // A scroll port with no focusable child needs its own
+                    // tab stop (axe `scrollable-region-focusable`, WCAG
+                    // 2.1.1) — measured on `deck-builder-banlist` at all five
+                    // viewports (issue #4421). `role="region"` + a name, the
+                    // shape `mana-pile-view.tsx` uses for the same rule.
+                    <ul
+                        tabIndex={0}
+                        role="region"
+                        aria-label="Official banlist (scrollable)"
+                        className="flex max-h-[60vh] flex-col gap-1 overflow-y-auto"
+                    >
                         {entries.map((entry) => (
                             <li
                                 key={entry.cardName}

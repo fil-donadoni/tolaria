@@ -44,7 +44,20 @@ export default function DeckStatsDialog({
             size="wide"
             showCloseButton
         >
-            <div className="flex flex-col gap-6">
+            {/* A named tab stop INSIDE GameDialog's body scroller: nothing
+                in the statistics is focusable, so on a short viewport the
+                scroller that holds them was unreachable by keyboard (axe
+                `scrollable-region-focusable`, WCAG 2.1.1 — measured on
+                `deck-builder-stats` at 844x390x3, issue #4421). Focus here
+                and the arrow keys scroll the dialog body; the stop lives in
+                this dialog rather than on GameDialog's scroller, which every
+                dialog shares and whose first tab stop would move. */}
+            <div
+                tabIndex={0}
+                role="region"
+                aria-label="Deck statistics"
+                className="flex flex-col gap-6"
+            >
                 <section className="flex flex-col gap-2">
                     <h3 className="text-sm font-semibold uppercase tracking-wide text-text-muted">
                         Mana Curve
