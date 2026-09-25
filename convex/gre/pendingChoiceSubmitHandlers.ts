@@ -4,6 +4,8 @@
 // been routed. Each handler validates the payload for its kind, applies it,
 // and — for a mid-resolution answer — returns into the shared epilogue in
 // `pendingChoiceResume.ts`. Every thrown message is user-facing (ADR 0007).
+// Handlers are hoisted `function` declarations, never `const`s, so the table
+// that reads them is safe whichever module of an import cycle loads first.
 
 import {
     getPendingChoiceMax,
@@ -334,12 +336,12 @@ function assertZonePickLegal(
 // against its own allow-lists rather than the zone-membership check
 // below. The single picked id is written verbatim into collectedChoices
 // and the card's resolve step disambiguates permanent vs player. ---
-export const submitDamageTargetPick: ChoiceSubmitHandler = (
-    state,
-    head,
-    queue,
-    args
-) => {
+export function submitDamageTargetPick(
+    state: GameState,
+    head: PendingChoice,
+    queue: PendingChoice[],
+    args: SubmitChoiceArgs
+): void {
     const id = args.cardInstanceIds[0];
     const playerOk = head.candidatePlayerIds?.includes(id) ?? false;
     const permanentOk = head.candidateIds?.includes(id) ?? false;
@@ -352,7 +354,7 @@ export const submitDamageTargetPick: ChoiceSubmitHandler = (
         pendingTargetHandoff: false,
         stateBasedActions: false,
     });
-};
+}
 
 // --- Trigger-time player pick (CR 115.1a): the pick is a player id, not a
 // zone member (Endurance — "up to one target player"). Validates against
@@ -361,12 +363,12 @@ export const submitDamageTargetPick: ChoiceSubmitHandler = (
 // count. Writes the (0- or 1-element) selection verbatim into
 // collectedChoices; the card's resolve step reads it back via requestChoice
 // and acts only when a player was chosen. ---
-export const submitPlayerPick: ChoiceSubmitHandler = (
-    state,
-    head,
-    queue,
-    args
-) => {
+export function submitPlayerPick(
+    state: GameState,
+    head: PendingChoice,
+    queue: PendingChoice[],
+    args: SubmitChoiceArgs
+): void {
     for (const id of args.cardInstanceIds) {
         if (!(head.candidatePlayerIds?.includes(id) ?? false)) {
             throw new Error("Not a legal player");
@@ -378,19 +380,19 @@ export const submitPlayerPick: ChoiceSubmitHandler = (
         pendingTargetHandoff: false,
         stateBasedActions: true,
     });
-};
+}
 
 // --- Abstract option pick (CR 614.12 "as it enters, choose …"): the pick
 // is one author-supplied option id, not a zone member. Validates against
 // `head.options` (like `choose-damage-target` validates against its
 // allow-lists) and writes the chosen id verbatim into `collectedChoices`;
 // the card's resolve step reads it back via `requestOptionChoice`. ---
-export const submitOptionPick: ChoiceSubmitHandler = (
-    state,
-    head,
-    queue,
-    args
-) => {
+export function submitOptionPick(
+    state: GameState,
+    head: PendingChoice,
+    queue: PendingChoice[],
+    args: SubmitChoiceArgs
+): void {
     const id = args.cardInstanceIds[0];
     if (!head.options?.some((o) => o.id === id)) {
         throw new Error("Not a legal choice");
@@ -401,7 +403,7 @@ export const submitOptionPick: ChoiceSubmitHandler = (
         pendingTargetHandoff: false,
         stateBasedActions: true,
     });
-};
+}
 
 // --- Pick a pile (ADR 0053, pile division — step 2 of the divide-then-
 // choose family): the submission is the literal label "A" or "B", not a
@@ -409,12 +411,12 @@ export const submitOptionPick: ChoiceSubmitHandler = (
 // (mirrors `option-pick`'s allow-list validation) and writes the chosen
 // label verbatim into `collectedChoices`; `divideIntoPiles`'s resolve
 // step reads it back via `requestPickPile`. ---
-export const submitPilePick: ChoiceSubmitHandler = (
-    state,
-    head,
-    queue,
-    args
-) => {
+export function submitPilePick(
+    state: GameState,
+    head: PendingChoice,
+    queue: PendingChoice[],
+    args: SubmitChoiceArgs
+): void {
     const id = args.cardInstanceIds[0];
     if (id !== "A" && id !== "B") {
         throw new Error('Pile choice must be "A" or "B"');
@@ -425,7 +427,7 @@ export const submitPilePick: ChoiceSubmitHandler = (
         pendingTargetHandoff: false,
         stateBasedActions: true,
     });
-};
+}
 
 // ---------------------------------------------------------------------------
 // Trigger announcement: ordering-sensitive, so these keep dedicated tails —
@@ -444,12 +446,12 @@ export const submitPilePick: ChoiceSubmitHandler = (
 // could change it, and CR 700.2f keeps a later retarget from changing it
 // either. The trigger's TARGETS are announced next, under this mode's
 // requirement alone (CR 700.2c). ---
-export const submitTriggerMode: ChoiceSubmitHandler = (
-    state,
-    head,
-    queue,
-    args
-) => {
+export function submitTriggerMode(
+    state: GameState,
+    head: PendingChoice,
+    queue: PendingChoice[],
+    args: SubmitChoiceArgs
+): void {
     const id = args.cardInstanceIds[0];
     if (!head.options?.some((o) => o.id === id)) {
         throw new Error("Not a legal mode");
@@ -475,7 +477,7 @@ export const submitTriggerMode: ChoiceSubmitHandler = (
         state.passCount = 0;
     }
     checkStateBasedActions(state);
-};
+}
 
 // --- Trigger-order (CR 603.3b, ADR 0058): order this controller's slice of
 // the off-stack simultaneous-trigger batch. The submission is a permutation
@@ -485,12 +487,12 @@ export const submitTriggerMode: ChoiceSubmitHandler = (
 // one shot (bottom-first, APNAP-grouped) and hand priority to the active
 // player (CR 117.3c). Held off-stack until then, so the stack is never
 // observed half-ordered. ---
-export const submitTriggerOrder: ChoiceSubmitHandler = (
-    state,
-    head,
-    queue,
-    args
-) => {
+export function submitTriggerOrder(
+    state: GameState,
+    head: PendingChoice,
+    queue: PendingChoice[],
+    args: SubmitChoiceArgs
+): void {
     const sliceIds = head.candidateIds ?? [];
     const submitted = args.cardInstanceIds;
     if (
@@ -535,7 +537,7 @@ export const submitTriggerOrder: ChoiceSubmitHandler = (
         state.passCount = 0;
     }
     checkStateBasedActions(state);
-};
+}
 
 // ---------------------------------------------------------------------------
 // Turn-structure picks: answered outside any resolution, each by its own
@@ -543,12 +545,12 @@ export const submitTriggerOrder: ChoiceSubmitHandler = (
 // ---------------------------------------------------------------------------
 
 /** The London mulligan's bottom pick (`applyMulliganBottomChoice`). */
-export const submitMulliganBottom: ChoiceSubmitHandler = (
-    state,
-    _head,
-    _queue,
-    args
-) => {
+export function submitMulliganBottom(
+    state: GameState,
+    _head: PendingChoice,
+    _queue: PendingChoice[],
+    args: SubmitChoiceArgs
+): void {
     applyMulliganBottomChoice(state, args.cardInstanceIds);
     state.pendingChoices =
         (state.pendingChoices?.length ?? 0) > 0
@@ -559,15 +561,15 @@ export const submitMulliganBottom: ChoiceSubmitHandler = (
         state.passCount = 0;
         drainAutoPasses(state);
     }
-};
+}
 
 // CR 502.1: additional untap-pick constraints beyond zone validation.
-export const submitUntapPick: ChoiceSubmitHandler = (
-    state,
-    head,
-    _queue,
-    args
-) => {
+export function submitUntapPick(
+    state: GameState,
+    head: PendingChoice,
+    _queue: PendingChoice[],
+    args: SubmitChoiceArgs
+): void {
     const zoneOwner = getPlayer(state, head.zoneOwnerId ?? args.playerId);
     const vetoFilters = computeHardSkipFilters(state);
     for (const id of args.cardInstanceIds) {
@@ -584,27 +586,27 @@ export const submitUntapPick: ChoiceSubmitHandler = (
         }
     }
     finalizeUntapPick(state, args.cardInstanceIds);
-};
+}
 
 // CR 614 (Aladdin's Lamp) — phase-level draw replacement. The reorder +
 // draw + priority resumption live in `finalizeDrawLookKeep`.
-export const submitDrawLookKeep: ChoiceSubmitHandler = (
-    state,
-    _head,
-    _queue,
-    args
-) => {
+export function submitDrawLookKeep(
+    state: GameState,
+    _head: PendingChoice,
+    _queue: PendingChoice[],
+    args: SubmitChoiceArgs
+): void {
     finalizeDrawLookKeep(state, args.cardInstanceIds);
-};
+}
 
 /** `legend-keep` is the SBA-level keep-one when stackless, else an ordinary
  *  mid-resolution pick. */
-export const submitLegendKeep: ChoiceSubmitHandler = (
-    state,
-    head,
-    queue,
-    args
-) => {
+export function submitLegendKeep(
+    state: GameState,
+    head: PendingChoice,
+    queue: PendingChoice[],
+    args: SubmitChoiceArgs
+): void {
     if (head.stackItemId !== "") {
         submitMidResolutionPick(state, head, queue, args);
         return;
@@ -618,16 +620,16 @@ export const submitLegendKeep: ChoiceSubmitHandler = (
         throw new Error("Card is not an eligible choice");
     }
     finalizeLegendKeep(state, args.cardInstanceIds);
-};
+}
 
 /** `discard-hand` is the phase-level cleanup discard when stackless during
  *  cleanup, else an ordinary mid-resolution pick. */
-export const submitDiscardHand: ChoiceSubmitHandler = (
-    state,
-    head,
-    queue,
-    args
-) => {
+export function submitDiscardHand(
+    state: GameState,
+    head: PendingChoice,
+    queue: PendingChoice[],
+    args: SubmitChoiceArgs
+): void {
     if (head.stackItemId === "" && state.pendingCleanupDiscard) {
         // CR 514.1 phase-level cleanup discard. `finalizeCleanupDiscard`
         // handles the move, queue shift, CR 514.2 cleanup, and phase
@@ -636,7 +638,7 @@ export const submitDiscardHand: ChoiceSubmitHandler = (
         return;
     }
     submitMidResolutionPick(state, head, queue, args);
-};
+}
 
 // ---------------------------------------------------------------------------
 // The generic mid-resolution tail every zone-pick kind returns into.
@@ -645,12 +647,12 @@ export const submitDiscardHand: ChoiceSubmitHandler = (
 // Mid-resolution choice (CR 608.2): write picks into the stack item's
 // `collectedChoices` so the next invocation of the resolve step reads
 // them back via `requestChoice`.
-export const submitMidResolutionPick: ChoiceSubmitHandler = (
-    state,
-    head,
-    queue,
-    args
-) => {
+export function submitMidResolutionPick(
+    state: GameState,
+    head: PendingChoice,
+    queue: PendingChoice[],
+    args: SubmitChoiceArgs
+): void {
     const key = `${head.step}:${head.choiceId}`;
     commitChoiceAnswer(
         state,
@@ -793,4 +795,4 @@ export const submitMidResolutionPick: ChoiceSubmitHandler = (
     // client's one-at-a-time overlay shows the newest first — which for a
     // fail-to-find is the whole outcome of that search.
     if (failToFind !== undefined) enqueueFailToFindNotice(state, failToFind);
-};
+}
