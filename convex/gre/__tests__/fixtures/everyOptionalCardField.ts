@@ -14,15 +14,8 @@
  * round-trip to itself by construction. `cardFieldLifecycle.test.ts` covers
  * the bestowed shape as its own case.
  */
+import type { OptionalCardInstanceKey } from "../../state/cardFieldLifecycle";
 import type { CardInstanceState } from "../../state/declarations";
-
-/** The optional keys of `CardInstanceState` — the domain of the Card Field
- *  Lifecycle table. */
-export type OptionalCardInstanceKey = {
-    [K in keyof CardInstanceState]-?: object extends Pick<CardInstanceState, K>
-        ? K
-        : never;
-}[keyof CardInstanceState];
 
 export type EveryOptionalCardField = {
     [K in OptionalCardInstanceKey]-?: NonNullable<CardInstanceState[K]>;

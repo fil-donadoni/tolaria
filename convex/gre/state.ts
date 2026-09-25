@@ -3280,6 +3280,27 @@ export function resetStackTransientState(item: StackItem): void {
     delete item.notedManaSpent;
     delete item.dynamicCantBeCountered;
     delete item.dynamicHasteFromMana;
+    // The `CardInstanceState` half (issue #4453): every field the Card Field
+    // Lifecycle table declares `reset: stack` — the kicker / offspring
+    // payment snapshot (ADR 0085: a record cleared on one side and left on
+    // the other is exactly the drift the split exists to prevent), the
+    // permanent-domain mode pick a recast card still carries (CR 400.7), and
+    // the one-shot cast-instance markers `evoked` / `dashed` / `escaped`
+    // (issue #2412) / `warped` (issue #1268) / `overloaded` (issue #3215) /
+    // `castOffSorceryTiming` (issue #2473). Each is stamped onto the
+    // `StackItem` literal at cast commit by a `{ ...card, ...(paid ? {...} :
+    // {}) }` spread that never CLEARS an inherited value, so a COUNTERED
+    // alt-cost spell would ride the flag into the graveyard and its next hard
+    // recast would resolve as the alt cast it never paid for — `overloaded`
+    // is the worst-behaved: a one-sided wrath for two mana. Safe to delete
+    // here by ORDERING: every read of these fields happens during the item's
+    // OWN resolution, strictly before any caller reaches this function.
+    // `resetBattlefieldTransientState` is the SIBLING gate on the
+    // permanent-exit side; the two lists are the SAME table column, so a
+    // field on one and not the other can no longer happen. Before
+    // `revertBestow`, whose layer-2-to-5 recomposition reads `chosenModeId`
+    // — the order the hand-written ladder had.
+    clearCardFieldsAt(item, "stack");
     // CR 702.103b/400.7 — the bestow marker is the same leak shape as the
     // cast-instance markers the generic clear below removes, with one extra
     // obligation: bestow also MUTATED the object's type line in place, so a
@@ -3337,25 +3358,6 @@ export function resetStackTransientState(item: StackItem): void {
     delete item.castFromGraveyard;
     delete item.reboundFromHand;
     delete item.actingPlayerId;
-    // The `CardInstanceState` half (issue #4453): every field the Card Field
-    // Lifecycle table declares `reset: stack` — the kicker / offspring
-    // payment snapshot (ADR 0085: a record cleared on one side and left on
-    // the other is exactly the drift the split exists to prevent), the
-    // permanent-domain mode pick a recast card still carries (CR 400.7), and
-    // the one-shot cast-instance markers `evoked` / `dashed` / `escaped`
-    // (issue #2412) / `warped` (issue #1268) / `overloaded` (issue #3215) /
-    // `castOffSorceryTiming` (issue #2473). Each is stamped onto the
-    // `StackItem` literal at cast commit by a `{ ...card, ...(paid ? {...} :
-    // {}) }` spread that never CLEARS an inherited value, so a COUNTERED
-    // alt-cost spell would ride the flag into the graveyard and its next hard
-    // recast would resolve as the alt cast it never paid for — `overloaded`
-    // is the worst-behaved: a one-sided wrath for two mana. Safe to delete
-    // here by ORDERING: every read of these fields happens during the item's
-    // OWN resolution, strictly before any caller reaches this function.
-    // `resetBattlefieldTransientState` is the SIBLING gate on the
-    // permanent-exit side; the two lists are the SAME table column, so a
-    // field on one and not the other can no longer happen.
-    clearCardFieldsAt(item, "stack");
 }
 
 // `clearCastKickerSnapshot` (PR #2115) used to live here, deleting only
@@ -8870,6 +8872,20 @@ export function resetBattlefieldTransientState(
     // layer-7b base-P/T SET that stood beside it is a registry entry since PRD
     // #2064 S6 and is purged at the top of this function.
     revertTypeLine(card);
+    // CR 400.7 — every optional field the Card Field Lifecycle table declares
+    // `reset: zone-change` goes with the old object (issue #4453): the combat
+    // and damage history, the per-turn tallies, the layer bases and ledgers
+    // read above, the mana-ability bookkeeping, the counters, the as-enters
+    // and on-cast choices, the cast-instance markers (`evoked` / `dashed` /
+    // `escaped` / `warped` / `overloaded` / `castOffSorceryTiming` —
+    // `resetStackTransientState` is the SIBLING gate on the stack-exit side,
+    // issue #2412). The row is the ONE place a field's scope is declared;
+    // `git log -S<field>` finds the rule that put it there. Placed AFTER the
+    // base re-seats and `revertTypeLine` (which read `baseTypes` /
+    // `baseSubtypes`) and BEFORE `revertBestow`, whose layer-2-to-5
+    // recomposition must find the old object's ledgers already gone — the
+    // exact order the hand-written ladder had.
+    clearCardFieldsAt(card, "zone-change");
     // CR 303.4 / 400.7 — a runtime-granted enchant restriction ("it becomes an
     // Aura with enchant creature") belongs to the object that was on the
     // battlefield. The object that leaves — and the one that re-enters — is a
@@ -8895,17 +8911,6 @@ export function resetBattlefieldTransientState(
     // battlefield, while the field is declared on the `StackItem` it was
     // while being cast.
     delete (card as Partial<StackItem>).illegalTargetSlots;
-    // CR 400.7 — every optional field the Card Field Lifecycle table declares
-    // `reset: zone-change` goes with the old object (issue #4453): the combat
-    // and damage history, the per-turn tallies, the layer bases and ledgers
-    // read above, the mana-ability bookkeeping, the counters, the as-enters
-    // and on-cast choices, the cast-instance markers (`evoked` / `dashed` /
-    // `escaped` / `warped` / `overloaded` / `castOffSorceryTiming` —
-    // `resetStackTransientState` is the SIBLING gate on the stack-exit side,
-    // issue #2412). The row is the ONE place a field's scope is declared;
-    // `git log -S<field>` finds the rule that put it there. Last, so every
-    // hand-kept step above still reads what it needs.
-    clearCardFieldsAt(card, "zone-change");
 }
 
 /** CR 712.14b — `true` when an instruction to put `card` onto the battlefield

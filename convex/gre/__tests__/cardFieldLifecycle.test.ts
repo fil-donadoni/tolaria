@@ -336,16 +336,193 @@ describe("Card Field Lifecycle — reset scopes (issue #4453)", () => {
         expectLadder(every, item as CardInstanceState, "stack");
     });
 
-    it("a `[]` row survives all three ladders (the `none` scope)", () => {
-        const none = CARD_FIELD_KEYS.filter((key) => resets(key).length === 0);
-        expect(none.length).toBeGreaterThan(0);
-        for (const key of none) {
-            expect(resets(key)).toEqual([]);
+    // CR 702.103b / 400.7 — the bestowed shape the every-field fixture cannot
+    // carry: `revertBestow` recomposes layers 2-5 for the object, so it must
+    // run AFTER the generic clear has removed the old object's ledgers (the
+    // hand-written ladder's order) — or a `subtypeAddHolds` row would be
+    // replayed onto the object that leaves.
+    it("a bestowed permanent leaves un-bestowed, its ledgers gone and not replayed", () => {
+        const card = makeInstance(grizzlyBears.id, {
+            id: "cf-bestowed-zone",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+            types: ["Enchantment"],
+            subtypes: ["Aura", "Zombie"],
+            power: undefined,
+            toughness: undefined,
+            bestowed: true,
+            attachedTo: "cf-host",
+            baseTypes: ["Creature"],
+            baseSubtypes: ["Bear"],
+            subtypeAddHolds: [{ subtype: "Zombie", seq: 1 }],
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [card] }),
+                makePlayer("p2"),
+            ],
+        });
+        resetBattlefieldTransientState(card, state);
+        expect(card.bestowed).toBeUndefined();
+        expect(card.subtypeAddHolds).toBeUndefined();
+        // (`baseTypes` is re-captured fresh by the recomposition — the same
+        // as before the table; only the LEDGER must be gone.)
+        expect(card.subtypes).not.toContain("Zombie");
+        expect(card.types).toEqual(["Creature"]);
+    });
+
+    // The bare scopes, FROZEN as the key sets the hand-written ladders
+    // deleted before the table existed (origin/staging at issue #4453:
+    // `finalizeCleanup` 18, `resetBattlefieldTransientState` 64,
+    // `resetStackTransientState` 9). The ladder tests above cannot catch a
+    // row moved INTO a scope (the loop then clears it), so the sets are
+    // pinned here: widening a scope is a CR 400.7 / 514.2 decision that
+    // edits this list on purpose, never a side effect.
+    const FROZEN_SCOPES: Record<CardFieldResetScope, readonly string[]> = {
+        turn: [
+            "canAttackDespiteDefenderThisTurn",
+            "canBlockAdditional",
+            "cantAttackThisTurn",
+            "cantBeBlockedBySubtypesThisTurn",
+            "cantBeBlockedThisTurn",
+            "cantBeRegeneratedThisTurn",
+            "cantBlockThisTurn",
+            "damageLockThisTurn",
+            "damageMarked",
+            "damagedBySources",
+            "dealtDamageToOpponentThisTurn",
+            "dealtDeathtouchDamage",
+            "exileOnDeath",
+            "hasAttackedThisTurn",
+            "hasBlockedThisTurn",
+            "mustAttackThisTurn",
+            "mustBlockAllThisTurn",
+            "regenerationShields",
+        ],
+        "zone-change": [
+            "abilitiesSuppressedBy",
+            "abilityLossHolds",
+            "activationsThisTurn",
+            "baseControllerId",
+            "baseSubtypes",
+            "baseTypes",
+            "cantBeBlockedBySubtypesThisTurn",
+            "cantBeBlockedThisTurn",
+            "castOffSorceryTiming",
+            "chosenMana",
+            "chosenName",
+            "chosenPlayerId",
+            "chosenSubtypes",
+            "chosenXOnCast",
+            "classLevel",
+            "colorOverride",
+            "controlChanges",
+            "counters",
+            "countersAtLeave",
+            "damageLockThisTurn",
+            "damageMarked",
+            "damagedBySources",
+            "dashed",
+            "dealtDeathtouchDamage",
+            "enteredOnTurn",
+            "escaped",
+            "evoked",
+            "exertedThisTap",
+            "exileOnDeath",
+            "exiledBySourceId",
+            "grantedActivatedAbilities",
+            "grantedAttackRequirements",
+            "grantedColors",
+            "grantedSupertypes",
+            "grantedTriggeredAbilities",
+            "hasAttackedThisTurn",
+            "hasBlockedThisTurn",
+            "isAttacking",
+            "isBlocking",
+            "isSummoningSick",
+            "kickerPayments",
+            "lifePaidThisTap",
+            "manaCommitted",
+            "manaCounterRemoval",
+            "manaPaidThisTap",
+            "overloaded",
+            "regenerationShields",
+            "removedSupertypes",
+            "skipNextUntap",
+            "sourceTappedPTMods",
+            "staticSeq",
+            "subtypeAddHolds",
+            "supertypeHolds",
+            "tapTriggerCommitted",
+            "temporaryColorOverride",
+            "textChangeHolds",
+            "transformCount",
+            "transformedAtDelayedSeq",
+            "triggersThisTurn",
+            "typeLineHolds",
+            "unkickedCostPayments",
+            "untapLockedBy",
+            "warped",
+            "wasKicked",
+        ],
+        stack: [
+            "castOffSorceryTiming",
+            "chosenModeId",
+            "dashed",
+            "escaped",
+            "evoked",
+            "kickerPayments",
+            "overloaded",
+            "unkickedCostPayments",
+            "warped",
+        ],
+    };
+
+    it.each(["turn", "zone-change", "stack"] as const)(
+        "the `%s` scope is exactly the key set the hand-written ladder cleared",
+        (scope) => {
+            const bare = CARD_FIELD_KEYS.filter((key) =>
+                resets(key).includes(scope)
+            ).sort();
+            expect(bare).toEqual(FROZEN_SCOPES[scope]);
         }
-        // Each of the three ladder tests above asserts survival for exactly
-        // these keys; this pins that the `none` set is non-empty and named.
-        expect(none).toContain("isToken");
-        expect(none).toContain("exileOnLeave");
-        expect(none).toContain("transformedFrom");
+    );
+
+    it("the `none` rows — surviving all three ladders — are the frozen remainder", () => {
+        const none = CARD_FIELD_KEYS.filter(
+            (key) => resets(key).length === 0
+        ).sort();
+        expect(none).toEqual([
+            "capturedBindings",
+            "castFromGraveyardExilesOnResolve",
+            "copiedFrom",
+            "copyExcept",
+            "copyOptions",
+            "createdBy",
+            "echoPending",
+            "enterAttackingTarget",
+            "entersAsTypeLine",
+            "exileOnLeave",
+            "faceDown",
+            "faceDownBy",
+            "faceDownOf",
+            "imagePrintId",
+            "isToken",
+            "knownTo",
+            "linkedTokenId",
+            "madnessExiled",
+            "madnessTriggerPending",
+            "manaCostOverride",
+            "notedMana",
+            "notedManaSpentOnCast",
+            "pileLabel",
+            "reboundExiled",
+            "tapBonusMana",
+            "timedCopyEffects",
+            "transformed",
+            "transformedFrom",
+            "worldSeq",
+        ]);
     });
 });

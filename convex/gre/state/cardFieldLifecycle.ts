@@ -10,7 +10,8 @@
  *    byte-identical against a fixture stored before the table existed
  *    (`__tests__/cardFieldLifecycle.test.ts`);
  *  - the persisted-key census: every key here is written by `compactCard`
- *    unless its codec is `transient`;
+ *    unless its codec is `transient` — the former hand-kept
+ *    `CARD_PERSISTED_OPTIONAL_KEYS` list and its compile-time guard;
  *  - the three reset ladders — the cleanup step's per-turn clear
  *    (`finalizeCleanup`, `gre/phases.ts`), the battlefield-exit / re-entry
  *    clean (`resetBattlefieldTransientState`, `gre/state.ts`, CR 400.7) and
@@ -106,7 +107,7 @@ export const CARD_FIELD_LIFECYCLE = {
     hasBlockedThisTurn:         { codec: "flag",    reset: TURN_ZONE },
     // Rolled forward from `hasAttackedThisTurn` at cleanup, once per turn.
     attackedDuringLastTurn:     { codec: "flag",    reset: ["custom:turn"] },
-    dealtDamageToOpponentThisTurn: { codec: "flag", reset: TURN_ZONE },
+    dealtDamageToOpponentThisTurn: { codec: "flag", reset: TURN },
     // Re-stamped at every untap step.
     startedTurnUntapped:        { codec: "flag",    reset: ["custom:turn"] },
     chosenModeId:               { codec: "scalar",  reset: STACK },
@@ -124,7 +125,10 @@ export const CARD_FIELD_LIFECYCLE = {
     manaCounterRemoval:         { codec: "scalar",  reset: ZONE },
     lifePaidThisTap:            { codec: "scalar",  reset: ZONE },
     manaPaidThisTap:            { codec: "scalar",  reset: ZONE },
-    tapBonusMana:               { codec: "scalar",  reset: ZONE },
+    // Survives a zone change today, like the two `ThisTurn` flags above that
+    // clear only at cleanup: parity with the hand-written ladder (issue
+    // #4453; `docs/findings/4453-three-battlefield-fields-survive-zone-change.md`).
+    tapBonusMana:               { codec: "scalar",  reset: NONE },
     grantedActivatedAbilities:  { codec: "list",    reset: ZONE },
     // Legacy shape on expand: bare source-id strings coerce to `seq: 0`.
     abilitiesSuppressedBy:      { codec: "custom",  reset: ZONE },
@@ -159,7 +163,7 @@ export const CARD_FIELD_LIFECYCLE = {
     skipNextUntap:              { codec: "flag",    reset: ["custom:turn", "zone-change"] },
     // Cleared when the permanent untaps (untap step or otherwise).
     exertedThisTap:             { codec: "flag",    reset: ["custom:turn", "zone-change"] },
-    canAttackDespiteDefenderThisTurn: { codec: "flag", reset: TURN_ZONE },
+    canAttackDespiteDefenderThisTurn: { codec: "flag", reset: TURN },
     counters:                   { codec: "record",  reset: ZONE },
     countersAtLeave:            { codec: "record",  reset: ZONE },
     capturedBindings:           { codec: "record",  reset: NONE },
@@ -264,16 +268,6 @@ export type CustomCardFieldKey = {
         : never;
 }[OptionalCardInstanceKey];
 
-/** Optional `CardInstanceState` keys that round-trip through `compactCard` /
- *  `expandCard` — every row whose codec is not `transient`. The card-level
- *  counterpart of `PERSISTED_OPTIONAL_KEYS` (`gre/serialize.ts`), derived
- *  rather than hand-kept. */
-export const CARD_PERSISTED_OPTIONAL_KEYS: readonly OptionalCardInstanceKey[] =
-    CARD_FIELD_KEYS.filter(
-        (key) =>
-            (CARD_FIELD_LIFECYCLE[key].codec as CardFieldCodec) !== "transient"
-    );
-
 const RESET_KEYS: {
     readonly [S in CardFieldResetScope]: readonly OptionalCardInstanceKey[];
 } = {
@@ -293,13 +287,6 @@ const RESET_KEYS: {
         )
     ),
 };
-
-/** The keys a ladder's generic loop deletes at `scope`. */
-export function cardFieldsResetAt(
-    scope: CardFieldResetScope
-): readonly OptionalCardInstanceKey[] {
-    return RESET_KEYS[scope];
-}
 
 /** Delete every key declared `reset: [scope]` from `card` — the generic half
  *  of a reset ladder, run AFTER the ladder's hand-kept steps (a revert helper

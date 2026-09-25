@@ -709,8 +709,9 @@ function compactPlayer(player: PlayerState, ctx: CompactCtx): CompactPlayer {
     // zone-change loss is OBJECT-scoped, so this total is meant to persist for
     // the whole GAME — a drop here silently resets Otharri's scaling to zero at
     // every save point. `PlayerState` has no exhaustiveness guard (the
-    // `_cardKeysExhaustive` one at the top of this file covers
-    // `CardInstanceState` only), so nothing but the round-trip test in
+    // `CARD_FIELD_LIFECYCLE` `satisfies` clause,
+    // `gre/state/cardFieldLifecycle.ts`, covers `CardInstanceState`
+    // only), so nothing but the round-trip test in
     // `serialize.test.ts` catches an omission.
     if (player.experienceCounters) {
         out.experienceCounters = player.experienceCounters;
