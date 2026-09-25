@@ -76,6 +76,10 @@ export interface WalkContext {
      *  pass already banked (CR 117.4), so the walk's single pass resolves it
      *  into a mid-resolution card choice (CR 608.2) over the board. */
     choiceScenarioLabel: string;
+    /** The `userDecks` id of the deck this lane's account OWNS
+     *  (`LANE_DECK_NAME`, seeded at bootstrap — issue #4421). The three delete
+     *  confirms open over it; `undefined` only if the bootstrap never ran. */
+    laneDeckId?: string;
     /** Set once the lane has created the active game itself. */
     createdGame: boolean;
     /** Issue #2671 review H2. The `deck-builder` walk's fixture import trips

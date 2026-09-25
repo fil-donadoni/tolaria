@@ -147,6 +147,7 @@ import {
     localConvexRunner,
     newLaneAccount,
     newRunId,
+    passwordSeedDeck,
     passwordSignUp,
     runScreenshotDir,
     withLaneFleet,
@@ -823,6 +824,7 @@ async function main(): Promise<number> {
         accounts: Array.from({ length: parallel }, () => newLaneAccount()),
         run: localConvexRunner(),
         signUp: passwordSignUp(convexUrl),
+        seedDeck: passwordSeedDeck(convexUrl),
         keepUser: opts.keepUser,
         log,
     });
@@ -916,6 +918,7 @@ async function main(): Promise<number> {
                         combatScenarioLabel: COMBAT_SCENARIO_LABEL,
                         choiceScenarioLabel: CHOICE_SCENARIO_LABEL,
                         fixtureLabels: member.labels,
+                        laneDeckId: member.deckId,
                         createdGame: false,
                         // Buffered with the cells (never logged live: five
                         // viewports would interleave); diagnostic, unread by
