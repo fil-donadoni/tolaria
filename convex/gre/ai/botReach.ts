@@ -457,7 +457,31 @@ export const TRICK_WINDOW = "TRICK_COMBAT";
 /** The position a flash creature is posed in once both main phases passed it
  *  over — see `flashAmbushPosition`. */
 export const AMBUSH_WINDOW = "FLASH_AMBUSH";
-type PoseWindow = ReachWindow | typeof TRICK_WINDOW | typeof AMBUSH_WINDOW;
+/**
+ * CR 702.8a — the window a Flash permanent is posed in when both of the
+ * holder's main phases passed it over: the OPPONENT's end step, the holder
+ * holding priority with its mana open. The Bot holds a Flash permanent it
+ * could cast at sorcery speed for an outcome-equal result (`hold-trick`, ADR
+ * 0021, issue #2248) and casts it at instant speed instead, so a sweep that
+ * posed only the holder's own main phases read that hold as a refusal
+ * (issue #4260).
+ */
+export const OPPONENT_END_STEP_WINDOW = "OPPONENT_END_STEP";
+type PoseWindow =
+    | ReachWindow
+    | typeof TRICK_WINDOW
+    | typeof AMBUSH_WINDOW
+    | typeof OPPONENT_END_STEP_WINDOW;
+
+/** CR 702.8a — a permanent spell with Flash: castable in a window the holder
+ *  does not own, so the opponent's end step is a place the Bot may cast it. */
+function isFlashPermanent(def: CardDefinition): boolean {
+    return (
+        !def.types.includes("Instant") &&
+        !def.types.includes("Sorcery") &&
+        (def.staticAbilities ?? []).includes("flash")
+    );
+}
 
 /** Upper bound on follow-through decisions after the card's move. */
 const MAX_FOLLOW_THROUGH_STEPS = 12;
@@ -666,7 +690,9 @@ export function botReachSpec(
         phase:
             window === TRICK_WINDOW || window === AMBUSH_WINDOW
                 ? "PRECOMBAT_MAIN"
-                : window,
+                : window === OPPONENT_END_STEP_WINDOW
+                  ? "END_STEP"
+                  : window,
         turn: 3,
         libraryCount: 20,
         // CR 400.2 — a card the holder can discard or reveal that is never a
@@ -679,7 +705,7 @@ export function botReachSpec(
             me: 1,
             ...(discardsFromTarget(def) ? { opp: TARGET_HAND } : {}),
         },
-        activePlayer: "me",
+        activePlayer: window === OPPONENT_END_STEP_WINDOW ? "opp" : "me",
         priority: "me",
         ...target.position,
         ...(race ? { life: race.life } : {}),
@@ -875,7 +901,10 @@ function playSeat(
         combatTrickPosition(def) === null ? [] : [TRICK_WINDOW];
     const ambush: PoseWindow[] =
         flashAmbushPosition(def) === null ? [] : [AMBUSH_WINDOW];
-    for (const window of [...later, ...trick, ...ambush]) {
+    const endStep: PoseWindow[] = isFlashPermanent(def)
+        ? [OPPONENT_END_STEP_WINDOW]
+        : [];
+    for (const window of [...later, ...trick, ...ambush, ...endStep]) {
         // Only a card the search passed over is posed again: `frozen` and
         // `position-unmodelled` describe the position or the driver, which a
         // later window of the same turn does not change. A later `played` or
