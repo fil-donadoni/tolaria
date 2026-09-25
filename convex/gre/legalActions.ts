@@ -22,19 +22,8 @@
 // `MAX_COMBINATIONS`, same policy as `moves.ts`.
 
 import type { TargetSelection } from "../cards/types";
-import type {
-    ExpectedInput,
-    GameState,
-    PendingChoice,
-    PendingTarget,
-} from "./state";
-import {
-    canPayMayPayCost,
-    numberChoiceRange,
-    getPendingChoiceMax,
-    getPendingChoiceMin,
-    getPlayer,
-} from "./state";
+import type { ExpectedInput, GameState, PendingTarget } from "./state";
+import { getPlayer } from "./state";
 // issue #2283 — the PendingTarget → TargetRequirement lowering moved to the
 // shared origin module so the Move enumerator (`moves.ts`) can reuse it without
 // importing this module (which imports `moves.ts` — a cycle).
@@ -50,15 +39,13 @@ import { getLegalTargets, pendingTargetingSource } from "./rules";
 // as a target" (Flagbearer), shared with the accepting mutation.
 import { computeRequiredTargetChoiceIds } from "./targetChoiceRequirements";
 import {
-    combinations,
     enumerateMoves,
     enumerateBlockerMoves,
     MAX_COMBINATIONS,
     SPECIAL_ACTION_MOVE_KINDS,
     type Move,
 } from "./moves";
-import { eligibleZonePickCards } from "./zonePickEligibility";
-import { assertNever } from "./assertNever";
+import { pendingChoiceHandlerFor } from "./pendingChoiceHandlers";
 
 // ---------------------------------------------------------------------------
 // Action vocabulary
@@ -283,76 +270,6 @@ function choiceActions(
         playerId,
         action,
     });
-
-    // CR 117.3a / 118.4 — yes/no may-pay: declining is always legal; accepting
-    // only when every leg of the cost (mana / life / sacrifice) is payable.
-    if (head.kind === "may-pay") {
-        const actions: LegalAction[] = [
-            wrap({ kind: "submit-may-pay", accept: false }),
-        ];
-        if (
-            !head.cost ||
-            canPayMayPayCost(state, playerId, head.cost, head.manaRestriction)
-        ) {
-            actions.unshift(wrap({ kind: "submit-may-pay", accept: true }));
-        }
-        return actions;
-    }
-
-    // CR 614.12 / ADR 0051 — land-entry pay-choice (shock land): declining
-    // (enter tapped) is always legal; paying only when the cost is affordable.
-    if (head.kind === "land-entry-tapped") {
-        const actions: LegalAction[] = [
-            wrap({ kind: "submit-land-entry", accept: false }),
-        ];
-        if (!head.cost || canPayMayPayCost(state, playerId, head.cost)) {
-            actions.unshift(wrap({ kind: "submit-land-entry", accept: true }));
-        }
-        return actions;
-    }
-
-    // CR 201.2 / 202.3 — name a card: the domain is the whole registry, so a
-    // single open-payload action represents the family.
-    if (head.kind === "name-card") {
-        return [wrap({ kind: "submit-name-card" })];
-    }
-
-    // CR 107.1b / 107.3f (issue #1701) — a numeric nomination: the domain is a
-    // range, so a single open-payload action carrying the live bounds
-    // represents the family. Amount 0 is always inside it (it IS the decline),
-    // so this action is never empty and the window can never freeze.
-    if (head.kind === "number-pick") {
-        const payer = state.players.find((p) => p.id === playerId);
-        const { min, max } = numberChoiceRange(head, payer);
-        return [wrap({ kind: "submit-number-choice", min, max })];
-    }
-
-    // CR 705.2 (ADR 0023) — random reveal: a no-decision acknowledgement.
-    if (head.kind === "random-reveal") {
-        return [
-            wrap({
-                kind: "submit-random-reveal-ack",
-                stackItemId: head.stackItemId,
-                choiceId: head.choiceId,
-            }),
-        ];
-    }
-
-    // CR 702.35a — reflexive Madness cast-choice: the only choice-action is to
-    // DECLINE (→ graveyard). The ACCEPT ("Cast") is a normal cast of the exiled
-    // card, enumerated as a priority-window `cast-spell` move, not here.
-    if (head.kind === "madness-cast") {
-        return [wrap({ kind: "submit-madness-decline" })];
-    }
-
-    // CR 702.88a — reflexive Rebound cast-choice: the only choice-action is to
-    // DECLINE (the card remains exiled). The ACCEPT ("Cast") is a normal cast
-    // of the exiled card, enumerated as a priority-window `cast-spell` move,
-    // not here. Mirrors `madness-cast` above.
-    if (head.kind === "rebound-cast") {
-        return [wrap({ kind: "submit-rebound-decline" })];
-    }
-
     const submit = (cardInstanceIds: string[]): LegalAction =>
         wrap({
             kind: "submit-choice",
@@ -361,114 +278,13 @@ function choiceActions(
             choiceId: head.choiceId,
             cardInstanceIds,
         });
-
-    // CR 614.12 — abstract option pick: exactly one of the author-supplied
-    // option ids. CR 603.3c (issue #2461) — a modal TRIGGER's announce-time
-    // mode pick is the same submission shape, and `options` already holds only
-    // the CHOOSABLE modes, so every enumerated action is a legal announcement.
-    // Without this branch the announcement falls through to the zone-pick
-    // enumerator, finds no zone, and returns nothing — a frozen game (ADR 0047).
-    if (head.kind === "option-pick" || head.kind === "trigger-mode") {
-        return (head.options ?? []).map((o) => submit([o.id]));
-    }
-
-    // ADR 0053 (pile division) — pick a pile: exactly one of "A" / "B". Both
-    // are always legal regardless of pile contents (an empty pile is a legal
-    // choice — CR doesn't forbid choosing an empty pile).
-    if (head.kind === "pick-pile") {
-        return (["A", "B"] as const).map((id) => submit([id]));
-    }
-
-    // CR 603.3b (ADR 0058) — trigger-order: a single canonical ordering (the
-    // slice in collection order). Any permutation is legal for the human path,
-    // but self-ordering own triggers is tactically immaterial, so the move space
-    // stays flat — one action, not N! — to preserve ISMCTS budget (ADR 0058).
-    if (head.kind === "trigger-order") {
-        return [submit(head.candidateIds ?? [])];
-    }
-
-    // CR 115.4 — "any target" damage-target pick: one of the damageable
-    // permanents (`candidateIds`) or players (`candidatePlayerIds`).
-    if (head.kind === "choose-damage-target") {
-        return [
-            ...(head.candidateIds ?? []),
-            ...(head.candidatePlayerIds ?? []),
-        ].map((id) => submit([id]));
-    }
-
-    // Every kind the arms above did not answer is named here, and a kind with
-    // no arm at all is a compile error (issue #4440) — never a silent fall
-    // into the zone-pick enumerator, which would answer it with `submit-choice`
-    // payloads its own mutation never reads.
-    switch (head.kind) {
-        case "keep-permanents":
-        case "sacrifice-permanents":
-        case "keep-hand":
-        case "search-library":
-        case "pick-source":
-        case "untap-pick":
-        case "discard-hand":
-        case "reorder-library":
-        case "reveal-hand":
-        case "choose-permanents":
-        case "partition":
-        case "choose-hand-card":
-        case "choose-graveyard-card":
-        case "choose-exile-card":
-        case "choose-library-card":
-        case "draw-look-keep":
-        case "order-top":
-        case "look-distribute":
-        case "choose-categorized":
-        case "legend-keep":
-        case "choose-aura-host":
-        case "divide-piles":
-        case "mulligan-bottom":
-        case "choose-player":
-            // `choose-player` picks a PLAYER id, which the zone enumerator
-            // cannot see: with no `zone` it offers only the empty "up to one"
-            // pick. Unchanged here — the handler registry (issue #4443) owns
-            // the fix.
-            return zonePickActions(state, head, submit);
-        // CR 614 (ADR 0061) — `draw-replacement` is answered by
-        // `submitDrawReplacementPay`, and no `ChoiceAction` variant carries
-        // that answer yet. It has no `zone` and `count: 1`, so the zone-pick
-        // enumerator it used to fall into yielded nothing; that is kept
-        // verbatim, now as a named arm.
-        case "draw-replacement":
-            return [];
-        default:
-            return assertNever(head.kind, "pending choice kind");
-    }
-}
-
-/** Zone-pick family + mulligan-bottom (CR 608.2 / 103.5): every valid
- *  submission is a duplicate-free subset of the eligible pool with size in
- *  [min, max] — mirroring `applyPendingChoiceSubmit`'s validation. Capped at
- *  MAX_COMBINATIONS like every combinatorial window in moves.ts. */
-function zonePickActions(
-    state: GameState,
-    head: PendingChoice,
-    submit: (cardInstanceIds: string[]) => LegalAction
-): LegalAction[] {
-    const ids = eligibleZonePickIds(state, head);
-    const min = Math.max(0, getPendingChoiceMin(head.count));
-    const max = Math.min(getPendingChoiceMax(head.count), ids.length);
-    const actions: LegalAction[] = [];
-    for (let size = min; size <= max; size++) {
-        for (const combo of combinations(ids, size)) {
-            actions.push(submit(combo));
-            if (actions.length >= MAX_COMBINATIONS) return actions;
-        }
-    }
-    return actions;
-}
-
-/** The instance ids the chooser may legally include in a zone-pick submission
- *  — see `eligibleZonePickCards` (`zonePickEligibility.ts`), the shared
- *  authority the `choose-permanents` candidate generator reads too. */
-function eligibleZonePickIds(state: GameState, head: PendingChoice): string[] {
-    return eligibleZonePickCards(state, head).map((c) => c.id);
+    // One row per kind in the handler registry (issue #4443): a kind with no
+    // row is a compile error there, and a kind outside the union is refused.
+    return pendingChoiceHandlerFor(head.kind).legalActions(state, head, {
+        playerId,
+        wrap,
+        submit,
+    });
 }
 
 // ---------------------------------------------------------------------------
