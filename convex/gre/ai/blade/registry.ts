@@ -8487,6 +8487,61 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         note: "Bot Gap `never-chosen › Creature › gainLife+loseLife` (2 cards). Issue #4277.",
     },
     {
+        // SACRIFICE-FOR-DRAW reachability (CR 701.21a, CR 121.1, issue #4279).
+        // The sweep's own position for a creature whose only ability is "{2},
+        // Sacrifice this creature: Target player draws a card": Limestone Golem
+        // in hand, eight Plains (its cost plus the outlet's {2}), a spare body on
+        // each side.
+        //
+        // Before the fix the cast edge read WORSE than `pass` at the sweep's
+        // budget: below the cast the rollout drew "sacrifice, aim the draw" at
+        // random and the tree opened it at the node after the cast, and those
+        // subtrees dragged the cast edge's mean margin under `pass`'s. Fixed by
+        // class, not by card: `isDrawExchangeSacrifice` (`search.ts`).
+        label: "Sacrifice-for-draw outlet: casts the creature",
+        spec: {
+            cards: [
+                { name: "Limestone Golem", owner: "me", zone: "hand" },
+                { name: "Plains", owner: "me", zone: "battlefield" },
+                { name: "Plains", owner: "me", zone: "battlefield" },
+                { name: "Plains", owner: "me", zone: "battlefield" },
+                { name: "Plains", owner: "me", zone: "battlefield" },
+                { name: "Plains", owner: "me", zone: "battlefield" },
+                { name: "Plains", owner: "me", zone: "battlefield" },
+                { name: "Plains", owner: "me", zone: "battlefield" },
+                { name: "Plains", owner: "me", zone: "battlefield" },
+                { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
+                { name: "Ornithopter", owner: "me", zone: "battlefield" },
+                { name: "Castle", owner: "me", zone: "battlefield" },
+                { name: "Grizzly Bears", owner: "me", zone: "graveyard" },
+                { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+                { name: "Ornithopter", owner: "opp", zone: "battlefield" },
+                { name: "Castle", owner: "opp", zone: "battlefield" },
+                { name: "Grizzly Bears", owner: "opp", zone: "graveyard" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            libraryCount: 20,
+        },
+        bot: "me",
+        // The Bot-play sweep's own position at four times its budget — a
+        // REACHABILITY claim, so a PREDICATE, kept out of the weight fit for
+        // the reason the Nantuko Husk entry gives.
+        budget: { iterations: 200 },
+        seeds: [0xb07, 0x5eed, 1, 2, 3],
+        tier: "must",
+        expect: {
+            predicate: (move, state) =>
+                move !== null &&
+                move.kind === "cast-spell" &&
+                instanceIdsForName(state, "Limestone Golem").has(
+                    move.cardInstanceId
+                ),
+            describe: "casts Limestone Golem",
+        },
+        note: "Bot Gap `never-chosen › Artifact › draw` (1 card). Issue #4279.",
+    },
+    {
         // A BOON is not self-harm (issue #4273). Unnatural Speed grants haste
         // until end of turn to the creature it targets: the bot's main phase,
         // two Mountains, a summoning-sick Grizzly Bears beside a ready one, and

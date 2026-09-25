@@ -786,6 +786,16 @@ describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
         }
     }, 600_000);
 
+    // Issue #4279: a creature whose only ability sacrifices it to make a
+    // player draw is played — the exchange children below its own cast edge
+    // are pruned (`isDrawExchangeSacrifice`).
+    it("played — a creature that sacrifices itself to draw a card", () => {
+        expect(playBotReachSeats(getCardByName("Limestone Golem"))).toEqual([
+            { holderId: "p1", verdict: { outcome: "played" } },
+            { holderId: "p2", verdict: { outcome: "played" } },
+        ]);
+    }, 600_000);
+
     it("a draw spell's holder finds spells on top of the library, and only that holder", () => {
         const topOfLibrary = (def: CardDefinition, seat: 0 | 1): unknown => {
             const { state, holderId } = buildBotReachState(def, seat);
