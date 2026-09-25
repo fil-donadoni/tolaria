@@ -162,8 +162,16 @@ function runtimeImports(file: string): string[] {
 }
 
 describe("lookup leaf — import graph", () => {
-    it("the leaf imports nothing at runtime, so it can never join a cycle", () => {
-        expect(runtimeImports("lookup.ts")).toEqual([]);
+    it.each(["lookup.ts", "protectionQualities.ts"])(
+        "the leaf %s imports nothing at runtime, so it can never join a cycle",
+        (file) => {
+            expect(runtimeImports(file)).toEqual([]);
+        }
+    );
+
+    it("gre/protection takes its quality strings from the leaf BEFORE it enters the registry cycle", () => {
+        const specs = runtimeImports("protection.ts");
+        expect(specs.indexOf("./protectionQualities")).toBe(0);
     });
 
     it.each(["rebound.ts", "triggers.ts"])(
