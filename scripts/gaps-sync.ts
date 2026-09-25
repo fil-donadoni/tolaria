@@ -111,7 +111,7 @@ import {
 import {
     buildGraduates,
     compilerGapCards,
-    handTailOracleIds,
+    handTailMarkerIssues,
     opUserOracleIds,
 } from "./lib/coverage-context";
 import {
@@ -463,6 +463,7 @@ export function buildAllFilings(
     filings: GapFiling[];
     handTailHeld: readonly GapFiling[];
     filed: ReadonlyMap<string, number>;
+    settledHandTail: SettledHandTail;
 } {
     const filed = new Map(
         parseClaimRows(allowlist, ALLOWLIST_PATH).map(
@@ -473,6 +474,7 @@ export function buildAllFilings(
     // priority ∪ enforced: `check:targets` reds an enforced Target's
     // below-floor card, so it needs a filer even with no priority.
     const ranked = rankedCardIds(registry, ctx, slices);
+    const markerIssues = handTailMarkerIssues(root, ctx.byName);
     const inputs: KindInputs = {
         lock,
         slices,
@@ -482,7 +484,7 @@ export function buildAllFilings(
         handTailFiling: registry.handTailFiling,
         enforced: enforcedCardIds(registry, ctx),
         floorless: floorlessCardIds(registry, ctx),
-        handTail: handTailOracleIds(root, ctx.byName),
+        handTail: new Set(markerIssues.keys()),
         botFindings,
         ...gapIndex(lock),
     };
@@ -516,25 +518,89 @@ export function buildAllFilings(
                 index
             )?.target ?? null
     );
-    return { filings, handTailHeld: handTail.held, filed };
+    return {
+        filings,
+        handTailHeld: handTail.held,
+        filed,
+        settledHandTail: settledHandTailOf(lock, markerIssues, inputs.gapKeys),
+    };
 }
+
+/**
+ * What the stale report needs to tell a SETTLED `hand-tail` claim from a gone
+ * one (issue #4513) — both keyed by the card's lockfile name, the claim key.
+ * Offline: the markers already parsed and the lockfile, no issue-state lookup.
+ */
+export interface SettledHandTail {
+    /** Card → the issue its well-formed `hand-tail:` marker names. */
+    readonly markerIssue: Map<string, number>;
+    /** Cards still `unparsed` with at least one residual Grammar Gap. */
+    readonly residual: Set<string>;
+}
+
+/**
+ * {@link SettledHandTail} from the lockfile and the `hand-tail:` markers
+ * (oracle id → issue), re-keyed by card name.
+ */
+export function settledHandTailOf(
+    lock: Pick<ReturnType<typeof parseLockfile>, "cards">,
+    markerIssues: ReadonlyMap<string, number>,
+    gapKeys: KindInputs["gapKeys"]
+): SettledHandTail {
+    const settled: SettledHandTail = {
+        markerIssue: new Map(),
+        residual: new Set(),
+    };
+    for (const row of lock.cards) {
+        const issue = markerIssues.get(row.oracleId);
+        if (issue !== undefined) settled.markerIssue.set(row.name, issue);
+        if (row.state === "unparsed" && gapKeys(row).length > 0)
+            settled.residual.add(row.name);
+    }
+    return settled;
+}
+
+/** One row of the stale-claims report. */
+export type StaleClaim =
+    | { kind: GapKind; key: string; issue: number }
+    /** A `hand-tail` claim whose card is hand-written under ANOTHER issue's
+     *  marker: the claim's own issue may be an open orphan. */
+    | { kind: "hand-tail"; key: string; issue: number; settledBy: number };
 
 /**
  * A `claims` row no filing referenced this run: the gap it names is gone, but
  * rows are never pruned (`applyUpdatedIssues`), so its issue is open and no
  * longer updated by anything. Printed, never acted on — closing it is a
  * human's call, and `gaps:sync` closes nothing.
+ *
+ * A `hand-tail` row is not filed again once its card is hand-written under a
+ * `hand-tail:` marker, yet its gap is still there (issue #4513): while the
+ * card keeps a residual gap, a marker naming the claim's own issue is silent,
+ * and one naming ANOTHER issue comes back with `settledBy` — the claim's
+ * issue is a possible open orphan. A card with no residual gap left is stale
+ * whatever its marker says.
  */
 export function staleClaims(
     filed: ReadonlyMap<string, number>,
-    filings: readonly GapFiling[]
-): Array<{ kind: GapKind; key: string; issue: number }> {
+    filings: readonly GapFiling[],
+    settled: SettledHandTail = { markerIssue: new Map(), residual: new Set() }
+): StaleClaim[] {
     const live = new Set(filings.map((f) => claimId(f.kind, f.key)));
-    const out: Array<{ kind: GapKind; key: string; issue: number }> = [];
+    const out: StaleClaim[] = [];
     for (const [id, issue] of filed) {
         if (live.has(id)) continue;
         const { kind, key } = splitClaimId(id);
         if (kind === "grammar" && key.startsWith(OP_KEY_PREFIX)) continue; // `check:gaps` owns the ops rows.
+        const marker = settled.markerIssue.get(key);
+        if (
+            kind === "hand-tail" &&
+            marker !== undefined &&
+            settled.residual.has(key)
+        ) {
+            if (marker !== issue)
+                out.push({ kind, key, issue, settledBy: marker });
+            continue;
+        }
         out.push({ kind, key, issue });
     }
     return out;
@@ -619,7 +685,7 @@ function main(): void {
         );
     }
 
-    const { filings, handTailHeld, filed } = buildAllFilings(
+    const { filings, handTailHeld, filed, settledHandTail } = buildAllFilings(
         root,
         lock,
         allowlist,
@@ -651,9 +717,11 @@ function main(): void {
             `hand-tail  ${f.key} — its \`compiler-gap:\` marker names a gap now below the floor; flip it to \`hand-tail:\``
         );
     }
-    for (const stale of staleClaims(filed, filings)) {
+    for (const stale of staleClaims(filed, filings, settledHandTail)) {
         console.log(
-            `stale      ${stale.kind} claim \`${stale.key}\` -> issue #${stale.issue} — the gap is gone; the row stays, the issue is nobody's now`
+            "settledBy" in stale
+                ? `settled    hand-tail claim \`${stale.key}\` -> issue #${stale.issue} — the card is settled by #${stale.settledBy}; close #${stale.issue} if still open`
+                : `stale      ${stale.kind} claim \`${stale.key}\` -> issue #${stale.issue} — the gap is gone; the row stays, the issue is nobody's now`
         );
     }
 

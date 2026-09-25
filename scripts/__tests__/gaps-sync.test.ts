@@ -54,7 +54,7 @@ import {
     type Graduate,
     type KindInputs,
 } from "../lib/gap-kinds";
-import { parseOriginBand, staleClaims } from "../gaps-sync";
+import { parseOriginBand, settledHandTailOf, staleClaims } from "../gaps-sync";
 import { botGapKey, type BotGapVerdict } from "../lib/oracle-bot-reach";
 import type { CardRow, FragmentRow, Lockfile } from "../lib/oracle-lockfile";
 import {
@@ -1287,6 +1287,65 @@ describe("staleClaims — a row no filing referenced", () => {
         expect(staleClaims(filed, filings)).toEqual([
             { kind: "migration", key: "renamed-slot", issue: 7002 },
         ]);
+    });
+});
+
+describe("staleClaims — a settled hand-tail claim is not stale (issue #4513)", () => {
+    // Four hand-tail claims; no filing references any of them (their cards
+    // are marked, so the hand-tail filer skips them).
+    const lock = {
+        fragments: [fragment("rare clause")],
+        cards: [
+            ...FILLER,
+            unparsed("s-1", "Same Issue", [0]),
+            unparsed("o-1", "Other Issue", [0]),
+            {
+                oracleId: "r-1",
+                name: "Now Ready",
+                state: "ready" as const,
+                opsUsed: [],
+            },
+            unparsed("u-1", "Unmarked", [0]),
+        ],
+    };
+    const settled = settledHandTailOf(
+        lock,
+        new Map([
+            ["s-1", 8001],
+            ["o-1", 3806],
+            ["r-1", 8003],
+        ]),
+        gapIndex(lock).gapKeys
+    );
+    const filed = new Map([
+        [claimId("hand-tail", "Same Issue"), 8001],
+        [claimId("hand-tail", "Other Issue"), 4338],
+        [claimId("hand-tail", "Now Ready"), 8003],
+        [claimId("hand-tail", "Unmarked"), 8004],
+        [claimId("migration", "Same Issue"), 8005],
+    ]);
+
+    it("silences the same-issue marker, names both issues for another, keeps the gone gap stale", () => {
+        expect(staleClaims(filed, [], settled)).toEqual([
+            {
+                kind: "hand-tail",
+                key: "Other Issue",
+                issue: 4338,
+                settledBy: 3806,
+            },
+            { kind: "hand-tail", key: "Now Ready", issue: 8003 },
+            { kind: "hand-tail", key: "Unmarked", issue: 8004 },
+            { kind: "migration", key: "Same Issue", issue: 8005 },
+        ]);
+    });
+
+    it("every other kind is reported as before, marker or not", () => {
+        const others = new Map(
+            [...filed].filter(([id]) => !id.startsWith("hand-tail"))
+        );
+        expect(staleClaims(others, [], settled)).toEqual(
+            staleClaims(others, [])
+        );
     });
 });
 
