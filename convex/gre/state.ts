@@ -248,6 +248,31 @@ import {
     replaceProducedManaColor,
 } from "./constants";
 import { PLAYER_COUNTER_FIELD, readPlayerCounters } from "./playerCounters";
+import {
+    ZONE_TO_FIELD,
+    allPermanents,
+    allocInstanceId,
+    findCardInAnyZone,
+    findCardInGraveyardOrExile,
+    findOnBattlefield,
+    findPermanent,
+    getOpponentId,
+    getPlayer,
+} from "./lookup";
+// The lookup leaf's helpers stay importable from the core (issue #4452); a
+// module the core imports takes them from `./lookup` instead, so it does not
+// join the core's import cycle.
+export {
+    ZONE_TO_FIELD,
+    allPermanents,
+    allocInstanceId,
+    findCardInAnyZone,
+    findCardInGraveyardOrExile,
+    findOnBattlefield,
+    findPermanent,
+    getOpponentId,
+    getPlayer,
+};
 import { revertBestow } from "./bestow";
 import { collectLingeringSnapshots } from "./lingeringStatics";
 import {
@@ -5220,81 +5245,6 @@ function typesInZone(
     return resolveZoneCharacteristics(def, zone)?.types ?? def.types;
 }
 
-/** Finds a card on any player's battlefield by instance id. */
-function findOnBattlefield(
-    state: GameState,
-    cardId: string
-): { card: CardInstanceState; player: PlayerState; idx: number } | null {
-    for (const player of state.players) {
-        const idx = player.battlefield.findIndex((c) => c.id === cardId);
-        if (idx !== -1) return { card: player.battlefield[idx], player, idx };
-    }
-    return null;
-}
-
-/** Finds a card instance by id in the two PUBLIC non-battlefield zones —
- *  graveyard and exile (CR 400.2: those are the zones whose objects are open
- *  information, so an effect may legitimately read one).
- *
- *  The last-known-information lookup (CR 608.2b) for an effect whose own COST
- *  moved its source out of the zone it was activated from: Eternalize
- *  (CR 702.129a) exiles the card from the graveyard to pay, then resolves by
- *  copying it. Copiable values are printed values (CR 707.2), so where the
- *  object currently sits does not change the copy — only whether it is found.
- *
- *  Deliberately NOT hand/library-inclusive (issue #2339 review): no rules
- *  story lets an effect create a token copy of a card in a hidden zone, and
- *  exile + graveyard is exactly the pair the interpreter's own `$source`
- *  recovery checks (`getExileCardOwner ?? getGraveyardCardOwner`).
- *
- *  Deliberately NOT battlefield-inclusive: callers combine it with
- *  `findOnBattlefield`, which returns the richer `{ card, player, idx }` shape
- *  they need for in-place mutation. */
-function findCardInGraveyardOrExile(
-    state: GameState,
-    cardId: string
-): CardInstanceState | undefined {
-    for (const player of state.players) {
-        for (const zone of [player.graveyard, player.exile]) {
-            const found = zone.find((c) => c.id === cardId);
-            if (found) return found;
-        }
-    }
-    return undefined;
-}
-
-/** Finds a card instance by id in EVERY zone a card can sit in — battlefield,
- *  graveyard, exile, hand, library (CR 400.1).
- *
- *  The lookup behind the cross-ability binding memory (`captureBinding` /
- *  `recallCapturedBinding`, issue #2384): a leave-the-battlefield trigger
- *  resolves with its source ALREADY GONE from the battlefield, and the
- *  destination is whatever the departure was — a graveyard (it died), exile
- *  (it was exiled), a hand or a library (it was bounced or tucked). Unlike
- *  `findCardInGraveyardOrExile` this is deliberately hidden-zone-inclusive:
- *  nothing here reads the card's characteristics, only a memory the source
- *  itself wrote about ITS OWN earlier ability, so no hidden information is
- *  exposed by finding it. Returns undefined for a token that has ceased to
- *  exist (CR 704.5d) or an id that is not in the game. */
-function findCardInAnyZone(
-    state: GameState,
-    cardId: string
-): CardInstanceState | undefined {
-    for (const player of state.players) {
-        for (const zone of [
-            player.battlefield,
-            player.graveyard,
-            player.exile,
-            player.hand,
-            player.library,
-        ]) {
-            const found = zone.find((c) => c.id === cardId);
-            if (found) return found;
-        }
-    }
-    return undefined;
-}
-
 /** Records that the permanent `sourceInstanceId` dealt damage to player
  *  `targetPlayerId` this turn (CR 120.3). Sets a turn-scoped per-instance flag
  *  only when the damaged player is NOT the source's controller — i.e. the
@@ -9779,9 +9729,8 @@ export function stageAsEntersEntry(
         // stale answer back onto the battlefield.
         //
         // `effect` origin ONLY, and deliberately so. A `spell` origin's object
-        // is a stack item whose own `resolveSteps` may legitimately have
-        // written `chosenName` before this park (`setSelfChosenName` writes
-        // onto the resolving item), and a `token` origin's object was minted
+        // is a stack item that may legitimately carry `chosenName` before this
+        // park, and a `token` origin's object was minted
         // moments ago and has no previous existence to forget.
         card.attachedTo = undefined;
         delete card.chosenName;
@@ -11252,11 +11201,6 @@ export function buildSpellContext(
     const ctx: SpellContext = {
         caster: item.castById,
         controller: item.castById,
-        // ADR 0037 — who answers this resolution's choices. Equals the
-        // controller for every normal cast; a controlled cast (Word of Command)
-        // sets `actingPlayerId` on the stack item so its decisions route to the
-        // controller while the controlled opponent stays the controller/caster.
-        actingPlayer: item.actingPlayerId ?? item.castById,
         // Triggered abilities (CR 603) get a fresh stack-item id, but their
         // resolver needs to reference the originating permanent (e.g. for
         // intervening-if re-check at CR 603.4). `triggerSourceId` is captured
@@ -11316,14 +11260,6 @@ export function buildSpellContext(
                 item.triggerSourceId ?? item.id
             );
             if (src) src.card.chosenPlayerId = playerId;
-        },
-
-        getChosenPlayer(): string | undefined {
-            const src = findOnBattlefield(
-                state,
-                item.triggerSourceId ?? item.id
-            );
-            return src?.card.chosenPlayerId;
         },
 
         setChosenSubtypes(pair: string[]): void {
@@ -11478,20 +11414,6 @@ export function buildSpellContext(
                 // S6b-part-2 — see `captureLayer6Base`.
                 recipient.baseStaticAbilities = [...recipient.staticAbilities];
             }
-        },
-
-        setSelfChosenName(name: string): void {
-            // CR 614.12 — an as-enters NAME choice, stamped on the object that
-            // is entering. Recipient resolution is deliberately identical to
-            // `setSelfBody` above: during a permanent spell's `resolveSteps`
-            // the recipient is the spell still on the stack (`item`, about to
-            // enter the battlefield), so the name is already in place when the
-            // permanent's continuous effects begin applying (CR 614.12's whole
-            // point — the choice is made as part of the entry, never after).
-            const recipient =
-                findOnBattlefield(state, item.triggerSourceId ?? item.id)
-                    ?.card ?? item;
-            recipient.chosenName = name;
         },
 
         forEachPlayer(fn: (playerId: string) => void) {
@@ -12118,16 +12040,6 @@ export function buildSpellContext(
             const found = findOnBattlefield(state, target.id);
             return found ? getEffectiveToughness(state, found.card) : 0;
         },
-        modifyPower(target: TargetSelection, amount: number): void {
-            if (target.type === "player") return;
-            const card = requirePermanent(target);
-            card.power = (card.power ?? 0) + amount;
-        },
-        modifyToughness(target: TargetSelection, amount: number): void {
-            if (target.type === "player") return;
-            const card = requirePermanent(target);
-            card.toughness = (card.toughness ?? 0) + amount;
-        },
         // CR 611.1 / 611.2a / 613.4c — a layer-7c P/T modification scoped to a
         // phase boundary (Giant Growth, Firebreathing). One Continuous Effects
         // Registry entry (ADR 0082, PRD #2064 S6): the countdown rides on the
@@ -12538,7 +12450,7 @@ export function buildSpellContext(
         // CR 613.1f layer 6 / CR 611.2b (issue #1562) — a target permanent
         // LOSES ALL ABILITIES for as long as the CURRENTLY-RESOLVING
         // permanent (the ETB source: `item.triggerSourceId ?? item.id`,
-        // mirroring `setChosenPlayer`/`getChosenPlayer` above) remains on the
+        // mirroring `setChosenPlayer` above) remains on the
         // battlefield. Tishana's Tidebinder's rider.
         //
         // Goes through the SAME shared applier `applyAbilityLossHold`, keyed
@@ -13488,10 +13400,6 @@ export function buildSpellContext(
         // existence. See `phaseOutPermanent`.
         phaseOut(permanentId, opts) {
             return phaseOutPermanent(state, permanentId, opts);
-        },
-        // CR 702.26 — phase a bundle back in. See `phaseInBundle`.
-        phaseIn(bundleId) {
-            return phaseInBundle(state, bundleId);
         },
         // CR 603.7a / ADR 0028 — exile a creature + its Auras, noting counters,
         // and arm a return keyed to `sourceId`. See `exileWithAttachments`.
@@ -15656,19 +15564,11 @@ export function buildSpellContext(
             found.card.mustAttackThisTurn = true;
         },
 
-        setSourceCantBeRegeneratedThisTurn(): void {
-            // CR 701.19c — flag the resolving ability's source so the rest of
-            // the turn's regeneration (shields + auto-regen replacement) is
-            // suppressed. Cleared at CLEANUP (CR 514.2).
-            const found = findOnBattlefield(state, item.id);
-            if (!found) return;
-            found.card.cantBeRegeneratedThisTurn = true;
-        },
-
         setTargetCantBeRegeneratedThisTurn(target: TargetSelection): void {
-            // CR 701.19c — target-scoped twin of the source version above
-            // (Incinerate, Orcish Healer, Word of Blasting). Sets the same
-            // per-instance flag; cleared at CLEANUP (CR 514.2).
+            // CR 701.19c — flag a target creature so the rest of the turn's
+            // regeneration (shields + auto-regen replacement) is suppressed
+            // (Incinerate, Orcish Healer, Word of Blasting). Cleared at
+            // CLEANUP (CR 514.2).
             if (target.type !== "permanent") return;
             const found = findOnBattlefield(state, target.id);
             if (!found || !found.card.types.includes("Creature")) return;
@@ -16679,16 +16579,6 @@ export function buildSpellContext(
             }
             return order;
         },
-        getLandCount(playerId: string): number {
-            return getPlayer(state, playerId).battlefield.filter((c) =>
-                c.types.includes("Land")
-            ).length;
-        },
-        getCreatureCount(playerId: string): number {
-            return getPlayer(state, playerId).battlefield.filter((c) =>
-                c.types.includes("Creature")
-            ).length;
-        },
         getHandSize(playerId: string): number {
             return getPlayer(state, playerId).hand.length;
         },
@@ -16737,10 +16627,6 @@ export function buildSpellContext(
                     );
                 })
                 .map((c) => c.id);
-        },
-        getCardDefinitionId(cardInstanceId: string): string | undefined {
-            const found = findOnBattlefield(state, cardInstanceId);
-            return found ? (found.card.card as { id?: string }).id : undefined;
         },
         isPrintedInSet(cardInstanceId: string, setCode: string): boolean {
             const found = findOnBattlefield(state, cardInstanceId);
@@ -18370,20 +18256,6 @@ export function buildSpellContext(
  *  mover via `exileFaceDownCard` rather than gating it.) */
 const PUBLIC_ZONES = new Set<Zone>(["battlefield", "graveyard", "exile"]);
 
-const ZONE_TO_FIELD: Record<Exclude<Zone, "stack">, keyof PlayerState> = {
-    hand: "hand",
-    library: "library",
-    battlefield: "battlefield",
-    graveyard: "graveyard",
-    exile: "exile",
-};
-
-export function getPlayer(state: GameState, playerId: string): PlayerState {
-    const player = state.players.find((p) => p.id === playerId);
-    if (!player) throw new Error(`Player not found: ${playerId}`);
-    return player;
-}
-
 /** CR 608.2f (issue #1477) — the zones a card can be cast from that the
  *  controlled-cast / cast-during-resolution getters search. Instance ids are
  *  unique across a player's zones, so the search order is immaterial. */
@@ -18422,18 +18294,6 @@ function getHandCardDef(
     const found = findOwnedCastSource(owner, cardInstanceId);
     const cardId = found ? (found.card.card as { id?: string }).id : undefined;
     return (cardId ? tryGetDefinition(cardId) : undefined) ?? undefined;
-}
-
-export function allocInstanceId(counter: { nextInstanceId?: number }): string {
-    counter.nextInstanceId = (counter.nextInstanceId ?? 0) + 1;
-    return String(counter.nextInstanceId);
-}
-
-/** Returns the id of the other player (2-player game). */
-export function getOpponentId(state: GameState, playerId: string): string {
-    const opponent = state.players.find((p) => p.id !== playerId);
-    if (!opponent) throw new Error("Opponent not found");
-    return opponent.id;
 }
 
 /**

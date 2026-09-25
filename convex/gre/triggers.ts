@@ -32,8 +32,8 @@ import type {
     GameState,
     PendingChoice,
     StackItem,
-} from "./state";
-import { getPlayer, allocInstanceId } from "./state";
+} from "./state/declarations";
+import { getPlayer, allocInstanceId } from "./lookup";
 import { stackTransformStamp } from "./transform";
 import {
     effectiveTriggeredAbilities,

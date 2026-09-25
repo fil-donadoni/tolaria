@@ -1,3 +1,4 @@
+import { findPermanent } from "./lookup";
 import type { CardInstanceState, GameState } from "./state";
 import {
     auraEnchantsPlayers,
@@ -525,17 +526,6 @@ export function checkDeathtouchDestroySBA(state: GameState): boolean {
  *  game scans for state-triggered abilities (CR 603.8) and puts them on the
  *  stack. The two checkpoints are coupled at every priority handoff, so we
  *  fold the state-trigger scan into this entry point. */
-/** Finds a permanent on any battlefield by instance id (CR 110). */
-function findPermanent(
-    state: GameState,
-    id: string
-): CardInstanceState | undefined {
-    for (const p of state.players) {
-        const hit = p.battlefield.find((c) => c.id === id);
-        if (hit) return hit;
-    }
-    return undefined;
-}
 
 /** Returns true while a conditional control change (CR 611.2b) still holds.
  *  The change's source is the entry's `auraId`; a missing source always

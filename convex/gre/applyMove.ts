@@ -56,6 +56,7 @@
 //     `resolution-choice` as real decisions), so this rides the same
 //     "greedy selector has no live caller" exemption as the note above.
 
+import { findPermanent } from "./lookup";
 import type {
     CardInstanceState,
     GameState,
@@ -1533,17 +1534,6 @@ export function payGrantedAbilityInSearch(
  *  sandbox. */
 const MAX_CAST_RESOLUTION_STEPS = 64;
 
-function findCreature(
-    state: GameState,
-    id: string
-): CardInstanceState | undefined {
-    for (const p of state.players) {
-        const c = p.battlefield.find((x) => x.id === id);
-        if (c) return c;
-    }
-    return undefined;
-}
-
 /** Simulate `move` for `playerId` on a clone of `state`, returning the resulting
  *  stable position for evaluation. Pure: `state` is not mutated. */
 export function applyMoveForSearch(
@@ -1751,7 +1741,7 @@ export function applyMoveForSearch(
                 blockersConfirmed: false,
             };
             for (const id of move.attackerIds) {
-                const atk = findCreature(next, id);
+                const atk = findPermanent(next, id);
                 if (!atk) continue;
                 // Shared helper (`gre/combat.ts`, issue #1195) — sets BOTH
                 // `combat.attackerIds` membership (already true here;

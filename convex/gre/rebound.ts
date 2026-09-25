@@ -61,8 +61,8 @@
 //      Decline: `submitReboundDecline` → `declineRebound` leaves the card in
 //      exile (CR 702.88c).
 import { tryGetDefinition } from "../cards";
-import type { CardInstanceState, GameState } from "./state";
-import { getPlayer } from "./state";
+import type { CardInstanceState, GameState } from "./state/declarations";
+import { getPlayer } from "./lookup";
 
 /** CR 702.88 — true iff `card`'s definition declares the `rebound` keyword. */
 export function hasRebound(card: CardInstanceState): boolean {

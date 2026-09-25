@@ -32,6 +32,7 @@
 // is the single place that classifies a `PendingTarget`, so the gate below
 // cannot drift from the rest of the engine's reading of `kind`.
 
+import { findPermanent } from "./lookup";
 import type {
     PermanentFilter,
     StaticEffect,
@@ -126,7 +127,7 @@ export function satisfiesTargetChoiceRequirement(
     target: Pick<TargetSelection, "type" | "id">
 ): boolean {
     if (target.type !== "permanent") return false;
-    const card = findBattlefieldCard(state, target.id);
+    const card = findPermanent(state, target.id);
     if (!card) return false;
     // The LIVE, layer-materialized characteristics (CR 613): a creature that is
     // a Flagbearer only because of an Aura (Coalition Flag's layer-4
@@ -142,17 +143,6 @@ export function satisfiesTargetChoiceRequirement(
             activePlayerId: state.activePlayerId,
         }
     );
-}
-
-function findBattlefieldCard(
-    state: GameState,
-    id: string
-): CardInstanceState | undefined {
-    for (const player of state.players) {
-        const found = player.battlefield.find((c) => c.id === id);
-        if (found) return found;
-    }
-    return undefined;
 }
 
 /** How many FURTHER picks this announcement still owes after the one being

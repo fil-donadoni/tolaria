@@ -41,6 +41,7 @@
 // that keeps the most material — so a free chump attack never ties "no attacks"
 // on rollout noise.
 
+import { findPermanent } from "./lookup";
 import { announcedModeFields } from "./modeSelection";
 import {
     repeatedMoveKeys,
@@ -558,17 +559,6 @@ export function rewardFromValue(v: number, weights: EvalWeights): number {
 // ---------------------------------------------------------------------------
 // Search-side move application (reuses the real GRE resolution primitives)
 // ---------------------------------------------------------------------------
-
-function findCreature(
-    state: GameState,
-    id: string
-): CardInstanceState | undefined {
-    for (const p of state.players) {
-        const c = p.battlefield.find((x) => x.id === id);
-        if (c) return c;
-    }
-    return undefined;
-}
 
 /** CR 608.2g / 106.4 (issue #3569) — credit the pool with the mana the
  *  nomination's tap plan just made, so the authoritative resolver below can
@@ -1177,7 +1167,7 @@ export function applyMoveInSearch(
                 blockersConfirmed: false,
             });
             for (const id of combat.attackerIds) {
-                const atk = findCreature(state, id);
+                const atk = findPermanent(state, id);
                 if (!atk) continue;
                 markAttacking(state, atk);
                 // CR 506.3 — the shared declaration record, so the SEARCH's
@@ -1452,7 +1442,7 @@ export function isDiscouragedRolloutMove(
         // timing (`useStack`, `sorcerySpeedOnly`, a loyalty cost, a phase
         // restriction; `isDeferrableStackAbility`) and, for the third case, the
         // engine's own `animatesSelf` marker.
-        const source = findPermanentOnBattlefield(state, move.cardInstanceId);
+        const source = findPermanent(state, move.cardInstanceId);
         if (!source) return false;
         const ability = effectiveAbilityOf(source, move.abilityId);
         // A mana ability is payment plumbing, not a play (CR 605.3a), and an
@@ -1549,21 +1539,9 @@ function isPointlessSelfAnimation(
     if (state.phase === "END_OF_COMBAT" && state.extraPhases?.length) {
         return false;
     }
-    const source = findPermanentOnBattlefield(state, move.cardInstanceId);
+    const source = findPermanent(state, move.cardInstanceId);
     if (!source) return false;
     return effectiveAbilityOf(source, move.abilityId)?.animatesSelf === true;
-}
-
-/** The permanent `instanceId` names, on either battlefield, or undefined. */
-function findPermanentOnBattlefield(
-    state: GameState,
-    instanceId: string
-): CardInstanceState | undefined {
-    for (const p of state.players) {
-        const found = p.battlefield.find((c) => c.id === instanceId);
-        if (found) return found;
-    }
-    return undefined;
 }
 
 /** The card an `activate-ability` move names, in whichever zone the ability
@@ -1589,7 +1567,7 @@ function findActivationSource(
     state: GameState,
     instanceId: string
 ): CardInstanceState | undefined {
-    const permanent = findPermanentOnBattlefield(state, instanceId);
+    const permanent = findPermanent(state, instanceId);
     if (permanent) return permanent;
     for (const p of state.players) {
         const found = p.graveyard.find((c) => c.id === instanceId);

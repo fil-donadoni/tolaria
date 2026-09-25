@@ -34,6 +34,7 @@
  * reviewable (and testable) on its own; `setup.ts` keeps only the dispatch.
  */
 
+import { findPermanent } from "../../lookup";
 import { getCardByName } from "../../../cards";
 import {
     validateAttackerEligibility,
@@ -175,18 +176,6 @@ export function applyDeclareAttackers(
             `the position did not reach an open DECLARE_BLOCKERS window (ended at "${state.phase}").`
         );
     }
-}
-
-/** The permanent `instanceId` names, on either battlefield, or undefined. */
-function findPermanent(
-    state: GameState,
-    instanceId: string
-): CardInstanceState | undefined {
-    for (const p of state.players) {
-        const found = p.battlefield.find((c) => c.id === instanceId);
-        if (found) return found;
-    }
-    return undefined;
 }
 
 /** The block step, narrowed. */

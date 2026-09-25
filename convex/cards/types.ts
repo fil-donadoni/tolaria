@@ -3748,13 +3748,6 @@ export interface SpellContext {
     caster: string;
     /** The controller of the spell/ability on the stack. */
     controller: string;
-    /** Acting Player (ADR 0037, CR 601) — the player who makes this
-     *  resolution's choices. Equals `controller` for every normal cast; differs
-     *  only for a controlled cast (Word of Command), where the controlled
-     *  opponent is the `controller`/`caster` of the chosen spell but the Word of
-     *  Command controller is the acting player. Resolve steps that prompt a
-     *  decision should route to `actingPlayer`. */
-    actingPlayer: string;
     /** The instance id of the stack item resolving. For activated abilities,
      *  this equals the id of the source permanent on the battlefield — use
      *  it to target self (e.g. Jade Statue's animate-self ability). */
@@ -3817,16 +3810,12 @@ export interface SpellContext {
     getAttachedToId: () => string | undefined;
     /** Records a player chosen as this permanent enters and stores it on the
      *  source instance for the rest of the game (CR 603.6b / 614.12 — "as ~
-     *  enters the battlefield, choose an opponent"). Read back with
-     *  `getChosenPlayer`. The source is the resolving permanent (an ETB
+     *  enters the battlefield, choose an opponent") as `chosenPlayerId`.
+     *  The source is the resolving permanent (an ETB
      *  trigger's source). No-op if the source has left the battlefield. Used
      *  by Cursed Rack (chosen opponent's max hand size is four) and The Rack
      *  (damage at the chosen player's upkeep). */
     setChosenPlayer: (playerId: string) => void;
-    /** Reads the player chosen as the source permanent entered (set by
-     *  `setChosenPlayer`). Undefined if no choice was stored or the source has
-     *  left the battlefield. */
-    getChosenPlayer: () => string | undefined;
     /** Records an ordered pair of basic land types chosen as the source
      *  permanent enters, stored on the instance for the rest of the game
      *  (CR 603.6b / 614.12 — Illusionary Terrain "as this enchantment enters,
@@ -4063,8 +4052,6 @@ export interface SpellContext {
     getLife: (playerId: string) => number;
     getPower: (target: TargetSelection) => number;
     getToughness: (target: TargetSelection) => number;
-    modifyPower: (target: TargetSelection, amount: number) => void;
-    modifyToughness: (target: TargetSelection, amount: number) => void;
     /** Adds a temporary P/T modification to `target` that expires at the
      *  end of `duration` (CR 611.1, 611.2). The modification stacks with any
      *  static `pt-buff` / `pt-cda` and other temporary mods on the same
@@ -4726,9 +4713,6 @@ export interface SpellContext {
         permanentId: string,
         opts: { returnOn: PhaseReturnCondition; onPhaseIn?: PhaseInRider }
     ) => string | null;
-    /** CR 702.26 — phase a bundle (from `phaseOut`) back in. Silent. Returns
-     *  false if the bundle id is unknown. */
-    phaseIn: (bundleId: string) => boolean;
     /** CR 603.7a / ADR 0028 — exile `targetId` and every Aura attached to it,
      *  noting the host's counters, and arm an exile-and-return bundle keyed to
      *  `sourceId`. Unlike `phaseOut` this is a real zone change (leaves/enters
@@ -5987,16 +5971,8 @@ export interface SpellContext {
      *  Cleared at CLEANUP. No-op if target is not a creature on the
      *  battlefield. Used by Nettling Imp. */
     setMustAttackThisTurn: (target: TargetSelection) => void;
-    /** Marks the resolving ability's source permanent (`sourceInstanceId`) so
-     *  it can't be regenerated for the rest of the turn (CR 701.19c). Suppresses
-     *  both regeneration shields and the continuous `"auto-regenerate"`
-     *  replacement on that permanent. Cleared at CLEANUP. No-op if the source is
-     *  no longer on the battlefield. Used by Clergy of the Holy Nimbus's "{1}:
-     *  This creature can't be regenerated this turn." */
-    setSourceCantBeRegeneratedThisTurn: () => void;
     /** Marks a TARGET creature so it can't be regenerated for the rest of the
-     *  turn (CR 701.19c — the target-scoped twin of
-     *  `setSourceCantBeRegeneratedThisTurn`). Sets the same per-instance
+     *  turn (CR 701.19c). Sets the per-instance
      *  `cantBeRegeneratedThisTurn` flag, so it suppresses both regeneration
      *  shields and the continuous `"auto-regenerate"` replacement on that
      *  creature. Cleared at CLEANUP (CR 514.2). No-op if the target is not a
@@ -6679,32 +6655,10 @@ export interface SpellContext {
         addKeywords?: string[];
     }) => void;
 
-    /** CR 614.12 — persists an as-enters NAME choice onto the permanent that
-     *  is entering (issue #1953, Meddling Mage: "As this creature enters,
-     *  choose a nonland card name"). Sibling of `setSelfBody`, sharing its
-     *  recipient resolution: during a permanent spell's `resolveSteps` the
-     *  recipient is the spell still on the stack (about to enter), during a
-     *  later re-choice it is the source permanent on the battlefield.
-     *
-     *  Deliberately NOT folded into `setSelfBody`: a name is not part of a
-     *  creature's BODY (P/T, subtypes, keywords) and nothing about it feeds
-     *  the layer pipeline — it is a stored choice, the open-ended twin of the
-     *  `chosenModeId` a modal permanent carries. Any "name a card as this
-     *  enters" permanent (Nevermore, Runed Halo, Pithing Needle) reads it back
-     *  the same way: a `cast-restriction` / guard predicate comparing
-     *  `source.chosenName` against a candidate's name. */
-    setSelfChosenName: (name: string) => void;
-
     /** Active-player-then-non-active-player order (CR 101.4). In 2-player
      *  games, returns [activePlayerId, opponentId]. Used by spells like
      *  Balance where each player makes a choice in APNAP order. */
     apNapOrder: () => string[];
-
-    /** Count of lands controlled by `playerId` (CR 305). */
-    getLandCount: (playerId: string) => number;
-
-    /** Count of creatures controlled by `playerId` (CR 302). */
-    getCreatureCount: (playerId: string) => number;
 
     /** Number of cards in `playerId`'s hand. */
     getHandSize: (playerId: string) => number;
@@ -6712,10 +6666,6 @@ export interface SpellContext {
     /** Ids of permanents on `playerId`'s battlefield matching the filter. */
     getBattlefieldIds: (playerId: string, filter?: PermanentFilter) => string[];
 
-    /** The card definition id (`card.card.id`) of a permanent on the
-     *  battlefield, or undefined if it isn't there. Used by identity filters
-     *  that key off the card registry. */
-    getCardDefinitionId: (cardInstanceId: string) => string | undefined;
     /** True if the permanent on the battlefield was originally printed in
      *  `setCode` — i.e. its card definition's home set matches (reprints do
      *  not change the home set). Used by Golgothian Sylex ("each nontoken
@@ -7832,7 +7782,7 @@ export interface PermanentView {
     /** CR 614.12 as-enters NAME choice (issue #1953 — Meddling Mage: "As this
      *  creature enters, choose a nonland card name"). The open-ended twin of
      *  `chosenModeId`'s fixed-set pick: stamped onto the entering permanent by
-     *  `SpellContext.setSelfChosenName` and read back by whatever continuous
+     *  the as-enters `name` choice and read back by whatever continuous
      *  effect the name feeds — for Meddling Mage a `cast-restriction` static
      *  comparing it against the name of the spell about to be cast. Mirrors the
      *  `CardInstanceState` field. */
@@ -17153,9 +17103,8 @@ export type EffectOp =
      *  (`{ target: N }` — Incinerate's "a creature dealt damage this way can't
      *  be regenerated this turn", Orcish Healer's activated ability), the
      *  resolving source (`$source` — Clergy of the Holy Nimbus's self-lock,
-     *  routed through the SAME setTarget primitive with the source's id — the
-     *  `setSourceCantBeRegeneratedThisTurn` variant is the identical flag write
-     *  on `item.id`), or a forEach `$each`. DISTINCT from `destroy`'s
+     *  routed through the SAME setTarget primitive with the source's id), or a
+     *  forEach `$each`. DISTINCT from `destroy`'s
      *  `cantBeRegenerated` FLAG, which suppresses regeneration only for that
      *  one destroy event — this is a STANDALONE turn-scoped lock with no
      *  destroy attached. No-op on a non-creature or a permanent that has left

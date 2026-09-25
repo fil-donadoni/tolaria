@@ -201,9 +201,9 @@ export type CardInstanceState = {
      *  mode-specific static effects (e.g. Phantasmal Terrain). */
     chosenModeId?: string;
     /** CR 614.12 as-enters NAME choice (issue #1953 — Meddling Mage). Written
-     *  by `SpellContext.setSelfChosenName` onto the permanent spell still on
-     *  the stack, so it is already present the moment the permanent enters and
-     *  its continuous effects start applying. Persisted (a `cast-restriction`
+     *  by the as-enters `name` choice onto the entering object, so it is
+     *  already present the moment the permanent enters and its continuous
+     *  effects start applying. Persisted (a `cast-restriction`
      *  static reads it on every later cast attempt, so it must survive the DB
      *  write); the open-ended twin of `chosenModeId`. */
     chosenName?: string;

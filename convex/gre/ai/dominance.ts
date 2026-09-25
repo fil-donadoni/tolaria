@@ -115,6 +115,7 @@
 // positions the search can reach a turn later anyway; the alternative is a
 // prune that never fires.
 
+import { findCardInAnyZone, findPermanent } from "../lookup";
 import type {
     CardInstanceState,
     GameState,
@@ -843,7 +844,7 @@ function applyProbeActivation(
     // clone so no nested array is shared with the card the probe still holds —
     // on the battlefield for an unsacrificed source, in the graveyard for a
     // sacrificed one.
-    const copySource = findCardAnywhere(
+    const copySource = findCardInAnyZone(
         cloneGameState(probe),
         move.cardInstanceId
     );
@@ -867,39 +868,6 @@ function applyProbeActivation(
     if (ability.cost.sacrifice) processPendingActionTriggers(probe);
     checkStateBasedActions(probe);
     return true;
-}
-
-/** The instance with `instanceId` in ANY zone of any player — the battlefield
- *  lookup {@link findPermanent} makes, widened for the one case that needs it:
- *  a source already paid away as its own activation cost. */
-function findCardAnywhere(
-    state: GameState,
-    instanceId: string
-): CardInstanceState | undefined {
-    for (const p of state.players) {
-        for (const zone of [
-            p.battlefield,
-            p.graveyard,
-            p.exile,
-            p.hand,
-            p.library,
-        ]) {
-            const found = zone.find((c) => c.id === instanceId);
-            if (found) return found;
-        }
-    }
-    return undefined;
-}
-
-function findPermanent(
-    state: GameState,
-    instanceId: string
-): CardInstanceState | undefined {
-    for (const p of state.players) {
-        const found = p.battlefield.find((c) => c.id === instanceId);
-        if (found) return found;
-    }
-    return undefined;
 }
 
 function abilityOf(card: CardInstanceState, abilityId: string) {

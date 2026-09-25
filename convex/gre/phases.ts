@@ -1,3 +1,4 @@
+import { findPermanent } from "./lookup";
 import type { Phase } from "./types";
 import type {
     DrawStepPlan,
@@ -983,18 +984,6 @@ function getCardToughness(state: GameState, card: CardInstanceState): number {
     return getEffectiveToughness(state, card);
 }
 
-/** Looks up a creature on either battlefield by instance id. */
-function findCreature(
-    state: GameState,
-    id: string
-): CardInstanceState | undefined {
-    for (const player of state.players) {
-        const found = player.battlefield.find((c) => c.id === id);
-        if (found) return found;
-    }
-    return undefined;
-}
-
 /** A combat-damage source needs a manual assignment choice when it deals
  *  damage this step and has 2+ targets to split among (CR 510.1c/d). For an
  *  attacker that means 2+ blockers; for a blocker (only possible under banding)
@@ -1011,14 +1000,14 @@ function getManualAssignmentSourceIds(
         graph.blockersByAttacker
     )) {
         if (blockerIds.length < 2) continue;
-        if (dealsAndHasPower(findCreature(state, attackerId)))
+        if (dealsAndHasPower(findPermanent(state, attackerId)))
             ids.push(attackerId);
     }
     for (const [blockerId, attackerIds] of Object.entries(
         graph.attackersByBlocker
     )) {
         if (attackerIds.length < 2) continue;
-        if (dealsAndHasPower(findCreature(state, blockerId)))
+        if (dealsAndHasPower(findPermanent(state, blockerId)))
             ids.push(blockerId);
     }
     return ids;
@@ -1172,7 +1161,7 @@ export function buildDefaultDamageAssignments(
                 // un-confirmable against `combatDamageAssignmentCompleteness`,
                 // which counts only live targets (issue #2906).
                 const liveBlockers = blockers.filter(
-                    (id) => findCreature(state, id) !== undefined
+                    (id) => findPermanent(state, id) !== undefined
                 );
                 liveBlockers.forEach((id, i) => {
                     assignment[id] =
@@ -1192,11 +1181,11 @@ export function buildDefaultDamageAssignments(
     const { attackersByBlocker } = getEffectiveBlockGraph(state);
     for (const [blockerId, attackerIds] of Object.entries(attackersByBlocker)) {
         if (attackerIds.length < 2) continue;
-        const blocker = findCreature(state, blockerId);
+        const blocker = findPermanent(state, blockerId);
         if (!blocker || !dealsDamageIn(blocker, kind)) continue;
         const power = getCardPower(state, blocker);
         const liveAttackerIds = attackerIds.filter(
-            (id) => findCreature(state, id) !== undefined
+            (id) => findPermanent(state, id) !== undefined
         );
         const assignment: Record<string, number> = {};
         liveAttackerIds.forEach((id, i) => {
@@ -1627,7 +1616,7 @@ export function applyAllCombatDamage(
         // blocker can linger in `blockerAssignments` (removal doesn't prune it)
         // — count just the live ones for the blocked-vs-trample-through branch.
         const liveBlockers = (blockersByAttacker[attackerId] ?? []).filter(
-            (id) => findCreature(state, id) !== undefined
+            (id) => findPermanent(state, id) !== undefined
         );
         const attackerPower = getCardPower(state, attacker);
         // CR 509.1h — "blocked" is combat state, not the live blocker count: an
@@ -2269,7 +2258,7 @@ function performPhaseEntry(state: GameState): void {
                     // it to the controller of the banding creature(s) opposite.
                     const assignerIds: Record<string, string> = {};
                     for (const sourceId of manualSources) {
-                        const source = findCreature(state, sourceId);
+                        const source = findPermanent(state, sourceId);
                         if (!source) continue;
                         const targets =
                             graph.blockersByAttacker[sourceId] ??

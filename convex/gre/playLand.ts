@@ -16,6 +16,7 @@
 // scan + SBA pass, but NOT the caller's surrounding concerns (game.ts owns
 // validation / seq / persistence; applyMove owns its search framing).
 
+import { findPermanent } from "./lookup";
 import { isFaceDownExile } from "./faceDown";
 import type {
     CardInstanceState,
@@ -932,7 +933,7 @@ export function finalizeLandEntry(
     // final tapped bit (paying skips only the land's OWN clause; Kismet still
     // applies independently, CR 616) and NOW emit the entry — but do NOT record
     // a land drop: only PLAYING a land does (CR 305.2).
-    const card = findLandOnBattlefield(state, landInstanceId);
+    const card = findPermanent(state, landInstanceId);
     if (!card) {
         throw new Error("land-entry target is no longer on the battlefield");
     }
@@ -942,17 +943,4 @@ export function finalizeLandEntry(
     processPendingActionTriggers(state);
     checkStateBasedActions(state);
     return card;
-}
-
-/** Locate a permanent by instance id across every player's battlefield. Used by
- *  the effect-entry `finalizeLandEntry` path (the land is already in play). */
-function findLandOnBattlefield(
-    state: GameState,
-    instanceId: string
-): CardInstanceState | undefined {
-    for (const p of state.players) {
-        const found = p.battlefield.find((c) => c.id === instanceId);
-        if (found) return found;
-    }
-    return undefined;
 }
