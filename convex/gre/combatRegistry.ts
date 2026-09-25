@@ -10,7 +10,7 @@
  * CR basis: 508.1 (attack eligibility), 509.1b (block eligibility).
  */
 
-import type { CardInstanceState } from "./state";
+import type { CardInstanceState } from "./state/declarations";
 import {
     LANDWALK_KEYWORDS,
     LANDWALK_SUPERTYPE_KEYWORDS,

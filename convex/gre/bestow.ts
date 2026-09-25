@@ -58,7 +58,7 @@ import type {
 import { tryGetDefinition } from "../cards/registry";
 import { isCreature } from "./constants";
 import { recomposeLayers2to5ForInstance } from "./layers2to5";
-import type { CardInstanceState, GameState } from "./state";
+import type { CardInstanceState, GameState } from "./state/declarations";
 
 /** CR 702.103b — the enchant ability a bestowed spell GAINS ("enchant
  *  creature"). Stamped onto the instance as `grantedEnchantRestriction`, the

@@ -31,7 +31,7 @@
 // a candidate permanent. Same live-query model, same callers
 // (`getLegalTargets`, `selectTarget`), issue #1128.
 
-import type { CardInstanceState } from "./state";
+import type { CardInstanceState } from "./state/declarations";
 import type { StaticPermanentGuard } from "../cards/types";
 import { STATIC_EFFECT_CTX } from "./layers";
 import { tryGetDefinition } from "../cards";

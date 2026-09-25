@@ -28,7 +28,7 @@ import {
     type PlayLandFace,
 } from "../cards/modalDfc";
 import type { CardDefinition } from "../cards/types";
-import type { CardInstanceState } from "./state";
+import type { CardInstanceState } from "./state/declarations";
 
 export { PLAY_LAND_FACES, type PlayLandFace };
 

@@ -51,7 +51,11 @@ import {
     isSacrificeSelectionComplete,
     type SacrificeSelection,
 } from "./sacrificeChoice";
-import type { CardInstanceState, GameState, PlayerState } from "./state";
+import type {
+    CardInstanceState,
+    GameState,
+    PlayerState,
+} from "./state/declarations";
 
 // ────────────────────────────────────────────────────────────────────────────
 // Shared conservative primitives (used here AND by `activationCostPicks.ts`)

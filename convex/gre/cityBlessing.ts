@@ -51,7 +51,7 @@
 // `controllerId` across every battlefield, not by whose battlefield array the
 // card sits in.
 
-import type { CardInstanceState, GameState } from "./state";
+import type { CardInstanceState, GameState } from "./state/declarations";
 
 /** The `staticAbilities[]` keyword string that carries Ascend (Mechanics
  *  Registry id `ascend`, CR 702.131). */

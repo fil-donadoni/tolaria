@@ -36,7 +36,7 @@ import {
     type SplitHalfSide,
 } from "../cards/splitCard";
 import type { AlternativeCost, CardDefinition } from "../cards/types";
-import type { CardInstanceState } from "./state";
+import type { CardInstanceState } from "./state/declarations";
 
 /** Namespace prefix per side for the `alternativeCostId` that announces a split
  *  half's cast. Mirrors `ADVENTURE_CAST_ALT_COST_PREFIX`'s shape so the

@@ -1,7 +1,7 @@
 import type { ActivatedAbility } from "../cards/types";
 import { tryGetDefinition } from "../cards";
 import { latestTimestamp, outrankedBy } from "./continuousEffects";
-import type { CardInstanceState } from "./state";
+import type { CardInstanceState } from "./state/declarations";
 
 /** One entry of a permanent's POST-LAYER activated-ability set: the ability
  *  template plus, when the ability was GRANTED to this permanent by another

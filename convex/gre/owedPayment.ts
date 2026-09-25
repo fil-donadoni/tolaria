@@ -54,7 +54,7 @@ import type {
     PendingActivation,
     PendingCast,
     PlayerState,
-} from "./state";
+} from "./state/declarations";
 import {
     crewPowerContribution,
     isTapOtherSelectionComplete,

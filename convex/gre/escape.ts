@@ -25,7 +25,11 @@
 import type { EscapeCost, ManaCost } from "../cards/types";
 import { getInstanceManaCost, tryGetDefinition } from "../cards";
 import { isLand } from "./constants";
-import type { CardInstanceState, GameState, PlayerState } from "./state";
+import type {
+    CardInstanceState,
+    GameState,
+    PlayerState,
+} from "./state/declarations";
 
 /** The escape cost PRINTED on `card`'s definition (Uro, Phlage, Nethergoyf), or
  *  undefined when the card has no printed escape. */

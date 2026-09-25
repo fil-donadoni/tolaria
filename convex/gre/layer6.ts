@@ -52,7 +52,7 @@ import type {
     StaticActivatedGrant,
     StaticEffect,
 } from "../cards/types";
-import type { CardInstanceState, GameState } from "./state";
+import type { CardInstanceState, GameState } from "./state/declarations";
 import type { GrantedAbilityOrigin } from "./activatedAbilities";
 import { getCardsExiledWith } from "./exileLinks";
 import { resolveZoneCharacteristics } from "./zoneCharacteristics";

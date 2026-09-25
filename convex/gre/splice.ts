@@ -52,7 +52,7 @@
 // which leaves the stack with the item.
 import type { CardDefinition, EffectOp, KickerCost } from "../cards/types";
 import { tryGetDefinition } from "../cards/registry";
-import type { CardInstanceState, PlayerState } from "./state";
+import type { CardInstanceState, PlayerState } from "./state/declarations";
 
 /** Prefix of the synthesized {@link KickerCost.id} of a splice option. The id
  *  carries the revealed hand card's INSTANCE id, not its printed card id: CR

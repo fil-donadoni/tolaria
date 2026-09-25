@@ -26,7 +26,7 @@ import type {
     CostLegs,
 } from "../cards/types";
 import { matchesPermanentFilter } from "../cards/filters";
-import type { PlayerState } from "./state";
+import type { PlayerState } from "./state/declarations";
 import { STATIC_EFFECT_CTX } from "./layers";
 import { canPayHandCost, matchingHandCardsForAltCost } from "./alternativeCost";
 

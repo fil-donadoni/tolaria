@@ -58,7 +58,11 @@ import {
     handCardMatchesFilter,
 } from "./alternativeCost";
 import type { CastFromZone } from "./castCost";
-import type { CardInstanceState, GameState, PlayerState } from "./state";
+import type {
+    CardInstanceState,
+    GameState,
+    PlayerState,
+} from "./state/declarations";
 
 /** Namespace prefix for the `alternativeCostId` a permission's free cast is
  *  addressed by on the wire (`announceCast.alternativeCostId`,

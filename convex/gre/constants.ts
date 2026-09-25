@@ -36,7 +36,7 @@ import type {
     GameState,
     ManaSubstitution,
     PendingTarget,
-} from "./state";
+} from "./state/declarations";
 import type { ContinuousEffect } from "./continuousEffects";
 import { applySubstitution } from "./textChanges";
 import {

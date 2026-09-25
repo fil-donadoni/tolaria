@@ -52,7 +52,10 @@ import {
     modalBackFaceDefinitionId,
 } from "../cards/modalDfc";
 import { rebuildCopiableValuesAndReplayOverlays } from "./identitySwap";
-import type { CardInstanceState, StackTransformStamp } from "./state";
+import type {
+    CardInstanceState,
+    StackTransformStamp,
+} from "./state/declarations";
 import type { LayerStateView } from "./layers";
 
 /** The content-derived definition id a NONMODAL back face presents (CR 712.2)

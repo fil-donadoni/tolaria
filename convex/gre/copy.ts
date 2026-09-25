@@ -24,7 +24,7 @@ import type {
     Duration,
     LastKnownCopiable,
     TimedCopyLayer,
-} from "./state";
+} from "./state/declarations";
 import type { LayerStateView } from "./layers";
 
 /** Everything a copy SOURCE contributes to a copy effect (CR 707.2). Narrower

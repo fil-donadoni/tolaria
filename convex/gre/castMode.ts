@@ -70,7 +70,7 @@ import {
     isMorphCastId,
     MORPH_CAST_ALT_COST_ID,
 } from "./morph";
-import type { CardInstanceState } from "./state";
+import type { CardInstanceState } from "./state/declarations";
 import type { LayerStateView } from "./layers";
 
 /** A cast mode: an alternative cost that changes what the spell IS or what

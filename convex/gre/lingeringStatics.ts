@@ -51,7 +51,7 @@ import type {
     ContinuousEffectInlinePayload,
     ContinuousEffectSlot,
 } from "./continuousEffects";
-import type { Duration } from "./state";
+import type { Duration } from "./state/declarations";
 import type { LayerStateView } from "./layers";
 import { STATIC_EFFECT_CTX, LAYER_7_STATIC_EFFECT_KINDS } from "./layers";
 import { LAYER_2_5_STATIC_EFFECT_KINDS } from "./layers2to5";

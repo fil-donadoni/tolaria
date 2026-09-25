@@ -100,7 +100,7 @@ import {
     declaresOffBattlefieldCharacteristics,
     tryGetDefinition,
 } from "../cards/registry";
-import type { CardInstanceState, GameState } from "./state";
+import type { CardInstanceState, GameState } from "./state/declarations";
 import type { Zone } from "./types";
 
 /** The characteristics a card has in `zone`, or `null` when its definition

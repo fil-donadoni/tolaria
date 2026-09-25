@@ -15,7 +15,7 @@
 // `PERMANENT_EXERTED` event the linked "when you do" trigger listens to
 // (CR 701.43d / 607.2h).
 
-import type { CardInstanceState, GameState } from "./state";
+import type { CardInstanceState, GameState } from "./state/declarations";
 import type {
     CardType,
     GameEvent,

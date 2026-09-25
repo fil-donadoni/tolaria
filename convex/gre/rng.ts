@@ -3,7 +3,7 @@
 // which advances the counter and derives the next float from (seed, counter).
 // Replay a game by re-running events against the same initial seed.
 
-import type { GameState } from "./state";
+import type { GameState } from "./state/declarations";
 
 /** Mulberry32 finalizer applied to a seed-derived 32-bit integer.
  *  Stateless: same (seed, counter) → same float in [0, 1). */

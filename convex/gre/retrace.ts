@@ -41,7 +41,11 @@ import { tryGetDefinition } from "../cards";
 import { tryGetEmblemDefinition } from "../cards/emblems";
 import { canPayHandCost } from "./alternativeCost";
 import { isLand } from "./constants";
-import type { CardInstanceState, GameState, PlayerState } from "./state";
+import type {
+    CardInstanceState,
+    GameState,
+    PlayerState,
+} from "./state/declarations";
 
 /** CR 702.81a — the retrace additional cost, as the shared `CostLegs` hand leg
  *  every other filtered give-up-from-hand cost already uses (ADR 0079). One

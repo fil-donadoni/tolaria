@@ -37,7 +37,7 @@ import {
 } from "../cards/insetSpell";
 import { tryGetDefinition } from "../cards";
 import type { AlternativeCost, CardDefinition } from "../cards/types";
-import type { CardInstanceState } from "./state";
+import type { CardInstanceState } from "./state/declarations";
 
 /** Namespace prefix for the `alternativeCostId` that announces an Adventure
  *  cast. Mirrors `CAST_PERMISSION_ALT_COST_PREFIX`'s shape (`castPermissions.ts`)

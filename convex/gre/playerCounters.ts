@@ -13,7 +13,7 @@
 // `cards/__tests__/effectScripts.test.ts`). See
 // `docs/findings/1969-figure-of-fable-import-cycle.md`.
 import type { PlayerCounterKind } from "../cards/types";
-import type { PlayerState } from "./state";
+import type { PlayerState } from "./state/declarations";
 
 /** CR 122.1 — the single map from a {@link PlayerCounterKind} to the dedicated
  *  `PlayerState` scalar that stores it (ADR 0032: player counters are named

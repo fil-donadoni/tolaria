@@ -29,7 +29,7 @@
 // this combat damage going to land? — and keeping them in one file is what
 // makes it obvious that the source-side answer OVERRIDES the target-side one.
 
-import type { CardInstanceState, GameState } from "./state";
+import type { CardInstanceState, GameState } from "./state/declarations";
 import type { CombatPreventionStateView } from "../cards/types";
 import { STATIC_EFFECT_CTX } from "./layers";
 import { tryGetDefinition } from "../cards";

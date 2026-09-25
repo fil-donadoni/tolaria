@@ -53,7 +53,7 @@
 // Swamp tap) and is not a mana ability at all.
 
 import type { ActivatedAbility, Color } from "../cards/types";
-import type { GameState, PlayerState } from "./state";
+import type { GameState, PlayerState } from "./state/declarations";
 import {
     MANA_COLORS,
     abilitiesSuppressed,
