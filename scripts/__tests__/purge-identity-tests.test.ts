@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { areaOf, dryRun, purgeFile } from "../purge-identity-tests";
+import {
+    areaOf,
+    dryRun,
+    purgeFile,
+    purgeSources,
+} from "../purge-identity-tests";
 import {
     classifyTestBlocks,
     type CardFacts,
@@ -335,6 +340,35 @@ describe("the purge — both classes, repo-wide (issue #4490)", () => {
         });
         expect(r.after).toBe(0);
         expect(r.emptied).toBe(true);
+    });
+
+    it("the repo-wide rewrite hands card facts to card-set suites ONLY — an engine test on the same card is untouched", () => {
+        const GRE_FILE = "convex/gre/__tests__/x.test.ts";
+        const r = purgeSources(
+            [
+                { file: SET_FILE, source: SOURCE },
+                { file: GRE_FILE, source: SOURCE },
+            ],
+            cards,
+            new Set()
+        );
+        expect(r.writes.map((w) => w.file)).toEqual([SET_FILE]);
+        expect(r.removedOpOnly).toBe(1);
+        expect(r.rows).toEqual([
+            `op-only\t${SET_FILE}:4\tLightning Bolt > deals 3 to a player`,
+        ]);
+        expect(r.byArea.get("set:lea")).toEqual([2, 1]);
+        expect(r.byArea.get("convex/gre")).toEqual([2, 2]);
+    });
+
+    it("the repo-wide rewrite unlinks a suite it emptied instead of writing it back", () => {
+        const r = purgeSources(
+            [{ file: SET_FILE, source: wrap(OP_ONLY_BLOCK) }],
+            cards,
+            new Set()
+        );
+        expect(r.unlinks).toEqual([SET_FILE]);
+        expect(r.writes).toEqual([]);
     });
 
     it("--keep spares an Op-only block by file:line", () => {

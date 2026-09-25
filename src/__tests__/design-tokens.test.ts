@@ -12,6 +12,7 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import { resolve, join, relative } from "node:path";
 import {
     V3_TOKEN_GROUPS,
+    V4_TOKEN_GROUPS,
     ALL_TOKEN_GROUPS,
     DENSITY_RUNGS,
     PALETTE_TOKENS,
@@ -255,6 +256,29 @@ describe("design tokens — WCAG contrast (phase 3)", () => {
 
 describe("design tokens v3 — CSS ↔ typed mirror", () => {
     const allV3 = ALL_TOKEN_GROUPS.flatMap((g) => g.tokens);
+
+    it("declares every mirrored family in @layer base :root, not @theme inline", () => {
+        // Eight families × their tokens. A count assertion is the cheap guard
+        // against a family being dropped from the mirror wholesale.
+        expect(V3_TOKEN_GROUPS.map((g) => g.id)).toEqual([
+            "fluid-type",
+            "density",
+            "control-heights",
+            "motion",
+            "panel-frame",
+        ]);
+        // Identity v4 (ADR 0103, issue #2722) adds three more; issue #2731
+        // adds a fourth (menu rows).
+        expect(V4_TOKEN_GROUPS.map((g) => g.id)).toEqual([
+            "v4-display",
+            "v4-frame",
+            "v4-grain",
+            "v4-menu-row",
+        ]);
+        // Was 36 pre-#2734: the Panel v3 frame group shed 5 bracket-specific
+        // tokens (retired, ADR 0103 §5) and kept only --panel-header-pad-x.
+        expect(allV3.length).toBeGreaterThanOrEqual(35);
+    });
 
     it.each(allV3.map((t) => [t.name, t.value] as const))(
         "%s matches the value declared in src/index.css",

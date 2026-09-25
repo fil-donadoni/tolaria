@@ -24,10 +24,7 @@
 //     `applyActivationCostReduction`) and this test is what found them;
 //   • a `hole` row whose tracking reference is not an issue number (the SHAPE
 //     only — `tsc` already enforces the template literal, and nothing here
-//     asks GitHub whether the issue exists or is still open);
-//   • the derived `NEVER_AUTO_PAYABLE_COST_LEGS` still saying what the
-//     hand-maintained list said, so the derivation is a refactor and not a
-//     behaviour change.
+//     asks GitHub whether the issue exists or is still open).
 //
 // It does NOT prove board-state reachability — that the enumerator yields a
 // legal, payable Move for a leg on a real board. That needs a canned position

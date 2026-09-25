@@ -11,7 +11,12 @@
  * A `health` step (`HEALTH_SCRIPTS`), never a PR-phase gate: the census
  * loads the whole catalogue to know which cards are pure-DSL and walks every
  * test file (~7s measured), and a PR diff cannot move its answer in a way the
- * classifier's own unit tests would not catch. The `convex/cards/sets/**`
+ * classifier's own unit tests would not catch. Only the Op-only half needs
+ * the catalogue; the identity half is cheap, and it still lives here, by the
+ * issue's decision that no new guard joins a PR-phase gate. The price is
+ * that a new constant-pin test lands green and reds the next `health` run,
+ * which then names the block and the fix (delete it, or allow-list a census /
+ * partition / domain pin by name with its reason). The `convex/cards/sets/**`
  * identity guard that predates it (`scripts/__tests__/
  * identity-only-card-tests.test.ts`, issue #2363) stays where it is, in the
  * PR-phase suite, at its original scope.

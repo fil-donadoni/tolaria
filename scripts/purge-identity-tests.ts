@@ -96,6 +96,10 @@ import {
 
 const REPO_ROOT = path.resolve(__dirname, "..");
 
+/** `.tsx` suites parse as TSX, as the classifier parses them. */
+const scriptKindOf = (file: string) =>
+    file.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS;
+
 const BLOCK_FNS = new Set(["it", "test"]);
 const SUITE_FNS = new Set(["describe", "suite"]);
 
@@ -223,7 +227,7 @@ function stripEmptySuites(file: string, text: string): string {
             text,
             ts.ScriptTarget.Latest,
             true,
-            ts.ScriptKind.TS
+            scriptKindOf(file)
         );
         const ranges: Range[] = [];
         const visit = (node: ts.Node) => {
@@ -319,7 +323,7 @@ function stripUnusedBindings(file: string, text: string): string {
             text,
             ts.ScriptTarget.Latest,
             true,
-            ts.ScriptKind.TS
+            scriptKindOf(file)
         );
         const used = referencedNames(sf);
         const isUsed = (n: string) => (used.get(n) ?? 0) > 0;
@@ -437,7 +441,7 @@ export function purgeFile(
             source,
             ts.ScriptTarget.Latest,
             true,
-            ts.ScriptKind.TS
+            scriptKindOf(relFile)
         );
         const doomedLines = new Set(doomed.map((b) => b.line));
         const ranges: Range[] = [];
@@ -464,6 +468,12 @@ export function purgeFile(
     }
 
     const after = classifyTestBlocks(relFile, text).length;
+    // Every doomed block must have been found again by its line: a miss here
+    // would report a deletion that never happened.
+    if (before - after !== doomed.length)
+        throw new Error(
+            `${relFile}: ${doomed.length} blocks doomed, ${before - after} removed`
+        );
     return {
         file: relFile,
         removed: doomed.length,
@@ -708,47 +718,25 @@ async function main() {
         return;
     }
 
-    const cards = await loadCardFacts();
-    let removedIdentity = 0;
-    let removedOpOnly = 0;
-    const emptied: string[] = [];
-    const touched: string[] = [];
-    const rows: string[] = [];
-    /** Area → [blocks before, blocks after]. */
-    const byArea = new Map<string, [number, number]>();
-
-    for (const rel of trackedTestFiles()) {
-        const abs = path.join(REPO_ROOT, rel);
-        const source = fs.readFileSync(abs, "utf-8");
-        const result = purgeFile(rel, source, keep, {
-            cards: isCardSetSuite(rel) ? cards : undefined,
-            readImport: readRelativeImport,
-        });
-        const area = byArea.get(areaOf(rel)) ?? [0, 0];
-        area[0] += result.before;
-        area[1] += result.after;
-        byArea.set(areaOf(rel), area);
-        if (result.removed === 0) continue;
-        removedIdentity += result.removedIdentity;
-        removedOpOnly += result.removedOpOnly;
-        touched.push(rel);
-        for (const d of result.deleted)
-            rows.push([d.kind, `${rel}:${d.line}`, d.name].join("\t"));
-        if (result.emptied) {
-            // A suite that declares no test fails vitest ("No test found"),
-            // so a file the purge emptied goes with its blocks.
-            emptied.push(rel);
-            fs.unlinkSync(abs);
-        } else {
-            fs.writeFileSync(abs, result.text);
-        }
-    }
+    const sources = trackedTestFiles().map((file) => ({
+        file,
+        source: fs.readFileSync(path.join(REPO_ROOT, file), "utf-8"),
+    }));
+    const purge = purgeSources(
+        sources,
+        await loadCardFacts(),
+        keep,
+        readRelativeImport
+    );
+    for (const { file, text } of purge.writes)
+        fs.writeFileSync(path.join(REPO_ROOT, file), text);
+    for (const file of purge.unlinks) fs.unlinkSync(path.join(REPO_ROOT, file));
 
     console.log(
-        `removed ${removedIdentity} identity + ${removedOpOnly} Op-only blocks across ${touched.length} files`
+        `removed ${purge.removedIdentity} identity + ${purge.removedOpOnly} Op-only blocks across ${purge.writes.length + purge.unlinks.length} files`
     );
     console.log("\nblocks per area (before → after), changed areas only:");
-    for (const [area, [before, after]] of [...byArea].sort((a, b) =>
+    for (const [area, [before, after]] of [...purge.byArea].sort((a, b) =>
         a[0].localeCompare(b[0])
     )) {
         if (before === after) continue;
@@ -756,16 +744,70 @@ async function main() {
             `  ${area.padEnd(28)} ${String(before).padStart(5)} → ${String(after).padStart(5)}`
         );
     }
-    if (emptied.length > 0) {
+    if (purge.unlinks.length > 0) {
         console.log(
-            `\nfiles left with ZERO tests, deleted (${emptied.length}):`
+            `\nfiles left with ZERO tests, deleted (${purge.unlinks.length}):`
         );
-        for (const f of emptied) console.log("  " + f);
+        for (const f of purge.unlinks) console.log("  " + f);
     }
     if (list) {
-        fs.writeFileSync(list, rows.join("\n") + "\n");
-        console.log(`\n${rows.length} deleted blocks → ${list}`);
+        fs.writeFileSync(list, purge.rows.join("\n") + "\n");
+        console.log(`\n${purge.rows.length} deleted blocks → ${list}`);
     }
+}
+
+export interface RepoPurge {
+    /** Files to rewrite, with their purged text. */
+    writes: { file: string; text: string }[];
+    /** Files the purge emptied — a suite that declares no test fails vitest
+     *  ("No test found"), so it goes with its blocks. */
+    unlinks: string[];
+    /** One `kind\tfile:line\tname` row per deleted block. */
+    rows: string[];
+    /** Area → [blocks before, blocks after]. */
+    byArea: Map<string, [number, number]>;
+    removedIdentity: number;
+    removedOpOnly: number;
+}
+
+/**
+ * The repo-wide rewrite over already-read sources — pure, so the one decision
+ * that matters is unit-testable: card facts reach the classifier for a
+ * card-set suite ONLY. Handed to every file, the Op-only class would purge
+ * engine tests that use a pure-DSL card as a fixture.
+ */
+export function purgeSources(
+    sources: readonly { file: string; source: string }[],
+    cards: CardFacts,
+    keep: Set<string>,
+    readImport?: (fromFile: string, specifier: string) => string | undefined
+): RepoPurge {
+    const out: RepoPurge = {
+        writes: [],
+        unlinks: [],
+        rows: [],
+        byArea: new Map(),
+        removedIdentity: 0,
+        removedOpOnly: 0,
+    };
+    for (const { file, source } of sources) {
+        const result = purgeFile(file, source, keep, {
+            cards: isCardSetSuite(file) ? cards : undefined,
+            readImport,
+        });
+        const area = out.byArea.get(areaOf(file)) ?? [0, 0];
+        area[0] += result.before;
+        area[1] += result.after;
+        out.byArea.set(areaOf(file), area);
+        if (result.removed === 0) continue;
+        out.removedIdentity += result.removedIdentity;
+        out.removedOpOnly += result.removedOpOnly;
+        for (const d of result.deleted)
+            out.rows.push([d.kind, `${file}:${d.line}`, d.name].join("\t"));
+        if (result.emptied) out.unlinks.push(file);
+        else out.writes.push({ file, text: result.text });
+    }
+    return out;
 }
 
 if (import.meta.main) await main();

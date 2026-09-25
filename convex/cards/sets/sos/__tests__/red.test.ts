@@ -59,6 +59,19 @@ function jokeBoard(): GameState {
 
 describe("Impractical Joke — 'Damage can't be prevented this turn' (CR 615.12)", () => {
     it("deals its 3 damage THROUGH a prevention shield, and leaves the shield unspent", () => {
+        // The control half of the pair, on a fresh board: the same shields DO
+        // prevent an unaccompanied Bolt, so the pierce below is the lock at
+        // work and not an inert fixture.
+        const control = jokeBoard();
+        pushSpell(control, LIGHTNING_BOLT_ID, "p1", [
+            { type: "permanent", id: "victim" },
+        ]);
+        resolveTopOfStack(control);
+        expect(
+            control.players[1].battlefield.find((c) => c.id === "victim")!
+                .damageMarked
+        ).toBeUndefined();
+
         const state = jokeBoard();
         pushSpell(state, impracticalJoke.id, "p1", [
             { type: "permanent", id: "victim" },

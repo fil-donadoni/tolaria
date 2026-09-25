@@ -150,6 +150,26 @@ function runtimeAmountSkipFor(key: string): boolean {
 }
 
 describe("AMOUNT_KEYS — an op-covered Op's runtime amount is card-dependent (ADR 0105 § 7.1)", () => {
+    it("names exactly the EffectValue-typed fields it names today", () => {
+        expect([...AMOUNT_KEYS].sort()).toEqual([
+            "amount",
+            "costPerKept",
+            "count",
+            "energyEqualTo",
+            "genericEqualTo",
+            "left",
+            "look",
+            "max",
+            "min",
+            "negate",
+            "power",
+            "reducedBy",
+            "right",
+            "take",
+            "toughness",
+        ]);
+    });
+
     it.each([...AMOUNT_KEYS].sort())(
         "%s: an unsizable value under it is a runtime-amount skip",
         (key) => {

@@ -17,6 +17,7 @@
 import { describe, it, expect } from "vitest";
 import {
     nonZoneChoiceCandidateIds,
+    NON_ZONE_CANDIDATE_SOURCE,
     PILE_LABELS,
     type NonZoneChoiceHead,
 } from "../nonZoneChoiceCandidates";
@@ -24,6 +25,27 @@ import {
 function head(over: Partial<NonZoneChoiceHead>): NonZoneChoiceHead {
     return { kind: "choose-graveyard-card", ...over } as NonZoneChoiceHead;
 }
+
+describe("NON_ZONE_CANDIDATE_SOURCE", () => {
+    it("names exactly the six kinds whose candidates are not cards", () => {
+        // `tsc` guarantees every `PendingChoiceKind` has a row; it cannot
+        // guarantee the row is RIGHT. This pins the split: a kind quietly moved
+        // onto the "it's just cards" side is the bug `pick-pile` was.
+        expect(
+            Object.entries(NON_ZONE_CANDIDATE_SOURCE)
+                .filter(([, source]) => source !== "none")
+                .map(([kind, source]) => `${kind}=${source}`)
+                .sort()
+        ).toEqual([
+            "choose-damage-target=players",
+            "choose-player=players",
+            "option-pick=options",
+            "pick-pile=piles",
+            "trigger-mode=options",
+            "trigger-order=candidateIds",
+        ]);
+    });
+});
 
 describe("nonZoneChoiceCandidateIds", () => {
     it("ADR 0053 — offers BOTH pile labels, including the empty pile", () => {
