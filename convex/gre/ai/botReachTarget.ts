@@ -376,8 +376,8 @@ function isSorceryLifeGain(def: CardDefinition): boolean {
 /**
  * The race a life-gain sorcery is posed in. Life pays only when it is
  * scarce: at a full life total the Bot rightly keeps the card, so the holder
- * is one point from dead against an opposing body that swings for more than
- * that. `null` when `def` is not a sorcery that only gains its controller life.
+ * is one point from dead against a board that outnumbers its one blocker (the
+ * position's own opposing bodies plus two more plain creatures). `null` when `def` is not a sorcery that only gains its controller life.
  */
 export function sorceryLifeGainRace(
     def: CardDefinition
