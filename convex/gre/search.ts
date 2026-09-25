@@ -202,6 +202,7 @@ import {
     isTransientOnlyAbility,
     spendsStandingPermanent,
 } from "./ai/abilityTiming";
+import { abilityBenefitIsConfinedToSource } from "./ai/sourceConfinedBenefit";
 import { assertNever } from "./assertNever";
 // Root-decision telemetry (issue #1893, map #1892) — off by default.
 import {
@@ -2657,10 +2658,7 @@ function isDeferrableTransientSacrifice(
     pid: string,
     move: Move
 ): boolean {
-    const inLiveCombat =
-        TRANSIENT_PAYOFF_PHASES.has(state.phase) &&
-        (state.combat?.attackerIds.length ?? 0) > 0;
-    if (state.stack.length > 0 || inLiveCombat) return false;
+    if (!inQuietWindow(state)) return false;
     return isSacrificeConversionWhere(
         state,
         pid,
@@ -2668,6 +2666,50 @@ function isDeferrableTransientSacrifice(
         (ability) =>
             isDeferrableStackAbility(ability) && isTransientOnlyAbility(ability)
     );
+}
+
+/** Whether `move` gives up a standing permanent for a payoff that lands ONLY
+ *  on the ability's own source (`abilityBenefitIsConfinedToSource`: a counter,
+ *  a buff, a granted ability), in a window where the payoff cannot matter
+ *  (issue #4271).
+ *
+ *  The payoff here is LASTING, so `isDeferrableTransientSacrifice`'s argument
+ *  ("gone by next turn") does not apply; the argument is redistribution
+ *  instead. Growing one body by sacrificing another moves worth around the
+ *  board and creates none — no card, no mana, no damage, no life — so the edge
+ *  is a step down from passing that the root already scores as an option
+ *  (`selectRootMove` reads the un-pruned root). What it must not do is sit
+ *  BELOW the root: the outlet's two sacrifice variants outnumber the one
+ *  `pass` at the node after its own cast, the cast edge's mean is dragged
+ *  down by subtrees strictly worse than passing, and a creature the search
+ *  values higher on its own reads worse than `pass` (four self-growing
+ *  outlets, all `never-chosen`, while the same body without the ability was
+ *  played). No timing clause: a sorcery-speed outlet is pruned on the same
+ *  terms, its ability has no later window to defer to and needs none.
+ *  Per-card-agnostic, never a card name (ADR 0102). */
+function isSourceConfinedSacrifice(
+    state: GameState,
+    pid: string,
+    move: Move
+): boolean {
+    if (!inQuietWindow(state)) return false;
+    return isSacrificeConversionWhere(
+        state,
+        pid,
+        move,
+        (ability) =>
+            ability.useStack && abilityBenefitIsConfinedToSource(ability)
+    );
+}
+
+/** Neither a response window (a non-empty stack) nor a live combat step: the
+ *  two places a sacrifice payoff can matter (a permanent about to be lost, a
+ *  trick after blocks). */
+function inQuietWindow(state: GameState): boolean {
+    const inLiveCombat =
+        TRANSIENT_PAYOFF_PHASES.has(state.phase) &&
+        (state.combat?.attackerIds.length ?? 0) > 0;
+    return state.stack.length === 0 && !inLiveCombat;
 }
 
 function isSacrificeConversionWhere(
@@ -2976,7 +3018,9 @@ function iterate(
         // node (unlike the dominance probe); never emptying, `pass` is kept.
         if (depth > 0) {
             const kept = keyed.filter(
-                (k) => !isDeferrableTransientSacrifice(world, pid, k.move)
+                (k) =>
+                    !isDeferrableTransientSacrifice(world, pid, k.move) &&
+                    !isSourceConfinedSacrifice(world, pid, k.move)
             );
             if (kept.length > 0) keyed = kept;
         }
