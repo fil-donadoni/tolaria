@@ -165,22 +165,39 @@ describe("check:test-hygiene — the wiring", () => {
  * re-export identity guard) landed green while `convex/CLAUDE.md` still
  * described the pre-#4489 card-set guard ("allowlist empty, meant to stay
  * empty"). The rule lives in prose where the mistake is made; this keeps the
- * prose from silently dropping it again.
+ * prose from silently dropping it again — anchored to the SECTION an author
+ * reads (the sentence pasted elsewhere in the file does not count), and it
+ * names both guards, so the card-set PR-phase one cannot be written out
+ * either (the first draft of this fix did exactly that).
  */
 describe("check:test-hygiene — the authoring tier names it (issue #4686)", () => {
-    const read = (rel: string) => fs.readFileSync(path.join(ROOT, rel), "utf8");
+    /** The body of the `## <heading>` section, up to the next `## `. */
+    const section = (rel: string, heading: string): string => {
+        const doc = fs.readFileSync(path.join(ROOT, rel), "utf8");
+        const start = doc.indexOf(`\n## ${heading}`);
+        expect(start, `${rel}: no section "## ${heading}"`).toBeGreaterThan(-1);
+        const rest = doc.slice(start + 1);
+        const end = rest.indexOf("\n## ", 1);
+        return end === -1 ? rest : rest.slice(0, end);
+    };
 
-    it("convex/CLAUDE.md § Card testing convention names the census and the allow-list", () => {
-        const doc = read("convex/CLAUDE.md");
-        expect(doc).toContain("bun run check:test-hygiene");
-        expect(doc).toContain("scripts/lib/identity-test-allowlist.json");
-        // The pre-#4489 claim: an empty allow-list nobody may add to.
-        expect(doc).not.toContain("meant to stay empty");
+    it("convex/CLAUDE.md § Card testing convention names both identity guards and the allow-list", () => {
+        const body = section("convex/CLAUDE.md", "Card testing convention");
+        // The PR-phase guard over convex/cards/sets/** (issue #2363) …
+        expect(body).toContain("identity-only-card-tests.test.ts");
+        // … and the repo-wide health census (issue #4490) with its allow-list.
+        expect(body).toContain("check:test-hygiene");
+        expect(body).toContain("scripts/lib/identity-test-allowlist.json");
+        // The pre-#4489 claim, in any wording: an allow-list nobody may add to.
+        expect(body).not.toMatch(/allow-?list[^.]*\bempty\b/i);
     });
 
-    it("/next-issue § 3 tells the author to run it before the PR", () => {
-        const skill = read(".claude/skills/next-issue/SKILL.md");
-        expect(skill).toContain("bun run check:test-hygiene");
-        expect(skill).toContain("scripts/lib/identity-test-allowlist.json");
+    it("/next-issue § 3 Implement tells the author to run the census before the PR", () => {
+        const body = section(
+            ".claude/skills/next-issue/SKILL.md",
+            "3. Implement"
+        );
+        expect(body).toContain("check:test-hygiene");
+        expect(body).toContain("scripts/lib/identity-test-allowlist.json");
     });
 });

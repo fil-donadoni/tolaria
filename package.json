@@ -16,7 +16,7 @@
         "check:bundle": "bun scripts/check-bundle-size.ts",
         "check:convex-bundle": "bun scripts/check-convex-bundle-size.ts",
         "check:docs": "bun scripts/gate.ts light 'bun run check:docs:inner'",
-        "check:docs:inner": "bun run format:check && bun run cr:lint && vitest run --project node-engine --project node-tooling scripts/__tests__/action-space.test.ts scripts/__tests__/adr-index.test.ts scripts/__tests__/agents-md-drift.test.ts scripts/__tests__/bot-globs.test.ts scripts/__tests__/cr-citation-ledger.test.ts scripts/__tests__/cr-source.test.ts scripts/__tests__/destructive-data-recipes.test.ts scripts/__tests__/findings.test.ts scripts/__tests__/gate-rule-parity.test.ts scripts/__tests__/project-skills.test.ts scripts/__tests__/resident-context-budget.test.ts",
+        "check:docs:inner": "bun run format:check && bun run cr:lint && vitest run --project node-engine --project node-tooling scripts/__tests__/action-space.test.ts scripts/__tests__/adr-index.test.ts scripts/__tests__/agents-md-drift.test.ts scripts/__tests__/bot-globs.test.ts scripts/__tests__/check-test-hygiene.test.ts scripts/__tests__/cr-citation-ledger.test.ts scripts/__tests__/cr-source.test.ts scripts/__tests__/destructive-data-recipes.test.ts scripts/__tests__/findings.test.ts scripts/__tests__/gate-rule-parity.test.ts scripts/__tests__/project-skills.test.ts scripts/__tests__/resident-context-budget.test.ts",
         "check:gaps": "bun scripts/check-gaps.ts",
         "check:targets": "bun scripts/check-targets.ts",
         "check:test-hygiene": "bun scripts/check-test-hygiene.ts",
