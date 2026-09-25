@@ -733,6 +733,21 @@ describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
         }
     }, 600_000);
 
+    // The gain-life sorcery pays only when life is scarce, so the sweep poses
+    // the holder one point from dead against an attacker (`sorceryLifeGainRace`).
+    it("played — a sorcery that only gains its controller life", () => {
+        for (const name of [
+            "Bountiful Harvest",
+            "Gerrard's Wisdom",
+            "Presence of the Wise",
+        ]) {
+            expect(playBotReachSeats(getCardByName(name)), name).toEqual([
+                { holderId: "p1", verdict: { outcome: "played" } },
+                { holderId: "p2", verdict: { outcome: "played" } },
+            ]);
+        }
+    }, 600_000);
+
     it("a draw spell's holder finds spells on top of the library, and only that holder", () => {
         const topOfLibrary = (def: CardDefinition, seat: 0 | 1): unknown => {
             const { state, holderId } = buildBotReachState(def, seat);
