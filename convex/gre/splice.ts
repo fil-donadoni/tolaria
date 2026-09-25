@@ -253,7 +253,7 @@ export function splicedCardIdsOfEntries(
 /** Every field an Effect Script DECLARES a binding through (`validate.ts`'s
  *  `declared` map is written from exactly these). Read by
  *  {@link spliceSegmentBindings} to find the names one spliced segment owns. */
-const BINDING_DECLARATION_FIELDS = [
+export const HAND_BINDING_DECLARATION_FIELDS = [
     "bind",
     "bindOther",
     "bindSource",
@@ -279,7 +279,7 @@ function spliceSegmentBindings(node: unknown, out: Set<string>): void {
         if (
             typeof value === "string" &&
             value.startsWith("$") &&
-            (BINDING_DECLARATION_FIELDS as readonly string[]).includes(key)
+            (HAND_BINDING_DECLARATION_FIELDS as readonly string[]).includes(key)
         ) {
             out.add(value);
         }
