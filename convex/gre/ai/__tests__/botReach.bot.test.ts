@@ -15,6 +15,7 @@ import { decidingPlayer } from "../../search";
 import { enumerateMoves } from "../../moves";
 import { flashAmbushPosition } from "../botReachTarget";
 import {
+    OPPONENT_END_STEP_WINDOW,
     REACH_WINDOWS,
     botReachSpec,
     buildBotReachState,
@@ -128,6 +129,33 @@ const SELF_GRANTED_HASTE_CREATURE: CardDefinition = {
     ],
 };
 
+/** CR 303.4 / 702.8a — a Flash Aura whose whole effect is a static grant to the
+ *  creature it enchants, the shape the compiler emits (`appliesTo: "host"`, no
+ *  Op). A body-less permanent the Bot holds at sorcery speed (`hold-trick`) and
+ *  casts in the opponent's end step (issue #4260). */
+function flashAura(
+    slug: string,
+    grant: NonNullable<CardDefinition["compiledStaticEffects"]>
+): CardDefinition {
+    return {
+        id: `bot-reach-test:flash-aura-${slug}`,
+        name: `Bot Reach Flash Aura ${slug}`,
+        rarity: "common",
+        manaCost: { generic: 1, G: 1 },
+        types: ["Enchantment"],
+        subtypes: ["Aura"],
+        staticAbilities: ["flash"],
+        targetRequirement: { type: "Creature", count: 1 },
+        compiledStaticEffects: grant,
+    };
+}
+
+const FLASH_AURA_DOUBLE_STRIKE = flashAura("double-strike", [
+    { kind: "keyword-grant", appliesTo: "host", keyword: "double strike" },
+]);
+const FLASH_AURA_SHROUD = flashAura("shroud", [
+    { kind: "keyword-grant", appliesTo: "host", keyword: "shroud" },
+]);
 /** CR 701.21a — an edict: the TARGET player owes a mandatory
  *  `sacrifice-permanents` choice mid-resolution, so the follow-through must
  *  answer it and see the spell leave the stack (issue #4189). */
@@ -273,6 +301,33 @@ describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
                 outcome: "played",
             });
         });
+    });
+
+    // Issue #4260: the Bot holds a Flash permanent it could cast at sorcery
+    // speed (`hold-trick`, issue #2248) and casts it at instant speed, a window
+    // the sweep never posed — 13 Flash Auras read as `never-chosen`. Each of
+    // the two grants below is chosen in the opponent's end step and in
+    // neither main phase, so the verdict rides on that window alone.
+    for (const aura of [FLASH_AURA_DOUBLE_STRIKE, FLASH_AURA_SHROUD]) {
+        it(`played — ${aura.name} cast in the opponent's end step`, () => {
+            withTemporaryDefinition(aura, () => {
+                expect(playTwice(aura)).toEqual({ outcome: "played" });
+            });
+        });
+    }
+
+    it("the opponent's end-step window: opponent active, holder holds priority", () => {
+        withTemporaryDefinition(FLASH_AURA_SHROUD, () => {
+            const posed = buildBotReachState(
+                FLASH_AURA_SHROUD,
+                0,
+                OPPONENT_END_STEP_WINDOW
+            );
+            expect(posed.state.phase).toBe("END_STEP");
+            expect(posed.state.activePlayerId).not.toBe(posed.holderId);
+            expect(decidingPlayer(posed.state)).toBe(posed.holderId);
+        });
+        expect(botReachSpec(HASTE_CREATURE).activePlayer).toBe("me");
     });
 
     it("ignored — a legal, affordable no-op is never chosen, and ships", () => {
