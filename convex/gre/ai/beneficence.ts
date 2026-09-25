@@ -437,3 +437,23 @@ export function misdirectedTargetCount(
     }
     return count;
 }
+
+/** Is EVERY target `move` announces a slot its script signs `beneficial` — a
+ *  boon the caster points at whatever it likes? False for a move that announces
+ *  no targets, and for any slot the derivation has no opinion about, so a
+ *  script the sign table cannot read never reads as a boon. The material
+ *  margin cannot price a boon that lasts a turn (a keyword granted until end
+ *  of turn is worth the card and the mana it costs, on the board alone), so a
+ *  hold keyed on that margin asks this first. */
+export function boonsEveryTarget(state: GameState, move: Move): boolean {
+    const signOf = slotSignerFor(state, move);
+    if (!signOf) return false;
+    const targets =
+        move.kind === "cast-spell" || move.kind === "activate-ability"
+            ? move.targets
+            : [];
+    return (
+        targets.length > 0 &&
+        targets.every((_, slot) => signOf(slot) === "beneficial")
+    );
+}
