@@ -159,10 +159,10 @@ export const PENDING_CHOICE_HANDLERS: Record<
     },
     "draw-replacement": {
         submit: answeredBy("submitDrawReplacementPay"),
-        // CR 614 (ADR 0061) — answered by `submitDrawReplacementPay`, and no
-        // `ChoiceAction` variant carries that answer yet. It has no `zone` and
-        // `count: 1`, so the zone-pick enumerator it used to fall into yielded
-        // nothing; that is kept verbatim.
+        // CR 614 (ADR 0061) — `draw-replacement` is answered by
+        // `submitDrawReplacementPay`, and no `ChoiceAction` variant carries
+        // that answer yet. It has no `zone` and `count: 1`, so the zone-pick
+        // enumerator it used to fall into yielded nothing; that is kept.
         legalActions: noChoiceActions,
     },
 };

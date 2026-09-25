@@ -328,12 +328,12 @@ function assertZonePickLegal(
 // against its own allow-list, commits the ids verbatim and resumes.
 // ---------------------------------------------------------------------------
 
-/** "Any target" choice (CR 115.4): the pick is a damageable permanent OR a
- *  player (Cuombajj Witches — "1 damage to any target of an opponent's
- *  choice"). Players aren't in a zone, so this kind validates against its own
- *  allow-lists rather than the zone-membership check. The single picked id is
- *  written verbatim into collectedChoices and the card's resolve step
- *  disambiguates permanent vs player. */
+// --- "Any target" choice (CR 115.4): the pick is a damageable permanent
+// OR a player (Cuombajj Witches — "1 damage to any target of an
+// opponent's choice"). Players aren't in a zone, so this kind validates
+// against its own allow-lists rather than the zone-membership check
+// below. The single picked id is written verbatim into collectedChoices
+// and the card's resolve step disambiguates permanent vs player. ---
 export const submitDamageTargetPick: ChoiceSubmitHandler = (
     state,
     head,
@@ -354,13 +354,13 @@ export const submitDamageTargetPick: ChoiceSubmitHandler = (
     });
 };
 
-/** Trigger-time player pick (CR 115.1a): the pick is a player id, not a zone
- *  member (Endurance — "up to one target player"). Validates against
- *  `candidatePlayerIds`; an EMPTY submission is legal ("up to one" = none,
- *  `count.min === 0`). The central count check already bounds the count.
- *  Writes the (0- or 1-element) selection verbatim into collectedChoices; the
- *  card's resolve step reads it back via requestChoice and acts only when a
- *  player was chosen. */
+// --- Trigger-time player pick (CR 115.1a): the pick is a player id, not a
+// zone member (Endurance — "up to one target player"). Validates against
+// `candidatePlayerIds`; an EMPTY submission is legal ("up to one" = none,
+// `count.min === 0`). The generic min/max check above already bounds the
+// count. Writes the (0- or 1-element) selection verbatim into
+// collectedChoices; the card's resolve step reads it back via requestChoice
+// and acts only when a player was chosen. ---
 export const submitPlayerPick: ChoiceSubmitHandler = (
     state,
     head,
@@ -380,11 +380,11 @@ export const submitPlayerPick: ChoiceSubmitHandler = (
     });
 };
 
-/** Abstract option pick (CR 614.12 "as it enters, choose …"): the pick is one
- *  author-supplied option id, not a zone member. Validates against
- *  `head.options` (like `choose-damage-target` validates against its
- *  allow-lists) and writes the chosen id verbatim into `collectedChoices`;
- *  the card's resolve step reads it back via `requestOptionChoice`. */
+// --- Abstract option pick (CR 614.12 "as it enters, choose …"): the pick
+// is one author-supplied option id, not a zone member. Validates against
+// `head.options` (like `choose-damage-target` validates against its
+// allow-lists) and writes the chosen id verbatim into `collectedChoices`;
+// the card's resolve step reads it back via `requestOptionChoice`. ---
 export const submitOptionPick: ChoiceSubmitHandler = (
     state,
     head,
@@ -403,12 +403,12 @@ export const submitOptionPick: ChoiceSubmitHandler = (
     });
 };
 
-/** Pick a pile (ADR 0053, pile division — step 2 of the divide-then-choose
- *  family): the submission is the literal label "A" or "B", not a zone member
- *  id. Validates against the two completed piles' labels (mirrors
- *  `option-pick`'s allow-list validation) and writes the chosen label
- *  verbatim into `collectedChoices`; `divideIntoPiles`'s resolve step reads
- *  it back via `requestPickPile`. */
+// --- Pick a pile (ADR 0053, pile division — step 2 of the divide-then-
+// choose family): the submission is the literal label "A" or "B", not a
+// zone member id. Validates against the two completed piles' labels
+// (mirrors `option-pick`'s allow-list validation) and writes the chosen
+// label verbatim into `collectedChoices`; `divideIntoPiles`'s resolve
+// step reads it back via `requestPickPile`. ---
 export const submitPilePick: ChoiceSubmitHandler = (
     state,
     head,
@@ -433,17 +433,17 @@ export const submitPilePick: ChoiceSubmitHandler = (
 // `collectedChoices`, and nothing resolves.
 // ---------------------------------------------------------------------------
 
-/** Modal triggered ability's mode announcement (CR 603.3c, issue #2461): the
- *  submission is one mode id from the CHOOSABLE modes the engine offered as
- *  the trigger went on the stack. Unlike `option-pick` (a resolution-time
- *  answer written into `collectedChoices`) this is an ANNOUNCEMENT — it is
- *  written onto the stack item's `chosenModeIds`, which is what resolution
- *  dispatch and the stack UI read, and it is locked from here on (CR 700.2b —
- *  the mode is chosen as part of PUTTING the ability on the stack): the choice
- *  is consumed, so there is no second submission that could change it, and
- *  CR 700.2f keeps a later retarget from changing it either. The trigger's
- *  TARGETS are announced next, under this mode's requirement alone
- *  (CR 700.2c). */
+// --- Modal triggered ability's mode announcement (CR 603.3c, issue
+// #2461): the submission is one mode id from the CHOOSABLE modes the
+// engine offered as the trigger went on the stack. Unlike `option-pick`
+// (a resolution-time answer written into `collectedChoices`) this is an
+// ANNOUNCEMENT — it is written onto the stack item's `chosenModeIds`, which
+// is what resolution dispatch and the stack UI read, and it is locked from
+// here on (CR 700.2b — the mode is chosen as part of PUTTING the ability on
+// the stack): the choice is consumed, so there is no second submission that
+// could change it, and CR 700.2f keeps a later retarget from changing it
+// either. The trigger's TARGETS are announced next, under this mode's
+// requirement alone (CR 700.2c). ---
 export const submitTriggerMode: ChoiceSubmitHandler = (
     state,
     head,
@@ -477,14 +477,14 @@ export const submitTriggerMode: ChoiceSubmitHandler = (
     checkStateBasedActions(state);
 };
 
-/** Trigger-order (CR 603.3b, ADR 0058): order this controller's slice of the
- *  off-stack simultaneous-trigger batch. The submission is a permutation of
- *  `candidateIds` (the slice), TOPMOST-first (index 0 = top of stack =
- *  resolves first). Reorder the slice within `pendingTriggerBatch`; when the
- *  last `trigger-order` choice clears, push the whole batch onto the stack in
- *  one shot (bottom-first, APNAP-grouped) and hand priority to the active
- *  player (CR 117.3c). Held off-stack until then, so the stack is never
- *  observed half-ordered. */
+// --- Trigger-order (CR 603.3b, ADR 0058): order this controller's slice of
+// the off-stack simultaneous-trigger batch. The submission is a permutation
+// of `candidateIds` (the slice), TOPMOST-first (index 0 = top of stack =
+// resolves first). Reorder the slice within `pendingTriggerBatch`; when the
+// last `trigger-order` choice clears, push the whole batch onto the stack in
+// one shot (bottom-first, APNAP-grouped) and hand priority to the active
+// player (CR 117.3c). Held off-stack until then, so the stack is never
+// observed half-ordered. ---
 export const submitTriggerOrder: ChoiceSubmitHandler = (
     state,
     head,
@@ -542,7 +542,7 @@ export const submitTriggerOrder: ChoiceSubmitHandler = (
 // phase-level finalizer.
 // ---------------------------------------------------------------------------
 
-/** CR 103.5 — the London mulligan's bottom pick. */
+/** The London mulligan's bottom pick (`applyMulliganBottomChoice`). */
 export const submitMulliganBottom: ChoiceSubmitHandler = (
     state,
     _head,
@@ -561,7 +561,7 @@ export const submitMulliganBottom: ChoiceSubmitHandler = (
     }
 };
 
-/** CR 502.1: additional untap-pick constraints beyond zone validation. */
+// CR 502.1: additional untap-pick constraints beyond zone validation.
 export const submitUntapPick: ChoiceSubmitHandler = (
     state,
     head,
@@ -586,8 +586,8 @@ export const submitUntapPick: ChoiceSubmitHandler = (
     finalizeUntapPick(state, args.cardInstanceIds);
 };
 
-/** CR 614 (Aladdin's Lamp) — phase-level draw replacement. The reorder + draw
- *  + priority resumption live in `finalizeDrawLookKeep`. */
+// CR 614 (Aladdin's Lamp) — phase-level draw replacement. The reorder +
+// draw + priority resumption live in `finalizeDrawLookKeep`.
 export const submitDrawLookKeep: ChoiceSubmitHandler = (
     state,
     _head,
@@ -642,9 +642,9 @@ export const submitDiscardHand: ChoiceSubmitHandler = (
 // The generic mid-resolution tail every zone-pick kind returns into.
 // ---------------------------------------------------------------------------
 
-/** Mid-resolution choice (CR 608.2): write picks into the stack item's
- *  `collectedChoices` so the next invocation of the resolve step reads them
- *  back via `requestChoice`. */
+// Mid-resolution choice (CR 608.2): write picks into the stack item's
+// `collectedChoices` so the next invocation of the resolve step reads
+// them back via `requestChoice`.
 export const submitMidResolutionPick: ChoiceSubmitHandler = (
     state,
     head,

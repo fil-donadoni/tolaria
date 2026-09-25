@@ -48,7 +48,7 @@ export type ResumeOptions = {
 
 /** Priority after a choice window closes with no further choice owed: to the
  *  next queued chooser, else (optionally) to the pending target's chooser,
- *  else back to the active player (CR 117.3d) with the pass count reset. */
+ *  else back to the active player with the pass count reset (CR 117.3b). */
 export function handPriorityOn(
     state: GameState,
     pendingTargetHandoff: boolean
