@@ -327,6 +327,34 @@ export function combatTrickPosition(
         : null;
 }
 
+/** The opponent's plain creature attacks the holder, who holds priority in the
+ *  declare-attackers step (CR 508.1, CR 117.1a): the moment an instant-speed
+ *  creature is cast to block. */
+const FLASH_AMBUSH: TargetPose["position"] = {
+    phase: "DECLARE_ATTACKERS",
+    activePlayer: "opp",
+    priority: "me",
+    combat: { attackers: [BASE_CREATURE], confirmed: true },
+};
+
+/**
+ * The declared attack a flash creature is posed against, or `null` when `def`
+ * is not one. A FOURTH window, tried only after both main phases passed the
+ * card over (`playSeat`), like {@link combatTrickPosition}: in a main phase
+ * holding a flash creature and casting it are the same play a turn later, so
+ * the search sees a tie there; against an attacker it is not one, since only
+ * the cast creature can block (CR 702.8a).
+ */
+export function flashAmbushPosition(
+    def: CardDefinition
+): TargetPose["position"] | null {
+    return def.types.includes("Creature") &&
+        (def.staticAbilities ?? []).includes("flash") &&
+        def.targetRequirement === undefined
+        ? FLASH_AMBUSH
+        : null;
+}
+
 /** The literal power a sorcery's script adds to its one target creature, when
  *  the script is that pump and nothing else; `null` for any other spell. */
 function soleSorceryPumpPower(def: CardDefinition): number | null {
