@@ -49,7 +49,6 @@ import {
     payReturnThisToHandCost,
     matchesPermanentFilter,
     moveCard,
-    removeFromZone,
     removePermanentTo,
     getBasicLandMana,
     payManaCost,
@@ -63,9 +62,7 @@ import {
     spendablePoolForAbility,
     addRestrictedManaToPool,
     hasAnyManaRider,
-    manaRiderStackStamps,
     manaRidersForAbility,
-    NO_SPELL_MANA_RIDERS,
     reverseRestrictedManaFromPool,
     payRemoveCounterCost,
     applyKeywordCounterGrant,
@@ -80,7 +77,6 @@ import {
     getCostModifiers,
     applyCostModifiers,
     getStaticAdditionalSacrifices,
-    emitSpellCastEvent,
     emitBecameTargetEvents,
     emitPermanentTapped,
     discardPermanentTappedEvent,
@@ -93,7 +89,6 @@ import {
     recomputeContinuousEffects,
     PENDING_TARGET_FILTER_KEYS,
 } from "./gre/state";
-import type { SpellManaRiders } from "./gre/state";
 import type { ContinuousEffect } from "./gre/continuousEffects";
 import {
     selectCompanion,
@@ -209,7 +204,6 @@ import {
 } from "./gre/targetFilters";
 import {
     assertLegalAction,
-    markGraveyardPlayPermissionUsed,
     getLegalTargets,
     checkPermanentTargetFilters,
     checkSpellTargetFilters,
@@ -302,7 +296,6 @@ import {
 // above; these are the CHARACTERISTIC half (`convex/gre/bestow.ts`).
 import {
     BESTOW_TARGET_REQUIREMENT,
-    applyBestowCharacteristics,
     isBestowAlternativeCost,
 } from "./gre/bestow";
 // Additional-cost system (CR 118.8 / 601.2b) — costs paid ALONGSIDE the mana
@@ -318,7 +311,6 @@ import {
 // shared `CostLegs` vocabulary, payment recorded per kicker id.
 import type { KickerPayments } from "./gre/kicker";
 import {
-    additionalCostPaymentSnapshot,
     assertKickerPermanentSlotFree,
     buildCastHandCostChoice,
     buildCastPermanentCostChoice,
@@ -480,18 +472,13 @@ import {
     morphTurnUpPaymentPlan,
 } from "./gre/morph";
 import { isOverloadAlternativeCost } from "./gre/overload";
-import { turnFaceDown, turnFaceUp } from "./gre/faceDown";
+import { turnFaceUp } from "./gre/faceDown";
 import {
     adventureCastOptionFor,
-    castAsAdventure,
     isAdventureCastAlternativeCost,
 } from "./gre/adventure";
 import { castSubjectDefinition, castSubjectView } from "./gre/castMode";
-import {
-    castAsSplitHalf,
-    isSplitCastId,
-    offersPrintedCast,
-} from "./gre/splitCast";
+import { isSplitCastId, offersPrintedCast } from "./gre/splitCast";
 import {
     applyPlayLandFromAnyZone,
     resolvePlayLandSourceZone,
@@ -572,6 +559,7 @@ export {
     tryAutoCommitPendingCast,
 } from "./gre/activation";
 import { activationPreconditionViolation } from "./gre/activationPrecondition";
+import { commitCast } from "./gre/castCommit";
 import {
     activateAbilityOnState,
     assertActivationTimingLegal,
@@ -583,15 +571,12 @@ import {
     assertStaticAdditionalCostAffordable,
     buildPendingActivation,
     canPayExileFromGraveyard,
-    castZoneOwner,
     depositTappedMana,
     deriveXFromTargetSpellMv,
     findPendingActivationSource,
     graveyardCardMatchesExileCost,
     locateCastSource,
     minTargetCount,
-    payAlternativeCostHandChoice,
-    payCastManaCost,
     resolveAbilityManaCost,
     resolveActivatedAbility,
     resolveTargetCount,
@@ -2701,9 +2686,7 @@ import {
     buildCastExileCostChoice,
     castAlternativeCostForZone,
     castRawManaCost,
-    graveyardCastStackFlags,
     libraryTopCastPayment,
-    reboundCastStackFlags,
 } from "./gre/castCost";
 import type { CastFromZone } from "./gre/castCost";
 
@@ -6632,137 +6615,48 @@ export function finalizeTargetSelection(
             )
         )
     ) {
-        // CR 106.4 / 202.3 — cast-path mana-spent tracking (Soul Burn).
-        let immediateNotedManaSpent: Record<string, number> | undefined;
-        // CR 106.6 rider (issue #1559) — whether the mana paid below carried
-        // `cantBeCounteredRider`; stamped onto the pushed stack item below.
-        let immediateManaRiders: SpellManaRiders = {
-            ...NO_SPELL_MANA_RIDERS,
-        };
-        if (Object.keys(manaCost).length > 0) {
-            const payment = payCastManaCost(
-                state,
-                player,
-                manaCost,
-                cardDef,
-                getCastManaSubstitutions(
-                    state,
-                    player,
-                    cardInstanceId,
-                    cardDef,
-                    manaCost,
-                    chosenX
-                ),
-                cardInstanceId,
-                undefined,
-                chosenX
-            );
-            immediateManaRiders = payment.riders;
-            immediateNotedManaSpent = payment.notedManaSpent;
-            commitLandsForCost(player, manaCost);
-        }
-        // CR 601.2b / 118.4 — pay the "pay X life" additional cost as the spell
-        // moves hand → stack (Fire Covenant). Affordability validated at
-        // announcement; SBA handles a fatal payment.
-        if (payLife > 0) player.life -= payLife;
-        // CR 118.9 — pay the alternative-cost HAND leg's forced picks (Force of
-        // Vigor's single green card when it's the only one, etc.) BEFORE the
-        // cast card leaves the hand. A real (unforced) choice already parked
-        // above; this branch is reached only when the picks are complete.
-        if (altHandChoice?.pickedCardIds) {
-            payAlternativeCostHandChoice(state, playerId, altHandChoice);
-        }
-        // CR 601.3 (ADR 0093) — spend the graveyard play permission's
-        // once-per-turn use now, at commit, when one enabled this cast (see
-        // the matching comment in `tryAutoCommitPendingCast`).
-        if (castSource.graveyardPermission) {
-            markGraveyardPlayPermissionUsed(
-                state,
-                playerId,
-                castSource.graveyardPermission
-            );
-        }
-        // issue #1156 — a cross-player exile grant removes from the ACTUAL
-        // exile owner, not the caster.
-        const card = removeFromZone(
-            state,
-            castZoneOwner(state, player, cardInstanceId, castZone),
+        // The Cast Commit (issue #4445): mana already covered, every leg
+        // answered — the ONE server kernel (`commitCast`, `gre/castCommit.ts`)
+        // pays, stamps and announces. THIS is the branch a real bestow cast
+        // reaches: a bestowed spell always targets (CR 303.4a), so it is
+        // announced through `pendingTarget` and committed here or, when a cost
+        // still owes a payment, through `tryAutoCommitPendingCast`.
+        const committed = commitCast(state, {
+            casterId: playerId,
             cardInstanceId,
-            castZone,
-            playerId
-        );
-        // CR 601.2f / 118.5 / 118.9 / 701.21a — pay the filtered give-up cost as
-        // the spell hits the stack: the fungible/forced additional sacrifice
-        // (Drought / own cost) OR the chosen alternative cost (return / sacrifice
-        // lands, Thwart / Fireblast), whichever this cast owes. A non-fungible
-        // choice already parked above; here it is complete and applied.
-        const additionalSacrificeSnapshot = sacrificeSnapshotFromSelection(
-            castSac,
-            state
-        );
-        const stackItem: StackItem = {
-            ...card,
-            castById: playerId,
-            targets,
-            ...(chosenX !== undefined ? { chosenX } : {}),
-            // CR 702.33d / 702.175a (ADR 0085) — see `finalizePendingCast`'s
-            // twin: the payment record is partitioned by keyword HERE, at the
-            // write, so no kicked-ness reader needs the card definition.
-            ...additionalCostPaymentSnapshot(cardDef, kickerPayments),
-            ...(buybackPaid ? { buybackPaid: true } : {}),
-            ...(divideAmounts ? { targetAmounts: divideAmounts } : {}),
-            ...modeFields,
-            ...(additionalSacrificeSnapshot
-                ? { additionalSacrificeSnapshot }
-                : {}),
-            ...(immediateNotedManaSpent
-                ? { notedManaSpent: immediateNotedManaSpent }
-                : {}),
-            // CR 106.6 riders (issues #1559 / #3354) — see the matching
-            // comment on the `tryAutoCommitPendingCast` stack item above.
-            ...manaRiderStackStamps(immediateManaRiders, {
+            cardDef,
+            manaCost,
+            chosenX,
+            source: {
+                zone: castZone,
+                graveyardPermission: castSource.graveyardPermission,
+            },
+            legs: {
+                payLife,
+                sacrificeSelection: castSac,
+                ...(altHandChoice?.pickedCardIds
+                    ? { alternativeCostHandChoice: altHandChoice }
+                    : {}),
+            },
+            record: {
+                targets,
+                targetAmounts: divideAmounts,
+                kickerPayments,
+                buybackPaid,
+                ...modeFields,
+                castOffSorceryTiming,
+            },
+            mode: {
+                evoked: isEvokeCost,
+                dashed: isDashCost,
+                warped: isWarpCost,
                 bestowed: isBestowCost,
-            }),
-            ...(isEvokeCost ? { evoked: true } : {}),
-            ...(isDashCost ? { dashed: true } : {}),
-            ...(isWarpCost ? { warped: true } : {}),
-            // CR 601.2 (issue #2473) — targeted-spell immediate-commit branch
-            // (mana already covered, no park). The announcement-time snapshot,
-            // not a re-derivation; see `PendingCast.castOffSorceryTiming`.
-            ...(castOffSorceryTiming ? { castOffSorceryTiming: true } : {}),
-            ...graveyardCastStackFlags(state, card, castZone),
-            ...reboundCastStackFlags(card, castZone),
-        };
-        // CR 702.103b (issue #2388) — "as a spell cast bestowed is put onto
-        // the stack, it becomes an Aura enchantment and gains enchant
-        // creature". THIS is the branch a real bestow cast reaches: a bestowed
-        // spell always targets (CR 303.4a), so it is announced through
-        // `pendingTarget` and committed here or, when a cost still owes a
-        // payment, through `tryAutoCommitPendingCast`. Applied on the built
-        // item immediately before the push, so everything downstream of the
-        // stack — the CR 608.2b re-check, the wire projection, cast triggers —
-        // sees the Aura and never the creature.
-        if (isBestowCost) applyBestowCharacteristics(stackItem);
-        // CR 715.3b — "while on the stack as an Adventure, the spell has only
-        // its alternative characteristics." Swapped BEFORE the push and before
-        // `emitSpellCastEvent` below, so no viewer and no cast trigger ever
-        // observes the creature half on the stack.
-        if (isAdventureCast) castAsAdventure(stackItem);
-        // CR 709.3b — "while on the stack, only the characteristics of the
-        // half being cast exist." Swapped BEFORE the push and before
-        // `emitSpellCastEvent` below, so no viewer and no cast trigger ever
-        // observes the combined card on the stack.
-        if (splitCastSide) castAsSplitHalf(stackItem, splitCastSide);
-        state.stack.push(stackItem);
-        state.passCount = 0;
-        state.priorityPlayerId = getOpponentId(state, playerId);
-        state.singleShotAutoPass = keepPriority ? undefined : playerId;
-        // CR 601.2i / 603.3 — cast triggers go on the stack above the spell
-        // before any player gets priority, so BEFORE the auto-pass drain (which
-        // may otherwise start resolving the spell). See `commitPendingCast`.
-        emitSpellCastEvent(state, stackItem);
-        processPendingActionTriggers(state);
-        drainAutoPasses(state);
+                castAsAdventure: isAdventureCast,
+                castAsSplitHalf: splitCastSide || undefined,
+            },
+            placement: { kind: "announce", keepPriority },
+        });
+        if (!committed) throw new Error("Cast commit is stale");
     } else {
         state.pendingCast = {
             playerId,
@@ -8371,125 +8265,49 @@ export const announceCast = mutation({
                 );
                 return;
             }
-            // Forced/fungible choice AND mana already covered: pay + apply +
-            // commit now.
-            // CR 106.6 rider (issue #1559) — stamped onto the stack item below.
-            let altManaRiders: SpellManaRiders = { ...NO_SPELL_MANA_RIDERS };
-            // CR 106.4 / 702.44b (issue #2378) — the alternative-cost mana leg
-            // (Dash's own amount, and any future non-zero alt cost) is real
-            // mana spent on the spell's costs, so its per-colour record rides
-            // the stack item exactly as the printed-cost paths' does.
-            let altNotedManaSpent: Record<string, number> | undefined;
-            if (Object.keys(altManaCost).length > 0) {
-                const payment = payCastManaCost(
-                    state,
-                    player,
-                    altManaCost,
-                    cardDef,
-                    getCastManaSubstitutions(
-                        state,
-                        player,
-                        args.cardInstanceId,
-                        cardDef,
-                        altManaCost
-                    ),
-                    args.cardInstanceId
-                );
-                altManaRiders = payment.riders;
-                altNotedManaSpent = payment.notedManaSpent;
-                commitLandsForCost(player, altManaCost);
-            }
-            if (castSac) sacrificeSnapshotFromSelection(castSac, state);
-            if (altHandChoice?.pickedCardIds) {
-                payAlternativeCostHandChoice(
-                    state,
-                    args.playerId,
-                    altHandChoice
-                );
-            }
-            if (altPayLife > 0) player.life -= altPayLife;
-            // issue #1156 — a cross-player exile grant removes from the
-            // ACTUAL exile owner, not the caster.
-            const card = removeFromZone(
-                state,
-                castZoneOwner(state, player, args.cardInstanceId, castFromZone),
-                args.cardInstanceId,
-                castFromZone,
-                args.playerId
-            );
-            const stackItem: StackItem = {
-                ...card,
-                castById: args.playerId,
-                ...(chosenX !== undefined ? { chosenX } : {}),
-                // CR 702.33d / 702.175a (ADR 0085) — see `finalizePendingCast`'s
-                // twin: the payment record is partitioned by keyword HERE, at
-                // the write, so no kicked-ness reader needs the definition.
-                ...additionalCostPaymentSnapshot(cardDef, kickerPayments),
-                ...announcedModeFields(castModeFields),
-                // CR 106.6 riders (issues #1559 / #3354) — see the matching
-                // comment on the `tryAutoCommitPendingCast` stack item.
-                ...manaRiderStackStamps(altManaRiders, {
+            // Forced/fungible choice AND mana already covered: the Cast Commit
+            // (issue #4445) pays the alternative cost's mana leg, applies the
+            // return / sacrifice / exile / discard (and life) legs and commits
+            // now, through the ONE server kernel (`commitCast`,
+            // `gre/castCommit.ts`).
+            const committed = commitCast(state, {
+                casterId: args.playerId,
+                cardInstanceId: args.cardInstanceId,
+                cardDef,
+                manaCost: altManaCost,
+                chosenX,
+                source: {
+                    zone: castFromZone,
+                    graveyardPermission: castSource.graveyardPermission,
+                },
+                legs: {
+                    payLife: altPayLife,
+                    sacrificeSelection: castSac,
+                    ...(altHandChoice?.pickedCardIds
+                        ? { alternativeCostHandChoice: altHandChoice }
+                        : {}),
+                },
+                record: {
+                    kickerPayments,
+                    ...announcedModeFields(castModeFields),
+                    castOffSorceryTiming,
+                },
+                mode: {
+                    evoked: isEvokeCost,
+                    dashed: isDashCost,
+                    warped: isWarpCost,
+                    overloaded: isOverloadCost,
                     bestowed: isBestowCost,
-                }),
-                // CR 106.4 / 202.3 / 702.44a (issue #2378) — the mana actually
-                // spent, for Soul Burn's resolution and Sunburst's colour count.
-                ...(altNotedManaSpent
-                    ? { notedManaSpent: altNotedManaSpent }
-                    : {}),
-                ...(isEvokeCost ? { evoked: true } : {}),
-                ...(isDashCost ? { dashed: true } : {}),
-                ...(isWarpCost ? { warped: true } : {}),
-                // CR 702.103a (issue #2388 producer census) — unreachable for
-                // bestow (an Aura spell always targets, CR 303.4a); stamped
-                // fail-closed. `applyBestowCharacteristics` below turns it
-                // into the real characteristic change if it ever IS reached.
-                ...(isBestowCost ? { bestowed: true } : {}),
-                // CR 702.96a (issue #3215) — the overload cast's immediate
-                // commit: this IS an alternative cost and it takes no targets,
-                // so a caster whose pool already covers it lands here. Unlike
-                // `bestowed` the marker is not consumed below — it stays on the
-                // stack item, because CR 702.96a's text change functions until
-                // the spell has finished resolving.
-                ...(isOverloadCost ? { overloaded: true } : {}),
-                // CR 601.2 (issue #2473) — `announceCast` no-target +
-                // alternative-cost immediate-commit branch. Uses the same
-                // announcement-time constant as every deferred path, so the
-                // one-mutation and the many-mutation flows can never disagree.
-                ...(castOffSorceryTiming ? { castOffSorceryTiming: true } : {}),
-            };
-            // CR 702.103b — see `finalizeTargetSelection`'s matching call.
-            if (stackItem.bestowed) {
-                delete stackItem.bestowed;
-                applyBestowCharacteristics(stackItem);
-            }
-            // CR 702.37c (issue #2705) — "Put it onto the stack (as a face-down
-            // spell with the same characteristics)". The turn-down happens
-            // BEFORE the push and before `emitSpellCastEvent` below, so a
-            // "whenever a player casts a spell" trigger sees the face-down 2/2
-            // with no name — which is what the spell IS at that moment — and so
-            // the projection can never observe a face-up morph spell on the
-            // stack even for one intermediate state.
-            if (isMorphCost) turnFaceDown(state, stackItem, "morph");
-            // CR 715.3b — the ADVENTURE cast's identity swap, at the same seam
-            // and for the same reason as the morph turn-down above: a
-            // "whenever a player casts a spell" trigger must see the Adventure
-            // spell, which is what the object IS at that moment.
-            if (isAdventureCast) castAsAdventure(stackItem);
-            // CR 709.3b — the SPLIT half's identity swap, at the same seam and
-            // for the same reason: a "whenever a player casts a spell" trigger
-            // must see the half, which is what the object IS at that moment.
-            if (splitCastSide) castAsSplitHalf(stackItem, splitCastSide);
-            state.stack.push(stackItem);
-            state.passCount = 0;
-            state.priorityPlayerId = getOpponentId(state, args.playerId);
-            state.singleShotAutoPass = args.keepPriority
-                ? undefined
-                : args.playerId;
-            // CR 601.2i / 603.3 — cast triggers before the auto-pass drain
-            // (see `commitPendingCast`).
-            emitSpellCastEvent(state, stackItem);
-            processPendingActionTriggers(state);
-            drainAutoPasses(state);
+                    morphed: isMorphCost,
+                    castAsAdventure: isAdventureCast,
+                    castAsSplitHalf: splitCastSide || undefined,
+                },
+                placement: {
+                    kind: "announce",
+                    keepPriority: args.keepPriority,
+                },
+            });
+            if (!committed) throw new Error("Cast commit is stale");
             await saveGameState(
                 ctx,
                 args.gameId,
@@ -8818,105 +8636,39 @@ export const announceCast = mutation({
                 )
             )
         ) {
-            // CR 106.6 rider (issue #1559) — stamped onto the stack item below.
-            let normalManaRiders: SpellManaRiders = {
-                ...NO_SPELL_MANA_RIDERS,
-            };
-            // CR 106.4 / 702.44b (issue #2378) — this branch commits the cast in
-            // ONE mutation because the pool already covered the cost (the
-            // caster floated the mana at priority, `tapUntap`). It used to skip
-            // the mana-spent capture the parked path does, so a Sunburst
-            // permanent cast this way entered with zero counters.
-            let normalNotedManaSpent: Record<string, number> | undefined;
-            if (Object.keys(manaCost).length > 0) {
-                const payment = payCastManaCost(
-                    state,
-                    player,
-                    manaCost,
-                    cardDef,
-                    getCastManaSubstitutions(
-                        state,
-                        player,
-                        args.cardInstanceId,
-                        cardDef,
-                        manaCost,
-                        chosenX
-                    ),
-                    args.cardInstanceId,
-                    undefined,
-                    chosenX
-                );
-                normalManaRiders = payment.riders;
-                normalNotedManaSpent = payment.notedManaSpent;
-                commitLandsForCost(player, manaCost);
-            }
-            // CR 107.4f — pay the Phyrexian pips chosen as life as the spell
-            // moves to the stack (Phyrexian Metamorph's {U/P} for 2 life).
-            if (phyrexianPayLife > 0) player.life -= phyrexianPayLife;
-            // CR 601.3 (ADR 0093) — spend the graveyard play permission's
-            // once-per-turn use now, at commit, when one enabled this cast
-            // (see the matching comment in `tryAutoCommitPendingCast`).
-            if (castSource.graveyardPermission) {
-                markGraveyardPlayPermissionUsed(
-                    state,
-                    args.playerId,
-                    castSource.graveyardPermission
-                );
-            }
-            // issue #1156 — a cross-player exile grant removes from the
-            // ACTUAL exile owner, not the caster.
-            const card = removeFromZone(
-                state,
-                castZoneOwner(state, player, args.cardInstanceId, castFromZone),
-                args.cardInstanceId,
-                castFromZone,
-                args.playerId
-            );
-            // CR 601.2f / 118.5 / 701.21a — pay the auto-resolved filtered
-            // sacrifice (Drought / fungible own cost) as the spell commits.
-            const additionalSacrificeSnapshot = sacrificeSnapshotFromSelection(
-                castSac,
-                state
-            );
-            const stackItem: StackItem = {
-                ...card,
-                castById: args.playerId,
-                ...(chosenX !== undefined ? { chosenX } : {}),
-                // CR 702.33d / 702.175a (ADR 0085) — see `finalizePendingCast`'s
-                // twin: the payment record is partitioned by keyword HERE, at
-                // the write, so no kicked-ness reader needs the definition.
-                ...additionalCostPaymentSnapshot(cardDef, kickerPayments),
-                ...(buybackPaid ? { buybackPaid: true } : {}),
-                ...announcedModeFields(castModeFields),
-                ...(additionalSacrificeSnapshot
-                    ? { additionalSacrificeSnapshot }
-                    : {}),
-                // CR 106.6 riders (issues #1559 / #3354) — see the matching
-                // comment on the `tryAutoCommitPendingCast` stack item.
-                ...manaRiderStackStamps(normalManaRiders),
-                // CR 106.4 / 202.3 / 702.44a (issue #2378) — the mana actually
-                // spent, for Soul Burn's resolution and Sunburst's colour count.
-                ...(normalNotedManaSpent
-                    ? { notedManaSpent: normalNotedManaSpent }
-                    : {}),
-                // CR 601.2 (issue #2473) — `announceCast` no-target +
-                // normal-cost immediate-commit branch. Same announcement-time
-                // constant as every deferred path.
-                ...(castOffSorceryTiming ? { castOffSorceryTiming: true } : {}),
-                ...graveyardCastStackFlags(state, card, castFromZone),
-                ...reboundCastStackFlags(card, castFromZone),
-            };
-            state.stack.push(stackItem);
-            state.passCount = 0;
-            state.priorityPlayerId = getOpponentId(state, args.playerId);
-            state.singleShotAutoPass = args.keepPriority
-                ? undefined
-                : args.playerId;
-            // CR 601.2i / 603.3 — cast triggers before the auto-pass drain
-            // (see `commitPendingCast`).
-            emitSpellCastEvent(state, stackItem);
-            processPendingActionTriggers(state);
-            drainAutoPasses(state);
+            // The Cast Commit (issue #4445): mana already covered — this branch
+            // commits in ONE mutation because the caster floated the mana at
+            // priority (`tapUntap`) — so the ONE server kernel (`commitCast`,
+            // `gre/castCommit.ts`) pays, stamps and announces. It used to skip
+            // the mana-spent capture the parked path does (issue #2378); the
+            // kernel cannot.
+            const committed = commitCast(state, {
+                casterId: args.playerId,
+                cardInstanceId: args.cardInstanceId,
+                cardDef,
+                manaCost,
+                chosenX,
+                source: {
+                    zone: castFromZone,
+                    graveyardPermission: castSource.graveyardPermission,
+                },
+                legs: {
+                    payLife: phyrexianPayLife,
+                    sacrificeSelection: castSac,
+                },
+                record: {
+                    kickerPayments,
+                    buybackPaid,
+                    ...announcedModeFields(castModeFields),
+                    castOffSorceryTiming,
+                },
+                mode: {},
+                placement: {
+                    kind: "announce",
+                    keepPriority: args.keepPriority,
+                },
+            });
+            if (!committed) throw new Error("Cast commit is stale");
         } else {
             // Enter payment phase for remaining mana
             state.pendingCast = {
