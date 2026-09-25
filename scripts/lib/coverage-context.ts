@@ -68,15 +68,18 @@ function setScan(root: string): {
 }
 
 /**
- * Oracle ids of the hand-written cards carrying a well-formed `hand-tail:`
- * marker. Fail-closed: a marked card whose name the lockfile cannot resolve
- * throws, rather than dropping out of the Hand Tail it declared.
+ * The hand-written cards carrying a well-formed `hand-tail:` marker, keyed by
+ * oracle id, each mapped to the issue its marker names. Fail-closed: a marked
+ * card whose name the lockfile cannot resolve throws, rather than dropping out
+ * of the Hand Tail it declared. The issue is what tells `gaps:sync`'s stale
+ * report a claim settled by its own ticket from one settled by another
+ * (issue #4513).
  */
-export function handTailOracleIds(
+export function handTailMarkerIssues(
     root: string,
     byName: ResolveContext["byName"]
-): Set<string> {
-    const ids = new Set<string>();
+): Map<string, number> {
+    const issues = new Map<string, number>();
     for (const marker of setScan(root).markers) {
         if (marker.kind !== "hand-tail" || !isExempting(marker)) continue;
         const row = byName.get(marker.card);
@@ -84,9 +87,18 @@ export function handTailOracleIds(
             throw new Error(
                 `${marker.file}:${marker.line}: hand-tail card \`${marker.card}\` is not in the Oracle lockfile under exactly one oracle id`
             );
-        ids.add(row.oracleId);
+        // A well-formed marker always names its issue (COMPILER_GAP's shape).
+        issues.set(row.oracleId, marker.issue!);
     }
-    return ids;
+    return issues;
+}
+
+/** Oracle ids of the hand-written cards carrying a well-formed `hand-tail:` marker. */
+export function handTailOracleIds(
+    root: string,
+    byName: ResolveContext["byName"]
+): Set<string> {
+    return new Set(handTailMarkerIssues(root, byName).keys());
 }
 
 /**
