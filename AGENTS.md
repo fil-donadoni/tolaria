@@ -522,7 +522,11 @@ every union member. New value: grep and update every consumer.
 ### Serialization requirement
 
 Every optional `GameState` field goes in `PERSISTED_OPTIONAL_KEYS` or
-`TRANSIENT_KEYS` (`serialize.ts`); the drift guard fails otherwise.
+`TRANSIENT_KEYS` (`serialize.ts`); the drift guard fails otherwise. Every
+optional `CardInstanceState` field owes ONE row in `CARD_FIELD_LIFECYCLE`
+(`gre/state/cardFieldLifecycle.ts`, issue #4453) — `codec` + `reset` scopes —
+and no hand-written compact/expand or reset-ladder branch except a `custom`
+row's declared pair; `check:ts` reds without the row.
 
 ### Naming — the mechanic, never the card (issue #1917)
 

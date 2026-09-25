@@ -1,5 +1,6 @@
 import { findPermanent } from "./lookup";
 import type { Phase } from "./types";
+import { clearCardFieldsAt } from "./state/cardFieldLifecycle";
 import type {
     DrawStepPlan,
     GameEvent,
@@ -2686,14 +2687,6 @@ export function finalizeCleanup(state: GameState): void {
     // turn-scoped combat flags are cleared.
     for (const p of state.players) {
         for (const card of p.battlefield) {
-            if (card.damageMarked !== undefined) {
-                card.damageMarked = undefined;
-            }
-            // CR 702.2b / 514.2 — the "dealt deathtouch damage this turn" mark
-            // is turn-scoped; cleared with marked damage.
-            if (card.dealtDeathtouchDamage !== undefined) {
-                card.dealtDeathtouchDamage = undefined;
-            }
             // CR 508.1 / 514.2 — roll the per-creature attack history forward
             // for the player whose turn is ENDING. `attackedDuringLastTurn`
             // becomes whether this creature attacked during this just-ending
@@ -2710,73 +2703,15 @@ export function finalizeCleanup(state: GameState): void {
                     ? true
                     : undefined;
             }
-            if (card.hasAttackedThisTurn) {
-                card.hasAttackedThisTurn = undefined;
-            }
-            if (card.hasBlockedThisTurn) {
-                card.hasBlockedThisTurn = undefined;
-            }
-            // CR 514.2 — "can attack as though it didn't have defender" is
-            // turn-scoped (FEM Vodalian War Machine).
-            if (card.canAttackDespiteDefenderThisTurn) {
-                card.canAttackDespiteDefenderThisTurn = undefined;
-            }
-            if (card.damagedBySources !== undefined) {
-                card.damagedBySources = undefined;
-            }
-            // CR 514.2 — "dealt damage to an opponent this turn" is turn-scoped
-            // (Whirling Dervish).
-            if (card.dealtDamageToOpponentThisTurn !== undefined) {
-                card.dealtDamageToOpponentThisTurn = undefined;
-            }
-            // CR 701.19a — regeneration shields apply only "this turn".
-            // Unused shields wear off here.
-            if (card.regenerationShields !== undefined) {
-                card.regenerationShields = undefined;
-            }
-            // CR 614.1a — Disintegrate's exile-on-death flag is turn-scoped.
-            if (card.exileOnDeath !== undefined) {
-                card.exileOnDeath = undefined;
-            }
-            // CR 514.2 (issue #2231) — Whippoorwill's "damage … this turn can't
-            // be prevented or dealt instead to another permanent or player"
-            // lock wears off here (CR 615.12 / 614.9).
-            if (card.damageLockThisTurn !== undefined) {
-                card.damageLockThisTurn = undefined;
-            }
-            // CR 701.19c — "can't be regenerated this turn" wears off here
-            // (Clergy of the Holy Nimbus's {1} ability).
-            if (card.cantBeRegeneratedThisTurn !== undefined) {
-                card.cantBeRegeneratedThisTurn = undefined;
-            }
-            // CR 508.1d — forced-attack flag is turn-scoped.
-            if (card.mustAttackThisTurn !== undefined) {
-                card.mustAttackThisTurn = undefined;
-            }
-            if (card.canBlockAdditional !== undefined) {
-                card.canBlockAdditional = undefined;
-            }
-            if (card.mustBlockAllThisTurn) {
-                card.mustBlockAllThisTurn = undefined;
-            }
-            if (card.cantBlockThisTurn) {
-                card.cantBlockThisTurn = undefined;
-            }
-            // CR 508.1a (ADR 0053) — "can't attack this turn" (Fight or
-            // Flight's unchosen pile) is turn-scoped.
-            if (card.cantAttackThisTurn) {
-                card.cantAttackThisTurn = undefined;
-            }
-            // CR 509.1b — "can't be blocked this turn" (Tawnos's Wand) is
-            // turn-scoped.
-            if (card.cantBeBlockedThisTurn) {
-                card.cantBeBlockedThisTurn = undefined;
-            }
-            // CR 509.1b — "can't be blocked by [subtype] this turn" (Tower of
-            // Coireall) is turn-scoped.
-            if (card.cantBeBlockedBySubtypesThisTurn) {
-                card.cantBeBlockedBySubtypesThisTurn = undefined;
-            }
+            // CR 514.2 — every optional field the Card Field Lifecycle table
+            // declares `reset: turn` ends here (issue #4453): marked damage
+            // and the deathtouch mark (CR 702.2b), the attack / block history,
+            // the turn-scoped combat restrictions and permissions (CR 508.1a /
+            // 508.1d / 509.1b), unused regeneration shields (CR 701.19a) and
+            // the "can't be regenerated" lock (CR 701.19c), the exile-on-death
+            // rider (CR 614.1a) and the damage lock (issue #2231). The row is
+            // the ONE place the scope is declared.
+            clearCardFieldsAt(card, "turn");
         }
     }
 

@@ -274,6 +274,7 @@ export {
     getPlayer,
 };
 import { revertBestow } from "./bestow";
+import { clearCardFieldsAt } from "./state/cardFieldLifecycle";
 import { collectLingeringSnapshots } from "./lingeringStatics";
 import {
     STATIC_EFFECT_CTX,
@@ -3257,18 +3258,13 @@ function spliceStripped(item: StackItem): StackItem {
     return item;
 }
 
-function resetStackTransientState(item: StackItem): void {
+export function resetStackTransientState(item: StackItem): void {
     delete (item as { castById?: string }).castById;
     delete item.targets;
     // CR 608.2b (issue #2985) — the illegal-slot verdict indexes into
     // `targets`; it can never outlive the list it indexes.
     delete item.illegalTargetSlots;
     delete item.chosenX;
-    delete item.kickerPayments;
-    // ADR 0085 — the sibling half of the same partitioned snapshot; a record
-    // cleared on one side and left on the other is exactly the drift the split
-    // exists to prevent.
-    delete item.unkickedCostPayments;
     // CR 702.47e — "The spell loses any splice changes once it leaves the stack
     // for any reason." Left on, exactly the `buybackPaid` bug shape recurs and
     // worse: a spliced spell that resolved, was countered or was bounced
@@ -3280,80 +3276,42 @@ function resetStackTransientState(item: StackItem): void {
     delete item.targetAmounts;
     delete item.chosenModeIds;
     delete item.modeTargetCounts;
-    // The permanent-domain pick a recast card still carries from its last
-    // time on the battlefield (CR 400.7 — a new object) goes too.
-    delete (item as CardInstanceState).chosenModeId;
     delete item.additionalSacrificeSnapshot;
     delete item.notedManaSpent;
     delete item.dynamicCantBeCountered;
     delete item.dynamicHasteFromMana;
-    // CR 702.74a evoke / 702.109a dash / 702.138b escape (issue #2412) — `evoked`,
-    // `dashed`, `escaped` are declared on `CardInstanceState` so they survive
-    // resolution onto the permanent (the ETB triggers that read them run
-    // there), but every cast-commit site (`convex/game.ts` +
-    // `convex/gre/activation.ts`) stamps them onto
-    // the `StackItem` literal at the SAME seam as `buybackPaid`
-    // (`finalizeTargetSelection`/`tryAutoCommitPendingCast`:
-    // `...(isEvokeCost ? { evoked: true } : {})` /
-    // `...(isDashCost ? { dashed: true } : {})`, and `escaped` via
-    // `graveyardCastStackFlags`) — a stack item IS its `CardInstanceState`,
-    // the same object. Left off this list, exactly the `buybackPaid` bug
-    // shape recurs: a COUNTERED evoked/dashed/escaped spell rides the flag
-    // into the graveyard/exile/library/hand untouched, and the next HARD
-    // recast's `{ ...card, ...(isEvokeCost ? {...} : {}) }` spread never
-    // CLEARS it because the new cast doesn't pay the alt cost — so
-    // `evokeTrigger`'s `conditionOnSelf: self.evoked === true`
-    // (`cards/abilities/evoke.ts`) sacrifices a hard-cast permanent, `dashed`
-    // bounces one that was never dashed, and an "unless it escaped" clause
-    // inverts. Safe to delete here: every read of these three fields is
-    // either an ETB `condition`/`conditionOnSelf`/the `escaped` `EffectValue`
-    // on the BATTLEFIELD object, or `SpellContext.isEscaped`'s
-    // last-known-information fallback reading `item.escaped` while `item` is
-    // STILL the currently-resolving stack item — ORDERING is what makes this
-    // safe, not the absence of any StackItem-side read: every such read
-    // happens during the item's OWN resolution, strictly before any call
-    // site below runs (which is only reached once resolution has decided the
-    // item's destination, or before it ever started, on a counter) — so by
-    // that point the value has already been read or was never set for this
-    // exit. `resetBattlefieldTransientState` (`convex/gre/state.ts`) is the
-    // SIBLING gate on the permanent-exit side (a permanent bounced directly
-    // off the battlefield, never re-entering the stack — e.g. `dashTrigger`'s
-    // own next-end-step `moveZone $self → hand`) and carries the matching
-    // `delete card.evoked` / `dashed` / `escaped` trio (issue #2412 fixup
-    // round 3).
-    delete item.evoked;
-    delete item.dashed;
-    delete item.escaped;
-    // CR 702.185a (issue #1268) — the same one-shot-fact-about-this-cast shape,
-    // and the same leak if omitted: a COUNTERED warp spell would ride
-    // `warped: true` into the graveyard, and the next printed-cost recast's
-    // `{ ...card, ...(isWarpCost ? {...} : {}) }` spread never CLEARS it — so
-    // `finalizeSpellResolution` would schedule an end-step exile for a
-    // permanent nobody warped.
-    delete item.warped;
-    // CR 702.96a (issue #3215, PR #3288 review finding 1) — the Overload cast
-    // marker is the SAME leak shape as the three above, and the worst-behaved
-    // instance of it: `overloaded` decides whether the script's
-    // `forEach { set: "targets" }` sweeps the announced targets or EVERY
-    // matching object, so a marker that rides into the graveyard turns the next
-    // printed-cost cast of that card into a one-sided wrath for two mana.
-    // Reachable in the shipped pool today: overload Damn (or have it
-    // countered), then Regrowth / Eternal Witness / Yawgmoth's Will brings it
-    // back and the recast — which pays {B}{B} and announces ONE target —
-    // destroys every creature on both sides, because the `{ ...card, … }`
-    // spread every cast-commit site uses never writes `overloaded: false`.
-    delete item.overloaded;
+    // The `CardInstanceState` half (issue #4453): every field the Card Field
+    // Lifecycle table declares `reset: stack` — the kicker / offspring
+    // payment snapshot (ADR 0085: a record cleared on one side and left on
+    // the other is exactly the drift the split exists to prevent), the
+    // permanent-domain mode pick a recast card still carries (CR 400.7), and
+    // the one-shot cast-instance markers `evoked` / `dashed` / `escaped`
+    // (issue #2412) / `warped` (issue #1268) / `overloaded` (issue #3215) /
+    // `castOffSorceryTiming` (issue #2473). Each is stamped onto the
+    // `StackItem` literal at cast commit by a `{ ...card, ...(paid ? {...} :
+    // {}) }` spread that never CLEARS an inherited value, so a COUNTERED
+    // alt-cost spell would ride the flag into the graveyard and its next hard
+    // recast would resolve as the alt cast it never paid for — `overloaded`
+    // is the worst-behaved: a one-sided wrath for two mana. Safe to delete
+    // here by ORDERING: every read of these fields happens during the item's
+    // OWN resolution, strictly before any caller reaches this function.
+    // `resetBattlefieldTransientState` is the SIBLING gate on the
+    // permanent-exit side; the two lists are the SAME table column, so a
+    // field on one and not the other can no longer happen. Before
+    // `revertBestow`, whose layer-2-to-5 recomposition reads `chosenModeId`
+    // — the order the hand-written ladder had.
+    clearCardFieldsAt(item, "stack");
     // CR 702.103b/400.7 — the bestow marker is the same leak shape as the
-    // three above, with one extra obligation: bestow also MUTATED the object's
-    // type line in place, so a bare `delete` would leave a countered
-    // Springheart Nantuko sitting in the graveyard as an `Enchantment — Aura`
-    // with no power or toughness. `revertBestow` restores the printed line and
-    // clears both the marker and the granted "enchant creature" together. A
-    // no-op on every non-bestowed item. Every path reaching here leaves the
-    // stack for a NON-battlefield zone (graveyard, exile, library, hand) — a
-    // spell that actually resolves onto the battlefield never calls this
-    // function, which is exactly what lets the resolved permanent stay
-    // bestowed (CR 702.103b).
+    // cast-instance markers the generic clear below removes, with one extra
+    // obligation: bestow also MUTATED the object's type line in place, so a
+    // bare `delete` would leave a countered Springheart Nantuko sitting in the
+    // graveyard as an `Enchantment — Aura` with no power or toughness.
+    // `revertBestow` restores the printed line and clears both the marker and
+    // the granted "enchant creature" together. A no-op on every non-bestowed
+    // item. Every path reaching here leaves the stack for a NON-battlefield
+    // zone (graveyard, exile, library, hand) — a spell that actually resolves
+    // onto the battlefield never calls this function, which is exactly what
+    // lets the resolved permanent stay bestowed (CR 702.103b).
     revertBestow(item);
     // CR 715.4 — the exact same obligation, one mechanic later: an Adventure
     // cast MUTATED the object's identity in place (`card.card.id` is the twin,
@@ -3373,12 +3331,6 @@ function resetStackTransientState(item: StackItem): void {
     // stack, the characteristics of a split card are those of its two halves
     // combined." A no-op on every item not cast as a split half.
     revertSplitIdentity(item);
-    // CR 307.1 / 117.1a / 601.3a (issue #2473) — same leak shape as
-    // `evoked`/`dashed`/`escaped` immediately above: a COUNTERED (or
-    // otherwise stack-leaving-without-resolving) spell must not carry this
-    // cast's timing snapshot into whatever object picks up the same
-    // `CardInstanceState` for its NEXT, genuinely independent cast.
-    delete item.castOffSorceryTiming;
     delete item.abilityId;
     delete item.grantedSourceCardId;
     // Issue #2943 — same group-(2) membership as the line above: the origin is
@@ -8860,30 +8812,6 @@ export function resetBattlefieldTransientState(
     // is simply no longer in it.
     purgeContinuousEffectsForInstance(state, card.id);
     card.isTapped = false;
-    delete card.damageMarked;
-    delete card.dealtDeathtouchDamage;
-    delete card.regenerationShields;
-    delete card.isSummoningSick;
-    // CR 400.7 / 716.2b (issue #3234) — the class level belongs to the object
-    // that was on the battlefield. CR 716.2b's "a Class retains its level even
-    // if it stops being a Class" is about a permanent whose TYPE changes while
-    // it stays on the battlefield, not about a zone change: a zone change makes
-    // a new object, which is level 1 again (CR 716.2d).
-    delete card.classLevel;
-    // CR 400.7 (issue #1458) — the entry stamp belongs to the object that was
-    // on the battlefield; the zone change creates a new object, which gets a
-    // fresh stamp from `markEnteredThisTurn` if it re-enters.
-    delete card.enteredOnTurn;
-    delete card.isAttacking;
-    delete card.isBlocking;
-    delete card.hasAttackedThisTurn;
-    delete card.hasBlockedThisTurn;
-    delete card.damagedBySources;
-    delete card.controlChanges;
-    // CR 400.7 / 701.27f (issue #3249) — the transform stamp belongs to the
-    // previous object; the new one has never transformed.
-    delete card.transformedAtDelayedSeq;
-    delete card.transformCount;
     // CR 400.7 / 611.2b (issue #1470) — an INDEFINITE animation (earthbend N's
     // "becomes a 0/0 creature with haste that's still a land") mutates the
     // instance IN PLACE (`types`, `subtypes`, `power`, `toughness`), so merely
@@ -8891,8 +8819,8 @@ export function resetBattlefieldTransientState(
     // stuck as a 0/0 creature-land. Revert the mutation, and splice the
     // animation-granted keywords (haste) back out of `staticAbilities` the way
     // the CLEANUP duration purge does (phases.ts) — `grantedStaticAbilities` is
-    // only the provenance record, the ability itself lives on the array. Both
-    // run BEFORE the matching deletes below, while the provenance is readable.
+    // only the provenance record, the ability itself lives on the array. Runs
+    // BEFORE the generic clear below, while the provenance is readable.
     revertAnimation(card);
     // CR 400.7 (PRD #2064 S3) — the object that leaves is not the object that
     // comes back, so layer 6 resets to its BASE rather than being unwound
@@ -8930,53 +8858,11 @@ export function resetBattlefieldTransientState(
     // A ledger is CR 611.2a residue attached to an OBJECT; the object that
     // leaves is not the one that comes back, so a text change (CR 612.7 says
     // this in as many words), a one-shot type-line set, an indefinite subtype
-    // add and a supertype mutation all end here.
+    // add and a supertype mutation all end here. The bases and ledgers
+    // themselves are `zone-change` rows of the lifecycle table, deleted by
+    // the generic clear at the end — after this read.
     card.types = [...(card.baseTypes ?? card.types)];
     card.subtypes = [...(card.baseSubtypes ?? card.subtypes)];
-    delete card.baseControllerId;
-    delete card.baseTypes;
-    delete card.baseSubtypes;
-    delete card.textChangeHolds;
-    delete card.typeLineHolds;
-    delete card.subtypeAddHolds;
-    delete card.supertypeHolds;
-    // The layer-4/5 DERIVED OUTPUT of the old object goes with its ledgers
-    // (PRD #2064 S6b-part-2 — these three stayed materialised because their
-    // consult sites have no board). Leaving them behind would let a bounced
-    // permanent read as snow, or as black, until the next sync overwrote them —
-    // and a save/load in that window would promote the rows into ledgers of
-    // their own (`migrateLegacyLayer2to5Ledgers`, `gre/serialize.ts`).
-    delete card.grantedSupertypes;
-    delete card.removedSupertypes;
-    delete card.grantedColors;
-    // CR 613.7 (issue #1715) — a permanent that leaves and re-enters is a NEW
-    // object and takes a NEW layer timestamp on its next apply.
-    delete card.staticSeq;
-    delete card.grantedActivatedAbilities;
-    delete card.grantedTriggeredAbilities;
-    // CR 400.7 / 508.1d (issue #1972) — the entry-side half; the departure
-    // side is `removePermanentTo`.
-    delete card.grantedAttackRequirements;
-    delete card.abilitiesSuppressedBy;
-    delete card.abilityLossHolds;
-    delete card.chosenMana;
-    delete card.manaCounterRemoval;
-    delete card.lifePaidThisTap;
-    delete card.exertedThisTap;
-    delete card.manaPaidThisTap;
-    delete card.manaCommitted;
-    delete card.tapTriggerCommitted;
-    // CR 400.7 / 602.5 / 603.2 — the per-turn activation and trigger tallies
-    // belong to the object that was on the battlefield. A permanent that leaves
-    // and re-enters is a NEW object and gets a fresh quota, so a
-    // once-each-turn ability may be activated again and a capped trigger
-    // ("only twice each turn", Nadu, Winged Wisdom) may fire again.
-    delete card.activationsThisTurn;
-    delete card.triggersThisTurn;
-    delete card.counters;
-    // CR 122.2 / 400.7 — the departure-time counter memory is meaningless on a
-    // permanent that has re-entered the battlefield as a new object.
-    delete card.countersAtLeave;
     // CR 400.7 / 611.2a (issue #1746) — a subtype REPLACEMENT survives a phase
     // boundary when it is indefinite (and the timed form outlives a zone change
     // too, which is equally wrong), so it must be undone here or a bounced
@@ -8986,34 +8872,20 @@ export function resetBattlefieldTransientState(
     // layer-7b base-P/T SET that stood beside it is a registry entry since PRD
     // #2064 S6 and is purged at the top of this function.
     revertTypeLine(card);
-    delete card.sourceTappedPTMods;
-    delete card.untapLockedBy;
-    delete card.skipNextUntap;
-    delete card.exileOnDeath;
-    // CR 400.7 (issue #2231) — the turn-scoped damage lock is per-INSTANCE; a
-    // permanent that leaves the battlefield becomes a new object, so the flag
-    // must not ride back in on a re-entry (same reason as `exileOnDeath`).
-    delete card.damageLockThisTurn;
-    delete card.colorOverride;
-    // CR 400.7 (issue #1872) — the layer-5 colour SET's REVERT record is
-    // scrubbed with the override it guards. `colorOverride` alone was deleted
-    // here, leaving a live `temporaryColorOverride` on the departed object: at
-    // the next phase boundary `tickAllDurations` would splice a stale colour
-    // (or `undefined`) back onto what is by then a NEW object. Latent for the
-    // timed `setColor` case (Kavu Chameleon) and reachable the moment an
-    // `animate` with `colors` bounces mid-animation.
-    delete card.temporaryColorOverride;
-    delete card.cantBeBlockedThisTurn;
-    delete card.cantBeBlockedBySubtypesThisTurn;
-    // CR 603.6b — the chosen player is stored for the rest of the game while
-    // this permanent is on the battlefield; a zone change makes a new object
-    // (CR 400.7), so the choice does not carry over.
-    delete card.chosenPlayerId;
-    // CR 603.6b / 400.7 — the on-entry chosen subtype pair (Illusionary
-    // Terrain) is stored while the permanent stays in play; a zone change makes
-    // a new object, so the choice does not carry over.
-    delete card.chosenSubtypes;
-
+    // CR 400.7 — every optional field the Card Field Lifecycle table declares
+    // `reset: zone-change` goes with the old object (issue #4453): the combat
+    // and damage history, the per-turn tallies, the layer bases and ledgers
+    // read above, the mana-ability bookkeeping, the counters, the as-enters
+    // and on-cast choices, the cast-instance markers (`evoked` / `dashed` /
+    // `escaped` / `warped` / `overloaded` / `castOffSorceryTiming` —
+    // `resetStackTransientState` is the SIBLING gate on the stack-exit side,
+    // issue #2412). The row is the ONE place a field's scope is declared;
+    // `git log -S<field>` finds the rule that put it there. Placed AFTER the
+    // base re-seats and `revertTypeLine` (which read `baseTypes` /
+    // `baseSubtypes`) and BEFORE `revertBestow`, whose layer-2-to-5
+    // recomposition must find the old object's ledgers already gone — the
+    // exact order the hand-written ladder had.
+    clearCardFieldsAt(card, "zone-change");
     // CR 303.4 / 400.7 — a runtime-granted enchant restriction ("it becomes an
     // Aura with enchant creature") belongs to the object that was on the
     // battlefield. The object that leaves — and the one that re-enters — is a
@@ -9028,105 +8900,14 @@ export function resetBattlefieldTransientState(
     // make it so, CR 702.103a), so a marker surviving here would carry an
     // Aura type line onto a reanimated / blinked creature.
     revertBestow(card);
-    // CR 111 / 400.7 (issue #791/#1319) — the per-source exile provenance
-    // link is only meaningful while the card sits in exile. This helper is
-    // the shared chokepoint for every reanimation-style entry
-    // (`returnToBattlefield`, `putFromLibraryOntoBattlefield`,
-    // `putFromHandOntoBattlefield`, `returnGraveyardSetToBattlefield`) — some
-    // of which originate FROM exile — so drop the link here too (a no-op
-    // when it wasn't set) rather than duplicating the clear at every call
-    // site. Mirrors the cast-from-exile clear in `removeFromZone`.
-    delete card.exiledBySourceId;
-    // CR 702.33 / 400.7 (issue #1753) — `wasKicked` is a one-shot fact about
-    // the OBJECT that resolved kicked; a CR 400.7 zone change makes a new
-    // object with no memory of it, exactly like every other field above. Left
-    // uncleared, a kicked permanent bounced to hand and recast unkicked would
-    // still read `wasKicked: true` (`game.ts` builds every stack item as
-    // `{ ...card, ... }`), and a reanimated/blinked kicked permanent would
-    // return with the grant it no longer earned. `kickerPayments` (issue
-    // #1950, ADR 0079) is its per-Kicker-id twin — same lifecycle, cleared
-    // here too, the battlefield→hand sibling of the buyback stack→hand clear
-    // in `resetStackTransientState`.
-    delete card.wasKicked;
-    delete card.kickerPayments;
-    // ADR 0085 — and the sibling record (CR 702.175a Offspring), which is the
-    // same one-shot cast fact under a keyword that never made the spell
-    // "kicked". Cleared here for the same CR 400.7 reason and in the same
-    // breath, so the two halves can never fall out of step.
-    delete card.unkickedCostPayments;
-    // CR 107.3 / 400.7 (issue #674) — the chosen {X} is a one-shot fact about
-    // the OBJECT that resolved; a zone change makes a new object with no
-    // memory of it. Exactly the `wasKicked` pair above: the typed snapshot
-    // AND the stray untyped `chosenX` a resolved stack item leaves on the
-    // battlefield object (`finalizeSpellResolution` pushes the item as-is).
-    // Left uncleared, a Ravenous creature cast for X=7, bounced and recast for
-    // X=0 would still read X=7 (`game.ts` builds every stack item as
-    // `{ ...card, ... }`), and a reanimated one — which never announced an X
-    // at all (CR 601.2b applies to casting only) — would inherit the old one.
-    delete card.chosenXOnCast;
+    // CR 107.3 / 400.7 (issue #674) — the stray untyped `chosenX` a resolved
+    // stack item leaves on the battlefield object (`finalizeSpellResolution`
+    // pushes the item as-is); its typed twin `chosenXOnCast` is a table row.
     delete (card as { chosenX?: number }).chosenX;
-    // CR 614.12 / 400.7 (issue #1953) — the as-enters chosen card NAME
-    // (Meddling Mage) is a fact about the OBJECT that entered; a zone change
-    // makes a new object, and the new entry owes its own CR 614.12 choice.
-    // Exactly the `chosenPlayerId` / `chosenSubtypes` / `chosenXOnCast` pairs
-    // above. Left uncleared, a Mage that died naming "Lightning Bolt" and came
-    // back by a NON-cast path (reanimation, `putFromHandOntoBattlefield` —
-    // paths that never run the creature spell's `resolveSteps`, so no new name
-    // is ever asked for) would silently re-lock the old name.
-    delete card.chosenName;
-    // CR 702.74a / 702.109a / 702.138b / 400.7 (issue #2412 fixup round 3) —
-    // the PERMANENT-side sibling of the `wasKicked`/`chosenXOnCast` pairs
-    // above, and of `resetStackTransientState`'s `evoked`/`dashed`/`escaped`
-    // clear (round 2, this same function's stack-exit counterpart).
-    // `evoked`/`dashed`/`escaped` are one-shot facts about the OBJECT that
-    // was cast that way; a CR 400.7 zone change makes a new object with no
-    // memory of it. `convex/game.ts` stamps all three directly onto the
-    // `StackItem` literal at cast commit (the same seam as `wasKicked`), and
-    // that object becomes the battlefield permanent for free — so a
-    // permanent bounced DIRECTLY off the battlefield (never re-entering the
-    // stack: a bounce spell, or `dashTrigger`'s own next-end-step
-    // `moveZone $self → hand`, CR 702.109a) still carried the flag on the
-    // object landing in hand/library, left uncleared here. `game.ts`'s cast
-    // branches build every new stack item as
-    // `{ ...card, ...(isDashCost ? { dashed: true } : {}) }` — a spread that
-    // is `{}` whenever the new cast doesn't pay the alt cost, so it never
-    // CLEARS an inherited value. A hard recast of that same object then
-    // inherited `dashed: true`/`evoked: true`/`escaped: true`, incorrectly
-    // re-firing `dashTrigger`'s haste grant + end-step self-bounce (or
-    // `evokeTrigger`'s ETB sacrifice, or an "unless it escaped" clause) on a
-    // permanent nobody dashed/evoked/escaped this time. Reproduced with a
-    // shipped card: Ragavan, Nimble Pilferer (MH2) dashed → resolves →
-    // bounces itself via its own `dashTrigger` end step → hard recast would
-    // silently gain haste and re-schedule ANOTHER self-bounce, every game.
-    // See `convex/gre/__tests__/dash.test.ts` ("battlefield-side leak").
-    delete card.evoked;
-    delete card.dashed;
-    delete card.escaped;
-    // CR 702.185a / 400.7 (issue #1268) — the battlefield-exit half, and for
-    // Warp it is load-bearing rather than belt-and-braces: the scheduled
-    // next-end-step trigger identifies its subject as "the permanent under this
-    // id that is STILL `warped`", so clearing the marker here is exactly what
-    // makes a permanent that left and came back a NEW object the original
-    // trigger does not chase (CR 400.7).
-    delete card.warped;
-    // CR 702.96a (issue #3215) — the battlefield-side half of the same gate the
-    // stack side now carries. No overload card in the pool is a permanent
-    // spell, so nothing reaches here with the marker today; it is listed
-    // because the sibling functions must name the SAME set of cast-instance
-    // facts, and a field on one list and not the other is how the leak this
-    // whole comment describes came back.
-    delete card.overloaded;
-    // CR 307.1 / 117.1a / 601.3a (issue #2473) — same one-shot-fact-about-
-    // the-OBJECT-that-was-cast shape as the trio immediately above: a
-    // permanent bounced directly off the battlefield (never re-entering the
-    // stack) must not carry its OLD cast's timing snapshot onto whatever
-    // re-enters using this same `CardInstanceState`.
-    delete card.castOffSorceryTiming;
-    // CR 608.2b (issue #2985) — the resolution-time illegal-SLOT verdict is
-    // exactly such a one-shot fact about the object that was cast, and it
-    // indexes into a `targets` list this same instance will not have on its
-    // next cast. Named on BOTH lists per the paragraph above. Cast because
-    // this function takes the `CardInstanceState` an object is on the
+    // CR 608.2b (issue #2985) — the resolution-time illegal-SLOT verdict is a
+    // one-shot fact about the object that was cast, and it indexes into a
+    // `targets` list this same instance will not have on its next cast. Cast
+    // because this function takes the `CardInstanceState` an object is on the
     // battlefield, while the field is declared on the `StackItem` it was
     // while being cast.
     delete (card as Partial<StackItem>).illegalTargetSlots;

@@ -11,17 +11,13 @@ points at, and every `§` anchor cited from the codebase resolves here.
   Implement exactly what the CR specifies; question only genuine ambiguity,
   intentional simplification, or choices the CR doesn't dictate. Verify with
   `/mtg-rules-check` first.
-- **Print the rule, never recall it** (ADR 0098). The vendored official
-  document (`data/cr/comprehensive-rules.txt`) is the only source:
-  `bun run cr 605.1a`, `bun run cr grep "<keyword>"`. A citation whose id
-  `bun run cr` cannot find is wrong — `bun run cr:lint` sweeps the repo for
-  them and runs in `check:guards` (#2429) — including bare ids in a slash-list,
-  so long as **the line says `CR `**. A citation wrapped across two comment
-  lines — the prefix, the id or the keyword on the next line — is joined and
-  read whole (issue #2514); a bare id on a line with no `CR ` on it is the one
-  shape the scan cannot see. It proves only that an id RESOLVES: the comment
-  around it must still say what the printed rule says, and that is yours to
-  check.
+- **Print the rule, never recall it** (ADR 0098): `bun run cr <id>` /
+  `bun run cr grep` on the vendored text (root `CLAUDE.md` § Rules
+  Implementation Process). `cr:lint` (`check:guards`, #2429) reds an id that
+  resolves to nothing and reads a citation wrapped across comment lines whole
+  (#2514); a bare id on a line without `CR ` is the one shape it cannot see.
+  Resolving proves only the id: the comment must still say what the printed
+  rule says.
 - Every mechanic MUST reference its CR section in code comments.
 - Flag any deviation from CR explicitly — what's simplified and why.
 
@@ -263,10 +259,14 @@ consumer.
 
 ## Serialization requirement
 
-Every optional `GameState` field goes in `PERSISTED_OPTIONAL_KEYS`
-(`serialize.ts`) or `TRANSIENT_KEYS`; the drift guard in `serialize.test.ts`
-fails otherwise. New optional field: add the key, add a round-trip smoke test
-with a non-empty value, run the suite.
+Every optional `GameState` field goes in `PERSISTED_OPTIONAL_KEYS` or
+`TRANSIENT_KEYS` (`serialize.ts`; drift guard in `serialize.test.ts`, plus a
+round-trip test with a non-empty value). Every optional `CardInstanceState`
+field is ONE row of `CARD_FIELD_LIFECYCLE` (`gre/state/cardFieldLifecycle.ts`,
+issue #4453: `codec` + `reset` — the row IS the compact/expand branch and the
+reset-ladder line; never hand-write either) plus its value in
+`__tests__/fixtures/everyOptionalCardField.ts`; `check:ts` names what you
+forgot. Derivation: the module's doc comment.
 
 ## Code patterns
 

@@ -1,7 +1,8 @@
 ---
 title: compactCard/expandCard's per-field allowlist has no drift guard, unlike PERSISTED_OPTIONAL_KEYS
 discoveredBy: 2361
-status: draft
+status: triaged
+issue: 4453
 confidence: medium
 ---
 

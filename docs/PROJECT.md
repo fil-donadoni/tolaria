@@ -295,6 +295,12 @@ di tipo ampia.
 dei due insiemi. Senza, il campo si perde silenziosamente al round-trip sul DB —
 un bug che non si manifesta nei test unitari e appare in partita.
 
+**Ogni nuovo campo opzionale di `CardInstanceState` è UNA riga in
+`CARD_FIELD_LIFECYCLE`** (`convex/gre/state/cardFieldLifecycle.ts`, issue
+#4453): `codec` per `compactCard`/`expandCard` e `reset` per le tre ladder
+(cleanup, uscita dal campo, uscita dallo stack). Niente rami scritti a mano;
+`check:ts` fallisce senza la riga.
+
 ### 5.2 Expected Input (ADR 0047)
 
 La macchina di attesa dell'engine è distribuita su campi indipendenti:
@@ -1208,6 +1214,7 @@ convex/
 │   ├── phases.ts triggers.ts sba.ts layers.ts replacements.ts
 │   ├── combat.ts banding.ts protection.ts
 │   ├── serialize.ts        PERSISTED_OPTIONAL_KEYS + drift guard
+│   ├── state/cardFieldLifecycle.ts  CARD_FIELD_LIFECYCLE (codec + reset per campo)
 │   ├── effects/            interpreter.ts validate.ts scenarioGenerator.ts
 │   └── ai/                 moves ⊂ ../moves.ts, opValuers, blade/
 └── limited/

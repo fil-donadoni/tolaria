@@ -2506,8 +2506,9 @@ describe("optional field round-trip smoke tests", () => {
     });
 
     // CR 122.1 (issue #1969). `PlayerState` has NO exhaustiveness guard — the
-    // `_cardKeysExhaustive` check in serialize.ts covers `CardInstanceState`
-    // only, and `PERSISTED_OPTIONAL_KEYS` is `GameState`-level — so this
+    // `CARD_FIELD_LIFECYCLE` table (`gre/state/cardFieldLifecycle.ts`) covers
+    // `CardInstanceState` only, and `PERSISTED_OPTIONAL_KEYS` is
+    // `GameState`-level — so this
     // round trip is the ONLY thing standing between an omitted
     // `compactPlayer`/`expandPlayer` line and a silent reset of every
     // experience total at every save point. Load-bearing beyond the usual:
