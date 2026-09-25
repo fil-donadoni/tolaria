@@ -202,6 +202,7 @@ import {
     isTransientOnlyAbility,
     spendsStandingPermanent,
 } from "./ai/abilityTiming";
+import { abilityBenefitIsConfinedToSource } from "./ai/sourceConfinedBenefit";
 import { assertNever } from "./assertNever";
 // Root-decision telemetry (issue #1893, map #1892) — off by default.
 import {
@@ -1887,7 +1888,9 @@ function rollout(
             // variants (one per sacrificable permanent and target) would
             // otherwise outnumber every other move at the node.
             const drawn = moves.filter(
-                (m) => !isTransientSacrificeConversion(state, pid, m)
+                (m) =>
+                    !isTransientSacrificeConversion(state, pid, m) &&
+                    !isSourceConfinedSacrificeConversion(state, pid, m)
             );
             const pool = drawn.length > 0 ? drawn : moves;
             chosen = pool[Math.floor(rng() * pool.length)];
@@ -2670,6 +2673,46 @@ function isDeferrableTransientSacrifice(
     );
 }
 
+/** Whether `move` gives up a standing permanent for a payoff that lands ONLY
+ *  on the ability's own source (`abilityBenefitIsConfinedToSource`: a counter,
+ *  a buff, a granted ability), in ANY window (issue #4271).
+ *
+ *  The payoff is LASTING, so `isTransientSacrificeConversion`'s argument
+ *  ("gone by next turn") does not apply; the argument is redistribution.
+ *  A transient payoff stays under that predicate's own windowed rule (a pump
+ *  after blocks decides the exchange), and a shield (`regenerate` /
+ *  `preventDamage`) creates value in one, so neither is accepted here.
+ *  Growing one body by sacrificing another moves worth around the board and
+ *  creates none — no card, no mana, no damage, no life — so every such edge is
+ *  a step down from passing, and both places the search opens one below the
+ *  root pay for it in the cast edge that leads there: the rollout's random
+ *  draw (two victims against one `pass` make the outlet the likeliest draw)
+ *  and the tree's own children at the node after the cast. Their subtrees drag
+ *  the cast edge's mean margin under `pass`'s for a creature the static leaf
+ *  ranks higher, and four self-growing outlets were `never-chosen` while the
+ *  same body without the ability was cast. The root is never pruned, so a
+ *  sacrifice the bot could take NOW stays a scored option.
+ *
+ *  Per-card-agnostic, never a card name (ADR 0102). */
+function isSourceConfinedSacrificeConversion(
+    state: GameState,
+    pid: string,
+    move: Move
+): boolean {
+    return isSacrificeConversionWhere(
+        state,
+        pid,
+        move,
+        (ability) =>
+            ability.useStack &&
+            abilityBenefitIsConfinedToSource(ability) &&
+            !isTransientOnlyAbility(ability) &&
+            !(ability.effects ?? []).some(
+                (op) => op.op === "regenerate" || op.op === "preventDamage"
+            )
+    );
+}
+
 function isSacrificeConversionWhere(
     state: GameState,
     pid: string,
@@ -2976,7 +3019,12 @@ function iterate(
         // node (unlike the dominance probe); never emptying, `pass` is kept.
         if (depth > 0) {
             const kept = keyed.filter(
-                (k) => !isDeferrableTransientSacrifice(world, pid, k.move)
+                (k) =>
+                    !isDeferrableTransientSacrifice(world, pid, k.move) &&
+                    !(
+                        world.stack.length === 0 &&
+                        isSourceConfinedSacrificeConversion(world, pid, k.move)
+                    )
             );
             if (kept.length > 0) keyed = kept;
         }
