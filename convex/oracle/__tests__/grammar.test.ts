@@ -222,17 +222,6 @@ describe("slot router — unique dispatch (CR 113.3a-d)", () => {
         if (!r.ok) expect(r.reason).toBe("no slot consumed the line");
     });
 
-    it("exposes every slot, including the four that are still stubs", () => {
-        expect(SLOTS.map((s) => s.name)).toEqual([
-            "keyword-line",
-            "mana-ability",
-            "activated",
-            "triggered",
-            "static",
-            "spell",
-        ]);
-    });
-
     it("explainLine reports a verdict from every slot", () => {
         const verdicts = explainLine("Flying", ctx);
         expect(verdicts).toHaveLength(SLOTS.length);

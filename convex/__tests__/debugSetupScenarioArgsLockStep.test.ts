@@ -49,10 +49,6 @@ const specJson = validatorJsonOf(scenarioSpecValidator);
 const specFields = (specJson as { value: Record<string, FieldJson> }).value;
 
 describe("debugSetupScenario args validator declares `life` (issue #2147, sixth site)", () => {
-    it("declares `life` as an optional field — the one this review round adds", () => {
-        expect(Object.keys(argsFields)).toContain("life");
-    });
-
     it("accepts the exact args BOTH load paths build from a saved spec carrying life", () => {
         // Mirrors `debug-db-scenarios.tsx`'s `handleLoad` and
         // `useScenarioTestGame.ts`'s load effect: `{ gameId, ...normalizeScenarioSpec(spec) }`

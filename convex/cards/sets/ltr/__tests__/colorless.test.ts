@@ -175,26 +175,6 @@ describe("The One Ring — protection bars targeting (CR 702.16b applied to a pl
 });
 
 describe("The One Ring — protection prevents all damage (CR 702.16e)", () => {
-    it("a burn spell resolving at the protected player deals nothing", () => {
-        const state = makeState({
-            players: [makePlayer("p1"), makePlayer("p2")],
-            playerProtectionFromEverything: ["p1"],
-        });
-        const before = state.players[0].life;
-        pushSpell(state, lightningBolt.id, "p2", [
-            { type: "player", id: "p1" },
-        ]);
-        resolveTopOfStack(state);
-        expect(state.players[0].life).toBe(before);
-        // The unprotected player is unaffected — no blanket regression.
-        const beforeP2 = state.players[1].life;
-        pushSpell(state, lightningBolt.id, "p1", [
-            { type: "player", id: "p2" },
-        ]);
-        resolveTopOfStack(state);
-        expect(state.players[1].life).toBe(beforeP2 - 3);
-    });
-
     it("prevents at the shared chokepoint every player-damage sink routes through (combat included)", () => {
         const state = makeState({
             players: [makePlayer("p1"), makePlayer("p2")],

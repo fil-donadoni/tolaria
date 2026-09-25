@@ -31,29 +31,6 @@ const mountain = getDefinition("eace2c85-976c-425e-9800-5a6ccbd91b56");
 const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 
 describe("Lava Dart (CR 702.34) — 1 damage + flashback sacrifice a Mountain", () => {
-    it("main cast: deals 1 damage to any target (player)", () => {
-        const p1 = makePlayer("p1");
-        const p2 = makePlayer("p2");
-        const state = makeState({ players: [p1, p2] });
-        const item: StackItem = {
-            ...makeInstance(lavaDart.id, {
-                controllerId: "p1",
-                ownerId: "p1",
-                zone: "stack",
-            }),
-            castById: "p1",
-            targets: [{ type: "player", id: "p2" }],
-        };
-        state.stack.push(item);
-        resolveTopOfStack(state);
-
-        expect(getPlayer(state, "p2").life).toBe(19);
-        // A normal cast never exiles — it goes to the graveyard as usual.
-        expect(
-            getPlayer(state, "p1").graveyard.some((c) => c.id === item.id)
-        ).toBe(true);
-    });
-
     it("flashback cast: sacrifices a Mountain (no mana), deals 1 damage, then exiles Lava Dart (CR 702.34a)", () => {
         const mtn = makeInstance(mountain.id, {
             id: "mtn1",

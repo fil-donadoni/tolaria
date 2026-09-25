@@ -775,10 +775,6 @@ describe("search — calibrated reward mapping variant (issue #1929)", () => {
             prev = r;
         }
     });
-
-    it("LADDER_VARIANTS registers the knob under the name the CLI accepts", () => {
-        expect(LADDER_VARIANTS["reward-calibrated"]).toEqual(CAL);
-    });
 });
 
 // ---------------------------------------------------------------------------

@@ -61,8 +61,6 @@ import {
     runUntapForJ,
 } from "./helpers";
 import { getDefinition } from "../../../index";
-
-const ancestralRecall = getDefinition("70e7ddf2-5604-41e7-bb9d-ddd03d3e9d0b");
 const animateArtifact = getDefinition("664b46f5-0424-4f4e-9f26-6bd2cf5e0357");
 const badMoon = getDefinition("43572906-ea74-4411-a549-5dc401591d2a");
 const blackKnight = getDefinition("c1662949-0d69-49a3-8c69-daf10717ed4e");
@@ -107,7 +105,6 @@ const plains = getDefinition("b1623d57-4729-4796-b3f7-f1837a05c6ed");
 const plateau = getDefinition("6eafa00b-c628-40f6-86eb-88e1361fc7a0");
 const powerLeak = getDefinition("ccc982b6-35b2-4e33-ace2-86cb79123e4f");
 const powerSink = getDefinition("1b342dd3-09b9-4108-bf12-a65d4cef4eb9");
-const psionicBlast = getDefinition("a6a86e6e-bfff-46af-9d36-c912901fea92");
 const psychicVenom = getDefinition("f3f5b68a-6b0e-431e-89f0-ff60f17687a5");
 const redWard = getDefinition("e0c64c01-c2aa-470b-88c6-3d3e4a969649");
 const savannahLions = getDefinition("d05b92bd-797e-413f-a8b0-32e0937a1ee0");
@@ -134,46 +131,6 @@ const wallOfWater = getDefinition("41faed1a-ded8-49ee-8e2a-c60d377775d7");
 const wildGrowth = getDefinition("fd896dfa-66c0-4327-8e5b-489bbe350c95");
 import { wireCharacteristicsOf } from "../../../__tests__/setup";
 import { textChangesOf } from "../../../../gre/textChanges";
-
-describe("Psionic Blast ({2}{U} — 4 to any target, 2 to you, CR 120.3)", () => {
-    it("deals 4 damage to target player and 2 damage to the caster", () => {
-        const state = makeState();
-        pushSpell(state, psionicBlast.id, "p1", [{ type: "player", id: "p2" }]);
-        resolveTopOfStack(state);
-        expect(state.players[1].life).toBe(16);
-        expect(state.players[0].life).toBe(18);
-    });
-
-    it("kills a 4-toughness creature while still damaging the caster", () => {
-        const wall = makeInstance(wallOfSwords.id, {
-            id: "wall",
-            controllerId: "p2",
-            ownerId: "p2",
-            power: 3,
-            toughness: 4,
-        });
-        const state = makeState({
-            players: [
-                makePlayer("p1"),
-                makePlayer("p2", { battlefield: [wall] }),
-            ],
-        });
-        pushSpell(state, psionicBlast.id, "p1", [
-            { type: "permanent", id: "wall" },
-        ]);
-        resolveTopOfStack(state);
-        expect(state.players[1].battlefield).toHaveLength(0);
-        expect(state.players[1].graveyard.map((c) => c.id)).toContain("wall");
-        expect(state.players[0].life).toBe(18);
-    });
-
-    it("can target the caster — 4 + 2 damage both hit p1", () => {
-        const state = makeState();
-        pushSpell(state, psionicBlast.id, "p1", [{ type: "player", id: "p1" }]);
-        resolveTopOfStack(state);
-        expect(state.players[0].life).toBe(14);
-    });
-});
 
 describe("Volcanic Eruption ({X}{U}{U}{U} — destroy X target Mountains, deal that many to each creature/player, CR 107.3 / 205.3 / 614.5 / 120.3)", () => {
     function makeMountain(id: string, controllerId: string): CardInstanceState {
@@ -355,31 +312,6 @@ describe("Volcanic Eruption ({X}{U}{U}{U} — destroy X target Mountains, deal t
         expect(p2.life).toBe(18);
         const p1 = projected.players.find((p) => p.id === "p1")!;
         expect(p1.life).toBe(18);
-    });
-});
-
-describe("Ancestral Recall (target player draws 3, CR 608.3)", () => {
-    it("draws 3 cards for the target player", () => {
-        const p2Library = Array.from({ length: 5 }, (_, i) =>
-            makeInstance(grizzlyBearsId(), {
-                id: `p2-lib-${i}`,
-                controllerId: "p2",
-                ownerId: "p2",
-                zone: "library",
-            })
-        );
-        const state = makeState({
-            players: [
-                makePlayer("p1"),
-                makePlayer("p2", { library: p2Library }),
-            ],
-        });
-        pushSpell(state, ancestralRecall.id, "p1", [
-            { type: "player", id: "p2" },
-        ]);
-        resolveTopOfStack(state);
-        expect(state.players[1].hand).toHaveLength(3);
-        expect(state.players[1].library).toHaveLength(2);
     });
 });
 

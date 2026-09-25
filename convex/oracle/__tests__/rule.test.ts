@@ -162,12 +162,6 @@ describe("listOf — a list cannot lose its tail", () => {
         if (!result.ok) expect(result.fragment).toBe("banding");
     });
 
-    it("split parts always rejoin to the original span", () => {
-        const spans = ["a, b", "a", "a, b, c", "a, , b"];
-        for (const span of spans)
-            expect(span.split(", ").join(", ")).toBe(span);
-    });
-
     it("refuses to be built with an empty separator", () => {
         expect(() => listOf("x", "", literal("a"))).toThrow();
     });

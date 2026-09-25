@@ -90,6 +90,18 @@ export const CARD_REGISTRY_GLOBS = [
     "tsconfig*.json",
 ] as const;
 
+/**
+ * What a guard over the test corpus reads (`check:test-hygiene`): every test
+ * file, plus the test-support modules a test file imports from beside it.
+ * Both spellings are needed — a `__tests__/` helper is not a `*.test.ts`, and
+ * a test file may sit outside a `__tests__/` directory.
+ */
+export const TEST_CORPUS_GLOBS = [
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "**/__tests__/**",
+] as const;
+
 /** Every guard's hash covers the scheme that produced it. */
 const SELF = "scripts/lib/guard-cache.ts";
 const SCHEME = "guard-cache/v1";

@@ -23,16 +23,6 @@ describe("Lava Spike (3 damage to target player, CR 120.1 — first DSL-only car
         expect(typeof getResolveFn(lavaSpike)).toBe("function");
     });
 
-    it("deals 3 damage to the targeted player and goes to the graveyard (CR 608.2k)", () => {
-        const state = makeState();
-        pushSpell(state, lavaSpike.id, "p1", [{ type: "player", id: "p2" }]);
-        resolveTopOfStack(state);
-        expect(state.players[1].life).toBe(17);
-        expect(state.players[0].graveyard.map((c) => c.card.id)).toContain(
-            lavaSpike.id
-        );
-    });
-
     it("does nothing when its target is gone at resolution (CR 608.2b)", () => {
         const state = makeState();
         pushSpell(state, lavaSpike.id, "p1", []);

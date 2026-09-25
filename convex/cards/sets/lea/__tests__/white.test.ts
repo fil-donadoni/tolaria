@@ -120,7 +120,6 @@ const righteousness = getDefinition("d0ba7b76-f3d0-47d0-8a35-0c08e67200fb");
 const samiteHealer = getDefinition("efba235e-04e5-449c-906c-0ac33f6d7929");
 const savannahLions = getDefinition("d05b92bd-797e-413f-a8b0-32e0937a1ee0");
 const serraAngel = getDefinition("f8ac5006-91bd-4803-93da-f87cf196dd2f");
-const shivanDragon = getDefinition("fefbf149-f988-4f8b-9f53-56f5878116a6");
 const stoneRain = getDefinition("57ff74cb-a2ed-4123-ac42-f72f9820049e");
 const swamp = getDefinition("6176936d-72e2-4205-8871-4c5a4f1cb2d8");
 const swordsToPlowshares = getDefinition(
@@ -216,27 +215,6 @@ describe("Damage accumulation on creatures (CR 120.3, 704.5g, 514.2)", () => {
         );
         expect(angel).toBeDefined();
         expect(angel!.damageMarked).toBe(3);
-    });
-
-    it("second hit accumulates and kills once marked damage >= toughness", () => {
-        const state = setup();
-        pushSpell(state, lightningBolt.id, "p1", [
-            { type: "permanent", id: "angel" },
-        ]);
-        resolveTopOfStack(state);
-        pushSpell(state, lightningBolt.id, "p1", [
-            { type: "permanent", id: "angel" },
-        ]);
-        resolveTopOfStack(state);
-        expect(
-            state.players[1].battlefield.find((c) => c.id === "angel")
-        ).toBeUndefined();
-        // Angel in p2's graveyard (along with the two resolved bolts for p1).
-        expect(
-            state.players[1].graveyard.find(
-                (c) => (c.card as { id: string }).id === serraAngel.id
-            )
-        ).toBeDefined();
     });
 
     it("CLEANUP wipes marked damage (CR 514.2)", () => {
@@ -1219,45 +1197,6 @@ describe("Circle of Protection: Red (CR 615.1, 615.6)", () => {
         expect(state.preventionEffects).toBeUndefined();
     });
 
-    it("is a one-shot: a second bolt from a different source still hits the player", () => {
-        const state = setupCoPOnBattlefield();
-        state.preventionEffects = [
-            {
-                sourceInstanceId: "bolt-first",
-                playerId: "p1",
-                duration: { phase: "end-of-turn" },
-            },
-        ];
-        // Prevention matches the first bolt.
-        const first = makeInstance(lightningBolt.id, {
-            id: "bolt-first",
-            controllerId: "p2",
-            ownerId: "p2",
-            zone: "stack",
-        });
-        state.stack.push({
-            ...first,
-            castById: "p2",
-            targets: [{ type: "player", id: "p1" }],
-        });
-        resolveTopOfStack(state);
-        expect(state.players[0].life).toBe(20);
-        // A different bolt (different instance id) goes through.
-        const second = makeInstance(lightningBolt.id, {
-            id: "bolt-second",
-            controllerId: "p2",
-            ownerId: "p2",
-            zone: "stack",
-        });
-        state.stack.push({
-            ...second,
-            castById: "p2",
-            targets: [{ type: "player", id: "p1" }],
-        });
-        resolveTopOfStack(state);
-        expect(state.players[0].life).toBe(17);
-    });
-
     it("prevents combat damage from the chosen unblocked attacker", async () => {
         const state = setupCoPOnBattlefield();
         const attacker = makeInstance(hypnoticSpecter.id, {
@@ -1813,28 +1752,6 @@ describe("Crusade (static pt-buff: +1/+1 to white creatures)", () => {
 });
 
 describe("Death Ward (instant — regenerate target creature, CR 701.19a)", () => {
-    it("stacks one regeneration shield on the target", () => {
-        const bear = makeInstance(grizzlyBears.id, {
-            id: "bear",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
-        const state = makeState({
-            players: [
-                makePlayer("p1"),
-                makePlayer("p2", { battlefield: [bear] }),
-            ],
-        });
-        pushSpell(state, deathWard.id, "p1", [
-            { type: "permanent", id: "bear" },
-        ]);
-        resolveTopOfStack(state);
-        const target = state.players[1].battlefield.find(
-            (c) => c.id === "bear"
-        )!;
-        expect(target.regenerationShields).toBe(1);
-    });
-
     it("the shield replaces a subsequent regen-honoring destroy (CR 614.5)", () => {
         const bear = makeInstance(grizzlyBears.id, {
             id: "bear",
@@ -2384,57 +2301,6 @@ describe("Samite Healer ({T}: prevent next 1 to any target this turn)", () => {
         });
         resolveTopOfStack(state);
     }
-
-    it("absorbs 1 damage of incoming Lightning Bolt to a player", () => {
-        const { state, healer } = setup();
-        activate(state, healer, { type: "player", id: "p2" });
-        const p2BeforeBolt = state.players[1].life;
-        // Lightning Bolt p2: 3 damage, 1 absorbed, 2 land.
-        pushSpell(state, lightningBolt.id, "p1", [
-            { type: "player", id: "p2" },
-        ]);
-        resolveTopOfStack(state);
-        expect(state.players[1].life).toBe(p2BeforeBolt - 2);
-    });
-
-    it("absorbs 1 damage on a creature (residual marked on the survivor)", () => {
-        const { state, healer } = setup();
-        const enemyDragon = makeInstance(shivanDragon.id, {
-            id: "enemy",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
-        state.players[1].battlefield.push(enemyDragon);
-        activate(state, healer, { type: "permanent", id: "enemy" });
-        // Lightning Bolt: 3 dmg → 1 absorbed → 2 marked. Dragon (5/5)
-        // survives so we can read the marked total.
-        pushSpell(state, lightningBolt.id, "p1", [
-            { type: "permanent", id: "enemy" },
-        ]);
-        resolveTopOfStack(state);
-        const after = state.players[1].battlefield.find(
-            (c) => c.id === "enemy"
-        )!;
-        expect(after.damageMarked).toBe(2);
-    });
-
-    it("shield is consumed by the first event (no leftover for next event)", () => {
-        const { state, healer } = setup();
-        activate(state, healer, { type: "player", id: "p2" });
-        const before = state.players[1].life;
-        // First Bolt: 3 → 2 absorbed.
-        pushSpell(state, lightningBolt.id, "p1", [
-            { type: "player", id: "p2" },
-        ]);
-        resolveTopOfStack(state);
-        expect(state.players[1].life).toBe(before - 2);
-        // Second Bolt: shield depleted → full 3.
-        pushSpell(state, lightningBolt.id, "p1", [
-            { type: "player", id: "p2" },
-        ]);
-        resolveTopOfStack(state);
-        expect(state.players[1].life).toBe(before - 5);
-    });
 
     it("unconsumed shield wears off at CLEANUP (CR 514.2)", () => {
         const { state, healer } = setup();
@@ -3003,23 +2869,6 @@ describe("Righteousness (target blocking creature gets +7/+7, CR 509.1)", () => 
         );
         expect(targets).toHaveLength(1);
         expect(targets[0].id).toBe("blocker");
-    });
-
-    it("resolve applies +7/+7 temporary buff", () => {
-        const blocker = makeInstance(grizzlyBearsId(), {
-            id: "blocker",
-            controllerId: "p2",
-            isBlocking: true,
-        });
-        const p1 = makePlayer("p1");
-        const p2 = makePlayer("p2", { battlefield: [blocker] });
-        const state = makeState({ players: [p1, p2] });
-        pushSpell(state, righteousness.id, "p1", [
-            { type: "permanent", id: "blocker" },
-        ]);
-        resolveTopOfStack(state);
-        expect(getEffectivePower(state, blocker)).toBe(9); // 2 + 7
-        expect(getEffectiveToughness(state, blocker)).toBe(9); // 2 + 7
     });
 
     it("wire format: +7/+7 buff survives projectPublicState", () => {

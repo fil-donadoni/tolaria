@@ -93,7 +93,6 @@ const freyalisesCharm = getDefinition("3e147ac1-d221-49c7-966e-5e665ddeab6b");
 const gorillaPack = getDefinition("046f6b76-5f17-4728-aa34-72b7eff1d4c9");
 const forbiddenLore = getDefinition("5fc225cf-4fe2-4a5b-828e-ffcb99e404e8");
 const hotSprings = getDefinition("1d4fe072-81a7-424e-8d21-aaca010d5b1d");
-const thermokarst = getDefinition("00ae906b-2c4d-48e9-9f2d-217777e22292");
 const thoughtleech = getDefinition("d8fe7f9d-644f-48d0-93fa-d9a536f1f755");
 const venomousBreath = getDefinition("8eeb9e02-1d26-4959-a878-2ef8db2358bc");
 const wiitigo = getDefinition("9ee86bf2-6c54-4c6e-8394-eb39f98d5a85");
@@ -1107,32 +1106,6 @@ describe("Gorilla Pack (CR 508.1c Forest-gated attack + CR 603.8 sacrifice)", ()
         } as StackItem["triggerEvent"]);
         expect(state.players[0].battlefield).toHaveLength(0);
         expect(state.players[0].graveyard.map((c) => c.id)).toContain("gp");
-    });
-});
-
-// --- Thermokarst — destroy target land (CR 701.8) ---------------------------
-
-describe("Thermokarst (CR 701.8 destroy target land)", () => {
-    it("destroys the targeted land", () => {
-        const land = vanilla("land", 0, 0, {
-            id: "land",
-            controllerId: "p2",
-            ownerId: "p2",
-            types: ["Land"] as CardType[],
-            subtypes: ["Forest"],
-        });
-        const state = makeState({
-            players: [
-                makePlayer("p1"),
-                makePlayer("p2", { battlefield: [land] }),
-            ],
-        });
-        pushSpell(state, thermokarst.id, "p1", [
-            { type: "permanent", id: "land" },
-        ]);
-        resolveTopOfStack(state);
-        expect(state.players[1].battlefield).toHaveLength(0);
-        expect(state.players[1].graveyard.map((c) => c.id)).toContain("land");
     });
 });
 

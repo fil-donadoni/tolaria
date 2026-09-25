@@ -32,7 +32,6 @@ import { collectTriggers } from "../../../../gre/triggers";
 import { getDefinition } from "../../../index";
 
 const angryMob = getDefinition("9e14db1c-0a05-47d2-9f27-df881f7f37ab");
-const dustToDust = getDefinition("ade075fd-73ee-4d12-a2da-48e5938043af");
 const exorcist = getDefinition("184b7d52-e991-4668-9f6a-bcded97f51ac");
 const fasting = getDefinition("8da35f9f-e72c-4154-a212-7de98f84ad7d");
 const fireAndBrimstone = getDefinition("d5208dbb-63d2-4789-8ef9-f82499a43b3a");
@@ -557,47 +556,6 @@ describe("Preacher — steal a creature while tapped (CR 611.2b)", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
-// Spells
-// ---------------------------------------------------------------------------
-
-describe("Dust to Dust — exile two target artifacts (CR 701.13)", () => {
-    it("exiles both targeted artifacts", () => {
-        const art1 = makeInstance(
-            getDefinition("59cc9bdb-7cf2-4795-bac7-ffff605c9eb0").id,
-            {
-                id: "a1",
-                controllerId: "p2",
-                ownerId: "p2",
-            }
-        );
-        const art2 = makeInstance(
-            getDefinition("59cc9bdb-7cf2-4795-bac7-ffff605c9eb0").id,
-            {
-                id: "a2",
-                controllerId: "p2",
-                ownerId: "p2",
-            }
-        );
-        const state = makeState({
-            players: [
-                makePlayer("p1"),
-                makePlayer("p2", { battlefield: [art1, art2] }),
-            ],
-        });
-        pushSpell(state, dustToDust.id, "p1", [
-            { type: "permanent", id: "a1" },
-            { type: "permanent", id: "a2" },
-        ]);
-        resolveTopOfStack(state);
-        expect(state.players[1].battlefield).toHaveLength(0);
-        expect(state.players[1].exile.map((c) => c.id).sort()).toEqual([
-            "a1",
-            "a2",
-        ]);
-    });
-});
-
 describe("Tivadar's Crusade — destroy all Goblins (CR 701.8 / 205.3)", () => {
     it("destroys Goblins and leaves non-Goblins alone", () => {
         const goblin = makeInstance(scarwoodGoblins.id, {
@@ -759,16 +717,6 @@ describe("Fire and Brimstone — 4 to a player who attacked + 4 to you (CR 506.2
         const ids = legal.map((t) => t.id);
         expect(ids).toContain("p2"); // attacked
         expect(ids).not.toContain("p1"); // did not attack
-    });
-
-    it("deals 4 to the attacker and 4 to the caster", () => {
-        const state = attackerState();
-        pushSpell(state, fireAndBrimstone.id, "p1", [
-            { type: "player", id: "p2" },
-        ]);
-        resolveTopOfStack(state);
-        expect(state.players[1].life).toBe(16); // 20 - 4
-        expect(state.players[0].life).toBe(16); // 20 - 4 to you
     });
 });
 

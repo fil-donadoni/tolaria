@@ -59,15 +59,6 @@ describe("RootDecisionMechanism is frozen behind an allowlist (issue #3399)", ()
         }
     });
 
-    it("exactly two mechanisms are structural — the rest are disableable rules", () => {
-        // The search's own selection is not a rule and cannot be turned off:
-        // with no argmax there is no pick at all.
-        const structural = ROOT_DECISION_MECHANISMS.filter(
-            (m) => ROOT_RULE_ALLOWLIST[m]?.kind === "structural"
-        );
-        expect([...structural]).toEqual(["mean-reward", "material-tiebreak"]);
-    });
-
     it("every disableable rule is actually gated in `selectRootMove`", () => {
         // The allowlist says a rule can be turned off; this is what makes that
         // true. A rule wired into `selectRootMove` with no `ruleOn(…)` gate

@@ -5,22 +5,7 @@
 // clause — any other tapped source (Kismet) still applies (CR 616).
 
 import { describe, it, expect } from "vitest";
-import {
-    steamVents,
-    stompingGround,
-    godlessShrine,
-} from "../../cards/sets/gpt/colorless";
-import {
-    wateryGrave,
-    sacredFoundry,
-    templeGarden,
-    overgrownTomb,
-} from "../../cards/sets/rav/colorless";
-import {
-    breedingPool,
-    hallowedFountain,
-    bloodCrypt,
-} from "../../cards/sets/dis/colorless";
+import { steamVents } from "../../cards/sets/gpt/colorless";
 import { kismet } from "../../cards/sets/leg/white";
 import { seraph } from "../../cards/sets/ice/white";
 import {
@@ -38,59 +23,6 @@ import { getPlayer, resolveTopOfStack } from "../state";
 import type { StackItem } from "../state";
 import { legalActions } from "../legalActions";
 import { projectPublicState } from "../../gameProjections";
-
-const ALL_SHOCKS = [
-    {
-        def: steamVents,
-        colors: [{ U: 1 }, { R: 1 }],
-        subtypes: ["Island", "Mountain"],
-    },
-    {
-        def: stompingGround,
-        colors: [{ R: 1 }, { G: 1 }],
-        subtypes: ["Mountain", "Forest"],
-    },
-    {
-        def: godlessShrine,
-        colors: [{ W: 1 }, { B: 1 }],
-        subtypes: ["Plains", "Swamp"],
-    },
-    {
-        def: wateryGrave,
-        colors: [{ U: 1 }, { B: 1 }],
-        subtypes: ["Island", "Swamp"],
-    },
-    {
-        def: sacredFoundry,
-        colors: [{ R: 1 }, { W: 1 }],
-        subtypes: ["Mountain", "Plains"],
-    },
-    {
-        def: templeGarden,
-        colors: [{ G: 1 }, { W: 1 }],
-        subtypes: ["Forest", "Plains"],
-    },
-    {
-        def: overgrownTomb,
-        colors: [{ B: 1 }, { G: 1 }],
-        subtypes: ["Swamp", "Forest"],
-    },
-    {
-        def: breedingPool,
-        colors: [{ G: 1 }, { U: 1 }],
-        subtypes: ["Forest", "Island"],
-    },
-    {
-        def: hallowedFountain,
-        colors: [{ W: 1 }, { U: 1 }],
-        subtypes: ["Plains", "Island"],
-    },
-    {
-        def: bloodCrypt,
-        colors: [{ B: 1 }, { R: 1 }],
-        subtypes: ["Swamp", "Mountain"],
-    },
-];
 
 function playSteamVents(
     life = 20,
@@ -131,19 +63,6 @@ function shockIn(
     });
     return { state, player: getPlayer(state, "p1") };
 }
-
-describe("shock land entry: definition shape (CR 614.12)", () => {
-    it.each(ALL_SHOCKS)(
-        "$def.name declares entersTappedUnlessPay, subtypes, and the two-colour mana choice",
-        ({ def, colors, subtypes }) => {
-            expect(def.entersTappedUnlessPay).toEqual({ life: 2 });
-            expect(def.subtypes).toEqual(subtypes);
-            expect(def.entersTapped).toBeUndefined();
-            expect(def.entersTappedUnless).toBeUndefined();
-            expect(def.activatedAbilities![0].manaChoices).toEqual(colors);
-        }
-    );
-});
 
 describe("shock land entry: suspend (CR 614.12, ADR 0051)", () => {
     it("suspends entry on a land-entry-tapped choice — the land stays in hand", () => {

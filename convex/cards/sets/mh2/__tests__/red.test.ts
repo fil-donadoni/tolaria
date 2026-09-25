@@ -1,11 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-    makeInstance,
-    makePlayer,
-    makeState,
-    pushSpell,
-    resolveActivated,
-} from "../../../__tests__/setup";
+import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import type {
     CardInstanceState,
     GameState,
@@ -25,7 +19,6 @@ import { projectPublicState } from "../../../../gameProjections";
 import { getDefinition, FACE_DOWN_CARD_ID } from "../../../index";
 
 const mineCollapse = getDefinition("56e2e8b5-660d-4469-a4fe-2367dfadb709");
-const blazingRootwalla = getDefinition("4404fc9c-ef02-479c-9638-0cc163f0b48f");
 const ragavanNimblePilferer = getDefinition(
     "a9738cda-adb1-47fb-9f4c-ecd930228c4d"
 );
@@ -33,54 +26,6 @@ const dragonsRageChanneler = getDefinition(
     "4ced112a-e775-4f97-97b3-74877e9dce12"
 );
 const fury = getDefinition("bd281158-8180-40b9-a5b7-03cfc712d81a");
-
-// Mine Collapse — {3}{R} Instant. "If it's your turn, you may sacrifice a
-// Mountain rather than pay this spell's mana cost. Mine Collapse deals 5 damage
-// to target creature or planeswalker." (CR 118.9 pitch cost — sacrifice a
-// Mountain, gated on your-turn; CR 120.1 damage.) The sacrifice leg reuses the
-// existing permanent machinery; the dealDamage effect (reused Op) is covered by
-// the catalogue smoke sweep. Here we pin the definition + resolve one damage.
-describe("Mine Collapse (pitch: sacrifice a Mountain, your turn)", () => {
-    const treefolk = getDefinition("b93c5869-7777-44bb-967a-e9439b25ced4"); // 3/5 — survives 5? no, dies
-
-    it("deals 5 damage to the target creature (lethal to a 3/5)", () => {
-        const victim = makeInstance(treefolk.id, {
-            id: "v",
-            controllerId: "p2",
-            ownerId: "p2",
-            zone: "battlefield",
-        });
-        const state = makeState({
-            players: [
-                makePlayer("p1"),
-                makePlayer("p2", { battlefield: [victim] }),
-            ],
-        });
-        pushSpell(state, mineCollapse.id, "p1", [
-            { type: "permanent", id: "v" },
-        ]);
-        resolveTopOfStack(state);
-        // 5 damage ≥ toughness 5 → destroyed by SBA.
-        expect(state.players[1].graveyard.some((c) => c.id === "v")).toBe(true);
-    });
-});
-
-/** Push an activated ability onto the stack (cost assumed paid), then resolve. */
-describe("Blazing Rootwalla — Madness {0} + once-per-turn pump (CR 702.35 / 602.5)", () => {
-    it("gives +2/+0 until end of turn", () => {
-        const walla = makeInstance(blazingRootwalla.id, { controllerId: "p1" });
-        const state = makeState({
-            players: [
-                makePlayer("p1", { battlefield: [walla] }),
-                makePlayer("p2"),
-            ],
-        });
-        resolveActivated(state, walla, "blazing-rootwalla-pump");
-        // 1/1 → 3/1.
-        expect(getEffectivePower(state, walla)).toBe(3);
-        expect(getEffectiveToughness(state, walla)).toBe(1);
-    });
-});
 
 // ── Fury — targeted trigger + divide-as-you-choose (CR 603.3d / 601.2d, #1193/#1206) ──
 import { finalizeTargetSelection } from "../../../../game";

@@ -386,11 +386,6 @@
     },
     {
         "file": "convex/gre/ai/__tests__/evalWeights.bot.test.ts",
-        "test": "DEFAULT_EVAL_WEIGHTS (issue #2683) > carries one latent weight per FEATURE_BASIS dimension (issue #3398)",
-        "reason": "Coverage check: DEFAULT_EVAL_WEIGHTS.latent keys match the independent FEATURE_BASIS list."
-    },
-    {
-        "file": "convex/gre/ai/__tests__/evalWeights.bot.test.ts",
         "test": "DEFAULT_EVAL_WEIGHTS (issue #2683) > is frozen — a mutation attempt is a no-op / throws in strict mode",
         "reason": "Invariant check that exported weight objects (incl. nested latent) are frozen."
     },
@@ -413,11 +408,6 @@
         "file": "convex/gre/ai/__tests__/verdictCoverage.bot.test.ts",
         "test": "decision classes come from the engine's move kinds (issue #3588) > maps every move kind the engine has",
         "reason": "Coverage check: every CLASS_OF_MOVE_KIND entry maps to a real (truthy) class."
-    },
-    {
-        "file": "convex/gre/ai/__tests__/verdictLockSource.bot.test.ts",
-        "test": "the upcaster chain (issue #3578) > the shipped chain has a link for every version below the current one",
-        "reason": "Coverage check: every schema version below current has an upcaster function."
     },
     {
         "file": "convex/gre/ai/__tests__/verdicts.bot.test.ts",

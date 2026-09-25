@@ -205,15 +205,6 @@ describe("Retrace capability (CR 702.81)", () => {
     });
 
     describe("the additional cost (CR 702.81a — discard a land card)", () => {
-        it("is the shared CostLegs hand leg for exactly one LAND card", () => {
-            expect(RETRACE_COST_LEGS).toEqual({
-                hand: {
-                    action: "discard",
-                    requirements: [{ filter: { type: "Land" }, count: 1 }],
-                },
-            });
-        });
-
         it("is payable with a land in hand and unpayable without one", () => {
             const bolt = makeInstance(lightningBolt.id, {
                 zone: "graveyard",

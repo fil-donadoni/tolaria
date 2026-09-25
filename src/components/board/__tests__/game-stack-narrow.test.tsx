@@ -230,21 +230,6 @@ describe("GameStack narrow/portrait variant (issue #1816)", () => {
     });
 
     describe("issue #1816 review fixup finding 6 — NARROW_BOTTOM_CLASS is the literal, guarded against the shared constant it must match", () => {
-        it("is a literal Tailwind class, not built from a template at this call site", () => {
-            // The historical bug: `` `bottom-[var(${VAR})]` `` compiled only
-            // because the resolved string happened to already appear,
-            // spelled out, elsewhere — Tailwind's JIT scanner greps SOURCE
-            // TEXT, it can't see through a `${}` interpolation. Asserting the
-            // exact literal here (not re-deriving it from the var name) is
-            // itself part of the guard: a future re-template-ification would
-            // still pass a runtime string-equality check, so the REAL guard
-            // is the substring assertion below, against the shared constant
-            // that must contain this exact fragment.
-            expect(NARROW_BOTTOM_CLASS).toBe(
-                "bottom-[var(--portrait-viewer-bf-bottom)]"
-            );
-        });
-
         it("is a verbatim substring of PORTRAIT_VIEWER_BATTLEFIELD_BAND — a refactor of that shared fragment fails HERE instead of silently breaking this class", () => {
             expect(PORTRAIT_VIEWER_BATTLEFIELD_BAND).toContain(
                 NARROW_BOTTOM_CLASS

@@ -77,6 +77,7 @@ export const HEALTH_SCRIPTS: readonly string[] = [
     "check:all",
     "check:gaps",
     "check:targets",
+    "check:test-hygiene",
     "test",
 ];
 

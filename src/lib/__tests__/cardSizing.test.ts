@@ -7,12 +7,6 @@
 import { describe, it, expect } from "vitest";
 import { CARD_MIN_W, cardBase } from "../cardSizing";
 
-describe("cardSizing — CARD_MIN_W (issue #2056)", () => {
-    it("is the recommended 4.5rem floor", () => {
-        expect(CARD_MIN_W).toBe("4.5rem");
-    });
-});
-
 describe("cardBase (issue #2056)", () => {
     it("wraps the min() clamp in a max() floor carrying CARD_MIN_W", () => {
         const result = cardBase("7.5rem", "17vw", "9dvh");

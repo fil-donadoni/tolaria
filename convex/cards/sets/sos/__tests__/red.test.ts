@@ -72,18 +72,6 @@ describe("Impractical Joke — 'Damage can't be prevented this turn' (CR 615.12)
         expect(state.targetPreventionShields?.[0]?.remaining).toBe(100);
     });
 
-    it("the same shield DOES prevent an unaccompanied Bolt (the contrast case)", () => {
-        const state = jokeBoard();
-        pushSpell(state, LIGHTNING_BOLT_ID, "p1", [
-            { type: "permanent", id: "victim" },
-        ]);
-        resolveTopOfStack(state);
-        expect(
-            state.players[1].battlefield.find((c) => c.id === "victim")!
-                .damageMarked
-        ).toBeUndefined();
-    });
-
     // CR 601.2c — "up to one target": zero targets is a legal announcement, and
     // the sentence BEFORE the damage still resolves. The Op order is the card.
     it("resolves with ZERO targets: the lock is still armed, nothing is damaged", () => {

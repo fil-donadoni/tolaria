@@ -245,10 +245,6 @@ describe("spell-cast colour heads — the table (issue #4135)", () => {
         ([, head]) => head.kind === "spell-cast" && head.filter !== undefined
     );
 
-    it("spells 3 casters x 5 colours x 2 polarities, and no other spell-cast filter", () => {
-        expect(rows).toHaveLength(30);
-    });
-
     it("'nonred' EXCLUDES red — never a list of the other four (CR 105.2c)", () => {
         for (const [phrase, head] of rows) {
             if (head.kind !== "spell-cast") throw new Error("unreachable");

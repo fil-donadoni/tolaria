@@ -3,8 +3,6 @@ import {
     assertDeckLegal,
     buildPool,
     checkPoolMembership,
-    FORMAT_IDS,
-    FORMAT_RULES,
     validateDeck,
     type DeckLegality,
     type Pool,
@@ -105,36 +103,6 @@ const resolveSeatPool: ResolvePool = (deck) =>
     deck.limitedEventId === "event-1" && deck.limitedSeatId === "seat-1"
         ? SEAT_POOL
         : null;
-
-describe("FORMAT_RULES.limited registration (ADR 0054/0055, issue #1109)", () => {
-    it("registers 'limited' without disturbing the other FormatIds", () => {
-        expect(FORMAT_IDS).toContain("limited");
-        expect([...FORMAT_IDS]).toEqual([
-            "freeform",
-            "alpha-40",
-            "old-school",
-            "premodern",
-            "limited",
-            "manual",
-        ]);
-    });
-
-    it("is pool-scoped (no set list) with a 40-card minimum and no sideboard cap", () => {
-        const meta = FORMAT_RULES.limited;
-        expect(meta.label).toBe("Limited");
-        expect(meta.allowedSets).toBeNull();
-        expect(meta.minMain).toBe(40);
-        expect(meta.maxSide).toBeNull();
-    });
-
-    it("leaves every other Format's metadata/validate untouched", () => {
-        expect(FORMAT_RULES.freeform.minMain).toBe(0);
-        expect(FORMAT_RULES["alpha-40"].minMain).toBe(40);
-        expect(FORMAT_RULES["alpha-40"].maxSide).toBe(0);
-        expect(FORMAT_RULES["old-school"].minMain).toBe(60);
-        expect(FORMAT_RULES.premodern.minMain).toBe(60);
-    });
-});
 
 describe("validateDeck('limited') — in-pool deck is legal (issue #1109)", () => {
     it("a deck whose whole Pool is re-partitioned across Main+Side, with free basics, is legal", () => {

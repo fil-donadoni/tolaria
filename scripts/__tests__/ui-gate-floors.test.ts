@@ -4,7 +4,6 @@ import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import {
     FLOORS,
-    SHAPE_READINGS,
     UNWALKED_SURFACES,
     brokenFloors,
     readingsOf,
@@ -73,26 +72,6 @@ function evaluate(
 }
 
 describe("Floors and Shape Readings", () => {
-    it("are the nine Floors and four Shape Readings ADR 0132 names, disjoint", () => {
-        expect([...FLOORS]).toEqual([
-            "cardsZero",
-            "cardsStranded",
-            "cardsSquare",
-            "cardsSoft",
-            "ctrlsZero",
-            "ctrlsStranded",
-            "axeSerious",
-            "axeCritical",
-            "hOverflow",
-        ]);
-        expect([...SHAPE_READINGS]).toEqual([
-            "cardsOcc",
-            "ctrlsOcc",
-            "small",
-            "starved",
-        ]);
-    });
-
     it("brokenFloors names every nonzero Floor with its reading, in FLOORS order", () => {
         for (const floor of FLOORS) {
             expect(brokenFloors(readings({ [floor]: 2 }))).toEqual([

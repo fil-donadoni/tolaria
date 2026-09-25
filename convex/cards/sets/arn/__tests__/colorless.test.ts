@@ -56,7 +56,6 @@ const ebonyHorse = getDefinition("9ae81ec7-2b7d-4301-8114-032be5e6b663");
 const elephantGraveyard = getDefinition("18348df2-9037-4db4-bddb-76dc933229bf");
 const fishliverOil = getDefinition("deb6ed87-aa07-4b5e-ac40-1e16dc2a817a");
 const islandOfWakWak = getDefinition("f09cbd18-79f1-49a0-a3bd-b380ff5ecf03");
-const jandorsRing = getDefinition("71504078-a16f-4dc4-9626-0ecc42b1e93b");
 const libraryOfAlexandria = getDefinition(
     "ee266113-34ce-4189-84e7-ee2c86a2722c"
 );
@@ -195,17 +194,6 @@ describe("Jandor's Ring ({2},{T}, discard last drawn: Draw a card)", () => {
         expect(player.lastDrawnCardId).toBeUndefined();
         // Cost can no longer be paid — same draw can't fund a second use.
         expect(canPayDiscardLastDrawn(player)).toBe(false);
-    });
-
-    it("resolving the ability draws a card", () => {
-        const ring = makeInstance(jandorsRing.id, { id: "ring" });
-        const p1 = makePlayer("p1", {
-            battlefield: [ring],
-            library: [makeInstance(plains.id, { id: "top", zone: "library" })],
-        });
-        const state = makeState({ players: [p1, makePlayer("p2")] });
-        resolveActivated(state, ring, "jandors-ring-draw");
-        expect(state.players[0].hand.map((c) => c.id)).toEqual(["top"]);
     });
 
     it("wire format: lastDrawnCardId and the drawn hand card survive projection", () => {

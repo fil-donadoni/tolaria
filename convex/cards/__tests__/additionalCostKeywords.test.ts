@@ -103,30 +103,6 @@ describe("AdditionalCostKeyword ↔ Mechanics Registry (CR 702.33a, ADR 0085)", 
         expect(pending.filter((k) => !unionMembers.includes(k))).toEqual([]);
     });
 
-    // CR 702.33d — the one axis every kicked-ness reader depends on. Pinned
-    // here so a flip is a deliberate edit to a test, not a silent one-word
-    // change in a table nobody reads.
-    it("pins each member's kicked-ness (CR 702.33d)", () => {
-        expect(ADDITIONAL_COST_KEYWORDS.kicker.countsAsKicked).toBe(true);
-        // CR 702.175 (issue #2079) — offspring is never a kick, has no "any
-        // number of times" clause (702.175b's multiple instances are multiple
-        // ENTRIES), and its twin is authored by the card, not synthesized.
-        expect(ADDITIONAL_COST_KEYWORDS.offspring.countsAsKicked).toBe(false);
-        expect(ADDITIONAL_COST_KEYWORDS.offspring.allowsMulti).toBe(false);
-        expect(ADDITIONAL_COST_KEYWORDS.offspring.requiresTrigger).toBe(true);
-        expect(ADDITIONAL_COST_KEYWORDS.offspring.castCopyTrigger).toBe(false);
-        // CR 702.56a (issue #2100) — replicate buys COPIES, never a kick, and
-        // its twin trigger is the synthesized cast-copy one.
-        expect(ADDITIONAL_COST_KEYWORDS.replicate.countsAsKicked).toBe(false);
-        expect(ADDITIONAL_COST_KEYWORDS.replicate.allowsMulti).toBe(true);
-        expect(ADDITIONAL_COST_KEYWORDS.replicate.castCopyTrigger).toBe(true);
-        // CR 702.157a (issue #3220) — squad is the first member to set BOTH
-        // repeatability flags, and it is still not a kicker cost.
-        expect(ADDITIONAL_COST_KEYWORDS.squad.countsAsKicked).toBe(false);
-        expect(ADDITIONAL_COST_KEYWORDS.squad.allowsMulti).toBe(true);
-        expect(ADDITIONAL_COST_KEYWORDS.squad.requiresTrigger).toBe(true);
-    });
-
     // CR 702.33c / 702.157a (issue #3220) — `printedLabel` and `allowsMulti`
     // answer the same question from two sides ("may this entry repeat?" /
     // "what does it print when it does?"), so they are pinned AGAINST each

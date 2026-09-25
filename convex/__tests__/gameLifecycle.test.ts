@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { gameBelongsToUser, ACTIVE_GAME_STATUSES } from "../gameLifecycle";
+import { gameBelongsToUser } from "../gameLifecycle";
 
 type Player = { id: string };
 function game(playerIds: string[]): { players: Player[] } {
@@ -44,10 +44,5 @@ describe("gameBelongsToUser (#155 single-active-game guard)", () => {
 
     it("treats an empty game as unowned", () => {
         expect(gameBelongsToUser(game([]), userId)).toBe(false);
-    });
-
-    it("counts only waiting and playing as active statuses", () => {
-        expect(ACTIVE_GAME_STATUSES).toEqual(["waiting", "playing"]);
-        expect(ACTIVE_GAME_STATUSES).not.toContain("finished");
     });
 });

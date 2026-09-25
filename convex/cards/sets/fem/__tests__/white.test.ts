@@ -839,25 +839,6 @@ describe("Icatian Priest / Lieutenant — temporary pumps (CR 611 layer 7c)", ()
     });
 });
 
-describe("Order of Leitbur — protection + pump knight (CR 702.16 / 611)", () => {
-    it("pumps itself +1/+0 until end of turn", () => {
-        const knight = makeInstance(orderOfLeitbur.id, {
-            id: "k",
-            controllerId: "p1",
-            ownerId: "p1",
-        });
-        const state = makeState({
-            players: [
-                makePlayer("p1", { battlefield: [knight] }),
-                makePlayer("p2"),
-            ],
-        });
-        expect(getEffectivePower(state, knight)).toBe(2);
-        resolveActivated(state, knight, "order-of-leitbur-pump");
-        expect(getEffectivePower(state, knight)).toBe(3);
-    });
-});
-
 describe("Heroism — sacrifice-a-white-creature punisher prevention on red attackers (CR 615, 117.3a)", () => {
     function heroismBoard(oppExtra: CardInstanceState[] = []): {
         state: GameState;

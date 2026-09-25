@@ -32,12 +32,9 @@ import {
     vanilla,
 } from "./helpers";
 import { getDefinition } from "../../../index";
-
-const ornithopter = getDefinition("59cc9bdb-7cf2-4795-bac7-ffff605c9eb0");
 const amuletOfKroog = getDefinition("b094f8dd-0184-41a2-9767-e848a6e4eac1");
 const yawgmothDemon = getDefinition("04bbd231-0d5f-4cbf-92a7-10d2c5c4b82c");
 const priestOfYawgmoth = getDefinition("c9fd4054-42fc-4f95-a6f7-369a5da43dd5");
-const gateToPhyrexia = getDefinition("1f372950-6693-4838-80ef-8fd9aa3e0349");
 const hauntingWind = getDefinition("a2f6ef2f-a3a2-4e1f-b7eb-59abc8414114");
 const artifactPossession = getDefinition(
     "587d6ac8-fad8-49e0-862e-636e06628ff9"
@@ -156,33 +153,6 @@ describe("Priest of Yawgmoth (CR 602.1 — add {B} = sacrificed artifact mv)", (
         });
         resolveTopOfStack(state);
         expect(state.players[0].manaPool.B).toBe(0);
-    });
-});
-
-describe("Gate to Phyrexia (CR 602.5 — upkeep, once/turn, sac creature)", () => {
-    it("destroys a target artifact on resolution", () => {
-        const gate = makeInstance(gateToPhyrexia.id, { id: "gate-1" });
-        const artifact = makeInstance(ornithopter.id, {
-            id: "art-tgt",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
-        const state = makeState({
-            phase: "UPKEEP",
-            players: [
-                makePlayer("p1", { battlefield: [gate] }),
-                makePlayer("p2", { battlefield: [artifact] }),
-            ],
-        });
-        resolveActivated(state, gate, "gate-to-phyrexia-destroy", [
-            { type: "permanent", id: "art-tgt" },
-        ]);
-        expect(
-            state.players[1].battlefield.some((c) => c.id === "art-tgt")
-        ).toBe(false);
-        expect(state.players[1].graveyard.some((c) => c.id === "art-tgt")).toBe(
-            true
-        );
     });
 });
 

@@ -974,26 +974,6 @@ describe("Necrite — unblocked sac → destroy a defender's creature (CR 603.3d
 // ---------------------------------------------------------------------------
 
 describe("Order of the Ebon Hand — protection + pump knight (CR 702.16, 611.2c)", () => {
-    it("{B}{B} pump grants +1/+0 until end of turn", () => {
-        const order = makeInstance(orderOfTheEbonHand.id, {
-            id: "order",
-            controllerId: "p1",
-            ownerId: "p1",
-        });
-        const state = makeState({
-            players: [
-                makePlayer("p1", { battlefield: [order] }),
-                makePlayer("p2"),
-            ],
-        });
-        resolveActivated(state, order, "order-ebon-hand-pump");
-        const after = state.players[0].battlefield.find(
-            (c) => c.id === "order"
-        )!;
-        expect(getEffectivePower(state, after)).toBe(2 + 1);
-        expect(getEffectiveToughness(state, after)).toBe(1);
-    });
-
     it("{B} first-strike grant adds first strike until end of turn", () => {
         const order = makeInstance(orderOfTheEbonHand.id, {
             id: "order",

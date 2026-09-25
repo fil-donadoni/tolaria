@@ -64,13 +64,6 @@ describe("difficulty presets — one knob (issue #114)", () => {
 });
 
 describe("opponent-knowledge mode — the second axis (issue #2790, PRD #2787)", () => {
-    it("only expert feeds the search the opponent's real decklist", () => {
-        expect(DIFFICULTY_KNOWS_OPPONENT.easy).toBe(false);
-        expect(DIFFICULTY_KNOWS_OPPONENT.medium).toBe(false);
-        expect(DIFFICULTY_KNOWS_OPPONENT.hard).toBe(false);
-        expect(DIFFICULTY_KNOWS_OPPONENT.expert).toBe(true);
-    });
-
     it("knowsOpponent maps a difficulty and falls back to the default for junk", () => {
         expect(knowsOpponent("expert")).toBe(true);
         expect(knowsOpponent("hard")).toBe(false);

@@ -12,7 +12,6 @@ import {
     buildScenarioSystemPrompt,
     parseLlmScenarioText,
     runScenarioGeneration,
-    SCENARIO_JSON_SCHEMA,
     type ScenarioCardAuthority,
     type ScenarioGenerateFn,
 } from "../debugScenarioGenerator.core";
@@ -72,16 +71,6 @@ describe("parseLlmScenarioText (issue #771)", () => {
         expect(() => parseLlmScenarioText("sorry, I cannot")).toThrow(
             /valid JSON/
         );
-    });
-});
-
-describe("SCENARIO_JSON_SCHEMA (issue #771)", () => {
-    it("locks objects with additionalProperties:false and requires cards", () => {
-        expect(SCENARIO_JSON_SCHEMA.additionalProperties).toBe(false);
-        expect(SCENARIO_JSON_SCHEMA.required).toContain("cards");
-        const cardItem = SCENARIO_JSON_SCHEMA.properties.cards.items;
-        expect(cardItem.additionalProperties).toBe(false);
-        expect(cardItem.required).toEqual(["name", "owner"]);
     });
 });
 

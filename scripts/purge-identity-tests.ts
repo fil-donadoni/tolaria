@@ -618,17 +618,22 @@ export function dryRun(
     return report;
 }
 
-function trackedTestFiles(): string[] {
-    return execFileSync("git", ["ls-files", "--", "*.test.ts", "*.test.tsx"], {
-        cwd: REPO_ROOT,
-        encoding: "utf-8",
-    })
-        .split("\n")
-        .filter(Boolean)
-        .sort();
+export function trackedTestFiles(): string[] {
+    return (
+        execFileSync("git", ["ls-files", "--", "*.test.ts", "*.test.tsx"], {
+            cwd: REPO_ROOT,
+            encoding: "utf-8",
+        })
+            .split("\n")
+            .filter(Boolean)
+            // A file deleted in the work tree but not yet staged is still in the
+            // index: the purge itself deletes an emptied suite this way.
+            .filter((f) => fs.existsSync(path.join(REPO_ROOT, f)))
+            .sort()
+    );
 }
 
-async function loadCardFacts(): Promise<CardFacts> {
+export async function loadCardFacts(): Promise<CardFacts> {
     // Imported lazily: the rewrite mode never needs the catalogue.
     const { getAllCards } = await import("../convex/cards");
     const { buildCardFacts, smokeCoverage } =

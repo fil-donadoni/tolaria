@@ -6,9 +6,7 @@
 // neither can be changed by accident.
 import { describe, it, expect } from "vitest";
 import {
-    DEFAULT_MATCH_FORMAT,
     DEFAULT_ROUND_DEADLINE_MINUTES,
-    LIMITED_MATCH_FORMATS,
     MAX_ROUND_DEADLINE_MINUTES,
     MIN_ROUND_DEADLINE_MINUTES,
     bestOfForMatchFormat,
@@ -19,14 +17,6 @@ import {
 } from "../matchFormat";
 
 describe("Match Format (PRD #1628 stories 1-2)", () => {
-    it("offers exactly Bo1 and Bo3", () => {
-        expect([...LIMITED_MATCH_FORMATS]).toEqual(["bo1", "bo3"]);
-    });
-
-    it("defaults to Bo3 (story 2: real Limited with nothing configured)", () => {
-        expect(DEFAULT_MATCH_FORMAT).toBe("bo3");
-    });
-
     it("resolves an absent stored value to the default", () => {
         expect(resolveMatchFormat(undefined)).toBe("bo3");
     });

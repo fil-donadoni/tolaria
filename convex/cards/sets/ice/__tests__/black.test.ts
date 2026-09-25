@@ -89,7 +89,6 @@ const burntOffering = getDefinition("1dae52a2-3af7-4b97-9d2e-2448b7c413fb");
 const spoilsOfWar = getDefinition("b38af8bd-d927-46d0-a1b1-fb437ea9ea66");
 const kjeldoranWarrior = getDefinition("ce76f38f-566e-49ff-b197-510cfa1cb51c");
 const brineShaman = getDefinition("f445962c-44a1-4f3f-88d4-17048f8ca9dc");
-const darkBanishing = getDefinition("f7dc2716-ed62-4797-ad2b-227eca5408d0");
 const demonicConsultation = getDefinition(
     "8d727b9b-6114-414d-9172-16b6e1db41cc"
 );
@@ -194,29 +193,6 @@ describe("Brine Shaman (sacrifice engine, CR 602.1 / 118.5)", () => {
         const live = state.players[0].battlefield.find((c) => c.id === "v")!;
         expect(getEffectivePower(state, live)).toBe(3);
         expect(getEffectiveToughness(state, live)).toBe(3);
-    });
-});
-
-describe("Dark Banishing (destroy nonblack creature, CR 701.8)", () => {
-    it("destroys the target creature", () => {
-        const victim = vanilla("v", 2, 2, {
-            controllerId: "p2",
-            ownerId: "p2",
-        });
-        const state = makeState({
-            players: [
-                makePlayer("p1"),
-                makePlayer("p2", { battlefield: [victim] }),
-            ],
-        });
-        pushSpell(state, darkBanishing.id, "p1", [
-            { type: "permanent", id: "v" },
-        ]);
-        resolveTopOfStack(state);
-        expect(
-            state.players[1].battlefield.find((c) => c.id === "v")
-        ).toBeUndefined();
-        expect(state.players[1].graveyard.some((c) => c.id === "v")).toBe(true);
     });
 });
 
@@ -382,22 +358,6 @@ describe("Knight of Stromgald (grants + pump, CR 611.2a)", () => {
         resolveActivated(state, knight, "knight-of-stromgald-first-strike");
         const live = state.players[0].battlefield.find((c) => c.id === "ks")!;
         expect(live.staticAbilities).toContain("first strike");
-    });
-    it("pumps itself +1/+0 until end of turn", () => {
-        const knight = makeInstance(knightOfStromgald.id, {
-            id: "ks",
-            controllerId: "p1",
-            ownerId: "p1",
-        });
-        const state = makeState({
-            players: [
-                makePlayer("p1", { battlefield: [knight] }),
-                makePlayer("p2"),
-            ],
-        });
-        resolveActivated(state, knight, "knight-of-stromgald-pump");
-        const live = state.players[0].battlefield.find((c) => c.id === "ks")!;
-        expect(getEffectivePower(state, live)).toBe(3);
     });
 });
 

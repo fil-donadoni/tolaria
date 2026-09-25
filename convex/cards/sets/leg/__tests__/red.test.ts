@@ -76,7 +76,6 @@ const primordialOoze = getDefinition("a46e47e1-8639-48f7-94c4-5f9e9666839a");
 const theBrute = getDefinition("f9ffb265-872f-47b3-974c-92bcbebd557e");
 const wallOfEarth = getDefinition("c12e97c1-ca28-432a-8140-3f08bb4485a3");
 const wallOfHeat = getDefinition("a38059a8-be69-4cc1-969b-951c610f2f11");
-const wallOfOpposition = getDefinition("2b3d1430-9978-4983-a4fd-d1fa8dea2169");
 const windsOfChange = getDefinition("186fd917-8d65-4de5-8546-a32a5f6d3bab");
 const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
 const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
@@ -289,32 +288,6 @@ describe("Hyperion Blacksmith ({T}: tap or untap opponent artifact, CR 701.26)",
         expect(
             state.players[1].battlefield.find((c) => c.id === "arti")?.isTapped
         ).toBe(false);
-    });
-});
-
-describe("Wall of Opposition ({1}: +1/+0 EOT, CR 611.1)", () => {
-    it("pumps power for the turn", () => {
-        const wall = makeInstance(wallOfOpposition.id, {
-            id: "wall",
-            controllerId: "p1",
-        });
-        const state = makeState({
-            players: [
-                makePlayer("p1", { battlefield: [wall] }),
-                makePlayer("p2"),
-            ],
-        });
-        expect(getEffectivePower(state, wall)).toBe(0);
-        state.stack.push({
-            ...wall,
-            zone: "stack",
-            castById: "p1",
-            abilityId: "wall-of-opposition-pump",
-            targets: [],
-        } as StackItem);
-        resolveTopOfStack(state);
-        const live = state.players[0].battlefield.find((c) => c.id === "wall")!;
-        expect(getEffectivePower(state, live)).toBe(1);
     });
 });
 

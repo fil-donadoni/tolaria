@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
     DEFAULT_FILTERS,
-    MIN_TEXT_QUERY_LENGTH,
     hasAnyFilter,
     isTextActive,
     matchesCube,
@@ -58,10 +57,6 @@ describe("3-char text gate (issue #504)", () => {
         it("activates at exactly the threshold and above", () => {
             expect(isTextActive("abc")).toBe(true);
             expect(isTextActive("bolt")).toBe(true);
-        });
-
-        it("uses the documented threshold constant", () => {
-            expect(MIN_TEXT_QUERY_LENGTH).toBe(3);
         });
     });
 

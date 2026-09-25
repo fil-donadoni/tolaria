@@ -14,12 +14,10 @@ import {
     FORMAT_IDS,
     FORMAT_RULES,
     isFormatId,
-    OLD_SCHOOL_BANNED,
     OLD_SCHOOL_BANLIST_SEED,
     OLD_SCHOOL_RESTRICTED,
     PREMODERN_BANLIST_SEED,
     PREMODERN_BANNED,
-    PREMODERN_LEGAL_NAMES,
     resolveBanlistEnforcement,
     validateDeck,
     type BanlistEntry,
@@ -131,51 +129,12 @@ const sampleDeck: ValidatableDeck = {
 };
 
 describe("FORMAT_IDS / FORMAT_RULES registry (ADR 0036)", () => {
-    it("exposes exactly the six shipped Formats", () => {
-        expect([...FORMAT_IDS]).toEqual([
-            "freeform",
-            "alpha-40",
-            "old-school",
-            "premodern",
-            "limited",
-            "manual",
-        ]);
-    });
-
     it("has a registry entry with a label for every FormatId", () => {
         for (const id of FORMAT_IDS) {
             expect(FORMAT_RULES[id]).toBeDefined();
             expect(typeof FORMAT_RULES[id].label).toBe("string");
             expect(FORMAT_RULES[id].label.length).toBeGreaterThan(0);
         }
-    });
-
-    it("carries the documented size/set metadata for the non-trivial Formats", () => {
-        // Freeform: unconstrained.
-        expect(FORMAT_RULES.freeform.allowedSets).toBeNull();
-        expect(FORMAT_RULES.freeform.minMain).toBe(0);
-        expect(FORMAT_RULES.freeform.maxSide).toBeNull();
-        // Alpha 40: lea/leb, >=40 main, no sideboard.
-        expect(FORMAT_RULES["alpha-40"].allowedSets).toEqual(["lea", "leb"]);
-        expect(FORMAT_RULES["alpha-40"].minMain).toBe(40);
-        expect(FORMAT_RULES["alpha-40"].maxSide).toBe(0);
-        // Old School: six eternal sets, >=60 main, <=15 sideboard.
-        expect(FORMAT_RULES["old-school"].minMain).toBe(60);
-        expect(FORMAT_RULES["old-school"].maxSide).toBe(15);
-        expect(FORMAT_RULES["old-school"].allowedSets).toContain("arn");
-        // Premodern: 4th Edition → Scourge + Portal, >=60 main, <=15 sideboard.
-        expect(FORMAT_RULES["premodern"].minMain).toBe(60);
-        expect(FORMAT_RULES["premodern"].maxSide).toBe(15);
-        expect(FORMAT_RULES["premodern"].allowedSets).toContain("scg");
-        expect(FORMAT_RULES["premodern"].allowedSets).toContain("tmp");
-        // Pre-4th-Edition sets are OUT of the Premodern pool.
-        expect(FORMAT_RULES["premodern"].allowedSets).not.toContain("lea");
-        expect(FORMAT_RULES["premodern"].allowedSets).not.toContain("arn");
-        // Limited (ADR 0054/0055, issue #1109): pool-scoped, not set-scoped —
-        // >=40 main, no sideboard cap.
-        expect(FORMAT_RULES.limited.allowedSets).toBeNull();
-        expect(FORMAT_RULES.limited.minMain).toBe(40);
-        expect(FORMAT_RULES.limited.maxSide).toBeNull();
     });
 });
 
@@ -973,13 +932,6 @@ describe("validateDeck — Premodern legality by Scryfall, REAL registry (issue 
         expect(ball?.cardId).toBe(BALL_LIGHTNING_DEF);
     });
 
-    it("the generated legality map lists all four names as Premodern-legal, regardless of built set", () => {
-        expect(PREMODERN_LEGAL_NAMES.has("counterspell")).toBe(true);
-        expect(PREMODERN_LEGAL_NAMES.has("lightning bolt")).toBe(true);
-        expect(PREMODERN_LEGAL_NAMES.has("ball lightning")).toBe(true);
-        expect(PREMODERN_LEGAL_NAMES.has("city of brass")).toBe(true);
-    });
-
     it("MOOT BY CONSTRUCTION: a card whose only built printing sits outside the legal-set list still validates", () => {
         // City of Brass's only built printing is `arn`, which is NOT in
         // PREMODERN_LEGAL_SETS and never received a reprint into an allowed
@@ -1229,26 +1181,6 @@ describe("checkBanned — zero-copy list (issue #516)", () => {
     it("is silent when no banned card is present", () => {
         const deck: ValidatableDeck = { cards: repeat("lea-card", 4) };
         expect(checkBanned(deck, banned, stubResolve)).toEqual([]);
-    });
-});
-
-describe("Old School lists are the EC ∩ pool intersection (ADR 0036)", () => {
-    it("restricts the implemented EC power cards (canonical Card IDs)", () => {
-        // Spot-check a few well-known EC restricted cards by their real ids.
-        const BLACK_LOTUS = "b0faa7f2-b547-42c4-a810-839da50dadfe";
-        const ANCESTRAL = "70e7ddf2-5604-41e7-bb9d-ddd03d3e9d0b";
-        const LIBRARY = "ee266113-34ce-4189-84e7-ee2c86a2722c";
-        expect(OLD_SCHOOL_RESTRICTED.has(BLACK_LOTUS)).toBe(true);
-        expect(OLD_SCHOOL_RESTRICTED.has(ANCESTRAL)).toBe(true);
-        expect(OLD_SCHOOL_RESTRICTED.has(LIBRARY)).toBe(true);
-    });
-
-    it("bans the Chaos Orb guard id (Swedish dexterity ban, ADR 0010)", () => {
-        // The Chaos Orb stub id (commented out in sets/lea.ts) — a guard so a
-        // future un-comment is rejected rather than silently legal.
-        expect(
-            OLD_SCHOOL_BANNED.has("92274971-7c4a-4326-b0fe-75e2d124f718")
-        ).toBe(true);
     });
 });
 

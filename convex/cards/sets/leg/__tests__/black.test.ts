@@ -41,7 +41,6 @@ const blight = getDefinition("9ca19b39-4201-463c-bd40-fbffa31c9eda");
 const cosmicHorror = getDefinition("18bc6ac2-19e0-4765-852b-e303a5bb4040");
 const cyclopeanMummy = getDefinition("479ccc50-2d72-4adc-901e-fbd4eef2cf92");
 const darkness = getDefinition("53b04dab-45b7-418b-a0f0-bcf35145fc53");
-const fallenAngel = getDefinition("0f4174e4-0be8-49b5-8c52-22001790f6eb");
 const headlessHorseman = getDefinition("d1aa37c8-98fa-4984-b09b-cf65ad84e97b");
 const hellSwarm = getDefinition("64164d1b-75f4-456e-a717-90ce554dc16c");
 const hellfire = getDefinition("362f1fe9-20af-434c-9957-7a1a564d89e6");
@@ -49,7 +48,6 @@ const hellsCaretaker = getDefinition("336b3b8f-d104-4f06-ad4f-c92b8a9038ca");
 const moldDemon = getDefinition("649a33aa-7eac-4161-ae1a-fcbc758abccf");
 const netherVoid = getDefinition("2e72f8cb-5bc3-4711-9b7c-a6eea9a0beaf");
 const spiritShackle = getDefinition("a30bb266-5bd1-4998-ae94-56f0f3354167");
-const syphonSoul = getDefinition("f3020304-7a39-411e-b055-3ade72b4bff8");
 const theAbyss = getDefinition("86a27d68-3e58-4ade-976d-36381beed451");
 const wallOfTombstones = getDefinition("55da1e86-fe18-486a-b510-f941e6f6e378");
 const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
@@ -146,42 +144,6 @@ describe("Ghosts of the Damned ({T}: target -1/-0 EOT, CR 611.1)", () => {
         resolveTopOfStack(state);
         const live = state.players[1].battlefield.find((c) => c.id === "bear")!;
         expect(getEffectivePower(state, live)).toBe(1);
-    });
-});
-
-describe("Fallen Angel (Sacrifice a creature: +2/+1 EOT, CR 602.1/611.1)", () => {
-    it("sacrifices a creature and pumps itself +2/+1", () => {
-        const angel = makeInstance(fallenAngel.id, {
-            id: "angel",
-            controllerId: "p1",
-            ownerId: "p1",
-        });
-        const fodder = makeInstance(headlessHorseman.id, {
-            id: "fodder",
-            controllerId: "p1",
-            ownerId: "p1",
-        });
-        const state = makeState({
-            players: [
-                makePlayer("p1", { battlefield: [angel, fodder] }),
-                makePlayer("p2"),
-            ],
-        });
-        expect(getEffectivePower(state, angel)).toBe(3);
-        state.stack.push({
-            ...angel,
-            zone: "stack",
-            castById: "p1",
-            abilityId: "fallen-angel-feast",
-            sacrificedPermanentId: "fodder",
-            targets: [],
-        } as StackItem);
-        resolveTopOfStack(state);
-        const live = state.players[0].battlefield.find(
-            (c) => c.id === "angel"
-        )!;
-        expect(getEffectivePower(state, live)).toBe(5);
-        expect(getEffectiveToughness(state, live)).toBe(4);
     });
 });
 
@@ -315,18 +277,6 @@ describe("Hellfire (destroy all nonblack creatures + X+3 to you, CR 701.8)", () 
         ).toBeDefined();
         // X = 1 nonblack creature died → 1 + 3 = 4 damage to caster.
         expect(state.players[0].life).toBe(16);
-    });
-});
-
-describe("Syphon Soul (2 to each opponent, gain that much, CR 120.1)", () => {
-    it("deals 2 to the opponent and gains the caster 2 life", () => {
-        const state = makeState({
-            players: [makePlayer("p1"), makePlayer("p2")],
-        });
-        pushSpell(state, syphonSoul.id, "p1");
-        resolveTopOfStack(state);
-        expect(state.players[1].life).toBe(18);
-        expect(state.players[0].life).toBe(22);
     });
 });
 

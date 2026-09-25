@@ -41,15 +41,4 @@ describe("useDeckDragSensors activation thresholds (issue #2583)", () => {
         expect(rest).toHaveLength(0);
         expect(distance.options.value).toBe(MOUSE_DRAG_DISTANCE_PX);
     });
-
-    it("pins the shipped model-A numbers, so a constant edit is deliberate", () => {
-        // Not a restatement of the constants: this is the second half of the
-        // guard. The two tests above prove sensor == core; this one proves the
-        // core is still 250 / 10 / 8 — the values the prototype's phone
-        // testing settled on (PRD #2405 gesture model A). Changing them is
-        // allowed; changing them SILENTLY is not.
-        expect(TOUCH_HOLD_MS).toBe(250);
-        expect(TOUCH_MOVE_TOLERANCE_PX).toBe(10);
-        expect(MOUSE_DRAG_DISTANCE_PX).toBe(8);
-    });
 });

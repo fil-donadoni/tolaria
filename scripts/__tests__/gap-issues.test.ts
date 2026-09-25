@@ -848,15 +848,6 @@ describe("BAND_UMBRELLAS is keyed by Target, not by band letter (issue #4211)", 
         });
     });
 
-    it("hand-tail is partitioned exactly like grammar, mechanic and bot", () => {
-        expect(PARTITIONED_KINDS).toEqual({
-            grammar: "grammar-rules",
-            mechanic: "ops",
-            bot: "bot-gaps",
-            "hand-tail": "hand-tail",
-        });
-    });
-
     it("a hand-tail gap resolves to the umbrella of the Target lending its band", () => {
         for (const target of RANKED) {
             const gap = partitioned("hand-tail", target);

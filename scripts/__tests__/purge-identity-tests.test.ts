@@ -257,3 +257,91 @@ describe("Lightning Bolt", () => {
         expect(areaOf("src/lib/__tests__/x.test.ts")).toBe("src/lib");
     });
 });
+
+describe("the purge — both classes, repo-wide (issue #4490)", () => {
+    const BOLT = "d573ef03-4730-45aa-93dd-e45ac1dbaf4a";
+    const cards: CardFacts = {
+        byId: (id) =>
+            id === BOLT
+                ? { id, name: "Lightning Bolt", ownsCode: null, smokeRun: true }
+                : undefined,
+        byName: () => undefined,
+    };
+    const SET_FILE = "convex/cards/sets/lea/__tests__/red.test.ts";
+    const OP_ONLY_BLOCK = `    it("deals 3 to a player", () => {
+        const state = makeState();
+        pushSpell(state, bolt.id, "p1", [{ type: "player", id: "p2" }]);
+        resolveTopOfStack(state);
+        expect(state.players[1].life).toBe(17);
+    });`;
+    // Names card-owned code (`kick…`), so the Op-only class clears it.
+    const CARD_OWNED_BLOCK = `    it("its kicker gate is enforced", () => {
+        const state = makeState();
+        pushSpell(state, bolt.id, "p1");
+        resolveTopOfStack(state);
+        expect(kickerGate(state)).toBe(true);
+    });`;
+    const wrap = (...blocks: string[]) =>
+        `${HEADER}const bolt = getDefinition("${BOLT}");\ndescribe("Lightning Bolt", () => {\n${blocks.join("\n\n")}\n});\n`;
+    const SOURCE = wrap(OP_ONLY_BLOCK, CARD_OWNED_BLOCK);
+
+    it("classifies the fixture blocks the way the cases below assume", () => {
+        const blocks = classifyTestBlocks(SET_FILE, SOURCE, { cards });
+        expect(blocks.map((b) => b.opOnly?.kind)).toEqual([
+            "op-only",
+            "cleared",
+        ]);
+    });
+
+    it("removes the Op-only block in a card-set suite and keeps the card-owned sibling", () => {
+        const r = purgeFile(SET_FILE, SOURCE, new Set(), { cards });
+        expect(r.removedOpOnly).toBe(1);
+        expect(r.removedIdentity).toBe(0);
+        expect(r.deleted).toEqual([
+            {
+                kind: "op-only",
+                line: 4,
+                name: "Lightning Bolt > deals 3 to a player",
+            },
+        ]);
+        expect(
+            classifyTestBlocks(SET_FILE, r.text).map((b) => b.title)
+        ).toEqual(["its kicker gate is enforced"]);
+    });
+
+    it("leaves the same block alone without card facts — outside the card sets it is an engine fixture", () => {
+        const r = purgeFile(
+            "convex/gre/__tests__/x.test.ts",
+            SOURCE,
+            new Set()
+        );
+        expect(r.removed).toBe(0);
+        expect(r.text).toBe(SOURCE);
+    });
+
+    it("removes an identity block outside the card sets — the rewrite is repo-wide", () => {
+        const source = `${HEADER}describe("d", () => {\n${IDENTITY_BLOCK}\n\n${BEHAVIOUR_BLOCK}\n});\n`;
+        const r = purgeFile("src/lib/__tests__/x.test.ts", source, new Set());
+        expect(r.removedIdentity).toBe(1);
+        expect(r.deleted).toEqual([
+            { kind: "identity", line: 3, name: "d > is a 2/2 Bear" },
+        ]);
+        expect(r.text).toContain("deals its damage through the engine");
+    });
+
+    it("reports a file whose every block was purged as emptied", () => {
+        const r = purgeFile(SET_FILE, wrap(OP_ONLY_BLOCK), new Set(), {
+            cards,
+        });
+        expect(r.after).toBe(0);
+        expect(r.emptied).toBe(true);
+    });
+
+    it("--keep spares an Op-only block by file:line", () => {
+        const r = purgeFile(SET_FILE, SOURCE, new Set([`${SET_FILE}:4`]), {
+            cards,
+        });
+        expect(r.removed).toBe(0);
+        expect(r.text).toBe(SOURCE);
+    });
+});

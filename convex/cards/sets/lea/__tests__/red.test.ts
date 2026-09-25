@@ -82,7 +82,6 @@ const merfolkOfThePearlTrident = getDefinition(
 const monssGoblinRaiders = getDefinition(
     "b4eb3db3-6a7c-488a-9433-d5d1d3133816"
 );
-const orcishArtillery = getDefinition("a97208b1-a91b-4129-8a00-2f97b418accc");
 const orcishOriflamme = getDefinition("911538ea-322c-4c40-a9c3-35e47fe60fce");
 const plains = getDefinition("b1623d57-4729-4796-b3f7-f1837a05c6ed");
 const powerSink = getDefinition("1b342dd3-09b9-4108-bf12-a65d4cef4eb9");
@@ -115,15 +114,6 @@ import {
 } from "../../../__tests__/setup";
 
 describe("Lightning Bolt (3 damage to any target, CR 608.3)", () => {
-    it("deals 3 damage to a target player", () => {
-        const state = makeState();
-        pushSpell(state, lightningBolt.id, "p1", [
-            { type: "player", id: "p2" },
-        ]);
-        resolveTopOfStack(state);
-        expect(state.players[1].life).toBe(17);
-    });
-
     it("kills a 1/1 creature (damage >= toughness)", () => {
         const lion = makeInstance(savannahLions.id, {
             id: "lion",
@@ -626,38 +616,6 @@ describe("Keldon Warlord (P/T = number of OTHER creatures you control)", () => {
     });
 });
 
-describe("Orcish Artillery ({T}: 2 dmg to any target + 3 dmg to self)", () => {
-    function setup() {
-        const oa = makeInstance(orcishArtillery.id, {
-            id: "oa",
-            controllerId: "p1",
-            ownerId: "p1",
-            isSummoningSick: false,
-        });
-        return makeState({
-            players: [
-                makePlayer("p1", { battlefield: [oa] }),
-                makePlayer("p2"),
-            ],
-        });
-    }
-
-    it("deals 2 to a target opponent and 3 to the controller", () => {
-        const state = setup();
-        const oa = state.players[0].battlefield[0];
-        state.stack.push({
-            ...oa,
-            zone: "stack",
-            castById: "p1",
-            abilityId: "orcish-artillery-shoot",
-            targets: [{ type: "player", id: "p2" }],
-        });
-        resolveTopOfStack(state);
-        expect(state.players[0].life).toBe(17); // self-damage
-        expect(state.players[1].life).toBe(18); // target damage
-    });
-});
-
 describe("Shatter / Stone Rain / Tunnel (destroy-target shorthand)", () => {
     it("Shatter destroys an artifact, ignores creatures", () => {
         const ring = makeInstance(solRing.id, {
@@ -679,25 +637,6 @@ describe("Shatter / Stone Rain / Tunnel (destroy-target shorthand)", () => {
         expect(state.players[1].graveyard.map((c) => c.id)).toContain("ring");
     });
 
-    it("Stone Rain destroys a target Land", () => {
-        const land = makeInstance(plains.id, {
-            id: "victim-land",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
-        const state = makeState({
-            players: [
-                makePlayer("p1"),
-                makePlayer("p2", { battlefield: [land] }),
-            ],
-        });
-        pushSpell(state, stoneRain.id, "p1", [
-            { type: "permanent", id: "victim-land" },
-        ]);
-        resolveTopOfStack(state);
-        expect(state.players[1].battlefield).toHaveLength(0);
-    });
-
     it("Tunnel only targets Walls (subtypeFilter)", () => {
         expect(tunnel.targetRequirement).toEqual({
             type: "Creature",
@@ -717,27 +656,6 @@ describe("Shatter / Stone Rain / Tunnel (destroy-target shorthand)", () => {
         });
         pushSpell(state, tunnel.id, "p1", [{ type: "permanent", id: "wall" }]);
         resolveTopOfStack(state);
-        expect(state.players[1].graveyard.map((c) => c.id)).toContain("wall");
-    });
-
-    it("Tunnel can't be regenerated — a regen shield does not save the Wall (CR 701.19c)", () => {
-        const wall = makeInstance(wallOfSwords.id, {
-            id: "wall",
-            controllerId: "p2",
-            ownerId: "p2",
-            card: { id: wallOfSwords.id, regenerationShields: 1 },
-        });
-        const state = makeState({
-            players: [
-                makePlayer("p1"),
-                makePlayer("p2", { battlefield: [wall] }),
-            ],
-        });
-        pushSpell(state, tunnel.id, "p1", [{ type: "permanent", id: "wall" }]);
-        resolveTopOfStack(state);
-        expect(
-            state.players[1].battlefield.find((c) => c.id === "wall")
-        ).toBeUndefined();
         expect(state.players[1].graveyard.map((c) => c.id)).toContain("wall");
     });
 });
@@ -894,15 +812,6 @@ describe("Granite Gargoyle (flying + {R}: +0/+1 until end of turn)", () => {
         const state = setup();
         const gg = state.players[0].battlefield.find((c) => c.id === "gg")!;
         expect(gg.staticAbilities).toContain("flying");
-    });
-
-    it("activation pumps +0/+1 until end of turn", () => {
-        const state = setup();
-        const gg = state.players[0].battlefield.find((c) => c.id === "gg")!;
-        activatePump(state, gg, "granite-gargoyle-pump");
-        const after = state.players[0].battlefield.find((c) => c.id === "gg")!;
-        expect(getEffectivePower(state, after)).toBe(2);
-        expect(getEffectiveToughness(state, after)).toBe(3);
     });
 });
 

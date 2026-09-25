@@ -294,26 +294,6 @@ describe("tap-other cost predicates (CR 602.1 / 118.8, CR 702.122a)", () => {
 
 // ===========================================================================
 describe("Vehicle is not a creature until crewed (CR 301.7 / 301.7a)", () => {
-    it("the printed definition is an Artifact — Vehicle with printed P/T", () => {
-        expect(smugglersCopter.types).toEqual(["Artifact"]);
-        expect(smugglersCopter.types).not.toContain("Creature");
-        expect(smugglersCopter.subtypes).toEqual(["Vehicle"]);
-        expect(smugglersCopter.power).toBe(3);
-        expect(smugglersCopter.toughness).toBe(3);
-        // CR 702.122 — the board-visible keyword string AND its enforcing
-        // activated ability both ship from one `makeVehicle` call.
-        expect(smugglersCopter.staticAbilities).toContain("crew 1");
-        expect(smugglersCopter.staticAbilities).toContain("flying");
-        const crew = smugglersCopter.activatedAbilities!.find(
-            (a) => a.id === CREW_ABILITY_ID
-        )!;
-        expect(crew.cost.tapOtherFilter).toEqual({
-            filter: { types: "Creature", controllerRelation: "you" },
-            totalPower: 1,
-        });
-        expect(crew.cost.tap).toBeUndefined();
-    });
-
     it("an uncrewed Vehicle on the battlefield is not a creature", () => {
         const state = crewBoard([]);
         expect(isCreature(copterOf(state))).toBe(false);

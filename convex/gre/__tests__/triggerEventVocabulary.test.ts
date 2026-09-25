@@ -7,7 +7,6 @@
 
 import { describe, expect, it } from "vitest";
 import {
-    EVENT_FIELD_KINDS,
     lowerTriggerEvent,
     rebuildTriggerEvent,
 } from "../triggerEventVocabulary";
@@ -27,18 +26,6 @@ const PORTS = {
 };
 
 describe("the trigger event vocabulary is exhaustive over GameEvent (issue #3516)", () => {
-    it("classifies every field of every member it ships", () => {
-        // CR 603.8 — the state-trigger sweep carries no payload, so an empty
-        // row is a real row and not a missing one.
-        expect(EVENT_FIELD_KINDS.STATE_CHECK).toEqual({});
-        expect(EVENT_FIELD_KINDS.PERMANENT_ENTERED.instanceId).toBe("object");
-        expect(EVENT_FIELD_KINDS.PERMANENT_ENTERED.controllerId).toBe("player");
-        expect(EVENT_FIELD_KINDS.CREATURE_DIED.damagedBySources).toBe(
-            "objectList"
-        );
-        expect(EVENT_FIELD_KINDS.CARDS_EXILED.cards).toBe("residue");
-    });
-
     it("refuses a `residue` field by name rather than dropping it", () => {
         const outcome = lowerTriggerEvent(
             {

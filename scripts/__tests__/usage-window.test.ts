@@ -332,17 +332,6 @@ describe("classifyModel / weightedTokens — unknown model fails expensive", () 
         }
     });
 
-    it("opus is priced at $5/$25 (Opus 5), not $15/$75 (a stale Opus 4.1/4-era row)", () => {
-        // Regression pin: a prior fixup left this row at list-price ÷ 3 for
-        // $15/$75 output (5/25) while claiming in a comment it was "exact"
-        // against CURRENT list price — it wasn't, current Opus 5 list price
-        // is $5/$25. sonnet.input == 1 is $3/MTok, so opus at $5/MTok must
-        // land at 5/3 ≈ 1.67, not 5. Table values are rounded to 2-3 decimal
-        // places, so compare with a tolerance rather than bit-exact.
-        expect(DEFAULT_WEIGHTS.opus.input).toBeCloseTo(5 / 3, 1);
-        expect(DEFAULT_WEIGHTS.opus.output).toBeCloseTo(25 / 3, 1);
-    });
-
     it("fable is priced at $10/$50 per MTok, the genuinely most expensive class", () => {
         expect(DEFAULT_WEIGHTS.fable.input).toBeCloseTo(10 / 3, 1);
         expect(DEFAULT_WEIGHTS.fable.output).toBeCloseTo(50 / 3, 1);

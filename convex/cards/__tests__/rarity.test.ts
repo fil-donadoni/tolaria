@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { getAllCards, getDefinition } from "../index";
-import { lightningBoltLeb, volcanicIsland } from "../sets/leb";
+import { volcanicIsland } from "../sets/leb";
 import { badlands } from "../sets/lea";
 import type { Rarity } from "../types";
 
@@ -54,12 +54,5 @@ describe("per-card rarity (CR 206, issue #511)", () => {
             (c) => !VALID_RARITIES.has(c.rarity)
         );
         expect(offenders.map((c) => c.name)).toEqual([]);
-    });
-
-    it("a CardPrint carries its own rarity (Lightning Bolt's Beta reprint)", () => {
-        // Rarity is per-printing: the print declares it independently of the
-        // home-set definition (here they happen to agree at "common").
-        expect(lightningBoltLeb.rarity).toBe("common");
-        expect(VALID_RARITIES.has(lightningBoltLeb.rarity)).toBe(true);
     });
 });

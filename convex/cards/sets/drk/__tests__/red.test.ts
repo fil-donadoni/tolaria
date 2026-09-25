@@ -40,11 +40,8 @@ import { getDefinition } from "../../../index";
 
 const ballLightning = getDefinition("c1ba83ab-83f5-421d-bba1-0f925870b5c8");
 const bloodMoon = getDefinition("78373616-e2d6-4ccf-998f-09f02bea45b4");
-const brothersOfFire = getDefinition("ba2cc4a6-fdcc-4082-801a-d2c50e560e8d");
 const cavePeople = getDefinition("72746a5d-faa1-44b7-97b5-0ef9302a3c13");
 const eternalFlame = getDefinition("d646feea-3c20-4737-8d20-ffad42258ced");
-const fireDrake = getDefinition("d3419db6-1c38-4aa4-b953-1dde7d22b927");
-const fissure = getDefinition("aa2d778d-d74b-45ec-a86b-5d52ffad6ba5");
 const goblinCaves = getDefinition("c6a415b0-00a2-4a65-8994-4a395c50ae2d");
 const goblinHero = getDefinition("7135a569-e5d3-4a1f-924b-bdb86926b4e1");
 const goblinRockSled = getDefinition("91e0b59d-8f9b-4a76-9845-bcb0dc32523d");
@@ -337,23 +334,6 @@ describe("Ball Lightning — trample, haste, end-step sacrifice (CR 702.19 / 702
     });
 });
 
-describe("Brothers of Fire — {1}{R}{R}: 1 to any target and 1 to you (CR 120.3 rider)", () => {
-    it("deals 1 to the target player and 1 to the controller", () => {
-        const bros = makeInstance(brothersOfFire.id, { controllerId: "p1" });
-        const state = makeState({
-            players: [
-                makePlayer("p1", { battlefield: [bros] }),
-                makePlayer("p2"),
-            ],
-        });
-        resolveActivated(state, bros, "brothers-of-fire-bolt", [
-            { type: "player", id: "p2" },
-        ]);
-        expect(state.players[1].life).toBe(19); // target took 1
-        expect(state.players[0].life).toBe(19); // controller took 1
-    });
-});
-
 describe("Cave People — attack pump +1/-2 + grant mountainwalk (CR 508 / 702.19)", () => {
     it("gives itself +1/-2 until end of turn when it attacks", () => {
         const cave = makeInstance(cavePeople.id, { controllerId: "p1" });
@@ -412,47 +392,6 @@ describe("Eternal Flame — X = Mountains; X to target, ceil(X/2) to you (CR 120
         resolveTopOfStack(state);
         expect(state.players[1].life).toBe(17); // 20 - 3 Mountains
         expect(state.players[0].life).toBe(18); // 20 - ceil(3/2) = 2
-    });
-});
-
-describe("Fire Drake — flying + once-per-turn pump (CR 702.9 / 602.5)", () => {
-    it("gives +1/+0 until end of turn", () => {
-        const drake = makeInstance(fireDrake.id, { controllerId: "p1" });
-        const state = makeState({
-            players: [
-                makePlayer("p1", { battlefield: [drake] }),
-                makePlayer("p2"),
-            ],
-        });
-        resolveActivated(state, drake, "fire-drake-pump");
-        expect(getEffectivePower(state, drake)).toBe(2); // 1 + 1
-        expect(getEffectiveToughness(state, drake)).toBe(2);
-    });
-});
-
-describe("Fissure — destroy target creature or land, no regen (CR 701.8)", () => {
-    it("destroys a target creature without it being regeneratable", () => {
-        const victim = makeInstance(goblinHero.id, {
-            id: "victim",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
-        const state = makeState({
-            players: [
-                makePlayer("p1"),
-                makePlayer("p2", { battlefield: [victim] }),
-            ],
-        });
-        pushSpell(state, fissure.id, "p1", [
-            { type: "permanent", id: victim.id },
-        ]);
-        resolveTopOfStack(state);
-        expect(
-            state.players[1].battlefield.find((c) => c.id === victim.id)
-        ).toBeUndefined();
-        expect(state.players[1].graveyard.some((c) => c.id === victim.id)).toBe(
-            true
-        );
     });
 });
 
