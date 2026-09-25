@@ -62,7 +62,7 @@ export type TokenCatalogueEntry = {
  *  descending into every structural construct that can nest one (ADR 0045's
  *  four frozen constructs, plus the multi-branch Ops that reuse the same
  *  nested-list shape). Mirrors the walker in `tokenPrintLookup.test.ts`. */
-function collectTokenSpecs(ops: EffectOp[]): EffectTokenSpec[] {
+export function collectTokenSpecs(ops: EffectOp[]): EffectTokenSpec[] {
     const specs: EffectTokenSpec[] = [];
     for (const op of ops) {
         switch (op.op) {
