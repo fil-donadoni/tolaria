@@ -13,6 +13,7 @@ import type {
 } from "../../../cards/types";
 import { decidingPlayer } from "../../search";
 import { enumerateMoves } from "../../moves";
+import { flashAmbushPosition } from "../botReachTarget";
 import {
     REACH_WINDOWS,
     botReachSpec,
@@ -795,6 +796,32 @@ describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
             { holderId: "p2", verdict: { outcome: "played" } },
         ]);
     }, 600_000);
+
+    // Issue #4280: a creature with flash is posed once more, against an
+    // attacker only it can block (`flashAmbushPosition`) — in a main phase
+    // holding it and casting it are one play a turn apart.
+    it("played — a flash creature, posed against an attacker", () => {
+        expect(playBotReachSeats(getCardByName("Benalish Knight"))).toEqual([
+            { holderId: "p1", verdict: { outcome: "played" } },
+            { holderId: "p2", verdict: { outcome: "played" } },
+        ]);
+    }, 600_000);
+
+    it("only a targetless creature with flash is posed against an attacker", () => {
+        expect(flashAmbushPosition(getCardByName("Benalish Knight"))).toEqual(
+            expect.objectContaining({
+                phase: "DECLARE_ATTACKERS",
+                activePlayer: "opp",
+                priority: "me",
+            })
+        );
+        // No flash, no ambush; a flash spell is not a creature.
+        expect(flashAmbushPosition(getCardByName("Serra Angel"))).toBeNull();
+        expect(flashAmbushPosition(COUNTER_INSTANT)).toBeNull();
+        // Its enters-trigger's target is a targetRequirement of the trigger,
+        // not the card, so the flash snake is posed too.
+        expect(flashAmbushPosition(FLASH_ETB_COUNTER)).not.toBeNull();
+    });
 
     it("a draw spell's holder finds spells on top of the library, and only that holder", () => {
         const topOfLibrary = (def: CardDefinition, seat: 0 | 1): unknown => {

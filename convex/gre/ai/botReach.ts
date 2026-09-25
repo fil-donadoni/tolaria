@@ -54,6 +54,7 @@ import type { CardDefinition, EffectForEachSelector } from "../../cards/types";
 import { castShape } from "./botReachForm";
 import {
     combatTrickPosition,
+    flashAmbushPosition,
     costPose,
     sorceryLifeGainRace,
     sorceryPumpRace,
@@ -408,7 +409,10 @@ export type ReachWindow = (typeof REACH_WINDOWS)[number];
 /** The position a combat trick is posed in once both main phases passed it
  *  over (issue #4264) — see `combatTrickPosition`. */
 export const TRICK_WINDOW = "TRICK_COMBAT";
-type PoseWindow = ReachWindow | typeof TRICK_WINDOW;
+/** The position a flash creature is posed in once both main phases passed it
+ *  over — see `flashAmbushPosition`. */
+export const AMBUSH_WINDOW = "FLASH_AMBUSH";
+type PoseWindow = ReachWindow | typeof TRICK_WINDOW | typeof AMBUSH_WINDOW;
 
 /** Upper bound on follow-through decisions after the card's move. */
 const MAX_FOLLOW_THROUGH_STEPS = 12;
@@ -589,7 +593,10 @@ export function botReachSpec(
     const stack = needsStackTarget(def);
     return {
         cards,
-        phase: window === TRICK_WINDOW ? "PRECOMBAT_MAIN" : window,
+        phase:
+            window === TRICK_WINDOW || window === AMBUSH_WINDOW
+                ? "PRECOMBAT_MAIN"
+                : window,
         turn: 3,
         libraryCount: 20,
         // CR 400.2 — a card the holder can discard or reveal that is never a
@@ -604,6 +611,7 @@ export function botReachSpec(
         ...target.position,
         ...(race ? { life: race.life } : {}),
         ...(window === TRICK_WINDOW ? combatTrickPosition(def) : null),
+        ...(window === AMBUSH_WINDOW ? flashAmbushPosition(def) : null),
         ...(cost.manaPool ? { manaPool: cost.manaPool } : {}),
         ...(stack
             ? {
@@ -792,7 +800,9 @@ function playSeat(
     );
     const trick: PoseWindow[] =
         combatTrickPosition(def) === null ? [] : [TRICK_WINDOW];
-    for (const window of [...later, ...trick]) {
+    const ambush: PoseWindow[] =
+        flashAmbushPosition(def) === null ? [] : [AMBUSH_WINDOW];
+    for (const window of [...later, ...trick, ...ambush]) {
         // Only a card the search passed over is posed again: `frozen` and
         // `position-unmodelled` describe the position or the driver, which a
         // later window of the same turn does not change. A later `played` or

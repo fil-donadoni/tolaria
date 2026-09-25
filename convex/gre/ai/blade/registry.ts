@@ -8542,6 +8542,58 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         note: "Bot Gap `never-chosen › Artifact › draw` (1 card). Issue #4279.",
     },
     {
+        // FLASH AMBUSH reachability (CR 702.8a, CR 508.1, CR 509.1, issue #4280).
+        // The sweep's fourth window for a creature with flash: the opponent's
+        // Grizzly Bears attacks, the holder has priority in the declare-attackers
+        // step with Benalish Knight (flash, first strike) in hand and the mana
+        // for it. Cast now, the creature blocks and its first strike kills the
+        // attacker unharmed — where in a main phase holding and casting the same
+        // flash creature are one play a turn apart, a tie that rollout noise
+        // settles for `pass`.
+        label: "Flash creature: casts it to block an attacker",
+        spec: {
+            cards: [
+                { name: "Benalish Knight", owner: "me", zone: "hand" },
+                { name: "Plains", owner: "me", zone: "battlefield" },
+                { name: "Plains", owner: "me", zone: "battlefield" },
+                { name: "Plains", owner: "me", zone: "battlefield" },
+                { name: "Plains", owner: "me", zone: "battlefield" },
+                { name: "Plains", owner: "me", zone: "battlefield" },
+                { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
+                { name: "Ornithopter", owner: "me", zone: "battlefield" },
+                { name: "Castle", owner: "me", zone: "battlefield" },
+                { name: "Grizzly Bears", owner: "me", zone: "graveyard" },
+                { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+                { name: "Ornithopter", owner: "opp", zone: "battlefield" },
+                { name: "Castle", owner: "opp", zone: "battlefield" },
+                { name: "Grizzly Bears", owner: "opp", zone: "graveyard" },
+            ],
+            phase: "DECLARE_ATTACKERS",
+            activePlayer: "opp",
+            priority: "me",
+            combat: { attackers: ["Grizzly Bears"], confirmed: true },
+            turn: 3,
+            libraryCount: 20,
+        },
+        bot: "me",
+        // The Bot-play sweep's own position at four times its budget — a
+        // REACHABILITY claim, so a PREDICATE, kept out of the weight fit for
+        // the reason the Nantuko Husk entry gives.
+        budget: { iterations: 200 },
+        seeds: [0xb07, 0x5eed, 1, 2, 3],
+        tier: "must",
+        expect: {
+            predicate: (move, state) =>
+                move !== null &&
+                move.kind === "cast-spell" &&
+                instanceIdsForName(state, "Benalish Knight").has(
+                    move.cardInstanceId
+                ),
+            describe: "casts Benalish Knight",
+        },
+        note: "Bot Gap `never-chosen › Creature [first strike,flash] › (no Ops)` (1 card). Issue #4280.",
+    },
+    {
         // A BOON is not self-harm (issue #4273). Unnatural Speed grants haste
         // until end of turn to the creature it targets: the bot's main phase,
         // two Mountains, a summoning-sick Grizzly Bears beside a ready one, and
