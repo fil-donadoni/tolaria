@@ -74,7 +74,6 @@ const giantSpider = getDefinition("77636b4c-faea-4bf5-b88c-dd5bb88dc930");
 const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 const hurricane = getDefinition("52f5a19f-16e4-4d35-89e1-969ac8202f88");
 const hypnoticSpecter = getDefinition("b43b900f-2d9b-442b-9699-058483604ec9");
-const iceStorm = getDefinition("9914836e-2fa6-4390-94b2-431427848a54");
 const instillEnergy = getDefinition("5bd38716-874c-4e3c-a315-837839a6258c");
 const island = getDefinition("90a57c0e-fa61-45ef-955d-d296403967d5");
 const kudzu = getDefinition("b2b72dcd-9ea1-4729-baae-ecd262fdff67");
@@ -1137,30 +1136,6 @@ describe("Regrowth (return target card from your graveyard to hand, CR 400.7 / 6
         expect(ownMoved?.seenByOpponent).toBe(true);
         const ownHidden = own.find((c) => c?.id === "hidden-card");
         expect(ownHidden?.seenByOpponent).toBeFalsy();
-    });
-});
-
-describe("Ice Storm (destroy target land)", () => {
-    it("destroys an opponent's Land", () => {
-        const land = makeInstance(plains.id, {
-            id: "victim-land",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
-        const state = makeState({
-            players: [
-                makePlayer("p1"),
-                makePlayer("p2", { battlefield: [land] }),
-            ],
-        });
-        pushSpell(state, iceStorm.id, "p1", [
-            { type: "permanent", id: "victim-land" },
-        ]);
-        resolveTopOfStack(state);
-        expect(state.players[1].battlefield).toHaveLength(0);
-        expect(state.players[1].graveyard.map((c) => c.id)).toContain(
-            "victim-land"
-        );
     });
 });
 

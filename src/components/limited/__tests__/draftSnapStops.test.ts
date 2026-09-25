@@ -14,11 +14,6 @@ import {
 } from "../draft-room/draftSnapStops";
 
 describe("pane + strip sizing (ADR 0101 §6)", () => {
-    it("is 85/15 in portrait and 80/20 in landscape, measured on the VIEWPORT", () => {
-        expect(DRAFT_PANE_FRACTION.portrait).toBe(0.85);
-        expect(DRAFT_PANE_FRACTION.landscape).toBe(0.8);
-    });
-
     it("expresses the strip as a fraction of its PANE, not of the viewport", () => {
         // The band is 15% of the screen but it is drawn INSIDE an 85% pane —
         // a component writing `15%` there would draw 12.75% of the screen.

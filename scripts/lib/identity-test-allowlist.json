@@ -386,11 +386,6 @@
     },
     {
         "file": "convex/gre/ai/__tests__/evalWeights.bot.test.ts",
-        "test": "DEFAULT_EVAL_WEIGHTS (issue #2683) > carries one latent weight per FEATURE_BASIS dimension (issue #3398)",
-        "reason": "Coverage check: DEFAULT_EVAL_WEIGHTS.latent keys match the independent FEATURE_BASIS list."
-    },
-    {
-        "file": "convex/gre/ai/__tests__/evalWeights.bot.test.ts",
         "test": "DEFAULT_EVAL_WEIGHTS (issue #2683) > is frozen — a mutation attempt is a no-op / throws in strict mode",
         "reason": "Invariant check that exported weight objects (incl. nested latent) are frozen."
     },
@@ -413,11 +408,6 @@
         "file": "convex/gre/ai/__tests__/verdictCoverage.bot.test.ts",
         "test": "decision classes come from the engine's move kinds (issue #3588) > maps every move kind the engine has",
         "reason": "Coverage check: every CLASS_OF_MOVE_KIND entry maps to a real (truthy) class."
-    },
-    {
-        "file": "convex/gre/ai/__tests__/verdictLockSource.bot.test.ts",
-        "test": "the upcaster chain (issue #3578) > the shipped chain has a link for every version below the current one",
-        "reason": "Coverage check: every schema version below current has an upcaster function."
     },
     {
         "file": "convex/gre/ai/__tests__/verdicts.bot.test.ts",
@@ -988,5 +978,35 @@
         "file": "src/lib/ai/selfplay/loweringSweep.bot.test.ts",
         "test": "lowering sweep: dropped-message classes (issue #3461) > keeps genuinely different causes apart",
         "reason": "Real classifier run on four distinct synthetic messages, asserts it keeps them distinct"
+    },
+    {
+        "file": "scripts/__tests__/check-test-hygiene.test.ts",
+        "test": "check:test-hygiene — the wiring > is a health step, after check:targets",
+        "reason": "Membership + ordering invariant: check:test-hygiene is a health step after check:targets in HEALTH_SCRIPTS (independent list)."
+    },
+    {
+        "file": "convex/gre/effects/__tests__/effectFieldKeySets.test.ts",
+        "test": "AMOUNT_KEYS — an op-covered Op's runtime amount is card-dependent (ADR 0105 § 7.1) > names exactly the EffectValue-typed fields it names today",
+        "reason": "Domain pin: the sibling it.each iterates AMOUNT_KEYS itself, so a derivation (issue #4451) that narrows the set stays green without this membership pin."
+    },
+    {
+        "file": "convex/gre/ai/__tests__/rootRuleMoratorium.bot.test.ts",
+        "test": "RootDecisionMechanism is frozen behind an allowlist (issue #3399) > exactly two mechanisms are structural — the rest are disableable rules",
+        "reason": "Partition check: a rule relabelled structural escapes the disableable-rule gate and the no-rule retirement proof (ADR 0124 §5); the sibling tests hard-code the two names."
+    },
+    {
+        "file": "convex/gre/ai/__tests__/nonZoneChoiceCandidates.bot.test.ts",
+        "test": "NON_ZONE_CANDIDATE_SOURCE > names exactly the six kinds whose candidates are not cards",
+        "reason": "Partition check over a Record tsc keeps total but cannot keep right: pins which kinds are non-card (the pick-pile bug)."
+    },
+    {
+        "file": "scripts/__tests__/ui-gate-floors.test.ts",
+        "test": "Floors and Shape Readings > are the nine Floors and four Shape Readings ADR 0132 names, disjoint",
+        "reason": "Domain pin: brokenFloors iterates FLOORS, so a Floor dropped from the list weakens check:ui silently; disjointness of two independent lists."
+    },
+    {
+        "file": "src/__tests__/design-tokens.test.ts",
+        "test": "design tokens v3 — CSS ↔ typed mirror > declares every mirrored family in @layer base :root, not @theme inline",
+        "reason": "Domain pin: the sibling it.each iterates the token groups themselves, so a family dropped from the mirror shrinks the sweep silently."
     }
 ]

@@ -60,6 +60,13 @@ export const DEFAULT_LIVENESS_MS = 60_000;
  * `check:targets` (the Coverage Invariant, issue #3868) lives here on the
  * same terms and after `check:gaps`: it reads the same lockfile and allowlist.
  *
+ * `check:test-hygiene` (the test-suite hygiene census, issue #4490) lives here
+ * too: it keeps the identity-test classifier's two purge classes at zero
+ * across every test file, and its Op-only half loads the whole catalogue —
+ * a cost no PR diff should pay, and a verdict a new constant-pin test can only
+ * change by being written (issue #4490: a new guard goes on `health`, never
+ * on a PR-phase gate).
+ *
  * `check:gaps` (the derived Op census, ADR 0105 § 7.3) lives HERE and nowhere
  * else: it is a census over the committed lockfile, so a PR gate would pay for
  * it on every diff that cannot move it. It runs AFTER `check:all`, because
@@ -77,6 +84,7 @@ export const HEALTH_SCRIPTS: readonly string[] = [
     "check:all",
     "check:gaps",
     "check:targets",
+    "check:test-hygiene",
     "test",
 ];
 

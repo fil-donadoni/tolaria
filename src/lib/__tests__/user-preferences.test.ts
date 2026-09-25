@@ -30,14 +30,6 @@ describe("applyDocumentPreferences", () => {
     });
 });
 
-describe("defaults", () => {
-    it("match the app's previous hard-coded values, so a user who never opens Settings sees no change", () => {
-        expect(DEFAULT_DENSITY_PREFERENCE).toBe("roomy");
-        expect(DEFAULT_MOTION_PREFERENCE).toBe("system");
-        expect(DEFAULT_PREVIEW_PREFERENCE).toBe("computed");
-    });
-});
-
 describe("option lists", () => {
     it("every default value is present among its own option list", () => {
         expect(DENSITY_PREFERENCE_OPTIONS.map((o) => o.value)).toContain(

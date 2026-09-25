@@ -20,7 +20,6 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ViewportMode } from "~/hooks/useViewportMode";
 import CompactChromeDisclosure from "../compact-chrome-disclosure";
-import { TABLET_PORTRAIT_QUERY } from "../useCompactChromeFold";
 
 // The single seam under test — driven explicitly so happy-dom's media-query
 // support never decides the branch (same pattern as
@@ -153,12 +152,6 @@ describe("useIsTabletPortrait / TABLET_PORTRAIT_QUERY (issue #2671)", () => {
 
     afterEach(() => {
         vi.unstubAllGlobals();
-    });
-
-    it("is the width-complement of useViewportMode's own PORTRAIT_QUERY (orientation: portrait, min-width: 768px), height-bounded (issue #2671 review M2)", () => {
-        expect(TABLET_PORTRAIT_QUERY).toBe(
-            "(orientation: portrait) and (min-width: 768px) and (max-height: 1300px)"
-        );
     });
 
     it("folds the band on a tablet-portrait viewport even though useViewportMode() still reads 'desktop'", () => {

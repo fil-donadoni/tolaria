@@ -493,27 +493,6 @@ describe("Colossus of Sardia (trample + does-not-untap + {9} untap)", () => {
                 .isTapped
         ).toBe(true);
     });
-
-    it("the {9} ability untaps it", () => {
-        const colossus = makeInstance(colossusOfSardia.id, {
-            id: "colossus",
-            isTapped: true,
-        });
-        const state = makeState({
-            players: [
-                makePlayer("p1", { battlefield: [colossus] }),
-                makePlayer("p2"),
-            ],
-            phase: "UPKEEP",
-        });
-        resolveActivated(state, colossus, "colossus-of-sardia-untap", [
-            { type: "permanent", id: "colossus" },
-        ]);
-        expect(
-            state.players[0].battlefield.find((c) => c.id === "colossus")!
-                .isTapped
-        ).toBe(false);
-    });
 });
 
 // ---------------------------------------------------------------------------
@@ -1298,42 +1277,6 @@ describe("Armageddon Clock (doom-counter time bomb)", () => {
 
 // Triskelion (CR 122.1 ETB counters, CR 122.6 removal cost, any-target ping)
 describe("Triskelion (3 +1/+1 counters, remove-counter → 1 damage)", () => {
-    it("ETB applies three +1/+1 counters → 4/4 effective", () => {
-        const state = makeState();
-        pushSpell(state, triskelion.id, "p1");
-        resolveTopOfStack(state);
-        const tris = state.players[0].battlefield.find(
-            (c) => (c.card as { id: string }).id === triskelion.id
-        )!;
-        expect(tris.counters?.["+1/+1"]).toBe(3);
-        expect(getEffectivePower(state, tris)).toBe(4);
-        expect(getEffectiveToughness(state, tris)).toBe(4);
-    });
-
-    it("activated ability deals 1 damage to a player (any target)", () => {
-        const tris = makeInstance(triskelion.id, {
-            id: "tris",
-            controllerId: "p1",
-            ownerId: "p1",
-            counters: { "+1/+1": 3 },
-        });
-        const state = makeState({
-            players: [
-                makePlayer("p1", { battlefield: [tris] }),
-                makePlayer("p2", { life: 20 }),
-            ],
-        });
-        state.stack.push({
-            ...tris,
-            zone: "stack",
-            castById: "p1",
-            abilityId: "triskelion-bolt",
-            targets: [{ type: "player", id: "p2" }],
-        });
-        resolveTopOfStack(state);
-        expect(state.players[1].life).toBe(19);
-    });
-
     it("wire format: counter-driven 4/4 survives projectPublicState", () => {
         const tris = makeInstance(triskelion.id, {
             id: "tris",
@@ -2218,25 +2161,6 @@ describe("Rakalite (prevent next 1, return self next end step, CR 615.1)", () =>
 
 // Ashnod's Transmogrant (CR 122.1 +1/+1 counter; artifact-type clause deferred)
 describe("Ashnod's Transmogrant ({T}, sac: +1/+1 on nonartifact creature)", () => {
-    it("puts a +1/+1 counter on the targeted nonartifact creature", () => {
-        const trans = makeInstance(ashnodsTransmogrant.id, {
-            id: "trans",
-            controllerId: "p1",
-            ownerId: "p1",
-        });
-        const bear = vanilla("bear", 2, 2, { controllerId: "p1" });
-        const state = makeState({
-            players: [makePlayer("p1", { battlefield: [trans, bear] })],
-        });
-        resolveActivated(state, trans, "ashnods-transmogrant-counter", [
-            { type: "permanent", id: "bear" },
-        ]);
-        const live = state.players[0].battlefield.find((c) => c.id === "bear")!;
-        expect(live.counters?.["+1/+1"]).toBe(1);
-        expect(getEffectivePower(state, live)).toBe(3);
-        expect(getEffectiveToughness(state, live)).toBe(3);
-    });
-
     it("excludes artifact creatures from legal targets (nonartifact only)", () => {
         const trans = makeInstance(ashnodsTransmogrant.id, { id: "trans" });
         const robot = makeInstance(ornithopter.id, {

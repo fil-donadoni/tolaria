@@ -1702,29 +1702,6 @@ describe("D'Avenant Archer ({T}: ping attacking-or-blocking, CR 508.1/509.1)", (
         expect(legal).toContain("blk");
         expect(legal).not.toContain("idle");
     });
-
-    it("deals 1 damage to a chosen attacking creature", () => {
-        const archer = makeInstance(davenantArcher.id, {
-            id: "archer",
-            controllerId: "p1",
-        });
-        const attacker = makeInstance(HEADLESS, {
-            id: "atk",
-            controllerId: "p2",
-            isAttacking: true,
-        });
-        const state = makeState({
-            players: [
-                makePlayer("p1", { battlefield: [archer] }),
-                makePlayer("p2", { battlefield: [attacker] }),
-            ],
-        });
-        resolveActivated(state, archer, "davenant-archer-ping", [
-            { type: "permanent", id: "atk" },
-        ]);
-        const hit = state.players[1].battlefield.find((c) => c.id === "atk")!;
-        expect(hit.damageMarked).toBe(1);
-    });
 });
 
 describe("Moat (creatures without flying can't attack, CR 508.1c)", () => {

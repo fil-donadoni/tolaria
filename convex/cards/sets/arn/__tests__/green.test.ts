@@ -40,7 +40,6 @@ import { getDefinition } from "../../../index";
 
 const birdMaiden = getDefinition("5c1ba0b9-db01-447f-90cc-a2fc2c24146e");
 const cyclone = getDefinition("f11684d6-5b74-47a7-a2d0-256c9e437aa6");
-const desertTwister = getDefinition("0d77c149-cca2-45c7-bc83-5ba1872ad5e0");
 const dropOfHoney = getDefinition("26e090d4-e7fe-403c-9aca-05c1b45ed238");
 const erhnamDjinn = getDefinition("42bc0c3f-0a52-4bdc-83da-6484bf3102f3");
 const flyingMen = getDefinition("25ab9a2b-e248-4ae2-aac3-b49fdb3e260a");
@@ -82,28 +81,6 @@ describe("Sandstorm (1 damage to each attacking creature)", () => {
         const p2 = state.players[1];
         expect(p2.battlefield.find((c) => c.id === "atk")).toBeUndefined();
         expect(p2.battlefield.find((c) => c.id === "idle")).toBeDefined();
-    });
-});
-
-describe("Desert Twister (destroy target permanent)", () => {
-    it("destroys a target creature", () => {
-        const victim = makeInstance(grizzlyBears.id, {
-            id: "victim",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
-        const state = makeState({
-            players: [
-                makePlayer("p1"),
-                makePlayer("p2", { battlefield: [victim] }),
-            ],
-        });
-        pushSpell(state, desertTwister.id, "p1", [
-            { type: "permanent", id: "victim" },
-        ]);
-        resolveTopOfStack(state);
-        expect(state.players[1].battlefield).toHaveLength(0);
-        expect(state.players[1].graveyard).toHaveLength(1);
     });
 });
 

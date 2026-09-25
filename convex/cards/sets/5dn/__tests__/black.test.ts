@@ -30,13 +30,6 @@ describe("Night's Whisper (draw two, lose 2 life, CR 121.1 / 119.3)", () => {
         return state;
     };
 
-    it("draws two cards and the caster loses 2 life", () => {
-        const state = setup();
-        resolveTopOfStack(state);
-        expect(state.players[0].hand.length).toBe(2);
-        expect(state.players[0].life).toBe(18);
-    });
-
     it("the drawn count and life total survive projection (wire format)", () => {
         const state = setup();
         resolveTopOfStack(state);

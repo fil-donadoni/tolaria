@@ -341,10 +341,6 @@ describe("priority axis — the rank table and its sentinel (issue #4051)", () =
         }
     });
 
-    it("accepts exactly the four named bands on the board read — no more, no fewer", () => {
-        expect([...VALID_PRIORITIES]).toEqual(["P0", "P1", "P2", "P3"]);
-    });
-
     it("gives every accepted board value a rank — no value can reach the comparator as undefined", () => {
         for (const p of VALID_PRIORITIES) {
             expect(Number.isInteger(priorityRank(p))).toBe(true);

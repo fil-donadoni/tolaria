@@ -2,8 +2,6 @@ import { describe, it, expect } from "vitest";
 import {
     evaluateBlockerKeywords,
     evaluateAttackerKeywords,
-    EVASION_RULES,
-    ATTACK_RESTRICTION_RULES,
 } from "../combatRegistry";
 import type { CardInstanceState } from "../state";
 import type { CardType, ManaCost } from "../../cards/types";
@@ -42,45 +40,6 @@ function makeCard(
         ...rest,
     };
 }
-
-// ---------------------------------------------------------------------------
-// Registry structure
-// ---------------------------------------------------------------------------
-
-describe("EVASION_RULES registry", () => {
-    it("contains 16 entries: unblockable + 6 landwalk + legendary landwalk + 5 snow landwalk + fear + flying + shadow", () => {
-        expect(EVASION_RULES).toHaveLength(16);
-        const keywords = EVASION_RULES.map((r) => r.keyword);
-        expect(keywords).toContain("unblockable");
-        expect(keywords).toContain("plainswalk");
-        expect(keywords).toContain("islandwalk");
-        expect(keywords).toContain("swampwalk");
-        expect(keywords).toContain("mountainwalk");
-        expect(keywords).toContain("forestwalk");
-        expect(keywords).toContain("desertwalk");
-        // CR 702.14 — supertype-keyed landwalk (Livonya Silone).
-        expect(keywords).toContain("legendary landwalk");
-        // CR 702.14 / 205.4a — snow landwalk (#661, Legions of Lim-Dûl,
-        // Rime Dryad, Barbarian Guides grants).
-        expect(keywords).toContain("snow plainswalk");
-        expect(keywords).toContain("snow islandwalk");
-        expect(keywords).toContain("snow swampwalk");
-        expect(keywords).toContain("snow mountainwalk");
-        expect(keywords).toContain("snow forestwalk");
-        expect(keywords).toContain("fear");
-        expect(keywords).toContain("flying");
-        // CR 702.28b (issue #1156) — Shadow (Dauthi Voidwalker).
-        expect(keywords).toContain("shadow");
-    });
-});
-
-describe("ATTACK_RESTRICTION_RULES registry", () => {
-    it("contains defender as sole entry", () => {
-        expect(ATTACK_RESTRICTION_RULES).toHaveLength(1);
-        expect(ATTACK_RESTRICTION_RULES[0].keyword).toBe("defender");
-        expect(ATTACK_RESTRICTION_RULES[0].cr).toBe("702.3a");
-    });
-});
 
 // ---------------------------------------------------------------------------
 // evaluateBlockerKeywords — unblockable (CR 509.1b)

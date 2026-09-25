@@ -33,9 +33,6 @@ import {
     resolveActivated,
 } from "../../../__tests__/setup";
 import { resolveTrigger, UPKEEP, answerPendingChoices } from "./helpers";
-
-const aeolipile = getDefinition("a09030ee-415c-45af-bf08-7623197a314f");
-const balmOfRestoration = getDefinition("7f95de4a-7fae-42bc-9660-39ea7685ca02");
 const bottomlessVault = getDefinition("639ae988-d1d1-4ead-b0f8-47fc39eb64a0");
 const conchHorn = getDefinition("860a9ba3-e4c4-4af9-bdfe-1ada39289fd5");
 const delifsCone = getDefinition("262b8788-c5a0-4c8e-9d58-b769b1b0a2ff");
@@ -420,40 +417,6 @@ describe("Spirit Shield / Zelyon Sword — tapped-duration buff (REUSE I, CR 611
 });
 
 describe("FEM C6 sacrifice / tap-effect artifacts (reuse-only)", () => {
-    it("Aeolipile deals 2 damage to any target and sacrifices itself (CR 119)", () => {
-        const cone = makeInstance(aeolipile.id, {
-            id: "aeo",
-            controllerId: "p1",
-            ownerId: "p1",
-        });
-        const state = makeState({
-            players: [
-                makePlayer("p1", { battlefield: [cone] }),
-                makePlayer("p2", { life: 20 }),
-            ],
-        });
-        resolveActivated(state, cone, "aeolipile-damage", [
-            { type: "player", id: "p2" },
-        ]);
-        expect(state.players[1].life).toBe(18);
-    });
-
-    it("Balm of Restoration's gain-life mode gains 2 life (CR 119)", () => {
-        const balm = makeInstance(balmOfRestoration.id, {
-            id: "balm",
-            controllerId: "p1",
-            ownerId: "p1",
-        });
-        const state = makeState({
-            players: [
-                makePlayer("p1", { battlefield: [balm], life: 20 }),
-                makePlayer("p2"),
-            ],
-        });
-        resolveActivated(state, balm, "balm-gain-life");
-        expect(state.players[0].life).toBe(22);
-    });
-
     it("Elven Lyre gives +2/+2 until end of turn (CR 611.2c)", () => {
         const lyre = makeInstance("c3a8cd72-04c0-46f7-a249-f1cecddfdc26", {
             id: "lyre",

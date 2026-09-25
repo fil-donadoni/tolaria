@@ -48,10 +48,6 @@ function record(gameIndex: number): LadderGameRecord {
 }
 
 describe("ladder pairing registry (decision #1895 §1)", () => {
-    it("starts from the six decision-corpus archetype pairings", () => {
-        expect(LADDER_PAIRINGS.length).toBeGreaterThanOrEqual(6);
-    });
-
     it("has 17 rows after the R1/R2 rungs (issue #2689), every row tagged", () => {
         expect(LADDER_PAIRINGS.length).toBe(17);
         for (const row of LADDER_PAIRINGS) {

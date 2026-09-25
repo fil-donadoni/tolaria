@@ -111,7 +111,6 @@ const unholyStrength = getDefinition("90563f90-0127-4164-b43b-f0321dc63a1d");
 const wallOfBone = getDefinition("ae20d442-a544-4a03-9ebf-5ecb137c67dd");
 const warpArtifact = getDefinition("9e5e07a2-fbdf-4c4c-996a-fce40bab5de5");
 const weakness = getDefinition("36ca06a1-9b9a-49a2-9c47-9b72228621bc");
-const willOTheWisp = getDefinition("a1a6f8e9-7bc1-4151-b55f-acf877b1a7a6");
 const wordOfCommand = getDefinition("96c21429-98d3-416b-be00-6aa9c4c5a006");
 const zombieMaster = getDefinition("3d4255a0-d445-4c00-b936-bbf07851e1c8");
 const blizzard = getDefinition("c369e4f9-0f2b-446c-9e2d-d3eefab0586d");
@@ -739,28 +738,6 @@ describe("Sengir Vampire (+1/+1 on damaged-creature death, CR 603.2)", () => {
 });
 
 describe("Sinkhole (destroy target land, CR 701.8)", () => {
-    it("destroys a target Swamp and sends it to its owner's graveyard", () => {
-        const land = makeInstance(swamp.id, {
-            id: "p1-swamp",
-            controllerId: "p1",
-            ownerId: "p1",
-        });
-        const state = makeState({
-            players: [
-                makePlayer("p1", { battlefield: [land] }),
-                makePlayer("p2"),
-            ],
-        });
-        pushSpell(state, sinkhole.id, "p2", [
-            { type: "permanent", id: "p1-swamp" },
-        ]);
-        resolveTopOfStack(state);
-        expect(state.players[0].battlefield).toHaveLength(0);
-        expect(state.players[0].graveyard.map((c) => c.id)).toContain(
-            "p1-swamp"
-        );
-    });
-
     it("wire format: destroyed land absent from projected battlefield, present in graveyard", () => {
         const land = makeInstance(swamp.id, {
             id: "p1-swamp",
@@ -1303,31 +1280,6 @@ describe("Unholy Strength + Weakness (pt-buff aura mirror cycle)", () => {
     });
 });
 
-describe("Wall of Bone (defender + {B} regen)", () => {
-    it("activating regen shields self", () => {
-        const wob = makeInstance(wallOfBone.id, {
-            id: "wob",
-            controllerId: "p1",
-            ownerId: "p1",
-        });
-        const state = makeState({
-            players: [
-                makePlayer("p1", { battlefield: [wob] }),
-                makePlayer("p2"),
-            ],
-        });
-        state.stack.push({
-            ...wob,
-            zone: "stack",
-            castById: "p1",
-            abilityId: "wall-of-bone-regenerate",
-            targets: [],
-        });
-        resolveTopOfStack(state);
-        expect(state.players[0].battlefield[0].regenerationShields).toBe(1);
-    });
-});
-
 describe("Warp Artifact (Aura on Artifact — 1 dmg to host's controller at upkeep)", () => {
     function setup(activePlayerId: string) {
         const ring = makeInstance(solRing.id, {
@@ -1359,31 +1311,6 @@ describe("Warp Artifact (Aura on Artifact — 1 dmg to host's controller at upke
         advancePhase(state);
         resolveTopOfStack(state);
         expect(state.players[0].life).toBe(before - 1);
-    });
-});
-
-describe("Will-o'-the-Wisp (flying + {B} regen)", () => {
-    it("activating regen shields self", () => {
-        const wisp = makeInstance(willOTheWisp.id, {
-            id: "wisp",
-            controllerId: "p1",
-            ownerId: "p1",
-        });
-        const state = makeState({
-            players: [
-                makePlayer("p1", { battlefield: [wisp] }),
-                makePlayer("p2"),
-            ],
-        });
-        state.stack.push({
-            ...wisp,
-            zone: "stack",
-            castById: "p1",
-            abilityId: "will-o-the-wisp-regenerate",
-            targets: [],
-        });
-        resolveTopOfStack(state);
-        expect(state.players[0].battlefield[0].regenerationShields).toBe(1);
     });
 });
 
@@ -2697,24 +2624,6 @@ describe("Lord of the Pit (flying, trample, upkeep sacrifice-or-7dmg)", () => {
 });
 
 describe("Terror (destroy target nonartifact, nonblack creature, CR 701.8)", () => {
-    it("destroys a non-artifact, non-black creature", () => {
-        const bear = makeInstance(grizzlyBears.id, {
-            id: "bear",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
-        const state = makeState({
-            players: [
-                makePlayer("p1"),
-                makePlayer("p2", { battlefield: [bear] }),
-            ],
-        });
-        pushSpell(state, terror.id, "p1", [{ type: "permanent", id: "bear" }]);
-        resolveTopOfStack(state);
-        expect(state.players[1].battlefield).toHaveLength(0);
-        expect(state.players[1].graveyard).toHaveLength(1);
-    });
-
     it("cannot target artifact creatures (excludeTypes)", () => {
         const jugger = makeInstance(juggernaut.id, {
             id: "jugger",

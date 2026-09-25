@@ -58,7 +58,6 @@ const emeraldDragonfly = getDefinition("a3e81250-52c3-49f6-be43-17c34339e177");
 const giantTurtle = getDefinition("87e5fc19-3b10-476f-9a73-e8bf4b5fbec0");
 const gravitySphere = getDefinition("a2749332-e99a-4a0c-b3a3-5578b552fa11");
 const hundingGjornersen = getDefinition("07d8e501-6857-4a52-a3b9-2bf0bee5b08c");
-const killerBees = getDefinition("2e30b5ff-1239-4c4d-ac7c-554ecf8e1e27");
 const masterOfTheHunt = getDefinition("4e6bf56e-2d74-4e4d-a667-885853979377");
 const mossMonster = getDefinition("9903c043-9a7a-4994-b532-136d4c46edfd");
 const pixieQueen = getDefinition("b9527c2a-23bb-4d33-9e72-6e0ab3de0e6b");
@@ -67,13 +66,11 @@ const shelkinBrownie = getDefinition("fddcc557-871d-425b-b4ee-bc0c9bc717aa");
 const spiritLink = getDefinition("5e2d35f8-3cf6-4843-9030-0e9a885d836c");
 const stormSeeker = getDefinition("3b66d0cc-84d7-41ad-b0e7-74ebf604543f");
 const sylvanParadise = getDefinition("f323c3bb-cece-4035-b1a7-c4817cf7a08c");
-const typhoon = getDefinition("254e0403-67d8-4e73-8d89-c901ebeba49f");
 const wallOfLight = getDefinition("f5758e82-f901-42b7-b705-0e68ca7ba59e");
 const whirlingDervish = getDefinition("eba294e7-7097-4bc3-b396-72e85dd4f441");
 const wolverinePack = getDefinition("ba5aee52-095e-4c69-93eb-5adac11ed1fc");
 const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
 const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
-const island = getDefinition("90a57c0e-fa61-45ef-955d-d296403967d5");
 
 // ───────────────────────────────────────────────────────────────────────────
 // Green free tranche (#375)
@@ -220,26 +217,6 @@ describe("Emerald Dragonfly ({G}{G}: gains first strike EOT, CR 611.2a)", () => 
     });
 });
 
-describe("Killer Bees ({G}: +1/+1 EOT, CR 611.1)", () => {
-    it("pumps itself when activated", () => {
-        const bees = makeInstance(killerBees.id, {
-            id: "bees",
-            controllerId: "p1",
-        });
-        const state = makeState({
-            players: [
-                makePlayer("p1", { battlefield: [bees] }),
-                makePlayer("p2"),
-            ],
-        });
-        resolveActivated(state, bees, "killer-bees-pump");
-        const live = state.players[0].battlefield.find((c) => c.id === "bees")!;
-        // base 0/1 + 1/+1
-        expect(getEffectivePower(state, live)).toBe(1);
-        expect(getEffectiveToughness(state, live)).toBe(2);
-    });
-});
-
 describe("Pixie Queen ({G}{G}{G}, {T}: target gains flying EOT, CR 611.2a)", () => {
     it("grants flying to a chosen creature", () => {
         const queen = makeInstance(pixieQueen.id, {
@@ -310,24 +287,6 @@ describe("Storm Seeker (damage = target's hand size, CR 120.1)", () => {
         pushSpell(state, stormSeeker.id, "p1", [{ type: "player", id: "p2" }]);
         resolveTopOfStack(state);
         expect(state.players[1].life).toBe(17); // 20 - 3
-    });
-});
-
-describe("Typhoon (damage to each opponent = their Islands, CR 120.1)", () => {
-    it("deals damage equal to the opponent's Island count", () => {
-        const islands = [
-            makeInstance(island.id, { id: "i1", controllerId: "p2" }),
-            makeInstance(island.id, { id: "i2", controllerId: "p2" }),
-        ];
-        const state = makeState({
-            players: [
-                makePlayer("p1"),
-                makePlayer("p2", { battlefield: islands }),
-            ],
-        });
-        pushSpell(state, typhoon.id, "p1");
-        resolveTopOfStack(state);
-        expect(state.players[1].life).toBe(18); // 20 - 2 islands
     });
 });
 

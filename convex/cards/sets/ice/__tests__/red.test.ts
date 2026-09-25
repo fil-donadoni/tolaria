@@ -89,11 +89,9 @@ const glacialWall = getDefinition("07b71bc1-d9a2-4e99-a8fa-cd696925328d");
 const anarchy = getDefinition("28d941da-b5cb-4b7e-84f2-ece883f89af3");
 const conquer = getDefinition("ae610e66-7bcb-40ec-bed5-86dcfd098654");
 const imposingVisage = getDefinition("cca42b74-9b42-482b-b12a-79cafdcd087e");
-const incinerate = getDefinition("9c3f00af-010d-4485-b8b7-47400d99c496");
 const jokulhaups = getDefinition("3bf0d325-5928-4593-8faa-64ffa414cb48");
 const karplusanYeti = getDefinition("7dd9b214-d9fe-4c2e-b45b-7145ad98c408");
 const lavaBurst = getDefinition("79dc0e20-5790-4927-8432-cf0e9b7381d4");
-const orcishCannoneers = getDefinition("a4309a2f-27f5-4652-b0b4-6a6119436f75");
 const orcishHealer = getDefinition("7ff511f3-416e-4919-acd6-fd8183bf5c60");
 const pyroblast = getDefinition("c342cac5-08ae-4428-9c2c-f6c5904e54d2");
 const pyroclasm = getDefinition("88040748-ad76-4b9a-bd4e-87e5980e9816");
@@ -110,7 +108,6 @@ const balduvianHydra = getDefinition("c3a3b37f-daa6-4502-bb12-c72afe3df035");
 const battleFrenzy = getDefinition("a85ae675-56ca-4a00-83d2-ee035f33d6d1");
 const boneShaman = getDefinition("0a5e3d54-4dc4-482b-8ecc-bb819ba03d2c");
 const chaosLord = getDefinition("ee245922-b380-4b2e-a43f-ab1ba8078943");
-const dwarvenArmory = getDefinition("7d14a430-6e08-40cf-970a-cae84bba6ef7");
 const gameOfChaos = getDefinition("08265332-2c0e-4c42-8c51-83ac20462eed");
 const goblinMutant = getDefinition("6db54f95-6652-45a3-b960-c2fc118beca1");
 const goblinSappers = getDefinition("de839540-a7b9-4f91-91df-3fd4f5c0bc4e");
@@ -222,37 +219,6 @@ describe("Pyroclasm (CR 120.3 sweep)", () => {
         const bf = state.players[1].battlefield.map((c) => c.id);
         expect(bf).not.toContain("small");
         expect(bf).toContain("big");
-    });
-});
-
-// --- Incinerate (3 damage + regen-lock, CR 120.1 / 701.19c) ----------------
-
-describe("Incinerate (CR 120.1 damage + CR 701.19c regen-lock)", () => {
-    it("deals 3 damage to a player", () => {
-        const state = makeState({
-            players: [makePlayer("p1"), makePlayer("p2", { life: 20 })],
-        });
-        pushSpell(state, incinerate.id, "p1", [{ type: "player", id: "p2" }]);
-        resolveTopOfStack(state);
-        expect(state.players[1].life).toBe(17);
-    });
-    it("kills a 3-toughness creature and locks regeneration", () => {
-        const creature = vanilla("c", 3, 3, {
-            controllerId: "p2",
-            ownerId: "p2",
-            card: { id: "fake-c" },
-        });
-        const state = makeState({
-            players: [
-                makePlayer("p1"),
-                makePlayer("p2", { battlefield: [creature] }),
-            ],
-        });
-        pushSpell(state, incinerate.id, "p1", [{ type: "permanent", id: "c" }]);
-        resolveTopOfStack(state);
-        expect(state.players[1].battlefield.map((c) => c.id)).not.toContain(
-            "c"
-        );
     });
 });
 
@@ -543,29 +509,6 @@ describe("Karplusan Yeti (mutual fight damage)", () => {
         expect(state.players[1].battlefield.map((c) => c.id)).not.toContain(
             "foe"
         );
-    });
-});
-
-// --- Orcish Cannoneers ({T}: 2 dmg any target + 3 to you) ------------------
-
-describe("Orcish Cannoneers (CR 120.1 damage + self-damage)", () => {
-    it("deals 2 to a target player and 3 to the controller", () => {
-        const cannon = makeInstance(orcishCannoneers.id, {
-            id: "cannon",
-            controllerId: "p1",
-            ownerId: "p1",
-        });
-        const state = makeState({
-            players: [
-                makePlayer("p1", { life: 20, battlefield: [cannon] }),
-                makePlayer("p2", { life: 20 }),
-            ],
-        });
-        resolveActivated(state, cannon, "orcish-cannoneers-fire", [
-            { type: "player", id: "p2" },
-        ]);
-        expect(state.players[1].life).toBe(18);
-        expect(state.players[0].life).toBe(17);
     });
 });
 
@@ -1178,33 +1121,6 @@ describe("Chaos Lord — conditional haste at declare-attackers (CR 508.1a / 400
             "Creature has summoning sickness"
         );
         expect(h.state().combat!.attackerIds).toEqual([]);
-    });
-});
-
-describe("Dwarven Armory — {2}, sac a land: +2/+2 counter, any upkeep (CR 602.5b / 122)", () => {
-    it("puts a +2/+2 counter on the target creature", () => {
-        const armory = makeInstance(dwarvenArmory.id, {
-            id: "armory",
-            controllerId: "p1",
-            ownerId: "p1",
-        });
-        const target = vanilla("t", 1, 1, {
-            controllerId: "p1",
-            ownerId: "p1",
-        });
-        const state = makeState({
-            players: [
-                makePlayer("p1", { battlefield: [armory, target] }),
-                makePlayer("p2"),
-            ],
-        });
-        resolveActivated(state, armory, "dwarven-armory-counter", [
-            { type: "permanent", id: "t" },
-        ]);
-        const live = state.players[0].battlefield.find((c) => c.id === "t")!;
-        expect(live.counters?.["+2/+2"]).toBe(1);
-        expect(getEffectivePower(state, live)).toBe(3);
-        expect(getEffectiveToughness(state, live)).toBe(3);
     });
 });
 

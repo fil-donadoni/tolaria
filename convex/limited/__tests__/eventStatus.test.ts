@@ -18,15 +18,6 @@ import {
 } from "../eventStatus";
 
 describe("LIMITED_EVENT_STATUSES (PRD #1628, ADR 0076)", () => {
-    it("is the four-phase lifecycle, in order", () => {
-        expect([...LIMITED_EVENT_STATUSES]).toEqual([
-            "open",
-            "started",
-            "playing",
-            "finished",
-        ]);
-    });
-
     it("has no duplicate members", () => {
         expect(new Set(LIMITED_EVENT_STATUSES).size).toBe(
             LIMITED_EVENT_STATUSES.length

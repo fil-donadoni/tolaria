@@ -71,13 +71,4 @@ describe("generator JSON schema coverage over ScenarioSpec (issue #3463)", () =>
             ...SCENARIO_PHASES,
         ]);
     });
-
-    it("keeps the per-seat fields per-seat", () => {
-        for (const key of ["poison", "life", "experience"] as const) {
-            const property = properties[key] as {
-                properties: Record<string, unknown>;
-            };
-            expect(Object.keys(property.properties)).toEqual(["me", "opp"]);
-        }
-    });
 });

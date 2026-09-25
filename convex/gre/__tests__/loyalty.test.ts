@@ -29,7 +29,6 @@ import { withTemporaryDefinition } from "../../cards/registry";
 import { projectPublicState } from "../../gameProjections";
 import { lightningBolt } from "../../cards/sets/lea/red";
 import { lilianaOfTheVeil } from "../../cards/sets/isd/black";
-import { garrukWildspeaker } from "../../cards/sets/lrw/green";
 
 const LILIANA = lilianaOfTheVeil.id;
 
@@ -378,25 +377,5 @@ describe("loyalty-activation allowance (CR 606.3, issue #3339)", () => {
             const pw = makeInstance(LILIANA, { counters: { loyalty: 3 } });
             expect(loyaltyActivationAllowance(pw)).toBe(1);
         });
-    });
-});
-
-describe("tracer definitions carry loyalty framework fields", () => {
-    it("Liliana of the Veil declares starting loyalty and three loyalty abilities", () => {
-        expect(lilianaOfTheVeil.loyalty).toBe(3);
-        expect(lilianaOfTheVeil.types).toContain("Planeswalker");
-        const costs = (lilianaOfTheVeil.activatedAbilities ?? []).map(
-            (a) => a.cost.loyalty
-        );
-        expect(costs).toEqual([1, -2, -6]);
-    });
-
-    it("Garruk Wildspeaker declares starting loyalty and three loyalty abilities", () => {
-        expect(garrukWildspeaker.loyalty).toBe(3);
-        expect(garrukWildspeaker.types).toContain("Planeswalker");
-        const costs = (garrukWildspeaker.activatedAbilities ?? []).map(
-            (a) => a.cost.loyalty
-        );
-        expect(costs).toEqual([1, -1, -4]);
     });
 });

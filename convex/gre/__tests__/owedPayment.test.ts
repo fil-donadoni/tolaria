@@ -172,24 +172,6 @@ describe("payment park census (ADR 0091, issue #1209)", () => {
             PARK_KEYS_CAST.length + PARK_KEYS_ACTIVATION.length
         );
     });
-
-    it("classifies the ten documented parks and nothing else", () => {
-        expect([...PARK_KEYS_CAST].sort()).toEqual([
-            "additionalCost",
-            "alternativeCostHandChoice",
-            "convokeCreatureChoice",
-            "exileFromGraveyardChoice",
-            "manaSpendChoice",
-            "sacrificeSelection",
-        ]);
-        expect([...PARK_KEYS_ACTIVATION].sort()).toEqual([
-            "discardFilterChoice",
-            "exileFromGraveyardChoice",
-            "manaSpendChoice",
-            "sacrificeSelection",
-            "tapOtherChoice",
-        ]);
-    });
 });
 
 function castState(pc: Partial<PendingCast>) {

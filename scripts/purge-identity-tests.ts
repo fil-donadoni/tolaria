@@ -24,8 +24,26 @@
  *     cleared, so a sampled review can see where the boundary fell.
  *
  * `--list <path>` also writes one TSV row per flagged block/line for that
- * review. The REWRITE (no `--dry`) is unchanged: identity blocks in the card
- * sets only — the Op-only purge is its own ticket, driven by this report.
+ * review.
+ *
+ * ── The rewrite is repo-wide too (issue #4490) ───────────────────────────────
+ * Without `--dry` the script deletes, across EVERY tracked test file:
+ *
+ *   - identity blocks, minus the named allow-list;
+ *   - Op-only blocks on pure-DSL cards — evaluated in `convex/cards/sets/**`
+ *     only, as in the dry run (elsewhere a pure-DSL card is an engine
+ *     fixture).
+ *
+ * Definition-read LINES are reported, never deleted: the block they sit in is
+ * behavioural, and the line is a review finding, not a purge class. A file the
+ * purge leaves with no test at all is deleted whole — vitest fails a suite
+ * that declares nothing. `--list <path>` in rewrite mode writes one TSV row
+ * per DELETED block (`kind\tfile:line\tname`), the list the purge PR carries.
+ * The boundary is the classifier's rule: a block the sampled review disagrees
+ * with is a classifier fix, never a hand exception here.
+ *
+ * `bun run check:test-hygiene` (a `health` step, never a PR-phase gate) is
+ * the census that keeps both classes at zero after the purge.
  *
  * `--keep <file:line>` (repeatable) spares one block — used during the triage
  * pass for the handful of identity blocks that were CONVERTED to behaviour
@@ -67,6 +85,7 @@ import { execFileSync } from "child_process";
 import {
     classifyTestBlocks,
     type CardFacts,
+    type ClassifyOptions,
     type TestBlock,
 } from "./lib/identity-test-classifier";
 import {
@@ -76,20 +95,13 @@ import {
 } from "./lib/identity-test-allowlist";
 
 const REPO_ROOT = path.resolve(__dirname, "..");
-const SETS_ROOT = path.join(REPO_ROOT, "convex/cards/sets");
+
+/** `.tsx` suites parse as TSX, as the classifier parses them. */
+const scriptKindOf = (file: string) =>
+    file.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS;
 
 const BLOCK_FNS = new Set(["it", "test"]);
 const SUITE_FNS = new Set(["describe", "suite"]);
-
-function walk(dir: string, out: string[] = []): string[] {
-    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-        const full = path.join(dir, entry.name);
-        if (entry.isDirectory()) walk(full, out);
-        else if (entry.name.endsWith(".test.ts") && full.includes("__tests__"))
-            out.push(full);
-    }
-    return out;
-}
 
 function unwrap(node: ts.Expression): ts.Expression {
     let cur = node;
@@ -215,7 +227,7 @@ function stripEmptySuites(file: string, text: string): string {
             text,
             ts.ScriptTarget.Latest,
             true,
-            ts.ScriptKind.TS
+            scriptKindOf(file)
         );
         const ranges: Range[] = [];
         const visit = (node: ts.Node) => {
@@ -311,7 +323,7 @@ function stripUnusedBindings(file: string, text: string): string {
             text,
             ts.ScriptTarget.Latest,
             true,
-            ts.ScriptKind.TS
+            scriptKindOf(file)
         );
         const used = referencedNames(sf);
         const isUsed = (n: string) => (used.get(n) ?? 0) > 0;
@@ -371,28 +383,56 @@ function stripUnusedBindings(file: string, text: string): string {
     }
 }
 
+/** Which purge class doomed a block. */
+export type PurgeKind = "identity" | "op-only";
+
+export interface DeletedBlock {
+    kind: PurgeKind;
+    line: number;
+    name: string;
+}
+
 export interface PurgeResult {
     file: string;
+    /** Blocks removed, both classes. */
     removed: number;
+    removedIdentity: number;
+    removedOpOnly: number;
+    deleted: DeletedBlock[];
     before: number;
     after: number;
     emptied: boolean;
     text: string;
 }
 
+/** The purge class a block falls in, or null when it stays. */
+export function purgeKindOf(block: TestBlock): PurgeKind | null {
+    if (block.verdict === "identity" && !isAllowListed(block))
+        return "identity";
+    if (block.opOnly?.kind === "op-only") return "op-only";
+    return null;
+}
+
+/**
+ * Purge one file. `opts.cards` enables the Op-only class — the caller passes
+ * it for a card-set suite only, exactly as `dryRun` does.
+ */
 export function purgeFile(
     relFile: string,
     source: string,
-    keep: Set<string>
+    keep: Set<string>,
+    opts: ClassifyOptions = {}
 ): PurgeResult {
-    const blocks = classifyTestBlocks(relFile, source);
+    const blocks = classifyTestBlocks(relFile, source, opts);
     const before = blocks.length;
-    const doomed = blocks.filter(
-        (b) =>
-            b.verdict === "identity" &&
-            !isAllowListed(b) &&
-            !keep.has(`${relFile}:${b.line}`)
-    );
+    const deleted: DeletedBlock[] = [];
+    const doomed = blocks.filter((b) => {
+        if (keep.has(`${relFile}:${b.line}`)) return false;
+        const kind = purgeKindOf(b);
+        if (kind === null) return false;
+        deleted.push({ kind, line: b.line, name: testName(b) });
+        return true;
+    });
 
     let text = source;
     if (doomed.length > 0) {
@@ -401,7 +441,7 @@ export function purgeFile(
             source,
             ts.ScriptTarget.Latest,
             true,
-            ts.ScriptKind.TS
+            scriptKindOf(relFile)
         );
         const doomedLines = new Set(doomed.map((b) => b.line));
         const ranges: Range[] = [];
@@ -428,9 +468,18 @@ export function purgeFile(
     }
 
     const after = classifyTestBlocks(relFile, text).length;
+    // Every doomed block must have been found again by its line: a miss here
+    // would report a deletion that never happened.
+    if (before - after !== doomed.length)
+        throw new Error(
+            `${relFile}: ${doomed.length} blocks doomed, ${before - after} removed`
+        );
     return {
         file: relFile,
         removed: doomed.length,
+        removedIdentity: deleted.filter((d) => d.kind === "identity").length,
+        removedOpOnly: deleted.filter((d) => d.kind === "op-only").length,
+        deleted,
         before,
         after,
         emptied: before > 0 && after === 0,
@@ -579,17 +628,22 @@ export function dryRun(
     return report;
 }
 
-function trackedTestFiles(): string[] {
-    return execFileSync("git", ["ls-files", "--", "*.test.ts", "*.test.tsx"], {
-        cwd: REPO_ROOT,
-        encoding: "utf-8",
-    })
-        .split("\n")
-        .filter(Boolean)
-        .sort();
+export function trackedTestFiles(): string[] {
+    return (
+        execFileSync("git", ["ls-files", "--", "*.test.ts", "*.test.tsx"], {
+            cwd: REPO_ROOT,
+            encoding: "utf-8",
+        })
+            .split("\n")
+            .filter(Boolean)
+            // A file deleted in the work tree but not yet staged is still in the
+            // index: the purge itself deletes an emptied suite this way.
+            .filter((f) => fs.existsSync(path.join(REPO_ROOT, f)))
+            .sort()
+    );
 }
 
-async function loadCardFacts(): Promise<CardFacts> {
+export async function loadCardFacts(): Promise<CardFacts> {
     // Imported lazily: the rewrite mode never needs the catalogue.
     const { getAllCards } = await import("../convex/cards");
     const { buildCardFacts, smokeCoverage } =
@@ -664,28 +718,96 @@ async function main() {
         return;
     }
 
-    let totalRemoved = 0;
-    const emptied: string[] = [];
-    const touched: string[] = [];
-
-    for (const abs of walk(SETS_ROOT).sort()) {
-        const rel = path.relative(REPO_ROOT, abs);
-        const source = fs.readFileSync(abs, "utf-8");
-        const result = purgeFile(rel, source, keep);
-        if (result.removed === 0) continue;
-        totalRemoved += result.removed;
-        touched.push(rel);
-        if (result.emptied) emptied.push(rel);
-        fs.writeFileSync(abs, result.text);
-    }
+    const sources = trackedTestFiles().map((file) => ({
+        file,
+        source: fs.readFileSync(path.join(REPO_ROOT, file), "utf-8"),
+    }));
+    const purge = purgeSources(
+        sources,
+        await loadCardFacts(),
+        keep,
+        readRelativeImport
+    );
+    for (const { file, text } of purge.writes)
+        fs.writeFileSync(path.join(REPO_ROOT, file), text);
+    for (const file of purge.unlinks) fs.unlinkSync(path.join(REPO_ROOT, file));
 
     console.log(
-        `removed ${totalRemoved} identity blocks across ${touched.length} files`
+        `removed ${purge.removedIdentity} identity + ${purge.removedOpOnly} Op-only blocks across ${purge.writes.length + purge.unlinks.length} files`
     );
-    if (emptied.length > 0) {
-        console.log(`\nfiles left with ZERO tests (${emptied.length}):`);
-        for (const f of emptied) console.log("  " + f);
+    console.log("\nblocks per area (before → after), changed areas only:");
+    for (const [area, [before, after]] of [...purge.byArea].sort((a, b) =>
+        a[0].localeCompare(b[0])
+    )) {
+        if (before === after) continue;
+        console.log(
+            `  ${area.padEnd(28)} ${String(before).padStart(5)} → ${String(after).padStart(5)}`
+        );
     }
+    if (purge.unlinks.length > 0) {
+        console.log(
+            `\nfiles left with ZERO tests, deleted (${purge.unlinks.length}):`
+        );
+        for (const f of purge.unlinks) console.log("  " + f);
+    }
+    if (list) {
+        fs.writeFileSync(list, purge.rows.join("\n") + "\n");
+        console.log(`\n${purge.rows.length} deleted blocks → ${list}`);
+    }
+}
+
+export interface RepoPurge {
+    /** Files to rewrite, with their purged text. */
+    writes: { file: string; text: string }[];
+    /** Files the purge emptied — a suite that declares no test fails vitest
+     *  ("No test found"), so it goes with its blocks. */
+    unlinks: string[];
+    /** One `kind\tfile:line\tname` row per deleted block. */
+    rows: string[];
+    /** Area → [blocks before, blocks after]. */
+    byArea: Map<string, [number, number]>;
+    removedIdentity: number;
+    removedOpOnly: number;
+}
+
+/**
+ * The repo-wide rewrite over already-read sources — pure, so the one decision
+ * that matters is unit-testable: card facts reach the classifier for a
+ * card-set suite ONLY. Handed to every file, the Op-only class would purge
+ * engine tests that use a pure-DSL card as a fixture.
+ */
+export function purgeSources(
+    sources: readonly { file: string; source: string }[],
+    cards: CardFacts,
+    keep: Set<string>,
+    readImport?: (fromFile: string, specifier: string) => string | undefined
+): RepoPurge {
+    const out: RepoPurge = {
+        writes: [],
+        unlinks: [],
+        rows: [],
+        byArea: new Map(),
+        removedIdentity: 0,
+        removedOpOnly: 0,
+    };
+    for (const { file, source } of sources) {
+        const result = purgeFile(file, source, keep, {
+            cards: isCardSetSuite(file) ? cards : undefined,
+            readImport,
+        });
+        const area = out.byArea.get(areaOf(file)) ?? [0, 0];
+        area[0] += result.before;
+        area[1] += result.after;
+        out.byArea.set(areaOf(file), area);
+        if (result.removed === 0) continue;
+        out.removedIdentity += result.removedIdentity;
+        out.removedOpOnly += result.removedOpOnly;
+        for (const d of result.deleted)
+            out.rows.push([d.kind, `${file}:${d.line}`, d.name].join("\t"));
+        if (result.emptied) out.unlinks.push(file);
+        else out.writes.push({ file, text: result.text });
+    }
+    return out;
 }
 
 if (import.meta.main) await main();

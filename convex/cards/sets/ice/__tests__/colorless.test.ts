@@ -126,11 +126,9 @@ const elkinBottle = getDefinition("49301c19-55a0-4146-9474-0b86cd320e31");
 const jeweledAmulet = getDefinition("34f7bad2-d28f-42d2-9246-fe3545ef49a7");
 const aegisOfTheMeek = getDefinition("5d272051-f442-4f6e-8c64-df28b398d2e8");
 const celestialSword = getDefinition("2bc0e8d3-633b-4281-863f-c51c69eed0b6");
-const despoticScepter = getDefinition("53e381a4-810e-4b75-aed3-c16cf0eb06fa");
 const jestersCap = getDefinition("47ac44d0-8090-4e7b-ac47-c567294f185e");
 const shieldOfTheAges = getDefinition("7411ab40-47f6-44d1-8e33-9ff5301dcd9b");
 const staffOfTheAges = getDefinition("5c709836-55b6-4de9-b190-b5f66dc53c87");
-const snowFortress = getDefinition("1c480e07-fb26-4760-865f-47985f7447bb");
 const vibratingSphere = getDefinition("48f93ded-ecf6-4a70-8ca3-a9c0c3201c21");
 const wallOfShields = getDefinition("6376c7c4-aaca-4625-83d4-a49f01aec535");
 const iceFloe = getDefinition("85ce04fb-e687-41e0-ae9a-16a51df5d943");
@@ -168,7 +166,6 @@ const driftOfTheDead = getDefinition("d8b65656-9f8c-4179-81aa-4b15d8280baa");
 const witheringWisps = getDefinition("ad1e6ae5-c972-42c0-ae78-f203873aeeb1");
 const avalanche = getDefinition("d3a925e5-0d0a-42ec-b1c6-9793b8e11625");
 const glacialCrevasses = getDefinition("2726b192-f239-470b-8ad6-69887405e7f9");
-const karplusanGiant = getDefinition("c524ac2a-294c-4b19-b00b-999e370a3b95");
 const melting = getDefinition("8d90065e-2c7e-44e5-9f59-015d468214bf");
 const snowblind = getDefinition("5f62c376-487a-42bc-bd85-ab8b0480f7dc");
 const arcumsSleigh = getDefinition("e9780ce2-756c-48e5-9936-45f6a224f61d");
@@ -392,35 +389,6 @@ describe("Celestial Sword ({3},{T}: +3/+3 then sac, CR 605 / 603.7b)", () => {
     });
 });
 
-describe("Despotic Scepter ({T}: destroy a permanent you own, CR 605 / 701.8)", () => {
-    it("destroys the targeted permanent (can't be regenerated)", () => {
-        const scepter = makeInstance(despoticScepter.id, {
-            id: "scepter",
-            controllerId: "p1",
-            ownerId: "p1",
-        });
-        const dude = vanilla("victim", 2, 2, {
-            controllerId: "p1",
-            ownerId: "p1",
-        });
-        const state = makeState({
-            players: [
-                makePlayer("p1", { battlefield: [scepter, dude] }),
-                makePlayer("p2"),
-            ],
-        });
-        resolveActivated(state, scepter, "despotic-scepter-destroy", [
-            { type: "permanent", id: "victim" },
-        ]);
-        expect(
-            state.players[0].battlefield.some((c) => c.id === "victim")
-        ).toBe(false);
-        expect(state.players[0].graveyard.some((c) => c.id === "victim")).toBe(
-            true
-        );
-    });
-});
-
 describe("Fyndhorn Bow ({3},{T}: grant first strike, CR 605 / 702.7)", () => {
     it("grants first strike to the target until end of turn", () => {
         const bow = makeInstance("65dd0a41-cc51-4728-b597-fdb2510accd8", {
@@ -590,27 +558,6 @@ describe("Skull Catapult ({1},{T},Sac a creature: 2 dmg, CR 605 / 120.1)", () =>
             { type: "player", id: "p2" },
         ]);
         expect(state.players[1].life).toBe(before - 2);
-    });
-});
-
-describe("Snow Fortress (Defender Wall, pumps + ping, CR 702.3 / 605)", () => {
-    it("pumps power and toughness via its two abilities", () => {
-        const fort = makeInstance(snowFortress.id, {
-            id: "fort",
-            controllerId: "p1",
-            ownerId: "p1",
-        });
-        const state = makeState({
-            players: [
-                makePlayer("p1", { battlefield: [fort] }),
-                makePlayer("p2"),
-            ],
-        });
-        resolveActivated(state, fort, "snow-fortress-pump-power");
-        resolveActivated(state, fort, "snow-fortress-pump-toughness");
-        const f = state.players[0].battlefield.find((c) => c.id === "fort")!;
-        expect(getEffectivePower(state, f)).toBe(1);
-        expect(getEffectiveToughness(state, f)).toBe(5);
     });
 });
 
@@ -2049,29 +1996,6 @@ describe("Balduvian Conjurer (CR 208.2 animate snow land)", () => {
         ).map((t) => t.id);
         expect(legal).toContain("sf");
         expect(legal).not.toContain("pf");
-    });
-});
-
-describe("Karplusan Giant (CR 118.8 snow-land tap cost)", () => {
-    it("pumps +1/+1 when a snow land is tapped for the cost", () => {
-        const giant = makeInstance(karplusanGiant.id, {
-            id: "giant",
-            controllerId: "p1",
-        });
-        const state = makeState({
-            players: [
-                makePlayer("p1", {
-                    battlefield: [
-                        giant,
-                        snowLand(snowCoveredMountain.id, "sm", "p1"),
-                    ],
-                }),
-                makePlayer("p2"),
-            ],
-        });
-        resolveActivated(state, giant, "karplusan-giant-pump");
-        expect(getEffectivePower(state, giant)).toBe(4);
-        expect(getEffectiveToughness(state, giant)).toBe(4);
     });
 });
 

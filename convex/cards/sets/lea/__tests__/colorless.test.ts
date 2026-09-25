@@ -1300,25 +1300,6 @@ describe("Conservator ({3}, {T}: prevent next 2 to you this turn)", () => {
         return { state, consv };
     }
 
-    it("activated → 2-damage shield on the controller", () => {
-        const { state, consv } = setup();
-        state.stack.push({
-            ...consv,
-            zone: "stack",
-            castById: "p1",
-            abilityId: "conservator-prevent",
-            targets: [],
-        });
-        resolveTopOfStack(state);
-        const before = state.players[0].life;
-        // Opponent casts Lightning Bolt at p1: 3 dmg → 2 absorbed → 1 land.
-        pushSpell(state, lightningBolt.id, "p2", [
-            { type: "player", id: "p1" },
-        ]);
-        resolveTopOfStack(state);
-        expect(state.players[0].life).toBe(before - 1);
-    });
-
     it("partial absorption decrements remaining shield", () => {
         const { state, consv } = setup();
         state.stack.push({

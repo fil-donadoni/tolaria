@@ -172,19 +172,6 @@ describe("Goblin War Drums — grants menace anthem-style (CR 611, 702.111a)", (
     });
 });
 
-describe("Goblin Grenade — sacrifice a Goblin, 5 damage (CR 601.2f, 115.4)", () => {
-    it("deals 5 damage to a target player on resolution", () => {
-        const state = makeState({
-            players: [makePlayer("p1"), makePlayer("p2", { life: 20 })],
-        });
-        pushSpell(state, goblinGrenade.id, "p1", [
-            { type: "player", id: "p2" },
-        ]);
-        resolveTopOfStack(state);
-        expect(state.players[1].life).toBe(15);
-    });
-});
-
 describe("Goblin Warrens — sacrifice two Goblins for three tokens (CR 111)", () => {
     it("makes three 1/1 red Goblin tokens when two Goblins are sacrificed", () => {
         const warrens = makeInstance(goblinWarrens.id, {

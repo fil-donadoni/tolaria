@@ -770,11 +770,6 @@ describe("golden flag + schema-drift tag (issue #772, ADR 0044)", () => {
         expect(stamp(true)).toBe(SCENARIO_SCHEMA_VERSION);
         expect(stamp(false)).toBeUndefined();
     });
-
-    it("keeps the version tag a finite positive integer (a real drift marker)", () => {
-        expect(Number.isInteger(SCENARIO_SCHEMA_VERSION)).toBe(true);
-        expect(SCENARIO_SCHEMA_VERSION).toBeGreaterThan(0);
-    });
 });
 
 describe("selectEphemeralIdsToPrune — cleanup policy (issue #772, ADR 0044)", () => {

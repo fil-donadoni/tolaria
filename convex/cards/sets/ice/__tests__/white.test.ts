@@ -384,17 +384,6 @@ describe("Kjeldoran Knight (self-pumps, CR 611.2a)", () => {
         expect(getEffectiveToughness(state, knight)).toBe(1);
         expect(kjeldoranKnight.staticAbilities).toEqual(["banding"]);
     });
-    it("{1}{W} pumps +1/+0 until end of turn", () => {
-        const { state, knight } = setup();
-        resolveActivated(state, knight, "kjeldoran-knight-pump-power");
-        expect(getEffectivePower(state, knight)).toBe(2);
-        expect(getEffectiveToughness(state, knight)).toBe(1);
-    });
-    it("{W}{W} pumps +0/+2 until end of turn", () => {
-        const { state, knight } = setup();
-        resolveActivated(state, knight, "kjeldoran-knight-pump-toughness");
-        expect(getEffectiveToughness(state, knight)).toBe(3);
-    });
 });
 
 // --- Order of the White Shield (first strike grant + pump) ------------------
@@ -421,11 +410,6 @@ describe("Order of the White Shield (grants + pump, CR 611.2a)", () => {
         expect(orderOfTheWhiteShield.staticAbilities).toContain(
             "protection from black"
         );
-    });
-    it("{W}{W} pumps +1/+0 until end of turn", () => {
-        const { state, order } = setup();
-        resolveActivated(state, order, "order-white-shield-pump");
-        expect(getEffectivePower(state, order)).toBe(3);
     });
 });
 

@@ -235,7 +235,6 @@ describe("pairedAggregate (issue #2779, McNemar's test over the ladder's own pai
         )
             .trim()
             .split("\n");
-        const header = JSON.parse(raw[0]);
         const records: LadderGameRecord[] = raw
             .slice(1)
             .map((l) => JSON.parse(l));
@@ -267,10 +266,6 @@ describe("pairedAggregate (issue #2779, McNemar's test over the ladder's own pai
             // which is exactly the point: the pairing buys precision, not a
             // different answer.
             expect(summary.paired.rate).toBeCloseTo(summary.aggregate.rate, 10);
-        });
-
-        it("the header threads orientations through unchanged (sanity)", () => {
-            expect(header.orientations).toBe(2);
         });
     });
 });

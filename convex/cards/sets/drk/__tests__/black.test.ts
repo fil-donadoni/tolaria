@@ -63,39 +63,6 @@ const mountain = getDefinition("eace2c85-976c-425e-9800-5a6ccbd91b56");
 // ═══════════════════════════════════════════════════════════════════════════
 
 describe("Ashes to Ashes — exile two nonartifact creatures, 5 to you (CR 701.13 / 119)", () => {
-    it("exiles both targets and deals 5 to the caster", () => {
-        const a = makeInstance(
-            getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870").id,
-            {
-                id: "a",
-                controllerId: "p2",
-                ownerId: "p2",
-            }
-        );
-        const b = makeInstance(
-            getDefinition("0ddb98e8-13fe-4786-83f7-b72c56db135a").id,
-            {
-                id: "b",
-                controllerId: "p2",
-                ownerId: "p2",
-            }
-        );
-        const state = makeState({
-            players: [
-                makePlayer("p1", { life: 20 }),
-                makePlayer("p2", { battlefield: [a, b] }),
-            ],
-        });
-        pushSpell(state, ashesToAshes.id, "p1", [
-            { type: "permanent", id: "a" },
-            { type: "permanent", id: "b" },
-        ]);
-        resolveTopOfStack(state);
-        expect(state.players[1].battlefield).toHaveLength(0);
-        expect(state.players[1].exile).toHaveLength(2);
-        expect(state.players[0].life).toBe(15);
-    });
-
     it("artifact creatures are not legal targets (excludeTypes)", () => {
         const robot = makeInstance(
             getDefinition("59cc9bdb-7cf2-4795-bac7-ffff605c9eb0").id,

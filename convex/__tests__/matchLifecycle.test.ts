@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { Doc, Id } from "../_generated/dataModel";
 import {
-    ACTIVE_MATCH_STATUSES,
     activeGameOpponentName,
     allSeatsReady,
     applySideboard,
@@ -279,16 +278,6 @@ describe("matchBelongsToUser (#155 → single-active-match guard)", () => {
         ).toBe(true);
         expect(matchBelongsToUser(m([other]), userId)).toBe(false);
         expect(matchBelongsToUser(m([`prefix${userId}`]), userId)).toBe(false);
-    });
-
-    it("counts waiting / pregame / playing / sideboarding as active", () => {
-        expect(ACTIVE_MATCH_STATUSES).toEqual([
-            "waiting",
-            "pregame",
-            "playing",
-            "sideboarding",
-        ]);
-        expect(ACTIVE_MATCH_STATUSES).not.toContain("finished");
     });
 });
 

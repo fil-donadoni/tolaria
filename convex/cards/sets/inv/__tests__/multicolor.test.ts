@@ -68,7 +68,6 @@ const recoil = getDefinition("b6a77be3-e3b0-40f5-a470-414bac49da60");
 const agonizingDemise = getDefinition("539ac5e1-4bad-4f70-abac-e70c406bebec");
 const blazingSpecter = getDefinition("3bd397be-0e61-4f41-b0cf-f0c9d2440da7");
 const bloodstoneCameo = getDefinition("f9db32fa-64b2-4ef6-88f2-28e758d420bb");
-const plagueSpores = getDefinition("0d106d56-a688-49cc-8d5d-0279a5a7c0a7");
 const shivanOasis = getDefinition("9841f7e8-162c-44a3-96f3-af944fce15d1");
 const smolderingTar = getDefinition("fcdc55c0-c8ac-49d5-969b-9bf0ee8e696c");
 const trollHornCameo = getDefinition("42b1ca6c-6ca0-4b02-885a-58cee3fa2aa8");
@@ -86,7 +85,6 @@ const savageOffensive = getDefinition("356744f3-e444-4f4e-bf00-80bb6b2ef76f");
 const armadilloCloak = getDefinition("9d816f98-6cb6-432c-b0a4-a0eed21658ac");
 const auraShards = getDefinition("df4039ef-af72-4267-ade9-fdb7c921279e");
 const captainSisay = getDefinition("d24d441c-f37f-44fe-8a93-f5c89df807e4");
-const chargingTroll = getDefinition("58956099-6b97-4c7b-ab23-9f9b4d50ef95");
 const hornedCheetah = getDefinition("a28ad983-ce91-40b6-a1ce-fe36ec7fbce8");
 const sabertoothNishoba = getDefinition("8338c296-cf3f-41d7-b380-3fb4237cb41c");
 const dromar = getDefinition("cfcc3c72-fff5-454c-814c-eb952fd23ba9");
@@ -1076,37 +1074,6 @@ describe("Hooded Kavu (CR 702.14b fear temporary grant, issue #1077)", () => {
     });
 });
 
-describe("Plague Spores (CR 701.8 destroy x2 + 701.19c regen-suppression, issue #1077)", () => {
-    it("destroys both the creature and the land, neither regenerable", () => {
-        const foe = makeInstance(grizzlyBears.id, {
-            id: "foe",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
-        const land = makeInstance(forest.id, {
-            id: "land",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
-        const state = makeState({
-            players: [
-                makePlayer("p1"),
-                makePlayer("p2", { battlefield: [foe, land] }),
-            ],
-        });
-        pushSpell(state, plagueSpores.id, "p1", [
-            { type: "permanent", id: "foe" },
-            { type: "permanent", id: "land" },
-        ]);
-        resolveTopOfStack(state);
-        expect(state.players[1].battlefield).toHaveLength(0);
-        expect(state.players[1].graveyard.map((c) => c.id).sort()).toEqual([
-            "foe",
-            "land",
-        ]);
-    });
-});
-
 describe("Reckless Assault (CR 602.1/118.5 mana+life activation cost, issue #1077)", () => {
     it("deals 1 damage to any target", () => {
         const ench = makeInstance("ff0f568e-4d3a-40a5-b72a-63040ec5402d", {
@@ -1980,26 +1947,6 @@ describe("Captain Sisay (CR 605 tap ability, CR 701.23 search-by-supertype + rev
     });
 });
 
-describe("Charging Troll (CR 702.20b vigilance + CR 701.19a self-regenerate, GW issue #1079)", () => {
-    it("stacks a regeneration shield on itself for {G}", () => {
-        const troll = makeInstance(chargingTroll.id, {
-            id: "troll",
-            controllerId: "p1",
-        });
-        const state = makeState({
-            players: [
-                makePlayer("p1", { battlefield: [troll] }),
-                makePlayer("p2"),
-            ],
-        });
-        resolveActivated(state, troll, "charging-troll-regen");
-        expect(
-            state.players[0].battlefield.find((c) => c.id === "troll")!
-                .regenerationShields
-        ).toBe(1);
-    });
-});
-
 describe("Horned Cheetah (CR 120.3/603.2 resolve() damage-dealt lifegain, GW issue #1079)", () => {
     it("gains its controller life equal to the damage it deals", () => {
         const cheetah = makeInstance(hornedCheetah.id, {
@@ -2522,24 +2469,6 @@ describe("Stormscape Master (CR 613.1f keyword grant + 700.2 modal + 119.3 life 
             (c) => c.id === "target"
         )!;
         expect(live.staticAbilities).toContain("protection from black");
-    });
-
-    it("drains 2 life from target player and gains the controller 2", () => {
-        const master = makeInstance(stormscapeMaster.id, {
-            id: "sm",
-            controllerId: "p1",
-        });
-        const state = makeState({
-            players: [
-                makePlayer("p1", { battlefield: [master], life: 20 }),
-                makePlayer("p2", { life: 20 }),
-            ],
-        });
-        resolveActivated(state, master, "stormscape-master-drain", [
-            { type: "player", id: "p2" },
-        ]);
-        expect(state.players[1].life).toBe(18);
-        expect(state.players[0].life).toBe(22);
     });
 });
 

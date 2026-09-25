@@ -187,11 +187,6 @@ function castPayingTheCost(cardId: string): {
 }
 
 describe("ADR 0085 — the table is the only thing that answers kicked-ness (CR 702.33d)", () => {
-    it("says kicker is a kick and offspring is not", () => {
-        expect(ADDITIONAL_COST_KEYWORDS.kicker.countsAsKicked).toBe(true);
-        expect(ADDITIONAL_COST_KEYWORDS.offspring.countsAsKicked).toBe(false);
-    });
-
     it("partitions one cast's payments by keyword", () => {
         expect(additionalCostPaymentSnapshot(kickerTwin, { extra: 1 })).toEqual(
             { kickerPayments: { extra: 1 } }

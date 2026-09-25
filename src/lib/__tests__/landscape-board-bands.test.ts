@@ -224,13 +224,6 @@ describe("pile columns are capped at the midline (#1768)", () => {
         );
     });
 
-    it("scrolls the overflow instead of invading the other seat", () => {
-        // Without this the 4th tile simply paints past the cap — the cap alone
-        // would clip the tile, not make it reachable.
-        expect(LANDSCAPE_OPPONENT_PILES_ANCHOR).toContain("overflow-y-auto");
-        expect(LANDSCAPE_VIEWER_PILES_ANCHOR).toContain("overflow-y-auto");
-    });
-
     it("keeps the two columns arithmetically disjoint", () => {
         // The whole point: the caps are the two sides of the midline, so their
         // sum can never exceed the board — whatever the tile count.

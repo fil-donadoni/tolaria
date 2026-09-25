@@ -443,33 +443,6 @@ describe("Merfolk Assassin — destroy target creature with islandwalk (CR 605 /
         expect(legal).toContain("walker");
         expect(legal).not.toContain("plain");
     });
-
-    it("destroys the targeted islandwalker", () => {
-        const ma = makeInstance(merfolkAssassin.id, {
-            id: "ma",
-            controllerId: "p1",
-        });
-        const walker = makeInstance(
-            getDefinition("e5a814f1-7f8d-4c2c-b706-ee0ed5892f7b").id,
-            {
-                id: "walker",
-                controllerId: "p2",
-                ownerId: "p2",
-            }
-        );
-        const state = makeState({
-            players: [
-                makePlayer("p1", { battlefield: [ma] }),
-                makePlayer("p2", { battlefield: [walker] }),
-            ],
-        });
-        resolveActivated(state, ma, "merfolk-assassin-destroy", [
-            { type: "permanent", id: "walker" },
-        ]);
-        expect(
-            state.players[1].battlefield.find((c) => c.id === "walker")
-        ).toBeUndefined();
-    });
 });
 
 describe("Mind Bomb — each player may discard up to 3, damage = 3 − discarded (CR 701.9 / 119)", () => {

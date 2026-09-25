@@ -165,15 +165,6 @@ describe("the twin-id space cannot collide with a printed card's", () => {
     });
 });
 
-describe("CR 722.3 — the kind decides whether the parent offers a cast", () => {
-    it("adventure is castable from the parent and prepare is never", () => {
-        // The single bit that separates CR 715 from CR 722. It is a `Record`
-        // over the kind union so a third kind cannot compile without answering.
-        expect(INSET_SPELL_KINDS.adventure.castableFromParent).toBe(true);
-        expect(INSET_SPELL_KINDS.prepare.castableFromParent).toBe(false);
-    });
-});
-
 describe("the choice DOMAIN and the placeable POPULATION are different sets", () => {
     // PR #3302 review findings 4 and 5, which are the same boundary read from
     // opposite sides. CR 715.5 widens what a player may NAME; CR 715.2c and

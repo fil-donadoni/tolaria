@@ -100,7 +100,6 @@ const silverErne = getDefinition("685076cc-098c-4f98-918c-0ad825eda10f");
 const snowDevil = getDefinition("2be3a9a5-2ac5-4ea4-915d-8cff35c0e72f");
 const wintersChill = getDefinition("a779aca7-ff2c-48d8-9484-6ad04b2c6bcb");
 const snowCoveredIsland = getDefinition("ad8b77cf-b53e-4da3-9c27-3851b7b25a98");
-const thunderWall = getDefinition("4fc5d510-c4f7-4a09-bf86-83c3fa3f8928");
 const wordOfUndoing = getDefinition("22b04476-5a5d-4843-a948-82db209c4218");
 const wrathOfMaritLage = getDefinition("1d512f5c-0327-4d49-8a26-672574a49102");
 const arnjlotsAscent = getDefinition("2307fb16-8b77-45b5-8a02-51a13214791d");
@@ -281,26 +280,6 @@ describe("Sea Spirit ({U}: +1/+0, CR 611.2a)", () => {
         resolveActivated(state, spirit, "sea-spirit-ability");
         const live = state.players[0].battlefield.find((c) => c.id === "sea")!;
         expect(getEffectivePower(state, live)).toBe(3);
-        expect(getEffectiveToughness(state, live)).toBe(3);
-    });
-});
-
-describe("Thunder Wall ({U}: +1/+1, CR 611.2a)", () => {
-    it("pumps itself +1/+1 until end of turn", () => {
-        const wall = makeInstance(thunderWall.id, {
-            id: "tw",
-            controllerId: "p1",
-            ownerId: "p1",
-        });
-        const state = makeState({
-            players: [
-                makePlayer("p1", { battlefield: [wall] }),
-                makePlayer("p2"),
-            ],
-        });
-        resolveActivated(state, wall, "thunder-wall-pump");
-        const live = state.players[0].battlefield.find((c) => c.id === "tw")!;
-        expect(getEffectivePower(state, live)).toBe(1);
         expect(getEffectiveToughness(state, live)).toBe(3);
     });
 });

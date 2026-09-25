@@ -45,6 +45,17 @@ import {
  * elsewhere (`mechanicsRegistry.test.ts`'s duplicate-id checks, the Effect
  * Script JSON-purity round-trips) legitimately assert over static data with no
  * engine call, and they live outside `convex/cards/sets/**`.
+ *
+ * ── The repo-wide census lives on `health` (issue #4490) ─────────────────────
+ * This guard is PR-phase and stays at this scope. The two wider classes the
+ * classifier learned later — identity blocks repo-wide (minus the named
+ * allow-list, `scripts/lib/identity-test-allowlist.json`) and Op-only blocks
+ * on pure-DSL cards — were purged in one PR and are kept at zero by
+ * `bun run check:test-hygiene`, a `health` step scoped through the
+ * content-hash guard cache, never a PR-phase gate: it loads the whole
+ * catalogue to know which cards are pure-DSL. A block this guard would pass
+ * (it calls `pushSpell` and asserts the life total the Op's own test asserts)
+ * can still be Op-only there.
  */
 
 const REPO_ROOT = path.resolve(__dirname, "..", "..");

@@ -24,10 +24,7 @@
 //     `applyActivationCostReduction`) and this test is what found them;
 //   • a `hole` row whose tracking reference is not an issue number (the SHAPE
 //     only — `tsc` already enforces the template literal, and nothing here
-//     asks GitHub whether the issue exists or is still open);
-//   • the derived `NEVER_AUTO_PAYABLE_COST_LEGS` still saying what the
-//     hand-maintained list said, so the derivation is a refactor and not a
-//     behaviour change.
+//     asks GitHub whether the issue exists or is still open).
 //
 // It does NOT prove board-state reachability — that the enumerator yields a
 // legal, payable Move for a leg on a real board. That needs a canned position
@@ -36,11 +33,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import {
-    COST_LEG_CLAIMS,
-    NEVER_AUTO_PAYABLE_COST_LEGS,
-    type CostLegClaim,
-} from "../costLegClaims";
+import { COST_LEG_CLAIMS, type CostLegClaim } from "../costLegClaims";
 
 const REPO_ROOT = fileURLToPath(new URL("../../..", import.meta.url));
 
@@ -106,40 +99,5 @@ describe("COST_LEG_CLAIMS — the activation-cost leg census (issue #3007)", () 
             untracked,
             "these legs declare a hole whose tracking reference is not an issue number"
         ).toEqual([]);
-    });
-
-    // The derivation replaced a hand-maintained array. This pins that it
-    // derives the SAME set, so the change is a refactor of where the truth
-    // lives and not a silent widening of what the automatic planner may spend.
-    it("derives exactly the legs the hand-maintained list named — `tap`, `tapOtherFilter` and `mana` are the only auto-payable ones (CR 602.1)", () => {
-        expect([...NEVER_AUTO_PAYABLE_COST_LEGS].sort()).toEqual(
-            [
-                "cyclingCost",
-                "discardAtRandom",
-                "discardFilter",
-                "discardLastDrawn",
-                "discardThis",
-                "exertThis",
-                "exileFromGraveyard",
-                "exileThis",
-                "life",
-                "loyalty",
-                "manaEqualToCounterCount",
-                "manaEqualToEnchantedCreatureCost",
-                "removeCounter",
-                "returnThisToHand",
-                "returnUnblockedAttacker",
-                "sacrifice",
-                "sacrificeFilter",
-                "sacrificeFilterCount",
-                "selfReduction",
-                "xFromTargetSpellMv",
-            ].sort()
-        );
-        const autoPayable = entries
-            .filter(([, c]) => c.autoPayable)
-            .map(([leg]) => leg)
-            .sort();
-        expect(autoPayable).toEqual(["mana", "tap", "tapOtherFilter"]);
     });
 });

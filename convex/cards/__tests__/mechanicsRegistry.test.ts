@@ -86,67 +86,6 @@ describe("Mechanics Registry (CR 701 keyword actions + CR 702 keyword abilities,
         );
     });
 
-    // Spot-check (CLAUDE.md gre-development.md: "every mechanic currently
-    // implemented in the engine is marked implemented with its correct
-    // binding") — a regression guard so a future edit can't silently flip
-    // one of these back to "planned" or drop its binding.
-    it.each([
-        ["flying", "702.9", "flying"],
-        // #957 — deathtouch: nonzero damage from a deathtouch source destroys
-        // the creature as an SBA (CR 702.2b / 704.5h).
-        ["deathtouch", "702.2", "deathtouch"],
-        ["defender", "702.3", "defender"],
-        ["first-strike", "702.7", "first strike"],
-        ["double-strike", "702.4", "double strike"],
-        ["trample", "702.19", "trample"],
-        ["vigilance", "702.20", "vigilance"],
-        ["menace", "702.111", "menace"],
-        ["reach", "702.17", "reach"],
-        ["fear", "702.36", "fear"],
-        ["indestructible", "702.12", "indestructible"],
-        ["banding", "702.22", "banding"],
-        ["cumulative-upkeep", "702.24", "cumulative-upkeep"],
-        // #990 — echo: at the controller's first upkeep after it comes under
-        // control, sacrifice it unless the echo cost is paid (CR 702.30a).
-        ["echo", "702.30", "echo"],
-        ["haste", "702.10", "haste"],
-        // #958 — hexproof: a permanent can't be targeted by spells/abilities its
-        // controller's opponents control (CR 702.11b), bridged from the keyword
-        // to the shroud `cantBeTargeted` guard.
-        ["hexproof", "702.11", "hexproof"],
-        ["unblockable", undefined, "unblockable"],
-        // #959 — shroud: reconciled from a stale "planned" (the registry
-        // previously said the keyword STRING was unenforced, true only for
-        // dynamically-granted shroud). Every printed-shroud card pairs the
-        // string with a `permanent-guard` staticEffect that IS enforced, and
-        // `isGuardedAgainst` now ALSO bridges the bare keyword string directly
-        // (mirroring hexproof), closing the dynamic-grant gap catalogue-wide.
-        [
-            "shroud",
-            "702.18",
-            "permanent-guard staticEffect OR bare `staticAbilities` keyword string (gre/permanentGuard.ts isGuardedAgainst)",
-        ],
-    ] as const)(
-        "%s is implemented with binding %s",
-        (id, cr, expectedBinding) => {
-            const row = MECHANICS_REGISTRY.find((r) => r.id === id);
-            expect(row, `no row for id "${id}"`).toBeDefined();
-            expect(row!.status).toBe("implemented");
-            expect(row!.binding).toBe(expectedBinding);
-            if (cr) expect(row!.cr).toBe(cr);
-        }
-    );
-
-    it.each(["landwalk", "protection", "rampage", "ward"] as const)(
-        "%s is implemented with a bindingPattern",
-        (id) => {
-            const row = MECHANICS_REGISTRY.find((r) => r.id === id);
-            expect(row, `no row for id "${id}"`).toBeDefined();
-            expect(row!.status).toBe("implemented");
-            expect(row!.bindingPattern).toBeInstanceOf(RegExp);
-        }
-    );
-
     // Known gaps (see module header): declared on cards (or not declared at
     // all), not actually enforced anywhere in the engine. Documented as a
     // fact, not silently marked implemented.

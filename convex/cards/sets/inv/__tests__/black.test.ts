@@ -54,7 +54,6 @@ import { getDefinition, registerTokenDefinition } from "../../../index";
 
 const addle = getDefinition("e8afb9d0-affa-4599-bf29-729cfe64703b");
 const andraditeLeech = getDefinition("6da0d4f3-9216-406c-8f3e-b9bb0a11dc75");
-const annihilate = getDefinition("4a3bf039-ecf6-477e-997c-e32c55323c01");
 const bogInitiate = getDefinition("8962dc3b-24ca-4c3c-ba1d-933c29cf7b73");
 const cremate = getDefinition("1095cdfe-8060-4a73-bacf-9f983152b486");
 const cryptAngel = getDefinition("522ddc6f-ec13-4a70-8f4c-b3c846b102fd");
@@ -176,36 +175,6 @@ describe("Andradite Leech (controller's black spells cost {B} more, CR 601.2f)",
         )!;
         expect(getEffectivePower(state, live)).toBe(3);
         expect(getEffectiveToughness(state, live)).toBe(3);
-    });
-});
-
-describe("Annihilate (destroy nonblack, can't regen, draw; CR 701.8 / 701.19c / 121.1)", () => {
-    it("destroys the target and draws a card", () => {
-        const target = makeInstance(
-            getDefinition("1cb9d405-f2b5-4e10-a405-feafd2a87d90").id,
-            {
-                id: "target",
-                controllerId: "p2",
-                ownerId: "p2",
-            }
-        );
-        const state = makeState({
-            players: [
-                makePlayer("p1", {
-                    library: [makeInstance(annihilate.id, { zone: "library" })],
-                }),
-                makePlayer("p2", { battlefield: [target] }),
-            ],
-        });
-        pushSpell(state, annihilate.id, "p1", [
-            { type: "permanent", id: "target" },
-        ]);
-        resolveTopOfStack(state);
-        expect(state.players[1].battlefield).toHaveLength(0);
-        expect(state.players[1].graveyard.some((c) => c.id === "target")).toBe(
-            true
-        );
-        expect(state.players[0].hand).toHaveLength(1);
     });
 });
 
