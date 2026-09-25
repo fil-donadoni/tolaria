@@ -9,7 +9,7 @@
 // moved that observable. The shared fixture is the one `childOpArrays`'s own
 // test stands on, so a new nesting Op added there reaches this table too.
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, expectTypeOf, it } from "vitest";
 import type {
     ActivatedAbility,
     CardDefinition,
@@ -17,7 +17,7 @@ import type {
 } from "../../cards/types";
 import type { CardInstanceState, GameState } from "../state";
 import { collectTokenSpecs } from "../../cards/tokenCatalogue";
-import { childOpArrays } from "../ai/effectOpChildren";
+import { childOpArrays, type ScriptHostOp } from "../ai/effectOpChildren";
 import { targetSlotBeneficence } from "../ai/beneficence";
 import {
     isTransientOnlyAbility,
@@ -130,16 +130,14 @@ function reachSet(walk: Reaches): string[] {
 }
 
 const ALL = NESTING_SHAPES.map((s) => s.label);
-const without = (...labels: string[]) => ALL.filter((l) => !labels.includes(l));
-const DIVERGENT_TAIL = [
-    "delayedTrigger.effects",
-    "reflexiveTrigger.effects",
-    "divideIntoPiles.chosenEffect",
-    "divideIntoPiles.otherEffect",
-];
 
 describe("nested-Op walkers — reach per nesting shape (CR 608.2c, issue #4442)", () => {
-    it("snapshot: each walker's reach set", () => {
+    // The first commit of this file pinned the reach sets BEFORE the walkers
+    // were unified — the proof they disagreed: the token catalogue missed
+    // `coinFlipSync`, `reflexiveTrigger` and `divideIntoPiles`; beneficence
+    // and both ability-timing predicates missed `delayedTrigger`,
+    // `reflexiveTrigger` and `divideIntoPiles`.
+    it("every walker reaches every nesting shape", () => {
         const reach = Object.fromEntries(
             Object.entries(WALKERS).map(([name, walk]) => [
                 name,
@@ -148,17 +146,46 @@ describe("nested-Op walkers — reach per nesting shape (CR 608.2c, issue #4442)
         );
         expect(reach).toEqual({
             childOpArrays: ALL,
-            tokenCatalogue: without(
-                "coinFlipSync.win",
-                "coinFlipSync.loss",
-                "reflexiveTrigger.effects",
-                "divideIntoPiles.chosenEffect",
-                "divideIntoPiles.otherEffect"
-            ),
-            beneficence: without(...DIVERGENT_TAIL),
-            opValuers: without("if.else"),
-            abilityTimingMana: without(...DIVERGENT_TAIL),
-            abilityTimingTransient: without(...DIVERGENT_TAIL),
+            tokenCatalogue: ALL,
+            beneficence: ALL,
+            // The ONE deliberate gap, and it is valuation, not blindness: the
+            // Op valuer is a COMBINATOR (a flip averages, piles minimax, a
+            // mode is its best), and `valueOp` values an `if` as its `then`
+            // alone — context-free grounding assumes the predicate holds. Its
+            // other hosts route through their own valuers, and this row is
+            // what catches a host that stops recursing.
+            opValuers: ALL.filter((l) => l !== "if.else"),
+            abilityTimingMana: ALL,
+            abilityTimingTransient: ALL,
         });
+    });
+
+    it("the script hosts are DERIVED from the Op union, and match the fixture's", () => {
+        // `ScriptHostOp` is computed from `EffectOp`'s field types; a nesting
+        // Op added to the union shows up here — and in `childOpArrays`'s
+        // `default` arm, which then fails `check:ts` until it gets a case.
+        expectTypeOf<ScriptHostOp>().toEqualTypeOf<
+            | "if"
+            | "forEach"
+            | "optionChoice"
+            | "coinFlip"
+            | "coinFlipSync"
+            | "delayedTrigger"
+            | "reflexiveTrigger"
+            | "divideIntoPiles"
+        >();
+        const hosts: ScriptHostOp[] = [
+            "if",
+            "forEach",
+            "optionChoice",
+            "coinFlip",
+            "coinFlipSync",
+            "delayedTrigger",
+            "reflexiveTrigger",
+            "divideIntoPiles",
+        ];
+        expect(new Set(NESTING_SHAPES.map((s) => s.hostOp))).toEqual(
+            new Set(hosts)
+        );
     });
 });

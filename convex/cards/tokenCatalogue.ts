@@ -9,10 +9,8 @@
  * "can't put a token on the battlefield in a scenario").
  *
  * This module derives that missing catalogue STATICALLY: it walks every
- * `createToken` Op on every card in the pool (through the four frozen
- * structural constructs plus `coinFlip` / `optionChoice` / `delayedTrigger`,
- * exactly like the art-completeness guard in
- * `__tests__/tokenPrintLookup.test.ts`), plus the shared token specs, resolves
+ * `createToken` Op on every card in the pool (through every nesting construct
+ * of the DSL, as `childOpArrays` enumerates them), plus the shared token specs, resolves
  * each spec's art the same way `SpellContext.createToken` does at runtime, and
  * dedupes by the content-derived `tokenDefinitionId` so two producers of the
  * identical 1/1 white Soldier collapse to ONE catalogue entry.
@@ -30,6 +28,7 @@ import * as SHARED_TOKENS from "./sharedTokens";
 import { literalTokenPT } from "./sharedTokens";
 import { tokenPrintIdFor } from "./tokenPrintLookup";
 import { resolveTokenTriggeredAbilities } from "./tokenTriggeredAbilities";
+import { childOpArrays } from "../gre/ai/effectOpChildren";
 import type {
     CardDefinition,
     EffectOp,
@@ -59,44 +58,23 @@ export type TokenCatalogueEntry = {
 // ---- Static walk -----------------------------------------------------------
 
 /** Recursively collect every `createToken` Op's spec out of an Op list,
- *  descending into every structural construct that can nest one (ADR 0045's
- *  four frozen constructs, plus the multi-branch Ops that reuse the same
- *  nested-list shape). Mirrors the walker in `tokenPrintLookup.test.ts`. */
-export function collectTokenSpecs(ops: EffectOp[]): EffectTokenSpec[] {
+ *  descending into every nested script through `childOpArrays` — the ONE
+ *  enumeration of the DSL's nesting constructs (issue #4442: the hand-written
+ *  copy this replaced had never learned `coinFlipSync`, `reflexiveTrigger` or
+ *  `divideIntoPiles`). */
+export function collectTokenSpecs(ops: readonly EffectOp[]): EffectTokenSpec[] {
     const specs: EffectTokenSpec[] = [];
     for (const op of ops) {
-        switch (op.op) {
-            case "createToken":
-                specs.push(op.token);
-                break;
-            case "if":
-                specs.push(...collectTokenSpecs(op.then));
-                if (op.else) specs.push(...collectTokenSpecs(op.else));
-                break;
-            case "forEach":
-                specs.push(...collectTokenSpecs(op.effects));
-                break;
-            case "delayedTrigger":
-                specs.push(...collectTokenSpecs(op.effects));
-                break;
-            case "coinFlip":
-                specs.push(...collectTokenSpecs(op.win.effects));
-                specs.push(...collectTokenSpecs(op.loss.effects));
-                break;
-            case "optionChoice":
-                for (const mode of op.modes) {
-                    specs.push(...collectTokenSpecs(mode.effects));
-                }
-                break;
-            default:
-                break;
+        if (op.op === "createToken") specs.push(op.token);
+        for (const child of childOpArrays(op)) {
+            specs.push(...collectTokenSpecs(child));
         }
     }
     return specs;
 }
 
 /** Every `effects[]` site on a card that can carry a `createToken` Op. */
-function allTokenSpecsFor(card: CardDefinition): EffectTokenSpec[] {
+export function allTokenSpecsFor(card: CardDefinition): EffectTokenSpec[] {
     const sites: (EffectOp[] | undefined)[] = [
         card.effects,
         ...(card.activatedAbilities ?? []).map((a) => a.effects),

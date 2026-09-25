@@ -37,9 +37,9 @@
 //
 //  1. **Effect Script.** Walk the (mode-selected) script; every Op that names
 //     `{ target: n }` anywhere in its own fields contributes its
-//     `opBeneficence` sign (`opValuers.ts`) to slot `n`. Structural constructs
-//     (`if` / `forEach` / `optionChoice` / `coinFlip`) recurse into their
-//     nested Op lists, so a mode's body is read exactly like a top-level one.
+//     `opBeneficence` sign (`opValuers.ts`) to slot `n`. Every script host
+//     recurses into its nested Op lists (`childOpArrays`, the one enumeration
+//     of them), so a mode's body is read exactly like a top-level one.
 //  2. **Attachment payoff.** An Aura (CR 303.4) has no resolution script at
 //     all — its whole effect is what it grants the permanent it enchants once
 //     attached. Read that instead: a triggered ability carrying a
@@ -64,6 +64,7 @@ import type { Move } from "../moves";
 import { tryGetDefinition } from "../../cards";
 import { type Beneficence, opBeneficence } from "./opValuers";
 import { soleChosenModeId } from "../modeSelection";
+import { childOpArrays } from "./effectOpChildren";
 
 /** Merge two signs for the same slot. Agreement keeps the sign; disagreement
  *  (a "target player draws a card and loses 2 life" shape) collapses to
@@ -130,25 +131,13 @@ function collectScriptSigns(
     signs: Map<number, Beneficence>
 ): void {
     for (const op of effects) {
-        switch (op.op) {
-            case "if":
-                collectScriptSigns(op.then, signs);
-                if (op.else) collectScriptSigns(op.else, signs);
-                continue;
-            case "forEach":
-                collectScriptSigns(op.effects, signs);
-                continue;
-            case "optionChoice":
-                for (const mode of op.modes)
-                    collectScriptSigns(mode.effects, signs);
-                continue;
-            case "coinFlip":
-            case "coinFlipSync":
-                collectScriptSigns(op.win.effects, signs);
-                collectScriptSigns(op.loss.effects, signs);
-                continue;
-            default:
-                break;
+        // A script host carries no stake of its own; each nested Op is read
+        // exactly like a top-level one (issue #4442 — a `divideIntoPiles`
+        // pile or a `delayedTrigger` body names announced slots too).
+        const children = childOpArrays(op);
+        if (children.length > 0) {
+            for (const child of children) collectScriptSigns(child, signs);
+            continue;
         }
         const split = SPLIT_SIGN_OPS[op.op];
         if (split !== undefined) {

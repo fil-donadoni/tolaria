@@ -47,6 +47,7 @@ import {
     getEffectiveActivatedAbilities,
     type EffectiveActivatedAbility,
 } from "../activatedAbilities";
+import { childOpArrays } from "./effectOpChildren";
 
 /** Whether `ability` may be activated at INSTANT SPEED, and therefore in some
  *  window LATER than the mover's own main phase (CR 117.1b — a player may
@@ -91,28 +92,12 @@ const WITHIN_TURN_DURATION_PHASES = new Set(["end-of-turn", "end-of-combat"]);
 function opsAllTransient(effects: readonly EffectOp[]): boolean {
     if (effects.length === 0) return false;
     for (const op of effects) {
-        // The structural constructs (ADR 0045) carry no effect of their own;
-        // recurse into every branch, exactly as `beneficence.ts` does.
-        switch (op.op) {
-            case "if":
-                if (!opsAllTransient(op.then)) return false;
-                if (op.else && !opsAllTransient(op.else)) return false;
-                continue;
-            case "forEach":
-                if (!opsAllTransient(op.effects)) return false;
-                continue;
-            case "optionChoice":
-                for (const mode of op.modes) {
-                    if (!opsAllTransient(mode.effects)) return false;
-                }
-                continue;
-            case "coinFlip":
-            case "coinFlipSync":
-                if (!opsAllTransient(op.win.effects)) return false;
-                if (!opsAllTransient(op.loss.effects)) return false;
-                continue;
-            default:
-                break;
+        // A script host carries no effect of its own; every nested list must
+        // be transient in turn (`childOpArrays`, the one enumeration of them).
+        const children = childOpArrays(op);
+        if (children.length > 0) {
+            if (!children.every(opsAllTransient)) return false;
+            continue;
         }
         const duration = (op as { duration?: { phase?: string } }).duration;
         if (
@@ -307,29 +292,8 @@ function producesMana(ability: ActivatedAbility): boolean {
 
 function opsAddMana(effects: readonly EffectOp[]): boolean {
     for (const op of effects) {
-        switch (op.op) {
-            case "addMana":
-                return true;
-            case "if":
-                if (opsAddMana(op.then)) return true;
-                if (op.else && opsAddMana(op.else)) return true;
-                continue;
-            case "forEach":
-                if (opsAddMana(op.effects)) return true;
-                continue;
-            case "optionChoice":
-                for (const mode of op.modes) {
-                    if (opsAddMana(mode.effects)) return true;
-                }
-                continue;
-            case "coinFlip":
-            case "coinFlipSync":
-                if (opsAddMana(op.win.effects)) return true;
-                if (opsAddMana(op.loss.effects)) return true;
-                continue;
-            default:
-                continue;
-        }
+        if (op.op === "addMana") return true;
+        if (childOpArrays(op).some(opsAddMana)) return true;
     }
     return false;
 }
