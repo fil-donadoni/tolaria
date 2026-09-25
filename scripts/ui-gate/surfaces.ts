@@ -702,6 +702,143 @@ async function reachDraftPoolStop(page: Page, ctx: WalkContext): Promise<void> {
 }
 
 /**
+ * Land on the `ui-gate/<runId>/open` fixture's antechamber
+ * (`/limited/<id>`). Extracted (issue #4422) so the two overlays opened from
+ * it — the Table Ring and the Leave Seat confirm — reach the SAME page
+ * `limited-antechamber` measures.
+ */
+async function reachFixtureAntechamber(
+    page: Page,
+    ctx: WalkContext
+): Promise<void> {
+    // The `ui-gate/open` fixture, specifically (issue #2822): seating
+    // still open is the one event state whose detail page neither
+    // redirects into the Draft Room (`useDraftRoomRedirect` needs a
+    // pending pick) nor auto-opens the deck builder
+    // (`useAutoOpenLimitedBuilder` needs a final pool). Both of those
+    // are ONE-SHOT PER TAB, so a fixture that tripped either would
+    // measure the antechamber at some viewports and a different screen
+    // at others.
+    if (
+        (await openFixtureEvent(page, ctx, ctx.fixtureLabels.open)) !== "event"
+    ) {
+        throw new Unreachable(
+            `the "${ctx.fixtureLabels.open}" fixture did not land on its antechamber — it should still be OPEN (no pool, no pending pick). ${FIXTURE_SEED_HINT}`
+        );
+    }
+    if (!(await visible(page, "main, [role=main]", 10_000))) {
+        throw new Unreachable(
+            "the Limited event antechamber rendered no main region"
+        );
+    }
+}
+
+/** The list's and the antechamber's openers for the Limited overlays
+ *  (issue #4422), by each button's own visible text. `Leave Seat` is an
+ *  `ActionButton`, which wraps its label in a `<span>` — and `:text-is`
+ *  matches the SMALLEST element carrying the text, i.e. that span, never
+ *  the button (measured: UNWALKED at all five viewports while
+ *  `limited-antechamber` promised the same button PASS). `:has-text` is
+ *  the form that reaches through the wrapper; no other button on the
+ *  antechamber contains the phrase. */
+const LIMITED_CREATE_EVENT = 'button:text-is("+ Create Event")';
+const LIMITED_VIEW_TABLE = 'button:text-is("View Table")';
+const LIMITED_LEAVE_SEAT = 'button:has-text("Leave Seat")';
+
+/** `ActionSheet`'s own queryable handle (`ui/action-sheet.tsx`, issue #2584):
+ *  it portals to `document.body`, so this is the only seam that names it. */
+const ACTION_SHEET = "[data-action-sheet]";
+
+/**
+ * `draft-pool-stop` plus the one gesture that selects a Pool tile, leaving
+ * whichever layer that selection opens in this viewport regime: the Pool's
+ * `DeckZonePeek` on a phone (`"peek"`), the desktop Pool card menu off one
+ * (`"menu"`, issue #2861). Extracted (issue #4422) so `draft-pool-move-sheet`
+ * can go one gesture further — `Move to…` — from the SAME selected state
+ * `draft-pool-peek` measures, instead of duplicating this reach logic.
+ */
+async function selectDraftPoolTile(
+    page: Page,
+    ctx: WalkContext
+): Promise<"peek" | "menu"> {
+    // Review finding (PR #2797 round 1, MEDIUM, issue #2667): no walk
+    // ever opened the Pool's own `DeckZonePeek` — `draft-pick`
+    // measures the pack stop, `draft-pool-stop` measures the pool
+    // PANE but never TAPS a tile in it, so `poolSelection` stayed
+    // `null` and the fixed panel stayed unmounted through all 60 prior
+    // rows, including the two phone viewports issue #2667's own AC
+    // names (390x844x3 / 844x390x3) — exactly the state
+    // `draft-selection-actions.tsx` records was MEASURED to occlude
+    // in portrait before this feature deleted that budget row. This
+    // surface is `draft-pool-stop` plus the one gesture that was
+    // missing: select a Pool tile and measure with the panel open.
+    await reachDraftPoolStop(page, ctx);
+    // The LAST tile, not the first (issue #2822). The pool renders as
+    // OVERLAID column piles (ADR 0075), so on a full pool the first
+    // tile of a pile is covered by the ones stacked on top of it and
+    // Playwright's actionability check waits out its whole timeout on
+    // it — measured, as a walk-threw UNWALKED at 1440x900x2, the
+    // moment the fixture gave this seat a realistic 24-card pool. The
+    // last tile is the top of its own pile at every viewport.
+    const poolTile = page.locator(DRAFT_POOL_TILE).last();
+    if ((await page.locator(DRAFT_POOL_TILE).count()) === 0) {
+        throw new Unreachable(
+            "reached the Draft Room's pool stop but found no Pool card tile to select — this surface needs the same NON-EMPTY pool `draft-pool-stop` does"
+        );
+    }
+    await poolTile.scrollIntoViewIfNeeded({ timeout: STEP_TIMEOUT });
+    await poolTile.click({ timeout: STEP_TIMEOUT });
+
+    // Issue #2861 retires the Pool's `DeckZonePeek` off a phone: the
+    // desktop/tablet regime (`useViewportMode`'s single "desktop"
+    // bucket — no snap scroller mounted) now opens a card context
+    // menu instead, on a short delay (the double-click window). The
+    // phone regimes are UNCHANGED — same `DeckZonePeek` mount this
+    // walk always asserted.
+    if (await visible(page, DRAFT_SNAP_SCROLLER, 500)) {
+        if (!(await visible(page, DRAFT_PEEK_PANEL, STEP_TIMEOUT))) {
+            throw new Unreachable(
+                "selected a Pool card tile but the Pool's Peek Panel (`[data-peek-panel]`) never mounted"
+            );
+        }
+        // `[data-peek-panel]` alone cannot discharge this surface's
+        // claim. `reachDraftRoom` has ALREADY pinned a Booster
+        // selection (`pinDraftSelection`, issue #2677), and the
+        // Booster's own `PeekPanel` uses the SAME attribute — so a
+        // pool click that did nothing at all would leave the
+        // Booster's panel standing and the assertion above green,
+        // which is the "the test never reaches the code" shape. The
+        // two panels' CTA rows are what differ: only the Pool's
+        // `DeckZonePeek` appends `Move to…` (its column-pin sheet,
+        // `deck-zone-peek.tsx`), and the Booster's never offers it.
+        if (!(await visible(page, DRAFT_POOL_PEEK_CTA, STEP_TIMEOUT))) {
+            throw new Unreachable(
+                `a Peek Panel is mounted but it is not the POOL's — no ${DRAFT_POOL_PEEK_CTA} in it, which means the pool tile's click did not take and this row would have measured \`draft-pick\`'s Booster panel under a different surface id`
+            );
+        }
+        return "peek";
+    }
+
+    // The menu opens on a delay so a double click can still cancel it
+    // (`openDesktopPoolMenu`) — `visible()`'s own polling absorbs
+    // that, no extra wait needed.
+    if (!(await visible(page, DRAFT_POOL_MENU_MOVE_ITEM, STEP_TIMEOUT))) {
+        throw new Unreachable(
+            `selected a Pool card tile but no menu offering ${DRAFT_POOL_MENU_MOVE_ITEM} ever mounted — either the menu never opened, or it opened for a different surface (the Booster's own menu never offers "Move to…")`
+        );
+    }
+    // The retired Peek Panel must never come back for this regime —
+    // the whole point of issue #2861 is that no rail mounts here any
+    // more, for any selection.
+    if (await visible(page, DRAFT_PEEK_PANEL, 500)) {
+        throw new Unreachable(
+            "the desktop Pool menu opened, but a `[data-peek-panel]` ALSO mounted — issue #2861 retires that rail entirely on this regime"
+        );
+    }
+    return "menu";
+}
+
+/**
  * Issue #2588 AC 1/2: on a phone the room is ONE scroller with
  * `scroll-snap-type: y mandatory` holding two 85% panes, so exactly two
  * offsets rest — `0` and the scroller's own maximum. Nothing in between is a
@@ -1137,6 +1274,15 @@ const DEBUG_SHEET_TOGGLE = "[data-debug-sheet-toggle]";
 const DEBUG_SHEET_TOGGLE_CLOSED =
     '[data-debug-sheet-toggle][aria-expanded="false"]';
 const DEBUG_SHEET = "[data-debug-sheet]";
+
+/** A modal left standing on the board that the pregame loop in
+ *  `ensureVsAiBoard` must answer or wait out. The Debug sheet is a
+ *  `[role=dialog]` too, but it mounts with `showOverlay={false}` — no scrim,
+ *  so it never blocks the toggle — and `game-debug-sheet-ai` LEAVES it open
+ *  at measurement: the next viewport that resumes the same vs-AI game found
+ *  it still up and waited 45s for a pregame prompt that was long answered
+ *  (measured UNWALKED at one viewport per full run, issue #4422). */
+const BLOCKING_DIALOG = `[role=dialog]:not(${DEBUG_SHEET})`;
 /** A stack row's per-ability **Yield** toggle (`stack-yield-toggle.tsx`), the
  *  stack panel's "Manage yields" control and one row of the box it opens
  *  (issue #3629). */
@@ -1476,11 +1622,11 @@ async function ensureVsAiBoard(page: Page, ctx: WalkContext): Promise<void> {
         // blocks the toggle — but leaving it up leaves the board in a position
         // nobody chose, which is the flapping `game-board` was withdrawn for.
         if (await clickTransient(page, MULLIGAN_KEEP, 1200)) continue;
-        if (!(await visible(page, "[role=dialog]", 800))) break;
+        if (!(await visible(page, BLOCKING_DIALOG, 800))) break;
         if (Date.now() > promptsDeadline) {
             const shown = (
                 (await page
-                    .locator("[role=dialog]")
+                    .locator(BLOCKING_DIALOG)
                     .first()
                     .innerText()
                     .catch(() => "")) || "(no text)"
@@ -3505,6 +3651,68 @@ export const SURFACES: readonly Surface[] = [
         },
     },
     {
+        // Issue #4422 — the create-event form, the largest Limited overlay
+        // and the first one a would-be host meets. The walk OPENS it and
+        // measures it; it never presses `Create Event`, so the lane creates
+        // no event it would then have to clean up (the NON-DESTRUCTIVE rule
+        // every Limited walk here keeps: the only events the lane touches
+        // are the fixtures it seeded, and they go away with its account).
+        id: "limited-create-event",
+        mounts: ["src/components/limited/create-limited-event-dialog.tsx"],
+        entries: ["src/routes/limited-events.route.tsx"],
+        label: "Create Limited Event dialog (/limited \u2192 + Create Event)",
+        /**
+         * The dialog's own name, the Event Type selector that makes it the
+         * RIGHT dialog, and its two footer plates. `Create Event` is promised
+         * `visible`, not `reachable`: it stays disabled until the Draftable
+         * Set query answers with a usable selection (`canSubmit`), and a
+         * disabled plate fails Playwright's trial click by design — the
+         * promise is that the plate is laid out, not that the deployment's
+         * set list has loaded by the time the screen settles.
+         */
+        asserts: [
+            {
+                label: "dialog: Create Limited Event",
+                locator: { role: "dialog", name: "Create Limited Event" },
+                check: "visible",
+            },
+            {
+                label: "Event Type selector",
+                locator: { role: "radiogroup", name: "Event Type" },
+                check: "visible",
+            },
+            {
+                label: "dialog primary: Create Event",
+                locator: { role: "button", name: "Create Event" },
+                check: "visible",
+            },
+            {
+                label: "dialog Cancel",
+                locator: { role: "button", name: "Cancel" },
+                check: "reachable",
+            },
+        ],
+        async walk(page, ctx) {
+            await reachFixtureList(page, ctx);
+            if (!(await clickIfVisible(page, LIMITED_CREATE_EVENT))) {
+                throw new Unreachable(
+                    "the fixture-filtered /limited list offered no `+ Create Event` button"
+                );
+            }
+            if (
+                !(await visible(
+                    page,
+                    '[role=dialog] [role=radiogroup][aria-label="Event Type"]'
+                ))
+            ) {
+                throw new Unreachable(
+                    "`+ Create Event` did not open the create-event dialog (no Event Type selector in a dialog)"
+                );
+            }
+            await settle(page);
+        },
+    },
+    {
         id: "limited-your-events",
         entries: [
             "src/routes/limited-your-events.route.tsx",
@@ -3642,27 +3850,109 @@ export const SURFACES: readonly Surface[] = [
             },
         ],
         async walk(page, ctx) {
-            // The `ui-gate/open` fixture, specifically (issue #2822): seating
-            // still open is the one event state whose detail page neither
-            // redirects into the Draft Room (`useDraftRoomRedirect` needs a
-            // pending pick) nor auto-opens the deck builder
-            // (`useAutoOpenLimitedBuilder` needs a final pool). Both of those
-            // are ONE-SHOT PER TAB, so a fixture that tripped either would
-            // measure the antechamber at some viewports and a different screen
-            // at others.
+            await reachFixtureAntechamber(page, ctx);
+        },
+    },
+    {
+        // Issue #4422 — the Table Ring, opened from the antechamber's
+        // `View Table` (issue #2590 moved it off the page into a dialog, so
+        // `limited-antechamber` measures its OPENER and never the ring).
+        // Read-only: the ring lists seats and offers no action.
+        id: "limited-table-ring",
+        mounts: ["src/components/limited/limited-table-ring.tsx"],
+        entries: [
+            "src/routes/limited-events.route.tsx",
+            "src/routes/limited-event-detail.route.tsx",
+        ],
+        label: "Table Ring dialog (/limited/<id> \u2192 View Table)",
+        /**
+         * The dialog by its title and the viewer's own seat row — the
+         * `ui-gate/<runId>/open` fixture seats the lane at seat 0 (see
+         * `limited-antechamber`), so a ring that rendered no viewer row
+         * has lost the one seat every fixture guarantees.
+         */
+        asserts: [
+            {
+                label: "dialog: The Table",
+                locator: { role: "dialog", name: "The Table" },
+                check: "visible",
+            },
+            {
+                label: "viewer's seat row",
+                locator: {
+                    selector: '[data-slot=table-ring] [data-is-viewer="true"]',
+                },
+                check: "visible",
+            },
+        ],
+        async walk(page, ctx) {
+            await reachFixtureAntechamber(page, ctx);
+            if (!(await clickIfVisible(page, LIMITED_VIEW_TABLE))) {
+                throw new Unreachable(
+                    "the antechamber offered no `View Table` button"
+                );
+            }
             if (
-                (await openFixtureEvent(page, ctx, ctx.fixtureLabels.open)) !==
-                "event"
+                !(await visible(page, "[role=dialog] [data-slot=table-ring]"))
             ) {
                 throw new Unreachable(
-                    `the "${ctx.fixtureLabels.open}" fixture did not land on its antechamber — it should still be OPEN (no pool, no pending pick). ${FIXTURE_SEED_HINT}`
+                    "`View Table` did not open the Table Ring dialog (no `[data-slot=table-ring]` in a dialog)"
                 );
             }
-            if (!(await visible(page, "main, [role=main]", 10_000))) {
+            await settle(page);
+        },
+    },
+    {
+        // Issue #4422 — the antechamber's inline confirm
+        // (`limited-event-detail.tsx`'s two `GameDialog`s: Leave Seat and
+        // Cancel/Close Event share one shape, so one of them measures the
+        // file). The walk opens `Leave this Seat?` and NEVER confirms it:
+        // leaving would unseat the lane from the `open` fixture every later
+        // Limited walk assumes it holds.
+        id: "limited-leave-seat-confirm",
+        mounts: ["src/components/limited/limited-event-detail.tsx"],
+        entries: [
+            "src/routes/limited-events.route.tsx",
+            "src/routes/limited-event-detail.route.tsx",
+        ],
+        label: "Leave Seat confirm (/limited/<id> \u2192 Leave Seat)",
+        /**
+         * The confirm by its title and its safe exit. The destructive
+         * `Leave Seat` plate is deliberately NOT promised: the antechamber
+         * button that opened the dialog carries the same accessible name, so
+         * the locator would name two elements — the confirm's layout is what
+         * this row measures, and `Cancel` is the only plate unique to it.
+         */
+        asserts: [
+            {
+                label: "dialog: Leave this Seat?",
+                locator: { role: "dialog", name: "Leave this Seat?" },
+                check: "visible",
+            },
+            {
+                label: "dialog Cancel",
+                locator: { role: "button", name: "Cancel" },
+                check: "reachable",
+            },
+        ],
+        async walk(page, ctx) {
+            await reachFixtureAntechamber(page, ctx);
+            if (!(await clickIfVisible(page, LIMITED_LEAVE_SEAT))) {
                 throw new Unreachable(
-                    "the Limited event antechamber rendered no main region"
+                    "the antechamber offered no `Leave Seat` button — the `open` fixture should seat the lane"
                 );
             }
+            if (
+                !(await visible(
+                    page,
+                    '[role=dialog]:has-text("Leave this Seat?")'
+                ))
+            ) {
+                throw new Unreachable(
+                    "`Leave Seat` did not open its confirm dialog"
+                );
+            }
+            await settle(page);
         },
     },
     {
@@ -3979,84 +4269,56 @@ export const SURFACES: readonly Surface[] = [
             },
         ],
         async walk(page, ctx) {
-            // Review finding (PR #2797 round 1, MEDIUM, issue #2667): no walk
-            // ever opened the Pool's own `DeckZonePeek` — `draft-pick`
-            // measures the pack stop, `draft-pool-stop` measures the pool
-            // PANE but never TAPS a tile in it, so `poolSelection` stayed
-            // `null` and the fixed panel stayed unmounted through all 60 prior
-            // rows, including the two phone viewports issue #2667's own AC
-            // names (390x844x3 / 844x390x3) — exactly the state
-            // `draft-selection-actions.tsx` records was MEASURED to occlude
-            // in portrait before this feature deleted that budget row. This
-            // surface is `draft-pool-stop` plus the one gesture that was
-            // missing: select a Pool tile and measure with the panel open.
-            await reachDraftPoolStop(page, ctx);
-            // The LAST tile, not the first (issue #2822). The pool renders as
-            // OVERLAID column piles (ADR 0075), so on a full pool the first
-            // tile of a pile is covered by the ones stacked on top of it and
-            // Playwright's actionability check waits out its whole timeout on
-            // it — measured, as a walk-threw UNWALKED at 1440x900x2, the
-            // moment the fixture gave this seat a realistic 24-card pool. The
-            // last tile is the top of its own pile at every viewport.
-            const poolTile = page.locator(DRAFT_POOL_TILE).last();
-            if ((await page.locator(DRAFT_POOL_TILE).count()) === 0) {
-                throw new Unreachable(
-                    "reached the Draft Room's pool stop but found no Pool card tile to select — this surface needs the same NON-EMPTY pool `draft-pool-stop` does"
-                );
-            }
-            await poolTile.scrollIntoViewIfNeeded({ timeout: STEP_TIMEOUT });
-            await poolTile.click({ timeout: STEP_TIMEOUT });
-
-            // Issue #2861 retires the Pool's `DeckZonePeek` off a phone: the
-            // desktop/tablet regime (`useViewportMode`'s single "desktop"
-            // bucket — no snap scroller mounted) now opens a card context
-            // menu instead, on a short delay (the double-click window). The
-            // phone regimes are UNCHANGED — same `DeckZonePeek` mount this
-            // walk always asserted.
-            if (await visible(page, DRAFT_SNAP_SCROLLER, 500)) {
-                if (!(await visible(page, DRAFT_PEEK_PANEL, STEP_TIMEOUT))) {
-                    throw new Unreachable(
-                        "selected a Pool card tile but the Pool's Peek Panel (`[data-peek-panel]`) never mounted"
-                    );
-                }
-                // `[data-peek-panel]` alone cannot discharge this surface's
-                // claim. `reachDraftRoom` has ALREADY pinned a Booster
-                // selection (`pinDraftSelection`, issue #2677), and the
-                // Booster's own `PeekPanel` uses the SAME attribute — so a
-                // pool click that did nothing at all would leave the
-                // Booster's panel standing and the assertion above green,
-                // which is the "the test never reaches the code" shape. The
-                // two panels' CTA rows are what differ: only the Pool's
-                // `DeckZonePeek` appends `Move to…` (its column-pin sheet,
-                // `deck-zone-peek.tsx`), and the Booster's never offers it.
-                if (!(await visible(page, DRAFT_POOL_PEEK_CTA, STEP_TIMEOUT))) {
-                    throw new Unreachable(
-                        `a Peek Panel is mounted but it is not the POOL's — no ${DRAFT_POOL_PEEK_CTA} in it, which means the pool tile's click did not take and this row would have measured \`draft-pick\`'s Booster panel under a different surface id`
-                    );
-                }
-                await settle(page);
-                return;
-            }
-
-            // The menu opens on a delay so a double click can still cancel it
-            // (`openDesktopPoolMenu`) — `visible()`'s own polling absorbs
-            // that, no extra wait needed.
-            if (
-                !(await visible(page, DRAFT_POOL_MENU_MOVE_ITEM, STEP_TIMEOUT))
-            ) {
-                throw new Unreachable(
-                    `selected a Pool card tile but no menu offering ${DRAFT_POOL_MENU_MOVE_ITEM} ever mounted — either the menu never opened, or it opened for a different surface (the Booster's own menu never offers "Move to…")`
-                );
-            }
-            // The retired Peek Panel must never come back for this regime —
-            // the whole point of issue #2861 is that no rail mounts here any
-            // more, for any selection.
-            if (await visible(page, DRAFT_PEEK_PANEL, 500)) {
-                throw new Unreachable(
-                    "the desktop Pool menu opened, but a `[data-peek-panel]` ALSO mounted — issue #2861 retires that rail entirely on this regime"
-                );
-            }
+            await selectDraftPoolTile(page, ctx);
             await settle(page);
+        },
+    },
+    {
+        // Issue #4422 — the Pool's `Move to…` column-pin sheet. Fixture, not
+        // a declared position (see `draft-pick`). `draft-pool-peek` stops at
+        // the selection; this row presses `Move to…` and measures the
+        // `ActionSheet` it opens, choosing no column — nothing is pinned.
+        //
+        // PARTIAL CLAIM, viewport-split like `draft-pool-peek` (issue
+        // #2861): off a phone the desktop Pool menu's `Move to…` opens
+        // `limited-draft-table.tsx`'s OWN sheet, which is the file claimed
+        // here; on the two phone viewports the Peek Panel's `Move to…`
+        // opens `deck-zone-peek.tsx`'s sheet instead. Both regimes end on
+        // an open `[data-action-sheet]`, so every cell measures the same
+        // kind of layer, and the claim is honest on three of five.
+        id: "draft-pool-move-sheet",
+        mounts: ["src/components/limited/limited-draft-table.tsx"],
+        settleTargets: [ACTION_SHEET],
+        entries: [
+            "src/routes/limited-events.route.tsx",
+            "src/routes/limited-event-detail.route.tsx",
+            "src/routes/limited-draft-room.route.tsx",
+        ],
+        label: "Draft Room, Pool Move to\u2026 sheet (/limited/<id>/draft, pool tile \u2192 Move to\u2026)",
+        asserts: [
+            {
+                label: "Move to\u2026 sheet",
+                locator: { selector: ACTION_SHEET },
+                check: "visible",
+            },
+        ],
+        async walk(page, ctx) {
+            const regime = await selectDraftPoolTile(page, ctx);
+            const moveTo =
+                regime === "peek"
+                    ? DRAFT_POOL_PEEK_CTA
+                    : DRAFT_POOL_MENU_MOVE_ITEM;
+            if (!(await clickIfVisible(page, moveTo))) {
+                throw new Unreachable(
+                    `the Pool selection offered \`Move to…\` a moment ago (${moveTo}) but it could not be pressed`
+                );
+            }
+            if (!(await visible(page, ACTION_SHEET))) {
+                throw new Unreachable(
+                    "`Move to…` did not open the column-pin sheet (no `[data-action-sheet]`)"
+                );
+            }
+            await settle(page, [ACTION_SHEET]);
         },
     },
     {

@@ -89,10 +89,17 @@ export default function LimitedTableRing({
             subtitle={subtitle}
             showCloseButton
         >
+            {/* A tab stop on the list (issue #4422): it is the dialog body
+                scroller's only content and holds nothing focusable, so at
+                844x390 the scrolled body was unreachable without a pointer
+                (axe `scrollable-region-focusable`, WCAG 2.1.1). A focusable
+                descendant is what the rule asks for — the same fix
+                `deck-builder-shell.tsx` gives its Card source pane. */}
             <ul
                 data-slot="table-ring"
                 className="flex flex-col gap-1"
                 aria-label="Draft table"
+                tabIndex={0}
             >
                 {ordered.map((seat) => {
                     const passesTo =

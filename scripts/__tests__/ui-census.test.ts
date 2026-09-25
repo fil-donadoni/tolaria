@@ -65,14 +65,6 @@ const DEBT: Record<string, string> = {
         "the deck-basics BottomSheet (#4402)",
     "src/components/deckbuilder/deck-stats-dialog.tsx":
         "the deck statistics dialog (#4402)",
-    "src/components/limited/create-limited-event-dialog.tsx":
-        "the create-event form (#4402)",
-    "src/components/limited/limited-draft-table.tsx":
-        "the Draft table's own dialog (#4402)",
-    "src/components/limited/limited-event-detail.tsx":
-        "the event page's inline confirm (#4402)",
-    "src/components/limited/limited-table-ring.tsx":
-        "the Table Ring's seat dialog (#4402)",
     "src/components/lobby/active-game-notice.tsx":
         "the resume/leave notice (#4402)",
     "src/components/lobby/banlist-cards-dialog.tsx":
@@ -107,11 +99,12 @@ const DEBT: Record<string, string> = {
  * `/admin/design-system` and the pregame gate a walk of its own; 25 since
  * issue #4423 gave the four cross-cutting overlays (disclaimer, bug report,
  * Inspect, the Scenarios active-game confirm) walked specimens; 17 since
- * issue #4420 did the same for the eight cast pickers (§ 18). The
- * remaining slices are that issue's other children, one per area — when the
+ * issue #4420 did the same for the eight cast pickers (§ 18); 13 since
+ * issue #4422 walked the four Limited overlays open. The remaining slices
+ * are that issue's other children, one per area — when the
  * last one lands, this constant, `DEBT` and the tests below go with it.
  */
-const DEBT_AT_LANDING = 17;
+const DEBT_AT_LANDING = 13;
 
 function fix(row: CensusRow): string {
     if (row.kind === "route") {
