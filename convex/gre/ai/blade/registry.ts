@@ -8302,7 +8302,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         note: "Discriminating pair of the outlet-cast entry above. Issue #4271.",
     },
     {
-        // REMOVAL-EXCHANGE OUTLET reachability (CR 701.21a, issue #4272). The
+        // SACRIFICE-FOR-REMOVAL reachability (CR 701.21a, issue #4272). The
         // sweep's own position for a creature whose only ability is "Sacrifice
         // this creature: it deals 1 damage to target creature": Frostling in
         // hand, three Mountains, a spare body on each side.
