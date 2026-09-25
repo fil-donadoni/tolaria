@@ -203,6 +203,7 @@ import {
     spendsStandingPermanent,
 } from "./ai/abilityTiming";
 import { abilityBenefitIsConfinedToSource } from "./ai/sourceConfinedBenefit";
+import { abilityIsRemovalExchange } from "./ai/removalExchange";
 import { assertNever } from "./assertNever";
 // Root-decision telemetry (issue #1893, map #1892) — off by default.
 import {
@@ -1890,7 +1891,8 @@ function rollout(
             const drawn = moves.filter(
                 (m) =>
                     !isTransientSacrificeConversion(state, pid, m) &&
-                    !isSourceConfinedSacrificeConversion(state, pid, m)
+                    !isSourceConfinedSacrificeConversion(state, pid, m) &&
+                    !isRemovalExchangeSacrifice(state, pid, m)
             );
             const pool = drawn.length > 0 ? drawn : moves;
             chosen = pool[Math.floor(rng() * pool.length)];
@@ -2713,6 +2715,33 @@ function isSourceConfinedSacrificeConversion(
     );
 }
 
+/** Whether `move` gives up a standing permanent to remove an announced target
+ *  and nothing else (`abilityIsRemovalExchange`), in ANY window (issue #4272).
+ *
+ *  The sibling of `isSourceConfinedSacrificeConversion`, with the same
+ *  argument: an exchange of one permanent for one permanent creates no card,
+ *  no mana, no life and no damage to a player, so below a cast every variant
+ *  is a step down from passing, and the many of them (a victim × target grid)
+ *  outnumber `pass` in the rollout's random draw and open as tree children at
+ *  the node after the cast. Their subtrees dragged the cast edge under
+ *  `pass`'s for three creatures whose only ability is a sacrifice-and-damage
+ *  outlet, while the same bodies without it were cast. The root is never
+ *  pruned, so an exchange the bot could take NOW stays a scored option.
+ *
+ *  Per-card-agnostic, never a card name (ADR 0102). */
+function isRemovalExchangeSacrifice(
+    state: GameState,
+    pid: string,
+    move: Move
+): boolean {
+    return isSacrificeConversionWhere(
+        state,
+        pid,
+        move,
+        (ability) => ability.useStack && abilityIsRemovalExchange(ability)
+    );
+}
+
 function isSacrificeConversionWhere(
     state: GameState,
     pid: string,
@@ -3023,7 +3052,12 @@ function iterate(
                     !isDeferrableTransientSacrifice(world, pid, k.move) &&
                     !(
                         world.stack.length === 0 &&
-                        isSourceConfinedSacrificeConversion(world, pid, k.move)
+                        (isSourceConfinedSacrificeConversion(
+                            world,
+                            pid,
+                            k.move
+                        ) ||
+                            isRemovalExchangeSacrifice(world, pid, k.move))
                     )
             );
             if (kept.length > 0) keyed = kept;
