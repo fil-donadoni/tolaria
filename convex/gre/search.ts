@@ -203,6 +203,7 @@ import {
     spendsStandingPermanent,
 } from "./ai/abilityTiming";
 import { abilityBenefitIsConfinedToSource } from "./ai/sourceConfinedBenefit";
+import { abilityIsRemovalExchange } from "./ai/removalExchange";
 import { assertNever } from "./assertNever";
 // Root-decision telemetry (issue #1893, map #1892) — off by default.
 import {
@@ -1890,7 +1891,8 @@ function rollout(
             const drawn = moves.filter(
                 (m) =>
                     !isTransientSacrificeConversion(state, pid, m) &&
-                    !isSourceConfinedSacrificeConversion(state, pid, m)
+                    !isSourceConfinedSacrificeConversion(state, pid, m) &&
+                    !isRemovalExchangeSacrifice(state, pid, botId, m)
             );
             const pool = drawn.length > 0 ? drawn : moves;
             chosen = pool[Math.floor(rng() * pool.length)];
@@ -2713,6 +2715,45 @@ function isSourceConfinedSacrificeConversion(
     );
 }
 
+/** Whether `move` is the BOT's own sacrifice of a standing permanent to remove
+ *  an announced target and nothing else (`abilityIsRemovalExchange`), in ANY
+ *  window (issue #4272).
+ *
+ *  The sibling of `isSourceConfinedSacrificeConversion`, and the same
+ *  argument only in part: a trade of one permanent for one permanent creates
+ *  no card, no mana, no life and no damage to a player, and below a cast its
+ *  variants (a victim × target grid) outnumber `pass` in the rollout's random
+ *  draw and open as tree children at the node after the cast, dragging the
+ *  cast edge under `pass`'s — three creatures whose only ability is a
+ *  sacrifice-and-damage outlet were `never-chosen` while the same bodies
+ *  without it were cast. Unlike growing one's own body a trade CAN be a good
+ *  one (a 1/1 that kills a better creature), so the prune is narrower:
+ *  - the bot's own moves only — the opponent's removal stays in the tree, or
+ *    the bot would cast into it as if it were not there;
+ *  - never at the root, so a trade the bot could take NOW — a blocker or an
+ *    attacker in a live combat included — stays a scored option and is
+ *    re-weighed at every decision. A live combat is NOT exempted below the
+ *    root, unlike `isDeferrableTransientSacrifice`: measured, exempting it at
+ *    either the rollout draw or the tree's children puts the cast edge back
+ *    under `pass` (all five seeds), because the later turns' combats are
+ *    where the drag comes from.
+ *
+ *  Per-card-agnostic, never a card name (ADR 0102). */
+export function isRemovalExchangeSacrifice(
+    state: GameState,
+    pid: string,
+    botId: string,
+    move: Move
+): boolean {
+    if (pid !== botId) return false;
+    return isSacrificeConversionWhere(
+        state,
+        pid,
+        move,
+        (ability) => ability.useStack && abilityIsRemovalExchange(ability)
+    );
+}
+
 function isSacrificeConversionWhere(
     state: GameState,
     pid: string,
@@ -3023,7 +3064,17 @@ function iterate(
                     !isDeferrableTransientSacrifice(world, pid, k.move) &&
                     !(
                         world.stack.length === 0 &&
-                        isSourceConfinedSacrificeConversion(world, pid, k.move)
+                        (isSourceConfinedSacrificeConversion(
+                            world,
+                            pid,
+                            k.move
+                        ) ||
+                            isRemovalExchangeSacrifice(
+                                world,
+                                pid,
+                                botId,
+                                k.move
+                            ))
                     )
             );
             if (kept.length > 0) keyed = kept;
