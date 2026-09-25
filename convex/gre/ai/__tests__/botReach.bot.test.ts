@@ -702,6 +702,22 @@ describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
         }
     }, 600_000);
 
+    // Issue #4272: a creature whose only ability sacrifices a permanent to
+    // remove an announced target is played — the exchange children below its
+    // own cast edge are pruned (`isRemovalExchangeSacrifice`).
+    it("played — a creature that sacrifices a permanent to remove a target", () => {
+        for (const name of [
+            "Arms Dealer",
+            "Bloodpyre Elemental",
+            "Frostling",
+        ]) {
+            expect(playBotReachSeats(getCardByName(name)), name).toEqual([
+                { holderId: "p1", verdict: { outcome: "played" } },
+                { holderId: "p2", verdict: { outcome: "played" } },
+            ]);
+        }
+    }, 600_000);
+
     it("a draw spell's holder finds spells on top of the library, and only that holder", () => {
         const topOfLibrary = (def: CardDefinition, seat: 0 | 1): unknown => {
             const { state, holderId } = buildBotReachState(def, seat);

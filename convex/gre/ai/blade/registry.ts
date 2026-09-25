@@ -8301,6 +8301,84 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         },
         note: "Discriminating pair of the outlet-cast entry above. Issue #4271.",
     },
+    {
+        // REMOVAL-EXCHANGE OUTLET reachability (CR 701.21a, issue #4272). The
+        // sweep's own position for a creature whose only ability is "Sacrifice
+        // this creature: it deals 1 damage to target creature": Frostling in
+        // hand, three Mountains, a spare body on each side.
+        //
+        // Before the fix the cast edge read WORSE than `pass` at the sweep's
+        // budget. Below the cast the rollout drew "sacrifice Frostling, aim at
+        // a creature" at random and the tree opened it at the node after the
+        // cast — a permanent traded for a permanent, no card, mana, life or
+        // player damage created — and those subtrees dragged the cast edge's
+        // mean margin under `pass`'s for a creature the static leaf ranks
+        // higher. Fixed by class, not by card: `isRemovalExchangeSacrifice`
+        // (`search.ts`).
+        label: "Sacrifice-for-removal outlet: casts the creature",
+        spec: {
+            cards: [
+                { name: "Frostling", owner: "me", zone: "hand" },
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
+                { name: "Ornithopter", owner: "me", zone: "battlefield" },
+                { name: "Castle", owner: "me", zone: "battlefield" },
+                { name: "Grizzly Bears", owner: "me", zone: "graveyard" },
+                { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+                { name: "Ornithopter", owner: "opp", zone: "battlefield" },
+                { name: "Castle", owner: "opp", zone: "battlefield" },
+                { name: "Grizzly Bears", owner: "opp", zone: "graveyard" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            libraryCount: 20,
+        },
+        bot: "me",
+        // The Bot-play sweep's own position at four times its budget — a
+        // REACHABILITY claim, so a PREDICATE, kept out of the weight fit for
+        // the reason the Nantuko Husk entry gives.
+        budget: { iterations: 200 },
+        seeds: [0xb07, 0x5eed, 1, 2, 3],
+        tier: "must",
+        expect: {
+            predicate: (move, state) =>
+                move !== null &&
+                move.kind === "cast-spell" &&
+                instanceIdsForName(state, "Frostling").has(move.cardInstanceId),
+            describe: "casts Frostling",
+        },
+        note: "Bot Gap `never-chosen › Creature › dealDamage` (3 cards). Issue #4272.",
+    },
+    {
+        // The other half of the pair (CR 701.21a, issue #4272): the outlet
+        // already on the battlefield in its controller's precombat main
+        // against a Grizzly Bears it cannot kill. One damage bought with the
+        // whole creature trades a body for nothing.
+        label: "Sacrifice-for-removal outlet: no sacrifice in the main phase",
+        spec: {
+            cards: [
+                { name: "Frostling", owner: "me", zone: "battlefield" },
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        // A PREDICATE, like its pair: kept out of the weight fit.
+        expect: {
+            predicate: (move) =>
+                move !== null && move.kind !== "activate-ability",
+            describe: "does not sacrifice Frostling for one damage",
+        },
+        note: "Discriminating pair of the outlet-cast entry above. Issue #4272.",
+    },
 ];
 
 /** "The bot answered the ENGINE-RAISED target selection with a submission the
