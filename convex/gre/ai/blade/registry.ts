@@ -8377,7 +8377,10 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
                 move !== null && move.kind !== "activate-ability",
             describe: "does not sacrifice Frostling for one damage",
         },
-        note: "Discriminating pair of the outlet-cast entry above. Issue #4272.",
+        // A root-behaviour pin, not a proof the prune is narrow: the prune never
+        // reaches the root, so this reads the same with or without it. Its
+        // seat and scope are pinned in `removalExchange.bot.test.ts`.
+        note: "Root pin beside the outlet-cast entry above. Issue #4272.",
     },
 ];
 

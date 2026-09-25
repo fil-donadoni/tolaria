@@ -2716,8 +2716,8 @@ function isSourceConfinedSacrificeConversion(
 }
 
 /** Whether `move` is the BOT's own sacrifice of a standing permanent to remove
- *  an announced target and nothing else (`abilityIsRemovalExchange`), outside a
- *  live combat (issue #4272).
+ *  an announced target and nothing else (`abilityIsRemovalExchange`), in ANY
+ *  window (issue #4272).
  *
  *  The sibling of `isSourceConfinedSacrificeConversion`, and the same
  *  argument only in part: a trade of one permanent for one permanent creates
@@ -2730,10 +2730,13 @@ function isSourceConfinedSacrificeConversion(
  *  one (a 1/1 that kills a better creature), so the prune is narrower:
  *  - the bot's own moves only — the opponent's removal stays in the tree, or
  *    the bot would cast into it as if it were not there;
- *  - never in a live combat (`isDeferrableTransientSacrifice`'s exemption) —
- *    killing a blocker or an attacker is what these outlets are for;
- *  - never at the root, so a trade the bot could take NOW stays a scored
- *    option and is re-weighed at every decision.
+ *  - never at the root, so a trade the bot could take NOW — a blocker or an
+ *    attacker in a live combat included — stays a scored option and is
+ *    re-weighed at every decision. A live combat is NOT exempted below the
+ *    root, unlike `isDeferrableTransientSacrifice`: measured, exempting it at
+ *    either the rollout draw or the tree's children puts the cast edge back
+ *    under `pass` (all five seeds), because the later turns' combats are
+ *    where the drag comes from.
  *
  *  Per-card-agnostic, never a card name (ADR 0102). */
 export function isRemovalExchangeSacrifice(
@@ -2743,10 +2746,6 @@ export function isRemovalExchangeSacrifice(
     move: Move
 ): boolean {
     if (pid !== botId) return false;
-    const inLiveCombat =
-        TRANSIENT_PAYOFF_PHASES.has(state.phase) &&
-        (state.combat?.attackerIds.length ?? 0) > 0;
-    if (inLiveCombat) return false;
     return isSacrificeConversionWhere(
         state,
         pid,

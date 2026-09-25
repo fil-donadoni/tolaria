@@ -11,7 +11,6 @@ import type {
 import { enumerateMoves } from "../../moves";
 import { buildStateFromScenario } from "../../scenarioBuilder";
 import { isRemovalExchangeSacrifice } from "../../search";
-import type { GameState } from "../../state";
 import { buildBladeBaseState } from "../blade/baseState";
 import { abilityIsRemovalExchange } from "../removalExchange";
 
@@ -135,12 +134,5 @@ describe("isRemovalExchangeSacrifice — where the prune applies (issue #4272)",
         expect(isRemovalExchangeSacrifice(state, meId, oppId, move)).toBe(
             false
         );
-    });
-
-    it("keeps an exchange in a live combat", () => {
-        const { state, meId, move } = position();
-        state.phase = "DECLARE_BLOCKERS";
-        state.combat = { attackerIds: ["attacker-1"] } as GameState["combat"];
-        expect(isRemovalExchangeSacrifice(state, meId, meId, move)).toBe(false);
     });
 });
