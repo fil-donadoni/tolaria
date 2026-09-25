@@ -343,7 +343,8 @@ const FLASH_AMBUSH: TargetPose["position"] = {
  * card over (`playSeat`), like {@link combatTrickPosition}: in a main phase
  * holding a flash creature and casting it are the same play a turn later, so
  * the search sees a tie there; against an attacker it is not one, since only
- * the cast creature can block (CR 702.8a).
+ * the creature cast now can block (a flash creature is cast any time its
+ * controller could cast an instant, CR 702.8a).
  */
 export function flashAmbushPosition(
     def: CardDefinition
