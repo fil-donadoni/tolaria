@@ -55,6 +55,7 @@ import { castShape } from "./botReachForm";
 import {
     combatTrickPosition,
     costPose,
+    sorceryLifeGainRace,
     sorceryPumpRace,
     targetPose,
 } from "./botReachTarget";
@@ -583,7 +584,7 @@ export function botReachSpec(
             count: DRAWN_SPELLS,
         });
     const cost = costPose(def);
-    const race = sorceryPumpRace(def);
+    const race = sorceryPumpRace(def) ?? sorceryLifeGainRace(def);
     cards.push(...target.cards, ...cost.cards, ...(race?.cards ?? []));
     const stack = needsStackTarget(def);
     return {

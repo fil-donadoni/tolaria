@@ -361,6 +361,41 @@ export function sorceryPumpRace(
     };
 }
 
+/** Is `def` a sorcery whose whole script is the controller gaining life? */
+function isSorceryLifeGain(def: CardDefinition): boolean {
+    const [only, ...rest] = def.effects ?? [];
+    return (
+        def.types.includes("Sorcery") &&
+        only !== undefined &&
+        rest.length === 0 &&
+        only.op === "gainLife" &&
+        (only as { player?: unknown }).player === "controller"
+    );
+}
+
+/**
+ * The race a life-gain sorcery is posed in. Life pays only when it is
+ * scarce: at a full life total the Bot rightly keeps the card, so the holder
+ * is one point from dead against an opposing body that swings for more than
+ * that. `null` when `def` is not a sorcery that only gains its controller life.
+ */
+export function sorceryLifeGainRace(
+    def: CardDefinition
+): { cards: ScenarioCard[]; life: { me: number } } | null {
+    if (!isSorceryLifeGain(def)) return null;
+    return {
+        cards: [
+            {
+                name: BASE_CREATURE,
+                owner: "opp",
+                zone: "battlefield",
+                count: 2,
+            },
+        ],
+        life: { me: 1 },
+    };
+}
+
 export type TargetPose = {
     readonly cards: readonly ScenarioCard[];
     /** The position's global enchantment gives its controller's untapped
