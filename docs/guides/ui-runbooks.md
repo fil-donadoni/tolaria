@@ -548,10 +548,10 @@ deployment to everyone, so both the row count of `/limited` and which seat the
 Draft Room walks measured used to be functions of the account's own data, and
 `budgets.json` rotted with no `src/` change.
 
-| Label                   | Shape                                                                           | Serves                                                              |
-| ----------------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
-| `ui-gate/<runId>/open`  | Draft event, seating still OPEN, viewer at seat 0, no pools                     | `limited-antechamber`                                               |
-| `ui-gate/<runId>/draft` | Draft event, `started`, viewer at seat 0 with a 15-card pack and a 24-card pool | `draft-pick`, `draft-pool-stop`, `draft-pool-peek`, `limited-build` |
+| Label                   | Shape                                                                           | Serves                                                                                       |
+| ----------------------- | ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `ui-gate/<runId>/open`  | Draft event, seating still OPEN, viewer at seat 0, no pools                     | `limited-antechamber`, `limited-table-ring`, `limited-leave-seat-confirm`                    |
+| `ui-gate/<runId>/draft` | Draft event, `started`, viewer at seat 0 with a 15-card pack and a 24-card pool | `draft-pick`, `draft-pool-stop`, `draft-pool-peek`, `draft-pool-move-sheet`, `limited-build` |
 
 The lane seeds both itself at bootstrap, for the run's own account and under
 the run's own id (issue #3626), and they go away with that account at
@@ -602,6 +602,22 @@ Pick is pending (`useDraftRoomRedirect`, see below), and a seat whose pool is
 FINAL with no deck yet gets sent to the builder (`useAutoOpenLimitedBuilder`) —
 which is why the fixture for this surface is an event whose seating is still
 open.
+
+### The Limited overlays (2026-09-25)
+
+Four rows end with a Limited layer OPEN (issue #4422), each one gesture past a
+page another row already measures. None of them acts: the lane creates no event
+and leaves no seat, so the fixtures stay as every other Limited walk expects.
+
+| Surface                      | From                          | Gesture                         | Layer measured                                          |
+| ---------------------------- | ----------------------------- | ------------------------------- | ------------------------------------------------------- |
+| `limited-create-event`       | `/limited?label=…` (the list) | `+ Create Event`                | the create-event dialog — never submitted               |
+| `limited-table-ring`         | the `open` antechamber        | `View Table`                    | the Table Ring dialog                                   |
+| `limited-leave-seat-confirm` | the `open` antechamber        | `Leave Seat`                    | the `Leave this Seat?` confirm — never confirmed        |
+| `draft-pool-move-sheet`      | `draft-pool-peek`'s selection | `Move to…` (Peek Panel or menu) | the column-pin `[data-action-sheet]` — no column chosen |
+
+By hand, `Escape` closes the three dialogs and a tap on the scrim closes the
+sheet, with no side effects.
 
 ## Reach the Limited deck builder (2026-08-17)
 
