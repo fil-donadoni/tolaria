@@ -26,6 +26,7 @@
 import type {
     CardDefinition,
     EffectChoiceKind,
+    EffectOp,
     TokenTriggeredEventKind,
 } from "../../cards/types";
 import { PERMANENT_TYPES, PLAYER_COUNTER_KINDS } from "../../cards/types";
@@ -82,6 +83,34 @@ interface OpSchema {
      *  after the per-field pass; returns human-readable error suffixes. */
     check?: (entry: Record<string, unknown>) => string[];
 }
+
+/** Issue #4448 — `OP_SCHEMAS` is typed against the `EffectOp` union, so
+ *  `check:ts` reds on an Op with no row, a union field the row never names,
+ *  and a row field the union does not have. A field is REQUIRED when every
+ *  variant of the Op declares it non-optional, OPTIONAL when any variant
+ *  declares it at all; `op` itself is never a schema field. An Op with no
+ *  optional field may not carry an `optional` map. */
+type FieldCheck = (value: unknown) => boolean;
+type OpVariant<K extends EffectOp["op"]> = Extract<EffectOp, { op: K }>;
+type KeysOfAnyVariant<U> = U extends unknown ? keyof U : never;
+type OptionalKeysOf<T> = {
+    [P in keyof T]-?: object extends Pick<T, P> ? P : never;
+}[keyof T];
+type OptionalInAnyVariant<U> = U extends unknown ? OptionalKeysOf<U> : never;
+type RequiredOpFields<U> = Exclude<keyof U, OptionalInAnyVariant<U> | "op">;
+type OptionalOpFields<U> = Exclude<
+    KeysOfAnyVariant<U>,
+    RequiredOpFields<U> | "op"
+>;
+type FieldChecks<K extends PropertyKey> = { [P in K]: FieldCheck };
+type TypedOpSchema<U> = Omit<OpSchema, "required" | "optional"> & {
+    required: FieldChecks<RequiredOpFields<U>>;
+} & ([OptionalOpFields<U>] extends [never]
+        ? { optional?: never }
+        : { optional: FieldChecks<OptionalOpFields<U>> });
+type OpSchemaTable = {
+    [K in EffectOp["op"]]: TypedOpSchema<OpVariant<K>>;
+};
 
 /** CR 107.1 — amounts/counts written as literals are positive integers. */
 function isPositiveInt(value: unknown): boolean {
@@ -3661,7 +3690,7 @@ function isInlineTargetRequirement(value: unknown): boolean {
 const isClassLevel = (value: unknown): boolean =>
     typeof value === "number" && Number.isInteger(value) && value >= 2;
 
-const OP_SCHEMAS: Record<string, OpSchema> = {
+const OP_SCHEMAS: OpSchemaTable = {
     // CR 615.12 (issue #1065) — `unpreventable` skips every CR 615 prevention
     // step, protection's damage leg included (CR 702.16e words itself "is
     // prevented", issue #2231). Omitted/false is the default preventable path
@@ -8085,7 +8114,9 @@ function validateOpSchema(
         );
         return;
     }
-    const schema = OP_SCHEMAS[entry.op];
+    const schema: OpSchema | undefined = (
+        OP_SCHEMAS as Record<string, OpSchema>
+    )[entry.op];
     if (!schema) {
         errors.push(
             `${at}: Op "${entry.op}" is registered but has no field schema — add it to OP_SCHEMAS`
