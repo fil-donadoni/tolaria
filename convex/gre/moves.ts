@@ -18,6 +18,7 @@
 // boards are capped to a representative bounded sample (see comments at each
 // site) rather than exploding. Caps are documented, never silent.
 
+import { findPermanent } from "./lookup";
 import type {
     ActivatedAbility,
     CardDefinition,
@@ -4919,7 +4920,7 @@ export function enumerateBlockerMoves(
     if (!combat) return [{ kind: "declare-blockers", assignments: [] }];
     const attackerIds = combat.attackerIds;
     const attackers = attackerIds
-        .map((id) => findCard(state, id))
+        .map((id) => findPermanent(state, id))
         .filter((c): c is CardInstanceState => c !== undefined);
 
     // For each candidate blocker, the attackers it may legally block, plus the
@@ -5013,14 +5014,6 @@ export function enumerateBlockerMoves(
         kind: "declare-blockers" as const,
         assignments,
     }));
-}
-
-function findCard(state: GameState, id: string): CardInstanceState | undefined {
-    for (const p of state.players) {
-        const c = p.battlefield.find((x) => x.id === id);
-        if (c) return c;
-    }
-    return undefined;
 }
 
 /** CR 113.1b / 605.3a (issue #2903) — enumerate the activated abilities

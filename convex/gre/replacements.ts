@@ -23,6 +23,7 @@
 // replacement order (CR 616.1e) is currently deterministic — APNAP, then
 // battlefield-declaration order. Adequate for the present LEA card set.
 
+import { findPermanent } from "./lookup";
 import type {
     AsEntersChoice,
     CardType,
@@ -531,7 +532,7 @@ function applyTransientDestroyShields(
     state.destroyReplacementShields = kept.length > 0 ? kept : undefined;
     // Oracle "remove all damage marked on it instead" — the saved permanent
     // sheds its marked damage so the same lethal hit doesn't re-destroy it.
-    const saved = findOnBattlefieldAnywhere(state, event.targetInstanceId);
+    const saved = findPermanent(state, event.targetInstanceId);
     if (saved && saved.damageMarked !== undefined) {
         delete saved.damageMarked;
     }
@@ -642,10 +643,7 @@ export function applyTransientDamageRedirections(
                 current.target.id === sh.targetInstanceId &&
                 sh.remaining > 0
             ) {
-                const targetCard = findOnBattlefieldAnywhere(
-                    state,
-                    sh.targetInstanceId
-                );
+                const targetCard = findPermanent(state, sh.targetInstanceId);
                 if (!targetCard) {
                     kept.push(sh);
                     continue;
@@ -726,7 +724,7 @@ export function applyTransientDamageRedirections(
                 // be re-validated at redirection time — the same
                 // existence/damageability gate the sibling
                 // `to-self-redirect-to-owner` branch above already applies
-                // to ITS target (`findOnBattlefieldAnywhere` +
+                // to ITS target (`findPermanent` +
                 // `isDamageablePermanent`). On an illegal destination,
                 // `current.target` is left untouched (it already IS the
                 // shielded creature, since its id === sh.targetInstanceId),
@@ -735,10 +733,7 @@ export function applyTransientDamageRedirections(
                 // match regardless of whether the redirect actually landed.
                 let destinationValid = true;
                 if (sh.redirectTo.type === "permanent") {
-                    const destCard = findOnBattlefieldAnywhere(
-                        state,
-                        sh.redirectTo.id
-                    );
+                    const destCard = findPermanent(state, sh.redirectTo.id);
                     destinationValid =
                         destCard !== undefined &&
                         isDamageablePermanent(destCard);
@@ -773,10 +768,7 @@ export function applyTransientDamageRedirections(
                 // nothing — unlike the sibling charge-counting shields above,
                 // which spend the "next time" either way.
                 if (sh.redirectTo.type === "permanent") {
-                    const destCard = findOnBattlefieldAnywhere(
-                        state,
-                        sh.redirectTo.id
-                    );
+                    const destCard = findPermanent(state, sh.redirectTo.id);
                     if (
                         destCard === undefined ||
                         !isDamageablePermanent(destCard)
@@ -834,17 +826,6 @@ export function applyTransientDamageRedirections(
         );
     }
     return consumed ? null : current;
-}
-
-function findOnBattlefieldAnywhere(
-    state: GameState,
-    instanceId: string
-): CardInstanceState | undefined {
-    for (const p of state.players) {
-        const hit = p.battlefield.find((c) => c.id === instanceId);
-        if (hit) return hit;
-    }
-    return undefined;
 }
 
 export function applyLifeChangeReplacements(

@@ -1,3 +1,4 @@
+import { findPermanent } from "./lookup";
 import type { CardInstanceState, GameState } from "./state";
 import {
     auraEnchantsPlayers,
@@ -515,28 +516,6 @@ export function checkDeathtouchDestroySBA(state: GameState): boolean {
     return destroyedAny;
 }
 
-/** Runs every SBA once. Currently: aura attachments (CR 704.5m), zero
- *  toughness (CR 704.5f), token existence (CR 704.5d), the legend rule
- *  (CR 704.5j), +1/+1 / -1/-1 counter annihilation (CR 704.5q), and game-over
- *  (CR 704.5a/b) — see the sweep in `checkStateBasedActions` for the full,
- *  ordered list. Expand as more SBAs come online.
- *
- *  Per CR 117.5, after SBA resolution and before priority is granted, the
- *  game scans for state-triggered abilities (CR 603.8) and puts them on the
- *  stack. The two checkpoints are coupled at every priority handoff, so we
- *  fold the state-trigger scan into this entry point. */
-/** Finds a permanent on any battlefield by instance id (CR 110). */
-function findPermanent(
-    state: GameState,
-    id: string
-): CardInstanceState | undefined {
-    for (const p of state.players) {
-        const hit = p.battlefield.find((c) => c.id === id);
-        if (hit) return hit;
-    }
-    return undefined;
-}
-
 /** Returns true while a conditional control change (CR 611.2b) still holds.
  *  The change's source is the entry's `auraId`; a missing source always
  *  fails the condition (the effect ends when its source leaves). */
@@ -810,6 +789,16 @@ export function checkWorldRuleSBA(state: GameState): boolean {
     return true;
 }
 
+/** Runs every SBA once. Currently: aura attachments (CR 704.5m), zero
+ *  toughness (CR 704.5f), token existence (CR 704.5d), the legend rule
+ *  (CR 704.5j), +1/+1 / -1/-1 counter annihilation (CR 704.5q), and game-over
+ *  (CR 704.5a/b) — see the sweep in `checkStateBasedActions` for the full,
+ *  ordered list. Expand as more SBAs come online.
+ *
+ *  Per CR 117.5, after SBA resolution and before priority is granted, the
+ *  game scans for state-triggered abilities (CR 603.8) and puts them on the
+ *  stack. The two checkpoints are coupled at every priority handoff, so we
+ *  fold the state-trigger scan into this entry point. */
 export function checkStateBasedActions(state: GameState): void {
     // CR 113.6c — same "canonical recompute point" placement as the two
     // refreshes inside the loop below, but hoisted OUT of the fixpoint: it

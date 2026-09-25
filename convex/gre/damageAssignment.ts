@@ -16,6 +16,7 @@
  * the validator: a default the mutation would refuse is the shape this file
  * exists to prevent.
  */
+import { findPermanent } from "./lookup";
 import type { CardInstanceState, GameState } from "./state";
 import { getPlayer, getOpponentId } from "./state";
 import { getEffectiveToughness, getEffectivePower } from "./layers";
@@ -27,18 +28,6 @@ import {
     damageAssignedByOtherSources,
     underAssignedBlockerBlockingExcess,
 } from "./lethalDamage";
-
-/** Looks up a permanent on either battlefield by instance id. */
-function findPermanent(
-    state: GameState,
-    id: string
-): CardInstanceState | undefined {
-    for (const player of state.players) {
-        const found = player.battlefield.find((c) => c.id === id);
-        if (found) return found;
-    }
-    return undefined;
-}
 
 /** CR 702.2c — does this combat-damage source have deathtouch? Read off the
  *  layer-6 MATERIALISED `staticAbilities` array (grants and ability-removal

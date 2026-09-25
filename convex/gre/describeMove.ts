@@ -6,7 +6,8 @@
 // and target ids to player / permanent labels. PURE: a read-only projection of
 // `state`, no mutation. Used only off the authoritative path.
 
-import type { GameState, CardInstanceState } from "./state";
+import { findCardInAnyZone } from "./lookup";
+import type { GameState } from "./state";
 import type { Move } from "./moves";
 import type { TargetSelection } from "../cards/types";
 import { tryGetDefinition } from "../cards";
@@ -23,27 +24,8 @@ function cardName(obj: Named): string {
     return (id ? tryGetDefinition(id)?.name : undefined) ?? obj.id;
 }
 
-function findInstanceAnyZone(
-    state: GameState,
-    id: string
-): CardInstanceState | undefined {
-    for (const p of state.players) {
-        for (const zone of [
-            p.battlefield,
-            p.hand,
-            p.graveyard,
-            p.exile,
-            p.library,
-        ]) {
-            const c = zone.find((x) => x.id === id);
-            if (c) return c;
-        }
-    }
-    return undefined;
-}
-
 function instanceName(state: GameState, id: string): string {
-    const c = findInstanceAnyZone(state, id);
+    const c = findCardInAnyZone(state, id);
     return c ? cardName(c) : id;
 }
 
@@ -53,7 +35,7 @@ function playLandMoveName(
     state: GameState,
     move: Extract<Move, { kind: "play-land" }>
 ): string {
-    const card = findInstanceAnyZone(state, move.cardInstanceId);
+    const card = findCardInAnyZone(state, move.cardInstanceId);
     if (!card) return move.cardInstanceId;
     const faceDef = playLandFaceDefinition(card, move.face ?? "front");
     return faceDef?.name ?? cardName(card);

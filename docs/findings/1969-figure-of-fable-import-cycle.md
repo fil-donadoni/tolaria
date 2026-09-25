@@ -1,7 +1,8 @@
 ---
 title: Figure of Fable's protection grant is undefined under a different module-evaluation order (import cycle through gre/constants → cards)
 discoveredBy: 1969
-status: draft
+status: triaged
+issue: 4452
 confidence: high
 ---
 

@@ -45,6 +45,7 @@
  *  `spellMatchesCreaturePtFilter`, `spellWouldDestroyLandControlledBy`) moved
  *  here from `rules.ts`; `rules.ts` re-exports them for backward
  *  compatibility with existing callers/imports. */
+import { findPermanent } from "./lookup";
 import type { CardType, Color, TargetRequirement } from "../cards/types";
 import type {
     CardInstanceState,
@@ -655,25 +656,6 @@ const controlledSinceTurnStartDescriptor = defineFilter<boolean>({
     },
 });
 
-/** Finds a card on any player's battlefield by instance id — the same
- *  linear scan `state.ts`'s (module-private) `findOnBattlefield` runs, kept
- *  as a local duplicate rather than an import so this module stays free of
- *  a dependency on `./state`'s internals (this file's own header: "NO
- *  dependency on `./rules`" — `state.ts` exports only the PUBLIC
- *  `getAttachedTo`-style helpers via `SpellContext`, not a raw by-id finder,
- *  and the registry check runs against a bare `GameState`, not a
- *  `SpellContext`). */
-function findBattlefieldHost(
-    state: GameState,
-    hostId: string
-): CardInstanceState | undefined {
-    for (const player of state.players) {
-        const found = player.battlefield.find((c) => c.id === hostId);
-        if (found) return found;
-    }
-    return undefined;
-}
-
 // CR 303.4b — host-relation filter ("target Aura attached to a land" /
 // "... attached to a creature you control"). Reads the CANDIDATE's own
 // `attachedTo` id, resolves the host permanent, and checks the host's card
@@ -693,9 +675,7 @@ const attachedToFilterDescriptor = defineFilter<{
     checks: {
         permanent: (card, value, ctx) => {
             const hostId = card.attachedTo;
-            const host = hostId
-                ? findBattlefieldHost(ctx.state, hostId)
-                : undefined;
+            const host = hostId ? findPermanent(ctx.state, hostId) : undefined;
             if (!host) return "Target must be attached to a permanent";
             if (
                 value.types &&

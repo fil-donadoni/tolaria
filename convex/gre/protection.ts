@@ -87,12 +87,28 @@
 //   - can't Block        (702.16f): combat.ts::validateBlockerEligibility —
 //     false, a blocker is a permanent.
 
+// FIRST, and deliberately so (issue #4452, findings-1969): a card module reads
+// these strings while its literal is built, and this module sits in a cycle
+// with the card registry (`./layers` → `./constants` → `../cards`). Taking
+// them from a dependency-free leaf evaluated before `./layers` means they are
+// defined whichever module the bundle enters from.
+import {
+    PROTECTION_FROM_COLORED_SPELLS,
+    PROTECTION_FROM_EACH_OPPONENT,
+    PROTECTION_FROM_EVERYTHING,
+} from "./protectionQualities";
 import type { CardInstanceState } from "./state/declarations";
 import type { CardSupertype, CardType, Color } from "../cards/types";
 import { STATIC_EFFECT_CTX } from "./layers";
 import { hasSupertypeLive } from "../cards/snowReads";
 import { applySubstitution, textChangesOf } from "./textChanges";
 import type { TextChangeCarrier } from "./textChanges";
+
+export {
+    PROTECTION_FROM_COLORED_SPELLS,
+    PROTECTION_FROM_EACH_OPPONENT,
+    PROTECTION_FROM_EVERYTHING,
+};
 
 const PROTECTION_PREFIX = "protection from ";
 
@@ -106,32 +122,6 @@ const PROTECTION_COLOR_NAME_TO_CODE: Record<string, Color> = {
     green: "G",
     colorless: "C",
 };
-
-/** CR 702.16k — the PLAYER-quality protection string. The quality is "each of
- *  your opponents", i.e. every player other than the protected permanent's own
- *  controller, re-derived live so a control-change effect moves the protection
- *  with the permanent (CR 109.4 / 702.16). Figure of Fable's final stage. */
-export const PROTECTION_FROM_EACH_OPPONENT =
-    "protection from each of your opponents";
-
-/** CR 702.16a — the SPELL-RESTRICTED ANY-COLOUR protection string (issue
- *  #2296). Matched EXACTLY (after lowercasing/trimming) rather than by a
- *  loose "spells" + "colors" heuristic: the parser's whole contract is to
- *  fail closed on a phrase it cannot name, and a near-miss phrasing must
- *  reach the catalogue guard as an unparseable string, not be silently
- *  approximated by this one. */
-export const PROTECTION_FROM_COLORED_SPELLS =
-    "protection from spells that are one or more colors";
-
-/** CR 702.16j — the PERMANENT-scoped "protection from everything" string
- *  (issue #2386, Hexdrinker's LEVEL 8+ band). Matched EXACTLY like the other
- *  fixed-phrase families, so a near-miss phrasing reaches the catalogue guard
- *  as an unparseable string rather than being silently approximated.
- *
- *  The PLAYER-scoped variant of the same rule is a separate authority
- *  (`playerHasProtectionFromEverything`) — CR 702.16j names both scopes,
- *  and a player is not a card: it carries no `staticAbilities[]` to parse. */
-export const PROTECTION_FROM_EVERYTHING = "protection from everything";
 
 /** CR 205.4a — every supertype a protection quality can name. Iterated to read
  *  a source's LIVE supertypes (`hasSupertypeLive`, so a Melting / Arcum's

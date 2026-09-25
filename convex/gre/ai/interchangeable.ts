@@ -34,6 +34,7 @@
 // one — two copies that are in fact interchangeable stay separate, and the
 // search is merely as wide as it is today.
 
+import { findCardInAnyZone } from "../lookup";
 import type { ManaTap, Move } from "../moves";
 
 /** A set-valued reference group: the key renders its members SORTED rather
@@ -378,25 +379,6 @@ function cardReferenceCounts(state: GameState): Map<string, number> {
     return counts;
 }
 
-function findCardAnywhere(
-    state: GameState,
-    id: string
-): CardInstanceState | undefined {
-    for (const player of state.players) {
-        for (const zone of [
-            player.battlefield,
-            player.hand,
-            player.graveyard,
-            player.exile,
-            player.library,
-        ]) {
-            const card = zone.find((c) => c.id === id);
-            if (card) return card;
-        }
-    }
-    return undefined;
-}
-
 /** Instance ids are counter strings (`allocInstanceId`), so "lowest" is
  *  numeric where both sides are numeric and lexicographic otherwise — either
  *  way a total order, which is all determinism needs. */
@@ -435,7 +417,7 @@ export function makeInterchangeableKeyer(
     const descriptorOf = (id: string): string => {
         const cached = descriptors.get(id);
         if (cached !== undefined) return cached;
-        const card = findCardAnywhere(state, id);
+        const card = findCardInAnyZone(state, id);
         // Two fail-closed answers, both of them "this id equals only itself":
         // a reference the state does not hold at all, and one something else
         // in the state also names. A card nothing points at occurs exactly
