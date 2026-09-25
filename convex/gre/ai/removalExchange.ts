@@ -16,13 +16,18 @@
  * FAILS CLOSED, like `abilityBenefitIsConfinedToSource`: answers `true` only
  * for a script it can positively read. An imperative `resolve()`, a mode, a
  * mana rider, a structural construct, an unknown Op, a player-scoped damage
- * (`{ player }` — burn to the face creates damage, not an exchange) or any
+ * (`{ player }`, or a target that can be one — burn to the face creates
+ * damage, not an exchange) or any
  * second Op answers `false` and leaves the line searchable.
  *
  * Bot decision quality only; engine legality is untouched.
  */
 
-import type { ActivatedAbility, EffectOp } from "../../cards/types";
+import type {
+    ActivatedAbility,
+    EffectOp,
+    TargetRequirement,
+} from "../../cards/types";
 
 /** An announced-target selector (`{ target: N }`) — the only spelling that
  *  reads as "an object the ability was aimed at". A `$source`/`$each` ref, a
@@ -33,6 +38,18 @@ function namesAnnouncedTarget(selector: unknown): boolean {
         typeof selector === "object" &&
         typeof (selector as { target?: unknown }).target === "number"
     );
+}
+
+/** Whether the announced target can only be an OBJECT — a requirement that
+ *  names no player (`"player"`, and `"any"` which includes one). */
+function aimsOnlyAtObjects(
+    requirement: TargetRequirement | undefined
+): boolean {
+    if (!requirement) return false;
+    const types = Array.isArray(requirement.type)
+        ? requirement.type
+        : [requirement.type];
+    return !types.some((type) => type === "player" || type === "any");
 }
 
 function opRemovesAnnouncedTarget(op: EffectOp): boolean {
@@ -53,6 +70,9 @@ export function abilityIsRemovalExchange(ability: ActivatedAbility): boolean {
         return false;
     }
     if (ability.modes && ability.modes.length > 0) return false;
+    // "Any target" and player targets can be a FACE: damage there creates
+    // damage to a player (lethal, a race), not a trade of permanents.
+    if (!aimsOnlyAtObjects(ability.targetRequirement)) return false;
     const effects = ability.effects;
     if (!effects || effects.length === 0) return false;
     return effects.every(opRemovesAnnouncedTarget);

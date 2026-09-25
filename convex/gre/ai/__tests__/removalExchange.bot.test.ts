@@ -3,11 +3,19 @@
 
 import { describe, expect, it } from "vitest";
 import { getCardByName } from "../../../cards";
-import type { ActivatedAbility, EffectOp } from "../../../cards/types";
+import type {
+    ActivatedAbility,
+    EffectOp,
+    TargetRequirement,
+} from "../../../cards/types";
 import { abilityIsRemovalExchange } from "../removalExchange";
 
-const ability = (effects: EffectOp[]): ActivatedAbility => ({
+const ability = (
+    effects: EffectOp[],
+    targetRequirement: TargetRequirement = { type: "Creature", count: 1 }
+): ActivatedAbility => ({
     id: "test-ability",
+    targetRequirement,
     oracleText: "",
     cost: { sacrifice: true },
     useStack: true,
@@ -45,6 +53,17 @@ describe("abilityIsRemovalExchange", () => {
                         to: { player: "opponent" },
                     },
                 ])
+            )
+        ).toBe(false);
+    });
+
+    it("rejects damage to any target — it can be a face", () => {
+        expect(
+            abilityIsRemovalExchange(
+                ability([{ op: "dealDamage", amount: 2, to: { target: 0 } }], {
+                    type: "any",
+                    count: 1,
+                })
             )
         ).toBe(false);
     });
