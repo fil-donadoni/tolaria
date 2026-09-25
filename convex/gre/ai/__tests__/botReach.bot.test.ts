@@ -687,7 +687,7 @@ describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
 
     // Issue #4271: a creature whose only ability sacrifices a body to grow
     // ITSELF is played — the sacrifice children below its own cast edge are
-    // pruned (`isSourceConfinedSacrifice`), so they no longer outweigh `pass`.
+    // pruned (`isSourceConfinedSacrificeConversion`), so they no longer outweigh `pass`.
     it("played — a creature that sacrifices a creature to grow itself", () => {
         for (const name of [
             "Bloodflow Connoisseur",

@@ -2679,6 +2679,9 @@ function isDeferrableTransientSacrifice(
  *
  *  The payoff is LASTING, so `isTransientSacrificeConversion`'s argument
  *  ("gone by next turn") does not apply; the argument is redistribution.
+ *  A transient payoff stays under that predicate's own windowed rule (a pump
+ *  after blocks decides the exchange), and a shield (`regenerate` /
+ *  `preventDamage`) creates value in one, so neither is accepted here.
  *  Growing one body by sacrificing another moves worth around the board and
  *  creates none — no card, no mana, no damage, no life — so every such edge is
  *  a step down from passing, and both places the search opens one below the
@@ -2701,7 +2704,12 @@ function isSourceConfinedSacrificeConversion(
         pid,
         move,
         (ability) =>
-            ability.useStack && abilityBenefitIsConfinedToSource(ability)
+            ability.useStack &&
+            abilityBenefitIsConfinedToSource(ability) &&
+            !isTransientOnlyAbility(ability) &&
+            !(ability.effects ?? []).some(
+                (op) => op.op === "regenerate" || op.op === "preventDamage"
+            )
     );
 }
 
