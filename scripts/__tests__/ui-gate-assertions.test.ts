@@ -347,6 +347,32 @@ describe("check:ui surface table — Named Assertions", () => {
     });
 
     /**
+     * Issue #4422's half: the four Limited overlays the coverage census
+     * (issue #3420) recorded as measured at no viewport. Each row ends with
+     * its layer OPEN, so each promises the layer by its own name — never
+     * only the page behind it, which the list and antechamber rows already
+     * measure — plus the plate that leaves it without acting.
+     */
+    it("the Limited overlays promise the layer they open", () => {
+        expectPromised({
+            "limited-create-event": [
+                "visible role=dialog name=Create Limited Event",
+                "visible role=radiogroup name=Event Type",
+                "reachable role=button name=Cancel",
+            ],
+            "limited-table-ring": [
+                "visible role=dialog name=The Table",
+                'visible [data-slot=table-ring] [data-is-viewer="true"]',
+            ],
+            "limited-leave-seat-confirm": [
+                "visible role=dialog name=Leave this Seat?",
+                "reachable role=button name=Cancel",
+            ],
+            "draft-pool-move-sheet": ["visible [data-action-sheet]"],
+        });
+    });
+
+    /**
      * Issue #4419's half: the seventeen board-dialog specimens on
      * `/admin/design-system` § 16, plus the pregame gate. Each promises the
      * LAYER it exists to measure and the dialog's own action
