@@ -97,8 +97,13 @@ function announcedSlotsIn(value: unknown, out: Set<number>): void {
     }
 }
 
-/** Fields on a structural construct that hold nested Op lists / branch bodies.
- *  Walked by `collectScriptSigns`, skipped by `announcedSlotsIn`. */
+/** Field names that hold nested Op lists / branch bodies — a SKIP list for
+ *  `announcedSlotsIn` only, so a leaf Op's sign never lands on a nested Op's
+ *  slots. Which lists a host carries is `childOpArrays`'s answer, not this
+ *  set's: script hosts never reach `announcedSlotsIn` at all, so their own
+ *  non-list fields (a `divideIntoPiles` `divider`, a `forEach` `select`) are
+ *  unsigned today — a future host naming an announced slot there needs its
+ *  own row. */
 const NESTED_EFFECT_KEYS = new Set([
     "effects",
     "then",

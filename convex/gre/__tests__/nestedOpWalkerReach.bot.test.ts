@@ -130,6 +130,9 @@ function reachSet(walk: Reaches): string[] {
 }
 
 const ALL = NESTING_SHAPES.map((s) => s.label);
+const WITHOUT_TRIGGER_BODIES = ALL.filter(
+    (l) => l !== "delayedTrigger.effects" && l !== "reflexiveTrigger.effects"
+);
 
 describe("nested-Op walkers — reach per nesting shape (CR 608.2c, issue #4442)", () => {
     // The first commit of this file pinned the reach sets BEFORE the walkers
@@ -150,11 +153,7 @@ describe("nested-Op walkers — reach per nesting shape (CR 608.2c, issue #4442)
             // A trigger body announces its OWN targets (CR 603.3d), so its
             // `{ target: 0 }` is not the host's slot 0 — `isTriggerBodyHost`
             // is the authority's word for it, and the sign walk skips it.
-            beneficence: ALL.filter(
-                (l) =>
-                    l !== "delayedTrigger.effects" &&
-                    l !== "reflexiveTrigger.effects"
-            ),
+            beneficence: WITHOUT_TRIGGER_BODIES,
             // The ONE deliberate gap, and it is valuation, not blindness: the
             // Op valuer is a COMBINATOR (a flip averages, piles minimax, a
             // mode is its best), and `valueOp` values an `if` as its `then`
@@ -162,8 +161,13 @@ describe("nested-Op walkers — reach per nesting shape (CR 608.2c, issue #4442)
             // other hosts route through their own valuers, and this row is
             // what catches a host that stops recursing.
             opValuers: ALL.filter((l) => l !== "if.else"),
-            abilityTimingMana: ALL,
-            abilityTimingTransient: ALL,
+            // Same authority word, timing reason: a trigger body resolves
+            // LATER as its own ability (CR 603.7 / 603.12) — its mana is not
+            // this outlet's payoff, and its end-of-turn pump is not this
+            // turn's window. The transient row reads a trigger host as
+            // lasting (fail-closed), so its body cannot flip the verdict.
+            abilityTimingMana: WITHOUT_TRIGGER_BODIES,
+            abilityTimingTransient: WITHOUT_TRIGGER_BODIES,
         });
     });
 

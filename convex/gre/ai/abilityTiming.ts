@@ -47,7 +47,7 @@ import {
     getEffectiveActivatedAbilities,
     type EffectiveActivatedAbility,
 } from "../activatedAbilities";
-import { childOpArrays } from "./effectOpChildren";
+import { childOpArrays, isTriggerBodyHost } from "./effectOpChildren";
 
 /** Whether `ability` may be activated at INSTANT SPEED, and therefore in some
  *  window LATER than the mover's own main phase (CR 117.1b — a player may
@@ -92,8 +92,13 @@ const WITHIN_TURN_DURATION_PHASES = new Set(["end-of-turn", "end-of-combat"]);
 function opsAllTransient(effects: readonly EffectOp[]): boolean {
     if (effects.length === 0) return false;
     for (const op of effects) {
-        // A script host carries no effect of its own; every nested list must
-        // be transient in turn (`childOpArrays`, the one enumeration of them).
+        // A delayed / reflexive trigger body resolves as its OWN ability
+        // later (CR 603.7 / 603.12) — an end-of-turn pump that lands next
+        // turn is banked value, not this turn's window. Fail-closed: lasting.
+        if (isTriggerBodyHost(op)) return false;
+        // Any other script host carries no effect of its own; every nested
+        // list must be transient in turn (`childOpArrays`, the one
+        // enumeration of them).
         const children = childOpArrays(op);
         if (children.length > 0) {
             if (!children.every(opsAllTransient)) return false;
@@ -293,6 +298,10 @@ function producesMana(ability: ActivatedAbility): boolean {
 function opsAddMana(effects: readonly EffectOp[]): boolean {
     for (const op of effects) {
         if (op.op === "addMana") return true;
+        // Mana a delayed / reflexive trigger adds arrives when THAT ability
+        // resolves (CR 603.7 / 603.12), not as this activation's payoff — it
+        // is not what makes a sacrifice outlet a mana outlet.
+        if (isTriggerBodyHost(op)) continue;
         if (childOpArrays(op).some(opsAddMana)) return true;
     }
     return false;

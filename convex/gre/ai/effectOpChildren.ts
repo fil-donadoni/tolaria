@@ -26,34 +26,45 @@ import type { EffectOp } from "../../cards/types";
 /** A nested Effect Script, as a field of a host Op declares it. */
 type Script = readonly EffectOp[];
 
-/** `true` when a field's declared type IS a script (optional or not). The
- *  tuple wrap stops `boolean`-style distribution over a union field. */
-type IsScript<V> = [NonNullable<V>] extends [never]
-    ? false
-    : [NonNullable<V>] extends [Script]
-      ? true
+/** `true` (possibly inside a `boolean`) when type `M` IS an Op or holds one
+ *  through any depth of arrays / tuples — `EffectOp`, `EffectOp[]`,
+ *  `EffectOp[][]`, `[EffectOp[], EffectOp[]]`. Distributes over a union, so
+ *  `EffectOp[] | "none"` still counts (review of issue #4442). */
+type HoldsOp<M> = M extends EffectOp
+    ? true
+    : M extends readonly (infer E)[]
+      ? HoldsOp<E>
       : false;
 
-/** `true` when some field of object type `T` is a script. */
-type HasScriptField<T> = true extends {
-    [K in keyof T]-?: IsScript<T[K]>;
+/** `true` when some field of object `T` holds an Op directly. */
+type HasOpField<T> = true extends {
+    [K in keyof T]-?: HoldsOp<NonNullable<T[K]>>;
 }[keyof T]
     ? true
     : false;
 
-/** `true` when a field holds a script ONE level down — a branch object
- *  (`coinFlip`'s `win: { effects }`) or a list of them (`optionChoice`'s
- *  `modes[].effects`). Deep enough for every shape the DSL has; a host that
- *  buried a script deeper still would need this widened, and the fixture test
+/** `true` (possibly inside a `boolean`) when a union member is a BRANCH
+ *  object holding an Op — `coinFlip`'s `win: { effects }` — or a list of them
+ *  (`optionChoice`'s `modes[].effects`). One object level deep, on purpose:
+ *  `createToken` reaches an Op two levels down (its token's triggered
+ *  abilities), and that script is the TOKEN's, never this Op's. A host that
+ *  buried its own script deeper would need this widened, and the fixture test
  *  (`nestedOpShapes.ts`) is where it would first go missing. */
+type IsBranch<M> = M extends EffectOp
+    ? false
+    : M extends readonly (infer E)[]
+      ? IsBranch<E>
+      : M extends object
+        ? HasOpField<M>
+        : false;
+
+/** `true` when a field holds a script, directly or one branch object down. */
 type HoldsScript<V> =
-    IsScript<V> extends true
+    true extends HoldsOp<NonNullable<V>>
         ? true
-        : NonNullable<V> extends readonly (infer E)[]
-          ? HasScriptField<E>
-          : NonNullable<V> extends object
-            ? HasScriptField<NonNullable<V>>
-            : false;
+        : true extends IsBranch<NonNullable<V>>
+          ? true
+          : false;
 
 /** `true` when Op variant `O` carries a nested script in any field. */
 type CarriesScript<O> = true extends {
