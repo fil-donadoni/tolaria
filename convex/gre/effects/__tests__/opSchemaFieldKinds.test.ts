@@ -82,7 +82,9 @@ describe("Op Schema binding declarations — derived from the tagged rows (issue
         expect([...BINDING_DECLARATION_FIELDS].sort()).toEqual(
             [
                 ...new Set(
-                    DECLARATIONS.map((d) => d.slice(d.indexOf(".") + 1, d.indexOf(":")))
+                    DECLARATIONS.map((d) =>
+                        d.slice(d.indexOf(".") + 1, d.indexOf(":"))
+                    )
                 ),
             ].sort()
         );
