@@ -7906,6 +7906,7 @@ function checkOpListRefs(
         if (
             entry.op === "mill" &&
             typeof entry.bindAll === "string" &&
+            entry.bindAll !== entry.bind &&
             newlyDeclared.has(entry.bindAll)
         ) {
             publicZoneBindings.set(

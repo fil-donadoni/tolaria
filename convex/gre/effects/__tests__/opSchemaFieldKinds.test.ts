@@ -4,8 +4,9 @@
 // hand-kept `BINDING_DECLARATION_FIELDS` (now the naming rule in
 // `bindingFields.ts`, which `check:ts` holds the schema to). Each of those was
 // first seen equal to its derivation (parity phase), then deleted; this pins
-// the derivation so a re-tagged row is a deliberate edit here. The amount / nested-script key
-// sets are pinned by behaviour in `effectFieldKeySets.test.ts`.
+// the derivation so a re-tagged row is a deliberate edit here. The amount /
+// nested-script key sets are pinned by behaviour in
+// `effectFieldKeySets.test.ts`.
 
 import { describe, expect, it } from "vitest";
 import type { EffectOp } from "../../../cards/types";
@@ -131,8 +132,45 @@ describe("Op Schema binding declarations — derived from the tagged rows (issue
         ).toEqual([]);
     });
 
-    it("the contrast: the same read with no declaring Op is refused", () => {
-        expect(errorsOf([eachOf("$exiled")]).length).toBeGreaterThan(0);
+    it("the contrast: the same exile with no bindAll leaves the read undeclared", () => {
+        expect(
+            errorsOf([
+                {
+                    op: "exileTopOfLibrary",
+                    player: "controller",
+                    count: 2,
+                } as EffectOp,
+                eachOf("$exiled"),
+            ]).length
+        ).toBeGreaterThan(0);
+    });
+
+    // Only `mill.bindAll` fills a PUBLIC zone (CR 701.17); `moveZone.bindAll`
+    // is the same picks family but may be a face-down exile (CR 406.3), so it
+    // must never source a "from among them" pick — the ref pass keeps the
+    // public-zone registration per Op, not per family.
+    it("moveZone.bindAll is picks, but never a public-zone candidate source", () => {
+        const errors = errorsOf([
+            {
+                op: "moveZone",
+                player: "controller",
+                from: "hand",
+                to: "exile",
+                faceDown: true,
+                bindAll: "$exiled",
+            } as EffectOp,
+            {
+                op: "choice",
+                kind: "choose-graveyard-card",
+                player: "controller",
+                zone: "exile",
+                candidates: [{ ref: "$exiled" }],
+                count: 1,
+                prompt: "Choose one.",
+                bind: "$kept",
+            } as EffectOp,
+        ]);
+        expect(errors.join("\n")).toContain("not known to be in a public zone");
     });
 
     // One rule for every declaring field: `$each` belongs to forEach (issue
