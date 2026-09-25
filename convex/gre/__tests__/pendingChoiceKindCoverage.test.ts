@@ -1,59 +1,23 @@
 // Every Pending Choice kind has a submit handler and a legal-actions handler
 // (issue #4440, CR 608.2). Both dispatchers — `applyPendingChoiceSubmit` and
-// `legalActions`' choice arm — end in `assertNever`, so a kind with no arm is
-// a compile error; this is the runtime half. It drives each kind through the
-// real entry points and fails when one reaches the exhaustiveness tail, i.e.
-// when no arm answered it. Any OTHER throw is the kind's own handler rejecting
-// the probe's empty payload, which is the handler existing.
+// `legalActions`' choice arm — read the handler registry (issue #4443), whose
+// `Record` type makes a kind with no row a compile error; this is the runtime
+// half. It drives each kind through the real entry points and fails when one
+// reaches the unhandled-kind refusal, i.e. when no row answered it. Any OTHER
+// throw is the kind's own handler rejecting the probe's empty payload, which
+// is the handler existing.
 import { describe, it, expect } from "vitest";
 import type { GameState, PendingChoice, PendingChoiceKind } from "../state";
 import { applyPendingChoiceSubmit } from "../pendingChoiceSubmit";
 import { legalActions } from "../legalActions";
+import { PENDING_CHOICE_HANDLERS } from "../pendingChoiceHandlers";
 import { makeState } from "../../cards/__tests__/setup";
 
-/** One row per `PendingChoiceKind` — a `Record` so a kind added to the union
- *  and missing here is a compile error, and the list the tests iterate is
- *  the whole union rather than a hand-kept copy that can fall behind it. */
-const ALL_KINDS: Record<PendingChoiceKind, true> = {
-    "keep-permanents": true,
-    "sacrifice-permanents": true,
-    "keep-hand": true,
-    "search-library": true,
-    "pick-source": true,
-    "untap-pick": true,
-    "discard-hand": true,
-    "reorder-library": true,
-    "reveal-hand": true,
-    "choose-permanents": true,
-    partition: true,
-    "choose-hand-card": true,
-    "choose-graveyard-card": true,
-    "choose-exile-card": true,
-    "choose-library-card": true,
-    "choose-damage-target": true,
-    "choose-player": true,
-    "draw-look-keep": true,
-    "order-top": true,
-    "look-distribute": true,
-    "choose-categorized": true,
-    "legend-keep": true,
-    "choose-aura-host": true,
-    "may-pay": true,
-    "land-entry-tapped": true,
-    "mulligan-bottom": true,
-    "trigger-order": true,
-    "option-pick": true,
-    "trigger-mode": true,
-    "name-card": true,
-    "random-reveal": true,
-    "divide-piles": true,
-    "pick-pile": true,
-    "madness-cast": true,
-    "rebound-cast": true,
-    "number-pick": true,
-    "draw-replacement": true,
-};
-const KINDS = Object.keys(ALL_KINDS) as PendingChoiceKind[];
+/** The kinds the tests iterate are the registry's own rows. The registry is a
+ *  `Record<PendingChoiceKind, …>`, so a kind added to the union without a row
+ *  — or a row removed — reds `check:ts`; this list can never fall behind
+ *  the union the way a hand-kept copy could (issue #4443). */
+const KINDS = Object.keys(PENDING_CHOICE_HANDLERS) as PendingChoiceKind[];
 
 const UNHANDLED = /Unhandled pending choice kind/;
 
@@ -103,7 +67,7 @@ function legalActionsProbe(kind: PendingChoiceKind): Error | undefined {
 }
 
 describe("Pending Choice kind coverage (CR 608.2, issue #4440)", () => {
-    it("the probe reaches the exhaustiveness tail — a kind outside the union is refused by both dispatchers", () => {
+    it("the probe reaches the unhandled-kind refusal — a kind outside the union is refused by both dispatchers", () => {
         // Positive control: without it, a probe stopped by some earlier throw
         // would make every row below pass vacuously.
         const bogus = "not-a-kind" as PendingChoiceKind;
