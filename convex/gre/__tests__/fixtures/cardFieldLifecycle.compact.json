@@ -1,0 +1,766 @@
+{
+  "players": [
+    {
+      "id": "p1",
+      "name": "p1",
+      "bgColor": "#000",
+      "life": 20,
+      "hand": [],
+      "library": [],
+      "graveyard": [],
+      "exile": [],
+      "battlefield": [
+        {
+          "id": "cf-every",
+          "card": {
+            "id": 0
+          },
+          "power": 5,
+          "toughness": 6,
+          "isToken": true,
+          "isSummoningSick": true,
+          "enteredOnTurn": 3,
+          "echoPending": true,
+          "isAttacking": true,
+          "isBlocking": true,
+          "hasAttackedThisTurn": true,
+          "hasBlockedThisTurn": true,
+          "attackedDuringLastTurn": true,
+          "dealtDamageToOpponentThisTurn": true,
+          "startedTurnUntapped": true,
+          "chosenModeId": "mode-a",
+          "chosenName": "Lightning Bolt",
+          "manaCommitted": true,
+          "tapTriggerCommitted": true,
+          "damageMarked": 1,
+          "classLevel": 2,
+          "loyaltyActivationsThisTurn": 1,
+          "dealtDeathtouchDamage": true,
+          "regenerationShields": 1,
+          "chosenMana": {
+            "G": 1
+          },
+          "manaCounterRemoval": {
+            "type": "charge",
+            "count": 1
+          },
+          "lifePaidThisTap": 2,
+          "manaPaidThisTap": {
+            "R": 1
+          },
+          "tapBonusMana": {
+            "C": 1
+          },
+          "grantedActivatedAbilities": [
+            {
+              "sourceCardId": "src-1",
+              "abilityId": "ab-1",
+              "origin": "grant-template",
+              "seq": 4
+            }
+          ],
+          "abilitiesSuppressedBy": [
+            {
+              "sourceId": "src-3",
+              "seq": 6
+            }
+          ],
+          "grantedTriggeredAbilities": [
+            {
+              "sourceCardId": "src-2",
+              "abilityId": "tr-1",
+              "seq": 5
+            }
+          ],
+          "grantedAttackRequirements": [
+            {
+              "seq": 14
+            }
+          ],
+          "baseStaticAbilities": [
+            "flying"
+          ],
+          "abilityLossHolds": [
+            {
+              "sourceId": "src-4",
+              "seq": 7
+            }
+          ],
+          "baseControllerId": "p1",
+          "baseTypes": [
+            "Creature"
+          ],
+          "baseSubtypes": [
+            "Bear"
+          ],
+          "textChangeHolds": [
+            {
+              "change": {
+                "kind": "land-type",
+                "from": "Island",
+                "to": "Swamp"
+              },
+              "seq": 15
+            }
+          ],
+          "typeLineHolds": [
+            {
+              "types": [
+                "Artifact"
+              ],
+              "seq": 16
+            }
+          ],
+          "subtypeAddHolds": [
+            {
+              "subtype": "Zombie",
+              "seq": 17
+            }
+          ],
+          "supertypeHolds": [
+            {
+              "add": [
+                "Snow"
+              ],
+              "remove": [
+                "Legendary"
+              ],
+              "seq": 18
+            }
+          ],
+          "damagedBySources": [
+            "src-5"
+          ],
+          "attachedTo": "host-1",
+          "controlChanges": [
+            {
+              "auraId": "aura-1",
+              "previousControllerId": "p1",
+              "controllerId": "p2",
+              "seq": 8
+            }
+          ],
+          "animation": {
+            "seq": 9,
+            "savedPower": 2,
+            "savedToughness": 2,
+            "setPower": 0,
+            "setToughness": 0,
+            "addedCreatureType": true,
+            "addedTypes": [
+              "Artifact"
+            ],
+            "addedSubtype": "Golem",
+            "duration": {
+              "phase": "end-of-turn"
+            },
+            "colors": [
+              "G"
+            ],
+            "grantedAbilities": [
+              "haste"
+            ]
+          },
+          "temporarySubtypeChange": {
+            "subtypes": [
+              "Elf"
+            ],
+            "restoreSubtypes": [
+              "Bear"
+            ],
+            "duration": {
+              "phase": "end-of-turn"
+            },
+            "seq": 10,
+            "family": "creature"
+          },
+          "indefiniteSubtypeSet": {
+            "restoreSubtypes": [
+              "Bear"
+            ],
+            "seq": 11,
+            "subtypes": [
+              "Spirit"
+            ]
+          },
+          "enterAttackingTarget": "p2",
+          "entersAsTypeLine": {
+            "types": [
+              "Enchantment"
+            ],
+            "subtypes": []
+          },
+          "temporaryColorOverride": {
+            "colors": [
+              "R"
+            ],
+            "restoreColorOverride": [
+              "B"
+            ],
+            "duration": {
+              "phase": "end-of-turn"
+            }
+          },
+          "sourceTappedPTMods": [
+            {
+              "power": 1,
+              "toughness": 1,
+              "sourceId": "src-6"
+            }
+          ],
+          "untapLockedBy": [
+            "src-7"
+          ],
+          "skipNextUntap": true,
+          "exertedThisTap": true,
+          "canAttackDespiteDefenderThisTurn": true,
+          "counters": {
+            "+1/+1": 2
+          },
+          "countersAtLeave": {
+            "+1/+1": 1
+          },
+          "capturedBindings": {
+            "exiled": [
+              "inst-x"
+            ]
+          },
+          "worldSeq": 12,
+          "staticSeq": 13,
+          "activationsThisTurn": {
+            "ab-1": 1
+          },
+          "triggersThisTurn": {
+            "tr-1": 1
+          },
+          "colorOverride": [
+            "B"
+          ],
+          "grantedColors": [
+            {
+              "color": "U",
+              "sourceId": "src-8"
+            }
+          ],
+          "grantedSupertypes": [
+            {
+              "supertype": "Snow",
+              "sourceId": "src-9"
+            }
+          ],
+          "removedSupertypes": [
+            {
+              "supertype": "Legendary",
+              "sourceId": "src-10"
+            }
+          ],
+          "copyExcept": {
+            "basePower": 1,
+            "baseToughness": 1
+          },
+          "copiedFrom": "def-orig",
+          "copyOptions": {
+            "copyColor": true
+          },
+          "timedCopyEffects": {
+            "underlying": null,
+            "effects": [
+              {
+                "sourceDefId": "def-c",
+                "opts": {},
+                "duration": {
+                  "phase": "end-of-turn"
+                }
+              }
+            ]
+          },
+          "manaCostOverride": {},
+          "imagePrintId": "print-1",
+          "exileOnDeath": true,
+          "damageLockThisTurn": true,
+          "exileOnLeave": true,
+          "cantBeRegeneratedThisTurn": true,
+          "mustAttackThisTurn": true,
+          "canBlockAdditional": 1,
+          "mustBlockAllThisTurn": true,
+          "cantBlockThisTurn": true,
+          "cantAttackThisTurn": true,
+          "cantBeBlockedThisTurn": true,
+          "cantBeBlockedBySubtypesThisTurn": [
+            "Wall"
+          ],
+          "chosenPlayerId": "p2",
+          "chosenSubtypes": [
+            "Elf",
+            "Goblin"
+          ],
+          "pileLabel": "A",
+          "faceDown": true,
+          "faceDownBy": "morph",
+          "faceDownOf": "def-front",
+          "adventureOf": "def-adv",
+          "splitHalfOf": "def-split",
+          "transformed": true,
+          "transformedFrom": "def-tf",
+          "createdBy": "src-11",
+          "linkedTokenId": "tok-1",
+          "knownTo": [
+            "p1"
+          ],
+          "notedMana": {
+            "mana": {
+              "U": 1
+            },
+            "castableCardId": "def-n"
+          },
+          "castableFromExileBy": "p1",
+          "castableFromExileUntilOwnTurn": 21,
+          "castableFromExileUntilTurn": 20,
+          "castableFromExileFromTurn": 22,
+          "warpExiled": true,
+          "warped": true,
+          "transformedAtDelayedSeq": 19,
+          "transformCount": 2,
+          "castFromExileNotAsAdventure": true,
+          "castFromExileWithoutPayingManaCost": true,
+          "castableFromExileIncludesLand": true,
+          "castFromExileManaSubstitution": "any-color",
+          "castFromExileCostIncrease": {
+            "generic": 2
+          },
+          "exiledBySourceId": "src-12",
+          "castableFromGraveyardBy": "p1",
+          "castableFromGraveyardUntilTurn": 23,
+          "castFromGraveyardExilesOnResolve": true,
+          "castFromGraveyardWithoutPayingManaCost": true,
+          "grantedFlashback": {
+            "R": 1
+          },
+          "grantedEnchantRestriction": {
+            "types": [
+              "Creature"
+            ]
+          },
+          "escaped": true,
+          "madnessExiled": true,
+          "madnessTriggerPending": true,
+          "reboundExiled": true,
+          "evoked": true,
+          "dashed": true,
+          "overloaded": true,
+          "castOffSorceryTiming": true,
+          "notedManaSpentOnCast": {
+            "G": 2
+          },
+          "wasKicked": true,
+          "kickerPayments": {
+            "kicker": 1
+          },
+          "unkickedCostPayments": {
+            "offspring": 1
+          },
+          "chosenXOnCast": 3
+        }
+      ],
+      "manaPool": {}
+    },
+    {
+      "id": "p2",
+      "name": "p2",
+      "bgColor": "#000",
+      "life": 20,
+      "hand": [],
+      "library": [],
+      "graveyard": [],
+      "exile": [],
+      "battlefield": [
+        {
+          "id": "cf-bestowed",
+          "card": {
+            "id": 0
+          },
+          "types": [
+            "Enchantment"
+          ],
+          "subtypes": [
+            "Aura"
+          ],
+          "attachedTo": "cf-every",
+          "bestowed": true
+        }
+      ],
+      "manaPool": {}
+    }
+  ],
+  "stack": [
+    {
+      "id": "cf-stack",
+      "card": {
+        "id": 0
+      },
+      "controllerId": "p2",
+      "power": 5,
+      "toughness": 6,
+      "isToken": true,
+      "isSummoningSick": true,
+      "enteredOnTurn": 3,
+      "echoPending": true,
+      "isAttacking": true,
+      "isBlocking": true,
+      "hasAttackedThisTurn": true,
+      "hasBlockedThisTurn": true,
+      "attackedDuringLastTurn": true,
+      "dealtDamageToOpponentThisTurn": true,
+      "startedTurnUntapped": true,
+      "chosenModeId": "mode-a",
+      "chosenName": "Lightning Bolt",
+      "manaCommitted": true,
+      "tapTriggerCommitted": true,
+      "damageMarked": 1,
+      "classLevel": 2,
+      "loyaltyActivationsThisTurn": 1,
+      "dealtDeathtouchDamage": true,
+      "regenerationShields": 1,
+      "chosenMana": {
+        "G": 1
+      },
+      "manaCounterRemoval": {
+        "type": "charge",
+        "count": 1
+      },
+      "lifePaidThisTap": 2,
+      "manaPaidThisTap": {
+        "R": 1
+      },
+      "tapBonusMana": {
+        "C": 1
+      },
+      "grantedActivatedAbilities": [
+        {
+          "sourceCardId": "src-1",
+          "abilityId": "ab-1",
+          "origin": "grant-template",
+          "seq": 4
+        }
+      ],
+      "abilitiesSuppressedBy": [
+        {
+          "sourceId": "src-3",
+          "seq": 6
+        }
+      ],
+      "grantedTriggeredAbilities": [
+        {
+          "sourceCardId": "src-2",
+          "abilityId": "tr-1",
+          "seq": 5
+        }
+      ],
+      "grantedAttackRequirements": [
+        {
+          "seq": 14
+        }
+      ],
+      "baseStaticAbilities": [
+        "flying"
+      ],
+      "abilityLossHolds": [
+        {
+          "sourceId": "src-4",
+          "seq": 7
+        }
+      ],
+      "baseControllerId": "p1",
+      "baseTypes": [
+        "Creature"
+      ],
+      "baseSubtypes": [
+        "Bear"
+      ],
+      "textChangeHolds": [
+        {
+          "change": {
+            "kind": "land-type",
+            "from": "Island",
+            "to": "Swamp"
+          },
+          "seq": 15
+        }
+      ],
+      "typeLineHolds": [
+        {
+          "types": [
+            "Artifact"
+          ],
+          "seq": 16
+        }
+      ],
+      "subtypeAddHolds": [
+        {
+          "subtype": "Zombie",
+          "seq": 17
+        }
+      ],
+      "supertypeHolds": [
+        {
+          "add": [
+            "Snow"
+          ],
+          "remove": [
+            "Legendary"
+          ],
+          "seq": 18
+        }
+      ],
+      "damagedBySources": [
+        "src-5"
+      ],
+      "attachedTo": "host-1",
+      "controlChanges": [
+        {
+          "auraId": "aura-1",
+          "previousControllerId": "p1",
+          "controllerId": "p2",
+          "seq": 8
+        }
+      ],
+      "animation": {
+        "seq": 9,
+        "savedPower": 2,
+        "savedToughness": 2,
+        "setPower": 0,
+        "setToughness": 0,
+        "addedCreatureType": true,
+        "addedTypes": [
+          "Artifact"
+        ],
+        "addedSubtype": "Golem",
+        "duration": {
+          "phase": "end-of-turn"
+        },
+        "colors": [
+          "G"
+        ],
+        "grantedAbilities": [
+          "haste"
+        ]
+      },
+      "temporarySubtypeChange": {
+        "subtypes": [
+          "Elf"
+        ],
+        "restoreSubtypes": [
+          "Bear"
+        ],
+        "duration": {
+          "phase": "end-of-turn"
+        },
+        "seq": 10,
+        "family": "creature"
+      },
+      "indefiniteSubtypeSet": {
+        "restoreSubtypes": [
+          "Bear"
+        ],
+        "seq": 11,
+        "subtypes": [
+          "Spirit"
+        ]
+      },
+      "enterAttackingTarget": "p2",
+      "entersAsTypeLine": {
+        "types": [
+          "Enchantment"
+        ],
+        "subtypes": []
+      },
+      "temporaryColorOverride": {
+        "colors": [
+          "R"
+        ],
+        "restoreColorOverride": [
+          "B"
+        ],
+        "duration": {
+          "phase": "end-of-turn"
+        }
+      },
+      "sourceTappedPTMods": [
+        {
+          "power": 1,
+          "toughness": 1,
+          "sourceId": "src-6"
+        }
+      ],
+      "untapLockedBy": [
+        "src-7"
+      ],
+      "skipNextUntap": true,
+      "exertedThisTap": true,
+      "canAttackDespiteDefenderThisTurn": true,
+      "counters": {
+        "+1/+1": 2
+      },
+      "countersAtLeave": {
+        "+1/+1": 1
+      },
+      "capturedBindings": {
+        "exiled": [
+          "inst-x"
+        ]
+      },
+      "worldSeq": 12,
+      "staticSeq": 13,
+      "activationsThisTurn": {
+        "ab-1": 1
+      },
+      "triggersThisTurn": {
+        "tr-1": 1
+      },
+      "colorOverride": [
+        "B"
+      ],
+      "grantedColors": [
+        {
+          "color": "U",
+          "sourceId": "src-8"
+        }
+      ],
+      "grantedSupertypes": [
+        {
+          "supertype": "Snow",
+          "sourceId": "src-9"
+        }
+      ],
+      "removedSupertypes": [
+        {
+          "supertype": "Legendary",
+          "sourceId": "src-10"
+        }
+      ],
+      "copyExcept": {
+        "basePower": 1,
+        "baseToughness": 1
+      },
+      "copiedFrom": "def-orig",
+      "copyOptions": {
+        "copyColor": true
+      },
+      "timedCopyEffects": {
+        "underlying": null,
+        "effects": [
+          {
+            "sourceDefId": "def-c",
+            "opts": {},
+            "duration": {
+              "phase": "end-of-turn"
+            }
+          }
+        ]
+      },
+      "manaCostOverride": {},
+      "imagePrintId": "print-1",
+      "exileOnDeath": true,
+      "damageLockThisTurn": true,
+      "exileOnLeave": true,
+      "cantBeRegeneratedThisTurn": true,
+      "mustAttackThisTurn": true,
+      "canBlockAdditional": 1,
+      "mustBlockAllThisTurn": true,
+      "cantBlockThisTurn": true,
+      "cantAttackThisTurn": true,
+      "cantBeBlockedThisTurn": true,
+      "cantBeBlockedBySubtypesThisTurn": [
+        "Wall"
+      ],
+      "chosenPlayerId": "p2",
+      "chosenSubtypes": [
+        "Elf",
+        "Goblin"
+      ],
+      "pileLabel": "A",
+      "faceDown": true,
+      "faceDownBy": "morph",
+      "faceDownOf": "def-front",
+      "adventureOf": "def-adv",
+      "splitHalfOf": "def-split",
+      "transformed": true,
+      "transformedFrom": "def-tf",
+      "createdBy": "src-11",
+      "linkedTokenId": "tok-1",
+      "knownTo": [
+        "p1"
+      ],
+      "notedMana": {
+        "mana": {
+          "U": 1
+        },
+        "castableCardId": "def-n"
+      },
+      "castableFromExileBy": "p1",
+      "castableFromExileUntilOwnTurn": 21,
+      "castableFromExileUntilTurn": 20,
+      "castableFromExileFromTurn": 22,
+      "warpExiled": true,
+      "warped": true,
+      "transformedAtDelayedSeq": 19,
+      "transformCount": 2,
+      "castFromExileNotAsAdventure": true,
+      "castFromExileWithoutPayingManaCost": true,
+      "castableFromExileIncludesLand": true,
+      "castFromExileManaSubstitution": "any-color",
+      "castFromExileCostIncrease": {
+        "generic": 2
+      },
+      "exiledBySourceId": "src-12",
+      "castableFromGraveyardBy": "p1",
+      "castableFromGraveyardUntilTurn": 23,
+      "castFromGraveyardExilesOnResolve": true,
+      "castFromGraveyardWithoutPayingManaCost": true,
+      "grantedFlashback": {
+        "R": 1
+      },
+      "grantedEnchantRestriction": {
+        "types": [
+          "Creature"
+        ]
+      },
+      "escaped": true,
+      "madnessExiled": true,
+      "madnessTriggerPending": true,
+      "reboundExiled": true,
+      "evoked": true,
+      "dashed": true,
+      "overloaded": true,
+      "castOffSorceryTiming": true,
+      "notedManaSpentOnCast": {
+        "G": 2
+      },
+      "wasKicked": true,
+      "kickerPayments": {
+        "kicker": 1
+      },
+      "unkickedCostPayments": {
+        "offspring": 1
+      },
+      "chosenXOnCast": 3,
+      "ownerId": "p1",
+      "castById": "p2"
+    }
+  ],
+  "turn": 1,
+  "activePlayerId": "p1",
+  "priorityPlayerId": "p1",
+  "passCount": 0,
+  "phase": "PRECOMBAT_MAIN",
+  "rngSeed": 0,
+  "rngCounter": 0,
+  "expectedInput": {
+    "kind": "priority",
+    "playerId": "p1"
+  },
+  "v": 2,
+  "cardPool": [
+    "ce2d603a-3231-4a8c-bf39-1617586ea870"
+  ]
+}
