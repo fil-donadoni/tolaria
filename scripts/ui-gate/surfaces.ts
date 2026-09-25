@@ -734,10 +734,16 @@ async function reachFixtureAntechamber(
 }
 
 /** The list's and the antechamber's openers for the Limited overlays
- *  (issue #4422), by each button's own visible text. */
+ *  (issue #4422), by each button's own visible text. `Leave Seat` is an
+ *  `ActionButton`, which wraps its label in a `<span>` — and `:text-is`
+ *  matches the SMALLEST element carrying the text, i.e. that span, never
+ *  the button (measured: UNWALKED at all five viewports while
+ *  `limited-antechamber` promised the same button PASS). `:has-text` is
+ *  the form that reaches through the wrapper; no other button on the
+ *  antechamber contains the phrase. */
 const LIMITED_CREATE_EVENT = 'button:text-is("+ Create Event")';
 const LIMITED_VIEW_TABLE = 'button:text-is("View Table")';
-const LIMITED_LEAVE_SEAT = 'button:text-is("Leave Seat")';
+const LIMITED_LEAVE_SEAT = 'button:has-text("Leave Seat")';
 
 /** `ActionSheet`'s own queryable handle (`ui/action-sheet.tsx`, issue #2584):
  *  it portals to `document.body`, so this is the only seam that names it. */

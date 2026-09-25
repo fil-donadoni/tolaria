@@ -79,7 +79,14 @@ export default function ActionSheet({
                 // v4 (ADR 0103 §5, issue #2731): the hairline frame's top
                 // edge, so the sheet reads as the same material as every
                 // other re-skinned surface instead of a bare elevated box.
-                className="absolute bottom-0 left-0 right-0 rounded-t-2xl border-t border-[var(--hairline)] bg-surface backdrop-blur-sm shadow-2xl transition-transform duration-200"
+                //
+                // Capped at the viewport less a `2rem` margin (the same cap
+                // `GameDialog` keeps, `dvh` for the same reason) and a column
+                // whose item list scrolls: uncapped, a long list grew the
+                // sheet past the top edge and stranded its first rows off
+                // screen — measured by `check:ui`'s `draft-pool-move-sheet`
+                // at 844x390, the Pool's nine MV columns (issue #4422).
+                className="absolute bottom-0 left-0 right-0 flex max-h-[calc(100dvh-2rem)] flex-col rounded-t-2xl border-t border-[var(--hairline)] bg-surface backdrop-blur-sm shadow-2xl transition-transform duration-200"
                 style={{
                     transform: animIn
                         ? `translateY(${translateY}px)`
@@ -91,10 +98,10 @@ export default function ActionSheet({
                 onTouchMove={onSwipeMove}
                 onTouchEndCapture={onSwipeEnd}
             >
-                <div className="flex justify-center py-3">
+                <div className="flex shrink-0 justify-center py-3">
                     <div className="w-10 h-1 rounded-full bg-[var(--hairline-strong)]" />
                 </div>
-                <div className="flex flex-col gap-[var(--menu-row-gap)] px-2 pb-[max(env(safe-area-inset-bottom),1rem)]">
+                <div className="flex min-h-0 flex-col gap-[var(--menu-row-gap)] overflow-y-auto px-2 pb-[max(env(safe-area-inset-bottom),1rem)]">
                     {items.map((item) => (
                         <button
                             key={item.key}
