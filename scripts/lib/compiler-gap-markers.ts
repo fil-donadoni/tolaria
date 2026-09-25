@@ -324,3 +324,49 @@ export function misfiledMarkers<M extends CompilerGapMarker>(
         );
     });
 }
+
+/** A `hand-tail:` card whose marker names a different issue than its claim. */
+export interface HandTailClaimMismatch {
+    readonly card: string;
+    /** The first disagreeing marker's issue, in source order. */
+    readonly markerIssue: number;
+    /** The `hand-tail` claim row's issue for the card. */
+    readonly claimIssue: number;
+}
+
+/**
+ * The marker names the claim, the writing PR closes it (PRD issue #4509,
+ * issue #4514): a card written by another issue than its Hand Tail claim —
+ * a C-cluster slice writing several cards — leaves the claim open forever,
+ * unless its `hand-tail:` marker names the claim row's issue. One mismatch
+ * per card, sorted by card, however many markers the card carries; a card
+ * with no `hand-tail` claim row owes nothing here.
+ *
+ * `claims` is structural (`ClaimRow` of `targets.ts`) so this source scanner
+ * imports nothing past its own family.
+ */
+export function handTailClaimMismatches(
+    markers: readonly CompilerGapMarker[],
+    claims: readonly {
+        readonly kind: string;
+        readonly key: string;
+        readonly issue: number;
+    }[]
+): HandTailClaimMismatch[] {
+    const claimOf = new Map(
+        claims
+            .filter((row) => row.kind === "hand-tail")
+            .map((row) => [row.key, row.issue] as const)
+    );
+    const out = new Map<string, HandTailClaimMismatch>();
+    for (const m of markers) {
+        if (m.kind !== "hand-tail" || !isExempting(m) || out.has(m.card))
+            continue;
+        const claimIssue = claimOf.get(m.card);
+        if (claimIssue === undefined || m.issue === claimIssue) continue;
+        out.set(m.card, { card: m.card, markerIssue: m.issue!, claimIssue });
+    }
+    return [...out.values()].sort((a, b) =>
+        a.card < b.card ? -1 : a.card > b.card ? 1 : 0
+    );
+}

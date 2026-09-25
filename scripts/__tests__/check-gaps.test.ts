@@ -9,13 +9,19 @@ import {
     auditOpCensus,
     baselineAllowlist,
     emittedOps,
+    gapsVerdict,
     parseAllowlist,
     render,
     renderBotGaps,
+    renderHandTailClaims,
     unclaimedBotGaps,
     type Allowlist,
     type Violation,
 } from "../check-gaps";
+import {
+    handTailClaimMismatches,
+    scanCompilerGapMarkers,
+} from "../lib/compiler-gap-markers";
 
 /**
  * The derived Op census guard (ADR 0105 § 7.3, issue #3824).
@@ -384,5 +390,70 @@ describe("in-scope Bot Gaps are filed (issue #4061)", () => {
             )
         ).toEqual([]);
         expect(renderBotGaps(2, [])).toMatch(/^✓ gaps: 2 Bot Gap key/);
+    });
+});
+
+describe("hand-tail markers name their claim (issue #4514)", () => {
+    /** One card, its doc paragraph carrying `hand-tail:` markers — scanned
+     *  through the real scanner, so attachment is the production rule. */
+    const source = (name: string, ...issues: number[]) => [
+        ...issues.map((n) => `// hand-tail: some fragment (#${n})`),
+        `export const Card${issues.length}: CardDefinition = {`,
+        `    name: "${name}",`,
+        "};",
+        "",
+    ];
+    const markers = (...cards: string[][]) =>
+        scanCompilerGapMarkers(cards.flat());
+    const claim = (key: string, issue: number) => ({
+        kind: "hand-tail" as const,
+        key,
+        issue,
+    });
+    const census = auditOpCensus({
+        implemented: [],
+        emitted: new Set(),
+        allowlist: { ops: [] },
+        baseline: null,
+    });
+
+    it("a marker naming its claim's issue is no finding", () => {
+        const found = handTailClaimMismatches(
+            markers(source("Arena of Glory", 4338, 4338)),
+            [claim("Arena of Glory", 4338)]
+        );
+        expect(found).toEqual([]);
+        expect(gapsVerdict(census, 0, [], found).ok).toBe(true);
+    });
+
+    it("a marker naming another issue is ONE finding naming card, marker and claim, and reds", () => {
+        const found = handTailClaimMismatches(
+            markers(
+                source("Myr Battlesphere", 4195, 4195),
+                source("Arena of Glory", 4338)
+            ),
+            [claim("Myr Battlesphere", 4321), claim("Arena of Glory", 4338)]
+        );
+        expect(found).toEqual([
+            { card: "Myr Battlesphere", markerIssue: 4195, claimIssue: 4321 },
+        ]);
+        const verdict = gapsVerdict(census, 0, [], found);
+        expect(verdict.ok).toBe(false);
+        expect(renderHandTailClaims(found)).toContain(
+            "Myr Battlesphere: marker names #4195, claim is #4321"
+        );
+        expect(verdict.out).toContain("✗ gaps: 1 `hand-tail:` marker(s)");
+    });
+
+    it("a hand-tail card with no hand-tail claim row is no finding", () => {
+        const found = handTailClaimMismatches(
+            markers(source("Arena of Glory", 4338)),
+            [
+                claim("Myr Battlesphere", 4321),
+                { kind: "bot", key: "Arena of Glory", issue: 4000 },
+            ]
+        );
+        expect(found).toEqual([]);
+        expect(renderHandTailClaims(found)).toMatch(/^✓ gaps: every/);
     });
 });

@@ -36,8 +36,16 @@
  * played, and the allowlist must say which issue owns that. A key no ranked
  * card carries is reported in the lockfile's table and owed nothing here.
  *
- * Offline and ~1s: the committed lockfile, the registry and the Target
- * Lists, no network, no corpus. It runs in `health` ONLY — added to `scripts/lib/health-step.ts`'s
+ * ── Hand-tail markers name their claim (issue #4514, PRD issue #4509) ──
+ *
+ * A card carrying a `hand-tail:` marker AND a `hand-tail` claim row must name
+ * the claim's issue in its marker: the marker names the claim, the writing PR
+ * closes it. A card written by another issue (a C-cluster slice writing
+ * several cards) otherwise leaves its claim open forever. Deliberately NOT a
+ * PR-phase gate — the miss is caught within one `health` batch.
+ *
+ * Offline and ~1s: the committed lockfile, the registry, the Target Lists and
+ * the card set sources, no network, no corpus. It runs in `health` ONLY — added to `scripts/lib/health-step.ts`'s
  * step list, never to `check:all` or `check:pr`, so a PR and `land` pay
  * nothing for it (ADR 0105 § 7.3, asserted by `check-gaps.test.ts`).
  *
@@ -49,6 +57,12 @@ import { join, resolve } from "node:path";
 import { EFFECT_OP_REGISTRY } from "../convex/cards/mechanicsRegistry";
 import { inScopeBotGapKeys, rankedCardIds } from "./lib/gap-kinds";
 import { opGapKey } from "./lib/grammar-gaps";
+import {
+    handTailClaimMismatches,
+    scanFilesForCompilerGaps,
+    type HandTailClaimMismatch,
+} from "./lib/compiler-gap-markers";
+import { collectSetFiles } from "./lib/divergence-markers";
 import {
     botHash,
     FINDINGS_PATH,
@@ -292,6 +306,44 @@ export function renderBotGaps(
     ].join("\n");
 }
 
+export function renderHandTailClaims(
+    mismatches: readonly HandTailClaimMismatch[]
+): string {
+    if (mismatches.length === 0)
+        return "✓ gaps: every `hand-tail:` marker names its `hand-tail` claim's issue";
+    return [
+        `✗ gaps: ${mismatches.length} \`hand-tail:\` marker(s) name another issue than the card's \`hand-tail\` claim:\n`,
+        ...mismatches.map(
+            (m) =>
+                `  - ${m.card}: marker names #${m.markerIssue}, claim is #${m.claimIssue}`
+        ),
+        "",
+        "  Re-point the marker to the claim's issue (or close the claim with the",
+        "  PR that wrote the card): the marker names the claim, the writing PR",
+        "  closes it (issue #4514).",
+    ].join("\n");
+}
+
+/** The three halves' combined verdict — pure, so the exit code is tested. */
+export function gapsVerdict(
+    census: CensusResult,
+    inScopeBotGaps: number,
+    unclaimed: readonly string[],
+    mismatches: readonly HandTailClaimMismatch[]
+): { ok: boolean; out: string } {
+    return {
+        ok:
+            census.violations.length === 0 &&
+            unclaimed.length === 0 &&
+            mismatches.length === 0,
+        out: [
+            render(census),
+            renderBotGaps(inScopeBotGaps, unclaimed),
+            renderHandTailClaims(mismatches),
+        ].join("\n"),
+    };
+}
+
 const EXITS: Record<Violation["kind"], string> = {
     missing:
         "implemented, emitted by no Compiled Definition, and NOT allowlisted.\n" +
@@ -365,12 +417,20 @@ function main(): void {
         rankedCardIds(readTargetRegistry(root), resolveContext(root, lock)),
         botMerge.merged
     );
-    const unclaimed = unclaimedBotGaps(
-        inScope,
-        parseClaimRows(allowlist, ALLOWLIST_PATH)
+    const claims = parseClaimRows(allowlist, ALLOWLIST_PATH);
+    const unclaimed = unclaimedBotGaps(inScope, claims);
+    const mismatches = handTailClaimMismatches(
+        scanFilesForCompilerGaps(
+            collectSetFiles(join(root, "convex", "cards", "sets"))
+        ),
+        claims
     );
-    const ok = result.violations.length === 0 && unclaimed.length === 0;
-    const out = `${render(result)}\n${renderBotGaps(inScope.length, unclaimed)}`;
+    const { ok, out } = gapsVerdict(
+        result,
+        inScope.length,
+        unclaimed,
+        mismatches
+    );
     if (ok) {
         console.log(out);
         return;
