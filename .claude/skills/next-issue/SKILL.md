@@ -200,7 +200,11 @@ The path-specific rules apply unchanged (`.claude/rules/gre-development.md`,
 `frontend-components.md`, `bot-development.md`): CR printed not recalled,
 DSL-first, frontend wiring walk, proof-of-failure for every guarding test.
 Iterate with targeted runs only (`bunx vitest run <path>`). Card variants in
-tests go through `withTemporaryDefinition` — the catalogue is frozen.
+tests go through `withTemporaryDefinition` — the catalogue is frozen. Added or
+retitled a test block that pins a constant or asserts object identity? Run
+`bun run check:test-hygiene` (guard-cached, ~7 s) before the PR: a block not
+named in `scripts/lib/identity-test-allowlist.json` lands green and reds the
+next `health` run instead (issue #4490, issue #4686).
 
 **Touching the Bot (`convex/gre/{search,evaluate,moves,applyMove,ai}`,
 `src/lib/ai/`, `convex/limited/botDrafter`)? Invoke `/bot-slice` FIRST**

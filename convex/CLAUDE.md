@@ -172,8 +172,9 @@ fields and asserts them, with no engine entry point, no fixture builder and no
 reducer between the read and the `expect`, is the definition written twice: it
 goes red on correct edits, green on a card that is inert in the engine, and
 counts as coverage while proving nothing.
-`scripts/__tests__/identity-only-card-tests.test.ts` fails CI on a new one
-(allowlist empty, meant to stay empty). History: `docs/agents/gre-guards.md`.
+`identity-only-card-tests.test.ts` reds one in `cards/sets/**` at PR time;
+repo-wide, health's `check:test-hygiene` reds it unless named in
+`scripts/lib/identity-test-allowlist.json`.
 
 **Why wire tests are mandatory for visible effects:** the projection
 (`convex/gameProjections.ts`) strips `card.card` → `{ id }`, reshapes arrays

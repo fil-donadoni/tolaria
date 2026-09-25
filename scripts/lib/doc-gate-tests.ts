@@ -18,6 +18,11 @@ export const DOC_GATE_TESTS = [
     "scripts/__tests__/adr-index.test.ts",
     "scripts/__tests__/agents-md-drift.test.ts",
     "scripts/__tests__/bot-globs.test.ts",
+    // Issue #4686: asserts that `convex/CLAUDE.md` § Card testing convention
+    // and the `/next-issue` skill name the test-hygiene census and its
+    // allow-list — prose the docs lane carries on its own, so the lane that
+    // merges a rewrite of either has to be the lane that re-runs this.
+    "scripts/__tests__/check-test-hygiene.test.ts",
     // The CR citation ledger (ADR 0133) is accountable for every `CR` line
     // in prose too — an ADR or guide that adds a citation owes an entry — so
     // the lane that merges a doc edit runs its whole-tree assertion
