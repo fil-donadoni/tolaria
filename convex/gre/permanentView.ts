@@ -26,7 +26,7 @@
 // `moves.ts`, `game.ts`, `sacrificeChoice.ts`, `paymentPicks.ts` — can import
 // it without pulling in the phase machinery.
 
-import type { CardInstanceState, GameState } from "./state";
+import type { CardInstanceState, GameState } from "./state/declarations";
 import { hasControlledSinceTurnStart } from "./controlContinuity";
 import {
     STATIC_EFFECT_CTX,

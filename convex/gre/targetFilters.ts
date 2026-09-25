@@ -52,7 +52,7 @@ import type {
     PendingTarget,
     PlayerState,
     StackItem,
-} from "./state";
+} from "./state/declarations";
 import {
     STATIC_EFFECT_CTX,
     getEffectivePower,

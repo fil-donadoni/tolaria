@@ -25,7 +25,7 @@ import type {
     GameState,
     PendingCast,
     PlayerState,
-} from "./state";
+} from "./state/declarations";
 import { getMadnessCost } from "./madness";
 import {
     countDistinctCardTypes,

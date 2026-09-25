@@ -25,7 +25,7 @@
 import type { Color, FlashbackCost, ManaCost } from "../cards/types";
 import { tryGetDefinition } from "../cards";
 import { isExileCostEligible } from "../cards/exileCostEligibility";
-import type { CardInstanceState, PlayerState } from "./state";
+import type { CardInstanceState, PlayerState } from "./state/declarations";
 
 /** The flashback-only NON-mana additional cost (sacrifice a permanent and/or
  *  exile a card from hand), independent of the mana portion (CR 702.34a). */

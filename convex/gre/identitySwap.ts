@@ -51,7 +51,7 @@
 import type { CardType } from "../cards/types";
 import { recomposeLayer6ForInstance } from "./layer6";
 import { recomposeLayers2to5ForInstance } from "./layers2to5";
-import type { CardInstanceState } from "./state";
+import type { CardInstanceState } from "./state/declarations";
 import type { LayerStateView } from "./layers";
 
 /** The copiable values (CR 613.1a layer 1) an identity swap installs: the

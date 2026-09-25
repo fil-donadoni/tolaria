@@ -29,7 +29,7 @@
 // which creatures the cost may legally return, and which defender the entering
 // ninja inherits.
 
-import type { CardInstanceState, GameState } from "./state";
+import type { CardInstanceState, GameState } from "./state/declarations";
 import type { UnblockedAttackerScope } from "./combat";
 import { unblockedAttackerIds } from "./combat";
 import type {

@@ -18,8 +18,10 @@
 // catalogue-wide sweep against a narrow allowlist whose every entry is
 // asserted to still be load-bearing, so it empties out instead of rotting.
 //
-// SURFACES. EVERY top-level `interface`/`type` declaration in the two type
-// files — `convex/gre/state.ts` and `convex/cards/types.ts` — plus the Op
+// SURFACES. EVERY top-level `interface`/`type` declaration in the type
+// files — `convex/gre/state/declarations.ts` (where `gre/state.ts`'s
+// declarations live since issue #4449; the core itself is still swept for the
+// few value-derived types it keeps) and `convex/cards/types.ts` — plus the Op
 // names in `EFFECT_OP_REGISTRY`. Issue #1918 named four declarations
 // (`GameState`, `PlayerState`, `CardInstanceState`, `SpellContext`); a
 // hand-listed set turned out to be a blind spot with no tell, since
@@ -57,6 +59,7 @@ import { EFFECT_OP_REGISTRY } from "../mechanicsRegistry";
 import { PERSISTED_OPTIONAL_KEYS, TRANSIENT_KEYS } from "../../gre/serialize";
 
 const STATE_TS = path.resolve("convex/gre/state.ts");
+const STATE_DECLARATIONS_TS = path.resolve("convex/gre/state/declarations.ts");
 const TYPES_TS = path.resolve("convex/cards/types.ts");
 
 /** Card name → comparison form: lowercase, non-alphanumerics dropped.
@@ -275,6 +278,7 @@ const SURFACES: ReadonlyArray<{
     readonly label: string;
     readonly identifiers: readonly string[];
 }> = [
+    ...declarationSurfaces(STATE_DECLARATIONS_TS),
     ...declarationSurfaces(STATE_TS),
     ...declarationSurfaces(TYPES_TS),
     { label: "Op", identifiers: OP_NAMES },
@@ -287,7 +291,7 @@ const SURFACES: ReadonlyArray<{
  *  that into a red. Raise them when the files grow; never lower one to make a
  *  refactor pass without re-checking what stopped being scanned. */
 const MEMBER_FLOORS: ReadonlyArray<{ file: string; members: number }> = [
-    { file: STATE_TS, members: 500 },
+    { file: STATE_DECLARATIONS_TS, members: 500 },
     { file: TYPES_TS, members: 1150 },
 ];
 

@@ -38,7 +38,7 @@ import type {
     Color,
     TextChange,
 } from "../cards/types";
-import type { Duration, GameState } from "./state";
+import type { Duration, GameState } from "./state/declarations";
 
 /** CR 613.1b-g — the layers this registry covers. Layer 1 (copiable values,
  *  CR 613.1a) is deliberately absent: copy effects are applied BEFORE the

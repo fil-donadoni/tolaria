@@ -28,7 +28,11 @@
 // threshold` to also carry the **variable-offset** shape delve needs
 // (`offsetGeneric: { min, max }`) — primitive reuse, not a delve-shaped
 // bespoke picker.
-import type { CardInstanceState, PendingCast, PlayerState } from "./state";
+import type {
+    CardInstanceState,
+    PendingCast,
+    PlayerState,
+} from "./state/declarations";
 import type { Color } from "../cards/types";
 import { getInstanceManaCost, tryGetDefinition } from "../cards";
 import { MANA_COLORS } from "./manaColors";

@@ -25,7 +25,7 @@
 // turn — a permanent its controller has genuinely held since that turn began
 // would read as "not continuously controlled" for the opponent's entire turn.
 
-import type { CardInstanceState, GameState } from "./state";
+import type { CardInstanceState, GameState } from "./state/declarations";
 
 /** The two turn-scoped `GameState` fields control continuity is derived from.
  *  Both cross the wire verbatim (`projectPublicState` spreads `...state`), so

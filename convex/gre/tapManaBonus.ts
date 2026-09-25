@@ -29,7 +29,7 @@
 // tap still adds the mana; only the prediction under-counts in that rare case.
 
 import type { Color, TapManaBonusForPotential } from "../cards/types";
-import type { CardInstanceState } from "./state";
+import type { CardInstanceState } from "./state/declarations";
 import { matchesPermanentFilter } from "../cards/filters";
 import { tryGetDefinition } from "../cards";
 import {

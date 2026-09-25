@@ -13,7 +13,7 @@
 
 import { FACE_DOWN_CARD_ID, tryGetDefinition } from "../cards";
 import { rebuildCopiableValuesAndReplayOverlays } from "./identitySwap";
-import type { CardInstanceState } from "./state";
+import type { CardInstanceState } from "./state/declarations";
 import type { LayerStateView } from "./layers";
 
 /**

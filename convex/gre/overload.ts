@@ -54,7 +54,11 @@ import type {
     TargetSelection,
 } from "../cards/types";
 import { getLegalTargets, targetingSourceFromCard } from "./rules";
-import type { CardInstanceState, GameState, StackItem } from "./state";
+import type {
+    CardInstanceState,
+    GameState,
+    StackItem,
+} from "./state/declarations";
 
 /** CR 702.96a — is `alt` the card's OWN overload cost? Compared by reference,
  *  the `isBestowAlternativeCost` idiom: `getAlternativeCost` resolves

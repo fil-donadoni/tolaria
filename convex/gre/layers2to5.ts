@@ -78,7 +78,7 @@ import { CDA_STATIC_EFFECT_KINDS } from "./dependency";
 import { orderByDependency } from "./dependency";
 import { applySubstitution } from "./textChanges";
 import type { ContinuousEffect } from "./continuousEffects";
-import type { Duration } from "./state";
+import type { Duration } from "./state/declarations";
 import { emblemAsStaticSource, STATIC_EFFECT_CTX } from "./layers";
 import type { LayerStateView } from "./layers";
 import type {
@@ -90,7 +90,7 @@ import type {
     TextChange,
     ZoneScopedStaticEffect,
 } from "../cards/types";
-import type { CardInstanceState, GameState } from "./state";
+import type { CardInstanceState, GameState } from "./state/declarations";
 
 /** The `StaticEffect` kinds layers 2-5 own, each mapped to ITS layer
  *  (CR 613.1b-e). A `Record` rather than a set, because the layer is the thing

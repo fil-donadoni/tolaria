@@ -33,7 +33,7 @@
  *    `"land-type"` entry is inert for the color readers.
  */
 
-import type { CardInstanceState } from "./state";
+import type { CardInstanceState } from "./state/declarations";
 import type { Color, TextChange } from "../cards/types";
 import { LANDWALK_KEYWORDS } from "./constants";
 

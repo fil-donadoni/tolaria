@@ -87,7 +87,7 @@
 //   - can't Block        (702.16f): combat.ts::validateBlockerEligibility —
 //     false, a blocker is a permanent.
 
-import type { CardInstanceState } from "./state";
+import type { CardInstanceState } from "./state/declarations";
 import type { CardSupertype, CardType, Color } from "../cards/types";
 import { STATIC_EFFECT_CTX } from "./layers";
 import { hasSupertypeLive } from "../cards/snowReads";
