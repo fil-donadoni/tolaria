@@ -60,8 +60,6 @@ import type {
     CardDefinition,
     CardSupertype,
     CardType,
-    ManaCost,
-    ManaSubstitutionBreadth,
     TextChange,
 } from "../cards/types";
 import {
@@ -444,7 +442,7 @@ function compactCard(
         out.staticAbilities = card.staticAbilities;
     }
     // Wire key order is frozen by the pre-table fixture
-    // (`__tests__/fixtures/cardFieldLifecycle.compact.json`): the two
+    // (`__tests__/fixtures/cardFieldLifecycle.compact.json.txt`): the two
     // definition-diffed rows, then the required `isTapped`, then the rest of
     // the table in its own order.
     compactCardField(card, out, "power", codecCtx);

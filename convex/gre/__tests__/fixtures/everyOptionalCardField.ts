@@ -225,6 +225,7 @@ export function everyRoundTrippableCardField(): Omit<
     EveryOptionalCardField,
     "bestowed"
 > {
-    const { bestowed: _bestowed, ...rest } = everyOptionalCardField();
-    return rest;
+    const every: Partial<EveryOptionalCardField> = everyOptionalCardField();
+    delete every.bestowed;
+    return every as Omit<EveryOptionalCardField, "bestowed">;
 }

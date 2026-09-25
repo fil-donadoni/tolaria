@@ -273,7 +273,7 @@ optional `CardInstanceState` key has one row in `CARD_FIELD_LIFECYCLE`
 (`gre/state/cardFieldLifecycle.ts`): a `codec` (`flag` / `scalar` / `defined`
 / `list` / `record` / `custom`) that `compactCard` / `expandCard` apply in
 table order (table order IS wire key order, pinned byte-for-byte by
-`__tests__/fixtures/cardFieldLifecycle.compact.json`), and a `reset` list
+`__tests__/fixtures/cardFieldLifecycle.compact.json.txt`), and a `reset` list
 naming which of the three ladders clears it — `turn` (cleanup step),
 `zone-change` (`resetBattlefieldTransientState`), `stack`
 (`resetStackTransientState`) — or `custom:<scope>` for a clear a revert helper

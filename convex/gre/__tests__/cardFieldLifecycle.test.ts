@@ -31,7 +31,7 @@ import {
 import { everyRoundTrippableCardField } from "./fixtures/everyOptionalCardField";
 
 const FIXTURE_PATH = fileURLToPath(
-    new URL("./fixtures/cardFieldLifecycle.compact.json", import.meta.url)
+    new URL("./fixtures/cardFieldLifecycle.compact.json.txt", import.meta.url)
 );
 
 /** A state whose three card seams — a battlefield permanent, a bestowed Aura
@@ -77,8 +77,9 @@ function cardFieldLifecycleFixtureState(): GameState {
 describe("Card Field Lifecycle — wire format (issue #4453)", () => {
     // Byte-identical, not deep-equal: key ORDER is part of the stored
     // document, and a table-driven `compactCard` that emitted the same keys in
-    // a different order would still be a wire change. Regenerate ONLY for a
-    // deliberate wire migration: `TOLARIA_WRITE_CARD_FIELD_FIXTURE=1`.
+    // a different order would still be a wire change. Stored as `.json.txt`
+    // so no formatter ever reflows it. Regenerate ONLY for a deliberate wire
+    // migration: `TOLARIA_WRITE_CARD_FIELD_FIXTURE=1`.
     it("compactState output is byte-identical to the fixture stored before the lifecycle table", () => {
         const got =
             JSON.stringify(
@@ -258,7 +259,7 @@ describe("Card Field Lifecycle — reset scopes (issue #4453)", () => {
                 makePlayer("p1", { battlefield: [host, card] }),
                 makePlayer("p2"),
             ],
-            phase: "ENDING",
+            phase: "CLEANUP",
         });
         return { card, state };
     }
