@@ -37,9 +37,9 @@
 //
 //  1. **Effect Script.** Walk the (mode-selected) script; every Op that names
 //     `{ target: n }` anywhere in its own fields contributes its
-//     `opBeneficence` sign (`opValuers.ts`) to slot `n`. Structural constructs
-//     (`if` / `forEach` / `optionChoice` / `coinFlip`) recurse into their
-//     nested Op lists, so a mode's body is read exactly like a top-level one.
+//     `opBeneficence` sign (`opValuers.ts`) to slot `n`. Every script host
+//     recurses into its nested Op lists (`childOpArrays`, the one enumeration
+//     of them), so a mode's body is read exactly like a top-level one.
 //  2. **Attachment payoff.** An Aura (CR 303.4) has no resolution script at
 //     all — its whole effect is what it grants the permanent it enchants once
 //     attached. Read that instead: a triggered ability carrying a
@@ -64,6 +64,7 @@ import type { Move } from "../moves";
 import { tryGetDefinition } from "../../cards";
 import { type Beneficence, opBeneficence } from "./opValuers";
 import { soleChosenModeId } from "../modeSelection";
+import { childOpArrays, isTriggerBodyHost } from "./effectOpChildren";
 
 /** Merge two signs for the same slot. Agreement keeps the sign; disagreement
  *  (a "target player draws a card and loses 2 life" shape) collapses to
@@ -96,8 +97,13 @@ function announcedSlotsIn(value: unknown, out: Set<number>): void {
     }
 }
 
-/** Fields on a structural construct that hold nested Op lists / branch bodies.
- *  Walked by `collectScriptSigns`, skipped by `announcedSlotsIn`. */
+/** Field names that hold nested Op lists / branch bodies — a SKIP list for
+ *  `announcedSlotsIn` only, so a leaf Op's sign never lands on a nested Op's
+ *  slots. Which lists a host carries is `childOpArrays`'s answer, not this
+ *  set's: script hosts never reach `announcedSlotsIn` at all, so their own
+ *  non-list fields (a `divideIntoPiles` `divider`, a `forEach` `select`) are
+ *  unsigned today — a future host naming an announced slot there needs its
+ *  own row. */
 const NESTED_EFFECT_KEYS = new Set([
     "effects",
     "then",
@@ -130,25 +136,17 @@ function collectScriptSigns(
     signs: Map<number, Beneficence>
 ): void {
     for (const op of effects) {
-        switch (op.op) {
-            case "if":
-                collectScriptSigns(op.then, signs);
-                if (op.else) collectScriptSigns(op.else, signs);
-                continue;
-            case "forEach":
-                collectScriptSigns(op.effects, signs);
-                continue;
-            case "optionChoice":
-                for (const mode of op.modes)
-                    collectScriptSigns(mode.effects, signs);
-                continue;
-            case "coinFlip":
-            case "coinFlipSync":
-                collectScriptSigns(op.win.effects, signs);
-                collectScriptSigns(op.loss.effects, signs);
-                continue;
-            default:
-                break;
+        // A script host carries no stake of its own; each nested Op is read
+        // exactly like a top-level one (issue #4442 — a `divideIntoPiles`
+        // pile names the host's announced slots too). A delayed / reflexive
+        // trigger body is the exception: it announces its OWN targets when it
+        // goes on the stack (CR 603.3d), so its `{ target: n }` is not this
+        // script's slot `n` and signing it here would sign the wrong object.
+        if (isTriggerBodyHost(op)) continue;
+        const children = childOpArrays(op);
+        if (children.length > 0) {
+            for (const child of children) collectScriptSigns(child, signs);
+            continue;
         }
         const split = SPLIT_SIGN_OPS[op.op];
         if (split !== undefined) {

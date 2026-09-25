@@ -11,7 +11,7 @@
 import { describe, it, expect } from "vitest";
 import { tokenPrintIdFor } from "../tokenPrintLookup";
 import { getAllCatalogueCards } from "../catalogue";
-import type { CardDefinition, EffectOp, EffectTokenSpec } from "../types";
+import { allTokenSpecsFor } from "../tokenCatalogue";
 
 describe("tokenPrintIdFor (build-time Scryfall reverse-link)", () => {
     const HIVE_ID = "544a7138-eae8-4ff9-9e17-680bfa717183";
@@ -124,59 +124,6 @@ const NO_PRINTED_TOKEN_ALLOWLIST: Record<string, string> = {
     "36a3345d-1190-45f4-8191-897b4dcec376:Spawn":
         "Spawning Pit (compiled) — first printing's all_parts links no Spawn token.",
 };
-
-/** Recursively collects every `createToken` Op's token spec out of an Op
- *  list, descending into every structural construct that can nest one
- *  (ADR 0045's four frozen constructs, plus the two multi-branch Ops that
- *  reuse the same nested-list shape: `coinFlip`, `optionChoice`). */
-function collectTokenSpecs(ops: EffectOp[]): EffectTokenSpec[] {
-    const specs: EffectTokenSpec[] = [];
-    for (const op of ops) {
-        switch (op.op) {
-            case "createToken":
-                specs.push(op.token);
-                break;
-            case "if":
-                specs.push(...collectTokenSpecs(op.then));
-                if (op.else) specs.push(...collectTokenSpecs(op.else));
-                break;
-            case "forEach":
-                specs.push(...collectTokenSpecs(op.effects));
-                break;
-            case "delayedTrigger":
-                specs.push(...collectTokenSpecs(op.effects));
-                break;
-            case "coinFlip":
-                specs.push(...collectTokenSpecs(op.win.effects));
-                specs.push(...collectTokenSpecs(op.loss.effects));
-                break;
-            case "optionChoice":
-                for (const mode of op.modes) {
-                    specs.push(...collectTokenSpecs(mode.effects));
-                }
-                break;
-            default:
-                break;
-        }
-    }
-    return specs;
-}
-
-/** Every `effects[]` site on a card that can carry a `createToken` Op: the
- *  spell site itself, plus every activated/triggered ability and grant
- *  template (mirrors `abilitySites` in `effectScripts.test.ts`). */
-function allTokenSpecsFor(card: CardDefinition): EffectTokenSpec[] {
-    const sites: (EffectOp[] | undefined)[] = [
-        card.effects,
-        ...(card.activatedAbilities ?? []).map((a) => a.effects),
-        ...(card.triggeredAbilities ?? []).map((a) => a.effects),
-        ...(card.grantTemplates ?? []).map((a) => a.effects),
-        ...(card.triggeredGrantTemplates ?? []).map((a) => a.effects),
-    ];
-    return sites
-        .filter((effects): effects is EffectOp[] => effects !== undefined)
-        .flatMap(collectTokenSpecs);
-}
 
 // The walk covers the WHOLE catalogue — hand-written AND Oracle-compiled
 // (issue #4125). A compiled card resolves its token art through the same
