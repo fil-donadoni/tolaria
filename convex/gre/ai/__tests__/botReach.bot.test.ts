@@ -807,6 +807,17 @@ describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
         ]);
     }, 600_000);
 
+    // Issue #4281: haste rides the same window — a flash creature with haste is
+    // still cast to block, so the ambush position covers it unchanged.
+    it("played — a flash creature with haste, posed against an attacker", () => {
+        const kavu = getCardByName("Raging Kavu");
+        expect(flashAmbushPosition(kavu)).not.toBeNull();
+        expect(playBotReachSeats(kavu)).toEqual([
+            { holderId: "p1", verdict: { outcome: "played" } },
+            { holderId: "p2", verdict: { outcome: "played" } },
+        ]);
+    }, 600_000);
+
     it("only a targetless creature with flash is posed against an attacker", () => {
         expect(flashAmbushPosition(getCardByName("Benalish Knight"))).toEqual(
             expect.objectContaining({
