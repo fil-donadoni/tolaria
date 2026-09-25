@@ -8594,6 +8594,80 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         note: "Bot Gap `never-chosen › Creature [first strike,flash] › (no Ops)` (1 card). Issue #4280.",
     },
     {
+        // DISCARD-SPELL reachability (CR 701.9a, CR 118.8, issue #4278). The
+        // sweep's position for a sorcery whose additional cost is a creature
+        // and whose effect is "target opponent discards two cards": Tendrils
+        // of Despair in hand, a spare 1/1 to sacrifice, a body on each side,
+        // and an opponent whose deck holds spells — with five Swamps where the
+        // sweep seeds three. At three, one seed of five passes at this budget
+        // (the sweep reads `played` from its own seed); two spare lands make
+        // the cast stable across all five.
+        //
+        // Before the fix the position dealt the opponent lands (the search
+        // re-deals a hidden hand from the unseen pool, so a spell placed in the
+        // hand itself is priced as the pool), so two discards (about 110) never
+        // paid for the creature the cost gives up (about 156) and the cast read
+        // 65 points under `pass`. The pose now stocks the opponent's library
+        // with spells and hands the holder a spare 1/1 (`discardsFromTarget`,
+        // `sacrificesCreature`, `botReach.ts`) — a position change, not a
+        // search change: the Bot's preference is unchanged.
+        label: "Discard sorcery with a sacrifice cost: casts it into a full hand",
+        spec: {
+            cards: [
+                { name: "Tendrils of Despair", owner: "me", zone: "hand" },
+                { name: "Swamp", owner: "me", zone: "battlefield" },
+                { name: "Swamp", owner: "me", zone: "battlefield" },
+                { name: "Swamp", owner: "me", zone: "battlefield" },
+                { name: "Swamp", owner: "me", zone: "battlefield" },
+                { name: "Swamp", owner: "me", zone: "battlefield" },
+                { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
+                { name: "Ornithopter", owner: "me", zone: "battlefield" },
+                { name: "Castle", owner: "me", zone: "battlefield" },
+                { name: "Grizzly Bears", owner: "me", zone: "graveyard" },
+                { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+                { name: "Ornithopter", owner: "opp", zone: "battlefield" },
+                { name: "Castle", owner: "opp", zone: "battlefield" },
+                { name: "Grizzly Bears", owner: "opp", zone: "graveyard" },
+                {
+                    name: "Serra Angel",
+                    owner: "opp",
+                    zone: "library",
+                    position: 1,
+                    count: 12,
+                },
+                // Real cards where the sweep seeds `hiddenHand: { opp: 3 }`:
+                // a blade position must load into a live game (issue #1432),
+                // and the search re-deals the opponent's hand from the unseen
+                // pool either way.
+                { name: "Serra Angel", owner: "opp", zone: "hand", count: 3 },
+                {
+                    name: "Mons's Goblin Raiders",
+                    owner: "me",
+                    zone: "battlefield",
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            libraryCount: 20,
+        },
+        bot: "me",
+        // A REACHABILITY claim at four times the sweep's budget, so a
+        // PREDICATE, kept out of the weight fit like the entries above.
+        budget: { iterations: 200 },
+        seeds: [0xb07, 0x5eed, 1, 2, 3],
+        tier: "must",
+        expect: {
+            predicate: (move, state) =>
+                move !== null &&
+                move.kind === "cast-spell" &&
+                instanceIdsForName(state, "Tendrils of Despair").has(
+                    move.cardInstanceId
+                ),
+            describe: "casts Tendrils of Despair",
+        },
+        note: "Bot Gap `never-chosen › Sorcery target:player › choice+discard` (2 cards). Issue #4278.",
+    },
+    {
         // A BOON is not self-harm (issue #4273). Unnatural Speed grants haste
         // until end of turn to the creature it targets: the bot's main phase,
         // two Mountains, a summoning-sick Grizzly Bears beside a ready one, and

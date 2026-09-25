@@ -277,6 +277,51 @@ function drawsForController(def: CardDefinition): boolean {
 }
 
 /**
+ * CR 701.9a — does the SPELL script make a chosen player discard (a `discard`,
+ * `discardAtRandom` or `discard-hand` choice whose player is an announced
+ * target)? A discard is worth the cards it takes, and the generated opponent
+ * holds lands: two discards of lands do not pay for the card, so the Bot
+ * rightly passes over it. The pose gives the opponent a hand of spells to
+ * take. Only a target-aimed discard makes the claim: the holder's own discard
+ * (a cost, a wheel) is not one the pose should sweeten.
+ */
+function discardsFromTarget(def: CardDefinition): boolean {
+    const aimedAtTarget = (player: unknown): boolean =>
+        player !== null &&
+        typeof player === "object" &&
+        typeof (player as { target?: unknown }).target === "number";
+    const visit = (node: unknown): boolean => {
+        if (Array.isArray(node)) return node.some(visit);
+        if (node === null || typeof node !== "object") return false;
+        const record = node as Record<string, unknown>;
+        const discards =
+            record.op === "discard" ||
+            record.op === "discardAtRandom" ||
+            (record.op === "choice" && record.kind === "discard-hand");
+        return (
+            (discards && aimedAtTarget(record.player)) ||
+            Object.values(record).some(visit)
+        );
+    };
+    return visit(def.effects) || visit(def.modes);
+}
+
+/**
+ * CR 118.8 / 701.21a — does the SPELL's additional cost sacrifice a creature?
+ * The generated position's bodies are a Grizzly Bears and an Ornithopter,
+ * worth more to the evaluator than the cards a sacrifice-for-cards spell
+ * returns, so the Bot rightly keeps them. The pose adds the cheapest body
+ * ({@link FILLER_SMALL_CREATURE}) the cost can spend, the way a player
+ * holding a spare 1/1 casts it.
+ */
+function sacrificesCreature(def: CardDefinition): boolean {
+    const filter = def.additionalCosts?.sacrificeFilter;
+    return (
+        filter !== undefined && (filter.types?.includes("Creature") ?? false)
+    );
+}
+
+/**
  * CR 701.21 — the permanent types the card's SPELL script makes EVERY player
  * sacrifice: a `forEach` over `set: "players"` whose body is a
  * `sacrifice-permanents` choice of the battlefield for the iteration player
@@ -436,6 +481,17 @@ const DRAWN_SPELL = "Serra Angel";
  *  shipped draw takes, so every card drawn is one worth having. */
 const DRAWN_SPELLS = 8;
 
+/** How many cards sit in the opponent's hand for a spell that makes a player
+ *  discard: as many as the biggest shipped discard asks for (Three Tragedies,
+ *  3), so every discard the spell makes lands on a card. */
+const TARGET_HAND = 3;
+/** What the search re-deals that hand from: {@link DRAWN_SPELL}s on top of the
+ *  opponent's library. The search re-determinizes a hidden hand from the
+ *  unseen pool at every iteration, so a spell in the hand itself is priced as
+ *  whatever the pool holds — basic lands, a card the evaluator prices well
+ *  under the creature a "sacrifice a creature" cost gives up. */
+const TARGET_LIBRARY = 12;
+
 /** The card every generated position seeds as the object a target, a
  *  sacrifice or a discard can use — a real catalogue creature, both sides, in
  *  every zone a target requirement names. */
@@ -587,6 +643,20 @@ export function botReachSpec(
             position: 1,
             count: DRAWN_SPELLS,
         });
+    if (discardsFromTarget(def))
+        cards.push({
+            name: DRAWN_SPELL,
+            owner: "opp",
+            zone: "library",
+            position: 1,
+            count: TARGET_LIBRARY,
+        });
+    if (sacrificesCreature(def))
+        cards.push({
+            name: FILLER_SMALL_CREATURE,
+            owner: "me",
+            zone: "battlefield",
+        });
     const cost = costPose(def);
     const race = sorceryPumpRace(def) ?? sorceryLifeGainRace(def);
     cards.push(...target.cards, ...cost.cards, ...(race?.cards ?? []));
@@ -605,7 +675,10 @@ export function botReachSpec(
         // A real filler in hand did: holding a second copy of the card, the
         // search's interchangeable-copy collapse (issue #3593) could pick the
         // filler as the representative and the card read as never chosen.
-        hiddenHand: { me: 1 },
+        hiddenHand: {
+            me: 1,
+            ...(discardsFromTarget(def) ? { opp: TARGET_HAND } : {}),
+        },
         activePlayer: "me",
         priority: "me",
         ...target.position,
