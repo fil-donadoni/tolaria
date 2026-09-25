@@ -467,8 +467,8 @@ export function exileCastPermission(
 }
 
 /** CR 601.3 / 400.7 (issue #2971) — the zone a `cast-spell` Move actually
- *  leaves, and the player whose zone that is, for the Bot's two search
- *  sandboxes (`applyMoveForSearch`, `applyMoveInSearch`). `null` when no
+ *  leaves, and the player whose zone that is, for the Bot's search cast
+ *  commit sequence (`commitCastInSearch`, issue #4444). `null` when no
  *  permitted source still holds the card — a stale Move, which the caller skips
  *  rather than throwing, exactly as `resolvePlayLandSourceZone` does for the
  *  land half.

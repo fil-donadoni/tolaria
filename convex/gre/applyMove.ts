@@ -9,6 +9,16 @@
 // applied through the same `applyAllCombatDamage` the phase machine uses. The
 // input state is never mutated — it is cloned first via `cloneGameState`.
 //
+// This module is also the home of the search's SHARED commit sequences (issue
+// #4444): `commitCastInSearch`, `payActivationInSearch`,
+// `payGrantedAbilityInSearch`, `summonCompanionInSearch`, `turnFaceUpInSearch`
+// and `declineCastWindowInSearch`, plus the coarse mana model in
+// `searchTapPlan.ts`. The ISMCTS applier (`applyMoveInSearch`, `search.ts`) and
+// `applyMoveForSearch` below both call them, so a new cost leg is written once
+// for the Bot. What stays here is only what the greedy leaf does DIFFERENTLY:
+// settling the cast segment instead of handing out priority, and resolving
+// combat against a shallow defender best-response.
+//
 // Combat needs an opponent reply to be meaningful (a lone attack into a wall is
 // only "suicidal" once the defender blocks). So a `declare-attackers` move is
 // resolved through a SHALLOW defender best-response: the opponent picks, from
@@ -49,6 +59,7 @@
 import type {
     CardInstanceState,
     GameState,
+    GrantedAbilityInstance,
     PlayerState,
     StackItem,
 } from "./state";
@@ -82,7 +93,11 @@ import {
     additionalCostHandLeg,
     resolveAdditionalCosts,
 } from "./additionalCost";
-import type { AdditionalCostSpec, CardDefinition } from "../cards/types";
+import type {
+    ActivatedAbility,
+    AdditionalCostSpec,
+    CardDefinition,
+} from "../cards/types";
 import { spliceAugmentedDefinition } from "./splice";
 import {
     additionalCostPaymentSnapshot,
@@ -103,13 +118,7 @@ import { loyaltyActivationViolation, payLoyaltyCost } from "./loyalty";
 import {
     isPlaneswalker,
     manaGateBattlefields,
-    manaTapExertsSource,
-    manaTapSacrificesSource,
-    mayExertForMana,
-    mayRemoveCountersForMana,
-    manaTapCounterCost,
     manaValue,
-    mayBeSacrificedForMana,
     replaceProducedManaColor,
 } from "./constants";
 import {
@@ -126,6 +135,7 @@ import {
 } from "./sacrificeChoice";
 import { captureNinjutsuAttackTarget } from "./ninjutsu";
 import { payExertActivationCost } from "./exert";
+import { applyTapPlanInSearch } from "./searchTapPlan";
 import { checkStateBasedActions } from "./sba";
 import { applyPlayLandFromAnyZone, finalizeLandEntry } from "./playLand";
 import {
@@ -166,8 +176,8 @@ import {
 } from "./castCost";
 import type { CastFromZone } from "./castCost";
 // CR 702.35a / 702.88a-c (issue #2983) — the reflexive cast windows' own pure
-// resolvers, so this sandbox's accept and decline are the EXACT functions the
-// mutations drive, matching `applyMoveInSearch` (search.ts).
+// resolvers, so the search's accept (`commitCastInSearch`) and decline
+// (`declineCastWindowInSearch`) are the EXACT functions the mutations drive.
 import { consumeMadnessCastChoice, declineMadness } from "./madness";
 import { consumeReboundCastChoice, declineRebound } from "./rebound";
 import { phyrexianPipCount } from "./phyrexian";
@@ -213,7 +223,7 @@ function autoFinalizeLandEntryChoices(state: GameState): void {
  *  real-path order (`convex/gre/activation.ts`): the delve/flashback exile-cost cards
  *  move to exile BEFORE the cast card itself leaves its own zone.
  *
- *  MUST be called BEFORE `applyTapPlan` taps the move's mana sources.
+ *  MUST be called BEFORE `applyTapPlanInSearch` taps the move's mana sources.
  *  `genericManaShortfall` (below) reads the caster's CURRENTLY UNTAPPED mana
  *  to decide the forced-minimum delve count, exactly like the real
  *  announce-time computation (`buildDelveExileChoice` in `game.ts`, called
@@ -235,10 +245,8 @@ function autoFinalizeLandEntryChoices(state: GameState): void {
  *  the real path's `exileFromGraveyardChoice.pickedCardIds`, a genuine
  *  tactical choice), so it exiles the first N eligible cards — a conservative
  *  deterministic pick, the same policy this file's `activate-ability` case
- *  already uses for its sacrifice/tap-other costs. Shared by both search
- *  leaves that replay a `cast-spell` move (`applyMove.ts`'s own
- *  `applyMoveForSearch` and `search.ts`'s `applyMoveInSearch`) since they
- *  duplicate the same tap-plan-only cast-spell shape. */
+ *  already uses for its sacrifice/tap-other costs. Called from the search's
+ *  one cast commit sequence (`commitCastInSearch`, issue #4444). */
 export function applyDelveExileForSearch(
     state: GameState,
     player: PlayerState,
@@ -361,10 +369,8 @@ export function applyAdditionalCostLegForSearch(
  *  future hand-leg Kicker card must extend the enumerator's bound before this
  *  needs to grow a branch for it.
  *
- *  Shared by BOTH move-application sandboxes — `applyMoveForSearch` below and
- *  `applyMoveInSearch` (`search.ts`) — for the same reason
- *  `applyRetraceCastForSearch` is: a cost charged in one tree and not the
- *  other is a divergence between the greedy selector and ISMCTS. */
+ *  Called from the search's one cast commit sequence (`commitCastInSearch`,
+ *  issue #4444), so both search appliers charge it. */
 export function applyKickerPermanentLegForSearch(
     state: GameState,
     playerId: string,
@@ -414,10 +420,8 @@ export function applyKickerPermanentLegForSearch(
  *  search and live play agree by construction rather than by parallel
  *  maintenance.
  *
- *  Shared by BOTH move-application sandboxes — `applyMoveForSearch` below and
- *  `applyMoveInSearch` (`search.ts`) — for the same reason
- *  `applyRetraceCastForSearch` is: a cost charged in one tree and not the
- *  other is a divergence between the greedy selector and ISMCTS. */
+ *  Called from the search's one cast commit sequence (`commitCastInSearch`,
+ *  issue #4444), so both search appliers charge it. */
 export function applyCastCostPicksForSearch(
     state: GameState,
     playerId: string,
@@ -573,9 +577,8 @@ function castExileSourceZone(
  *  the discard would model an unbounded free recast loop and value it
  *  accordingly.
  *
- *  Shared by BOTH move-application sandboxes — `applyMoveForSearch` below and
- *  `applyMoveInSearch` (`search.ts`) — because a cost charged in one tree and
- *  not the other is a divergence between the greedy selector and ISMCTS. */
+ *  Called from the search's one cast commit sequence (`commitCastInSearch`,
+ *  issue #4444), so both search appliers charge it. */
 export function applyRetraceCastForSearch(
     state: GameState,
     playerId: string,
@@ -604,9 +607,8 @@ export function applyRetraceCastForSearch(
 /** CR 602.1 / 118 (issue #2155) — pay EVERY non-mana cost of an
  *  `activate-ability` move on a search sandbox state, in place.
  *
- *  Shared by BOTH move-application sandboxes — `applyMoveForSearch` below (the
- *  greedy 1-ply selector) and `applyMoveInSearch` (`search.ts`, the ISMCTS
- *  path). One implementation is the point: the ISMCTS tree used to apply only
+ *  Reached through `payActivationInSearch` from BOTH search appliers (issue
+ *  #4444). One implementation is the point: the ISMCTS tree used to apply only
  *  the tap plan, so the additional costs (`cost.sacrifice`,
  *  `cost.sacrificeFilter`, `cost.tapOtherFilter`, `cost.discardFilter`,
  *  `cost.exileFromGraveyard`) were FREE in the very tree that picks the move.
@@ -629,7 +631,7 @@ export function applyRetraceCastForSearch(
  *  built from the activator's own resources, so the source's controller is the
  *  wrong player to discard/sacrifice/tap from.
  *
- *  The caller applies the MANA leg (`applyTapPlan`) itself; this covers only
+ *  The caller applies the MANA leg (`applyTapPlanInSearch`) itself; this covers only
  *  what is left.
  *
  *  EVERY other leg is now paid (issue #1920 review, finding 2). `cost.life`,
@@ -1019,129 +1021,6 @@ export function applyActivationCostsForSearch(
     return true;
 }
 
-/** Tap the planned mana sources on the (already cloned) state. Coarse model:
- *  a source listed in the tap plan is marked tapped so the resulting position
- *  reflects the spent mana; exact pool accounting is unnecessary for eval.
- *
- *  Issue #2420 — an `abilityId`-carrying entry ACTIVATES the source's own
- *  non-tap mana ability (Urza's `tapOtherFilter`, Farrelite Priest's pure
- *  `cost.mana`) rather than tapping the source: `cardInstanceId` itself is
- *  never tapped by this payment (CR 602.1 — Urza is never tapped by its own
- *  cost); only the permanent(s) named in `tapOtherIds`, if any, are. */
-/** KNOWN COARSENESS (PR #3549 review finding 7) — this applier TAPS sources but
- *  never debits `manaPool` / `restrictedMana`, so mana ALREADY FLOATING when
- *  the tree was entered is free inside it: a plan may draw on it once per
- *  simulated cast without it ever running out. A pool source is a zero-tap
- *  `PlanSource` (`cardInstanceId` undefined, `gre/moves.ts`), so it leaves no
- *  `ManaTap` entry for this function to charge against even in principle —
- *  closing it means changing the plan's shape, not this loop.
- *
- *  It was latent while floating mana was rare (the pool empties at every CR
- *  500.5 boundary, so a search rarely started with any). Firebending (CR
- *  702.189a, issue #3235) makes it routine: four red arrive from an attack
- *  trigger the bot cannot decline and survive to end of combat. The error is
- *  the bot OVER-estimating what it can cast in-tree, which shows up as an
- *  optimistic line, not as an illegal move — every real move still goes
- *  through `assertLegalAction` server-side (ADR 0074). Recorded in
- *  `docs/findings/3549-search-does-not-debit-floating-mana.md`. */
-function applyTapPlan(
-    state: GameState,
-    playerId: string,
-    tapPlan: {
-        cardInstanceId: string;
-        abilityId?: string;
-        manaChoiceIndex?: number;
-        tapOtherIds?: string[];
-    }[]
-): void {
-    const player = state.players.find((p) => p.id === playerId);
-    if (!player) return;
-    // CR 605.1a / 118.3 (Breach probe) — a mana ability paid by SACRIFICING
-    // its source (Black Lotus, Basal Thrull, the Mirage sac-lands, Lion's Eye
-    // Diamond) puts the permanent in the GRAVEYARD; `tapSourceIntoPayment`
-    // (`convex/game.ts`) does exactly that on the real path. This model used
-    // to only set `isTapped`, so inside the tree the source sat tapped on the
-    // battlefield forever and never reached the graveyard — which made every
-    // graveyard-as-resource line structurally invisible to the search at ANY
-    // depth, not merely beyond its horizon: a Black Lotus could never become
-    // Underworld Breach escape fodder, so the Lotus loop that powers storm
-    // could not be assembled. Guarded by the cheap printed-definition
-    // prefilter, so an ordinary board of lands and {T} rocks pays one cached
-    // lookup per tap and nothing else.
-    const sacrificed: string[] = [];
-    for (const tap of tapPlan) {
-        if (tap.abilityId) {
-            for (const otherId of tap.tapOtherIds ?? []) {
-                const other = player.battlefield.find((c) => c.id === otherId);
-                if (other) other.isTapped = true;
-            }
-            continue;
-        }
-        const src = player.battlefield.find((c) => c.id === tap.cardInstanceId);
-        if (!src) continue;
-        if (
-            mayBeSacrificedForMana(src) &&
-            manaTapSacrificesSource(
-                src,
-                player.id,
-                manaGateBattlefields(state),
-                tap.manaChoiceIndex
-            )
-        ) {
-            sacrificed.push(src.id);
-            continue;
-        }
-        // CR 118.3 / 122.1 (issue #2712) — and the COUNTERS the activation
-        // spends, for the same reason the sacrifice above is modelled: a
-        // depletion land whose counters never move untaps next simulated turn
-        // and taps again forever, so the search values a two-use land as a
-        // permanent mana source. Read AFTER the sacrifice test, which asks
-        // about the counters BEFORE this payment. Behind the same cheap
-        // printed-definition prefilter, so an ordinary board pays one cached
-        // lookup per tap.
-        if (mayRemoveCountersForMana(src)) {
-            const leg = manaTapCounterCost(
-                src,
-                player.id,
-                manaGateBattlefields(state),
-                tap.manaChoiceIndex
-            );
-            if (leg && canPayRemoveCounterCost(src, leg)) {
-                payRemoveCounterCost(state, src, leg);
-            }
-        }
-        // CR 701.43a / 602.1a (issue #3359) — and the EXERT leg, modelled for
-        // exactly the reason the sacrifice and the counters above are: the
-        // payment spends the source's NEXT UNTAP STEP, so a model that only
-        // taps it has the land untapping next simulated turn and taps again
-        // forever — the Bot reaching for the costed half of Arena of Glory at
-        // no price at all. `tapSourceIntoPayment` (`convex/game.ts`) pays it
-        // through `applyManaAbilityExertCost` for the ability the
-        // `manaChoiceIndex` names, and `manaTapExertsSource` resolves that same
-        // option list. Behind the same cheap printed-definition prefilter, so
-        // an ordinary board pays one cached lookup per tap.
-        if (
-            mayExertForMana(src) &&
-            manaTapExertsSource(
-                src,
-                player.id,
-                manaGateBattlefields(state),
-                tap.manaChoiceIndex
-            )
-        ) {
-            payExertActivationCost(state, src);
-        }
-        src.isTapped = true;
-    }
-    // Moved after the loop so a plan naming the same source twice cannot make
-    // the second lookup miss (the planner never emits one — see
-    // `manaConverterParity.bot.test.ts` invariant B — but this model must not
-    // depend on that).
-    for (const id of sacrificed) {
-        moveCard(player, id, "battlefield", "graveyard");
-    }
-}
-
 /** Resolve all combat damage for a fully-declared combat to a stable point,
  *  reusing the exact pipeline the phase machine runs (first-strike step, then
  *  regular, with SBA between/after). Single-block / no-banding positions need
@@ -1213,6 +1092,438 @@ function applyBlockAssignments(
     recordBlockedAttackers(state);
 }
 
+/** How a search applier wants the cast COMMITTED — the one place the greedy
+ *  1-ply sandbox and the ISMCTS tree legitimately differ (issue #4444). */
+export type SearchCastOptions = {
+    /** CR 117.3c — the caster receives priority after casting, and the ISMCTS
+     *  tree hands it over (auto-passed, so the opponent gets a real response
+     *  window) BEFORE the cast is announced, in the order `commitPendingCast`
+     *  (`convex/game.ts`) uses. The greedy sandbox resolves the cast segment
+     *  itself straight away and leaves priority where it was. */
+    handPriorityToCaster: boolean;
+};
+
+/** The search's ONE cast commit sequence (issue #4444): pay every cost leg the
+ *  Move carries, move the card to the stack, stamp the stack item and announce
+ *  the cast. Both search appliers call it — the ISMCTS tree
+ *  (`applyMoveInSearch`, `search.ts`), the chokepoint every rollout, blade
+ *  scenario and self-play game routes through, and the greedy 1-ply sandbox
+ *  (`applyMoveForSearch` below). Until issue #4444 each carried its own copy of
+ *  these fourteen steps, so every new cost leg was written twice for the Bot and
+ *  the two drifted (issue #2473 named them "two wholesale reimplementations of
+ *  build a StackItem from a cast"; the grant consumption below had reached only
+ *  the greedy copy).
+ *
+ *  Mutates `state` in place. Returns the pushed stack item, or `null` when the
+ *  Move is STALE — its source zone no longer holds the card, or a cost it names
+ *  can no longer be paid — in which case nothing reaches the stack. The caller
+ *  owns everything after the announcement: the tree drains auto-passes, the
+ *  greedy sandbox resolves the cast segment. */
+export function commitCastInSearch(
+    state: GameState,
+    playerId: string,
+    move: Extract<Move, { kind: "cast-spell" }>,
+    options: SearchCastOptions
+): StackItem | null {
+    const player = state.players.find((p) => p.id === playerId);
+    if (!player) return null;
+    // CR 702.35a / 702.88a (issue #2983) — a cast that ACCEPTS an open
+    // reflexive cast window consumes that window's pending choice, in the SAME
+    // two calls and the SAME order the `announceCast` mutation makes them
+    // (`convex/game.ts`), and for the same reason: the choice blocks priority,
+    // so leaving it in the queue would put the spell on the stack with its own
+    // window still open — a position the server can never produce, in which the
+    // tree would then be offered the window's candidates all over again for a
+    // card that has already left exile.
+    //
+    // Both are no-ops unless the head choice is THIS card's window for THIS
+    // player, so an ordinary cast made while some unrelated choice sits in the
+    // queue is untouched.
+    consumeMadnessCastChoice(state, playerId, move.cardInstanceId);
+    consumeReboundCastChoice(state, playerId, move.cardInstanceId);
+    // CR 702.66b / 601.2g (issue #1661) — pay the delve exile BEFORE the tap
+    // plan runs (`applyDelveExileForSearch`'s forced-minimum calc needs the
+    // caster's mana still untapped, mirroring the real announce-time
+    // computation) and before the spell leaves its zone, in
+    // `tryAutoCommitPendingCast`'s real-path order (`convex/gre/activation.ts`).
+    // CR 601.3 (issue #2980) — the zone the Move DECLARES, not the hand: a
+    // hand-only lookup skipped this whole pre-cast cost block for every
+    // graveyard and exile cast the enumerator offers, so an escape cast's exile
+    // went uncharged and the spell reached the stack for free.
+    const preCastSpell = findCastSourceCard(
+        state,
+        player,
+        move.cardInstanceId,
+        move.castFromZone
+    );
+    if (preCastSpell) {
+        applyDelveExileForSearch(state, player, preCastSpell, move.chosenX);
+    }
+    applyTapPlanInSearch(state, playerId, move.tapPlan);
+    // CR 609.4b / 118.14 (issue #2890) — a one-shot "for one spell this turn,
+    // you may spend mana as though it were mana of any type" grant (North Star)
+    // is spent by a cast in the SEARCH world too. Popped unconditionally rather
+    // than through the real path's "was it needed" counterfactual: the tap plan
+    // is the coarse mana model (not a coin-exact pool drain), so the
+    // counterfactual has nothing honest to read. Not popping it let one
+    // activation fund several off-colour casts down a line and over-valued
+    // North Star. (Until issue #4444 only the greedy sandbox popped it — the
+    // tree, which is the one the Bot plays through, never did.)
+    consumeSpellManaSubstitutionGrant(state, playerId);
+    // CR 107.4f / 702.33a (issue #2081) — pay the LIFE this move chose to cover
+    // with life: Phyrexian pips (2 per pip) and/or a paid Kicker's life leg
+    // (`kickerLifeCost`, folded into `move.payLife` by `moves.ts` at enumeration
+    // time). The mana-paid pips are already in `tapPlan`; an uncharged
+    // `payLife` makes any life-paying variant free.
+    if (move.payLife && move.payLife > 0) {
+        player.life -= move.payLife;
+    }
+    // CR 601.2b / 601.2h / 118.8 — pay the CASTER-CHOSEN additional cost leg
+    // this Move announced ("discard a card or pay 3 life"). Paid BEFORE the
+    // spell leaves its zone, in the real commit order
+    // (`finalizeTargetSelection`), because the discard leg reads the caster's
+    // hand and the cast card itself is never eligible (CR 601.2a). The two legs
+    // differ only in their cost, so an uncharged leg makes the choice between
+    // them pure rollout noise.
+    applyAdditionalCostLegForSearch(
+        state,
+        playerId,
+        move.cardInstanceId,
+        move.additionalCostLegId,
+        move.chosenX
+    );
+    // CR 702.33a / 601.2f (issue #2081) — pay a paid Kicker's PERMANENT leg
+    // (sacrifice/return) before the spell leaves its zone, for the same reason.
+    // `preCastSpell` is looked up in the zone the Move DECLARES (issue #2980),
+    // so this is right for whichever zone the cast actually leaves.
+    if (move.kickerPayments && preCastSpell) {
+        const kickerCardDef = tryGetDefinition(
+            (preCastSpell.card as { id?: string }).id ?? ""
+        );
+        if (kickerCardDef) {
+            applyKickerPermanentLegForSearch(
+                state,
+                playerId,
+                kickerCardDef,
+                move.kickerPayments
+            );
+        }
+    }
+    // CR 601.2f / 701.21 / 701.13 (issue #2135) — pay the mandatory
+    // additional-cost parks (filtered sacrifice + Drought, and the exile
+    // additional cost) before the spell leaves its zone. The picks ride on the
+    // move (`castCostPicks`), so the search charges exactly what the executor
+    // will submit.
+    const castCostOut: {
+        additionalSacrificeSnapshot?: StackItem["additionalSacrificeSnapshot"];
+    } = {};
+    if (move.castCostPicks && preCastSpell) {
+        const castCostsPaid = applyCastCostPicksForSearch(
+            state,
+            playerId,
+            preCastSpell,
+            tryGetDefinition((preCastSpell.card as { id?: string }).id ?? "") ??
+                undefined,
+            move.additionalCostLegId,
+            move.castCostPicks,
+            castCostOut,
+            {
+                castFromZone: move.castFromZone,
+                chosenX: move.chosenX,
+            }
+        );
+        // CR 702.138a escape (issue #2980) — the exile cost could not be paid
+        // from the zone the Move named: a STALE Move (the graveyard changed
+        // between enumeration and application). Skip it rather than put the
+        // spell on the stack for free — escape exiles nothing on resolution, so
+        // an uncharged escape cast is recastable forever.
+        if (!castCostsPaid) return null;
+    }
+    // CR 702.81a (issue #2358) — a RETRACE cast leaves the GRAVEYARD, not the
+    // hand, and discards a land card from hand on the way. The discard is what
+    // BOUNDS the line: retrace exiles nothing, so the spell returns to the
+    // graveyard on resolution (CR 608.2n) and is recastable, and only the
+    // shrinking supply of lands stops the tree recasting it forever.
+    const retraceZone = applyRetraceCastForSearch(
+        state,
+        playerId,
+        move.cardInstanceId
+    );
+    // CR 601.3 / 400.7 (issue #2971) — the zone this cast leaves and the player
+    // whose zone it is, through the shared resolver. A hard-coded `"hand"` threw
+    // `Card <id> not found in hand` for every graveyard and exile cast the
+    // enumerator offers, and cannot express a cross-player exile grant at all
+    // (the card sits in the OPPONENT's exile). `null` = a stale Move no
+    // permitted source still holds.
+    const castSource = castSourceForSearch(
+        state,
+        player,
+        move.cardInstanceId,
+        move.castFromZone,
+        retraceZone
+    );
+    if (castSource === null) return null;
+    const castFromZone = castSource.zone;
+    // CR 702.139 (issue #1392, Lurrus) / ADR 0093 — a once-per-turn graveyard
+    // play permission is SPENT at commit by every real commit site. Read the
+    // mechanism while the card is still IN the graveyard, then charge it:
+    // without this the search recasts the same permanent every turn for free.
+    const castMechanism =
+        castFromZone === "graveyard"
+            ? graveyardCastMechanism(
+                  state,
+                  castSource.owner,
+                  castSource.owner.graveyard.find(
+                      (c) => c.id === move.cardInstanceId
+                  )!,
+                  playerId
+              )
+            : undefined;
+    const spellCard = removeFromZone(
+        state,
+        castSource.owner,
+        move.cardInstanceId,
+        castFromZone,
+        playerId
+    );
+    if (castMechanism === "permission") {
+        spendGraveyardPlayPermission(
+            state,
+            castSource.owner,
+            "cast",
+            spellCard
+        );
+    }
+    const stackItem: StackItem = {
+        ...spellCard,
+        castById: playerId,
+        ...(move.targets.length > 0 ? { targets: move.targets } : {}),
+        ...(move.chosenX !== undefined ? { chosenX: move.chosenX } : {}),
+        ...announcedModeFields(move),
+        // CR 702.33 / 702.27a (issue #2081) — snapshot the payment record onto
+        // the stack item exactly where the real commit paths snapshot it
+        // (`PendingCast.kickerPayments` / `.buybackPaid` → `StackItem`), so a
+        // resolving Kicker/Buyback spell reads `wasKicked` /
+        // `{ additionalCostPaid }` / the Buyback return-to-hand redirect
+        // correctly inside the search.
+        // CR 702.33d / 702.175a (ADR 0085) — partitioned by keyword at the
+        // write, exactly as the real commit paths partition it (`game.ts`).
+        // CR 702.47c (issue #2394) — through the SAME splice seam the mutation
+        // and the enumerator use, so the stack item carries `splicedCardIds` and
+        // the resolving spell runs the merged script. Without it the search
+        // would pay the splice cost the enumerator offered and then evaluate a
+        // board where the spliced text never happened.
+        ...additionalCostPaymentSnapshot(
+            spliceAugmentedDefinition(
+                tryGetDefinition((spellCard.card as { id?: string }).id ?? ""),
+                castSource.owner,
+                move.cardInstanceId
+            ),
+            move.kickerPayments
+        ),
+        ...(move.buybackPaid ? { buybackPaid: move.buybackPaid } : {}),
+        // CR 118.8 / 608.2h — the additional-cost victim snapshot the cost
+        // payment above collected, stamped exactly as `tryCommitCast` stamps
+        // it, so a spell reading the victim back at resolve
+        // (`getAdditionalSacrificeMv` — Metamorphosis, Sacrifice, Burnt
+        // Offering) produces its real effect instead of a blank.
+        ...(castCostOut.additionalSacrificeSnapshot
+            ? {
+                  additionalSacrificeSnapshot:
+                      castCostOut.additionalSacrificeSnapshot,
+              }
+            : {}),
+        // CR 307.1 / 117.1a / 601.3a (issue #2473) — the search never calls
+        // into `game.ts`'s commit paths, so it needs its own stamp or the bot
+        // simulates a game in which the flag is universally absent. Evaluated
+        // immediately PRE-push, after the cost payment above, so it reads the
+        // same pre-cast board the mutation path reads at announcement.
+        ...(wasCastOffSorceryTiming(state, playerId)
+            ? { castOffSorceryTiming: true }
+            : {}),
+        // CR 702.34 / 702.138 / 702.81a / 702.88a (issue #2971) — the
+        // zone-dependent stack flags, read from the SAME two helpers every real
+        // commit site spreads (`gre/castCost.ts`). Flashback's `exileOnResolve`
+        // is the one that BOUNDS the line: without it the search models a
+        // flashback card as infinitely recastable. A new mechanism added to
+        // those helpers reaches the search for free.
+        ...graveyardCastStackFlags(state, spellCard, castFromZone),
+        ...reboundCastStackFlags(spellCard, castFromZone),
+    };
+    // CR 601.2b (issues #2388 / #2705 / #1964 / #2796) — the characteristics of
+    // the CAST MODE the caster chose: Bestow's Aura rewrite (702.103b), Morph's
+    // face-down 2/2 (702.37c), Dash's marker (702.109a) and Evoke's (702.74a),
+    // through the single census (`gre/castMode.ts`). A mode left unstamped is a
+    // mode the search cannot see at all — how the bot came to bestow a +1/+1
+    // Aura onto the OPPONENT's creature (issue #2796).
+    applyCastModeCharacteristics(state, stackItem, move.alternativeCostId);
+    state.stack.push(stackItem);
+    if (options.handPriorityToCaster) {
+        // CR 117.3c — the caster gets priority but auto-passes it (no Ctrl), so
+        // the opponent gets to respond before the spell resolves.
+        state.passCount = 0;
+        state.priorityPlayerId = playerId;
+        state.singleShotAutoPass = playerId;
+    }
+    // CR 601.2i / 603.3 (issue #3026) — the SPELL_CAST choke point, in the same
+    // position and the same order the mutation path puts it
+    // (`commitPendingCast`, `convex/game.ts`). Reaching it is what makes
+    // `spellsCastThisTurn` (Storm, ADR 0052), the caster's own per-turn tally
+    // (issue #1343) and the lifetime `spellsCastThisGame` (issue #790) count in
+    // the search at all, and what puts a keyword-synthesized or self-scoped
+    // cast trigger on the stack ABOVE the spell (`collectCastTriggers`).
+    emitSpellCastEvent(state, stackItem);
+    // CR 603.3 — flush the battlefield-watching cast triggers the event just
+    // queued before the caller moves on: a drain can reach two consecutive
+    // passes and start resolving the very spell whose trigger has not been
+    // placed yet.
+    processPendingActionTriggers(state);
+    return stackItem;
+}
+
+/** The search's ONE activation cost payment (issue #4444): the mana through
+ *  the coarse tap plan, then every non-mana leg through
+ *  `applyActivationCostsForSearch`. `false` when a leg could not be met — the
+ *  helper then changed nothing beyond the taps, and the caller must not buy the
+ *  ability's effect. */
+export function payActivationInSearch(
+    state: GameState,
+    playerId: string,
+    move: Extract<Move, { kind: "activate-ability" }>,
+    out?: {
+        additionalSacrificeSnapshot?: StackItem["additionalSacrificeSnapshot"];
+    }
+): boolean {
+    applyTapPlanInSearch(state, playerId, move.tapPlan);
+    return applyActivationCostsForSearch(state, playerId, move, out);
+}
+
+/** CR 702.35a / 702.88a (issue #2983) — decline a reflexive CAST WINDOW
+ *  through the SAME pure resolvers the two decline mutations drive
+ *  (`declineMadness` / `declineRebound`), followed by the identical CR 117.3c
+ *  priority reset those mutations perform: the reflexive ability is done, so
+ *  priority returns to the ACTIVE player, not to the decliner. */
+export function declineCastWindowInSearch(
+    state: GameState,
+    move: Extract<Move, { kind: "madness-decline" | "rebound-decline" }>
+): void {
+    if (move.kind === "madness-decline") {
+        declineMadness(state);
+    } else {
+        declineRebound(state);
+    }
+    state.priorityPlayerId = state.activePlayerId;
+    state.passCount = 0;
+}
+
+/** CR 116.2 / 702.139a — the companion summon special action. Coarse mana
+ *  model: taps a representative source set for the {3} without draining the
+ *  pool coin-exact — legality (including affordability) was established by
+ *  `canSummonCompanion` at enumeration time (`moves.ts`). No stack item
+ *  (CR 116.2a); the caller owns the priority bookkeeping. */
+export function summonCompanionInSearch(
+    state: GameState,
+    player: PlayerState
+): void {
+    const companion = player.companion;
+    if (!companion || companion.used) return;
+    const plan = solveSmartAutoTap(
+        player.manaPool,
+        COMPANION_SUMMON_COST,
+        getManaSubstitutions(state, player.id),
+        buildAutoTapSources(player.battlefield, manaGateBattlefields(state))
+    );
+    if (plan) {
+        for (const step of plan) {
+            const src = player.battlefield.find((c) => c.id === step.cardId);
+            if (src) src.isTapped = true;
+        }
+    }
+    player.hand.push({ ...companion.instance, zone: "hand" });
+    companion.used = true;
+}
+
+/** CR 116.2b / 702.37e — the turn-face-up special action. Same coarse mana
+ *  model as `summonCompanionInSearch`: legality AND affordability were
+ *  established by `canTurnFaceUp` at enumeration time.
+ *
+ *  CR 708.8 — `turnFaceUp` mutates the permanent IN PLACE and it never
+ *  re-enters the battlefield, so no ETB trigger of its own or of any other
+ *  permanent fires. Structural, not a suppression flag. The caller runs SBAs:
+ *  the identity swap re-seats layer 6 from the INSTANCE, and the board's own
+ *  continuous effects are recomposed by that recompute tick. */
+export function turnFaceUpInSearch(
+    state: GameState,
+    player: PlayerState,
+    cardInstanceId: string
+): void {
+    const permanent = player.battlefield.find((c) => c.id === cardInstanceId);
+    if (!permanent) return;
+    const plan = morphTurnUpPaymentPlan(state, player, permanent);
+    if (plan) {
+        const tapped = new Set(plan.map((step) => step.cardId));
+        for (const src of player.battlefield) {
+            if (tapped.has(src.id)) src.isTapped = true;
+        }
+    }
+    turnFaceUp(state, permanent);
+}
+
+/** CR 113.1b / 605.3a (issue #2903) — pay a PLAYER-level granted ability
+ *  (Channel's "Pay 1 life: Add {C}.") the way the `activatePlayerAbility`
+ *  mutation does, and for a MANA ability (CR 605.3b — never uses the stack)
+ *  resolve it on the spot by crediting the pool. The template is a reference
+ *  resolved through the card-definition lookup — there is no instance to read
+ *  it off. `null` when the grant or its template is gone, or when the template
+ *  carries a mana cost: a player grant's mana cost is paid from the pool and no
+ *  shipped grant carries one (the enumerator skips such templates), so a
+ *  hand-built move with one is refused rather than credited free mana. Nothing
+ *  is paid in that case. The caller puts a non-mana ability on the stack. */
+export function payGrantedAbilityInSearch(
+    state: GameState,
+    player: PlayerState,
+    move: Extract<Move, { kind: "activate-granted-ability" }>
+): {
+    grant: GrantedAbilityInstance;
+    template: ActivatedAbility;
+} | null {
+    const grant = player.grantedAbilities?.find(
+        (g) => g.id === move.grantedAbilityInstanceId
+    );
+    const template = grant
+        ? tryGetDefinition(grant.sourceCardId)?.activatedAbilities?.find(
+              (a) => a.id === move.abilityId
+          )
+        : undefined;
+    if (!grant || !template || template.cost.mana) return null;
+    // CR 119.4 — the life leg, which the enumeration-time affordability gate
+    // already vouched for.
+    if (template.cost.life !== undefined) {
+        player.life -= template.cost.life;
+    }
+    if (!template.useStack) {
+        template.effect?.({
+            addMana: (amount) => {
+                // CR 614.1a (issue #3811) — the same colour replacement the
+                // mutation applies.
+                for (const [color, count] of Object.entries(
+                    replaceProducedManaColor(state, player.id, amount)
+                )) {
+                    if (
+                        color !== "X" &&
+                        typeof count === "number" &&
+                        count > 0
+                    ) {
+                        player.manaPool[color] =
+                            (player.manaPool[color] ?? 0) + count;
+                    }
+                }
+            },
+        });
+    }
+    return { grant, template };
+}
+
 /** Upper bound on the resolution steps the `cast-spell` leaf drains after a
  *  cast (issue #3026). One cast can put more than one item on the stack — a
  *  storm trigger, then one copy per prior spell this turn — and each copy
@@ -1277,30 +1588,14 @@ export function applyMoveForSearch(
             return next;
 
         case "madness-decline":
-        case "rebound-decline": {
-            // CR 702.35a / 702.88c (issue #2983) — these two USED to sit in the
-            // no-op list above, under its "never reach the search anyway"
-            // reasoning. That reasoning is now false: both reflexive cast
-            // windows carry a candidate generator, so `enumerateMoves` really
-            // does return these Moves while the choice is pending, and a no-op
-            // here would leave the choice at the queue head — the position this
-            // leaf then scores is one in which the decision was never made.
-            //
-            // This file's standing rule is that the greedy selector and the
-            // ISMCTS tree must not disagree about what a move does (issue
-            // #2473), so this mirrors `applyMoveInSearch`'s branch exactly:
-            // the same pure resolvers the decline mutations drive, then the
-            // CR 117.3c priority reset back to the ACTIVE player.
-            if (move.kind === "madness-decline") {
-                declineMadness(next);
-            } else {
-                declineRebound(next);
-            }
-            next.priorityPlayerId = next.activePlayerId;
-            next.passCount = 0;
+        case "rebound-decline":
+            // CR 702.35a / 702.88a (issue #2983) — both reflexive cast windows
+            // carry a candidate generator, so these Moves are really enumerated
+            // while the choice is pending; a no-op would leave the choice at the
+            // queue head. The shared decline (issue #4444).
+            declineCastWindowInSearch(next, move);
             checkStateBasedActions(next);
             return next;
-        }
 
         case "play-land": {
             // Shared canonical play-land core (CR 305 / 302.6) — identical to
@@ -1324,362 +1619,26 @@ export function applyMoveForSearch(
             return next;
         }
 
-        case "summon-companion": {
-            // CR 116.2 / 702.139a — the companion summon special action.
-            // Coarse mana model matching this file's own `play-land`/
-            // `cast-spell` leaves (see header): taps a representative source
-            // set for the {3} without draining the pool coin-exact — legality
-            // (including affordability) was already established by
-            // `canSummonCompanion` at enumeration time (moves.ts), so this
-            // leaf only needs to move the position forward for evaluation.
-            const companion = player.companion;
-            if (companion && !companion.used) {
-                const subs = getManaSubstitutions(next, playerId);
-                const sources = buildAutoTapSources(
-                    player.battlefield,
-                    manaGateBattlefields(next)
-                );
-                const plan = solveSmartAutoTap(
-                    player.manaPool,
-                    COMPANION_SUMMON_COST,
-                    subs,
-                    sources
-                );
-                if (plan) {
-                    for (const step of plan) {
-                        const src = player.battlefield.find(
-                            (c) => c.id === step.cardId
-                        );
-                        if (src) src.isTapped = true;
-                    }
-                }
-                player.hand.push({ ...companion.instance, zone: "hand" });
-                companion.used = true;
-            }
+        case "summon-companion":
+            summonCompanionInSearch(next, player);
             return next;
-        }
 
-        case "turn-face-up": {
-            // CR 116.2b / 702.37e — the turn-face-up special action. Same
-            // coarse mana model as `summon-companion` above (taps a
-            // representative source set without draining the pool coin-exact):
-            // legality AND affordability were already established by
-            // `canTurnFaceUp` at enumeration time, so this leaf only needs to
-            // move the position forward for evaluation.
-            //
-            // CR 708.8 — the permanent is mutated IN PLACE by `turnFaceUp` and
-            // never re-enters the battlefield, so no ETB trigger of its own or
-            // of any other permanent fires. That is structural, not a
-            // suppression flag: there is no enter-the-battlefield path here to
-            // suppress.
-            const permanent = player.battlefield.find(
-                (c) => c.id === move.cardInstanceId
-            );
-            if (permanent) {
-                const plan = morphTurnUpPaymentPlan(next, player, permanent);
-                if (plan) {
-                    const tapped = new Set(plan.map((step) => step.cardId));
-                    for (const src of player.battlefield) {
-                        if (tapped.has(src.id)) src.isTapped = true;
-                    }
-                }
-                turnFaceUp(state, permanent);
-            }
-            // CR 704.3 / 613.1f — SBAs, like every sibling branch (the
-            // `madness-decline` / `play-land` / `activate-ability` arms all run
-            // them). Turning a permanent face up is an identity swap, and an
-            // identity swap re-seats layer 6 from the INSTANCE (`gre/layer6.ts`
-            // — the swap sites carry no `GameState`); the board's own
-            // continuous effects are recomposed by the recompute tick this
-            // call runs. Without it the leaf was scored against a permanent
-            // one sync behind the board (`game.ts` and `search.ts` both call
-            // SBAs after their own `turnFaceUp`; this branch was the outlier).
+        case "turn-face-up":
+            turnFaceUpInSearch(next, player, move.cardInstanceId);
+            // CR 704.3 / 613.1f — SBAs, like every sibling branch: the identity
+            // swap re-seats layer 6 from the INSTANCE, and this call's recompute
+            // tick recomposes the board's continuous effects around it.
             checkStateBasedActions(next);
             return next;
-        }
 
         case "cast-spell": {
-            // CR 702.35a / 702.88a (issue #2983) — a cast that ACCEPTS an open
-            // reflexive cast window consumes that window's pending choice, in
-            // the same two calls and the same order `announceCast` makes them
-            // (convex/game.ts) and `applyMoveInSearch` mirrors. Without it this
-            // leaf scores a position with the spell on the stack AND its own
-            // window still open — one the server can never produce. Both are
-            // no-ops unless the head choice is THIS card's window for THIS
-            // player.
-            consumeMadnessCastChoice(next, playerId, move.cardInstanceId);
-            consumeReboundCastChoice(next, playerId, move.cardInstanceId);
-            // CR 702.66b / 601.2g (issue #1661) — pay the delve exile BEFORE
-            // the tap plan runs (see `applyDelveExileForSearch`'s doc — its
-            // forced-minimum calc needs the caster's mana still untapped) and
-            // before the spell leaves hand, mirroring
-            // `tryAutoCommitPendingCast`'s real-path order.
-            // CR 601.3 (issue #2980) — the zone the Move DECLARES, not the
-            // hand: a hand-only lookup skipped this whole pre-cast cost block
-            // for every graveyard and exile cast the enumerator offers, so an
-            // escape cast's exile went uncharged and the spell reached the
-            // stack for free.
-            const preCastSpell = findCastSourceCard(
-                next,
-                player,
-                move.cardInstanceId,
-                move.castFromZone
-            );
-            if (preCastSpell) {
-                applyDelveExileForSearch(
-                    next,
-                    player,
-                    preCastSpell,
-                    move.chosenX
-                );
-            }
-            applyTapPlan(next, playerId, move.tapPlan);
-            // CR 609.4b / 118.14 (issue #2890) — a one-shot "for one spell this
-            // turn, you may spend mana as though it were mana of any type"
-            // grant (North Star) is spent by a cast in the SEARCH world too.
-            // Popped unconditionally rather than through the real path's
-            // "was it needed" counterfactual: this leaf pays with the coarse
-            // mana model documented in this file's header (a tap plan, not a
-            // coin-exact pool drain), so the counterfactual has nothing honest
-            // to read. Not popping it let one activation fund several off-colour
-            // casts down a line and over-valued North Star.
-            consumeSpellManaSubstitutionGrant(next, playerId);
-            // CR 107.4f — pay the Phyrexian pips this move chose to cover with
-            // life (2 each); the mana-paid pips are already in `tapPlan`.
-            if (move.payLife && move.payLife > 0) {
-                player.life -= move.payLife;
-            }
-            // CR 601.2b / 601.2h / 118.8 — pay the CASTER-CHOSEN additional
-            // cost leg this Move announced ("discard a card or pay 3 life").
-            // Paid BEFORE the spell leaves hand, mirroring the real commit
-            // order (`finalizeTargetSelection`), because the discard leg reads
-            // the caster's hand and the cast card itself is never eligible
-            // (CR 601.2a). Without this the search values a Bitter Triumph line
-            // as a free removal spell and the Bot mis-picks between its legs.
-            applyAdditionalCostLegForSearch(
-                next,
-                playerId,
-                move.cardInstanceId,
-                move.additionalCostLegId,
-                move.chosenX
-            );
-            // CR 702.33a / 601.2f (issue #2081) — pay a paid Kicker's
-            // PERMANENT leg (sacrifice/return) before the spell leaves its
-            // zone, the same ordering `applyAdditionalCostLegForSearch` above
-            // uses for the same reason. `preCastSpell` (found above, before
-            // removal) is looked up in the zone the Move DECLARES since issue
-            // #2980, so this no longer rests on "no shipped Kicker card is cast
-            // from anywhere but hand" — it is right for whichever zone the cast
-            // actually leaves.
-            if (move.kickerPayments && preCastSpell) {
-                const kickerCardDef = tryGetDefinition(
-                    (preCastSpell.card as { id?: string }).id ?? ""
-                );
-                if (kickerCardDef) {
-                    applyKickerPermanentLegForSearch(
-                        next,
-                        playerId,
-                        kickerCardDef,
-                        move.kickerPayments
-                    );
-                }
-            }
-            // CR 601.2f / 701.21 / 701.13 (issue #2135) — pay the mandatory
-            // additional-cost parks (filtered sacrifice + Drought, and the exile
-            // additional cost) before the spell leaves its zone, in the same
-            // pre-removal block as the Kicker permanent leg above. The picks
-            // ride on the move (`castCostPicks`), so the search charges exactly
-            // what the executor will submit.
-            const castCostOut: {
-                additionalSacrificeSnapshot?: StackItem["additionalSacrificeSnapshot"];
-            } = {};
-            let castCostsPaid = true;
-            if (move.castCostPicks && preCastSpell) {
-                castCostsPaid = applyCastCostPicksForSearch(
-                    next,
-                    playerId,
-                    preCastSpell,
-                    tryGetDefinition(
-                        (preCastSpell.card as { id?: string }).id ?? ""
-                    ) ?? undefined,
-                    move.additionalCostLegId,
-                    move.castCostPicks,
-                    castCostOut,
-                    {
-                        castFromZone: move.castFromZone,
-                        chosenX: move.chosenX,
-                    }
-                );
-            }
-            // CR 702.138a escape (issue #2980) — the exile cost could not be
-            // paid from the zone the Move named: a STALE Move (the
-            // graveyard changed between enumeration and application).
-            // Skip it rather than put the spell on the stack for free —
-            // escape exiles nothing on resolution, so an uncharged
-            // escape cast is recastable forever.
-            if (!castCostsPaid) return next;
-            // CR 702.81a (issue #2358) — a RETRACE cast leaves the GRAVEYARD
-            // and pays a discarded land on the way. Probed (and charged) before
-            // the zone decision below, which knows only hand and library.
-            const retraceZone = applyRetraceCastForSearch(
-                next,
-                playerId,
-                move.cardInstanceId
-            );
-            // CR 601.3 / 400.7 (issue #2971) — the zone this cast leaves and
-            // the player whose zone it is, through the shared resolver. This
-            // leaf used to GUESS (hand, unless the id was the library top),
-            // which throws `Card <id> not found in hand` for every graveyard
-            // and exile cast the enumerator now offers, and cannot express a
-            // cross-player exile grant at all (the card sits in the OPPONENT's
-            // exile). `null` = a stale Move no permitted source still holds:
-            // skip it, leaving the position unchanged, exactly as the
-            // `play-land` leaf does.
-            const castSource = castSourceForSearch(
-                next,
-                player,
-                move.cardInstanceId,
-                move.castFromZone,
-                retraceZone
-            );
-            if (castSource === null) return next;
-            const castFromZone = castSource.zone;
-            // CR 601.3 (ADR 0093) — a once-per-turn graveyard play permission
-            // (Lurrus) is SPENT at commit by every real commit site
-            // (`markGraveyardPlayPermissionUsed`). Read the
-            // mechanism while the card is still IN the graveyard, then charge
-            // it: without this the search recasts the same permanent every turn
-            // for free and prices a line that does not exist.
-            const castMechanism =
-                castFromZone === "graveyard"
-                    ? graveyardCastMechanism(
-                          next,
-                          castSource.owner,
-                          castSource.owner.graveyard.find(
-                              (c) => c.id === move.cardInstanceId
-                          )!,
-                          playerId
-                      )
-                    : undefined;
-            const spellCard = removeFromZone(
-                state,
-                castSource.owner,
-                move.cardInstanceId,
-                castFromZone,
-                playerId
-            );
-            if (castMechanism === "permission") {
-                spendGraveyardPlayPermission(
-                    next,
-                    castSource.owner,
-                    "cast",
-                    spellCard
-                );
-            }
-            const stackItem: StackItem = {
-                ...spellCard,
-                castById: playerId,
-                ...(move.targets.length > 0 ? { targets: move.targets } : {}),
-                ...(move.chosenX !== undefined
-                    ? { chosenX: move.chosenX }
-                    : {}),
-                ...announcedModeFields(move),
-                // CR 702.33 / 702.27a (issue #2081) — snapshot the payment
-                // record onto the stack item exactly where the real commit
-                // paths snapshot it (`PendingCast.kickerPayments` /
-                // `.buybackPaid` → `StackItem`), so a resolving Kicker/Buyback
-                // spell reads `wasKicked` / `{ additionalCostPaid }` / the Buyback
-                // return-to-hand redirect correctly inside the search.
-                // CR 702.33d / 702.175a (ADR 0085) — partitioned by keyword at
-                // the write, exactly as the real commit paths partition it
-                // (`game.ts`), so the sandbox's resolving spell reads the same
-                // kicked-ness the mutation would have produced.
-                // CR 702.47c (issue #2394) — through the SAME splice seam the
-                // mutation and the enumerator use, so the sandbox's stack item
-                // carries `splicedCardIds` and the resolving spell runs the
-                // merged script. Without it the search would pay the splice
-                // cost the enumerator offered and then evaluate a board where
-                // the spliced text never happened — a silent, systematic
-                // undervaluation of every splice Move.
-                ...additionalCostPaymentSnapshot(
-                    spliceAugmentedDefinition(
-                        tryGetDefinition(
-                            (spellCard.card as { id?: string }).id ?? ""
-                        ),
-                        castSource.owner,
-                        move.cardInstanceId
-                    ),
-                    move.kickerPayments
-                ),
-                ...(move.buybackPaid ? { buybackPaid: move.buybackPaid } : {}),
-                // CR 118.8 / 608.2h — the additional-cost victim snapshot, so a
-                // spell that reads it back at resolve (`getAdditionalSacrificeMv`)
-                // produces its real effect in the sandbox instead of a blank.
-                ...(castCostOut.additionalSacrificeSnapshot
-                    ? {
-                          additionalSacrificeSnapshot:
-                              castCostOut.additionalSacrificeSnapshot,
-                      }
-                    : {}),
-                // CR 307.1 / 117.1a / 601.3a (issue #2473) — the bot
-                // search-tree `cast-spell` executor is a wholesale
-                // reimplementation of "build a StackItem from a cast", not a
-                // caller of `game.ts`'s commit paths, so it needs its own
-                // stamp (already silently omitted `evoked`/`dashed`/`escaped`
-                // before this change — same gap, this Op closes only this
-                // flag). `next` is the full post-cost-payment clone, still
-                // pre-push, so `wasCastOffSorceryTiming` reads the same
-                // pre-cast board state the real commit paths do.
-                ...(wasCastOffSorceryTiming(next, playerId)
-                    ? { castOffSorceryTiming: true }
-                    : {}),
-                // CR 702.34 / 702.138 / 702.81a / 702.88a (issue #2971) — the
-                // zone-dependent stack flags, read from the SAME two helpers
-                // every real commit site spreads (`gre/castCost.ts`), rather
-                // than the single hand-written retrace flag this leaf carried
-                // before. That is what makes the census complete by
-                // construction: Flashback's `exileOnResolve`, Escape's
-                // `escaped`, a per-card grant's exile rider, retrace's bare
-                // `castFromGraveyard` and Rebound's `reboundFromHand` all
-                // arrive together, and a new mechanism added to those helpers
-                // reaches the sandbox for free.
-                ...graveyardCastStackFlags(next, spellCard, castFromZone),
-                ...reboundCastStackFlags(spellCard, castFromZone),
-            };
-            // CR 601.2b (issues #2388 / #2705 / #1964 / #2796) — the
-            // characteristics of the CAST MODE the caster chose: Bestow's Aura
-            // rewrite (702.103b), Morph's face-down 2/2 (702.37c), Dash's
-            // marker (702.109a) and Evoke's (702.74a). The sandbox resolves the
-            // item below, so a mode left unstamped here is a mode the search
-            // cannot see at all — every bestow line evaluating as "a 1/1 body
-            // entered", a hidden 2/2 priced as the real card, a dashed or
-            // evoked creature modelled as one that stays.
-            //
-            // One shared census (`gre/castMode.ts`, issue #2796) rather than a
-            // per-mode `if` here and a DIFFERENT per-mode `if` in the ISMCTS
-            // executor: these two hand-written lists had already drifted (this
-            // one carried bestow and dash, the tree carried morph, neither
-            // carried evoke), which is exactly the divergence issue #2473 named
-            // when it called them two reimplementations of the same thing.
-            applyCastModeCharacteristics(
-                state,
-                stackItem,
-                move.alternativeCostId
-            );
-            // CR 601.2i / 603.3 (issue #3026) — announce the cast through the
-            // single choke point, which is what makes `spellsCastThisTurn`
-            // (Storm, ADR 0052), the caster's own per-turn tally (issue #1343,
-            // connive / Ledger Shredder) and the lifetime `spellsCastThisGame`
-            // (issue #790) count in this sandbox at all, and what puts a
-            // keyword-synthesized or self-scoped cast trigger on the stack
-            // above the spell (`collectCastTriggers`). Both hand-built
-            // "StackItem from a cast" reimplementations (issue #2473) pushed
-            // without ever announcing, so the greedy selector and ISMCTS agreed
-            // only by both being wrong: every storm spell copied zero times.
+            // The shared commit sequence (issue #4444). This sandbox then
+            // resolves the cast segment itself, so it leaves priority alone.
             const stackDepthBeforeCast = next.stack.length;
-            next.stack.push(stackItem);
-            emitSpellCastEvent(next, stackItem);
-            processPendingActionTriggers(next);
+            const stackItem = commitCastInSearch(next, playerId, move, {
+                handPriorityToCaster: false,
+            });
+            if (stackItem === null) return next;
             // CR 603.3b — the cast trigger now sits ABOVE the spell, and a
             // storm trigger pushes its copies when IT resolves, so the single
             // `resolveTopOfStack` this leaf used to make would resolve the
@@ -1736,62 +1695,19 @@ export function applyMoveForSearch(
         }
 
         case "activate-ability":
-            // Costs only (see file header): tap the planned mana, pay every
-            // non-mana cost leg through the sandbox-shared helper
-            // (`applyActivationCostsForSearch`, issue #2155), do not resolve
-            // the ability's effect this slice (issue #1920).
-            applyTapPlan(next, playerId, move.tapPlan);
-            applyActivationCostsForSearch(next, playerId, move);
+            // Costs only (see file header): the shared payment (issue #4444),
+            // without the push `applyMoveInSearch` makes (issue #1920).
+            payActivationInSearch(next, playerId, move);
             checkStateBasedActions(next);
             return next;
 
-        case "activate-granted-ability": {
-            // CR 113.1b / 605.3a (issue #2903) — a PLAYER-level granted ability
-            // (Channel's "Pay 1 life: Add {C}."). Pay the life and, for a mana
-            // ability, credit the pool, mirroring `activatePlayerAbility`
-            // (`convex/game.ts`). The greedy 1-ply selector has no live caller
-            // (`greedySelectMove`), but this keeps the two search sandboxes
-            // consistent — see the file header's note on the revived-selector
-            // obligation.
-            const grant = player.grantedAbilities?.find(
-                (g) => g.id === move.grantedAbilityInstanceId
-            );
-            const template = grant
-                ? tryGetDefinition(
-                      grant.sourceCardId
-                  )?.activatedAbilities?.find((a) => a.id === move.abilityId)
-                : undefined;
-            if (!template) return next;
-            // Fail-closed: a player grant's MANA cost is paid from the pool and
-            // no shipped player grant carries one (the enumerator skips such
-            // templates), so a hand-built move with one must not be credited
-            // free mana here.
-            if (template.cost.mana) return next;
-            if (template.cost.life !== undefined) {
-                player.life -= template.cost.life;
-            }
-            if (!template.useStack) {
-                template.effect?.({
-                    addMana: (amount) => {
-                        // CR 614.1a (issue #3811) — mirrors the mutation.
-                        for (const [color, count] of Object.entries(
-                            replaceProducedManaColor(next, player.id, amount)
-                        )) {
-                            if (
-                                color !== "X" &&
-                                typeof count === "number" &&
-                                count > 0
-                            ) {
-                                player.manaPool[color] =
-                                    (player.manaPool[color] ?? 0) + count;
-                            }
-                        }
-                    },
-                });
-            }
+        case "activate-granted-ability":
+            // CR 113.1b / 605.3a (issue #2903) — the shared payment, which also
+            // resolves a mana ability on the spot. A non-mana grant is not
+            // pushed here, the same costs-only limit as `activate-ability`.
+            if (!payGrantedAbilityInSearch(next, player, move)) return next;
             checkStateBasedActions(next);
             return next;
-        }
 
         case "declare-attackers": {
             if (move.attackerIds.length === 0) return next;

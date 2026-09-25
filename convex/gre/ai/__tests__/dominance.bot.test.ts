@@ -760,9 +760,10 @@ describe("dominance pruning guards (issue #1887)", () => {
     });
 });
 
-// issue #2420 — the probe's own `applyTapPlan` (a THIRD independent copy,
-// kept isolated from `search.ts`/`applyMove.ts` by this module's own design)
-// must also route an `abilityId` tapPlan entry to the OTHER permanent, never
+// issue #2420 — the probe's tap plan (since issue #4444 the shared
+// `applyTapPlanInSearch`, `gre/searchTapPlan.ts`, a leaf module that keeps the
+// probe off `moves.ts`' runtime import graph) must also route an `abilityId`
+// tapPlan entry to the OTHER permanent, never
 // the enumerated source. A wrong model here isn't cosmetic: `isNoOpDelta`
 // compares tap state to decide dominance pruning, so a mistakenly-tapped Urza
 // could mask a real cost/benefit delta for a probed cast.

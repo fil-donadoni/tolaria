@@ -91,7 +91,7 @@ function position(
 }
 
 /** Every PHYSICAL permanent a plan taps — the same split `runTapPlan`
- *  (src/lib/ai/executor.ts) and `applyTapPlan` (applyMove.ts) apply. */
+ *  (src/lib/ai/executor.ts) and `applyTapPlanInSearch` (searchTapPlan.ts) apply. */
 function tappedPermanentIds(
     plan: readonly {
         cardInstanceId: string;
@@ -242,7 +242,7 @@ describe("burst mana sources pay more than one pip (issue #3027)", () => {
     // Apprentice Wizard returned a plan for {3} with its {U} unfunded, and a
     // lone Orcish Lumberjack one with no Forest sacrificed — plans
     // `applyManaAbilityManaCost` / the sacrifice cost reject outright, while
-    // the search would meanwhile value them as legal (`applyTapPlan` only
+    // the search would meanwhile value them as legal (`applyTapPlanInSearch` only
     // marks sources tapped). Such a source falls back to ONE mana, its exact
     // pre-issue-#3027 behaviour.
     it.each([

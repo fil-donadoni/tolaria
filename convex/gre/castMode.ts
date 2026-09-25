@@ -23,11 +23,10 @@
  * Every one of those is invisible unless the cast's stack item is STAMPED at
  * the site that builds it, and this engine builds one at four sites: the three
  * real commit paths in `game.ts` (which read the answers off `PendingCast`, a
- * different shape — they are not this module's callers) and the TWO search
- * executors, the greedy 1-ply sandbox (`applyMoveForSearch`, `applyMove.ts`)
- * and the ISMCTS in-tree executor (`applyMoveInSearch`, `search.ts`), which
- * both read the answer off `Move.alternativeCostId` and are this module's
- * callers.
+ * different shape — they are not this module's callers) and the search's one
+ * cast commit sequence (`commitCastInSearch`, `applyMove.ts`, issue #4444),
+ * shared by the greedy 1-ply sandbox and the ISMCTS in-tree executor, which
+ * reads the answer off `Move.alternativeCostId` and is this module's caller.
  *
  * They had drifted, silently and in the way issue #2473 predicted when it named
  * them "the second wholesale reimplementation of build-a-StackItem-from-a-cast":

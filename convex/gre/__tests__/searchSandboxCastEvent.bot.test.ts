@@ -50,7 +50,7 @@ registerTokenDefinition(stormCounterProbe);
 
 /** Two Mountains and the two spells in hand — the position both sandboxes are
  *  driven over. The sandboxes do not re-validate mana (the tap plan rides on
- *  the Move, see `applyTapPlan`), but the lands are real so the position is one
+ *  the Move, see `applyTapPlanInSearch`), but the lands are real so the position is one
  *  the enumerator could actually have produced. */
 function stormPosition(): GameState {
     const lands = [0, 1].map((i) =>

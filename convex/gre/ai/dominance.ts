@@ -85,8 +85,9 @@
 //
 // ── Documented narrowings ─────────────────────────────────────────────────
 // The probe pays costs coarsely (tap plan marks sources tapped, no pool
-// accounting — the same model `applyMoveInSearch`/`applyMoveForSearch` use; this
-// is precisely what makes a pool DIFFERENCE attributable to the resolution), and
+// accounting — the SAME function `applyMoveInSearch`/`applyMoveForSearch` use,
+// `applyTapPlanInSearch`, issue #4444; this is precisely what makes a pool
+// DIFFERENCE attributable to the resolution), and
 // does not emit ABILITY_ACTIVATED (`recordActivation` is private to `game.ts`).
 // It DOES emit SPELL_CAST and flush the resulting cast triggers, so a
 // Guttersnipe-style "whenever you cast" payoff is seen and blocks the prune.
@@ -131,16 +132,16 @@ import {
 import { checkStateBasedActions } from "../sba";
 import { cloneGameState } from "../clone";
 import { sacrificeSourceSnapshot } from "../sacrificeChoice";
-import {
-    isCreature,
-    manaGateBattlefields,
-    manaTapExertsSource,
-    mayExertForMana,
-    PERMANENT_TYPES,
-} from "../constants";
-// CR 701.43a — the single exert authority (issue #3359); see this module's own
-// `applyTapPlan` for why the probe pays the leg too.
-import { payExertActivationCost } from "../exert";
+import { isCreature, PERMANENT_TYPES } from "../constants";
+// Issue #4444 — the search's ONE coarse mana payment, shared with both search
+// appliers. A leaf module, so it keeps this one off `moves.ts`' runtime import
+// graph. It pays every leg a mana tap carries (sacrifice, counters, exert), and
+// `isNoOpDelta` forgives only the TAP: a sacrifice-for-mana source in the
+// graveyard or a depletion land's spent counters reads as a delta, so a cast
+// paid that way is never proved dominated. That prunes strictly LESS than the
+// exert-only copy this replaced, never more — the fail-safe direction, since a
+// move left unpruned is still scored by the search.
+import { applyTapPlanInSearch } from "../searchTapPlan";
 import { tryGetDefinition } from "../../cards";
 import { spellHasDelve } from "../payWith";
 // CR 307.1 / 117.1a / 601.3a (issue #2473) — the shared cast-timing snapshot
@@ -732,68 +733,6 @@ function isNoOpChoiceDelta(baseline: GameState, probe: GameState): boolean {
 // so this module stays off `moves.ts`' runtime import graph)
 // ---------------------------------------------------------------------------
 
-/** Mark the planned mana sources tapped. Coarse by design: the probe neither
- *  credits the pool from the tapped sources nor debits the spell's cost, so the
- *  mover's pool is untouched by cost payment — which is exactly what lets
- *  `isNoOpDelta` COMPARE the pool and see only what the resolution added. The
- *  tap itself is forgiven there (untapped → tapped is a cost, untapping is a
- *  delta).
- *
- *  Issue #2420 — an `abilityId`-carrying entry ACTIVATES the source's own
- *  non-tap mana ability (Urza's `tapOtherFilter`, Farrelite Priest's pure
- *  `cost.mana`) rather than tapping the source: `cardInstanceId` itself is
- *  never tapped by this payment (CR 602.1); only the permanent(s) named in
- *  `tapOtherIds`, if any, are. A wrong model here isn't merely a cosmetic
- *  mismatch — `isNoOpDelta` compares tap state to decide whether a move is
- *  pruned as dominated by `pass`, so leaving Urza tapped-by-mistake could
- *  mask a real cost/benefit delta. Mirrors the identical fix in
- *  `applyMove.ts` / `search.ts`'s own `applyTapPlan` — kept as a third
- *  separate copy by this module's own isolation rule (see the section header
- *  above), so all three need the same fix. */
-function applyTapPlan(
-    state: GameState,
-    pid: string,
-    tapPlan: {
-        cardInstanceId: string;
-        abilityId?: string;
-        manaChoiceIndex?: number;
-        tapOtherIds?: string[];
-    }[]
-): void {
-    const player = state.players.find((p) => p.id === pid);
-    if (!player) return;
-    for (const tap of tapPlan) {
-        if (tap.abilityId) {
-            for (const otherId of tap.tapOtherIds ?? []) {
-                const other = player.battlefield.find((c) => c.id === otherId);
-                if (other) other.isTapped = true;
-            }
-            continue;
-        }
-        const src = player.battlefield.find((c) => c.id === tap.cardInstanceId);
-        if (!src) continue;
-        // CR 701.43a / 602.1a (issue #3359) — the probe pays the EXERT leg for
-        // the same reason it must model the tap correctly: `isNoOpDelta`
-        // compares board state to decide whether a move is pruned as dominated
-        // by `pass`, so a payment whose cost the probe leaves unpaid can mask a
-        // real cost/benefit delta. Per OPTION, through the same
-        // `manaChoiceIndex` authority both other copies use, behind the same
-        // cheap printed-definition prefilter.
-        if (
-            mayExertForMana(src) &&
-            manaTapExertsSource(
-                src,
-                player.id,
-                manaGateBattlefields(state),
-                tap.manaChoiceIndex
-            )
-        ) {
-            payExertActivationCost(state, src);
-        }
-        src.isTapped = true;
-    }
-}
-
 /** Put the cast spell on the probe's stack exactly as the real cast does
  *  (CR 601.2i): card leaves hand, stack item carries targets / X / mode, the
  *  SPELL_CAST event fires and its triggers are flushed onto the stack above the
@@ -811,7 +750,7 @@ export function applyProbeCast(
     const player = probe.players.find((p) => p.id === pid);
     if (!player) return false;
     if (!player.hand.some((c) => c.id === move.cardInstanceId)) return false;
-    applyTapPlan(probe, pid, move.tapPlan);
+    applyTapPlanInSearch(probe, pid, move.tapPlan);
     const spellCard = removeFromZone(
         probe,
         player,
@@ -870,7 +809,7 @@ function applyProbeActivation(
     if (!located) return false;
     const ability = abilityOf(located, move.abilityId);
     if (!ability) return false;
-    applyTapPlan(probe, pid, move.tapPlan);
+    applyTapPlanInSearch(probe, pid, move.tapPlan);
     if (ability.cost.tap) located.isTapped = true;
     // CR 601.2h / 701.21 (issue #3424) — pay the self-sacrifice leg through the
     // engine's own choke point, so the departure fires every event, queues every
@@ -1161,7 +1100,7 @@ export const IGNORED_INSTANCE_KEYS = [
 
 /** The mover's own cast bookkeeping. Deliberately NOT here: `manaPool` and
  *  `restrictedMana`. The probe pays mana costs by MARKING SOURCES TAPPED and
- *  never credits or debits the pool (`applyTapPlan`), so on the probe side the
+ *  never credits or debits the pool (`applyTapPlanInSearch`), so on the probe side the
  *  pool moves for exactly one reason — the RESOLUTION produced mana. Ignoring
  *  it made every ritual (Dark Ritual, Cabal Ritual: `effects: [{ op: "addMana"
  *  }]`) "provably" a no-op and pruned the bot's whole ramp package. Comparing

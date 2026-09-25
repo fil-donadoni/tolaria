@@ -197,7 +197,7 @@ function* boards(): Generator<{ label: string; defIds: string[] }> {
 /** Every PHYSICAL permanent a plan taps: a plain entry taps its own source, an
  *  `abilityId` entry taps only the permanents it names (CR 602.1 — the
  *  activating source is never tapped by its own `tapOtherFilter` cost). The
- *  same split `applyTapPlan` (applyMove.ts / search.ts / ai/dominance.ts) and
+ *  same split `applyTapPlanInSearch` (searchTapPlan.ts) and
  *  `runTapPlan` (src/lib/ai/executor.ts) apply. */
 function tappedPermanentIds(plan: readonly ManaTap[]): string[] {
     const ids: string[] = [];

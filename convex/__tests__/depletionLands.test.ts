@@ -265,7 +265,7 @@ describe("depletion lands — a land with no counters is not a mana source", () 
 });
 
 describe("depletion lands — the search's coarse mana model", () => {
-    // `applyTapPlan` (search.ts / applyMove.ts) asks these two whether tapping
+    // `applyTapPlanInSearch` (searchTapPlan.ts) asks these two whether tapping
     // a source for mana removes it from the battlefield. Answering "no" leaves
     // a depleted land sitting tapped in every simulated future, so the bot
     // plans around mana it no longer has.

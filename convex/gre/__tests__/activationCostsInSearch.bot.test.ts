@@ -678,7 +678,7 @@ describe("applyMoveInSearch pays activation costs (issue #2155)", () => {
 //
 //    For both repro abilities the "cost-free version" is exactly the root
 //    position: neither has a mana leg or a `{T}` cost, so the pre-fix leaf
-//    (tap plan only, `applyTapPlan` over an empty plan) left the state
+//    (tap plan only, `applyTapPlanInSearch` over an empty plan) left the state
 //    byte-identical to the root. Comparing the paid leaf against the root is
 //    therefore literally "with the cost" vs "with the cost free", with no
 //    hand-rolled counterfactual engine.
