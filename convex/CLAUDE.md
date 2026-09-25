@@ -268,6 +268,22 @@ Every optional `GameState` field goes in `PERSISTED_OPTIONAL_KEYS`
 fails otherwise. New optional field: add the key, add a round-trip smoke test
 with a non-empty value, run the suite.
 
+**Card instance fields are a TABLE, not branches** (issue #4453). Every
+optional `CardInstanceState` key has one row in `CARD_FIELD_LIFECYCLE`
+(`gre/state/cardFieldLifecycle.ts`): a `codec` (`flag` / `scalar` / `defined`
+/ `list` / `record` / `custom`) that `compactCard` / `expandCard` apply in
+table order (table order IS wire key order, pinned byte-for-byte by
+`__tests__/fixtures/cardFieldLifecycle.compact.json`), and a `reset` list
+naming which of the three ladders clears it — `turn` (cleanup step),
+`zone-change` (`resetBattlefieldTransientState`), `stack`
+(`resetStackTransientState`) — or `custom:<scope>` for a clear a revert helper
+performs by hand. New optional field: add the type member, add the row, add
+its value to `__tests__/fixtures/everyOptionalCardField.ts` (both are
+exhaustive mapped types, so `check:ts` names what you forgot). Never add a
+`delete card.x` to a ladder or an `if (card.x) out.x = …` to the codecs: the
+row IS the branch. A `custom` codec needs its pair in
+`CARD_FIELD_CUSTOM_CODECS` (`serialize.ts`) and a stated reason on the row.
+
 ## Code patterns
 
 - Game state mutations are pure functions (no side effects, no async)

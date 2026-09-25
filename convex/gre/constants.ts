@@ -1483,8 +1483,9 @@ export function hasFilteredGiveUpCost(cost: ActivatedAbility["cost"]): boolean {
  *  and left off both the admitted set and the never-list narrows
  *  `_UnclassifiedManaAbilityCostLeg` away from `never`, and the assignment
  *  below fails to compile until someone puts it on one list or the other
- *  (same idiom as `expectedInput.ts`'s `_expectedInputKindsExhaustive` and
- *  `serialize.ts`'s `_cardKeysExhaustive`). */
+ *  (same idiom as `expectedInput.ts`'s `_expectedInputKindsExhaustive`; the
+ *  card-field census is the `satisfies` clause on `CARD_FIELD_LIFECYCLE`,
+ *  `gre/state/cardFieldLifecycle.ts`). */
 type _UnclassifiedManaAbilityCostLeg = Exclude<
     keyof ActivatedAbility["cost"],
     | "tap"
