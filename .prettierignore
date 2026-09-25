@@ -88,6 +88,3 @@ data/cr/citations-ledger.json
 # Prettier explodes each row across ten lines (measured: 816 -> 6,407), and the
 # command's own output would then never reproduce the committed bytes.
 data/bot-reach-findings.json
-
-# Wire-format snapshot: byte-identical proof, never reflowed (issue #4453)
-convex/gre/__tests__/fixtures/cardFieldLifecycle.compact.json
