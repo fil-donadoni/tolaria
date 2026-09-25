@@ -18,7 +18,8 @@ import { serraAngel } from "../../cards/sets/lea/white";
  * damage at or above its toughness has been dealt lethal damage and is
  * destroyed.
  *
- * The seam is one line in `dealDamageToPermanent` (`gre/state.ts`):
+ * The seam is one expression, at two sites in `gre/state.ts` (the spell path
+ * in `buildSpellContext`'s damage dealer and `markDamageFromPermanentSource`):
  * `damageMarked = (damageMarked ?? 0) + reduced`. A regression to
  * `= reduced` keeps every single-hit test green — 3 marked after one Bolt
  * either way — and only a SECOND noncombat hit on the same creature tells the
