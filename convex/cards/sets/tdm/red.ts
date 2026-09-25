@@ -56,8 +56,8 @@ import { equipAbility } from "../../abilities/equipment";
 // identical `bind` field (issue #1202, `cards/types.ts` +
 // `gre/effects/interpreter.ts` + `gre/effects/validate.ts`) is a "generalize,
 // don't add" primitive-reuse move, not a new Op — it required no new grammar,
-// no new validator family, and no new binding kind (`bindingKindOf`'s
-// existing default "snapshot" case already covers it). The "you MAY attach"
+// no new validator family, and no new binding kind (the schema row tags its
+// `bind` with the existing "snapshot" family). The "you MAY attach"
 // half reuses the pre-existing cost-free `mayPay` Op (issue #680 — "a bare
 // optional action with no payment", the exact shape `drk/white.ts`'s Fasting
 // already exercises for "you may skip your draw step"). No STOP-AND-ISSUE
