@@ -424,10 +424,11 @@ function choiceActions(
         case "choose-aura-host":
         case "divide-piles":
         case "mulligan-bottom":
-        // `choose-player` picks a PLAYER id, which the zone enumerator cannot
-        // see: with no `zone` it offers only the empty "up to one" pick.
-        // Unchanged here — the handler registry (issue #4443) owns the fix.
         case "choose-player":
+            // `choose-player` picks a PLAYER id, which the zone enumerator
+            // cannot see: with no `zone` it offers only the empty "up to one"
+            // pick. Unchanged here — the handler registry (issue #4443) owns
+            // the fix.
             return zonePickActions(state, head, submit);
         // CR 614 (ADR 0061) — `draw-replacement` is answered by
         // `submitDrawReplacementPay`, and no `ChoiceAction` variant carries
