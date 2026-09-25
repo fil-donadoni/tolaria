@@ -5732,7 +5732,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // opponent out (CR 104.3c / 704.5b).
         //
         // Every piece of that needs something this entry guards:
-        //   - the Lotus reaches the graveyard at all: `applyTapPlan` models a
+        //   - the Lotus reaches the graveyard at all: `applyTapPlanInSearch` models a
         //     sacrifice-cost mana source leaving the battlefield;
         //   - the graveyard is worth filling: the `graveyard` eval term;
         //   - milling the opponent out is a WIN: the `library` term and
@@ -5779,7 +5779,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
                 { kind: "cast-spell", card: "Brain Freeze", target: "opp" },
             ],
         },
-        note: "Guards all three halves of the Underworld Breach probe at once: the search-side sacrifice model (`applyTapPlan`), the `graveyard` eval term, and the `library` term plus `deckOutDelta`. Red on the parent commit at 400 and 1200 iterations across the same seeds — it cast Lightning Bolt from the graveyard and stopped, leaving the opponent at 8 cards instead of 0. Not paired: a positive `moves` expectation stands alone (ADR 0070 §1 concerns `forbidden` halves).",
+        note: "Guards all three halves of the Underworld Breach probe at once: the search-side sacrifice model (`applyTapPlanInSearch`), the `graveyard` eval term, and the `library` term plus `deckOutDelta`. Red on the parent commit at 400 and 1200 iterations across the same seeds — it cast Lightning Bolt from the graveyard and stopped, leaving the opponent at 8 cards instead of 0. Not paired: a positive `moves` expectation stands alone (ADR 0070 §1 concerns `forbidden` halves).",
     },
     {
         // DISCRIMINATING PAIR, HALF 1 of 2 (issue #2796).

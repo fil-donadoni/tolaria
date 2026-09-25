@@ -24,7 +24,7 @@
 // Callers: BOTH search sandboxes reach the activation legs through
 // `activationCostPicks.ts` (which shares this module's sacrifice helpers) —
 // `applyMoveForSearch` and `applyMoveInSearch` call the one shared
-// `applyActivationCostsForSearch` (`applyMove.ts`, issue #2155), so the greedy
+// `payActivationInSearch` (`applyMove.ts`, issues #2155 / #4444), so the greedy
 // 1-ply leaf and the ISMCTS tree pay the same cards. The live bot answers any
 // owed park through `pickForOwedPayment`. Three callers, one set of picks.
 

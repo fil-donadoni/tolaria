@@ -101,7 +101,7 @@ describe("depletion lands — bot reachability (issue #2712)", () => {
 });
 
 describe("depletion lands — the search's coarse mana model (issue #2712)", () => {
-    // `applyTapPlan` (duplicated in `search.ts` and `applyMove.ts`) is the whole
+    // `applyTapPlanInSearch` (`searchTapPlan.ts`, issue #4444) is the whole
     // model of "what tapping for mana does" INSIDE the tree. It marks sources
     // tapped and, since #3027, moves a self-sacrificing one to the graveyard.
     // It did not touch counters, so a depletion land came out of every

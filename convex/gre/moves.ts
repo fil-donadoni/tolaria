@@ -890,7 +890,7 @@ const TAP_YIELD_CREDITABLE_COST_LEGS: ReadonlySet<string> = new Set([
  *   - `mana` — funded by `fundManaLegFromPlain` below, whose taps are pushed
  *     BEFORE this entry so the pool already covers the activation when
  *     `tapSourceIntoPayment` charges it (`applyManaAbilityManaCost`).
- *   - `exertThis` — paid by all three `applyTapPlan` copies through
+ *   - `exertThis` — paid by the search's one `applyTapPlanInSearch` through
  *     `manaTapExertsSource` / `payExertActivationCost`, the same authority the
  *     mutation's `applyManaAbilityExertCost` uses.
  *
@@ -930,7 +930,7 @@ function tapActivationCostIsPlannable(ability: ActivatedAbility): boolean {
  *  {3} cost with the {U} unfunded, and Orcish Lumberjack ("{T}, Sacrifice a
  *  Forest: Add {R}{R}{R}") returned one with no Forest chosen — plans the
  *  server rejects outright, and which the search would meanwhile value as
- *  legal (`applyTapPlan` only marks sources tapped).
+ *  legal (`applyTapPlanInSearch` only marks sources tapped).
  *
  *  DENY-BY-DEFAULT over the cost's own keys, so a leg added to
  *  `ActivatedAbility["cost"]` later is excluded until someone reviews it here
@@ -2083,7 +2083,7 @@ export function planManaPayment(
 }
 
 /** Does `tapPlan` spend a FINITE mana source's charge (CR 118.3, issue #3530)?
- *  Asked of the SAME option list `applyTapPlan` resolves the removal against,
+ *  Asked of the SAME option list `applyTapPlanInSearch` resolves the removal against,
  *  so "this plan spends a use" is what the search's own model will do with it. */
 function planSpendsFiniteUse(
     state: GameState,
@@ -2094,7 +2094,7 @@ function planSpendsFiniteUse(
     for (const tap of tapPlan) {
         // A converter entry activates ANOTHER permanent's ability and taps no
         // charge of its own (CR 602.1). Keyed on `abilityId` because that is
-        // exactly how `applyTapPlan` (search.ts / applyMove.ts) decides which
+        // exactly how `applyTapPlanInSearch` (searchTapPlan.ts) decides which
         // entries can remove counters at all: this predicate must answer "did
         // the model spend a charge", so it reads the plan the same way the
         // model does, not a second way that could disagree with it.

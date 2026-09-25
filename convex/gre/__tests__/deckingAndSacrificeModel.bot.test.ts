@@ -68,9 +68,9 @@ function payWith(source: string): {
 }
 
 describe("the search models a sacrifice-cost mana source leaving play", () => {
-    // BOTH copies of `applyTapPlan` — `search.ts`'s and `applyMove.ts`'s. They
-    // are deliberately separate copies (issue #111), so they need the same fix
-    // and the same guard; a test covering one would let the other rot.
+    // BOTH search appliers — `search.ts`'s and `applyMove.ts`'s. They share one
+    // `applyTapPlanInSearch` since issue #4444; each is still pinned through its
+    // own entry point, so a caller that stops routing through it goes red.
     it.each([
         [
             "applyMoveInSearch (search.ts)",

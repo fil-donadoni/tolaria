@@ -522,7 +522,7 @@ describe("graveyard-source activations pay `exileThis` in the search leaves (CR 
     });
 });
 
-// issue #2420 — the search-side coarse tap applier (`applyTapPlan`,
+// issue #2420 — the search-side coarse tap applier (`applyTapPlanInSearch`,
 // applyMove.ts) previously assumed every `tapPlan` entry taps the ENUMERATED
 // source, which is wrong for a non-tap mana ability: Urza, Lord High
 // Artificer's `tapOtherFilter` leg taps a DIFFERENT permanent, never Urza

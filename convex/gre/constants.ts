@@ -1570,8 +1570,8 @@ export function mayHaveNonTapManaAbility(card: CardInstanceState): boolean {
  *  `{T}` rock — answers false with one cached lookup and a short array scan,
  *  and the caller skips the real resolution entirely.
  *
- *  Used by the search's coarse mana model (`applyTapPlan`, `search.ts` and
- *  `applyMove.ts`), which otherwise leaves a sacrificed source sitting tapped
+ *  Used by the search's coarse mana model (`applyTapPlanInSearch`,
+ *  `searchTapPlan.ts`), which otherwise leaves a sacrificed source sitting tapped
  *  on the battlefield forever — see those call sites for what that cost. */
 export function mayBeSacrificedForMana(card: CardInstanceState): boolean {
     // Same conservative shape as `mayHaveNonTapManaAbility`: the granted list
@@ -1604,8 +1604,8 @@ export function mayBeSacrificedForMana(card: CardInstanceState): boolean {
  *  one cached lookup and a short array scan, and the caller skips the real
  *  resolution entirely.
  *
- *  Used by the search's coarse mana model (`applyTapPlan`, `search.ts` and
- *  `applyMove.ts`), which otherwise leaves a depletion land's counters at two
+ *  Used by the search's coarse mana model (`applyTapPlanInSearch`,
+ *  `searchTapPlan.ts`), which otherwise leaves a depletion land's counters at two
  *  in every simulated future: it untaps next simulated turn, taps again, and
  *  never dies, so the bot plans around a permanent mana source it does not
  *  have. */
@@ -1676,8 +1676,8 @@ export function manaTapCounterCost(
  *  false with one cached lookup and a short array scan, and the caller skips
  *  the real resolution entirely.
  *
- *  Used by the search's coarse mana model (`applyTapPlan`, in `applyMove.ts`,
- *  `search.ts` and `ai/dominance.ts`), which otherwise leaves an exerted source
+ *  Used by the search's coarse mana model (`applyTapPlanInSearch`,
+ *  `searchTapPlan.ts`), which otherwise leaves an exerted source
  *  untapping in every simulated future although the payment spent its next
  *  untap step — the Bot getting the costed half of the card for free
  *  (issue #3359). */
@@ -1835,7 +1835,7 @@ export function finiteManaUsesRemaining(card: CardInstanceState): number {
 /** CR 118.3 (issue #3530) — does this tap plan entry spend a FINITE mana
  *  source's charge? The counter-cost twin of `manaTapSacrificesSource`,
  *  resolving the SAME unified option list the tap mutations read, so "this plan
- *  spends a use" means exactly what `applyTapPlan` will do with it.
+ *  spends a use" means exactly what `applyTapPlanInSearch` will do with it.
  *
  *  Narrower than `manaTapCounterCost`, deliberately: that function reports
  *  EVERY counter a tap removes, the scaling Mana-Battery shape included, while

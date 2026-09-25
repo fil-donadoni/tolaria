@@ -8,7 +8,7 @@
 //   1. never planned — `planManaPayment`'s per-colour map is first-option-wins,
 //      so the free "{T}: Add {R}" always took {R} and the second option was
 //      unreachable however the plan was built;
-//   2. never paid — `applyTapPlan` applied a tap plan with a bare
+//   2. never paid — `applyTapPlanInSearch` applied a tap plan with a bare
 //      `src.isTapped = true`, paying neither the {R} leg nor the exert, so the
 //      search priced the costed half of the card at nothing.
 //
@@ -266,11 +266,11 @@ describe("the tap plan's whole cost is paid in-tree — the Exert leg (CR 701.43
         expect(arenaOn(next).isTapped).toBe(true);
     });
 
-    it("search.ts's own copy of applyTapPlan pays it too — it is the one every rollout runs", () => {
-        // `applyTapPlan` is duplicated in `applyMove.ts`, `search.ts` and
-        // `ai/dominance.ts` by this codebase's own isolation rule, so a fix
-        // applied to one copy and tested through that copy proves nothing about
-        // the ISMCTS path, which is the surface this issue is about.
+    it("the ISMCTS applier pays it too — it is the one every rollout runs", () => {
+        // The tap plan was once duplicated in `applyMove.ts`, `search.ts` and
+        // `ai/dominance.ts` (one shared `applyTapPlanInSearch` since issue
+        // #4444); this pins the ISMCTS path through its own entry point, which
+        // is the surface this issue is about.
         const state = board(1, SKI_PATROL);
         const costed = enumerateMoves(state, "p1")
             .filter(
