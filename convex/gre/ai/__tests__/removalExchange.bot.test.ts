@@ -73,7 +73,7 @@ describe("abilityIsRemovalExchange", () => {
             abilityIsRemovalExchange(
                 ability([
                     { op: "dealDamage", amount: 1, to: { target: 0 } },
-                    { op: "draw", player: "you", count: 1 },
+                    { op: "draw", player: "controller", count: 1 },
                 ])
             )
         ).toBe(false);
