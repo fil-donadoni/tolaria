@@ -20,6 +20,7 @@ import {
     planSmokeTest,
     SMOKE_SKIP_CLASS,
     SMOKE_SKIP_CODES,
+    SKIPPED_OP_KINDS,
     SOURCE_PERMANENT_ID,
     SPELL_HOST,
     triggeredAbilitySourceOnBattlefield,
@@ -272,12 +273,15 @@ describe("unsatisfiable-requirement reporting (issue #804)", () => {
 });
 
 describe("Op vocabulary coverage guard (issue #804)", () => {
-    it("every registered Effect Op has a scenario assertor (no silent gap)", () => {
+    it("every registered Effect Op has a scenario assertor or a skip row (no silent gap)", () => {
         expect(opCoverageGaps()).toEqual([]);
     });
 
-    it("ASSERTED_OP_KINDS matches the registry exactly", () => {
-        expect([...ASSERTED_OP_KINDS].sort()).toEqual(
+    it("ASSERTED_OP_KINDS and SKIPPED_OP_KINDS partition the registry (issue #4450)", () => {
+        expect(
+            ASSERTED_OP_KINDS.filter((op) => SKIPPED_OP_KINDS.includes(op))
+        ).toEqual([]);
+        expect([...ASSERTED_OP_KINDS, ...SKIPPED_OP_KINDS].sort()).toEqual(
             EFFECT_OP_REGISTRY.map((r) => r.op).sort()
         );
     });
@@ -294,7 +298,7 @@ type SmokeSkipRow = { code: string; reason: string };
  * is a real analyser, whatever it then does with `undefined`.
  */
 function scenarioOpDisposition(
-    name: EffectOp["op"]
+    name: string
 ): "runs" | SmokeSkipRow | SmokeSkipRow[] {
     let readAField = false;
     const stub = new Proxy({ op: name } as object, {
