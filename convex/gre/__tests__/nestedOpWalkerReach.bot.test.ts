@@ -147,7 +147,14 @@ describe("nested-Op walkers — reach per nesting shape (CR 608.2c, issue #4442)
         expect(reach).toEqual({
             childOpArrays: ALL,
             tokenCatalogue: ALL,
-            beneficence: ALL,
+            // A trigger body announces its OWN targets (CR 603.3d), so its
+            // `{ target: 0 }` is not the host's slot 0 — `isTriggerBodyHost`
+            // is the authority's word for it, and the sign walk skips it.
+            beneficence: ALL.filter(
+                (l) =>
+                    l !== "delayedTrigger.effects" &&
+                    l !== "reflexiveTrigger.effects"
+            ),
             // The ONE deliberate gap, and it is valuation, not blindness: the
             // Op valuer is a COMBINATOR (a flip averages, piles minimax, a
             // mode is its best), and `valueOp` values an `if` as its `then`

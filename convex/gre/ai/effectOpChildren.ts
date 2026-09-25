@@ -107,3 +107,16 @@ export function childOpArrays(op: EffectOp): readonly Script[] {
             return noChildren(op);
     }
 }
+
+/** Whether `op`'s nested body is its OWN triggered ability — a delayed
+ *  (CR 603.7) or reflexive (CR 603.12) trigger that goes on the stack later
+ *  and announces its own targets as it does (CR 603.3d → CR 601.2c). A
+ *  `{ target: n }` inside that body names the TRIGGER's slot `n`, never the
+ *  host script's: a walker asking "is there an X anywhere in this script"
+ *  descends into it through `childOpArrays` like any other list, but one that
+ *  attributes Ops to the host's announced slots must not. */
+export function isTriggerBodyHost(
+    op: EffectOp
+): op is Extract<EffectOp, { op: "delayedTrigger" | "reflexiveTrigger" }> {
+    return op.op === "delayedTrigger" || op.op === "reflexiveTrigger";
+}
