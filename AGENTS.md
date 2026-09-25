@@ -427,8 +427,10 @@ for the opponent.
 - Types from `convex/`, constants/helpers from `convex/gre/constants.ts`;
   authority stays server-side (ADR 0074) — CLAUDE.md § Code Organization,
   § Key boundary.
-- After changes: `bun run check:all`; **`bun run check:ui`** when the diff can
-  reach the DOM (`chrome-debug.md`).
+- After changes: targeted `bunx vitest run <paths touched>` (the dom project is
+  outside the light gate; no pre-PR `check:all` — `land` pays the lane, ADR
+  0136); **`bun run check:ui`** when the diff can reach the DOM
+  (`chrome-debug.md`).
 
 ## GRE Development Rules
 

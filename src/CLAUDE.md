@@ -20,8 +20,8 @@ resident indexes are `.claude/rules/frontend-components.md` and
 
 ## After changes
 
-- Run `bun run check:all` — format + lint + type-check must pass
-- **Run `bun run check:ui`** — headless Chrome at five viewports (desktop, phone portrait/landscape, tablet portrait/landscape), probe + axe, Floors at zero. Paste its output in the PR. The `dom` project runs on happy-dom, which has no layout: it cannot see a collapsed or occluded element. `.claude/rules/chrome-debug.md`
+- Targeted `bunx vitest run <paths touched>` (`dom` is outside the light gate); no pre-PR `check:all` — `land`'s `check:lane` pays lint + type-check (ADR 0136)
+- **Run `bun run check:ui`** when the diff can reach the DOM — five viewports (desktop, phone/tablet portrait+landscape), probe + axe, Floors at zero; receipt in the PR (§ Browser verification below)
 
 ## Browser verification
 
