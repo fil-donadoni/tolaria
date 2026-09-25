@@ -2885,6 +2885,10 @@ type Assertor = (
     pre: GameState
 ) => Assertion | null;
 
+/** Issue #4448 — one assertor per `EffectOp` union member: a missing Op, or a
+ *  key the union does not have, reds `check:ts` before the coverage test. */
+type AssertorTable = { [K in EffectOp["op"]]: Assertor };
+
 /**
  * Whether the seeded SOURCE permanent is itself counted by `spec` (issue
  * #3879). It sits on the CASTER's battlefield, so a count of any other zone or
@@ -2954,7 +2958,7 @@ function predictAmount(value: EffectValue, scenario: Scenario): number | null {
     );
 }
 
-const OP_ASSERTORS: Record<string, Assertor> = {
+const OP_ASSERTORS: AssertorTable = {
     // Damage to a player is an observable life delta; damage to a permanent is
     // marked damage (CR 120.3). The filler creature (toughness 5) survives.
     dealDamage(rawOp, scenario, pre) {
