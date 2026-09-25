@@ -762,6 +762,18 @@ describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
         }
     }, 600_000);
 
+    // Issue #4276: a creature whose only ability sacrifices a creature to make
+    // a target player discard is played — the exchange children below its own
+    // cast edge are pruned (`isDiscardExchangeSacrifice`).
+    it("played — a creature that sacrifices a creature to make a player discard", () => {
+        for (const name of ["Nezumi Bone-Reader", "Sadistic Hypnotist"]) {
+            expect(playBotReachSeats(getCardByName(name)), name).toEqual([
+                { holderId: "p1", verdict: { outcome: "played" } },
+                { holderId: "p2", verdict: { outcome: "played" } },
+            ]);
+        }
+    }, 600_000);
+
     it("a draw spell's holder finds spells on top of the library, and only that holder", () => {
         const topOfLibrary = (def: CardDefinition, seat: 0 | 1): unknown => {
             const { state, holderId } = buildBotReachState(def, seat);

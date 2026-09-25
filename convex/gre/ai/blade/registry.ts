@@ -8383,6 +8383,58 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         note: "Root pin beside the outlet-cast entry above. Issue #4272.",
     },
     {
+        // SACRIFICE-FOR-DISCARD reachability (CR 701.21a, CR 701.9a, issue
+        // #4276). The sweep's own position for a creature whose only ability is
+        // "Sacrifice a creature: Target player discards two cards": Sadistic
+        // Hypnotist in hand, five Swamps, a spare body on each side.
+        //
+        // Before the fix the cast edge read WORSE than `pass` at the sweep's
+        // budget: below the cast the rollout drew "sacrifice a creature, aim at
+        // the opponent" at random and the tree opened it at the node after the
+        // cast, and those subtrees dragged the cast edge's mean margin under
+        // `pass`'s. Fixed by class, not by card: `isDiscardExchangeSacrifice`
+        // (`search.ts`).
+        label: "Sacrifice-for-discard outlet: casts the creature",
+        spec: {
+            cards: [
+                { name: "Sadistic Hypnotist", owner: "me", zone: "hand" },
+                { name: "Swamp", owner: "me", zone: "battlefield" },
+                { name: "Swamp", owner: "me", zone: "battlefield" },
+                { name: "Swamp", owner: "me", zone: "battlefield" },
+                { name: "Swamp", owner: "me", zone: "battlefield" },
+                { name: "Swamp", owner: "me", zone: "battlefield" },
+                { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
+                { name: "Ornithopter", owner: "me", zone: "battlefield" },
+                { name: "Castle", owner: "me", zone: "battlefield" },
+                { name: "Grizzly Bears", owner: "me", zone: "graveyard" },
+                { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+                { name: "Ornithopter", owner: "opp", zone: "battlefield" },
+                { name: "Castle", owner: "opp", zone: "battlefield" },
+                { name: "Grizzly Bears", owner: "opp", zone: "graveyard" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            libraryCount: 20,
+        },
+        bot: "me",
+        // The Bot-play sweep's own position at four times its budget — a
+        // REACHABILITY claim, so a PREDICATE, kept out of the weight fit for
+        // the reason the Nantuko Husk entry gives.
+        budget: { iterations: 200 },
+        seeds: [0xb07, 0x5eed, 1, 2, 3],
+        tier: "must",
+        expect: {
+            predicate: (move, state) =>
+                move !== null &&
+                move.kind === "cast-spell" &&
+                instanceIdsForName(state, "Sadistic Hypnotist").has(
+                    move.cardInstanceId
+                ),
+            describe: "casts Sadistic Hypnotist",
+        },
+        note: "Bot Gap `never-chosen › Creature › choice+discard` (2 cards). Issue #4276.",
+    },
+    {
         // A BOON is not self-harm (issue #4273). Unnatural Speed grants haste
         // until end of turn to the creature it targets: the bot's main phase,
         // two Mountains, a summoning-sick Grizzly Bears beside a ready one, and

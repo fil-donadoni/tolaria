@@ -203,6 +203,7 @@ import {
     spendsStandingPermanent,
 } from "./ai/abilityTiming";
 import { abilityBenefitIsConfinedToSource } from "./ai/sourceConfinedBenefit";
+import { abilityIsDiscardExchange } from "./ai/discardExchange";
 import { abilityIsRemovalExchange } from "./ai/removalExchange";
 import { assertNever } from "./assertNever";
 // Root-decision telemetry (issue #1893, map #1892) — off by default.
@@ -1892,7 +1893,8 @@ function rollout(
                 (m) =>
                     !isTransientSacrificeConversion(state, pid, m) &&
                     !isSourceConfinedSacrificeConversion(state, pid, m) &&
-                    !isRemovalExchangeSacrifice(state, pid, botId, m)
+                    !isRemovalExchangeSacrifice(state, pid, botId, m) &&
+                    !isDiscardExchangeSacrifice(state, pid, botId, m)
             );
             const pool = drawn.length > 0 ? drawn : moves;
             chosen = pool[Math.floor(rng() * pool.length)];
@@ -2754,6 +2756,35 @@ export function isRemovalExchangeSacrifice(
     );
 }
 
+/** Whether `move` is the BOT's own sacrifice of a standing permanent to make a
+ *  target player discard and nothing else (`abilityIsDiscardExchange`), in ANY
+ *  window (issue #4276).
+ *
+ *  The sibling of `isRemovalExchangeSacrifice`, on the same terms: the
+ *  variants (a victim × target grid) outnumber `pass` in the rollout's random
+ *  draw and open as tree children at the node after the cast, dragging the
+ *  cast edge under `pass`'s — two creatures whose only ability is a
+ *  sacrifice-for-discard outlet were `never-chosen` while the same bodies
+ *  without it were cast. The bot's own moves only and never at the root, so
+ *  a discard the bot could take NOW stays a scored option and the opponent's
+ *  stays in the tree.
+ *
+ *  Per-card-agnostic, never a card name (ADR 0102). */
+export function isDiscardExchangeSacrifice(
+    state: GameState,
+    pid: string,
+    botId: string,
+    move: Move
+): boolean {
+    if (pid !== botId) return false;
+    return isSacrificeConversionWhere(
+        state,
+        pid,
+        move,
+        (ability) => ability.useStack && abilityIsDiscardExchange(ability)
+    );
+}
+
 function isSacrificeConversionWhere(
     state: GameState,
     pid: string,
@@ -3070,6 +3101,12 @@ function iterate(
                             k.move
                         ) ||
                             isRemovalExchangeSacrifice(
+                                world,
+                                pid,
+                                botId,
+                                k.move
+                            ) ||
+                            isDiscardExchangeSacrifice(
                                 world,
                                 pid,
                                 botId,
