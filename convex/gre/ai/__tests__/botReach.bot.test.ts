@@ -685,6 +685,23 @@ describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
         }
     }, 600_000);
 
+    // Issue #4271: a creature whose only ability sacrifices a body to grow
+    // ITSELF is played — the sacrifice children below its own cast edge are
+    // pruned (`isSourceConfinedSacrifice`), so they no longer outweigh `pass`.
+    it("played — a creature that sacrifices a creature to grow itself", () => {
+        for (const name of [
+            "Bloodflow Connoisseur",
+            "Defiant Salvager",
+            "Phyrexian Broodlings",
+            "Scarland Thrinax",
+        ]) {
+            expect(playBotReachSeats(getCardByName(name)), name).toEqual([
+                { holderId: "p1", verdict: { outcome: "played" } },
+                { holderId: "p2", verdict: { outcome: "played" } },
+            ]);
+        }
+    }, 600_000);
+
     it("a draw spell's holder finds spells on top of the library, and only that holder", () => {
         const topOfLibrary = (def: CardDefinition, seat: 0 | 1): unknown => {
             const { state, holderId } = buildBotReachState(def, seat);
