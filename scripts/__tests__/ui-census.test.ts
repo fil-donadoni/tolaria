@@ -61,20 +61,6 @@ const DEBT: Record<string, string> = {
     // game), which is a slice of its own: `docs/findings/`.
     "src/components/board/manual-peek-dialog.tsx":
         "the Manual Game library peek — a live `getManualLibraryTop` on a real manual game, so no fixture-prop specimen mounts it (#4402)",
-    "src/components/cards/additional-cost-picker.tsx":
-        "the additional-cost picker (#4402)",
-    "src/components/cards/alt-cost-picker.tsx":
-        "the alternative-cost picker (#4402)",
-    "src/components/cards/card-preview-yield-menu.tsx":
-        "the Card Preview's yield menu (#4402)",
-    "src/components/cards/cast-cost-dialog.tsx": "the cast-cost dialog (#4402)",
-    "src/components/cards/mode-picker.tsx": "the single-mode picker (#4402)",
-    "src/components/cards/multi-mode-picker.tsx":
-        "the multi-mode picker (#4402)",
-    "src/components/cards/phyrexian-picker.tsx":
-        "the Phyrexian-mana picker (#4402)",
-    "src/components/cards/selectable-card.tsx":
-        "the card tile's own ActionSheet (#4402)",
     "src/components/deckbuilder/deck-basics-sheet.tsx":
         "the deck-basics BottomSheet (#4402)",
     "src/components/deckbuilder/deck-stats-dialog.tsx":
@@ -120,11 +106,12 @@ const DEBT: Record<string, string> = {
  * issue #4419 gave the board's own dialogs seventeen live specimens on
  * `/admin/design-system` and the pregame gate a walk of its own; 25 since
  * issue #4423 gave the four cross-cutting overlays (disclaimer, bug report,
- * Inspect, the Scenarios active-game confirm) walked specimens. The
+ * Inspect, the Scenarios active-game confirm) walked specimens; 17 since
+ * issue #4420 did the same for the eight cast pickers (§ 18). The
  * remaining slices are that issue's other children, one per area — when the
  * last one lands, this constant, `DEBT` and the tests below go with it.
  */
-const DEBT_AT_LANDING = 25;
+const DEBT_AT_LANDING = 17;
 
 function fix(row: CensusRow): string {
     if (row.kind === "route") {

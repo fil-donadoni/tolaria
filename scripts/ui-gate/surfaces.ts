@@ -1990,10 +1990,172 @@ const OVERLAY_SPECIMENS: readonly DialogSpecimen[] = [
     },
 ];
 
+/**
+ * THE CAST PICKER SPECIMENS (issue #4420, slice of the census debt #4402).
+ *
+ * The eight `src/components/cards/**` overlays a cast walks through — the
+ * cost, mode and preview pickers — open at one instant of one cast the lane
+ * cannot set up on demand. `/admin/design-system` § 18 mounts each from
+ * fixture props (`src/routes/design-system/sections-cast-pickers.tsx`), and the
+ * lane walks one `pick-*` row per opener, exactly as § 16's `dlg-*` rows.
+ *
+ * The anchored pickers (`AnchoredPicker`: additional cost, alternative cost,
+ * yield preview, mode, Phyrexian) open where the opener was pressed and clamp
+ * themselves to the viewport — their failure shape is a body that outgrows a
+ * phone. Their rows are a label beside a caption, or mana-symbol images with no
+ * alt text, so no row carries an accessible name worth promising: each is
+ * addressed by the `data-testid` seam it already declares, or by the layer's
+ * own contrast. `selectable-card` is the one inline specimen: a card with its
+ * cast affordances rather than a layer.
+ */
+const ANCHORED = '[data-slot="dialog-content"]';
+
+const CAST_PICKER_SPECIMENS: readonly DialogSpecimen[] = [
+    {
+        slug: "additional-cost",
+        module: "cards/additional-cost-picker.tsx",
+        label: "Additional cost picker",
+        layer: ANCHORED,
+        layerAssert: {
+            label: "picker layer",
+            locator: { selector: ANCHORED },
+            check: "visible",
+        },
+        entry: {
+            label: "leg row: Pay 3 life",
+            locator: { selector: '[data-testid="additional-cost-leg-life"]' },
+            check: "reachable",
+        },
+    },
+    {
+        slug: "alt-cost",
+        module: "cards/alt-cost-picker.tsx",
+        label: "Alternative cost picker",
+        layer: ANCHORED,
+        layerAssert: {
+            label: "picker layer",
+            locator: { selector: ANCHORED },
+            check: "visible",
+        },
+        entry: {
+            label: "row: Pay mana cost",
+            locator: { role: "button", name: "Pay mana cost" },
+            check: "reachable",
+        },
+    },
+    {
+        slug: "card-preview-yield",
+        module: "cards/card-preview-yield-menu.tsx",
+        label: "Card preview with a Yield",
+        layer: ANCHORED,
+        layerAssert: {
+            label: "menu layer",
+            locator: { selector: ANCHORED },
+            check: "visible",
+        },
+        entry: {
+            label: "row: Preview",
+            locator: { selector: '[data-testid="card-preview-menu-preview"]' },
+            check: "reachable",
+        },
+    },
+    {
+        slug: "cast-cost",
+        module: "cards/cast-cost-dialog.tsx",
+        label: "Cast cost dialog",
+        layer: "[role=dialog]",
+        layerAssert: {
+            label: "dialog: Cast cost specimen",
+            locator: { role: "dialog", name: "Cast cost specimen" },
+            check: "visible",
+        },
+        // `visible`, not `reachable`: DISABLED at rest. The dialog mounts
+        // `open`, as `useHandCardCommit` mounts it, so its closed→open reset
+        // never runs and X opens empty — an invalid announcement until the
+        // caster types one. Measured at all five viewports.
+        entry: {
+            label: "confirm: Cast",
+            locator: { role: "button", name: "Cast" },
+            check: "visible",
+        },
+    },
+    {
+        slug: "mode",
+        module: "cards/mode-picker.tsx",
+        label: "Mode picker (anchored)",
+        layer: ANCHORED,
+        layerAssert: {
+            label: "picker layer",
+            locator: { selector: ANCHORED },
+            check: "visible",
+        },
+        entry: {
+            label: "picker contrast",
+            locator: { selector: ANCHORED },
+            check: "contrast",
+        },
+    },
+    {
+        slug: "multi-mode",
+        module: "cards/multi-mode-picker.tsx",
+        label: "Multi-mode picker",
+        layer: "[role=dialog]",
+        layerAssert: {
+            label: "dialog: Cryptic Command",
+            locator: { role: "dialog", name: "Cryptic Command" },
+            check: "visible",
+        },
+        // NOT its `Confirm` plate: the census page renders Panel and Button
+        // specimens of that exact name.
+        entry: {
+            label: "picker contrast",
+            locator: { role: "dialog", name: "Cryptic Command" },
+            check: "contrast",
+        },
+    },
+    {
+        slug: "phyrexian",
+        module: "cards/phyrexian-picker.tsx",
+        label: "Phyrexian mana picker",
+        layer: ANCHORED,
+        layerAssert: {
+            label: "picker layer",
+            locator: { selector: ANCHORED },
+            check: "visible",
+        },
+        entry: {
+            label: "picker contrast",
+            locator: { selector: ANCHORED },
+            check: "contrast",
+        },
+    },
+    {
+        slug: "selectable-card",
+        module: "cards/selectable-card.tsx",
+        label: "Selectable card",
+        layer: "[data-selectable-card-specimen]",
+        layerAssert: {
+            label: "card specimen",
+            locator: { selector: "[data-selectable-card-specimen]" },
+            check: "visible",
+        },
+        entry: {
+            label: "printed card face",
+            locator: {
+                selector:
+                    '[data-selectable-card-specimen] [data-card-face="printed"]',
+            },
+            check: "visible",
+        },
+    },
+];
+
 /** A section of `/admin/design-system` that mounts dialog specimens one at a
  *  time behind openers: the opener seam it declares and how a receipt row
  *  names it. */
 interface DialogSpecimenSection {
+    /** Surface id prefix: `dlg` (§ 16, § 17) or `pick` (§ 18). */
+    idPrefix: string;
     /** The `data-*` attribute each opener carries, valued with the slug. */
     seam: string;
     /** Receipt label prefix and the section's `§ N` on the page. */
@@ -2002,15 +2164,24 @@ interface DialogSpecimenSection {
 }
 
 const BOARD_DIALOGS_SECTION: DialogSpecimenSection = {
+    idPrefix: "dlg",
     seam: "data-board-dialog-specimen",
     title: "Board dialog",
     index: "16",
 };
 
 const OVERLAYS_SECTION: DialogSpecimenSection = {
+    idPrefix: "dlg",
     seam: "data-overlay-specimen",
     title: "Overlay",
     index: "17",
+};
+
+const CAST_PICKERS_SECTION: DialogSpecimenSection = {
+    idPrefix: "pick",
+    seam: "data-cast-picker-specimen",
+    title: "Cast picker",
+    index: "18",
 };
 
 /** One `dlg-*` row: open the specimen page, press its opener, measure the
@@ -2021,7 +2192,7 @@ function dialogSpecimenSurface(
     spec: DialogSpecimen
 ): Surface {
     return {
-        id: `dlg-${spec.slug}`,
+        id: `${section.idPrefix}-${spec.slug}`,
         entries: [
             "src/routes/admin/admin-layout.route.tsx",
             "src/routes/design-system.route.tsx",
@@ -2057,6 +2228,12 @@ function dialogSpecimenSurface(
                     `the "${spec.slug}" specimen opened no \`${spec.layer}\` layer within 8s — an import that renders nothing is not a specimen`
                 );
             }
+            // An inline specimen mounts below the opener grid, possibly off
+            // screen; a fixed overlay is already on it, and this is a no-op.
+            await page
+                .locator(spec.layer)
+                .first()
+                .scrollIntoViewIfNeeded({ timeout: STEP_TIMEOUT });
             await settle(page, [spec.layer]);
         },
     };
@@ -2702,6 +2879,9 @@ export const SURFACES: readonly Surface[] = [
     ),
     ...OVERLAY_SPECIMENS.map((spec) =>
         dialogSpecimenSurface(OVERLAYS_SECTION, spec)
+    ),
+    ...CAST_PICKER_SPECIMENS.map((spec) =>
+        dialogSpecimenSurface(CAST_PICKERS_SECTION, spec)
     ),
     {
         id: "admin-card-profiles",
