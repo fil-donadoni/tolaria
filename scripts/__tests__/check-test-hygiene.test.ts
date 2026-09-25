@@ -189,7 +189,7 @@ describe("check:test-hygiene — the authoring tier names it (issue #4686)", () 
         expect(body).toContain("check:test-hygiene");
         expect(body).toContain("scripts/lib/identity-test-allowlist.json");
         // The pre-#4489 claim, in any wording: an allow-list nobody may add to.
-        expect(body).not.toMatch(/allow-?list[^.]*\bempty\b/i);
+        expect(body).not.toMatch(/allow[-\s]?list[^.]*\bempty\b/i);
     });
 
     it("/next-issue § 3 Implement tells the author to run the census before the PR", () => {
