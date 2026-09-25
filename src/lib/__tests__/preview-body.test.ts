@@ -612,9 +612,11 @@ describe("computeEngineViewBadge (ADR 0103 §9, issue #2728)", () => {
             ...def,
             effects: [
                 {
-                    op: "choice" as const,
+                    op: "optionChoice" as const,
+                    prompt: "Choose one.",
                     modes: [
                         {
+                            label: "Draw",
                             effects: [
                                 {
                                     op: "draw",
@@ -624,6 +626,7 @@ describe("computeEngineViewBadge (ADR 0103 §9, issue #2728)", () => {
                             ],
                         },
                         {
+                            label: "Lose life",
                             effects: [
                                 {
                                     op: "loseLife",
@@ -636,7 +639,7 @@ describe("computeEngineViewBadge (ADR 0103 §9, issue #2728)", () => {
                 } as never,
             ],
         };
-        // The `choice` itself + one Op per mode = 3. Missed entirely before
+        // The `optionChoice` itself + one Op per mode = 3. Missed entirely before
         // the mode walk, which read this whole script as a single Op.
         expect(computeEngineViewBadge(scripted)).toEqual({
             kind: "dsl",
