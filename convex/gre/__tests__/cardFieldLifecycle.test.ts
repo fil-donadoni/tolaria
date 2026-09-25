@@ -301,6 +301,10 @@ describe("Card Field Lifecycle — reset scopes (issue #4453)", () => {
             ownerId: "p1",
             zone: "battlefield",
             ...every,
+            // Layer-4 output mutated in place, with its base recorded: the
+            // ladder re-seats `types` FROM `baseTypes` before the generic
+            // clear deletes the base — a loop run too early reads nothing.
+            types: ["Artifact", "Creature"],
         });
         const state = makeState({
             players: [
@@ -310,6 +314,8 @@ describe("Card Field Lifecycle — reset scopes (issue #4453)", () => {
         });
         resetBattlefieldTransientState(card, state);
         expectLadder(every, card, "zone-change");
+        expect(card.types).toEqual(every.baseTypes);
+        expect(card.subtypes).toEqual(every.baseSubtypes);
     });
 
     it("`stack` rows clear on the stack exit; the others survive it", () => {
