@@ -1286,18 +1286,6 @@ function isEffectTokenSpec(value: unknown): boolean {
  *  sits outside their scope — the same list scoping `revealedBindings` uses.
  *  Unfiltered hand counts are not returned: their cardinality is public
  *  information (CR 402.3) and they need no reveal. */
-export const HAND_NESTED_SCRIPT_KEYS: ReadonlySet<string> = new Set([
-    "then",
-    "else",
-    "effects",
-    "modes",
-    "win",
-    "loss",
-    "chosenEffect",
-    "otherEffect",
-    "token",
-]);
-
 function filteredHandCounts(
     entry: Record<string, unknown>
 ): { controller?: unknown }[] {
@@ -1317,12 +1305,12 @@ function filteredHandCounts(
             }
         }
         for (const [k, v] of Object.entries(o)) {
-            if (HAND_NESTED_SCRIPT_KEYS.has(k)) continue;
+            if (NESTED_SCRIPT_KEYS.has(k)) continue;
             walk(v);
         }
     };
     for (const [k, v] of Object.entries(entry)) {
-        if (HAND_NESTED_SCRIPT_KEYS.has(k)) continue;
+        if (NESTED_SCRIPT_KEYS.has(k)) continue;
         walk(v);
     }
     return found;
@@ -6790,32 +6778,39 @@ type BindingKind =
     | "list"
     | "number";
 
-/** The binding family a `bind`-carrying Op declares. */
-export function bindingKindOf(op: unknown): BindingKind {
-    if (op === "choice") return "picks";
-    if (op === "mayPay") return "boolean";
-    // issue #1701 — the amount paid, read back in a numeric value position.
-    if (op === "payVariableMana") return "number";
-    // issue #1421 — the amount nominated, same numeric read position, no
-    // payment. The two Ops are one binding family: a reader cannot and need
-    // not tell whether the number it reads back was paid for.
-    if (op === "chooseNumber") return "number";
-    // issue #1085 — `nameCard` stores the chosen name as a single-element
-    // string array, the identical runtime shape a `choice` Op's picks use,
-    // so a later `EffectCardFilter.name` bare ref reads it through the SAME
-    // picks family (not a new binding kind).
-    if (op === "nameCard") return "picks";
-    // issue #3721 — `chooseCreatureType` stores its chosen SUBTYPE the same
-    // way `nameCard` stores a chosen NAME: a single-element string array, read
-    // back only by an `EffectCardFilter.subtype` bare ref.
-    if (op === "chooseCreatureType") return "picks";
-    // issue #3808 — `reveal { zone: "library", bind }` records the ids it just
-    // made public (CR 701.20a) as the same picks family a `choice` binds: a
-    // following `choose-library-card` names it in `candidates`, `moveZone`
-    // could name it in `cards`. It is a SET of instance ids, which is exactly
-    // what the family means.
-    if (op === "reveal") return "picks";
-    return "snapshot";
+/** Declares, in `declared`, every UNSCOPED binding `entry`'s Op declares — each
+ *  field its schema tags `bindingDeclaration(kind)`, in schema order, in the
+ *  family the tag names (issue #4451; a scoped pile binding is declared in its
+ *  branch's own scope instead). A binding is visible only AFTER its Op and
+ *  unique within its scope; `$each` is the forEach construct's alone (issue
+ *  #807). Returns the names this entry newly declared. */
+function declareOpBindings(
+    entry: Record<string, unknown>,
+    at: string,
+    declared: Map<string, BindingKind>,
+    errors: string[]
+): ReadonlySet<string> {
+    const added = new Set<string>();
+    for (const { field, binding, scopedTo } of bindingDeclarationsOf(
+        entry.op
+    )) {
+        if (scopedTo !== undefined) continue;
+        const name = entry[field];
+        if (typeof name !== "string") continue;
+        if (name === "$each") {
+            errors.push(
+                `${at}: ${field} "$each" is reserved — only the forEach construct binds it (issue #807)`
+            );
+        } else if (declared.has(name)) {
+            errors.push(
+                `${at}: ${field} "${name}" re-declares an existing binding — binding names must be unique within a script`
+            );
+        } else {
+            declared.set(name, binding);
+            added.add(name);
+        }
+    }
+    return added;
 }
 
 /** Collects the boolean-binding refs an `if` predicate reads (issue #806): a
@@ -7895,50 +7890,54 @@ function checkOpListRefs(
         // `moveZone { cards: <ref> }` consumes it directly. Each branch's
         // OWN pile binding is NOT visible in the OTHER branch (mirrors an
         // `if`/`optionChoice` branch's isolation): a card that destroys the
-        // chosen pile has no business reading `otherBind`.
-        if (entry.op === "divideIntoPiles") {
-            for (const [bindField, effectsField] of [
-                ["chosenBind", "chosenEffect"],
-                ["otherBind", "otherEffect"],
-            ] as const) {
-                const bindName = entry[bindField];
-                const list = entry[effectsField];
-                if (typeof bindName !== "string" || !Array.isArray(list)) {
-                    continue;
-                }
-                if (declared.has(bindName)) {
-                    errors.push(
-                        `${at}: "${bindField}" "${bindName}" re-declares an existing binding — binding names must be unique within a script`
-                    );
-                }
-                const bodyScope = new Map(declared);
-                bodyScope.set(bindName, "list");
-                checkOpListRefs(
-                    list,
-                    (j) => `${at}: ${effectsField}[${j}]`,
-                    errors,
-                    bodyScope,
-                    eventScope
+        // chosen pile has no business reading `otherBind`. Which field
+        // scopes to which branch, and its family, is the schema's tag
+        // (`bindingDeclaration(kind, scopedTo)`, issue #4451).
+        for (const { field, binding, scopedTo } of bindingDeclarationsOf(
+            entry.op
+        )) {
+            if (scopedTo === undefined) continue;
+            const bindName = entry[field];
+            const list = entry[scopedTo];
+            if (typeof bindName !== "string" || !Array.isArray(list)) {
+                continue;
+            }
+            if (declared.has(bindName)) {
+                errors.push(
+                    `${at}: "${field}" "${bindName}" re-declares an existing binding — binding names must be unique within a script`
                 );
             }
+            const bodyScope = new Map(declared);
+            bodyScope.set(bindName, binding);
+            checkOpListRefs(
+                list,
+                (j) => `${at}: ${scopedTo}[${j}]`,
+                errors,
+                bodyScope,
+                eventScope
+            );
         }
 
         // A binding becomes visible only AFTER its Op (snapshot ordering) and
         // must be unique within its scope (the persisted store keys by name).
         // `$each` is reserved for the forEach construct (issue #807) — an Op
-        // may not bind it.
-        if (typeof entry.bind === "string") {
-            if (entry.bind === "$each") {
-                errors.push(
-                    `${at}: bind "$each" is reserved — only the forEach construct binds it (issue #807)`
-                );
-            } else if (declared.has(entry.bind)) {
-                errors.push(
-                    `${at}: bind "${entry.bind}" re-declares an existing binding — binding names must be unique within a script`
-                );
-            } else {
-                declared.set(entry.bind, bindingKindOf(entry.op));
-            }
+        // may not bind it. Every field the Op's schema tags as a binding
+        // declaration declares one, in the family its tag names (issue
+        // #4451): `bind`, and the second family some Ops also declare under a
+        // field of its own (`choice.bindOther`, `mill.bindAll`,
+        // `moveZone.bindCount`, `coinFlipSeries`'s three counts, …).
+        const newlyDeclared = declareOpBindings(entry, at, declared, errors);
+        // CR 701.17 — a mill fills the milled PLAYER's graveyard, so
+        // `mill.bindAll` (issue #2600) is a public-zone set.
+        if (
+            entry.op === "mill" &&
+            typeof entry.bindAll === "string" &&
+            newlyDeclared.has(entry.bindAll)
+        ) {
+            publicZoneBindings.set(
+                entry.bindAll,
+                JSON.stringify(entry.player ?? null)
+            );
         }
 
         // CR 608.2h (issue #2384) — `captureBinding.ref` is a BARE binding
@@ -8149,137 +8148,6 @@ function checkOpListRefs(
                         `${at}: zone "${entry.zone}" candidate "${ref}" holds cards in a DIFFERENT player's ${entry.zone} than the one being picked from — set the pick's "zoneOwnerId" to the player whose zone the binding filled, or the two sets never intersect`
                     );
                 }
-            }
-        }
-
-        // `choice.bindOther` declares an object SNAPSHOT binding — the single
-        // candidate the chooser did NOT pick (Barrin's Spite's "the other").
-        // Its own field rather than `bind`, which the Op already spends on the
-        // picks binding, and a different family from it.
-        if (entry.op === "choice" && typeof entry.bindOther === "string") {
-            if (declared.has(entry.bindOther)) {
-                errors.push(
-                    `${at}: bindOther "${entry.bindOther}" re-declares an existing binding — binding names must be unique within a script`
-                );
-            } else {
-                declared.set(entry.bindOther, "snapshot");
-            }
-        }
-
-        // `counter.bindSource` (issue #2708) declares an object SNAPSHOT
-        // binding — the PERMANENT whose ability was countered (CR 113.7a).
-        // Its own field rather than `bind`, exactly like `choice.bindOther`:
-        // the binding is not the Op's target (that is the stack object being
-        // countered, which is never a permanent) but a DIFFERENT object the
-        // Op learned about while doing its work.
-        if (entry.op === "counter" && typeof entry.bindSource === "string") {
-            if (declared.has(entry.bindSource)) {
-                errors.push(
-                    `${at}: bindSource "${entry.bindSource}" re-declares an existing binding — binding names must be unique within a script`
-                );
-            } else {
-                declared.set(entry.bindSource, "snapshot");
-            }
-        }
-
-        // `moveZone.bindCount` (issue #4302) declares a NUMBER binding — the
-        // count of cards a whole-zone move took out of `from`, read back by a
-        // bare ref in a numeric value position (`draw`'s `count`). Its own
-        // field for the reason `mill.bindAll` is one: `bind` on the same Op is
-        // a snapshot, and `bindingKindOf` answers per Op rather than per field.
-        if (entry.op === "moveZone" && typeof entry.bindCount === "string") {
-            if (entry.bindCount === "$each") {
-                errors.push(
-                    `${at}: bindCount "$each" is reserved — only the forEach construct binds it (issue #807)`
-                );
-            } else if (declared.has(entry.bindCount)) {
-                errors.push(
-                    `${at}: bindCount "${entry.bindCount}" re-declares an existing binding — binding names must be unique within a script`
-                );
-            } else {
-                declared.set(entry.bindCount, "number");
-            }
-        }
-
-        // `moveZone.bindAll` (issue #3812) declares a PICKS binding — every
-        // card a whole-zone move took, the same family as `mill.bindAll`.
-        // NOT registered as a public-zone binding: a face-down exile is
-        // hidden (CR 406.3), so no "from among them" pick may name it.
-        if (entry.op === "moveZone" && typeof entry.bindAll === "string") {
-            if (entry.bindAll === "$each") {
-                errors.push(
-                    `${at}: bindAll "$each" is reserved — only the forEach construct binds it (issue #807)`
-                );
-            } else if (declared.has(entry.bindAll)) {
-                errors.push(
-                    `${at}: bindAll "${entry.bindAll}" re-declares an existing binding — binding names must be unique within a script`
-                );
-            } else {
-                declared.set(entry.bindAll, "picks");
-            }
-        }
-
-        // `coinFlipSeries` (issue #3813, ADR 0144) declares up to three
-        // NUMBER bindings — the series' flips / wins / losses — each read back
-        // by a bare ref in a numeric value position. Own fields for the reason
-        // `bindCount` is one: `bindingKindOf` answers per Op, not per field.
-        if (entry.op === "coinFlipSeries") {
-            for (const field of ["bindFlips", "bindWins", "bindLosses"]) {
-                const name = entry[field];
-                if (typeof name !== "string") continue;
-                if (name === "$each") {
-                    errors.push(
-                        `${at}: ${field} "$each" is reserved — only the forEach construct binds it (issue #807)`
-                    );
-                } else if (declared.has(name)) {
-                    errors.push(
-                        `${at}: ${field} "${name}" re-declares an existing binding — binding names must be unique within a script`
-                    );
-                } else {
-                    declared.set(name, "number");
-                }
-            }
-        }
-
-        // `mill.bindAll` (issue #2600) declares a PICKS binding — every card
-        // that genuinely reached the graveyard, whereas the same Op's `bind`
-        // spends the snapshot family on the FIRST of them. Its own field for
-        // the same reason `choice.bindOther` is one: two families, one Op, and
-        // `bindingKindOf` answers per-Op rather than per-field.
-        if (entry.op === "mill" && typeof entry.bindAll === "string") {
-            if (entry.bindAll === "$each") {
-                errors.push(
-                    `${at}: bindAll "$each" is reserved — only the forEach construct binds it (issue #807)`
-                );
-            } else if (declared.has(entry.bindAll)) {
-                errors.push(
-                    `${at}: bindAll "${entry.bindAll}" re-declares an existing binding — binding names must be unique within a script`
-                );
-            } else {
-                declared.set(entry.bindAll, "picks");
-                // CR 701.17 — a mill fills the milled PLAYER's graveyard.
-                publicZoneBindings.set(
-                    entry.bindAll,
-                    JSON.stringify(entry.player ?? null)
-                );
-            }
-        }
-
-        // `castDuringResolution.resultBind` (issue #1478) declares a BOOLEAN
-        // outcome binding (the mirror of `mayPay.bind`) under a distinct field
-        // name — the Op already spends `bind`-family semantics on nothing, so a
-        // dedicated field avoids overloading `bind`. Register it as boolean so a
-        // downstream `if { binding }` / `{ not: { binding } }` resolves.
-        if (
-            entry.op === "castDuringResolution" &&
-            typeof entry.resultBind === "string"
-        ) {
-            if (declared.has(entry.resultBind)) {
-                errors.push(
-                    `${at}: resultBind "${entry.resultBind}" re-declares an existing binding — binding names must be unique within a script`
-                );
-            } else {
-                declared.set(entry.resultBind, "boolean");
             }
         }
     });

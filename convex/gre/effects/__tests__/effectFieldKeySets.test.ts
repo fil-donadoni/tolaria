@@ -16,8 +16,12 @@
 
 import { describe, expect, it } from "vitest";
 import type { EffectOp } from "../../../cards/types";
-import { NESTED_SCRIPT_KEYS, validateEffectScript } from "../validate";
-import { AMOUNT_KEYS, planSmokeTest } from "../scenarioGenerator";
+import {
+    AMOUNT_KEYS,
+    NESTED_SCRIPT_KEYS,
+    validateEffectScript,
+} from "../validate";
+import { planSmokeTest } from "../scenarioGenerator";
 import { NESTING_SHAPES } from "../../__tests__/fixtures/nestedOpShapes";
 
 /** "Count the creature cards in your hand" — a FILTERED hand count, the read
@@ -162,6 +166,7 @@ describe("AMOUNT_KEYS — an op-covered Op's runtime amount is card-dependent (A
             "max",
             "min",
             "negate",
+            "position",
             "power",
             "reducedBy",
             "right",
