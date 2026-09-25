@@ -185,14 +185,16 @@ export function localConvexRunner(
     };
 }
 
-export type SignUp = (account: LaneAccount) => Promise<void>;
+/** Register the account; resolves to the session token the sign-up issued
+ *  (`null` when the backend issued none). */
+export type SignUp = (account: LaneAccount) => Promise<string | null>;
 
 /** The real sign-up: the same `auth:signIn` action, provider and params the
  *  auth form sends (`src/components/auth/auth-form.tsx`). */
 export function passwordSignUp(convexUrl: string): SignUp {
     return async (account) => {
         const client = new ConvexHttpClient(convexUrl);
-        await client.action(anyApi.auth.signIn, {
+        const res = (await client.action(anyApi.auth.signIn, {
             provider: "password",
             params: {
                 email: account.email,
@@ -200,7 +202,8 @@ export function passwordSignUp(convexUrl: string): SignUp {
                 nickname: account.nickname,
                 flow: "signUp",
             },
-        });
+        })) as { tokens?: { token?: string } | null } | null;
+        return res?.tokens?.token ?? null;
     };
 }
 
@@ -254,34 +257,30 @@ export function laneDeckPayload(): Record<string, unknown> {
     };
 }
 
-/** Create the account's own deck; resolves to its `userDecks` id. */
-export type SeedDeck = (account: LaneAccount) => Promise<string>;
+/** Create the account's own deck, as the account (`token` is the session
+ *  its sign-up issued); resolves to the deck's `userDecks` id. */
+export type SeedDeck = (
+    account: LaneAccount,
+    token: string | null
+) => Promise<string>;
 
 /**
- * The real seed: sign in as the lane account through the same `auth:signIn`
- * action, then create the deck through the PUBLIC `userDecks:create` mutation
- * — the one the deck builder's autosave calls. No `convex run` seeder: the
- * row is written by the account's own authenticated call, so ownership is
- * derived server-side exactly as it is for a player, and the lane needs no
- * function the deployment might not carry yet.
+ * The real seed: the PUBLIC `userDecks:create` mutation — the one the deck
+ * builder's autosave calls — authenticated with the session the sign-up just
+ * issued. No `convex run` seeder: the row is written by the account's own
+ * call, so ownership is derived server-side exactly as it is for a player,
+ * and the lane needs no function the deployment might not carry yet. And no
+ * second sign-in: a Password sign-in is a password hash on the auth backend,
+ * the step a loaded machine times out first.
  */
 export function passwordSeedDeck(convexUrl: string): SeedDeck {
-    return async (account) => {
-        const client = new ConvexHttpClient(convexUrl);
-        const res = (await client.action(anyApi.auth.signIn, {
-            provider: "password",
-            params: {
-                email: account.email,
-                password: account.password,
-                flow: "signIn",
-            },
-        })) as { tokens?: { token?: string } | null } | null;
-        const token = res?.tokens?.token;
+    return async (account, token) => {
         if (!token) {
             throw new LaneAccountError(
-                `auth:signIn returned no token for ${account.email} — the lane cannot create its own deck`
+                `the sign-up issued no session for ${account.email} — the lane cannot create its own deck`
             );
         }
+        const client = new ConvexHttpClient(convexUrl);
         client.setAuth(token);
         const id = await client.mutation(
             anyApi.userDecks.create,
@@ -365,7 +364,7 @@ export function createLaneFleet(deps: LaneFleetDeps): LaneFleet {
                 // lost may still have created the account, and teardown of an
                 // address that does not exist is a no-op.
                 registering.add(account.email);
-                await deps.signUp(account);
+                const token = await deps.signUp(account);
                 run("uiGateAccounts:grantLaneRoles", { email: account.email });
                 run("limitedFixtures:seedUiGateFixtures", {
                     email: account.email,
@@ -378,7 +377,7 @@ export function createLaneFleet(deps: LaneFleetDeps): LaneFleet {
                 });
                 // The deck the three delete confirms open over (issue
                 // #4421), written by the account's own authenticated call.
-                member.deckId = await deps.seedDeck(account);
+                member.deckId = await deps.seedDeck(account, token);
             }
             // The game surfaces' declared positions (issue #3652). Upsert by
             // label, so this is idempotent and concurrent-run safe; it is the

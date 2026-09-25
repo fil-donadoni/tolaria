@@ -38,9 +38,10 @@ function harness(overrides: Partial<LaneFleetDeps> = {}) {
         accounts,
         signUp: async (a) => {
             calls.push(`signUp ${a.email}`);
+            return `token-of-${a.runId}`;
         },
-        seedDeck: async (a) => {
-            calls.push(`seedDeck ${a.email}`);
+        seedDeck: async (a, token) => {
+            calls.push(`seedDeck ${a.email} ${token}`);
             return `deck-of-${a.runId}`;
         },
         keepUser: false,
@@ -79,7 +80,8 @@ describe("the lane account lifecycle (issue #3626)", () => {
             `uiGateAccounts:grantLaneRoles {"email":"${account.email}"}`,
             `limitedFixtures:seedUiGateFixtures {"email":"${account.email}","runId":"${account.runId}"}`,
             `verdictResolutions:seedUiGateContestedPosition {"email":"${account.email}"}`,
-            `seedDeck ${account.email}`,
+            // With the session the sign-up issued — never a second sign-in.
+            `seedDeck ${account.email} token-of-${account.runId}`,
         ]);
         // The deck the three delete confirms open over (issue #4421), handed
         // to that account's walks — never another lane's.
@@ -232,7 +234,9 @@ describe("a fleet of N accounts (issue #3653)", () => {
             expect(h.calls).toContain(
                 `verdictResolutions:seedUiGateContestedPosition {"email":"${account.email}"}`
             );
-            expect(h.calls).toContain(`seedDeck ${account.email}`);
+            expect(h.calls).toContain(
+                `seedDeck ${account.email} token-of-${account.runId}`
+            );
         }
         // Each account walks over its OWN deck (issue #4421): a lane that
         // opened another lane's deck would race that lane's walks for it.
