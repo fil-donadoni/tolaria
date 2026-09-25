@@ -28,6 +28,7 @@ import {
 import { EFFECT_OP_REGISTRY } from "../../../cards/mechanicsRegistry";
 import { makeInstance } from "../../../cards/__tests__/setup";
 import { resolveTopOfStack } from "../../state";
+import OP_DISPOSITION_SNAPSHOT from "./scenarioOpDisposition.json";
 
 // The generator references FILLER_CARD_ID by id; register the ONE canonical
 // definition (the catalogue sweep in `effectScriptSmoke.test.ts` registers the
@@ -279,6 +280,50 @@ describe("Op vocabulary coverage guard (issue #804)", () => {
         expect([...ASSERTED_OP_KINDS].sort()).toEqual(
             EFFECT_OP_REGISTRY.map((r) => r.op).sort()
         );
+    });
+});
+
+type SmokeSkipRow = { code: string; reason: string };
+
+/**
+ * Issue #4450 — what the generator does with each Op ON ITS OWN: `"runs"` when
+ * its analyser reads the Op's arguments (so the outcome is card-dependent and
+ * the catalogue sweep decides), or the one `{ code, reason }` skip it raises
+ * without reading anything past the Op name. The probe is a stub holding only
+ * `op`, wrapped so any other field read is seen: an analyser that reads a field
+ * is a real analyser, whatever it then does with `undefined`.
+ */
+function scenarioOpDisposition(
+    name: EffectOp["op"]
+): "runs" | SmokeSkipRow | SmokeSkipRow[] {
+    let readAField = false;
+    const stub = new Proxy({ op: name } as object, {
+        get(target, key, receiver) {
+            if (key !== "op" && typeof key === "string") readAField = true;
+            return Reflect.get(target, key, receiver);
+        },
+    }) as EffectOp;
+    let plan: Plan;
+    try {
+        plan = planSmokeTest([stub]);
+    } catch {
+        return "runs";
+    }
+    if (readAField || plan.kind === "run") return "runs";
+    const rows = plan.skips.map(({ code, reason }) => ({ code, reason }));
+    return rows.length === 1 ? rows[0]! : rows;
+}
+
+describe("Op run/skip snapshot (issue #4450)", () => {
+    it("every Op of the union runs, or skips with the committed (code, reason)", () => {
+        const actual = Object.fromEntries(
+            EFFECT_OP_REGISTRY.map((r) => r.op)
+                .sort()
+                .map((name) => [name, scenarioOpDisposition(name)])
+        );
+        // A change here is a reviewed change: an Op that used to run and now
+        // skips (or the reverse, or a reworded reason) edits this file.
+        expect(actual).toEqual(OP_DISPOSITION_SNAPSHOT);
     });
 });
 
