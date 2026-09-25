@@ -52,7 +52,12 @@ import { hasInstantSpeed, manaValue } from "../constants";
 import { basicLandsForColors, getCardColors } from "../../cards/colors";
 import type { CardDefinition, EffectForEachSelector } from "../../cards/types";
 import { castShape } from "./botReachForm";
-import { combatTrickPosition, costPose, targetPose } from "./botReachTarget";
+import {
+    combatTrickPosition,
+    costPose,
+    sorceryPumpRace,
+    targetPose,
+} from "./botReachTarget";
 export { castShape } from "./botReachForm";
 
 /** CR 115.1 — a spell that targets a SPELL needs one on the stack. Lives
@@ -578,7 +583,8 @@ export function botReachSpec(
             count: DRAWN_SPELLS,
         });
     const cost = costPose(def);
-    cards.push(...target.cards, ...cost.cards);
+    const race = sorceryPumpRace(def);
+    cards.push(...target.cards, ...cost.cards, ...(race?.cards ?? []));
     const stack = needsStackTarget(def);
     return {
         cards,
@@ -595,6 +601,7 @@ export function botReachSpec(
         activePlayer: "me",
         priority: "me",
         ...target.position,
+        ...(race ? { life: race.life } : {}),
         ...(window === TRICK_WINDOW ? combatTrickPosition(def) : null),
         ...(cost.manaPool ? { manaPool: cost.manaPool } : {}),
         ...(stack
