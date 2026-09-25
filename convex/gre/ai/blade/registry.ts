@@ -8221,15 +8221,15 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // a creature: put a +1/+1 counter on this creature": Scarland Thrinax
         // in hand, {B}{R}{G} available, a spare body on each side.
         //
-        // Before the fix the cast edge read WORSE than `pass` on every seed.
-        // The outlet's payoff is LASTING, so #4261's transient prune did not
-        // reach it: the tree opened a "sacrifice a creature" child at the node
+        // Before the fix the cast edge read WORSE than `pass` at a 200-iteration
+        // budget on every seed. The outlet's payoff is LASTING, so #4261's
+        // transient prune did not reach it: below the root the rollout drew
+        // "sacrifice a creature" at random and the tree opened it at the node
         // after the cast (two victims against one `pass`), each strictly worse
         // than passing, and their subtrees dragged the cast edge's mean margin
-        // (112.8 against `pass`'s 138.9) below a creature the static leaf
-        // ranks higher (375.5 against 335.3). The same body without the
-        // ability was cast. Fixed by class, not by card:
-        // `isSourceConfinedSacrifice` (`search.ts`).
+        // below `pass`'s for a creature the static leaf ranks higher. The same
+        // body without the ability was cast. Fixed by class, not by card:
+        // `isSourceConfinedSacrificeConversion` (`search.ts`).
         label: "Self-growing sacrifice outlet: casts the creature",
         spec: {
             cards: [
@@ -8253,13 +8253,14 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
             libraryCount: 20,
         },
         bot: "me",
-        // The Bot-play sweep's own budget and seeds (`BOT_REACH_BUDGET`): a
-        // REACHABILITY claim, the verdict `oracle:compile` measures.
-        budget: { iterations: 48 },
-        seeds: [0xb07, 0x5eed],
+        // The Bot-play sweep's own position, at four times its budget (its
+        // verdict needs ONE seed to cast; at 48 iterations one of its two
+        // seeds still passes, at 200 all of them cast, and the entry states
+        // the stronger claim). A REACHABILITY claim, so a PREDICATE, kept out
+        // of the weight fit for the reason the Nantuko Husk entry gives.
+        budget: { iterations: 200 },
+        seeds: [0xb07, 0x5eed, 1, 2, 3],
         tier: "must",
-        // A PREDICATE for the reason the Nantuko Husk entry gives: a
-        // reachability claim, kept out of the weight fit.
         expect: {
             predicate: (move, state) =>
                 move !== null &&

@@ -1888,7 +1888,9 @@ function rollout(
             // variants (one per sacrificable permanent and target) would
             // otherwise outnumber every other move at the node.
             const drawn = moves.filter(
-                (m) => !isTransientSacrificeConversion(state, pid, m)
+                (m) =>
+                    !isTransientSacrificeConversion(state, pid, m) &&
+                    !isSourceConfinedSacrificeConversion(state, pid, m)
             );
             const pool = drawn.length > 0 ? drawn : moves;
             chosen = pool[Math.floor(rng() * pool.length)];
@@ -2658,7 +2660,10 @@ function isDeferrableTransientSacrifice(
     pid: string,
     move: Move
 ): boolean {
-    if (!inQuietWindow(state)) return false;
+    const inLiveCombat =
+        TRANSIENT_PAYOFF_PHASES.has(state.phase) &&
+        (state.combat?.attackerIds.length ?? 0) > 0;
+    if (state.stack.length > 0 || inLiveCombat) return false;
     return isSacrificeConversionWhere(
         state,
         pid,
@@ -2670,29 +2675,27 @@ function isDeferrableTransientSacrifice(
 
 /** Whether `move` gives up a standing permanent for a payoff that lands ONLY
  *  on the ability's own source (`abilityBenefitIsConfinedToSource`: a counter,
- *  a buff, a granted ability), in a window where the payoff cannot matter
- *  (issue #4271).
+ *  a buff, a granted ability), in ANY window (issue #4271).
  *
- *  The payoff here is LASTING, so `isDeferrableTransientSacrifice`'s argument
- *  ("gone by next turn") does not apply; the argument is redistribution
- *  instead. Growing one body by sacrificing another moves worth around the
- *  board and creates none — no card, no mana, no damage, no life — so the edge
- *  is a step down from passing that the root already scores as an option
- *  (`selectRootMove` reads the un-pruned root). What it must not do is sit
- *  BELOW the root: the outlet's two sacrifice variants outnumber the one
- *  `pass` at the node after its own cast, the cast edge's mean is dragged
- *  down by subtrees strictly worse than passing, and a creature the search
- *  values higher on its own reads worse than `pass` (four self-growing
- *  outlets, all `never-chosen`, while the same body without the ability was
- *  played). No timing clause: a sorcery-speed outlet is pruned on the same
- *  terms, its ability has no later window to defer to and needs none.
+ *  The payoff is LASTING, so `isTransientSacrificeConversion`'s argument
+ *  ("gone by next turn") does not apply; the argument is redistribution.
+ *  Growing one body by sacrificing another moves worth around the board and
+ *  creates none — no card, no mana, no damage, no life — so every such edge is
+ *  a step down from passing, and both places the search opens one below the
+ *  root pay for it in the cast edge that leads there: the rollout's random
+ *  draw (two victims against one `pass` make the outlet the likeliest draw)
+ *  and the tree's own children at the node after the cast. Their subtrees drag
+ *  the cast edge's mean margin under `pass`'s for a creature the static leaf
+ *  ranks higher, and four self-growing outlets were `never-chosen` while the
+ *  same body without the ability was cast. The root is never pruned, so a
+ *  sacrifice the bot could take NOW stays a scored option.
+ *
  *  Per-card-agnostic, never a card name (ADR 0102). */
-function isSourceConfinedSacrifice(
+function isSourceConfinedSacrificeConversion(
     state: GameState,
     pid: string,
     move: Move
 ): boolean {
-    if (!inQuietWindow(state)) return false;
     return isSacrificeConversionWhere(
         state,
         pid,
@@ -2700,16 +2703,6 @@ function isSourceConfinedSacrifice(
         (ability) =>
             ability.useStack && abilityBenefitIsConfinedToSource(ability)
     );
-}
-
-/** Neither a response window (a non-empty stack) nor a live combat step: the
- *  two places a sacrifice payoff can matter (a permanent about to be lost, a
- *  trick after blocks). */
-function inQuietWindow(state: GameState): boolean {
-    const inLiveCombat =
-        TRANSIENT_PAYOFF_PHASES.has(state.phase) &&
-        (state.combat?.attackerIds.length ?? 0) > 0;
-    return state.stack.length === 0 && !inLiveCombat;
 }
 
 function isSacrificeConversionWhere(
@@ -3020,7 +3013,10 @@ function iterate(
             const kept = keyed.filter(
                 (k) =>
                     !isDeferrableTransientSacrifice(world, pid, k.move) &&
-                    !isSourceConfinedSacrifice(world, pid, k.move)
+                    !(
+                        world.stack.length === 0 &&
+                        isSourceConfinedSacrificeConversion(world, pid, k.move)
+                    )
             );
             if (kept.length > 0) keyed = kept;
         }
