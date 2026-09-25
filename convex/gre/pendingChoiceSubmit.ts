@@ -734,7 +734,9 @@ export function applyRandomRevealAck(
  *  failure (identity mismatch, may-pay kind, duplicate ids, count outside
  *  `[min, max]`, ids not in the chooser's zone). Each thrown message is
  *  user-facing — the client surfaces it via a transient toast (ADR 0007).
- *  Handles all zone-pick kinds; `may-pay` stays on `submitMayPay`. */
+ *  Handles all zone-pick kinds; the kinds with their own mutation (`may-pay`,
+ *  `name-card`, `land-entry-tapped`, `number-pick`, `random-reveal`,
+ *  `madness-cast`, `rebound-cast`, `draw-replacement`) are rejected here. */
 export function applyPendingChoiceSubmit(
     state: GameState,
     args: SubmitChoiceArgs
