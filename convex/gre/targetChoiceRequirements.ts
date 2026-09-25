@@ -50,7 +50,7 @@ import {
     type TargetingSource,
 } from "./rules";
 import { resolveTargetRequirementCount } from "./state";
-import type { CardInstanceState, GameState, PendingTarget } from "./state";
+import type { GameState, PendingTarget } from "./state";
 
 /** One active CR 601.2c requirement binding a particular chooser. */
 export interface ActiveTargetChoiceRequirement {

@@ -7,7 +7,7 @@
 // `state`, no mutation. Used only off the authoritative path.
 
 import { findCardInAnyZone } from "./lookup";
-import type { GameState, CardInstanceState } from "./state";
+import type { GameState } from "./state";
 import type { Move } from "./moves";
 import type { TargetSelection } from "../cards/types";
 import { tryGetDefinition } from "../cards";
