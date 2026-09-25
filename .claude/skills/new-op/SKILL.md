@@ -128,12 +128,16 @@ is more work than the Op". Then:
    only when it really is). An Op that declares a binding also owes 2b (its
    family in `bindingKindOf`, unless it is a plain snapshot) and 2c (its
    declaring field in `BINDING_DECLARATION_FIELDS`, unless the field is
-   already listed).
+   already listed) plus the `declared.set(entry.<field>, kind)` branch in
+   `validate.ts`'s ref pass, or refs to the new binding fail validation. An
+   Op that carries a nested script owes a `childOpArrays` case in
+   `convex/gre/ai/effectOpChildren.ts` (tsc catches it).
 4. **Sites 5–6** — teach `analyseOp` to build a scenario that exercises the Op,
    and `OP_ASSERTORS` to assert its outcome. If the Op genuinely can't be
    scenario-ized, give it a `SCENARIO_SKIPS` row instead — a skip code and a
-   reason string, no branch, no assertor — and add its line to the run/skip
-   snapshot (`__tests__/scenarioOpDisposition.json`): a surfaced skip is fine,
+   reason string, no branch, no assertor. Either way the Op gets its line in the
+   run/skip snapshot (`__tests__/scenarioOpDisposition.json`) — `"runs"` for
+   an analysed Op, `{ code, reason }` for a skip row: a surfaced skip is fine,
    a silent one is the bug.
 5. **Sites 7 + 7b + 7c** — a leaf valuer projecting the Op onto the feature basis
    (`convex/gre/ai/featureBasis.ts`), and its beneficence sign (does this help

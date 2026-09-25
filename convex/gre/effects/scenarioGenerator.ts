@@ -1355,9 +1355,9 @@ const SCENARIO_SKIPS = {
     // an information-visibility change, not a battlefield/life/hand-
     // count outcome the canned generator's assertions model. In every
     // shipped card it also precedes a `choice(zoneOwnerId: …)` Op,
-    // which already forces a skip on its own — so this case never
+    // which already forces a skip on its own — so this row never
     // needs to carry the skip alone in practice, but is explicit for
-    // exhaustiveness (a reveal-only script would hit this branch).
+    // exhaustiveness (a reveal-only script would hit this row).
     reveal: {
         code: "visibility-only",
         reason: `Op "reveal" changes card visibility (knownTo) — not a state change the canned generator asserts`,
@@ -1602,7 +1602,7 @@ const SCENARIO_SKIPS = {
     // `optionChoice` ("choose a color, then set it") or a `forEach {
     // set: "targets" }` — both constructs already skip wholesale
     // before descending into their body (see the `optionChoice` /
-    // `forEach` rows of this table), so this arm is never reached by the
+    // `forEach` rows of this table), so this row is never reached by the
     // current catalogue; kept for exhaustiveness against a future
     // card composing it bare. Explicit skip — the Op is new (per-Op
     // regime, `.claude/rules/gre-development.md`) and earns its own
@@ -1856,7 +1856,7 @@ const SCENARIO_SKIPS = {
     // Victory's card-level predicate test) is the behavioural
     // guarantor. Coalition Victory's script is ALSO wrapped in `if`,
     // which already skips unconditionally (see the `if` row
-    // above), so this arm is defensive/for-completeness.
+    // above), so this row is defensive/for-completeness.
     winGame: {
         code: "op-own-tests",
         reason: `Op "winGame" sets state.gameOver — covered by the Op's own interpreter test`,
@@ -2053,7 +2053,7 @@ function analyseOp(op: EffectOp, req: Requirements): void {
                 );
             } else {
                 // `{ ref: "$each" }` — only reachable inside a forEach body,
-                // and forEach scripts are skipped wholesale below.
+                // and forEach scripts are skipped by its `SCENARIO_SKIPS` row.
                 skipBecause(
                     req,
                     "source-or-each-subject",
@@ -2155,7 +2155,7 @@ function analyseOp(op: EffectOp, req: Requirements): void {
                 recordSlot(req, op.target.target, "permanent");
             } else {
                 // `{ ref: "$each" }` — forEach-body only; see the forEach
-                // skip below.
+                // `SCENARIO_SKIPS` row.
                 skipBecause(
                     req,
                     "source-or-each-subject",
@@ -2699,7 +2699,8 @@ function buildScenario(req: Requirements): Scenario | { skip: SmokeSkip[] } {
 
 /** An assertor takes an Op, the built scenario, and the PRE-resolution state
  *  (to capture baseline totals) and returns a post-resolution check. Keyed by
- *  Op name; the coverage guard test keeps this 1:1 with `EFFECT_OP_REGISTRY`. */
+ *  Op name; the coverage guard test keeps `OP_ASSERTORS` and `SCENARIO_SKIPS` a
+ *  partition of `EFFECT_OP_REGISTRY`. */
 type Assertor = (
     op: EffectOp,
     scenario: Scenario,

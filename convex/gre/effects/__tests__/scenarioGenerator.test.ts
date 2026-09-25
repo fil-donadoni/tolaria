@@ -295,7 +295,9 @@ type SmokeSkipRow = { code: string; reason: string };
  * the catalogue sweep decides), or the one `{ code, reason }` skip it raises
  * without reading anything past the Op name. The probe is a stub holding only
  * `op`, wrapped so any other field read is seen: an analyser that reads a field
- * is a real analyser, whatever it then does with `undefined`.
+ * is a real analyser, whatever it then does with `undefined`. So `"runs"`
+ * means "card-dependent": whether a given card's script then runs or skips is
+ * the catalogue sweep's verdict (`effectScriptSmoke.test.ts`), not this one's.
  */
 function scenarioOpDisposition(
     name: string
@@ -310,7 +312,9 @@ function scenarioOpDisposition(
     let plan: Plan;
     try {
         plan = planSmokeTest([stub]);
-    } catch {
+    } catch (error) {
+        // Only an analyser that read a field may throw on the bare stub.
+        if (!readAField) throw error;
         return "runs";
     }
     if (readAField || plan.kind === "run") return "runs";
