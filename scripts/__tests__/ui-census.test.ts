@@ -61,29 +61,15 @@ const DEBT: Record<string, string> = {
     // game), which is a slice of its own: `docs/findings/`.
     "src/components/board/manual-peek-dialog.tsx":
         "the Manual Game library peek — a live `getManualLibraryTop` on a real manual game, so no fixture-prop specimen mounts it (#4402)",
-    "src/components/deckbuilder/deck-basics-sheet.tsx":
-        "the deck-basics BottomSheet (#4402)",
-    "src/components/deckbuilder/deck-stats-dialog.tsx":
-        "the deck statistics dialog (#4402)",
-    "src/components/lobby/active-game-notice.tsx":
-        "the resume/leave notice (#4402)",
-    "src/components/lobby/banlist-cards-dialog.tsx":
-        "the banlist card list (#4402)",
-    "src/components/lobby/deck-builder/deck-banlist-panel.tsx":
-        "the deck builder's banlist panel dialog (#4402)",
-    "src/components/lobby/deck-builder/deck-builder.tsx":
-        "the deck builder's inline confirm — the `deck-builder` surface measures the page, never this layer (#4402)",
-    "src/components/lobby/deck-builder/deck-filters-button.tsx":
-        "the card-filter BottomSheet (#4402)",
-    "src/components/lobby/deck-builder/deck-import-dialog.tsx":
-        "the decklist import dialog — the `deck-builder` surface asserts its opener and stops there (#4402)",
-    "src/components/lobby/deck-detail.tsx":
-        "the deck page's delete confirm — the `deck-detail` surface measures the page, never this layer (#4402)",
-    "src/components/lobby/join-by-code-dialog.tsx":
-        "the join-by-code form (#4402)",
-    "src/components/lobby/lobby.tsx":
-        "the lobby's inline confirm — the `lobby` surface measures the page, never this layer (#4402)",
-    "src/routes/join.route.tsx": "the join-a-table screen (#4402)",
+    // The one row of issue #4421's twelve that its slice could not pay. The
+    // antechamber's real state is `joinable: true`, which needs a WAITING game
+    // hosted by an identity other than the viewer — and `listOpenGames`
+    // broadcasts every waiting game to every account on the deployment, so a
+    // seeded table would join every other lane's lobby measurement. A host
+    // identity plus a table no other lane can see is infrastructure of its
+    // own (issue #4670).
+    "src/routes/join.route.tsx":
+        "the join-a-table screen in its joinable state — needs a fixture table hosted by a second identity and hidden from every other lane's lobby (#4670)",
 };
 
 /**
