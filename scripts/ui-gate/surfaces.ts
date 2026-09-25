@@ -1274,6 +1274,15 @@ const DEBUG_SHEET_TOGGLE = "[data-debug-sheet-toggle]";
 const DEBUG_SHEET_TOGGLE_CLOSED =
     '[data-debug-sheet-toggle][aria-expanded="false"]';
 const DEBUG_SHEET = "[data-debug-sheet]";
+
+/** A modal left standing on the board that the pregame loop in
+ *  `ensureVsAiBoard` must answer or wait out. The Debug sheet is a
+ *  `[role=dialog]` too, but it mounts with `showOverlay={false}` — no scrim,
+ *  so it never blocks the toggle — and `game-debug-sheet-ai` LEAVES it open
+ *  at measurement: the next viewport that resumes the same vs-AI game found
+ *  it still up and waited 45s for a pregame prompt that was long answered
+ *  (measured UNWALKED at one viewport per full run, issue #4422). */
+const BLOCKING_DIALOG = `[role=dialog]:not(${DEBUG_SHEET})`;
 /** A stack row's per-ability **Yield** toggle (`stack-yield-toggle.tsx`), the
  *  stack panel's "Manage yields" control and one row of the box it opens
  *  (issue #3629). */
@@ -1613,11 +1622,11 @@ async function ensureVsAiBoard(page: Page, ctx: WalkContext): Promise<void> {
         // blocks the toggle — but leaving it up leaves the board in a position
         // nobody chose, which is the flapping `game-board` was withdrawn for.
         if (await clickTransient(page, MULLIGAN_KEEP, 1200)) continue;
-        if (!(await visible(page, "[role=dialog]", 800))) break;
+        if (!(await visible(page, BLOCKING_DIALOG, 800))) break;
         if (Date.now() > promptsDeadline) {
             const shown = (
                 (await page
-                    .locator("[role=dialog]")
+                    .locator(BLOCKING_DIALOG)
                     .first()
                     .innerText()
                     .catch(() => "")) || "(no text)"
