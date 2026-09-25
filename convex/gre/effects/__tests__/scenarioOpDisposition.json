@@ -1,0 +1,331 @@
+{
+    "addMana": "runs",
+    "addPlayerCounter": "runs",
+    "addSubtype": "runs",
+    "animate": {
+        "code": "op-own-tests",
+        "reason": "Op \"animate\" changes a permanent's basic kind (CR 205.1a/611.1) — covered by the Op's own interpreter + wire-format tests"
+    },
+    "armGraveyardRedirect": "runs",
+    "attach": {
+        "code": "unmodelled-object-or-zone",
+        "reason": "Op \"attach\" targets a creature the CONTROLLER controls — not modelable by the generator's opponent-battlefield target placement"
+    },
+    "becomeCopy": {
+        "code": "op-own-tests",
+        "reason": "Op \"becomeCopy\" copies one runtime permanent onto another (identical canned fillers, phase-boundary revert) — covered by the Op's interpreter tests"
+    },
+    "becomeMonarch": {
+        "code": "op-own-tests",
+        "reason": "Op \"becomeMonarch\" sets the global monarch designation — covered by the Op's interpreter tests"
+    },
+    "captureBinding": {
+        "code": "card-paired-mechanism",
+        "reason": "Op \"captureBinding\" spans two separate resolutions of the same source's abilities — covered by the Op's interpreter tests"
+    },
+    "cascade": {
+        "code": "suspends-for-input",
+        "reason": "Op \"cascade\" needs its own spell on the stack for the CR 702.85a threshold and suspends for a live Cast/Decline — covered by the Op's interpreter tests"
+    },
+    "castDuringResolution": {
+        "code": "suspends-for-input",
+        "reason": "Op \"castDuringResolution\" suspends for a live Cast/Decline + the played card's own picks (CR 608.2g) — covered by the Op's interpreter tests"
+    },
+    "choice": {
+        "code": "suspends-for-input",
+        "reason": "Op \"choice\" suspends for player input — covered by the Op's own suspension/resume tests"
+    },
+    "chooseCategorized": {
+        "code": "suspends-for-input",
+        "reason": "Op \"chooseCategorized\" suspends for a choose-categorized pick — covered by the Op's interpreter tests"
+    },
+    "chooseCreatureType": {
+        "code": "suspends-for-input",
+        "reason": "Op \"chooseCreatureType\" suspends for a live creature-type choice (CR 205.3m) — covered by the Op's interpreter tests"
+    },
+    "chooseNumber": {
+        "code": "suspends-for-input",
+        "reason": "Op \"chooseNumber\" suspends for a numeric nomination — covered by the Op's interpreter tests"
+    },
+    "coinFlip": {
+        "code": "suspends-for-input",
+        "reason": "Op \"coinFlip\" draws a random bit and suspends for the reveal (CR 705) — covered by the Op's interpreter tests"
+    },
+    "coinFlipSeries": {
+        "code": "randomness",
+        "reason": "Op \"coinFlipSeries\" draws random bits (CR 705) — covered by the Op's interpreter tests"
+    },
+    "coinFlipSync": {
+        "code": "randomness",
+        "reason": "Op \"coinFlipSync\" draws a random bit (CR 705) — covered by the Op's interpreter tests"
+    },
+    "counter": {
+        "code": "unmodelled-object-or-zone",
+        "reason": "Op \"counter\" targets a spell on the stack — covered by the card's own resolution test"
+    },
+    "counters": "runs",
+    "createToken": "runs",
+    "createTokenCopy": {
+        "code": "op-own-tests",
+        "reason": "Op \"createTokenCopy\" copies a runtime source permanent (announced target / ref) the canned generator does not model — covered by the Op's interpreter tests"
+    },
+    "dealDamage": "runs",
+    "dealDamageDividedAsChosen": {
+        "code": "target-slot-shape",
+        "reason": "dealDamageDividedAsChosen — announced multi-target division cannot be scenario-ized"
+    },
+    "delayedTrigger": {
+        "code": "later-outcome",
+        "reason": "Op \"delayedTrigger\" fires at a future phase boundary — covered by the Op's interpreter tests"
+    },
+    "destroy": "runs",
+    "digMatchingToHand": {
+        "code": "op-own-tests",
+        "reason": "Op \"digMatchingToHand\" depends on a filter match against library contents — covered by the Op's interpreter tests"
+    },
+    "discard": {
+        "code": "choice-binding",
+        "reason": "Op \"discard\" consumes a choice binding, a hand filter, or discards the whole hand — covered by the card's own suspension/resume or per-card test"
+    },
+    "discardAtRandom": {
+        "code": "randomness",
+        "reason": "Op \"discardAtRandom\" picks the discarded cards at random (seeded PRNG) — covered by the Op's interpreter tests"
+    },
+    "divideIntoPiles": {
+        "code": "card-paired-mechanism",
+        "reason": "Op \"divideIntoPiles\" suspends for two DIFFERENT players' picks (ADR 0053) — covered by hand-written per-card tests"
+    },
+    "draw": "runs",
+    "emblem": "runs",
+    "exile": "runs",
+    "exileAndReturnTransformed": {
+        "code": "op-own-tests",
+        "reason": "Op \"exileAndReturnTransformed\" swaps a permanent's printed characteristic set across a CR 400.7 zone change — covered by the Op's interpreter tests"
+    },
+    "exileOnDeath": "runs",
+    "exileSelf": {
+        "code": "op-own-tests",
+        "reason": "Op \"exileSelf\" redirects the resolving spell's own destination to exile — covered by the Op's interpreter tests"
+    },
+    "exileTopOfLibrary": {
+        "code": "op-own-tests",
+        "reason": "Op \"exileTopOfLibrary\" moves top-of-library cards to exile — covered by the Op's interpreter tests"
+    },
+    "exileWithAttachments": {
+        "code": "later-outcome",
+        "reason": "Op \"exileWithAttachments\" arms an exile-and-return bundle whose observable outcome needs a later source-leaves/untaps return — covered by the Op's interpreter tests"
+    },
+    "explore": {
+        "code": "suspends-for-input",
+        "reason": "Op \"explore\" reveals an unprovisionable top card and suspends on the nonland branch's keep-or-bin choice — covered by the Op's interpreter tests"
+    },
+    "extraCombat": {
+        "code": "later-outcome",
+        "reason": "Op \"extraCombat\" mutates a turn-structure queue, not a same-step outcome — covered by hand-written tests"
+    },
+    "extraTurn": {
+        "code": "later-outcome",
+        "reason": "Op \"extraTurn\" mutates a turn-boundary queue, not a same-step outcome — covered by hand-written tests"
+    },
+    "forEach": {
+        "code": "source-or-each-subject",
+        "reason": "construct \"forEach\" iterates a runtime-selected set — covered by the card's own tests"
+    },
+    "gainControl": {
+        "code": "op-own-tests",
+        "reason": "Op \"gainControl\" changes control of a permanent (and installs a conditional-control SBA) — covered by the Op's interpreter tests"
+    },
+    "gainLife": "runs",
+    "grantAbility": "runs",
+    "grantCastFromExile": {
+        "code": "choice-binding",
+        "reason": "Op \"grantCastFromExile\" consumes a choice binding — covered by the card's own suspension/resume tests"
+    },
+    "grantCastFromGraveyard": {
+        "code": "choice-binding",
+        "reason": "Op \"grantCastFromGraveyard\" grants a cast permission off a choice binding or a graveyard target — covered by the card's own tests"
+    },
+    "grantCastTiming": "runs",
+    "grantGraveyardPlay": "runs",
+    "grantManaSubstitution": "runs",
+    "grantSpellManaSubstitution": "runs",
+    "hideaway": {
+        "code": "suspends-for-input",
+        "reason": "Op \"hideaway\" suspends for a look-distribute pick and exiles face down — covered by the Op's interpreter tests"
+    },
+    "if": {
+        "code": "runtime-branch",
+        "reason": "construct \"if\" branches on a runtime predicate — covered by the construct's interpreter tests"
+    },
+    "libraryLook": {
+        "code": "randomness",
+        "reason": "Op \"libraryLook\" shuffles a library (seeded-PRNG randomization) — covered by the Op's interpreter tests"
+    },
+    "lockDamage": "runs",
+    "lookDistribute": {
+        "code": "suspends-for-input",
+        "reason": "Op \"lookDistribute\" suspends for a look-distribute pick — covered by the Op's interpreter tests"
+    },
+    "lookHand": {
+        "code": "visibility-only",
+        "reason": "Op \"lookHand\" changes card visibility (knownTo) — not a state change the canned generator asserts"
+    },
+    "lookRandomHand": {
+        "code": "visibility-only",
+        "reason": "Op \"lookRandomHand\" changes card visibility (knownTo) — not a state change the canned generator asserts"
+    },
+    "loseAllAbilities": {
+        "code": "op-own-tests",
+        "reason": "Op \"loseAllAbilities\" strips abilities (CR 613.1f) — the canned filler has none, so it is covered by the Op's own interpreter + wire-format tests"
+    },
+    "loseAllAbilitiesWhileSourceRemains": {
+        "code": "op-own-tests",
+        "reason": "Op \"loseAllAbilitiesWhileSourceRemains\" strips abilities (CR 613.1f) for a source-tied duration — covered by the Op's own interpreter + wire-format tests"
+    },
+    "loseLife": "runs",
+    "markAssignsNoCombatDamage": "runs",
+    "mayPay": {
+        "code": "suspends-for-input",
+        "reason": "Op \"mayPay\" suspends for a Pay/Skip decision — covered by the Op's own suspension/resume tests"
+    },
+    "mill": {
+        "code": "op-own-tests",
+        "reason": "Op \"mill\" moves top-of-library cards to the graveyard — covered by the Op's interpreter tests"
+    },
+    "moveSpellFromStack": {
+        "code": "op-own-tests",
+        "reason": "Op \"moveSpellFromStack\" targets a spell on the stack — covered by the Op's interpreter tests"
+    },
+    "moveZone": {
+        "code": "unmodelled-object-or-zone",
+        "reason": "Op \"moveZone\" changes zones on an object/zone the canned generator does not model — covered by the card's own per-card test"
+    },
+    "nameCard": {
+        "code": "suspends-for-input",
+        "reason": "Op \"nameCard\" suspends for a live card-name choice (CR 201.4) — covered by the Op's interpreter tests"
+    },
+    "optionChoice": {
+        "code": "suspends-for-input",
+        "reason": "Op \"optionChoice\" suspends on a live mode pick (CR 700.2) — covered by the Op's interpreter tests"
+    },
+    "payVariableMana": {
+        "code": "suspends-for-input",
+        "reason": "Op \"payVariableMana\" suspends for a variable mana-payment nomination — covered by the Op's interpreter tests"
+    },
+    "preventDamage": {
+        "code": "dormant-shield",
+        "reason": "Op \"preventDamage\" registers a dormant shield (no same-resolution damage event) — covered by the Op's interpreter tests"
+    },
+    "preventRegeneration": "runs",
+    "pump": "runs",
+    "putBack": {
+        "code": "suspends-for-input",
+        "reason": "Op \"putBack\" suspends for a live hand pick (CR 401.4) — covered by the Op's interpreter tests"
+    },
+    "randomExileToHand": {
+        "code": "randomness",
+        "reason": "Op \"randomExileToHand\" picks a random card from a source-linked exile pile — the canned generator does not provision the pile; covered by the Op's interpreter tests"
+    },
+    "rangedTopdeck": {
+        "code": "suspends-for-input",
+        "reason": "Op \"rangedTopdeck\" suspends for a live ranged hand pick (CR 119.4) — covered by the Op's interpreter tests"
+    },
+    "recallCapturedBinding": {
+        "code": "card-paired-mechanism",
+        "reason": "Op \"recallCapturedBinding\" spans two separate resolutions of the same source's abilities — covered by the Op's interpreter tests"
+    },
+    "redirectDamage": {
+        "code": "dormant-shield",
+        "reason": "Op \"redirectDamage\" registers a dormant shield (no same-resolution damage event) — covered by the Op's interpreter tests"
+    },
+    "reduceSpellCostThisTurn": "runs",
+    "reflexiveTrigger": {
+        "code": "later-outcome",
+        "reason": "Op \"reflexiveTrigger\" resolves on a separate stack object after a priority round — covered by the Op's interpreter tests"
+    },
+    "regenerate": "runs",
+    "replaceManaProductionColor": "runs",
+    "restrictActivation": "runs",
+    "restrictCasting": "runs",
+    "restrictCombat": {
+        "code": "later-outcome",
+        "reason": "Op \"restrictCombat\" only manifests at a later combat step — covered by hand-written tests"
+    },
+    "returnExiledForSource": {
+        "code": "card-paired-mechanism",
+        "reason": "Op \"returnExiledForSource\" only has an observable outcome after a prior exileWithAttachments armed a bundle — covered by the Op's interpreter tests"
+    },
+    "reveal": {
+        "code": "visibility-only",
+        "reason": "Op \"reveal\" changes card visibility (knownTo) — not a state change the canned generator asserts"
+    },
+    "revealAndCategorize": {
+        "code": "suspends-for-input",
+        "reason": "Op \"revealAndCategorize\" suspends for a categorized look-distribute pick — covered by the Op's interpreter tests"
+    },
+    "revealTopAndRoute": {
+        "code": "op-own-tests",
+        "reason": "Op \"revealTopAndRoute\" routes the revealed top card by its characteristics — the canned generator cannot provision a known top card; covered by the Op's interpreter tests"
+    },
+    "revealUntilMatch": {
+        "code": "op-own-tests",
+        "reason": "Op \"revealUntilMatch\" reveals a prefix whose size depends on the library composition — the canned generator cannot provision a known library; covered by the Op's interpreter tests"
+    },
+    "sacrifice": {
+        "code": "choice-binding",
+        "reason": "Op \"sacrifice\" consumes a choice binding — covered by the card's own suspension/resume tests"
+    },
+    "scryReorder": {
+        "code": "suspends-for-input",
+        "reason": "Op \"scryReorder\" suspends for a look/reorder-top choice — covered by the Op's interpreter tests and the card's suspension/resume tests"
+    },
+    "setBasePT": {
+        "code": "op-own-tests",
+        "reason": "Op \"setBasePT\" sets base P/T (CR 613.4b) — covered by the Op's own interpreter + wire-format tests"
+    },
+    "setCardTypes": {
+        "code": "op-own-tests",
+        "reason": "Op \"setCardTypes\" changes a permanent's card types (CR 205.1a) — covered by the Op's own interpreter + wire-format tests"
+    },
+    "setColor": {
+        "code": "op-own-tests",
+        "reason": "Op \"setColor\" is new — covered by the Op's own interpreter + wire-format tests"
+    },
+    "setIslandSanctuaryProtection": {
+        "code": "later-outcome",
+        "reason": "Op \"setIslandSanctuaryProtection\" only manifests at a later declare-attackers step — covered by hand-written tests"
+    },
+    "setLevel": "runs",
+    "setProtectionFromEverything": {
+        "code": "op-own-tests",
+        "reason": "Op \"setProtectionFromEverything\" sets a global player-scoped protection designation — covered by the Op's interpreter tests"
+    },
+    "setSubtype": {
+        "code": "op-own-tests",
+        "reason": "Op \"setSubtype\" is new — covered by the Op's own interpreter + wire-format tests"
+    },
+    "shuffleSelfIntoLibrary": {
+        "code": "randomness",
+        "reason": "Op \"shuffleSelfIntoLibrary\" shuffles the resolving spell into a library (seeded-PRNG randomization) — covered by the Op's interpreter tests"
+    },
+    "skipDrawStepThisTurn": "runs",
+    "skipNextTurn": {
+        "code": "later-outcome",
+        "reason": "Op \"skipNextTurn\" mutates a turn-boundary count, not a same-step outcome — covered by hand-written tests"
+    },
+    "skipNextUntap": "runs",
+    "suppressDamagePrevention": "runs",
+    "tapUntap": "runs",
+    "transform": {
+        "code": "op-own-tests",
+        "reason": "Op \"transform\" swaps a permanent's printed characteristic set (front/back) — covered by the Op's interpreter tests"
+    },
+    "unattach": {
+        "code": "card-paired-mechanism",
+        "reason": "Op \"unattach\" only has an observable outcome after a prior attach — covered by hand-written interpreter/card tests"
+    },
+    "winGame": {
+        "code": "op-own-tests",
+        "reason": "Op \"winGame\" sets state.gameOver — covered by the Op's own interpreter test"
+    }
+}

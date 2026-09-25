@@ -18,9 +18,10 @@
 //     player / permanent targets, how deep a library, which count sets to
 //     populate) OR an explicit SKIP with a reason — a script the generator
 //     cannot faithfully set up is REPORTED, never silently passed.
-//   - Assertion derivation is keyed PER OP KIND (`OP_ASSERTORS`). Every
-//     registered Op must have an assertor or the coverage guard test fails, so
-//     a newly-added Op kind cannot ship without smoke coverage.
+//   - An Op the generator never scenario-izes is ONE row of `SCENARIO_SKIPS`
+//     (code + reason); every other Op has an analyser branch and an assertor
+//     (`OP_ASSERTORS`, keyed PER OP KIND). The union is split between the two
+//     at type level, so a newly-added Op kind cannot ship with neither.
 //   - The scenario is deterministic and self-contained: two fixed players, a
 //     bank of vanilla bears for targets / library / zones, no RNG.
 //
@@ -1177,9 +1178,863 @@ function subjectPermanentId(
     return isSourceRef(selector) ? scenario.sourcePermanentId : undefined;
 }
 
+/** A skip row: the one reason `analyseOp` gives for an Op it never
+ *  scenario-izes, whatever the Op's arguments. */
+interface ScenarioSkipRow {
+    readonly code: SmokeSkipCode;
+    readonly reason: string;
+}
+
+/**
+ * Issue #4450 — every Op the canned generator NEVER scenario-izes, one
+ * reviewable row each: the skip it raises before reading any argument.
+ * `analyseOp` consults it before its switch, whose `never` runs over the
+ * remaining Ops (`ScenarioAnalysedOp`), and `OP_ASSERTORS` is keyed over the
+ * same remainder — so a new Op of the union reds `check:ts` until it has
+ * either a row here or both an analyser branch and an assertor, and an Op
+ * with a row AND a branch reds too. The committed run/skip snapshot
+ * (`__tests__/scenarioOpDisposition.json`) is what a moved row changes.
+ */
+const SCENARIO_SKIPS = {
+    // CR 601.2d — the per-target split is chosen at ANNOUNCEMENT and
+    // snapshotted onto the stack item's `targetAmounts`. The auto-
+    // scenario has no way to populate that multi-target division, so it
+    // cannot faithfully assert the per-target outcome. Covered by the
+    // hand-written interpreter test instead (skip-only, like exile).
+    dealDamageDividedAsChosen: {
+        code: "target-slot-shape",
+        reason: "dealDamageDividedAsChosen — announced multi-target division cannot be scenario-ized",
+    },
+    // CR 500.7 (issue #686) — scheduling an extra turn mutates
+    // `state.extraTurns`, a queue the turn-advance machinery (not the
+    // stack-resolution scenario harness) later drains — not a
+    // same-step observable outcome this generator can size a
+    // deterministic assertion against. Covered instead by the Op's
+    // own hand-written interpreter test plus Time Warp's card test
+    // (tmp/__tests__/blue.test.ts).
+    extraTurn: {
+        code: "later-outcome",
+        reason: `Op "extraTurn" mutates a turn-boundary queue, not a same-step outcome — covered by hand-written tests`,
+    },
+    // CR 500.8 (issue #2886) — queueing an extra combat phase mutates
+    // `state.extraPhases`, drained by the PHASE-advance machinery (not
+    // the stack-resolution scenario harness) at a LATER END_OF_COMBAT
+    // exit — not a same-step observable outcome this generator can
+    // size a deterministic assertion against. Same explicit skip
+    // `extraTurn` takes; covered instead by the Op's own hand-written
+    // interpreter + wire-format tests and the extra-phase seam tests
+    // (`gre/__tests__/extraPhases.test.ts`).
+    extraCombat: {
+        code: "later-outcome",
+        reason: `Op "extraCombat" mutates a turn-structure queue, not a same-step outcome — covered by hand-written tests`,
+    },
+    // CR 614.10 (issue #1957) — skipping a turn mutates the target
+    // player's pending-skip COUNT, drained by the turn-advance
+    // machinery (not the stack-resolution scenario harness) at a
+    // LATER turn boundary — not a same-step observable outcome this
+    // generator can size a deterministic assertion against. Covered
+    // instead by the Op's own hand-written interpreter test plus
+    // Waterspout Elemental's card test (pls/__tests__/blue.test.ts).
+    skipNextTurn: {
+        code: "later-outcome",
+        reason: `Op "skipNextTurn" mutates a turn-boundary count, not a same-step outcome — covered by hand-written tests`,
+    },
+    // CR 603.7a / 701.13 / ADR 0028 — the exile half moves the target
+    // into an `exileHeld` exile-and-return BUNDLE, not the plain exile
+    // zone the generator's board-delta assertion models; and the
+    // OBSERVABLE outcome (the host coming back re-attached with its
+    // noted counters) only manifests when the SOURCE later leaves /
+    // untaps and the paired `returnExiledForSource` fires — a second
+    // step the canned single-resolution generator does not sequence.
+    // Explicit skip — the exile/return round-trip is covered by the
+    // Op's own hand-written interpreter + card tests (per-Op regime).
+    exileWithAttachments: {
+        code: "later-outcome",
+        reason: `Op "exileWithAttachments" arms an exile-and-return bundle whose observable outcome needs a later source-leaves/untaps return — covered by the Op's interpreter tests`,
+    },
+    // CR 608.2 (issue #1097) — redirects the RESOLVING spell's own
+    // destination from graveyard to exile. The canned generator's
+    // assertion vocabulary (battlefield/graveyard/life/counter deltas)
+    // has no hook for "where did the resolving spell card itself
+    // land" — same rationale as `shuffleSelfIntoLibrary` below, just a
+    // different destination zone. Explicit skip — covered by the Op's
+    // own interpreter tests (per-Op regime).
+    exileSelf: {
+        code: "op-own-tests",
+        reason: `Op "exileSelf" redirects the resolving spell's own destination to exile — covered by the Op's interpreter tests`,
+    },
+    // CR 603.7a / ADR 0028 — the return half only has an observable
+    // outcome if a PRIOR `exileWithAttachments` already armed a bundle
+    // for the SAME source, which the canned generator doesn't
+    // sequence (same rationale as `unattach` after `attach`). Explicit
+    // skip — covered by the Op's own hand-written interpreter tests.
+    returnExiledForSource: {
+        code: "card-paired-mechanism",
+        reason: `Op "returnExiledForSource" only has an observable outcome after a prior exileWithAttachments armed a bundle — covered by the Op's interpreter tests`,
+    },
+    // CR 608.2h / 400.7 (issue #2384) — the pair's whole point is that
+    // the write and the read happen in TWO SEPARATE resolutions of two
+    // DIFFERENT abilities of the same source, arbitrarily far apart. A
+    // canned scenario resolves one stack item, so it can neither set up
+    // the earlier ability nor observe a later one — there is no
+    // same-resolution outcome to assert. Explicit skip; covered by the
+    // Ops' own hand-written interpreter tests (per-Op regime).
+    captureBinding: {
+        code: "card-paired-mechanism",
+        reason: `Op "captureBinding" spans two separate resolutions of the same source's abilities — covered by the Op's interpreter tests`,
+    },
+    recallCapturedBinding: {
+        code: "card-paired-mechanism",
+        reason: `Op "recallCapturedBinding" spans two separate resolutions of the same source's abilities — covered by the Op's interpreter tests`,
+    },
+    // CR 701.3a (ADR 0065, issue #1311) — Reconfigure's attach Op
+    // requires "target creature YOU control" (Lion Sash), unlike the
+    // generic-permanent targets `analyseOp`'s `destroy`/`exile` model; the
+    // canned generator's target placement (opponent's battlefield)
+    // can't satisfy a controller-scoped target requirement. Explicit
+    // skip — a genuinely NEW Op earns the full per-Op interpreter +
+    // card test regime instead (`.claude/rules/gre-development.md`).
+    attach: {
+        code: "unmodelled-object-or-zone",
+        reason: `Op "attach" targets a creature the CONTROLLER controls — not modelable by the generator's opponent-battlefield target placement`,
+    },
+    // CR 701.3d (ADR 0065, issue #1311) — no target, but its outcome
+    // (clearing $source's own attachedTo + restoring its Creature
+    // type) is only observable if a PRIOR attach already ran in the
+    // same script, which the generator doesn't sequence. Explicit
+    // skip alongside "attach" — same per-Op test regime applies.
+    unattach: {
+        code: "card-paired-mechanism",
+        reason: `Op "unattach" only has an observable outcome after a prior attach — covered by hand-written interpreter/card tests`,
+    },
+    // A `choice` Op suspends resolution for a live player decision
+    // (issue #805) — a canned scenario cannot submit picks, so the
+    // script is reported as an explicit skip and execution coverage
+    // comes from the card's own tests (per the DSL testing regime,
+    // choice-carrying cards keep full per-card coverage).
+    choice: {
+        code: "suspends-for-input",
+        reason: `Op "choice" suspends for player input — covered by the Op's own suspension/resume tests`,
+    },
+    // `discard` either consumes a `choice` Op's picks binding (without
+    // the choice's submitted picks the outcome is undefined in a
+    // canned scenario — same skip rationale as `choice`) or (issue
+    // #1279, `cards` omitted) discards the WHOLE hand — the generator
+    // doesn't seed a specific hand to assert an emptied-hand /
+    // populated-graveyard delta against, so both shapes are skipped;
+    // execution coverage is the card's own per-card test (Wheel of
+    // Fortune, Anje's Ravager).
+    // Issue #2713 added a THIRD shape (a `filter` over the hand,
+    // Cabal Therapy) — skipped for the same reason as the whole-hand
+    // one: no seeded hand to assert a delta against.
+    discard: {
+        code: "choice-binding",
+        reason: `Op "discard" consumes a choice binding, a hand filter, or discards the whole hand — covered by the card's own suspension/resume or per-card test`,
+    },
+    // `grantCastFromExile` (issue #1156, Dauthi Voidwalker) consumes
+    // a `choice(zone: "exile")` Op's picks binding (the exiled card
+    // chosen) — without the choice's submitted picks the outcome is
+    // undefined in a canned scenario, same skip rationale as
+    // `discard`/`sacrifice`.
+    grantCastFromExile: {
+        code: "choice-binding",
+        reason: `Op "grantCastFromExile" consumes a choice binding — covered by the card's own suspension/resume tests`,
+    },
+    // `grantCastFromGraveyard` (issue #1344, Malcolm; issue #1650,
+    // Emry) names its card either through a choice's picks binding
+    // (undefined without the choice's submitted picks) or through an
+    // announced graveyard-card target slot; and its OUTCOME is a cast
+    // PERMISSION stamped on a graveyard card — not a
+    // battlefield/life/hand-count delta the canned generator asserts.
+    // Same skip rationale as `grantCastFromExile`/`discard`.
+    grantCastFromGraveyard: {
+        code: "choice-binding",
+        reason: `Op "grantCastFromGraveyard" grants a cast permission off a choice binding or a graveyard target — covered by the card's own tests`,
+    },
+    // `reveal` (issue #920 / #682) stamps `knownTo` on hidden cards —
+    // an information-visibility change, not a battlefield/life/hand-
+    // count outcome the canned generator's assertions model. In every
+    // shipped card it also precedes a `choice(zoneOwnerId: …)` Op,
+    // which already forces a skip on its own — so this row never
+    // needs to carry the skip alone in practice, but is explicit for
+    // exhaustiveness (a reveal-only script would hit this row).
+    reveal: {
+        code: "visibility-only",
+        reason: `Op "reveal" changes card visibility (knownTo) — not a state change the canned generator asserts`,
+    },
+    // `lookRandomHand` (Urza's Bauble) grants PRIVATE knowledge of a
+    // random hand card to the looker — an information-visibility change
+    // (like `reveal`), not a battlefield/life/hand-count outcome the
+    // canned generator's assertions model. Explicit skip for
+    // exhaustiveness; execution coverage is the Op's interpreter tests.
+    lookRandomHand: {
+        code: "visibility-only",
+        reason: `Op "lookRandomHand" changes card visibility (knownTo) — not a state change the canned generator asserts`,
+    },
+    // `lookHand` (issue #2383, Elite Spellbinder) grants PRIVATE
+    // knowledge of a WHOLE hand to the looker — the same
+    // information-visibility change as `lookRandomHand` above and
+    // `reveal` before it, not a battlefield/life/hand-count outcome the
+    // canned generator's assertions model. Explicit skip for
+    // exhaustiveness; execution coverage is the Op's interpreter tests.
+    lookHand: {
+        code: "visibility-only",
+        reason: `Op "lookHand" changes card visibility (knownTo) — not a state change the canned generator asserts`,
+    },
+    // CR 107.3f (issue #1701) — a `payVariableMana` Op suspends
+    // resolution for a live amount nomination, which a canned scenario
+    // cannot submit any more than it can answer a Pay/Skip prompt
+    // below. Explicit skip; execution coverage is the Op's own
+    // interpreter tests, which drive the nominate → pay → bound-value
+    // round trip and the amount-0 decline.
+    payVariableMana: {
+        code: "suspends-for-input",
+        reason: `Op "payVariableMana" suspends for a variable mana-payment nomination — covered by the Op's interpreter tests`,
+    },
+    // CR 107.1c (issue #1421) — the bare nomination suspends for the
+    // same reason its paying sibling above does: the canned generator
+    // has no way to answer a live "choose a number" prompt. Explicit
+    // skip; execution coverage is the Op's own interpreter tests,
+    // which drive the nominate → bound-value round trip, the
+    // authored-range clamp and the open-ended shape.
+    chooseNumber: {
+        code: "suspends-for-input",
+        reason: `Op "chooseNumber" suspends for a numeric nomination — covered by the Op's interpreter tests`,
+    },
+    // A `mayPay` Op suspends resolution for a live Pay/Skip decision
+    // (issue #806) — a canned scenario cannot submit an answer, so the
+    // script is reported as an explicit skip; execution coverage comes
+    // from the card's own suspension/resume tests.
+    mayPay: {
+        code: "suspends-for-input",
+        reason: `Op "mayPay" suspends for a Pay/Skip decision — covered by the Op's own suspension/resume tests`,
+    },
+    // A `scryReorder` Op suspends resolution for a live order-top drag
+    // decision (issue #885) — a canned scenario cannot submit the
+    // ordering, so the script is reported as an explicit skip;
+    // execution coverage comes from the Op's own interpreter tests and
+    // the migrated cards' suspension/resume tests (per-Op regime).
+    scryReorder: {
+        code: "suspends-for-input",
+        reason: `Op "scryReorder" suspends for a look/reorder-top choice — covered by the Op's interpreter tests and the card's suspension/resume tests`,
+    },
+    // CR 701.13 (issue #3235) — exiles the top N library cards. Same
+    // disposition as `mill` below and for the same reason: the canned
+    // generator seeds only a minimal filler library, so there is no
+    // meaningful before/after library→exile delta to assert without
+    // inventing a deck. A DELIBERATE, surfaced skip; execution coverage
+    // is the Op's own interpreter tests.
+    exileTopOfLibrary: {
+        code: "op-own-tests",
+        reason: `Op "exileTopOfLibrary" moves top-of-library cards to exile — covered by the Op's interpreter tests`,
+    },
+    // `mill` (issue #885) moves the top N library cards to a graveyard.
+    // The canned generator seeds only a minimal filler library and does
+    // not model milling a TARGET player's deck, so rather than
+    // mis-assert a graveyard delta it reports an explicit skip;
+    // execution coverage is the Op's own interpreter tests.
+    mill: {
+        code: "op-own-tests",
+        reason: `Op "mill" moves top-of-library cards to the graveyard — covered by the Op's interpreter tests`,
+    },
+    // `revealTopAndRoute` routes the revealed top card(s) by their own
+    // characteristics. The canned generator seeds only a minimal filler
+    // library and cannot provision a KNOWN top card matching (or
+    // deliberately missing) a route's filter, so every destination is
+    // unpredictable from here — asserting any delta would mis-assert.
+    // Reported as an explicit skip; execution coverage is the Op's own
+    // interpreter tests, which drive both the matching and the
+    // fallback branch.
+    revealTopAndRoute: {
+        code: "op-own-tests",
+        reason: `Op "revealTopAndRoute" routes the revealed top card by its characteristics — the canned generator cannot provision a known top card; covered by the Op's interpreter tests`,
+    },
+    // `revealUntilMatch` reveals from the top UNTIL a card matching the
+    // filter appears, so the size of the revealed prefix — and whether
+    // there is a match at all — is decided entirely by the library the
+    // generator seeds. The canned generator seeds only a minimal filler
+    // library and cannot provision a KNOWN library composition, so both
+    // the prefix length and every destination are unpredictable from
+    // here and any delta would be a mis-assertion. Reported as an
+    // explicit skip; execution coverage is the Op's own interpreter
+    // tests, which drive the match, the no-match and the empty-library
+    // branches.
+    revealUntilMatch: {
+        code: "op-own-tests",
+        reason: `Op "revealUntilMatch" reveals a prefix whose size depends on the library composition — the canned generator cannot provision a known library; covered by the Op's interpreter tests`,
+    },
+    // `discardAtRandom` (CR 701.9a) removes `count` RANDOM cards from a
+    // TARGET player's hand. The canned generator seeds only a minimal
+    // filler hand and does not provision a target player's hand with a
+    // known count, so rather than mis-assert a hand-size delta it
+    // reports an explicit skip; execution coverage is the Op's own
+    // interpreter tests plus the migrated cards' per-card tests.
+    discardAtRandom: {
+        code: "randomness",
+        reason: `Op "discardAtRandom" picks the discarded cards at random (seeded PRNG) — covered by the Op's interpreter tests`,
+    },
+    // `randomExileToHand` (CR 400.7, issue #1947) picks a RANDOM
+    // card from a source-linked exile pile. The canned generator
+    // does not provision a linked exile pile with known contents,
+    // so which card (if any) gets picked is unpredictable from
+    // here — reported as an explicit skip; execution coverage is
+    // the Op's own interpreter tests.
+    randomExileToHand: {
+        code: "randomness",
+        reason: `Op "randomExileToHand" picks a random card from a source-linked exile pile — the canned generator does not provision the pile; covered by the Op's interpreter tests`,
+    },
+    // A `lookDistribute` Op suspends resolution for a live look-distribute
+    // pick (issue #984) — a canned scenario cannot submit the
+    // hand/bottom choice, so the script is reported as an explicit skip;
+    // execution coverage comes from the Op's own interpreter tests and
+    // the migrated cards' suspension/resume tests (per-Op regime).
+    lookDistribute: {
+        code: "suspends-for-input",
+        reason: `Op "lookDistribute" suspends for a look-distribute pick — covered by the Op's interpreter tests`,
+    },
+    // CR 702.75a (issue #783) — same shape as `lookDistribute`: the Op
+    // suspends on a live look-distribute pick that a canned scenario
+    // cannot submit, and its outcome (a FACE-DOWN exile whose identity
+    // is per-viewer) is not a state delta the generator asserts.
+    // Explicit skip; execution coverage is the Op's own interpreter
+    // tests plus the wire-format both-viewpoints assertion.
+    hideaway: {
+        code: "suspends-for-input",
+        reason: `Op "hideaway" suspends for a look-distribute pick and exiles face down — covered by the Op's interpreter tests`,
+    },
+    // Same shape as `lookDistribute` (issue #1364): the Op suspends on a
+    // live categorized look-distribute pick, which a canned scenario
+    // cannot submit. Explicit skip; execution coverage is the Op's own
+    // interpreter tests plus the categorizedPick matching unit tests.
+    revealAndCategorize: {
+        code: "suspends-for-input",
+        reason: `Op "revealAndCategorize" suspends for a categorized look-distribute pick — covered by the Op's interpreter tests`,
+    },
+    // Same shape (issue #1945): the Op suspends on a live
+    // choose-categorized pick from the chooser's hand/battlefield,
+    // which a canned scenario cannot submit (a forced pick may
+    // auto-resolve, but the discard/sacrifice sweep — issue #3712 —
+    // and the CR 101.4 simultaneous split still need a live board the
+    // canned scenario does not model). Explicit skip; execution
+    // coverage is the Op's own interpreter tests plus the
+    // categorizedPick matching unit tests.
+    chooseCategorized: {
+        code: "suspends-for-input",
+        reason: `Op "chooseCategorized" suspends for a choose-categorized pick — covered by the Op's interpreter tests`,
+    },
+    // `counter` targets a SPELL on the stack (issue #806); the canned
+    // generator seeds only players and battlefield permanents, not a
+    // spell to counter, so it is reported as an explicit skip. Counter
+    // execution is proved by the card's own resolution test.
+    counter: {
+        code: "unmodelled-object-or-zone",
+        reason: `Op "counter" targets a spell on the stack — covered by the card's own resolution test`,
+    },
+    // `moveSpellFromStack` (issue #2605) targets a SPELL on the stack,
+    // same as `counter`: the canned generator seeds only players and
+    // battlefield permanents, never a second spell to move, so it is
+    // reported as an explicit skip rather than silently unhandled.
+    // Execution is proved by the Op's own interpreter tests.
+    moveSpellFromStack: {
+        code: "op-own-tests",
+        reason: `Op "moveSpellFromStack" targets a spell on the stack — covered by the Op's interpreter tests`,
+    },
+    // The `if` construct branches on a runtime predicate (issue #806).
+    // The taken branch — and thus the observable outcome — depends on
+    // a live may-pay outcome or a runtime snapshot the generator does
+    // not model, so it is reported as an explicit skip; branch
+    // execution is proved by the card's own tests.
+    if: {
+        code: "runtime-branch",
+        reason: `construct "if" branches on a runtime predicate — covered by the construct's interpreter tests`,
+    },
+    // `sacrifice` (issue #807) consumes a `choice` Op's picks binding
+    // — same skip rationale as `discard`.
+    sacrifice: {
+        code: "choice-binding",
+        reason: `Op "sacrifice" consumes a choice binding — covered by the card's own suspension/resume tests`,
+    },
+    // `moveZone` (issue #839) changes an object's zone. The canned
+    // generator only seeds battlefield permanents and player targets —
+    // it does not model a graveyard-card target's source zone, and a
+    // permanent target it DID seed lives on the opponent's
+    // battlefield, whereas the Op's outcome (bounce to hand,
+    // reanimate, exile-from-graveyard) depends on which zone the object
+    // starts in. The whole-zone bulk shape (issue #1279 — no `target`/
+    // `cards`) has the same problem: the generator doesn't seed a
+    // specific hand/graveyard to assert a moved-everything delta
+    // against. Rather than mis-assert, report an explicit skip for
+    // every shape; execution coverage is the card's own per-card test
+    // (the migrated resolve()-cards keep their full behavioural
+    // tests — Timetwister, Echo of Eons).
+    moveZone: {
+        code: "unmodelled-object-or-zone",
+        reason: `Op "moveZone" changes zones on an object/zone the canned generator does not model — covered by the card's own per-card test`,
+    },
+    // `animate` (issue #1317) turns a permanent into a creature (CR
+    // 208.2 / 611.1) — potentially changing its BASIC eligibility as a
+    // combat/permanent object (types, P/T, granted keywords) in a way
+    // the canned generator's target-seeding (which assumes a stable
+    // permanent "kind" for the whole scenario) does not model, and the
+    // canonical caller (Earthbend N, Badgermole Cub) targets a LAND,
+    // not the generator's default creature filler. Explicit skip — the
+    // Op is new (per-Op regime, `.claude/rules/gre-development.md`)
+    // and earns its own hand-written interpreter + wire-format test
+    // instead of relying on the canned smoke sweep.
+    animate: {
+        code: "op-own-tests",
+        reason: `Op "animate" changes a permanent's basic kind (CR 205.1a/611.1) — covered by the Op's own interpreter + wire-format tests`,
+    },
+    // `setBasePT` (issue #1318) sets a permanent's base P/T (CR 613.4b
+    // layer 7b) for a duration. The canonical callers (Sorceress Queen,
+    // Island of Wak-Wak, Singing Tree) target a creature with a
+    // characteristic filter (flying / attacking) the canned generator's
+    // default filler does not satisfy, and the observable outcome is an
+    // effective-P/T READ that the smoke sweep's outcome vocabulary does
+    // not assert. Explicit skip — the Op is new (per-Op regime) and
+    // earns its own hand-written interpreter + wire-format test.
+    setBasePT: {
+        code: "op-own-tests",
+        reason: `Op "setBasePT" sets base P/T (CR 613.4b) — covered by the Op's own interpreter + wire-format tests`,
+    },
+    // `setColor` (issue #1083) sets colorOverride (CR 613.1e layer
+    // 5). Every shipped INV card composes it inside a suspending
+    // `optionChoice` ("choose a color, then set it") or a `forEach {
+    // set: "targets" }` — both constructs already skip wholesale
+    // before descending into their body (see the `optionChoice` /
+    // `forEach` rows of this table), so this row is never reached by the
+    // current catalogue; kept for exhaustiveness against a future
+    // card composing it bare. Explicit skip — the Op is new (per-Op
+    // regime, `.claude/rules/gre-development.md`) and earns its own
+    // hand-written interpreter + wire-format test instead of relying
+    // on the canned smoke sweep.
+    setColor: {
+        code: "op-own-tests",
+        reason: `Op "setColor" is new — covered by the Op's own interpreter + wire-format tests`,
+    },
+    // `setCardTypes` (issue #2361) REPLACES a permanent's card types
+    // (CR 205.1a layer 4). Same rationale as `animate` above: it
+    // changes the target's basic "kind" mid-scenario, which the canned
+    // generator's target-seeding (one stable kind per slot) does not
+    // model — a permanent that stops being an artifact and starts
+    // being a creature is re-binned by the SBA pass the check runs
+    // after. Explicit skip — the Op is new (per-Op regime,
+    // `.claude/rules/gre-development.md`) and earns its own
+    // hand-written interpreter + wire-format tests.
+    setCardTypes: {
+        code: "op-own-tests",
+        reason: `Op "setCardTypes" changes a permanent's card types (CR 205.1a) — covered by the Op's own interpreter + wire-format tests`,
+    },
+    // `loseAllAbilities` (issue #2361) strips a permanent's abilities
+    // indefinitely (CR 613.1f layer 6). The canned generator seeds a
+    // VANILLA filler creature at a permanent slot, so the only outcome
+    // it could assert is that an already-empty ability set is still
+    // empty — a vacuous assertion, which is worse than no assertion.
+    // Explicit skip — the Op is new (per-Op regime) and earns its own
+    // hand-written interpreter + wire-format tests, run against a
+    // permanent that actually HAS abilities to lose.
+    loseAllAbilities: {
+        code: "op-own-tests",
+        reason: `Op "loseAllAbilities" strips abilities (CR 613.1f) — the canned filler has none, so it is covered by the Op's own interpreter + wire-format tests`,
+    },
+    // `loseAllAbilitiesWhileSourceRemains` (issue #1562) strips a
+    // permanent's abilities for as long as the resolving source
+    // remains (CR 613.1f layer 6). Same rationale as
+    // `loseAllAbilities` immediately above (the canned filler has no
+    // abilities to lose), PLUS its `target` is an ANNOUNCED SLOT that
+    // must resolve to an "ability" stack object (CR 113.7a — the
+    // counter-then-rider template), a shape the canned generator's
+    // permanent-slot seeding does not produce either. Explicit skip —
+    // the Op is new (per-Op regime) and earns its own hand-written
+    // interpreter + wire-format tests, run against a permanent that
+    // actually has abilities to lose.
+    loseAllAbilitiesWhileSourceRemains: {
+        code: "op-own-tests",
+        reason: `Op "loseAllAbilitiesWhileSourceRemains" strips abilities (CR 613.1f) for a source-tied duration — covered by the Op's own interpreter + wire-format tests`,
+    },
+    // `setSubtype` (issue #1083) replaces a target land's subtypes
+    // for a duration (CR 305.7 layer 4). Same rationale as
+    // `setColor` immediately above — every shipped caller (Dream
+    // Thrush) composes it inside a suspending `optionChoice`, which
+    // already skips before descending. Explicit skip — the Op is new
+    // and earns its own hand-written interpreter + wire-format test.
+    setSubtype: {
+        code: "op-own-tests",
+        reason: `Op "setSubtype" is new — covered by the Op's own interpreter + wire-format tests`,
+    },
+    // The forEach construct (issue #807) iterates a runtime-selected
+    // set; the generator cannot predict per-member outcomes (and a
+    // body `choice` would suspend for live input). Explicit skip —
+    // forEach cards keep their own full per-card tests.
+    forEach: {
+        code: "source-or-each-subject",
+        reason: `construct "forEach" iterates a runtime-selected set — covered by the card's own tests`,
+    },
+    // CR 603.7 (ADR 0048) — the Op schedules a FUTURE trigger whose
+    // body fires at a phase boundary the canned scenario never
+    // reaches; the only same-resolution outcome is the queued
+    // instance. Explicit skip — scheduling, payload capture and
+    // fire-time body execution are covered by the Op's own
+    // interpreter tests (per-Op regime, issue #838).
+    delayedTrigger: {
+        code: "later-outcome",
+        reason: `Op "delayedTrigger" fires at a future phase boundary — covered by the Op's interpreter tests`,
+    },
+    // CR 603.12 — the Op's only same-resolution outcome is a QUEUED
+    // trigger; the body's effects land only after the reflexive
+    // ability is placed on the stack, its targets are announced
+    // (CR 603.3d) and both players pass priority — none of which a
+    // canned single-resolution scenario reaches. Explicit skip:
+    // queueing, capture round-trip and body execution are covered by
+    // the Op's own interpreter tests (per-Op regime).
+    reflexiveTrigger: {
+        code: "later-outcome",
+        reason: `Op "reflexiveTrigger" resolves on a separate stack object after a priority round — covered by the Op's interpreter tests`,
+    },
+    // CR 701.24 (issue #844) — a shuffle is a seeded-PRNG
+    // RANDOMIZATION with no deterministic same-resolution outcome the
+    // canned generator can assert (the multiset is preserved but the
+    // order is unwitnessed, and knowledge-clearing is not projected).
+    // Explicit skip — the shuffle primitive is covered by the Op's own
+    // interpreter tests (per-Op regime).
+    libraryLook: {
+        code: "randomness",
+        reason: `Op "libraryLook" shuffles a library (seeded-PRNG randomization) — covered by the Op's interpreter tests`,
+    },
+    // CR 608.2 / 701.24 (issue #898) — redirects the RESOLVING
+    // spell's own destination from graveyard to a shuffled library.
+    // Same rationale as `libraryLook`: a shuffle is a seeded-PRNG
+    // randomization with no deterministic same-resolution outcome the
+    // canned generator can assert (which library slot the card lands
+    // in is unwitnessed). Explicit skip — covered by the Op's own
+    // interpreter tests (per-Op regime).
+    shuffleSelfIntoLibrary: {
+        code: "randomness",
+        reason: `Op "shuffleSelfIntoLibrary" shuffles the resolving spell into a library (seeded-PRNG randomization) — covered by the Op's interpreter tests`,
+    },
+    // CR 614.9 (issue #3810) — a redirection shield sits DORMANT until
+    // a later damage event tests it, exactly as `preventDamage`'s
+    // shields do: the canned scenario only resolves the spell and
+    // never subsequently deals damage, so the shield has no
+    // same-resolution outcome the generator can assert. Explicit skip;
+    // registration, the points-budget split and CR 614.9's dead
+    // destination are covered by the Op's own interpreter tests
+    // (per-Op regime).
+    redirectDamage: {
+        code: "dormant-shield",
+        reason: `Op "redirectDamage" registers a dormant shield (no same-resolution damage event) — covered by the Op's interpreter tests`,
+    },
+    // CR 615 (issue #845) — a prevention shield sits DORMANT until a
+    // later damage event tests it; the canned scenario only resolves
+    // the spell (it never subsequently deals damage), so the shield's
+    // effect has no same-resolution outcome the generator can assert.
+    // Explicit skip — shield registration and consumption are covered
+    // by the Op's own interpreter tests (per-Op regime).
+    preventDamage: {
+        code: "dormant-shield",
+        reason: `Op "preventDamage" registers a dormant shield (no same-resolution damage event) — covered by the Op's interpreter tests`,
+    },
+    // CR 701.27 / 712 (issue #1210) — flips a permanent between its
+    // front/back printed characteristic sets. The canned generator's
+    // assertion vocabulary is numeric (damage/life/counts); a
+    // characteristic swap (name/types/P-T/abilities all changing at
+    // once, off a `backFace` spec the generator has no notion of) has
+    // no same-resolution outcome it can assert generically. Explicit
+    // skip — covered by the Op's own interpreter tests (per-Op
+    // regime).
+    transform: {
+        code: "op-own-tests",
+        reason: `Op "transform" swaps a permanent's printed characteristic set (front/back) — covered by the Op's interpreter tests`,
+    },
+    // CR 712 / 400.7 / 306.5b (issue #2380) — exiles a permanent and
+    // returns it showing its back face. Same reason as `transform`
+    // above (a characteristic swap the numeric assertion vocabulary
+    // cannot express), plus one more: the canned generator seeds a
+    // plain permanent with no `backFace`, so the scripted flip would
+    // have nothing to flip INTO and the run would assert nothing.
+    // Explicit skip — covered by the Op's own interpreter tests
+    // (per-Op regime).
+    exileAndReturnTransformed: {
+        code: "op-own-tests",
+        reason: `Op "exileAndReturnTransformed" swaps a permanent's printed characteristic set across a CR 400.7 zone change — covered by the Op's interpreter tests`,
+    },
+    // CR 707.2 + CR 111.1 (issue #1459) — creates token COPIES of a
+    // RUNTIME source permanent (an announced target slot or a `ref` to
+    // a permanent bound earlier in the same script). The canned
+    // generator seeds neither an announced-target source nor a bound
+    // copyable permanent, so it cannot set up a determinate source to
+    // assert the resulting copy's copiable characteristics against.
+    // Explicit skip — covered by the Op's own interpreter + wire-format
+    // tests (both source shapes + count; per-Op regime,
+    // `.claude/rules/gre-development.md`).
+    createTokenCopy: {
+        code: "op-own-tests",
+        reason: `Op "createTokenCopy" copies a runtime source permanent (announced target / ref) the canned generator does not model — covered by the Op's interpreter tests`,
+    },
+    // CR 707.2 / 611.2a (issue #3236) — an existing permanent becomes a
+    // copy of ANOTHER runtime permanent. The generator seeds the same
+    // filler creature into every permanent slot, so a copy of one onto
+    // the other changes no observable characteristic, and a timed copy
+    // reverts only at a phase boundary the canned run never reaches.
+    // Explicit skip — covered by the Op's own interpreter + wire-format
+    // tests (per-Op regime, `.claude/rules/gre-development.md`).
+    becomeCopy: {
+        code: "op-own-tests",
+        reason: `Op "becomeCopy" copies one runtime permanent onto another (identical canned fillers, phase-boundary revert) — covered by the Op's interpreter tests`,
+    },
+    // CR 720.2 (issue #1199) — crowning the monarch is a GLOBAL
+    // designation (`GameState.monarchId`), not a per-permanent /
+    // per-player-resource outcome the canned generator's assertion
+    // vocabulary models (battlefield/graveyard/life/counter deltas).
+    // Explicit skip — covered by the Op's own interpreter tests
+    // (per-Op regime).
+    becomeMonarch: {
+        code: "op-own-tests",
+        reason: `Op "becomeMonarch" sets the global monarch designation — covered by the Op's interpreter tests`,
+    },
+    // CR 613.1b (issue #848) — a control change flips a permanent to a
+    // new controller and (for a "for as long as" duration) installs a
+    // conditional-control SBA. The canned generator seeds no permanent
+    // under another player to steal, and the conditional durations only
+    // hold while the SOURCE is tapped / controlled — state the generator
+    // does not construct — so there is no same-resolution outcome it can
+    // faithfully assert. Explicit skip — the control change and its
+    // conditional revert are covered by the Op's own interpreter tests
+    // (per-Op regime).
+    gainControl: {
+        code: "op-own-tests",
+        reason: `Op "gainControl" changes control of a permanent (and installs a conditional-control SBA) — covered by the Op's interpreter tests`,
+    },
+    // CR 700.2 / 601.2b (issue #849) — a modal "choose one" enqueues an
+    // `option-pick` Pending Choice and SUSPENDS; which mode runs (and so
+    // what outcome to assert) depends on a LIVE player pick the canned
+    // generator cannot make. Explicit skip — the mode selection and each
+    // branch's execution are covered by the Op's own interpreter tests
+    // (per-Op regime). (Mirrors the `choice` / `mayPay` suspending-Op
+    // skip.)
+    optionChoice: {
+        code: "suspends-for-input",
+        reason: `Op "optionChoice" suspends on a live mode pick (CR 700.2) — covered by the Op's interpreter tests`,
+    },
+    // CR 705 (issue #851) — a coin flip draws a RANDOM bit from the
+    // seeded PRNG and PAUSES for the reveal; which branch runs (and so
+    // what outcome to assert) is non-deterministic across seeds and
+    // suspends for the reveal ack the canned generator cannot make.
+    // Explicit skip — the flip, both branches, and the no-re-roll
+    // resume are covered by the Op's own interpreter tests (per-Op
+    // regime; mirrors the seeded-PRNG `libraryLook` skip and the
+    // suspending `optionChoice` skip).
+    coinFlip: {
+        code: "suspends-for-input",
+        reason: `Op "coinFlip" draws a random bit and suspends for the reveal (CR 705) — covered by the Op's interpreter tests`,
+    },
+    // CR 705 (issue #1281) — a synchronous coin flip draws a RANDOM
+    // bit from the seeded PRNG; unlike `coinFlip` it never suspends,
+    // but the outcome is still non-deterministic across seeds — a
+    // canned generator run has no fixed seed to assert a specific
+    // branch against. Explicit skip — the flip and both branches are
+    // covered by the Op's own interpreter tests (per-Op regime;
+    // mirrors the `coinFlip` skip above, minus the suspend reasoning).
+    coinFlipSync: {
+        code: "randomness",
+        reason: `Op "coinFlipSync" draws a random bit (CR 705) — covered by the Op's interpreter tests`,
+    },
+    // CR 705 (issue #3813, ADR 0144) — a series of RANDOM bits from the
+    // seeded PRNG; the number of flips, and so every count it binds,
+    // differs across seeds, so a canned run has no fixed outcome to
+    // assert. Explicit skip, the `coinFlipSync` reasoning — the series
+    // and its bindings are covered by the Op's own interpreter tests.
+    coinFlipSeries: {
+        code: "randomness",
+        reason: `Op "coinFlipSeries" draws random bits (CR 705) — covered by the Op's interpreter tests`,
+    },
+    // CR 104.2a (issue #1066) — sets `state.gameOver` directly. The
+    // canned generator's post-resolution assertions (board/life
+    // deltas) assume the game keeps running; a decided game is a
+    // qualitatively different post-state the generator doesn't model.
+    // Explicit skip — the Op's own interpreter test (plus Coalition
+    // Victory's card-level predicate test) is the behavioural
+    // guarantor. Coalition Victory's script is ALSO wrapped in `if`,
+    // which already skips unconditionally (see the `if` row
+    // above), so this row is defensive/for-completeness.
+    winGame: {
+        code: "op-own-tests",
+        reason: `Op "winGame" sets state.gameOver — covered by the Op's own interpreter test`,
+    },
+    // ADR 0053 (pile division, issue #1067) — a TWO-PLAYER divide-
+    // then-choose interaction: the divider partitions the object set,
+    // then a DIFFERENT player picks a pile, both suspending for a live
+    // decision the canned generator cannot make (mirrors the
+    // suspending `choice` / `mayPay` / `optionChoice` skips). Explicit
+    // skip — each of the six pile cards has its own hand-written
+    // interpreter + wire-format test (the Op's per-Op test regime,
+    // `.claude/rules/gre-development.md`).
+    divideIntoPiles: {
+        code: "card-paired-mechanism",
+        reason: `Op "divideIntoPiles" suspends for two DIFFERENT players' picks (ADR 0053) — covered by hand-written per-card tests`,
+    },
+    // CR 508.1a / 509.1b (ADR 0053) — sets a turn-scoped can't-attack/
+    // can't-block flag whose only observable effect is at a LATER
+    // declare-attackers/declare-blockers step, which the canned
+    // single-resolution generator doesn't model (it asserts board/life
+    // deltas immediately after resolution, not a later combat step).
+    // Explicit skip — covered by the Op's own interpreter test plus
+    // Fight or Flight / Stand or Fall's hand-written combat tests.
+    restrictCombat: {
+        code: "later-outcome",
+        reason: `Op "restrictCombat" only manifests at a later combat step — covered by hand-written tests`,
+    },
+    // CR 401.4 (issue #1046) — a suspending `choose-hand-card` pick
+    // over the caster's hand whose ORDER the player controls (the
+    // pick order becomes the resulting top-of-library order); the
+    // canned single-resolution generator cannot drive a live pick.
+    // Explicit skip — the suspend/resume, pick-order-preserving
+    // top-placement, checkpoint (an earlier Op never re-runs on
+    // resume) and wire-format assertions are covered by the Op's own
+    // interpreter tests (per-Op regime; mirrors the suspending
+    // `choice` / `scryReorder` / `lookDistribute` skips).
+    putBack: {
+        code: "suspends-for-input",
+        reason: `Op "putBack" suspends for a live hand pick (CR 401.4) — covered by the Op's interpreter tests`,
+    },
+    // CR 201.3 / 202.3 (issue #1085) — a `nameCard` Op suspends
+    // resolution for a live open-ended name choice — a canned
+    // scenario cannot submit a name, so the script is reported as an
+    // explicit skip; execution coverage comes from the Op's own
+    // interpreter tests (mirrors the suspending `choice` / `mayPay`
+    // skips).
+    nameCard: {
+        code: "suspends-for-input",
+        reason: `Op "nameCard" suspends for a live card-name choice (CR 201.4) — covered by the Op's interpreter tests`,
+    },
+    // CR 701.20a / 401.4 (issue #1085) — a filter-driven library
+    // reveal-and-split. In every shipped card it follows a
+    // `nameCard` Op and filters on that Op's chosen-name binding
+    // (Desperate Research), which already forces a skip on its own;
+    // the generator also has no minimal-filler-library model that
+    // guarantees a deterministic filter match/no-match split (mirrors
+    // the `mill` skip rationale — "moves top-of-library cards
+    // somewhere, not modelable against the generator's filler
+    // library"). Explicit skip for exhaustiveness.
+    digMatchingToHand: {
+        code: "op-own-tests",
+        reason: `Op "digMatchingToHand" depends on a filter match against library contents — covered by the Op's interpreter tests`,
+    },
+    // CR 702.85a (issue #3216) — the cascade keyword's whole triggered
+    // ability. It needs a spell ON THE STACK to read its own mana-value
+    // threshold from (`ctx.sourceInstanceId`), a stacked library whose
+    // top few cards straddle that threshold, AND a live Cast/Decline
+    // for the card the walk stops on — none of which the canned
+    // single-resolution generator models (it inherits
+    // `castDuringResolution`'s own suspension wholesale, since that is
+    // literally the Op it runs for the middle clause). Explicit skip;
+    // execution coverage is the Op's own interpreter tests (hit / no
+    // hit / decline / land skipped / random bottom / empty library).
+    cascade: {
+        code: "suspends-for-input",
+        reason: `Op "cascade" needs its own spell on the stack for the CR 702.85a threshold and suspends for a live Cast/Decline — covered by the Op's interpreter tests`,
+    },
+    // CR 608.2g (issues #1477 / #1961) — offers the controller a live
+    // Cast/Decline (or Play/Decline, for the `includesLand` land
+    // branch) of a selected card and, on accept, plays it inline during
+    // resolution (a suspending `option-pick`, then the cast card's own
+    // suspending target/mode/X picks). The canned single-resolution
+    // generator cannot drive those live decisions — nor build the CR 607
+    // linked exile the `{ exiledWithSource: true }` selector reads — so
+    // the script is an explicit skip; execution coverage comes from the
+    // Op's own interpreter tests (cast / play-land / decline /
+    // silent-pass) — mirrors the suspending `choice` / `optionChoice` /
+    // `nameCard` skips (per-Op regime,
+    // `.claude/rules/gre-development.md`).
+    castDuringResolution: {
+        code: "suspends-for-input",
+        reason: `Op "castDuringResolution" suspends for a live Cast/Decline + the played card's own picks (CR 608.2g) — covered by the Op's interpreter tests`,
+    },
+    // CR 508.1c (issue #1283) — a turn-scoped player-wide "can't be
+    // attacked except by flying/islandwalk" flag whose only observable
+    // effect is at a LATER declare-attackers step, which the canned
+    // single-resolution generator doesn't model. Every shipped consumer
+    // (Island Sanctuary) additionally wraps this Op in an `optionChoice`
+    // mode, which already forces a skip on its own. Explicit skip for
+    // exhaustiveness — covered by the Op's own interpreter test plus
+    // Island Sanctuary's hand-written combat test.
+    setIslandSanctuaryProtection: {
+        code: "later-outcome",
+        reason: `Op "setIslandSanctuaryProtection" only manifests at a later declare-attackers step — covered by hand-written tests`,
+    },
+    // CR 702.16b/e/i (issue #674) — protection from everything is a
+    // GLOBAL player-scoped designation (`GameState.
+    // playerProtectionFromEverything`), not a per-permanent /
+    // per-player-resource delta the canned generator's assertion
+    // vocabulary models (battlefield / graveyard / life / counter).
+    // Its observable effects — an untargetable player, prevented
+    // damage — only manifest against a LATER spell or damage event.
+    // Explicit skip, mirroring `becomeMonarch`; covered by the Op's
+    // own interpreter tests plus The One Ring's hand-written tests.
+    setProtectionFromEverything: {
+        code: "op-own-tests",
+        reason: `Op "setProtectionFromEverything" sets a global player-scoped protection designation — covered by the Op's interpreter tests`,
+    },
+    // CR 119.4 / 121.1 (issue #1283) — a suspending ranged `choose-
+    // hand-card` pick over a "drawn this turn" candidate pool the
+    // canned single-resolution generator cannot drive a live answer
+    // for. Every shipped consumer (Sylvan Library) additionally wraps
+    // this Op in an `optionChoice` mode, which already forces a skip
+    // on its own. Explicit skip for exhaustiveness — covered by the
+    // Op's own interpreter tests (per-Op regime) plus Sylvan
+    // Library's hand-written per-card tests.
+    rangedTopdeck: {
+        code: "suspends-for-input",
+        reason: `Op "rangedTopdeck" suspends for a live ranged hand pick (CR 119.4) — covered by the Op's interpreter tests`,
+    },
+    // CR 701.44 (issue #2376) — Explore reveals the top card of the
+    // exploring permanent's controller's library and branches on
+    // whether it is a LAND. The canned generator seeds only a minimal
+    // filler library and cannot provision a KNOWN top card, so which
+    // branch runs is unpredictable from here (the same reason
+    // `revealTopAndRoute` skips); and the nonland branch additionally
+    // SUSPENDS for a live order-top keep-or-bin answer no canned
+    // single-resolution scenario can submit (the same reason
+    // `scryReorder` skips). Explicit skip; execution coverage is the
+    // Op's own interpreter tests, which drive both branches and the
+    // empty-library no-op.
+    explore: {
+        code: "suspends-for-input",
+        reason: `Op "explore" reveals an unprovisionable top card and suspends on the nonland branch's keep-or-bin choice — covered by the Op's interpreter tests`,
+    },
+    // CR 205.3m (issue #3721) — SUSPENDS for a live creature-type pick
+    // out of a ~280-option list, which a canned single-resolution
+    // scenario cannot submit (the same reason `nameCard` skips, and
+    // the same reason: the answer is the whole point, and every card
+    // that asks for it reads it back through a filter ref). Explicit
+    // skip; execution coverage is the Op's own interpreter tests,
+    // which drive the suspend, the resume and the unresolvable-chooser
+    // no-op.
+    chooseCreatureType: {
+        code: "suspends-for-input",
+        reason: `Op "chooseCreatureType" suspends for a live creature-type choice (CR 205.3m) — covered by the Op's interpreter tests`,
+    },
+} as const satisfies Partial<Record<EffectOp["op"], ScenarioSkipRow>>;
+
+type ScenarioSkippedOp = keyof typeof SCENARIO_SKIPS;
+
+/** The Ops `analyseOp` really analyses — its switch is exhaustive over these. */
+type ScenarioAnalysedOp = Exclude<EffectOp, { op: ScenarioSkippedOp }>;
+
+function isScenarioSkipped(
+    op: EffectOp
+): op is Extract<EffectOp, { op: ScenarioSkippedOp }> {
+    return Object.prototype.hasOwnProperty.call(SCENARIO_SKIPS, op.op);
+}
+
 /** Walks a single Op, recording what the scenario must provide. Unknown Op
  *  kinds (no analyser branch) force a skip so a new Op cannot silently pass. */
 function analyseOp(op: EffectOp, req: Requirements): void {
+    if (isScenarioSkipped(op)) {
+        const row: ScenarioSkipRow = SCENARIO_SKIPS[op.op];
+        skipBecause(req, row.code, row.reason);
+        return;
+    }
     switch (op.op) {
         case "dealDamage":
             analyseValue(op.amount, req);
@@ -1198,25 +2053,13 @@ function analyseOp(op: EffectOp, req: Requirements): void {
                 );
             } else {
                 // `{ ref: "$each" }` — only reachable inside a forEach body,
-                // and forEach scripts are skipped wholesale below.
+                // and forEach scripts are skipped by its `SCENARIO_SKIPS` row.
                 skipBecause(
                     req,
                     "source-or-each-subject",
                     `object ref "${op.to.ref}" — recipient depends on a forEach iteration`
                 );
             }
-            return;
-        case "dealDamageDividedAsChosen":
-            // CR 601.2d — the per-target split is chosen at ANNOUNCEMENT and
-            // snapshotted onto the stack item's `targetAmounts`. The auto-
-            // scenario has no way to populate that multi-target division, so it
-            // cannot faithfully assert the per-target outcome. Covered by the
-            // hand-written interpreter test instead (skip-only, like exile).
-            skipBecause(
-                req,
-                "target-slot-shape",
-                "dealDamageDividedAsChosen — announced multi-target division cannot be scenario-ized"
-            );
             return;
         case "draw":
             analysePlayer(op.player, req, true);
@@ -1227,49 +2070,6 @@ function analyseOp(op: EffectOp, req: Requirements): void {
         case "addPlayerCounter":
             analysePlayer(op.player, req, false);
             analyseValue(op.amount, req);
-            return;
-        case "extraTurn":
-            // CR 500.7 (issue #686) — scheduling an extra turn mutates
-            // `state.extraTurns`, a queue the turn-advance machinery (not the
-            // stack-resolution scenario harness) later drains — not a
-            // same-step observable outcome this generator can size a
-            // deterministic assertion against. Covered instead by the Op's
-            // own hand-written interpreter test plus Time Warp's card test
-            // (tmp/__tests__/blue.test.ts).
-            skipBecause(
-                req,
-                "later-outcome",
-                `Op "extraTurn" mutates a turn-boundary queue, not a same-step outcome — covered by hand-written tests`
-            );
-            return;
-        case "extraCombat":
-            // CR 500.8 (issue #2886) — queueing an extra combat phase mutates
-            // `state.extraPhases`, drained by the PHASE-advance machinery (not
-            // the stack-resolution scenario harness) at a LATER END_OF_COMBAT
-            // exit — not a same-step observable outcome this generator can
-            // size a deterministic assertion against. Same explicit skip
-            // `extraTurn` takes; covered instead by the Op's own hand-written
-            // interpreter + wire-format tests and the extra-phase seam tests
-            // (`gre/__tests__/extraPhases.test.ts`).
-            skipBecause(
-                req,
-                "later-outcome",
-                `Op "extraCombat" mutates a turn-structure queue, not a same-step outcome — covered by hand-written tests`
-            );
-            return;
-        case "skipNextTurn":
-            // CR 614.10 (issue #1957) — skipping a turn mutates the target
-            // player's pending-skip COUNT, drained by the turn-advance
-            // machinery (not the stack-resolution scenario harness) at a
-            // LATER turn boundary — not a same-step observable outcome this
-            // generator can size a deterministic assertion against. Covered
-            // instead by the Op's own hand-written interpreter test plus
-            // Waterspout Elemental's card test (pls/__tests__/blue.test.ts).
-            skipBecause(
-                req,
-                "later-outcome",
-                `Op "skipNextTurn" mutates a turn-boundary count, not a same-step outcome — covered by hand-written tests`
-            );
             return;
         case "restrictCasting":
             // CR 601.3a (issue #1057) — a turn-scoped cast lock on a player; the
@@ -1355,438 +2155,13 @@ function analyseOp(op: EffectOp, req: Requirements): void {
                 recordSlot(req, op.target.target, "permanent");
             } else {
                 // `{ ref: "$each" }` — forEach-body only; see the forEach
-                // skip below.
+                // `SCENARIO_SKIPS` row.
                 skipBecause(
                     req,
                     "source-or-each-subject",
                     `object ref "${op.target.ref}" — target depends on a forEach iteration`
                 );
             }
-            return;
-        case "exileWithAttachments":
-            // CR 603.7a / 701.13 / ADR 0028 — the exile half moves the target
-            // into an `exileHeld` exile-and-return BUNDLE, not the plain exile
-            // zone the generator's board-delta assertion models; and the
-            // OBSERVABLE outcome (the host coming back re-attached with its
-            // noted counters) only manifests when the SOURCE later leaves /
-            // untaps and the paired `returnExiledForSource` fires — a second
-            // step the canned single-resolution generator does not sequence.
-            // Explicit skip — the exile/return round-trip is covered by the
-            // Op's own hand-written interpreter + card tests (per-Op regime).
-            skipBecause(
-                req,
-                "later-outcome",
-                `Op "exileWithAttachments" arms an exile-and-return bundle whose observable outcome needs a later source-leaves/untaps return — covered by the Op's interpreter tests`
-            );
-            return;
-        case "exileSelf":
-            // CR 608.2 (issue #1097) — redirects the RESOLVING spell's own
-            // destination from graveyard to exile. The canned generator's
-            // assertion vocabulary (battlefield/graveyard/life/counter deltas)
-            // has no hook for "where did the resolving spell card itself
-            // land" — same rationale as `shuffleSelfIntoLibrary` below, just a
-            // different destination zone. Explicit skip — covered by the Op's
-            // own interpreter tests (per-Op regime).
-            skipBecause(
-                req,
-                "op-own-tests",
-                `Op "exileSelf" redirects the resolving spell's own destination to exile — covered by the Op's interpreter tests`
-            );
-            return;
-        case "returnExiledForSource":
-            // CR 603.7a / ADR 0028 — the return half only has an observable
-            // outcome if a PRIOR `exileWithAttachments` already armed a bundle
-            // for the SAME source, which the canned generator doesn't
-            // sequence (same rationale as `unattach` after `attach`). Explicit
-            // skip — covered by the Op's own hand-written interpreter tests.
-            skipBecause(
-                req,
-                "card-paired-mechanism",
-                `Op "returnExiledForSource" only has an observable outcome after a prior exileWithAttachments armed a bundle — covered by the Op's interpreter tests`
-            );
-            return;
-        case "captureBinding":
-        case "recallCapturedBinding":
-            // CR 608.2h / 400.7 (issue #2384) — the pair's whole point is that
-            // the write and the read happen in TWO SEPARATE resolutions of two
-            // DIFFERENT abilities of the same source, arbitrarily far apart. A
-            // canned scenario resolves one stack item, so it can neither set up
-            // the earlier ability nor observe a later one — there is no
-            // same-resolution outcome to assert. Explicit skip; covered by the
-            // Ops' own hand-written interpreter tests (per-Op regime).
-            skipBecause(
-                req,
-                "card-paired-mechanism",
-                `Op "${op.op}" spans two separate resolutions of the same source's abilities — covered by the Op's interpreter tests`
-            );
-            return;
-        case "attach":
-            // CR 701.3a (ADR 0065, issue #1311) — Reconfigure's attach Op
-            // requires "target creature YOU control" (Lion Sash), unlike the
-            // generic-permanent targets `destroy`/`exile` model above; the
-            // canned generator's target placement (opponent's battlefield)
-            // can't satisfy a controller-scoped target requirement. Explicit
-            // skip — a genuinely NEW Op earns the full per-Op interpreter +
-            // card test regime instead (`.claude/rules/gre-development.md`).
-            skipBecause(
-                req,
-                "unmodelled-object-or-zone",
-                `Op "attach" targets a creature the CONTROLLER controls — not modelable by the generator's opponent-battlefield target placement`
-            );
-            return;
-        case "unattach":
-            // CR 701.3d (ADR 0065, issue #1311) — no target, but its outcome
-            // (clearing $source's own attachedTo + restoring its Creature
-            // type) is only observable if a PRIOR attach already ran in the
-            // same script, which the generator doesn't sequence. Explicit
-            // skip alongside "attach" — same per-Op test regime applies.
-            skipBecause(
-                req,
-                "card-paired-mechanism",
-                `Op "unattach" only has an observable outcome after a prior attach — covered by hand-written interpreter/card tests`
-            );
-            return;
-        case "choice":
-            // A `choice` Op suspends resolution for a live player decision
-            // (issue #805) — a canned scenario cannot submit picks, so the
-            // script is reported as an explicit skip and execution coverage
-            // comes from the card's own tests (per the DSL testing regime,
-            // choice-carrying cards keep full per-card coverage).
-            skipBecause(
-                req,
-                "suspends-for-input",
-                `Op "choice" suspends for player input — covered by the Op's own suspension/resume tests`
-            );
-            return;
-        case "discard":
-            // `discard` either consumes a `choice` Op's picks binding (without
-            // the choice's submitted picks the outcome is undefined in a
-            // canned scenario — same skip rationale as `choice`) or (issue
-            // #1279, `cards` omitted) discards the WHOLE hand — the generator
-            // doesn't seed a specific hand to assert an emptied-hand /
-            // populated-graveyard delta against, so both shapes are skipped;
-            // execution coverage is the card's own per-card test (Wheel of
-            // Fortune, Anje's Ravager).
-            // Issue #2713 added a THIRD shape (a `filter` over the hand,
-            // Cabal Therapy) — skipped for the same reason as the whole-hand
-            // one: no seeded hand to assert a delta against.
-            skipBecause(
-                req,
-                "choice-binding",
-                `Op "discard" consumes a choice binding, a hand filter, or discards the whole hand — covered by the card's own suspension/resume or per-card test`
-            );
-            return;
-        case "grantCastFromExile":
-            // `grantCastFromExile` (issue #1156, Dauthi Voidwalker) consumes
-            // a `choice(zone: "exile")` Op's picks binding (the exiled card
-            // chosen) — without the choice's submitted picks the outcome is
-            // undefined in a canned scenario, same skip rationale as
-            // `discard`/`sacrifice`.
-            skipBecause(
-                req,
-                "choice-binding",
-                `Op "grantCastFromExile" consumes a choice binding — covered by the card's own suspension/resume tests`
-            );
-            return;
-        case "grantCastFromGraveyard":
-            // `grantCastFromGraveyard` (issue #1344, Malcolm; issue #1650,
-            // Emry) names its card either through a choice's picks binding
-            // (undefined without the choice's submitted picks) or through an
-            // announced graveyard-card target slot; and its OUTCOME is a cast
-            // PERMISSION stamped on a graveyard card — not a
-            // battlefield/life/hand-count delta the canned generator asserts.
-            // Same skip rationale as `grantCastFromExile`/`discard`.
-            skipBecause(
-                req,
-                "choice-binding",
-                `Op "grantCastFromGraveyard" grants a cast permission off a choice binding or a graveyard target — covered by the card's own tests`
-            );
-            return;
-        case "reveal":
-            // `reveal` (issue #920 / #682) stamps `knownTo` on hidden cards —
-            // an information-visibility change, not a battlefield/life/hand-
-            // count outcome the canned generator's assertions model. In every
-            // shipped card it also precedes a `choice(zoneOwnerId: …)` Op,
-            // which already forces a skip on its own — so this case never
-            // needs to carry the skip alone in practice, but is explicit for
-            // exhaustiveness (a reveal-only script would hit this branch).
-            skipBecause(
-                req,
-                "visibility-only",
-                `Op "reveal" changes card visibility (knownTo) — not a state change the canned generator asserts`
-            );
-            return;
-        case "lookRandomHand":
-            // `lookRandomHand` (Urza's Bauble) grants PRIVATE knowledge of a
-            // random hand card to the looker — an information-visibility change
-            // (like `reveal`), not a battlefield/life/hand-count outcome the
-            // canned generator's assertions model. Explicit skip for
-            // exhaustiveness; execution coverage is the Op's interpreter tests.
-            skipBecause(
-                req,
-                "visibility-only",
-                `Op "lookRandomHand" changes card visibility (knownTo) — not a state change the canned generator asserts`
-            );
-            return;
-        case "lookHand":
-            // `lookHand` (issue #2383, Elite Spellbinder) grants PRIVATE
-            // knowledge of a WHOLE hand to the looker — the same
-            // information-visibility change as `lookRandomHand` above and
-            // `reveal` before it, not a battlefield/life/hand-count outcome the
-            // canned generator's assertions model. Explicit skip for
-            // exhaustiveness; execution coverage is the Op's interpreter tests.
-            skipBecause(
-                req,
-                "visibility-only",
-                `Op "lookHand" changes card visibility (knownTo) — not a state change the canned generator asserts`
-            );
-            return;
-        case "payVariableMana":
-            // CR 107.3f (issue #1701) — a `payVariableMana` Op suspends
-            // resolution for a live amount nomination, which a canned scenario
-            // cannot submit any more than it can answer a Pay/Skip prompt
-            // below. Explicit skip; execution coverage is the Op's own
-            // interpreter tests, which drive the nominate → pay → bound-value
-            // round trip and the amount-0 decline.
-            skipBecause(
-                req,
-                "suspends-for-input",
-                `Op "payVariableMana" suspends for a variable mana-payment nomination — covered by the Op's interpreter tests`
-            );
-            return;
-        case "chooseNumber":
-            // CR 107.1c (issue #1421) — the bare nomination suspends for the
-            // same reason its paying sibling above does: the canned generator
-            // has no way to answer a live "choose a number" prompt. Explicit
-            // skip; execution coverage is the Op's own interpreter tests,
-            // which drive the nominate → bound-value round trip, the
-            // authored-range clamp and the open-ended shape.
-            skipBecause(
-                req,
-                "suspends-for-input",
-                `Op "chooseNumber" suspends for a numeric nomination — covered by the Op's interpreter tests`
-            );
-            return;
-        case "mayPay":
-            // A `mayPay` Op suspends resolution for a live Pay/Skip decision
-            // (issue #806) — a canned scenario cannot submit an answer, so the
-            // script is reported as an explicit skip; execution coverage comes
-            // from the card's own suspension/resume tests.
-            skipBecause(
-                req,
-                "suspends-for-input",
-                `Op "mayPay" suspends for a Pay/Skip decision — covered by the Op's own suspension/resume tests`
-            );
-            return;
-        case "scryReorder":
-            // A `scryReorder` Op suspends resolution for a live order-top drag
-            // decision (issue #885) — a canned scenario cannot submit the
-            // ordering, so the script is reported as an explicit skip;
-            // execution coverage comes from the Op's own interpreter tests and
-            // the migrated cards' suspension/resume tests (per-Op regime).
-            skipBecause(
-                req,
-                "suspends-for-input",
-                `Op "scryReorder" suspends for a look/reorder-top choice — covered by the Op's interpreter tests and the card's suspension/resume tests`
-            );
-            return;
-        case "exileTopOfLibrary":
-            // CR 701.13 (issue #3235) — exiles the top N library cards. Same
-            // disposition as `mill` below and for the same reason: the canned
-            // generator seeds only a minimal filler library, so there is no
-            // meaningful before/after library→exile delta to assert without
-            // inventing a deck. A DELIBERATE, surfaced skip; execution coverage
-            // is the Op's own interpreter tests.
-            skipBecause(
-                req,
-                "op-own-tests",
-                `Op "exileTopOfLibrary" moves top-of-library cards to exile — covered by the Op's interpreter tests`
-            );
-            return;
-        case "mill":
-            // `mill` (issue #885) moves the top N library cards to a graveyard.
-            // The canned generator seeds only a minimal filler library and does
-            // not model milling a TARGET player's deck, so rather than
-            // mis-assert a graveyard delta it reports an explicit skip;
-            // execution coverage is the Op's own interpreter tests.
-            skipBecause(
-                req,
-                "op-own-tests",
-                `Op "mill" moves top-of-library cards to the graveyard — covered by the Op's interpreter tests`
-            );
-            return;
-        case "revealTopAndRoute":
-            // `revealTopAndRoute` routes the revealed top card(s) by their own
-            // characteristics. The canned generator seeds only a minimal filler
-            // library and cannot provision a KNOWN top card matching (or
-            // deliberately missing) a route's filter, so every destination is
-            // unpredictable from here — asserting any delta would mis-assert.
-            // Reported as an explicit skip; execution coverage is the Op's own
-            // interpreter tests, which drive both the matching and the
-            // fallback branch.
-            skipBecause(
-                req,
-                "op-own-tests",
-                `Op "revealTopAndRoute" routes the revealed top card by its characteristics — the canned generator cannot provision a known top card; covered by the Op's interpreter tests`
-            );
-            return;
-        case "revealUntilMatch":
-            // `revealUntilMatch` reveals from the top UNTIL a card matching the
-            // filter appears, so the size of the revealed prefix — and whether
-            // there is a match at all — is decided entirely by the library the
-            // generator seeds. The canned generator seeds only a minimal filler
-            // library and cannot provision a KNOWN library composition, so both
-            // the prefix length and every destination are unpredictable from
-            // here and any delta would be a mis-assertion. Reported as an
-            // explicit skip; execution coverage is the Op's own interpreter
-            // tests, which drive the match, the no-match and the empty-library
-            // branches.
-            skipBecause(
-                req,
-                "op-own-tests",
-                `Op "revealUntilMatch" reveals a prefix whose size depends on the library composition — the canned generator cannot provision a known library; covered by the Op's interpreter tests`
-            );
-            return;
-        case "discardAtRandom":
-            // `discardAtRandom` (CR 701.9a) removes `count` RANDOM cards from a
-            // TARGET player's hand. The canned generator seeds only a minimal
-            // filler hand and does not provision a target player's hand with a
-            // known count, so rather than mis-assert a hand-size delta it
-            // reports an explicit skip; execution coverage is the Op's own
-            // interpreter tests plus the migrated cards' per-card tests.
-            skipBecause(
-                req,
-                "randomness",
-                `Op "discardAtRandom" picks the discarded cards at random (seeded PRNG) — covered by the Op's interpreter tests`
-            );
-            return;
-        case "randomExileToHand":
-            // `randomExileToHand` (CR 400.7, issue #1947) picks a RANDOM
-            // card from a source-linked exile pile. The canned generator
-            // does not provision a linked exile pile with known contents,
-            // so which card (if any) gets picked is unpredictable from
-            // here — reported as an explicit skip; execution coverage is
-            // the Op's own interpreter tests.
-            skipBecause(
-                req,
-                "randomness",
-                `Op "randomExileToHand" picks a random card from a source-linked exile pile — the canned generator does not provision the pile; covered by the Op's interpreter tests`
-            );
-            return;
-        case "lookDistribute":
-            // A `lookDistribute` Op suspends resolution for a live look-distribute
-            // pick (issue #984) — a canned scenario cannot submit the
-            // hand/bottom choice, so the script is reported as an explicit skip;
-            // execution coverage comes from the Op's own interpreter tests and
-            // the migrated cards' suspension/resume tests (per-Op regime).
-            skipBecause(
-                req,
-                "suspends-for-input",
-                `Op "lookDistribute" suspends for a look-distribute pick — covered by the Op's interpreter tests`
-            );
-            return;
-        case "hideaway":
-            // CR 702.75a (issue #783) — same shape as `lookDistribute`: the Op
-            // suspends on a live look-distribute pick that a canned scenario
-            // cannot submit, and its outcome (a FACE-DOWN exile whose identity
-            // is per-viewer) is not a state delta the generator asserts.
-            // Explicit skip; execution coverage is the Op's own interpreter
-            // tests plus the wire-format both-viewpoints assertion.
-            skipBecause(
-                req,
-                "suspends-for-input",
-                `Op "hideaway" suspends for a look-distribute pick and exiles face down — covered by the Op's interpreter tests`
-            );
-            return;
-        case "revealAndCategorize":
-            // Same shape as `lookDistribute` (issue #1364): the Op suspends on a
-            // live categorized look-distribute pick, which a canned scenario
-            // cannot submit. Explicit skip; execution coverage is the Op's own
-            // interpreter tests plus the categorizedPick matching unit tests.
-            skipBecause(
-                req,
-                "suspends-for-input",
-                `Op "revealAndCategorize" suspends for a categorized look-distribute pick — covered by the Op's interpreter tests`
-            );
-            return;
-        case "chooseCategorized":
-            // Same shape (issue #1945): the Op suspends on a live
-            // choose-categorized pick from the chooser's hand/battlefield,
-            // which a canned scenario cannot submit (a forced pick may
-            // auto-resolve, but the discard/sacrifice sweep — issue #3712 —
-            // and the CR 101.4 simultaneous split still need a live board the
-            // canned scenario does not model). Explicit skip; execution
-            // coverage is the Op's own interpreter tests plus the
-            // categorizedPick matching unit tests.
-            skipBecause(
-                req,
-                "suspends-for-input",
-                `Op "chooseCategorized" suspends for a choose-categorized pick — covered by the Op's interpreter tests`
-            );
-            return;
-        case "counter":
-            // `counter` targets a SPELL on the stack (issue #806); the canned
-            // generator seeds only players and battlefield permanents, not a
-            // spell to counter, so it is reported as an explicit skip. Counter
-            // execution is proved by the card's own resolution test.
-            skipBecause(
-                req,
-                "unmodelled-object-or-zone",
-                `Op "counter" targets a spell on the stack — covered by the card's own resolution test`
-            );
-            return;
-        case "moveSpellFromStack":
-            // `moveSpellFromStack` (issue #2605) targets a SPELL on the stack,
-            // same as `counter`: the canned generator seeds only players and
-            // battlefield permanents, never a second spell to move, so it is
-            // reported as an explicit skip rather than silently unhandled.
-            // Execution is proved by the Op's own interpreter tests.
-            skipBecause(
-                req,
-                "op-own-tests",
-                `Op "moveSpellFromStack" targets a spell on the stack — covered by the Op's interpreter tests`
-            );
-            return;
-        case "if":
-            // The `if` construct branches on a runtime predicate (issue #806).
-            // The taken branch — and thus the observable outcome — depends on
-            // a live may-pay outcome or a runtime snapshot the generator does
-            // not model, so it is reported as an explicit skip; branch
-            // execution is proved by the card's own tests.
-            skipBecause(
-                req,
-                "runtime-branch",
-                `construct "if" branches on a runtime predicate — covered by the construct's interpreter tests`
-            );
-            return;
-        case "sacrifice":
-            // `sacrifice` (issue #807) consumes a `choice` Op's picks binding
-            // — same skip rationale as `discard`.
-            skipBecause(
-                req,
-                "choice-binding",
-                `Op "sacrifice" consumes a choice binding — covered by the card's own suspension/resume tests`
-            );
-            return;
-        case "moveZone":
-            // `moveZone` (issue #839) changes an object's zone. The canned
-            // generator only seeds battlefield permanents and player targets —
-            // it does not model a graveyard-card target's source zone, and a
-            // permanent target it DID seed lives on the opponent's
-            // battlefield, whereas the Op's outcome (bounce to hand,
-            // reanimate, exile-from-graveyard) depends on which zone the object
-            // starts in. The whole-zone bulk shape (issue #1279 — no `target`/
-            // `cards`) has the same problem: the generator doesn't seed a
-            // specific hand/graveyard to assert a moved-everything delta
-            // against. Rather than mis-assert, report an explicit skip for
-            // every shape; execution coverage is the card's own per-card test
-            // (the migrated resolve()-cards keep their full behavioural
-            // tests — Timetwister, Echo of Eons).
-            skipBecause(
-                req,
-                "unmodelled-object-or-zone",
-                `Op "moveZone" changes zones on an object/zone the canned generator does not model — covered by the card's own per-card test`
-            );
             return;
         case "pump":
             // `pump` (issue #840) adds a temporary P/T buff (CR 613.4c). The
@@ -1951,38 +2326,6 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             }
             recordSubject(req, op.target);
             return;
-        case "animate":
-            // `animate` (issue #1317) turns a permanent into a creature (CR
-            // 208.2 / 611.1) — potentially changing its BASIC eligibility as a
-            // combat/permanent object (types, P/T, granted keywords) in a way
-            // the canned generator's target-seeding (which assumes a stable
-            // permanent "kind" for the whole scenario) does not model, and the
-            // canonical caller (Earthbend N, Badgermole Cub) targets a LAND,
-            // not the generator's default creature filler. Explicit skip — the
-            // Op is new (per-Op regime, `.claude/rules/gre-development.md`)
-            // and earns its own hand-written interpreter + wire-format test
-            // instead of relying on the canned smoke sweep.
-            skipBecause(
-                req,
-                "op-own-tests",
-                `Op "animate" changes a permanent's basic kind (CR 205.1a/611.1) — covered by the Op's own interpreter + wire-format tests`
-            );
-            return;
-        case "setBasePT":
-            // `setBasePT` (issue #1318) sets a permanent's base P/T (CR 613.4b
-            // layer 7b) for a duration. The canonical callers (Sorceress Queen,
-            // Island of Wak-Wak, Singing Tree) target a creature with a
-            // characteristic filter (flying / attacking) the canned generator's
-            // default filler does not satisfy, and the observable outcome is an
-            // effective-P/T READ that the smoke sweep's outcome vocabulary does
-            // not assert. Explicit skip — the Op is new (per-Op regime) and
-            // earns its own hand-written interpreter + wire-format test.
-            skipBecause(
-                req,
-                "op-own-tests",
-                `Op "setBasePT" sets base P/T (CR 613.4b) — covered by the Op's own interpreter + wire-format tests`
-            );
-            return;
         case "addSubtype":
             // `addSubtype` (issue #1194) adds a subtype to a permanent
             // INDEFINITELY (CR 613.1d layer 4). The generator can assert an
@@ -2012,179 +2355,6 @@ function analyseOp(op: EffectOp, req: Requirements): void {
                 return;
             }
             recordSubject(req, op.target);
-            return;
-        case "setColor":
-            // `setColor` (issue #1083) sets colorOverride (CR 613.1e layer
-            // 5). Every shipped INV card composes it inside a suspending
-            // `optionChoice` ("choose a color, then set it") or a `forEach {
-            // set: "targets" }` — both constructs already skip wholesale
-            // before descending into their body (see the `optionChoice` /
-            // `forEach` cases above), so this arm is never reached by the
-            // current catalogue; kept for exhaustiveness against a future
-            // card composing it bare. Explicit skip — the Op is new (per-Op
-            // regime, `.claude/rules/gre-development.md`) and earns its own
-            // hand-written interpreter + wire-format test instead of relying
-            // on the canned smoke sweep.
-            skipBecause(
-                req,
-                "op-own-tests",
-                `Op "setColor" is new — covered by the Op's own interpreter + wire-format tests`
-            );
-            return;
-        case "setCardTypes":
-            // `setCardTypes` (issue #2361) REPLACES a permanent's card types
-            // (CR 205.1a layer 4). Same rationale as `animate` above: it
-            // changes the target's basic "kind" mid-scenario, which the canned
-            // generator's target-seeding (one stable kind per slot) does not
-            // model — a permanent that stops being an artifact and starts
-            // being a creature is re-binned by the SBA pass the check runs
-            // after. Explicit skip — the Op is new (per-Op regime,
-            // `.claude/rules/gre-development.md`) and earns its own
-            // hand-written interpreter + wire-format tests.
-            skipBecause(
-                req,
-                "op-own-tests",
-                `Op "setCardTypes" changes a permanent's card types (CR 205.1a) — covered by the Op's own interpreter + wire-format tests`
-            );
-            return;
-        case "loseAllAbilities":
-            // `loseAllAbilities` (issue #2361) strips a permanent's abilities
-            // indefinitely (CR 613.1f layer 6). The canned generator seeds a
-            // VANILLA filler creature at a permanent slot, so the only outcome
-            // it could assert is that an already-empty ability set is still
-            // empty — a vacuous assertion, which is worse than no assertion.
-            // Explicit skip — the Op is new (per-Op regime) and earns its own
-            // hand-written interpreter + wire-format tests, run against a
-            // permanent that actually HAS abilities to lose.
-            skipBecause(
-                req,
-                "op-own-tests",
-                `Op "loseAllAbilities" strips abilities (CR 613.1f) — the canned filler has none, so it is covered by the Op's own interpreter + wire-format tests`
-            );
-            return;
-        case "loseAllAbilitiesWhileSourceRemains":
-            // `loseAllAbilitiesWhileSourceRemains` (issue #1562) strips a
-            // permanent's abilities for as long as the resolving source
-            // remains (CR 613.1f layer 6). Same rationale as
-            // `loseAllAbilities` immediately above (the canned filler has no
-            // abilities to lose), PLUS its `target` is an ANNOUNCED SLOT that
-            // must resolve to an "ability" stack object (CR 113.7a — the
-            // counter-then-rider template), a shape the canned generator's
-            // permanent-slot seeding does not produce either. Explicit skip —
-            // the Op is new (per-Op regime) and earns its own hand-written
-            // interpreter + wire-format tests, run against a permanent that
-            // actually has abilities to lose.
-            skipBecause(
-                req,
-                "op-own-tests",
-                `Op "loseAllAbilitiesWhileSourceRemains" strips abilities (CR 613.1f) for a source-tied duration — covered by the Op's own interpreter + wire-format tests`
-            );
-            return;
-        case "setSubtype":
-            // `setSubtype` (issue #1083) replaces a target land's subtypes
-            // for a duration (CR 305.7 layer 4). Same rationale as
-            // `setColor` immediately above — every shipped caller (Dream
-            // Thrush) composes it inside a suspending `optionChoice`, which
-            // already skips before descending. Explicit skip — the Op is new
-            // and earns its own hand-written interpreter + wire-format test.
-            skipBecause(
-                req,
-                "op-own-tests",
-                `Op "setSubtype" is new — covered by the Op's own interpreter + wire-format tests`
-            );
-            return;
-        case "forEach":
-            // The forEach construct (issue #807) iterates a runtime-selected
-            // set; the generator cannot predict per-member outcomes (and a
-            // body `choice` would suspend for live input). Explicit skip —
-            // forEach cards keep their own full per-card tests.
-            skipBecause(
-                req,
-                "source-or-each-subject",
-                `construct "forEach" iterates a runtime-selected set — covered by the card's own tests`
-            );
-            return;
-        case "delayedTrigger":
-            // CR 603.7 (ADR 0048) — the Op schedules a FUTURE trigger whose
-            // body fires at a phase boundary the canned scenario never
-            // reaches; the only same-resolution outcome is the queued
-            // instance. Explicit skip — scheduling, payload capture and
-            // fire-time body execution are covered by the Op's own
-            // interpreter tests (per-Op regime, issue #838).
-            skipBecause(
-                req,
-                "later-outcome",
-                `Op "delayedTrigger" fires at a future phase boundary — covered by the Op's interpreter tests`
-            );
-            return;
-        case "reflexiveTrigger":
-            // CR 603.12 — the Op's only same-resolution outcome is a QUEUED
-            // trigger; the body's effects land only after the reflexive
-            // ability is placed on the stack, its targets are announced
-            // (CR 603.3d) and both players pass priority — none of which a
-            // canned single-resolution scenario reaches. Explicit skip:
-            // queueing, capture round-trip and body execution are covered by
-            // the Op's own interpreter tests (per-Op regime).
-            skipBecause(
-                req,
-                "later-outcome",
-                `Op "reflexiveTrigger" resolves on a separate stack object after a priority round — covered by the Op's interpreter tests`
-            );
-            return;
-        case "libraryLook":
-            // CR 701.24 (issue #844) — a shuffle is a seeded-PRNG
-            // RANDOMIZATION with no deterministic same-resolution outcome the
-            // canned generator can assert (the multiset is preserved but the
-            // order is unwitnessed, and knowledge-clearing is not projected).
-            // Explicit skip — the shuffle primitive is covered by the Op's own
-            // interpreter tests (per-Op regime).
-            skipBecause(
-                req,
-                "randomness",
-                `Op "libraryLook" shuffles a library (seeded-PRNG randomization) — covered by the Op's interpreter tests`
-            );
-            return;
-        case "shuffleSelfIntoLibrary":
-            // CR 608.2 / 701.24 (issue #898) — redirects the RESOLVING
-            // spell's own destination from graveyard to a shuffled library.
-            // Same rationale as `libraryLook`: a shuffle is a seeded-PRNG
-            // randomization with no deterministic same-resolution outcome the
-            // canned generator can assert (which library slot the card lands
-            // in is unwitnessed). Explicit skip — covered by the Op's own
-            // interpreter tests (per-Op regime).
-            skipBecause(
-                req,
-                "randomness",
-                `Op "shuffleSelfIntoLibrary" shuffles the resolving spell into a library (seeded-PRNG randomization) — covered by the Op's interpreter tests`
-            );
-            return;
-        case "redirectDamage":
-            // CR 614.9 (issue #3810) — a redirection shield sits DORMANT until
-            // a later damage event tests it, exactly as `preventDamage`'s
-            // shields do: the canned scenario only resolves the spell and
-            // never subsequently deals damage, so the shield has no
-            // same-resolution outcome the generator can assert. Explicit skip;
-            // registration, the points-budget split and CR 614.9's dead
-            // destination are covered by the Op's own interpreter tests
-            // (per-Op regime).
-            skipBecause(
-                req,
-                "dormant-shield",
-                `Op "redirectDamage" registers a dormant shield (no same-resolution damage event) — covered by the Op's interpreter tests`
-            );
-            return;
-        case "preventDamage":
-            // CR 615 (issue #845) — a prevention shield sits DORMANT until a
-            // later damage event tests it; the canned scenario only resolves
-            // the spell (it never subsequently deals damage), so the shield's
-            // effect has no same-resolution outcome the generator can assert.
-            // Explicit skip — shield registration and consumption are covered
-            // by the Op's own interpreter tests (per-Op regime).
-            skipBecause(
-                req,
-                "dormant-shield",
-                `Op "preventDamage" registers a dormant shield (no same-resolution damage event) — covered by the Op's interpreter tests`
-            );
             return;
         case "regenerate":
             // CR 701.19a (issue #846) — a regeneration shield is a replacement
@@ -2283,36 +2453,6 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             }
             recordSubject(req, op.target);
             return;
-        case "transform":
-            // CR 701.27 / 712 (issue #1210) — flips a permanent between its
-            // front/back printed characteristic sets. The canned generator's
-            // assertion vocabulary is numeric (damage/life/counts); a
-            // characteristic swap (name/types/P-T/abilities all changing at
-            // once, off a `backFace` spec the generator has no notion of) has
-            // no same-resolution outcome it can assert generically. Explicit
-            // skip — covered by the Op's own interpreter tests (per-Op
-            // regime).
-            skipBecause(
-                req,
-                "op-own-tests",
-                `Op "transform" swaps a permanent's printed characteristic set (front/back) — covered by the Op's interpreter tests`
-            );
-            return;
-        case "exileAndReturnTransformed":
-            // CR 712 / 400.7 / 306.5b (issue #2380) — exiles a permanent and
-            // returns it showing its back face. Same reason as `transform`
-            // above (a characteristic swap the numeric assertion vocabulary
-            // cannot express), plus one more: the canned generator seeds a
-            // plain permanent with no `backFace`, so the scripted flip would
-            // have nothing to flip INTO and the run would assert nothing.
-            // Explicit skip — covered by the Op's own interpreter tests
-            // (per-Op regime).
-            skipBecause(
-                req,
-                "op-own-tests",
-                `Op "exileAndReturnTransformed" swaps a permanent's printed characteristic set across a CR 400.7 zone change — covered by the Op's interpreter tests`
-            );
-            return;
         case "createToken":
             // createToken (issue #847) creates token permanents on the
             // controller's battlefield — a deterministic same-resolution
@@ -2340,36 +2480,6 @@ function analyseOp(op: EffectOp, req: Requirements): void {
                 return;
             }
             return;
-        case "createTokenCopy":
-            // CR 707.2 + CR 111.1 (issue #1459) — creates token COPIES of a
-            // RUNTIME source permanent (an announced target slot or a `ref` to
-            // a permanent bound earlier in the same script). The canned
-            // generator seeds neither an announced-target source nor a bound
-            // copyable permanent, so it cannot set up a determinate source to
-            // assert the resulting copy's copiable characteristics against.
-            // Explicit skip — covered by the Op's own interpreter + wire-format
-            // tests (both source shapes + count; per-Op regime,
-            // `.claude/rules/gre-development.md`).
-            skipBecause(
-                req,
-                "op-own-tests",
-                `Op "createTokenCopy" copies a runtime source permanent (announced target / ref) the canned generator does not model — covered by the Op's interpreter tests`
-            );
-            return;
-        case "becomeCopy":
-            // CR 707.2 / 611.2a (issue #3236) — an existing permanent becomes a
-            // copy of ANOTHER runtime permanent. The generator seeds the same
-            // filler creature into every permanent slot, so a copy of one onto
-            // the other changes no observable characteristic, and a timed copy
-            // reverts only at a phase boundary the canned run never reaches.
-            // Explicit skip — covered by the Op's own interpreter + wire-format
-            // tests (per-Op regime, `.claude/rules/gre-development.md`).
-            skipBecause(
-                req,
-                "op-own-tests",
-                `Op "becomeCopy" copies one runtime permanent onto another (identical canned fillers, phase-boundary revert) — covered by the Op's interpreter tests`
-            );
-            return;
         case "emblem":
             // CR 114 (issue #1221) — creating an emblem appends one command-zone
             // object owned by the resolved controller, a deterministic
@@ -2388,295 +2498,6 @@ function analyseOp(op: EffectOp, req: Requirements): void {
                 );
                 return;
             }
-            return;
-        case "becomeMonarch":
-            // CR 720.2 (issue #1199) — crowning the monarch is a GLOBAL
-            // designation (`GameState.monarchId`), not a per-permanent /
-            // per-player-resource outcome the canned generator's assertion
-            // vocabulary models (battlefield/graveyard/life/counter deltas).
-            // Explicit skip — covered by the Op's own interpreter tests
-            // (per-Op regime).
-            skipBecause(
-                req,
-                "op-own-tests",
-                `Op "becomeMonarch" sets the global monarch designation — covered by the Op's interpreter tests`
-            );
-            return;
-        case "gainControl":
-            // CR 613.1b (issue #848) — a control change flips a permanent to a
-            // new controller and (for a "for as long as" duration) installs a
-            // conditional-control SBA. The canned generator seeds no permanent
-            // under another player to steal, and the conditional durations only
-            // hold while the SOURCE is tapped / controlled — state the generator
-            // does not construct — so there is no same-resolution outcome it can
-            // faithfully assert. Explicit skip — the control change and its
-            // conditional revert are covered by the Op's own interpreter tests
-            // (per-Op regime).
-            skipBecause(
-                req,
-                "op-own-tests",
-                `Op "gainControl" changes control of a permanent (and installs a conditional-control SBA) — covered by the Op's interpreter tests`
-            );
-            return;
-        case "optionChoice":
-            // CR 700.2 / 601.2b (issue #849) — a modal "choose one" enqueues an
-            // `option-pick` Pending Choice and SUSPENDS; which mode runs (and so
-            // what outcome to assert) depends on a LIVE player pick the canned
-            // generator cannot make. Explicit skip — the mode selection and each
-            // branch's execution are covered by the Op's own interpreter tests
-            // (per-Op regime). (Mirrors the `choice` / `mayPay` suspending-Op
-            // skip.)
-            skipBecause(
-                req,
-                "suspends-for-input",
-                `Op "optionChoice" suspends on a live mode pick (CR 700.2) — covered by the Op's interpreter tests`
-            );
-            return;
-        case "coinFlip":
-            // CR 705 (issue #851) — a coin flip draws a RANDOM bit from the
-            // seeded PRNG and PAUSES for the reveal; which branch runs (and so
-            // what outcome to assert) is non-deterministic across seeds and
-            // suspends for the reveal ack the canned generator cannot make.
-            // Explicit skip — the flip, both branches, and the no-re-roll
-            // resume are covered by the Op's own interpreter tests (per-Op
-            // regime; mirrors the seeded-PRNG `libraryLook` skip and the
-            // suspending `optionChoice` skip).
-            skipBecause(
-                req,
-                "suspends-for-input",
-                `Op "coinFlip" draws a random bit and suspends for the reveal (CR 705) — covered by the Op's interpreter tests`
-            );
-            return;
-        case "coinFlipSync":
-            // CR 705 (issue #1281) — a synchronous coin flip draws a RANDOM
-            // bit from the seeded PRNG; unlike `coinFlip` it never suspends,
-            // but the outcome is still non-deterministic across seeds — a
-            // canned generator run has no fixed seed to assert a specific
-            // branch against. Explicit skip — the flip and both branches are
-            // covered by the Op's own interpreter tests (per-Op regime;
-            // mirrors the `coinFlip` skip above, minus the suspend reasoning).
-            skipBecause(
-                req,
-                "randomness",
-                `Op "coinFlipSync" draws a random bit (CR 705) — covered by the Op's interpreter tests`
-            );
-            return;
-        case "coinFlipSeries":
-            // CR 705 (issue #3813, ADR 0144) — a series of RANDOM bits from the
-            // seeded PRNG; the number of flips, and so every count it binds,
-            // differs across seeds, so a canned run has no fixed outcome to
-            // assert. Explicit skip, the `coinFlipSync` reasoning — the series
-            // and its bindings are covered by the Op's own interpreter tests.
-            skipBecause(
-                req,
-                "randomness",
-                `Op "coinFlipSeries" draws random bits (CR 705) — covered by the Op's interpreter tests`
-            );
-            return;
-        case "winGame":
-            // CR 104.2a (issue #1066) — sets `state.gameOver` directly. The
-            // canned generator's post-resolution assertions (board/life
-            // deltas) assume the game keeps running; a decided game is a
-            // qualitatively different post-state the generator doesn't model.
-            // Explicit skip — the Op's own interpreter test (plus Coalition
-            // Victory's card-level predicate test) is the behavioural
-            // guarantor. Coalition Victory's script is ALSO wrapped in `if`,
-            // which already skips unconditionally (see the `"if"` case
-            // above), so this arm is defensive/for-completeness.
-            skipBecause(
-                req,
-                "op-own-tests",
-                `Op "winGame" sets state.gameOver — covered by the Op's own interpreter test`
-            );
-            return;
-        case "divideIntoPiles":
-            // ADR 0053 (pile division, issue #1067) — a TWO-PLAYER divide-
-            // then-choose interaction: the divider partitions the object set,
-            // then a DIFFERENT player picks a pile, both suspending for a live
-            // decision the canned generator cannot make (mirrors the
-            // suspending `choice` / `mayPay` / `optionChoice` skips). Explicit
-            // skip — each of the six pile cards has its own hand-written
-            // interpreter + wire-format test (the Op's per-Op test regime,
-            // `.claude/rules/gre-development.md`).
-            skipBecause(
-                req,
-                "card-paired-mechanism",
-                `Op "divideIntoPiles" suspends for two DIFFERENT players' picks (ADR 0053) — covered by hand-written per-card tests`
-            );
-            return;
-        case "restrictCombat":
-            // CR 508.1a / 509.1b (ADR 0053) — sets a turn-scoped can't-attack/
-            // can't-block flag whose only observable effect is at a LATER
-            // declare-attackers/declare-blockers step, which the canned
-            // single-resolution generator doesn't model (it asserts board/life
-            // deltas immediately after resolution, not a later combat step).
-            // Explicit skip — covered by the Op's own interpreter test plus
-            // Fight or Flight / Stand or Fall's hand-written combat tests.
-            skipBecause(
-                req,
-                "later-outcome",
-                `Op "restrictCombat" only manifests at a later combat step — covered by hand-written tests`
-            );
-            return;
-        case "putBack":
-            // CR 401.4 (issue #1046) — a suspending `choose-hand-card` pick
-            // over the caster's hand whose ORDER the player controls (the
-            // pick order becomes the resulting top-of-library order); the
-            // canned single-resolution generator cannot drive a live pick.
-            // Explicit skip — the suspend/resume, pick-order-preserving
-            // top-placement, checkpoint (an earlier Op never re-runs on
-            // resume) and wire-format assertions are covered by the Op's own
-            // interpreter tests (per-Op regime; mirrors the suspending
-            // `choice` / `scryReorder` / `lookDistribute` skips).
-            skipBecause(
-                req,
-                "suspends-for-input",
-                `Op "putBack" suspends for a live hand pick (CR 401.4) — covered by the Op's interpreter tests`
-            );
-            return;
-        case "nameCard":
-            // CR 201.3 / 202.3 (issue #1085) — a `nameCard` Op suspends
-            // resolution for a live open-ended name choice — a canned
-            // scenario cannot submit a name, so the script is reported as an
-            // explicit skip; execution coverage comes from the Op's own
-            // interpreter tests (mirrors the suspending `choice` / `mayPay`
-            // skips).
-            skipBecause(
-                req,
-                "suspends-for-input",
-                `Op "nameCard" suspends for a live card-name choice (CR 201.4) — covered by the Op's interpreter tests`
-            );
-            return;
-        case "digMatchingToHand":
-            // CR 701.20a / 401.4 (issue #1085) — a filter-driven library
-            // reveal-and-split. In every shipped card it follows a
-            // `nameCard` Op and filters on that Op's chosen-name binding
-            // (Desperate Research), which already forces a skip on its own;
-            // the generator also has no minimal-filler-library model that
-            // guarantees a deterministic filter match/no-match split (mirrors
-            // the `mill` skip rationale — "moves top-of-library cards
-            // somewhere, not modelable against the generator's filler
-            // library"). Explicit skip for exhaustiveness.
-            skipBecause(
-                req,
-                "op-own-tests",
-                `Op "digMatchingToHand" depends on a filter match against library contents — covered by the Op's interpreter tests`
-            );
-            return;
-        case "cascade":
-            // CR 702.85a (issue #3216) — the cascade keyword's whole triggered
-            // ability. It needs a spell ON THE STACK to read its own mana-value
-            // threshold from (`ctx.sourceInstanceId`), a stacked library whose
-            // top few cards straddle that threshold, AND a live Cast/Decline
-            // for the card the walk stops on — none of which the canned
-            // single-resolution generator models (it inherits
-            // `castDuringResolution`'s own suspension wholesale, since that is
-            // literally the Op it runs for the middle clause). Explicit skip;
-            // execution coverage is the Op's own interpreter tests (hit / no
-            // hit / decline / land skipped / random bottom / empty library).
-            skipBecause(
-                req,
-                "suspends-for-input",
-                `Op "cascade" needs its own spell on the stack for the CR 702.85a threshold and suspends for a live Cast/Decline — covered by the Op's interpreter tests`
-            );
-            return;
-        case "castDuringResolution":
-            // CR 608.2g (issues #1477 / #1961) — offers the controller a live
-            // Cast/Decline (or Play/Decline, for the `includesLand` land
-            // branch) of a selected card and, on accept, plays it inline during
-            // resolution (a suspending `option-pick`, then the cast card's own
-            // suspending target/mode/X picks). The canned single-resolution
-            // generator cannot drive those live decisions — nor build the CR 607
-            // linked exile the `{ exiledWithSource: true }` selector reads — so
-            // the script is an explicit skip; execution coverage comes from the
-            // Op's own interpreter tests (cast / play-land / decline /
-            // silent-pass) — mirrors the suspending `choice` / `optionChoice` /
-            // `nameCard` skips (per-Op regime,
-            // `.claude/rules/gre-development.md`).
-            skipBecause(
-                req,
-                "suspends-for-input",
-                `Op "castDuringResolution" suspends for a live Cast/Decline + the played card's own picks (CR 608.2g) — covered by the Op's interpreter tests`
-            );
-            return;
-        case "setIslandSanctuaryProtection":
-            // CR 508.1c (issue #1283) — a turn-scoped player-wide "can't be
-            // attacked except by flying/islandwalk" flag whose only observable
-            // effect is at a LATER declare-attackers step, which the canned
-            // single-resolution generator doesn't model. Every shipped consumer
-            // (Island Sanctuary) additionally wraps this Op in an `optionChoice`
-            // mode, which already forces a skip on its own. Explicit skip for
-            // exhaustiveness — covered by the Op's own interpreter test plus
-            // Island Sanctuary's hand-written combat test.
-            skipBecause(
-                req,
-                "later-outcome",
-                `Op "setIslandSanctuaryProtection" only manifests at a later declare-attackers step — covered by hand-written tests`
-            );
-            return;
-        case "setProtectionFromEverything":
-            // CR 702.16b/e/i (issue #674) — protection from everything is a
-            // GLOBAL player-scoped designation (`GameState.
-            // playerProtectionFromEverything`), not a per-permanent /
-            // per-player-resource delta the canned generator's assertion
-            // vocabulary models (battlefield / graveyard / life / counter).
-            // Its observable effects — an untargetable player, prevented
-            // damage — only manifest against a LATER spell or damage event.
-            // Explicit skip, mirroring `becomeMonarch`; covered by the Op's
-            // own interpreter tests plus The One Ring's hand-written tests.
-            skipBecause(
-                req,
-                "op-own-tests",
-                `Op "setProtectionFromEverything" sets a global player-scoped protection designation — covered by the Op's interpreter tests`
-            );
-            return;
-        case "rangedTopdeck":
-            // CR 119.4 / 121.1 (issue #1283) — a suspending ranged `choose-
-            // hand-card` pick over a "drawn this turn" candidate pool the
-            // canned single-resolution generator cannot drive a live answer
-            // for. Every shipped consumer (Sylvan Library) additionally wraps
-            // this Op in an `optionChoice` mode, which already forces a skip
-            // on its own. Explicit skip for exhaustiveness — covered by the
-            // Op's own interpreter tests (per-Op regime) plus Sylvan
-            // Library's hand-written per-card tests.
-            skipBecause(
-                req,
-                "suspends-for-input",
-                `Op "rangedTopdeck" suspends for a live ranged hand pick (CR 119.4) — covered by the Op's interpreter tests`
-            );
-            return;
-        case "explore":
-            // CR 701.44 (issue #2376) — Explore reveals the top card of the
-            // exploring permanent's controller's library and branches on
-            // whether it is a LAND. The canned generator seeds only a minimal
-            // filler library and cannot provision a KNOWN top card, so which
-            // branch runs is unpredictable from here (the same reason
-            // `revealTopAndRoute` skips); and the nonland branch additionally
-            // SUSPENDS for a live order-top keep-or-bin answer no canned
-            // single-resolution scenario can submit (the same reason
-            // `scryReorder` skips). Explicit skip; execution coverage is the
-            // Op's own interpreter tests, which drive both branches and the
-            // empty-library no-op.
-            skipBecause(
-                req,
-                "suspends-for-input",
-                `Op "explore" reveals an unprovisionable top card and suspends on the nonland branch's keep-or-bin choice — covered by the Op's interpreter tests`
-            );
-            return;
-        case "chooseCreatureType":
-            // CR 205.3m (issue #3721) — SUSPENDS for a live creature-type pick
-            // out of a ~280-option list, which a canned single-resolution
-            // scenario cannot submit (the same reason `nameCard` skips, and
-            // the same reason: the answer is the whole point, and every card
-            // that asks for it reads it back through a filter ref). Explicit
-            // skip; execution coverage is the Op's own interpreter tests,
-            // which drive the suspend, the resume and the unresolvable-chooser
-            // no-op.
-            skipBecause(
-                req,
-                "suspends-for-input",
-                `Op "chooseCreatureType" suspends for a live creature-type choice (CR 205.3m) — covered by the Op's interpreter tests`
-            );
             return;
         default: {
             // Exhaustiveness guard: a registered Op with no analyser branch is
@@ -2878,16 +2699,18 @@ function buildScenario(req: Requirements): Scenario | { skip: SmokeSkip[] } {
 
 /** An assertor takes an Op, the built scenario, and the PRE-resolution state
  *  (to capture baseline totals) and returns a post-resolution check. Keyed by
- *  Op name; the coverage guard test keeps this 1:1 with `EFFECT_OP_REGISTRY`. */
+ *  Op name; the coverage guard test keeps `OP_ASSERTORS` and `SCENARIO_SKIPS` a
+ *  partition of `EFFECT_OP_REGISTRY`. */
 type Assertor = (
     op: EffectOp,
     scenario: Scenario,
     pre: GameState
 ) => Assertion | null;
 
-/** Issue #4448 — one assertor per `EffectOp` union member: a missing Op, or a
- *  key the union does not have, reds `check:ts` before the coverage test. */
-type AssertorTable = { [K in EffectOp["op"]]: Assertor };
+/** Issue #4448 — one assertor per analysed `EffectOp` union member: a missing
+ *  Op, or a key the union does not have, reds `check:ts` before the coverage
+ *  test. Issue #4450 — an Op with a `SCENARIO_SKIPS` row has no assertor. */
+type AssertorTable = { [K in ScenarioAnalysedOp["op"]]: Assertor };
 
 /**
  * Whether the seeded SOURCE permanent is itself counted by `spec` (issue
@@ -3386,132 +3209,6 @@ const OP_ASSERTORS: AssertorTable = {
             },
         };
     },
-    // `attach` (CR 701.3a, ADR 0065, issue #1311) — never reached: `analyseOp`
-    // skips every script with an attach Op (Reconfigure's "target creature YOU
-    // control" requirement is not modelable by the canned generator's
-    // opponent-battlefield target placement). Kept for the 1:1 coverage
-    // guard; the Op's own interpreter + card tests are the behavioural
-    // guarantor.
-    attach() {
-        return null;
-    },
-    // `unattach` (CR 701.3d, ADR 0065, issue #1311) — never reached:
-    // `analyseOp` skips every script with an unattach Op (its outcome is only
-    // observable after a prior attach ran in the same script, which the
-    // generator doesn't sequence). Kept for the 1:1 coverage guard; the Op's
-    // own interpreter + card tests are the behavioural guarantor.
-    unattach() {
-        return null;
-    },
-    // `choice` (issue #805) — never reached: `analyseOp` skips every script
-    // containing a choice Op (a canned scenario cannot submit a live player
-    // pick). The entry exists so the registry ⇄ assertor coverage guard stays
-    // 1:1; execution coverage for choice-carrying cards is their own
-    // suspension/resume tests.
-    choice() {
-        return null;
-    },
-    // `discard` (issue #805) — never reached, same rationale as `choice`
-    // (its `cards` picks binding depends on a live player pick).
-    discard() {
-        return null;
-    },
-    // `grantCastFromExile` (issue #1156) — never reached, same rationale as
-    // `discard`/`sacrifice` (its `card` picks binding depends on a live
-    // player pick from a preceding `choice(zone: "exile")` Op). Kept for the
-    // 1:1 coverage guard; execution coverage is the card's own
-    // suspension/resume tests + the Op's dedicated interpreter tests.
-    grantCastFromExile() {
-        return null;
-    },
-    // `grantCastFromGraveyard` (issue #1344 / #1650) — never reached, same
-    // rationale as `grantCastFromExile` (its `card` names either a live
-    // choice pick or an announced graveyard target, and its outcome is a
-    // cast permission, not an asserted state delta). Kept for the 1:1
-    // coverage guard; execution coverage is the card's own tests (Emry,
-    // `sets/eld/__tests__/blue.test.ts`) + the Op's interpreter tests.
-    grantCastFromGraveyard() {
-        return null;
-    },
-    // `reveal` (issue #920 / #682) — never reached: `analyseOp` skips every
-    // script containing it (an information-visibility change, not a state
-    // check the canned generator asserts). Kept for the 1:1 coverage guard;
-    // execution coverage is the card's own tests.
-    reveal() {
-        return null;
-    },
-    // `lookRandomHand` (Urza's Bauble) — never reached: `analyseOp` skips every
-    // script containing it (a private-visibility change, not an asserted state
-    // check). Kept for the 1:1 coverage guard; coverage is the Op's own tests.
-    lookRandomHand() {
-        return null;
-    },
-    // `lookHand` (issue #2383) — never reached: `analyseOp` skips every script
-    // containing it (a private-visibility change, not an asserted state check).
-    // Kept for the 1:1 coverage guard; coverage is the Op's own tests.
-    lookHand() {
-        return null;
-    },
-    // `mayPay` (issue #806) — never reached: `analyseOp` skips every script
-    // containing a mayPay Op (a canned scenario cannot answer a live Pay/Skip
-    // prompt). The entry keeps the registry ⇄ assertor guard 1:1; execution
-    // coverage is the card's own suspension/resume tests.
-    mayPay() {
-        return null;
-    },
-    // `payVariableMana` (issue #1701) — never reached: `analyseOp` skips every
-    // script containing it (a canned scenario cannot nominate an amount). The
-    // entry keeps the registry <-> assertor guard 1:1; execution coverage is
-    // the Op's own interpreter tests.
-    payVariableMana() {
-        return null;
-    },
-    // `chooseNumber` (issue #1421) — never reached: `analyseOp` skips every
-    // script containing it (a canned scenario cannot nominate a number). The
-    // entry keeps the registry <-> assertor guard 1:1; execution coverage is
-    // the Op's own interpreter tests.
-    chooseNumber() {
-        return null;
-    },
-    // `if` (issue #806) — never reached: `analyseOp` skips every script with an
-    // `if` construct (the taken branch depends on a runtime predicate). Kept for
-    // the 1:1 coverage guard; branch coverage is the card's own tests.
-    if() {
-        return null;
-    },
-    // `counter` (issue #806) — never reached: `analyseOp` skips every script
-    // with a counter Op (needs a spell on the stack the generator does not
-    // seed). Kept for the 1:1 coverage guard; counter coverage is the card's
-    // own resolution test.
-    counter() {
-        return null;
-    },
-    // `moveSpellFromStack` (issue #2605) — never reached: `analyseOp` skips
-    // every script carrying it (needs a spell on the stack the generator does
-    // not seed). Kept for the 1:1 coverage guard; execution coverage is the
-    // Op's own interpreter tests.
-    moveSpellFromStack() {
-        return null;
-    },
-    // `sacrifice` (issue #807) — never reached, same rationale as `discard`
-    // (its `permanents` picks binding depends on a live player pick).
-    sacrifice() {
-        return null;
-    },
-    // `forEach` (issue #807) — never reached: `analyseOp` skips every script
-    // with a forEach construct (per-member outcomes are runtime-selected).
-    // Kept for the 1:1 coverage guard; forEach coverage is the card's own
-    // tests.
-    forEach() {
-        return null;
-    },
-    // `moveZone` (issue #839) — never reached: `analyseOp` skips every script
-    // with a moveZone Op (the object's source zone is not modelled by the
-    // canned generator). Kept for the 1:1 coverage guard; zone-move coverage
-    // is the card's own per-card test.
-    moveZone() {
-        return null;
-    },
     // `pump` (issue #840, CR 613.4c) — a fixed-amount pump on an announced
     // permanent slot is observable as an effective-P/T delta (the temporary
     // buff is active for the rest of the turn, so it reads immediately after
@@ -3730,25 +3427,6 @@ const OP_ASSERTORS: AssertorTable = {
             },
         };
     },
-    // `animate` (issue #1317, CR 208.2 / 611.1) — never reached: `analyseOp`
-    // skips every script with an `animate` Op (a new Op, per-Op regime; the
-    // canonical caller targets a LAND, not the generator's creature filler,
-    // and asserting a "becomes a creature" shape change doesn't fit the
-    // generator's fixed-permanent-kind assumption). Kept for the 1:1 coverage
-    // guard; covered by the Op's own hand-written interpreter + wire-format
-    // tests instead.
-    animate() {
-        return null;
-    },
-    // `setBasePT` (issue #1318, CR 613.4b layer 7b) — never reached: `analyseOp`
-    // skips every script with a `setBasePT` Op (a new Op, per-Op regime; the
-    // canonical callers use characteristic-filtered targets the generator's
-    // filler doesn't satisfy and the outcome is an effective-P/T read outside
-    // the smoke vocabulary). Kept for the 1:1 coverage guard; covered by the
-    // Op's own hand-written interpreter + wire-format tests instead.
-    setBasePT() {
-        return null;
-    },
     // `addSubtype` (issue #1194, CR 613.1d layer 4) — an add on an announced
     // permanent slot is observable as the subtype appearing in the target's
     // `subtypes` (the primitive appends it immediately, indefinitely).
@@ -3777,165 +3455,6 @@ const OP_ASSERTORS: AssertorTable = {
                 };
             },
         };
-    },
-    // `delayedTrigger` (CR 603.7, ADR 0048) — never reached: `analyseOp`
-    // skips every script with a delayedTrigger Op (the body fires at a
-    // future phase boundary the canned scenario never reaches). Kept for the
-    // 1:1 coverage guard; scheduling + fire-time coverage is the Op's own
-    // interpreter tests (issue #838).
-    delayedTrigger() {
-        return null;
-    },
-    // `reflexiveTrigger` (CR 603.12) — never reached: `analyseOp` skips every
-    // script with a reflexiveTrigger Op (the body resolves on a SEPARATE
-    // stack object, after target announcement and a priority round the canned
-    // single-resolution scenario never runs). Kept for the 1:1 coverage
-    // guard; queueing, capture round-trip and body execution are covered by
-    // the Op's own interpreter tests.
-    reflexiveTrigger() {
-        return null;
-    },
-    // `libraryLook` (CR 701.20, issue #844) — never reached: `analyseOp` skips
-    // every script with a libraryLook Op (a shuffle is a seeded-PRNG
-    // randomization with no deterministic same-resolution outcome the canned
-    // scenario can assert). Kept for the 1:1 coverage guard; the shuffle
-    // primitive is covered by the Op's own interpreter tests.
-    libraryLook() {
-        return null;
-    },
-    // `shuffleSelfIntoLibrary` (CR 608.2 / 701.24, issue #898) — never
-    // reached: `analyseOp` skips every script with this Op (a shuffle is a
-    // seeded-PRNG randomization with no deterministic same-resolution
-    // outcome the canned scenario can assert). Kept for the 1:1 coverage
-    // guard; the self-redirect + shuffle is covered by the Op's own
-    // interpreter tests.
-    shuffleSelfIntoLibrary() {
-        return null;
-    },
-    // `scryReorder` (CR 401.4 / 701.22, issue #885) — never reached: `analyseOp`
-    // skips every script with a scryReorder Op (it suspends on a live order-top
-    // choice, so there is no deterministic same-resolution outcome the canned
-    // scenario can assert). Kept for the 1:1 coverage guard; the look/reorder
-    // is covered by the Op's own interpreter tests and the migrated cards'
-    // suspension/resume tests.
-    scryReorder() {
-        return null;
-    },
-    // `mill` (CR 701.17, issue #885) — never reached: `analyseOp` skips every
-    // script with a mill Op (the canned generator does not model milling a
-    // target player's library, so there is no graveyard delta it can assert
-    // without mis-modelling the source deck). Kept for the 1:1 coverage guard;
-    // the mill loop is covered by the Op's own interpreter tests.
-    mill() {
-        return null;
-    },
-    // `exileTopOfLibrary` (CR 701.13, issue #3235) — never reached, for the
-    // same reason as its `mill` sibling directly above: `analyseOp` skips every
-    // script carrying it, since the canned generator seeds only a minimal
-    // filler library and there is no library→exile delta it can assert without
-    // inventing a deck. Kept for the 1:1 coverage guard; the exile loop, the
-    // `linkToSource` stamp and the `bindAll` binding are covered by the Op's
-    // own interpreter tests.
-    exileTopOfLibrary() {
-        return null;
-    },
-    // `revealTopAndRoute` (CR 701.20a) — never reached: `analyseOp` skips every
-    // script carrying one (the canned generator seeds a minimal filler library
-    // and cannot provision a KNOWN top card, so which route fires is
-    // unpredictable and any delta would be a mis-assertion). Kept for the 1:1
-    // coverage guard; both the matching route and the fallback are covered by
-    // the Op's own interpreter tests.
-    revealTopAndRoute() {
-        return null;
-    },
-    // `revealUntilMatch` (CR 701.20a, issue #2707) — never reached: `analyseOp`
-    // skips every script carrying one (the revealed prefix's size depends on
-    // the library composition the canned generator cannot provision, so any
-    // delta would be a mis-assertion). Kept for the 1:1 coverage guard; the
-    // match, no-match and empty-library branches are covered by the Op's own
-    // interpreter tests.
-    revealUntilMatch() {
-        return null;
-    },
-    // `explore` (CR 701.44, issue #2376) — never reached: `analyseOp` skips
-    // every script with an explore Op (the canned generator cannot provision a
-    // known top card, so it cannot predict the land-vs-nonland branch, and the
-    // nonland branch suspends on a live keep-or-bin choice). Kept for the 1:1
-    // coverage guard; both branches are covered by the Op's own interpreter
-    // tests.
-    explore() {
-        return null;
-    },
-    // `discardAtRandom` (CR 701.9a, PRD #795) — never reached: `analyseOp`
-    // skips every script with a discardAtRandom Op (the canned generator does
-    // not provision a target player's hand with a known count, so there is no
-    // hand-size delta it can assert without mis-modelling the target's hand).
-    // Kept for the 1:1 coverage guard; the random-discard loop is covered by
-    // the Op's own interpreter tests.
-    discardAtRandom() {
-        return null;
-    },
-    // `randomExileToHand` (CR 400.7, issue #1947) — never reached:
-    // `analyseOp` skips every script with this Op (the canned generator
-    // does not provision a source-linked exile pile, so there is no
-    // deterministic pick it can assert). Kept for the 1:1 coverage guard;
-    // the random pick is covered by the Op's own interpreter tests.
-    randomExileToHand() {
-        return null;
-    },
-    // `lookDistribute` (CR 401.4, issue #984) — never reached: `analyseOp` skips
-    // every script with a lookDistribute Op (it suspends on a live look-distribute
-    // pick, so there is no deterministic same-resolution outcome the canned
-    // scenario can assert). Kept for the 1:1 coverage guard; the look / keep /
-    // bottom is covered by the Op's own interpreter tests.
-    lookDistribute() {
-        return null;
-    },
-    // `hideaway` (CR 702.75a, issue #783) — never reached: `analyseOp` skips
-    // every script carrying it (it suspends on a live look-distribute pick).
-    // Kept for the 1:1 coverage guard; the look / face-down exile / CR 607 link
-    // / random bottom is covered by the Op's own interpreter tests.
-    hideaway() {
-        return null;
-    },
-    // `revealAndCategorize` (CR 701.20a / 401.4, issue #1364) — never reached:
-    // `analyseOp` skips every script carrying it (it suspends on a live
-    // categorized look-distribute pick). Kept for the 1:1 coverage guard; the
-    // reveal / per-category keep / bottom split is covered by the Op's own
-    // interpreter tests and `categorizedPick`'s matching unit tests.
-    revealAndCategorize() {
-        return null;
-    },
-    // `chooseCategorized` (CR 601.2b / 701.9, issue #1945) — never reached:
-    // `analyseOp` skips every script carrying it (it suspends on a live
-    // choose-categorized pick). Kept for the 1:1 coverage guard; the
-    // per-category keep / discard-or-sacrifice sweep / bounce is covered by the Op's own
-    // interpreter tests and `categorizedPick`'s matching unit tests.
-    chooseCategorized() {
-        return null;
-    },
-    // `putBack` (CR 401.4, issue #1046) — never reached: `analyseOp` skips
-    // every script with a putBack Op (it suspends on a live choose-hand-card
-    // pick whose ORDER the player controls, so there is no deterministic
-    // same-resolution outcome the canned scenario can assert). Kept for the
-    // 1:1 coverage guard; the suspend/resume, pick-order-preserving top
-    // placement and checkpoint are covered by the Op's own interpreter tests.
-    putBack() {
-        return null;
-    },
-    // `preventDamage` (CR 615, issue #845) — never reached: `analyseOp` skips
-    // every script with a preventDamage Op (a shield sits dormant until a later
-    // damage event, with no same-resolution outcome the canned scenario can
-    // assert). Kept for the 1:1 coverage guard; shield registration and
-    // consumption are covered by the Op's own interpreter tests.
-    preventDamage() {
-        return null;
-    },
-    // `redirectDamage` (CR 614.9, issue #3810) — never reached: `analyseOp`
-    // skips every script carrying one, for the same dormant-shield reason.
-    // Kept for the 1:1 coverage guard.
-    redirectDamage() {
-        return null;
     },
     // `regenerate` (CR 701.19a, issue #846) — the shield's REGISTRATION is
     // observable as the permanent's `regenerationShields` count rising by one;
@@ -4090,72 +3609,6 @@ const OP_ASSERTORS: AssertorTable = {
             },
         };
     },
-    // `transform` (CR 701.27 / 712, issue #1210) — never reached: `analyseOp`
-    // skips every script with a transform Op (a characteristic-set swap has
-    // no same-resolution outcome the canned scenario's numeric assertion
-    // vocabulary models). Kept for the 1:1 coverage guard; the front/back
-    // definition swap is covered by the Op's own interpreter tests.
-    transform() {
-        return null;
-    },
-    // `exileAndReturnTransformed` (CR 712 / 400.7, issue #2380) — never
-    // reached: `analyseOp` skips every script carrying it, for the same reason
-    // as `transform` above plus the absence of a `backFace` on any canned
-    // permanent. Kept for the 1:1 coverage guard; the exile/return round trip,
-    // the CR 400.7 new-object semantics and the CR 306.5b starting loyalty are
-    // covered by the Op's own interpreter tests.
-    exileAndReturnTransformed() {
-        return null;
-    },
-    // `gainControl` (CR 613.1b, issue #848) — never reached: `analyseOp` skips
-    // every script with a gainControl Op (the canned scenario seeds no permanent
-    // under another player to steal, and the conditional durations only hold
-    // while the source is tapped/controlled — state the generator does not
-    // construct — so there is no same-resolution outcome it can assert). Kept
-    // for the 1:1 coverage guard; the control change and its conditional revert
-    // are covered by the Op's own interpreter tests.
-    gainControl() {
-        return null;
-    },
-    // `becomeMonarch` (CR 720.2, issue #1199) — never reached: `analyseOp`
-    // skips every script with a becomeMonarch Op (crowning the monarch is a
-    // GLOBAL designation, not a per-permanent / per-player-resource outcome
-    // the canned scenario's assertion vocabulary models). Kept for the 1:1
-    // coverage guard; covered by the Op's own interpreter tests.
-    becomeMonarch() {
-        return null;
-    },
-    // `optionChoice` (CR 700.2 / 601.2b, issue #849) — never reached: `analyseOp`
-    // skips every script with an optionChoice Op (it suspends on a live mode
-    // pick, so there is no same-resolution outcome the canned scenario can
-    // assert). Kept for the 1:1 coverage guard; mode selection and each branch's
-    // execution are covered by the Op's own interpreter tests.
-    optionChoice() {
-        return null;
-    },
-    // `coinFlip` (CR 705, issue #851) — never reached: `analyseOp` skips every
-    // script with a coinFlip Op (it draws a RANDOM bit and suspends for the
-    // reveal, so there is no deterministic same-resolution outcome the canned
-    // scenario can assert). Kept for the 1:1 coverage guard; the flip, both
-    // branches and the no-re-roll resume are covered by the Op's own interpreter
-    // tests (per-Op regime).
-    coinFlip() {
-        return null;
-    },
-    // `coinFlipSync` (CR 705, issue #1281) — never reached: `analyseOp` skips
-    // every script with a coinFlipSync Op (it draws a RANDOM bit — no fixed
-    // seed to assert a specific branch against). Kept for the 1:1 coverage
-    // guard; the flip and both branches are covered by the Op's own
-    // interpreter tests (per-Op regime).
-    coinFlipSync() {
-        return null;
-    },
-    // `coinFlipSeries` (CR 705, issue #3813) — never reached: `analyseOp`
-    // skips every script with one (random bits, no fixed seed). Kept for the
-    // 1:1 coverage guard; covered by the Op's own interpreter tests.
-    coinFlipSeries() {
-        return null;
-    },
     // `createToken` (CR 111 / 701.7, issue #847) — a deterministic
     // same-resolution outcome: `count` token permanents matching the spec's
     // types + P/T appear on the controller's battlefield (the canned scenario
@@ -4202,24 +3655,6 @@ const OP_ASSERTORS: AssertorTable = {
             },
         };
     },
-    // `createTokenCopy` (CR 707.2 + CR 111.1, issue #1459) — never reached:
-    // `analyseOp` skips every script with this Op (it copies a RUNTIME source
-    // permanent — an announced target slot or a `ref` to a permanent bound
-    // earlier in the script — which the canned generator seeds no determinate
-    // copyable source for). Kept for the 1:1 coverage guard; the Op's own
-    // interpreter + wire-format tests (both source shapes + count) are the
-    // behavioural guarantor.
-    createTokenCopy() {
-        return null;
-    },
-    // `becomeCopy` (CR 707.2 / 611.2a, issue #3236) — never reached:
-    // `analyseOp` skips every script with this Op (the canned fillers are
-    // identical, so a copy between them is unobservable, and the timed revert
-    // needs a phase boundary). Kept for the 1:1 coverage guard; the Op's own
-    // interpreter + wire-format tests are the behavioural guarantor.
-    becomeCopy() {
-        return null;
-    },
     // `emblem` (CR 114, issue #1221) — a deterministic same-resolution outcome:
     // one command-zone emblem with the named key appears in `GameState.emblems`,
     // owned by the resolved controller (the canned scenario seeds no emblems).
@@ -4264,239 +3699,25 @@ const OP_ASSERTORS: AssertorTable = {
             },
         };
     },
-    // `exileWithAttachments` (CR 603.7a / 701.13 / ADR 0028) — never reached:
-    // `analyseOp` skips every script with it (the exile lands in an `exileHeld`
-    // bundle, not the plain exile zone this generator's board-delta assertion
-    // models, and the observable return needs a later source-leaves/untaps
-    // step). Kept for the 1:1 coverage guard; the Op's own interpreter tests
-    // are the behavioural guarantor.
-    exileWithAttachments() {
-        return null;
-    },
-    // `exileSelf` (CR 608.2, issue #1097) — never reached: `analyseOp` skips
-    // every script with this Op (the canned generator's assertion vocabulary
-    // — battlefield/graveyard/life/counter deltas — has no hook for "where
-    // did the resolving spell card itself land", same rationale as
-    // `shuffleSelfIntoLibrary` below, just a different destination zone).
-    // Kept for the 1:1 coverage guard; the self-redirect is covered by the
-    // Op's own interpreter tests.
-    exileSelf() {
-        return null;
-    },
-    // `returnExiledForSource` (CR 603.7a / ADR 0028) — never reached:
-    // `analyseOp` skips every script with it (its outcome is only observable
-    // after a prior `exileWithAttachments` armed a bundle, which the generator
-    // doesn't sequence). Kept for the 1:1 coverage guard; the Op's own
-    // interpreter tests are the behavioural guarantor.
-    returnExiledForSource() {
-        return null;
-    },
-    // `captureBinding` / `recallCapturedBinding` (CR 608.2h / 400.7, issue
-    // #2384) — never reached: `analyseOp` skips every script carrying either,
-    // because the channel spans two separate resolutions of two different
-    // abilities of the same source and a canned scenario resolves one stack
-    // item. Kept for the 1:1 coverage guard; the Ops' own interpreter tests are
-    // the behavioural guarantor.
-    captureBinding() {
-        return null;
-    },
-    recallCapturedBinding() {
-        return null;
-    },
-    // `dealDamageDividedAsChosen` (CR 601.2d / 120.4) — never reached:
-    // `analyseOp` skips every script with it (the per-target division is chosen
-    // at announcement and snapshotted onto the stack item's `targetAmounts`,
-    // which the canned generator has no way to populate). Kept for the 1:1
-    // coverage guard; the Op's own interpreter tests are the behavioural
-    // guarantor.
-    dealDamageDividedAsChosen() {
-        return null;
-    },
-    // `winGame` (CR 104.2a, issue #1066) — never reached: `analyseOp` skips
-    // every script with a winGame Op (it sets `state.gameOver`, a
-    // qualitatively different post-state the canned scenario's board/life
-    // assertions don't model). Kept for the 1:1 coverage guard; the Op's own
-    // interpreter test (plus Coalition Victory's card-level predicate test)
-    // is the behavioural guarantor.
-    winGame() {
-        return null;
-    },
-    // `divideIntoPiles` (ADR 0053, pile division, issue #1067) — never
-    // reached: `analyseOp` skips every script with this Op (it suspends
-    // TWICE for two DIFFERENT players' live picks, which the canned
-    // generator cannot drive). Kept for the 1:1 coverage guard; each of the
-    // six pile cards has its own hand-written interpreter + wire-format test
-    // (the per-Op regime).
-    divideIntoPiles() {
-        return null;
-    },
-    // `restrictCombat` (CR 508.1a/509.1b, ADR 0053) — never reached:
-    // `analyseOp` skips every script with this Op (its only observable
-    // effect is at a LATER declare-attackers/-blockers step, outside the
-    // canned generator's immediate-post-resolution board/life assertions).
-    // Kept for the 1:1 coverage guard; the Op's own interpreter test plus
-    // Fight or Flight / Stand or Fall's hand-written combat tests are the
-    // behavioural guarantor.
-    restrictCombat() {
-        return null;
-    },
-    // `extraTurn` (CR 500.7, issue #686) — never reached: `analyseOp` skips
-    // every script with this Op (it mutates the turn-boundary `extraTurns`
-    // queue, not a same-step board/life delta the canned generator's
-    // immediate-post-resolution assertions can size). Kept for the 1:1
-    // coverage guard; the Op's own interpreter test plus Time Warp's
-    // hand-written card test (tmp/__tests__/blue.test.ts) are the
-    // behavioural guarantor.
-    extraTurn() {
-        return null;
-    },
-    // `extraCombat` (CR 500.8, issue #2886) — never reached: `analyseOp` skips
-    // every script with this Op (it mutates the turn-structure `extraPhases`
-    // queue, not a same-step board/life delta the canned generator's
-    // immediate-post-resolution assertions can size). Kept for the 1:1
-    // coverage guard; the Op's own interpreter test plus the extra-phase seam
-    // tests (`gre/__tests__/extraPhases.test.ts`) are the behavioural
-    // guarantor.
-    extraCombat() {
-        return null;
-    },
-    // `skipNextTurn` (CR 614.10, issue #1957) — never reached: `analyseOp`
-    // skips every script with this Op (it mutates the turn-boundary
-    // `skipNextTurn` count, not a same-step board/life delta the canned
-    // generator's immediate-post-resolution assertions can size). Kept for
-    // the 1:1 coverage guard; the Op's own interpreter test plus Waterspout
-    // Elemental's hand-written card test are the behavioural guarantor.
-    skipNextTurn() {
-        return null;
-    },
-    // `setColor` (CR 613.1e layer 5, issue #1083) — never reached: `analyseOp`
-    // skips every script with a setColor Op (every shipped INV caller composes
-    // it inside a suspending `optionChoice`/`forEach`, both of which already
-    // skip wholesale before descending into their body). Kept for the 1:1
-    // coverage guard; the Op's own interpreter + wire-format tests are the
-    // behavioural guarantor.
-    setColor() {
-        return null;
-    },
-    // `setSubtype` (CR 305.7 layer 4, issue #1083) — never reached: `analyseOp`
-    // skips every script with a setSubtype Op (the shipped caller, Dream
-    // Thrush, composes it inside a suspending `optionChoice`, which already
-    // skips before descending). Kept for the 1:1 coverage guard; the Op's own
-    // interpreter + wire-format tests are the behavioural guarantor.
-    setSubtype() {
-        return null;
-    },
-    // `setCardTypes` (CR 205.1a layer 4, issue #2361) — never reached:
-    // `analyseOp` skips every script with a setCardTypes Op (it changes the
-    // target's basic kind mid-scenario, which the canned target-seeding does
-    // not model). Kept for the 1:1 coverage guard; the Op's own interpreter +
-    // wire-format tests are the behavioural guarantor.
-    setCardTypes() {
-        return null;
-    },
-    // `loseAllAbilities` (CR 613.1f layer 6, issue #2361) — never reached:
-    // `analyseOp` skips every script with a loseAllAbilities Op (the canned
-    // filler permanent has no abilities to lose, so any assertion would be
-    // vacuous). Kept for the 1:1 coverage guard; the Op's own interpreter +
-    // wire-format tests are the behavioural guarantor.
-    loseAllAbilities() {
-        return null;
-    },
-    // `loseAllAbilitiesWhileSourceRemains` (CR 613.1f layer 6, issue #1562) —
-    // never reached: `analyseOp` skips every script with this Op (same
-    // reasoning as `loseAllAbilities` above, plus its target must resolve to
-    // a countered-ability stack object the canned generator never produces).
-    // Kept for the 1:1 coverage guard; the Op's own interpreter + wire-format
-    // tests are the behavioural guarantor.
-    loseAllAbilitiesWhileSourceRemains() {
-        return null;
-    },
-    // `nameCard` (CR 201.3 / 202.3, issue #1085) — never reached: `analyseOp`
-    // skips every script with a nameCard Op (it suspends for a live
-    // open-ended name choice, which the canned generator cannot submit).
-    // Kept for the 1:1 coverage guard; the Op's own interpreter tests are
-    // the behavioural guarantor.
-    nameCard() {
-        return null;
-    },
-    // `chooseCreatureType` (CR 205.3m, issue #3721) — never reached:
-    // `analyseOp` skips every script carrying it (it suspends for a live pick
-    // out of the ~280-entry creature-type table, which the canned generator
-    // cannot submit). Kept for the 1:1 coverage guard; the Op's own
-    // interpreter tests are the behavioural guarantor.
-    chooseCreatureType() {
-        return null;
-    },
-    // `digMatchingToHand` (CR 701.20a / 401.4, issue #1085) — never reached:
-    // `analyseOp` skips every script with this Op (its outcome depends on a
-    // filter match against library contents the canned generator's filler
-    // library doesn't model deterministically; every shipped caller also
-    // pairs it with a `nameCard` Op that already skips wholesale). Kept for
-    // the 1:1 coverage guard; the Op's own interpreter tests are the
-    // behavioural guarantor.
-    digMatchingToHand() {
-        return null;
-    },
-    // `castDuringResolution` (CR 608.2f, issue #1477) — never reached:
-    // `analyseOp` skips every script with this Op (it suspends for a live
-    // Cast/Decline plus the cast card's own targets/modes/X, which the canned
-    // generator can't drive). Kept for the 1:1 coverage guard; the Op's own
-    // interpreter tests are the behavioural guarantor.
-    castDuringResolution() {
-        return null;
-    },
-    // `cascade` (CR 702.85a, issue #3216) — never reached: `analyseOp` skips
-    // every script with this Op (it needs its own spell on the stack for the
-    // mana-value threshold and suspends for the free cast's Cast/Decline).
-    // Kept for the 1:1 coverage guard; the Op's own interpreter tests are the
-    // behavioural guarantor.
-    cascade() {
-        return null;
-    },
-    // `setIslandSanctuaryProtection` (CR 508.1c, issue #1283) — never reached:
-    // `analyseOp` skips every script with this Op (its only observable effect
-    // is at a LATER declare-attackers step, and its shipped consumer wraps it
-    // in an `optionChoice` mode, which already skips wholesale). Kept for the
-    // 1:1 coverage guard; the Op's own interpreter test plus Island
-    // Sanctuary's hand-written combat test are the behavioural guarantor.
-    setIslandSanctuaryProtection() {
-        return null;
-    },
-    // `setProtectionFromEverything` (CR 702.16b/e/i, issue #674) — never
-    // reached: `analyseOp` skips every script with this Op (a global
-    // player-scoped designation whose effects only manifest against a LATER
-    // spell or damage event). Kept for the 1:1 coverage guard; the Op's own
-    // interpreter tests plus The One Ring's hand-written targeting/damage/
-    // expiry tests are the behavioural guarantor.
-    setProtectionFromEverything() {
-        return null;
-    },
-    // `rangedTopdeck` (CR 119.4 / 121.1, issue #1283) — never reached:
-    // `analyseOp` skips every script with this Op (it suspends for a live
-    // ranged hand pick, and its shipped consumer wraps it in a `mayPay`+`if`
-    // body, which already skips wholesale). Kept for the 1:1 coverage guard;
-    // the Op's own interpreter tests (per-Op regime) plus Sylvan Library's
-    // hand-written per-card tests are the behavioural guarantor.
-    rangedTopdeck() {
-        return null;
-    },
 };
 
-/** Op kinds the generator has an assertor for — used by the coverage guard
- *  test to keep this in exact 1:1 correspondence with `EFFECT_OP_REGISTRY`.
- *  A newly-registered Op with no assertor here fails that test, forcing smoke
- *  coverage before it can ship. */
+/** Op kinds the generator has an assertor for. With `SKIPPED_OP_KINDS` it
+ *  partitions `EFFECT_OP_REGISTRY` — the coverage guard test keeps the two
+ *  disjoint and their union equal to the registry. */
 export const ASSERTED_OP_KINDS: readonly string[] = Object.keys(OP_ASSERTORS);
 
-/** True when every registered Op has both an analyser branch and an assertor —
- *  the generator can, in principle, cover the whole vocabulary. Exposed for the
- *  coverage guard test. */
+/** Op kinds with a `SCENARIO_SKIPS` row — never scenario-ized (issue #4450). */
+export const SKIPPED_OP_KINDS: readonly string[] = Object.keys(SCENARIO_SKIPS);
+
+/** Every registered Op with neither an assertor nor a skip row — empty when the
+ *  generator accounts for the whole vocabulary. Exposed for the coverage guard
+ *  test. */
 export function opCoverageGaps(): string[] {
     const gaps: string[] = [];
     for (const row of EFFECT_OP_REGISTRY) {
-        if (!(row.op in OP_ASSERTORS)) {
+        if (!(row.op in OP_ASSERTORS) && !(row.op in SCENARIO_SKIPS)) {
             gaps.push(
-                `Op "${row.op}" has no assertor in scenarioGenerator.ts OP_ASSERTORS`
+                `Op "${row.op}" has neither an assertor in OP_ASSERTORS nor a SCENARIO_SKIPS row in scenarioGenerator.ts`
             );
         }
     }
@@ -4552,7 +3773,11 @@ export function planSmokeTest(
 
     const assertions: Assertion[] = [];
     for (const op of effects) {
-        const assertor = OP_ASSERTORS[op.op];
+        // A skipped Op never reaches here (`buildScenario` returned its skip);
+        // the guard only narrows the key to the analysed Ops.
+        const assertor = isScenarioSkipped(op)
+            ? undefined
+            : OP_ASSERTORS[op.op];
         if (!assertor) {
             return skipPlan([
                 {

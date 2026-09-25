@@ -1,15 +1,16 @@
 ---
 name: new-op
-description: Add a new Effect Script Op (or a new EffectOp field / construct usage) to the DSL — walk all eight sites — seven registration sites across six files, three of which no PR-time guard covers, plus the Grammar Rule that emits the Op (or the open Grammar Gap that stops it) — then write the Op's permanent test. Use when a card needs a verb the DSL doesn't have, when adding an entry to EFFECT_OP_REGISTRY, or when a review finds an Op that valuates as neutral / scenario-skips silently.
+description: Add a new Effect Script Op (or a new EffectOp field / construct usage) to the DSL — walk all eight sites — eleven registration points across eight files (lettered sub-sites), two of which no PR-time guard covers, plus the Grammar Rule that emits the Op (or the open Grammar Gap that stops it) — then write the Op's permanent test. Use when a card needs a verb the DSL doesn't have, when adding an entry to EFFECT_OP_REGISTRY, or when a review finds an Op that valuates as neutral / scenario-skips silently.
 argument-hint: "<op-name>"
 ---
 
 # New Effect Script Op
 
-An Op is not one edit. **Eight sites**: seven registration sites across six
-files, of which only four are guarded at PR time — the three that aren't fail
-_silently_, degrading the bot or the smoke sweep with a green suite — and the
-**Grammar Rule that emits the Op** (ADR 0137: "an implemented Op owns the
+An Op is not one edit. **Eight sites**: eleven registration points across
+eight files (sites 1–7 with their lettered sub-sites), of which all but two are
+guarded at PR time — the two that aren't (2b, 2c, owed only by an Op that
+declares a binding) fail _silently_, a spliced or ref-read binding misbehaving
+under a green suite — and the **Grammar Rule that emits the Op** (ADR 0137: "an implemented Op owns the
 grammar that emits it"). This skill is the checklist that has been missed
 twice.
 
@@ -25,23 +26,27 @@ finding that out after writing sites 1–7 throws them away.
 
 ## The eight sites
 
-| #   | File                                       | Symbol                                                           | Guarded by                                                                                                             |
-| --- | ------------------------------------------ | ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| 1   | `convex/cards/types.ts`                    | the `EffectOp` union member + its doc comment                    | tsc                                                                                                                    |
-| 2   | `convex/gre/effects/validate.ts`           | `OP_SCHEMAS` (→ `SCHEMA_OP_NAMES`)                               | ✅ set-equality                                                                                                        |
-| 3   | `convex/gre/effects/interpreter.ts`        | `OP_EXECUTORS`                                                   | ✅ set-equality + tsc (keyed by `EffectOp["op"]`)                                                                      |
-| 4   | `convex/cards/mechanicsRegistry.ts`        | `EFFECT_OP_REGISTRY` row                                         | ✅ set-equality                                                                                                        |
-| 5   | `convex/gre/effects/scenarioGenerator.ts`  | **Table A** — `analyseOp` (builds the canned scenario)           | ❌ **none** — a deliberate `req.skip` is legitimate, so an unhandled Op is indistinguishable from an intentional skip  |
-| 6   | `convex/gre/effects/scenarioGenerator.ts`  | **Table B** — `OP_ASSERTORS` (asserts the outcome)               | ✅                                                                                                                     |
-| 7   | `convex/gre/ai/opValuers.ts`               | `OP_VALUERS`                                                     | ✅ `opValuerCoverage.bot.test.ts` — **BOT suite**, invisible to `bun run test:app`                                     |
-| 7b  | `convex/gre/ai/opValuers.ts`               | `OP_BENEFICENCE` (same file, separate table)                     | ✅ `opBeneficenceCensus.bot.test.ts` — **BOT suite**; a `"neutral"` row needs a comment saying WHY (issue #3006)       |
-| 8   | `convex/oracle/grammar/**` + `fixtures.ts` | the Grammar Rule that emits the Op + its `GOLDEN_FIXTURES` entry | ✅ `check:gaps` — derived Op census, **`health` only** (never `check:pr`/`land`); fixtures by `goldenFixtures.test.ts` |
+| #   | File                                       | Symbol                                                                                                      | Guarded by                                                                                                                                                            |
+| --- | ------------------------------------------ | ----------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | `convex/cards/types.ts`                    | the `EffectOp` union member + its doc comment                                                               | tsc                                                                                                                                                                   |
+| 2   | `convex/gre/effects/validate.ts`           | `OP_SCHEMAS` (→ `SCHEMA_OP_NAMES`)                                                                          | ✅ set-equality                                                                                                                                                       |
+| 2b  | `convex/gre/effects/validate.ts`           | `bindingKindOf` — the binding family a `bind`-carrying Op declares                                          | ❌ **none** — an unlisted Op silently defaults to `"snapshot"`; owed when the Op binds picks / boolean / number                                                       |
+| 2c  | `convex/gre/splice.ts`                     | `BINDING_DECLARATION_FIELDS` — the fields a binding is declared through                                     | ❌ **none** — owed when the Op declares a binding through a NEW field name; a spliced segment's binding is otherwise not renamed                                      |
+| 3   | `convex/gre/effects/interpreter.ts`        | `OP_EXECUTORS`                                                                                              | ✅ set-equality + tsc (keyed by `EffectOp["op"]`)                                                                                                                     |
+| 4   | `convex/cards/mechanicsRegistry.ts`        | `EFFECT_OP_REGISTRY` row                                                                                    | ✅ set-equality                                                                                                                                                       |
+| 5   | `convex/gre/effects/scenarioGenerator.ts`  | **Table A** — an `analyseOp` branch (builds the canned scenario), OR a `SCENARIO_SKIPS` row (code + reason) | ✅ tsc — the switch's `never` runs over the Ops with no skip row; a row AND a branch reds too. Run/skip snapshot `__tests__/scenarioOpDisposition.json` (issue #4450) |
+| 6   | `convex/gre/effects/scenarioGenerator.ts`  | **Table B** — `OP_ASSERTORS` (asserts the outcome); none for a skip-row Op                                  | ✅ tsc (keyed over the non-skipped Ops) + coverage test                                                                                                               |
+| 7   | `convex/gre/ai/opValuers.ts`               | `OP_VALUERS`                                                                                                | ✅ `opValuerCoverage.bot.test.ts` — **BOT suite**, invisible to `bun run test:app`                                                                                    |
+| 7b  | `convex/gre/ai/opValuers.ts`               | `OP_BENEFICENCE` (same file, separate table)                                                                | ✅ `opBeneficenceCensus.bot.test.ts` — **BOT suite**; a `"neutral"` row needs a comment saying WHY (issue #3006)                                                      |
+| 7c  | `convex/gre/ai/choiceDepth.ts`             | `RAISES_RESOLUTION_CHOICE` — `true` iff the executor can `return "suspend"`                                 | ✅ `check:ts` (`Record<EffectOp["op"], boolean>`) — a bare `tsc -p` can miss it                                                                                       |
+| 8   | `convex/oracle/grammar/**` + `fixtures.ts` | the Grammar Rule that emits the Op + its `GOLDEN_FIXTURES` entry                                            | ✅ `check:gaps` — derived Op census, **`health` only** (never `check:pr`/`land`); fixtures by `goldenFixtures.test.ts`                                                |
 
 Sites 2/3/4 are the ones a guard catches within seconds
 (`convex/gre/effects/__tests__/validate.test.ts` asserts the three are
-set-equal). **The ones that bite are 5, 7/7b and 8** — 7 and 7b because they
-live in the bot suite (run `bun run check:guards`, not just the app suite), 5
-because nothing checks it at all, 8 because its guard runs only in `health`:
+set-equal); 5, 6 and 7c red `check:ts`. **The ones that bite are 2b/2c, 7/7b
+and 8** — 2b and 2c because nothing checks them at all, 7 and 7b because they
+live in the bot suite (run `bun run check:guards`, not just the app suite), 8
+because its guard runs only in `health`:
 an Op landed without its rule passes `land` and reds the base tip at the next
 batch health, for every session on the machine.
 
@@ -120,12 +125,21 @@ is more work than the Op". Then:
    bare shape is a review blocker.
 3. **Sites 2–4** — schema (validator rules for every field, including which
    combinations are rejected), executor, registry row (`status: "implemented"`
-   only when it really is).
+   only when it really is). An Op that declares a binding also owes 2b (its
+   family in `bindingKindOf`, unless it is a plain snapshot) and 2c (its
+   declaring field in `BINDING_DECLARATION_FIELDS`, unless the field is
+   already listed) plus the `declared.set(entry.<field>, kind)` branch in
+   `validate.ts`'s ref pass, or refs to the new binding fail validation. An
+   Op that carries a nested script owes a `childOpArrays` case in
+   `convex/gre/ai/effectOpChildren.ts` (tsc catches it).
 4. **Sites 5–6** — teach `analyseOp` to build a scenario that exercises the Op,
    and `OP_ASSERTORS` to assert its outcome. If the Op genuinely can't be
-   scenario-ized, set an explicit `req.skip` **with a reason string** — a
-   surfaced skip is fine, a silent one is the bug.
-5. **Sites 7 + 7b** — a leaf valuer projecting the Op onto the feature basis
+   scenario-ized, give it a `SCENARIO_SKIPS` row instead — a skip code and a
+   reason string, no branch, no assertor. Either way the Op gets its line in the
+   run/skip snapshot (`__tests__/scenarioOpDisposition.json`) — `"runs"` for
+   an analysed Op, `{ code, reason }` for a skip row: a surfaced skip is fine,
+   a silent one is the bug.
+5. **Sites 7 + 7b + 7c** — a leaf valuer projecting the Op onto the feature basis
    (`convex/gre/ai/featureBasis.ts`), and its beneficence sign (does this help
    or hurt the recipient?). Both are in `opValuers.ts`; do not stop at the first.
    7b takes one of three answers and no fourth: a static `OP_BENEFICENCE` row, a
@@ -133,7 +147,8 @@ is more work than the Op". Then:
    when the sign is a function of the Op's OWN fields, or a `"neutral"` row
    whose comment says **why the Op moves no stake its recipient could be
    redirected over**. Bind-only Ops and self-directed ones are real neutrals;
-   "not sure yet" is not.
+   "not sure yet" is not. 7c: `true` in `RAISES_RESOLUTION_CHOICE` iff the
+   executor can `return "suspend"`, else `false`.
 6. **Site 8** — Branch A: the Grammar Rule, its golden fixture, and the
    census read-back above. (Branch B stopped before step 2.)
 7. **The Op's permanent test.** A new Op earns the full regime
