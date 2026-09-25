@@ -18,7 +18,17 @@ export default function DisclaimerDialog({
             title={LEGAL_TITLE}
             showCloseButton
         >
-            <div className="flex flex-col gap-3 text-sm leading-relaxed text-text-muted">
+            {/* A focusable, named region (issue #4423): the disclaimer is
+                text only, so on a landscape phone the dialog body scrolls with
+                nothing inside it a keyboard can land on — axe's
+                `scrollable-region-focusable`. Focus here lets the arrow keys
+                scroll the body. */}
+            <div
+                role="region"
+                aria-label="Disclaimer text"
+                tabIndex={0}
+                className="flex flex-col gap-3 text-sm leading-relaxed text-text-muted outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
+            >
                 {LEGAL_PARAGRAPHS.map((paragraph, i) => (
                     <p key={i}>{paragraph}</p>
                 ))}

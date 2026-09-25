@@ -276,7 +276,20 @@ window.__tolariaProbe = () => {
             "button,a[href],input,select,[role=button],[role=tab],[role=option]"
         ),
     ];
-    const ctrls = ctrlsAll.filter((e) => !e.closest(SHELL_RETURN_BAND));
+    // A HIDDEN FORM PROXY is not a control (issue #4423). Headless primitives
+    // (`@base-ui/react`'s Checkbox, `src/components/ui/checkbox.tsx`) render
+    // the visible `role=checkbox` plate AND a visually-hidden native `<input>`
+    // behind it for form submission: 1px, `aria-hidden="true"`,
+    // `tabindex="-1"` — out of the accessibility tree AND the tab order, so no
+    // user can reach it by any means, and the plate it proxies is measured in
+    // its own right. It scored `ctrlsZero` on the first walked surface with a
+    // checkbox (`dlg-bug-report`). Both attributes, never one: an
+    // `aria-hidden` control still in the tab order is a real defect.
+    const isFormProxy = (e) =>
+        e.matches('input[aria-hidden="true"][tabindex="-1"]');
+    const ctrls = ctrlsAll.filter(
+        (e) => !e.closest(SHELL_RETURN_BAND) && !isFormProxy(e)
+    );
     const shellBand = {
         mounted: document.querySelector(SHELL_RETURN_BAND) !== null,
         excluded: ctrlsAll.length - ctrls.length,
@@ -536,6 +549,13 @@ window.__tolariaProbe = () => {
         Math.abs(a.bottom - b.bottom) <= 2;
     const cornerSquare = [];
     for (const e of imgs) {
+        // An ART CROP is not a card (issue #4423): the preview pipeline
+        // (`card-preview-face`, `card-preview-back-face`) paints `art_crop` as
+        // a full-width strip inside a rounded, clipping panel, so its corners
+        // are the panel's, never `--card-radius`. Scoped by the declared
+        // `data-card-face="art"` marker, the same named-node rule `cardsSoft`
+        // follows below — never a heuristic over `src`.
+        if (e.matches('[data-card-face="art"]')) continue;
         const r = e.getBoundingClientRect();
         // Cards with no box are the other counters' business (`zero`).
         if (r.width < 8 || r.height < 8) continue;
