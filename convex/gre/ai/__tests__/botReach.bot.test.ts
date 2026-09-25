@@ -834,6 +834,15 @@ describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
         expect(flashAmbushPosition(FLASH_ETB_COUNTER)).not.toBeNull();
     });
 
+    // Issue #4283: the same sacrifice-to-draw creature, with flying — the
+    // evasion body must not change the verdict.
+    it("played — a flying creature that sacrifices itself to draw a card", () => {
+        expect(playBotReachSeats(getCardByName("Slinking Skirge"))).toEqual([
+            { holderId: "p1", verdict: { outcome: "played" } },
+            { holderId: "p2", verdict: { outcome: "played" } },
+        ]);
+    }, 600_000);
+
     it("a draw spell's holder finds spells on top of the library, and only that holder", () => {
         const topOfLibrary = (def: CardDefinition, seat: 0 | 1): unknown => {
             const { state, holderId } = buildBotReachState(def, seat);
