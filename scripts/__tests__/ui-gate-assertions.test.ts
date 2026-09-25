@@ -473,6 +473,53 @@ describe("check:ui surface table — Named Assertions", () => {
         });
     });
 
+    /**
+     * Issue #4420's half: the eight cast pickers on `/admin/design-system`
+     * § 18. The anchored pickers' rows are a label over a caption, or mana
+     * symbols rendered as alt-less images, so they are addressed by the
+     * `data-testid` seams they already declare or by the layer's contrast;
+     * `multi-mode` skips its `Confirm` plate for the same reason
+     * `dlg-manual-verb` does — the census page has buttons of that name;
+     * `cast-cost`'s `Cast` plate is DISABLED at rest (X opens empty), so it
+     * is promised `visible`, like § 16's `0/N` plates.
+     */
+    it("the cast-picker specimens promise their entry points", () => {
+        expectPromised({
+            "pick-additional-cost": [
+                'visible [data-slot="dialog-content"]',
+                'reachable [data-testid="additional-cost-leg-life"]',
+            ],
+            "pick-alt-cost": [
+                'visible [data-slot="dialog-content"]',
+                "reachable role=button name=Pay mana cost",
+            ],
+            "pick-card-preview-yield": [
+                'visible [data-slot="dialog-content"]',
+                'reachable [data-testid="card-preview-menu-preview"]',
+            ],
+            "pick-cast-cost": [
+                "visible role=dialog name=Cast cost specimen",
+                "visible role=button name=Cast",
+            ],
+            "pick-mode": [
+                'visible [data-slot="dialog-content"]',
+                'contrast [data-slot="dialog-content"]',
+            ],
+            "pick-multi-mode": [
+                "visible role=dialog name=Cryptic Command",
+                "contrast role=dialog name=Cryptic Command",
+            ],
+            "pick-phyrexian": [
+                'visible [data-slot="dialog-content"]',
+                'contrast [data-slot="dialog-content"]',
+            ],
+            "pick-selectable-card": [
+                "visible [data-selectable-card-specimen]",
+                'visible [data-selectable-card-specimen] [data-card-face="printed"]',
+            ],
+        });
+    });
+
     /** The debt list is empty, and every surface carries its own promises —
      *  the end state ADR 0132 §3 describes. A new surface declares them in the
      *  change that adds it rather than re-opening this list. */

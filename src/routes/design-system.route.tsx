@@ -15,6 +15,7 @@ import { V3Sections } from "./design-system/sections-v3";
 import { IdentityV4Sections } from "./design-system/sections-identity-v4";
 import { BoardDialogsSection } from "./design-system/sections-board-dialogs";
 import { OverlaysSection } from "./design-system/sections-overlays";
+import { CastPickersSection } from "./design-system/sections-cast-pickers";
 
 const TOC: Array<[string, string]> = [
     ["palette", "01 Palette & contrast"],
@@ -34,6 +35,7 @@ const TOC: Array<[string, string]> = [
     ["identity-v4", "15 Identity v4"],
     ["board-dialogs", "16 Board dialogs"],
     ["overlays", "17 Cross-cutting overlays"],
+    ["cast-pickers", "18 Cast pickers"],
 ];
 
 export default function DesignSystemRoute() {
@@ -88,6 +90,7 @@ export default function DesignSystemRoute() {
                     <IdentityV4Sections />
                     <BoardDialogsSection />
                     <OverlaysSection />
+                    <CastPickersSection />
                 </main>
             </div>
         </div>

@@ -20,14 +20,14 @@
 // (the lane is signed in) and only spends a mutation on Submit, which no walk
 // presses; the scenario confirm's `activeGame` is a specimen row whose ids go
 // nowhere, because its two buttons only close the specimen here.
-import { useState } from "react";
 import type { Id } from "@convex/_generated/dataModel";
 import type { ActiveGameInfo } from "~/hooks/useScenarioTestGame";
 import BugReportDialog from "~/components/bug-report/bug-report-dialog";
 import DisclaimerDialog from "~/components/legal/disclaimer-dialog";
 import InspectOverlay from "~/components/editing/inspect-overlay";
 import ScenarioActiveGameDialog from "~/components/admin/scenario-active-game-dialog";
-import { Section, Specimen, Where } from "./lib";
+import { Section } from "./lib";
+import OverlaySpecimens, { type OverlaySpecimen } from "./overlay-specimens";
 
 /* ── Fixtures ─────────────────────────────────────────────────────────── */
 
@@ -53,16 +53,7 @@ const ACTIVE_GAME: ActiveGameInfo = {
 
 /* ── The specimen table ───────────────────────────────────────────────── */
 
-type OverlaySpecimen = {
-    /** Opener seam and `dlg-<slug>` surface id. */
-    slug: string;
-    label: string;
-    /** Repo-relative module the census row is keyed on. */
-    file: string;
-    render: (close: () => void) => React.ReactNode;
-};
-
-const SPECIMENS: OverlaySpecimen[] = [
+const SPECIMENS: readonly OverlaySpecimen[] = [
     {
         slug: "disclaimer",
         label: "Legal & Disclaimer",
@@ -123,10 +114,6 @@ const SPECIMENS: OverlaySpecimen[] = [
 ];
 
 export function OverlaysSection() {
-    const [open, setOpen] = useState<string | null>(null);
-    const close = () => setOpen(null);
-    const mounted = SPECIMENS.find((s) => s.slug === open);
-
     return (
         <Section
             id="overlays"
@@ -143,22 +130,11 @@ export function OverlaysSection() {
                 </>
             }
         >
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                {SPECIMENS.map((s) => (
-                    <Specimen key={s.slug} label={s.label} tone="plain">
-                        <button
-                            type="button"
-                            data-overlay-specimen={s.slug}
-                            className="btn-base btn-tone-secondary w-full px-3 py-1.5 text-xs"
-                            onClick={() => setOpen(s.slug)}
-                        >
-                            Open {s.label}
-                        </button>
-                        <Where>{s.file}</Where>
-                    </Specimen>
-                ))}
-            </div>
-            {mounted?.render(close)}
+            <OverlaySpecimens
+                specimens={SPECIMENS}
+                openerAttribute="data-overlay-specimen"
+                wrap={(mounted) => mounted}
+            />
         </Section>
     );
 }

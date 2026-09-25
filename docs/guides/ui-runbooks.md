@@ -463,6 +463,44 @@ so `dlg-bug-report` promises it `visible`, not `reachable`. The bug-report
 specimen reads the signed-in account to prefill name and email; nothing on
 the specimen fires a mutation unless Submit is pressed.
 
+## Cast picker specimens (2026-09-25)
+
+The eight `src/components/cards/**` overlays a cast walks through, walked since
+issue #4420 (slice of the census debt issue #4402). Each opens at one instant of
+one cast the lane cannot set up on demand, so `/admin/design-system` §
+**18 Cast pickers** mounts each from fixture props
+(`src/routes/design-system/sections-cast-pickers.tsx`), one at a time, exactly
+like §§ 16–17.
+
+**By hand**: open `/admin/design-system`, scroll to § 18, press one opener.
+Each opener carries `data-cast-picker-specimen="<slug>"`, and the lane's row
+for it is `pick-<slug>`:
+
+| Slug                 | Layer                             | Module                        |
+| -------------------- | --------------------------------- | ----------------------------- |
+| `additional-cost`    | `[data-slot="dialog-content"]`    | `additional-cost-picker.tsx`  |
+| `alt-cost`           | `[data-slot="dialog-content"]`    | `alt-cost-picker.tsx`         |
+| `card-preview-yield` | `[data-slot="dialog-content"]`    | `card-preview-yield-menu.tsx` |
+| `cast-cost`          | `role=dialog` Cast cost specimen  | `cast-cost-dialog.tsx`        |
+| `mode`               | `[data-slot="dialog-content"]`    | `mode-picker.tsx`             |
+| `multi-mode`         | `role=dialog` Cryptic Command     | `multi-mode-picker.tsx`       |
+| `phyrexian`          | `[data-slot="dialog-content"]`    | `phyrexian-picker.tsx`        |
+| `selectable-card`    | `[data-selectable-card-specimen]` | `selectable-card.tsx`         |
+
+**The anchored pickers open where the opener was pressed** and clamp to the
+viewport, the way a real one opens beside the card that was cast — their
+failure shape is a body that outgrows a phone. Their rows are a label over a
+caption, or mana symbols rendered as alt-less images, so the lane addresses
+them by the `data-testid` seams they already declare or by the layer's
+contrast, never by a row's accessible name.
+
+**`Cast` is DISABLED at rest.** `CastCostDialog` mounts already `open` (as
+`useHandCardCommit` mounts it), so its closed→open reset never runs and X opens
+empty; `pick-cast-cost` promises the plate `visible`, not `reachable`.
+
+**`selectable-card` is inline**, not a layer: the opener mounts the card below
+the opener grid, and the walk scrolls it on screen before the probe measures.
+
 ## The rest of /admin, and /settings (2026-09-23)
 
 The eight screens the coverage census (issue #3420) recorded as measured at no

@@ -27,10 +27,9 @@
 // open an unconditional `useQuery` on a real row — are NOT here: the pregame
 // gate is measured on the lane's own game (`game-pregame`), and the manual
 // peek needs a live Manual Game (issue #4427).
-import { useState } from "react";
 import type { Id } from "@convex/_generated/dataModel";
 import type { PublicMatch } from "@convex/matches";
-import type { CardInstance, PendingTarget, Player } from "~/types/game";
+import type { PendingTarget } from "~/types/game";
 import { GameContext } from "~/hooks/useGameContext";
 import {
     SkipPhasePrefsContext,
@@ -53,109 +52,18 @@ import ManualGameOverDialog from "~/components/board/manual-game-over-dialog";
 import ManualVerbPopover from "~/components/board/manual-verb-popover";
 import PauseMenuDialog from "~/components/board/pause-menu-dialog";
 import SideboardingDialog from "~/components/board/sideboarding-dialog";
-import { Section, Specimen, Where } from "./lib";
+import { Section } from "./lib";
+import OverlaySpecimens, { type OverlaySpecimen } from "./overlay-specimens";
+import {
+    GAME_CONTEXT,
+    GAME_ID,
+    ME,
+    OPP,
+    PLAYERS,
+    PRINT,
+} from "./specimen-fixtures";
 
 /* ── Fixtures ─────────────────────────────────────────────────────────── */
-
-/** A specimen game handle. Opaque to every dialog below: they forward it to a
- *  mutation, and no walk presses a control that fires one. */
-const GAME_ID = "specimen-game" as unknown as Id<"games">;
-const ME = "me";
-const OPP = "opp";
-
-/** Real print ids, taken from the `mono-red-burn` preset (`convex/deckPresets.ts`)
- *  — a catalogue entry with art on every deployment the lane walks, so the
- *  card tiles inside these dialogs are the real `CardImage`, not a grey box
- *  that would read as a passing measurement of nothing. */
-const PRINT = {
-    bolt: "d573ef03-4730-45aa-93dd-e45ac1dbaf4a",
-    goblin: "b4eb3db3-6a7c-488a-9433-d5d1d3133816",
-    hillGiant: "0ddb98e8-13fe-4786-83f7-b72c56db135a",
-    minotaur: "78a9088f-8755-47cb-aa93-51d992ccab90",
-    mountain: "eace2c85-976c-425e-9800-5a6ccbd91b56",
-} as const;
-
-function card(
-    id: string,
-    printId: string,
-    zone: CardInstance["zone"],
-    overrides: Partial<CardInstance> = {}
-): CardInstance {
-    return {
-        id,
-        card: { id: printId },
-        controllerId: ME,
-        ownerId: ME,
-        zone,
-        isTapped: false,
-        ...overrides,
-    };
-}
-
-const HAND: CardInstance[] = [
-    card("h1", PRINT.bolt, "hand"),
-    card("h2", PRINT.goblin, "hand"),
-    card("h3", PRINT.mountain, "hand"),
-];
-
-const GRAVEYARD: CardInstance[] = [
-    card("g1", PRINT.hillGiant, "graveyard"),
-    card("g2", PRINT.minotaur, "graveyard"),
-    card("g3", PRINT.bolt, "graveyard"),
-];
-
-const BATTLEFIELD: CardInstance[] = [
-    card("b1", PRINT.goblin, "battlefield", {
-        types: ["Creature"],
-        power: 1,
-        toughness: 1,
-    }),
-    card("b2", PRINT.hillGiant, "battlefield", {
-        types: ["Creature"],
-        power: 3,
-        toughness: 3,
-    }),
-];
-
-function player(id: string, name: string, bgColor: string): Player {
-    return {
-        id,
-        name,
-        bgColor,
-        life: 20,
-        hand: [...HAND],
-        library: [],
-        graveyard: [...GRAVEYARD],
-        exile: [],
-        battlefield: id === ME ? [...BATTLEFIELD] : [],
-        manaPool: {},
-    };
-}
-
-const PLAYERS: Player[] = [
-    player(ME, "You", "#7f1d1d"),
-    player(OPP, "Rival", "#1e3a8a"),
-];
-
-/** The `GameContext` the three context-reading dialogs need
- *  (`ControllerPhaseList`, `ManualGameOverDialog`, `SideboardingDialog`). Same
- *  shape `makeManualGameContext` builds for the Manual Board: a complete,
- *  well-formed, inert value — `useGameContext` throws without one. */
-const GAME_CONTEXT = {
-    gameId: GAME_ID,
-    playerId: ME,
-    activePlayerId: ME,
-    priorityPlayerId: ME,
-    phase: "PRECOMBAT_MAIN" as const,
-    turn: 4,
-    engineTurn: 7,
-    stackCount: 0,
-    stackItems: [],
-    allPlayers: PLAYERS,
-    showAllCards: false,
-    debugAllActions: false,
-    onSwitchGame: () => {},
-};
 
 /** `n` copies of a print, the shape a Match deck copy is stored in. The
  *  swap editor lists one row per COPY, so a three-card fixture would have
@@ -222,16 +130,7 @@ const PENDING_TARGET: PendingTarget = {
 
 /* ── The specimen table ───────────────────────────────────────────────── */
 
-type BoardDialogSpecimen = {
-    /** Opener seam and `dlg-<slug>` surface id. */
-    slug: string;
-    label: string;
-    /** Repo-relative module the census row is keyed on. */
-    file: string;
-    render: (close: () => void) => React.ReactNode;
-};
-
-const SPECIMENS: BoardDialogSpecimen[] = [
+const SPECIMENS: OverlaySpecimen[] = [
     {
         slug: "activatable-ability",
         label: "Activatable abilities (ActionSheet)",
@@ -514,13 +413,10 @@ const SPECIMENS: BoardDialogSpecimen[] = [
 ];
 
 export function BoardDialogsSection() {
-    const [open, setOpen] = useState<string | null>(null);
     // The REAL phase-stop state, not a stub: `ControllerPhaseList` renders one
     // toggle per phase out of it, so a stubbed value would measure a column of
     // dead rows. The hook is `localStorage`-backed and game-independent.
     const skipPrefs = useSkipPhasePrefsState();
-    const close = () => setOpen(null);
-    const mounted = SPECIMENS.find((s) => s.slug === open);
 
     return (
         <Section
@@ -540,31 +436,22 @@ export function BoardDialogsSection() {
                 </>
             }
         >
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {SPECIMENS.map((s) => (
-                    <Specimen key={s.slug} label={s.label} tone="plain">
-                        <button
-                            type="button"
-                            data-board-dialog-specimen={s.slug}
-                            className="btn-base btn-tone-secondary w-full px-3 py-1.5 text-xs"
-                            onClick={() => setOpen(s.slug)}
-                        >
-                            Open {s.label}
-                        </button>
-                        <Where>{s.file}</Where>
-                    </Specimen>
-                ))}
-            </div>
-
-            {/* The mounted specimen. Inside the provider unconditionally:
-                three of these dialogs call `useGameContext()`, which throws
-                without one, and a provider that only wrapped those three
-                would be a per-dialog exception list to keep in step. */}
-            <GameContext.Provider value={GAME_CONTEXT}>
-                <SkipPhasePrefsContext.Provider value={skipPrefs}>
-                    {mounted?.render(close)}
-                </SkipPhasePrefsContext.Provider>
-            </GameContext.Provider>
+            {/* The mounted specimen sits inside the providers
+                unconditionally: three of these dialogs call
+                `useGameContext()`, which throws without one, and a provider
+                that only wrapped those three would be a per-dialog exception
+                list to keep in step. */}
+            <OverlaySpecimens
+                specimens={SPECIMENS}
+                openerAttribute="data-board-dialog-specimen"
+                wrap={(mounted) => (
+                    <GameContext.Provider value={GAME_CONTEXT}>
+                        <SkipPhasePrefsContext.Provider value={skipPrefs}>
+                            {mounted}
+                        </SkipPhasePrefsContext.Provider>
+                    </GameContext.Provider>
+                )}
+            />
         </Section>
     );
 }
