@@ -445,6 +445,34 @@ describe("check:ui surface table — Named Assertions", () => {
         });
     });
 
+    /**
+     * Issue #4423: the four cross-cutting overlays on `/admin/design-system`
+     * § 17. The disclaimer has no action but reading it, so it promises its
+     * text is legible (`contrast` over the dialog); the bug-report `Submit`
+     * is disabled until a description is typed, so it is promised `visible`
+     * — the § 16 call for the `0/N` plates.
+     */
+    it("the cross-cutting overlay specimens promise their entry points", () => {
+        expectPromised({
+            "dlg-disclaimer": [
+                "visible role=dialog name=Legal & Disclaimer",
+                "contrast role=dialog name=Legal & Disclaimer",
+            ],
+            "dlg-bug-report": [
+                "visible role=dialog name=Report a bug",
+                "visible role=button name=Submit",
+            ],
+            "dlg-inspect-overlay": [
+                "visible role=dialog name=Lightning Bolt",
+                "reachable role=button name=Pick",
+            ],
+            "dlg-scenario-active-game": [
+                "visible role=dialog name=Concede active game?",
+                "reachable role=button name=Concede & Start",
+            ],
+        });
+    });
+
     /** The debt list is empty, and every surface carries its own promises —
      *  the end state ADR 0132 §3 describes. A new surface declares them in the
      *  change that adds it rather than re-opening this list. */

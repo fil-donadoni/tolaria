@@ -55,6 +55,10 @@ export default function CardPreviewBackFace({
                                         : half.imageSrc
                                 }
                                 className="absolute inset-0 w-full h-full block select-none object-cover"
+                                // An ART CROP, not a card: its corners are the host panel's
+                                // business, so the `check:ui` square-corner floor skips it
+                                // (`scripts/ui-gate/probe.js`, issue #4423).
+                                data-card-face="art"
                                 alt={half.name}
                                 decoding="async"
                                 onError={() => {

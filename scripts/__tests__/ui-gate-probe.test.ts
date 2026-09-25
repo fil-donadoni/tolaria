@@ -530,6 +530,29 @@ describe("check:ui probe — zero counts displayed box-less elements only", () =
             )
         ).toBe(1);
     });
+
+    it("does not count a headless checkbox's hidden form proxy (issue #4423)", () => {
+        // `@base-ui/react`'s Checkbox: the visible plate is a `role=checkbox`
+        // span, and the native `<input>` behind it is 1px, out of the
+        // accessibility tree AND the tab order.
+        expect(
+            zeroOf(
+                `<form><input id="proxy" type="checkbox" aria-hidden="true" tabindex="-1" /></form>`,
+                ["proxy"]
+            )
+        ).toBe(0);
+    });
+
+    it("still counts an aria-hidden control that stays in the tab order", () => {
+        // Half the pair is not enough: a hidden control a keyboard can still
+        // land on is the defect, not the proxy.
+        expect(
+            zeroOf(
+                `<form><input id="trap" type="checkbox" aria-hidden="true" /></form>`,
+                ["trap"]
+            )
+        ).toBe(1);
+    });
 });
 
 /**
@@ -685,6 +708,38 @@ describe("check:ui probe — square-corner check (issue #2724)", () => {
             rects: { card: CARD_RECT, sizer: CARD_RECT },
         });
         expect(r.cardsSquareN).toBe(0);
+    });
+
+    it("does not flag a preview ART CROP marked data-card-face=art (issue #4423)", () => {
+        // The Inspect overlay's shape: a full-width `art_crop` strip inside a
+        // rounded panel. Its corners are the panel's, never `--card-radius`.
+        const r = probeCorners({
+            vw: 390,
+            vh: 844,
+            html: `
+                <div id="sizer" style="overflow: hidden;">
+                    <img id="card" alt="Lightning Bolt" data-card-face="art"
+                         src="https://cards.scryfall.io/art_crop/front/a.jpg" />
+                </div>
+            `,
+            rects: { card: CARD_RECT, sizer: CARD_RECT },
+        });
+        expect(r.cardsSquareN).toBe(0);
+    });
+
+    it("still flags a square card marked as a PRINTED face", () => {
+        const r = probeCorners({
+            vw: 390,
+            vh: 844,
+            html: `
+                <div id="sizer" style="overflow: hidden;">
+                    <img id="card" alt="Mountain" data-card-face="printed"
+                         src="https://cards.scryfall.io/normal/front/a.jpg" />
+                </div>
+            `,
+            rects: { card: CARD_RECT, sizer: CARD_RECT },
+        });
+        expect(r.cardsSquareN).toBe(1);
     });
 
     it("ignores a radius on an ancestor that is a DIFFERENT box", () => {

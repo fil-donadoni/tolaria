@@ -52,8 +52,6 @@ const EXEMPT: Record<string, string> = {};
  * the surface that measures it.
  */
 const DEBT: Record<string, string> = {
-    "src/components/admin/scenario-active-game-dialog.tsx":
-        "the admin Scenarios page's “a game is already running” confirm (#4402)",
     // The one row of issue #4419's nineteen that its slice could not pay. Its
     // cards come from `useQuery(api.game.getManualLibraryTop, { gameId, … })`
     // with no `"skip"` branch once a peek is open, and `useQuery` THROWS on a
@@ -63,8 +61,6 @@ const DEBT: Record<string, string> = {
     // game), which is a slice of its own: `docs/findings/`.
     "src/components/board/manual-peek-dialog.tsx":
         "the Manual Game library peek — a live `getManualLibraryTop` on a real manual game, so no fixture-prop specimen mounts it (#4402)",
-    "src/components/bug-report/bug-report-dialog.tsx":
-        "the bug-report form (#4402)",
     "src/components/cards/additional-cost-picker.tsx":
         "the additional-cost picker (#4402)",
     "src/components/cards/alt-cost-picker.tsx":
@@ -83,10 +79,6 @@ const DEBT: Record<string, string> = {
         "the deck-basics BottomSheet (#4402)",
     "src/components/deckbuilder/deck-stats-dialog.tsx":
         "the deck statistics dialog (#4402)",
-    "src/components/editing/inspect-overlay.tsx":
-        "the modal Inspect overlay opened from a Peek rail and from the Draft table (#4402)",
-    "src/components/legal/disclaimer-dialog.tsx":
-        "the legal disclaimer — shown to every new account and measured nowhere (#4402)",
     "src/components/limited/create-limited-event-dialog.tsx":
         "the create-event form (#4402)",
     "src/components/limited/limited-draft-table.tsx":
@@ -126,11 +118,13 @@ const DEBT: Record<string, string> = {
  * 55 when the census shipped; 47 since issue #4418 walked the eight unwalked
  * `/admin` and `/settings` SCREENS, the first slice of issue #4402; 29 since
  * issue #4419 gave the board's own dialogs seventeen live specimens on
- * `/admin/design-system` and the pregame gate a walk of its own. The
+ * `/admin/design-system` and the pregame gate a walk of its own; 25 since
+ * issue #4423 gave the four cross-cutting overlays (disclaimer, bug report,
+ * Inspect, the Scenarios active-game confirm) walked specimens. The
  * remaining slices are that issue's other children, one per area — when the
  * last one lands, this constant, `DEBT` and the tests below go with it.
  */
-const DEBT_AT_LANDING = 29;
+const DEBT_AT_LANDING = 25;
 
 function fix(row: CensusRow): string {
     if (row.kind === "route") {

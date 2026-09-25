@@ -437,6 +437,32 @@ have always had.
 from a live query on a Manual Game, which needs the lane's first Manual Board
 surface — `docs/findings/4419-manual-peek-needs-a-manual-board-surface.md`.
 
+## Cross-cutting overlay specimens (2026-09-25)
+
+Four overlays that belong to no one page, walked since issue #4423 (slice of
+the census debt issue #4402): each sits behind an opener on another surface,
+and two of those openers need state the lane does not have (a fresh account
+for the disclaimer, an active game at scenario-launch time for the confirm).
+`/admin/design-system` § **17 Cross-cutting overlays** mounts each from
+fixture props (`src/routes/design-system/sections-overlays.tsx`), one at a
+time exactly as § 16.
+
+**By hand**: open `/admin/design-system`, scroll to § 17, press one opener.
+Each opener carries `data-overlay-specimen="<slug>"`, and the lane's row for it
+is `dlg-<slug>`:
+
+| Slug                   | Layer                              | Module                                  |
+| ---------------------- | ---------------------------------- | --------------------------------------- |
+| `disclaimer`           | `role=dialog` Legal & Disclaimer   | `legal/disclaimer-dialog.tsx`           |
+| `bug-report`           | `role=dialog` Report a bug         | `bug-report/bug-report-dialog.tsx`      |
+| `inspect-overlay`      | `[data-inspect-overlay]` (Bolt)    | `editing/inspect-overlay.tsx`           |
+| `scenario-active-game` | `role=dialog` Concede active game? | `admin/scenario-active-game-dialog.tsx` |
+
+**`Submit` is DISABLED** on the bug-report form until a description is typed,
+so `dlg-bug-report` promises it `visible`, not `reachable`. The bug-report
+specimen reads the signed-in account to prefill name and email; nothing on
+the specimen fires a mutation unless Submit is pressed.
+
 ## The rest of /admin, and /settings (2026-09-23)
 
 The eight screens the coverage census (issue #3420) recorded as measured at no
