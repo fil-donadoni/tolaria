@@ -1892,7 +1892,7 @@ function rollout(
                 (m) =>
                     !isTransientSacrificeConversion(state, pid, m) &&
                     !isSourceConfinedSacrificeConversion(state, pid, m) &&
-                    !isRemovalExchangeSacrifice(state, pid, m)
+                    !isRemovalExchangeSacrifice(state, pid, botId, m)
             );
             const pool = drawn.length > 0 ? drawn : moves;
             chosen = pool[Math.floor(rng() * pool.length)];
@@ -2715,25 +2715,38 @@ function isSourceConfinedSacrificeConversion(
     );
 }
 
-/** Whether `move` gives up a standing permanent to remove an announced target
- *  and nothing else (`abilityIsRemovalExchange`), in ANY window (issue #4272).
+/** Whether `move` is the BOT's own sacrifice of a standing permanent to remove
+ *  an announced target and nothing else (`abilityIsRemovalExchange`), outside a
+ *  live combat (issue #4272).
  *
- *  The sibling of `isSourceConfinedSacrificeConversion`, with the same
- *  argument: an exchange of one permanent for one permanent creates no card,
- *  no mana, no life and no damage to a player, so below a cast every variant
- *  is a step down from passing, and the many of them (a victim × target grid)
- *  outnumber `pass` in the rollout's random draw and open as tree children at
- *  the node after the cast. Their subtrees dragged the cast edge under
- *  `pass`'s for three creatures whose only ability is a sacrifice-and-damage
- *  outlet, while the same bodies without it were cast. The root is never
- *  pruned, so an exchange the bot could take NOW stays a scored option.
+ *  The sibling of `isSourceConfinedSacrificeConversion`, and the same
+ *  argument only in part: a trade of one permanent for one permanent creates
+ *  no card, no mana, no life and no damage to a player, and below a cast its
+ *  variants (a victim × target grid) outnumber `pass` in the rollout's random
+ *  draw and open as tree children at the node after the cast, dragging the
+ *  cast edge under `pass`'s — three creatures whose only ability is a
+ *  sacrifice-and-damage outlet were `never-chosen` while the same bodies
+ *  without it were cast. Unlike growing one's own body a trade CAN be a good
+ *  one (a 1/1 that kills a better creature), so the prune is narrower:
+ *  - the bot's own moves only — the opponent's removal stays in the tree, or
+ *    the bot would cast into it as if it were not there;
+ *  - never in a live combat (`isDeferrableTransientSacrifice`'s exemption) —
+ *    killing a blocker or an attacker is what these outlets are for;
+ *  - never at the root, so a trade the bot could take NOW stays a scored
+ *    option and is re-weighed at every decision.
  *
  *  Per-card-agnostic, never a card name (ADR 0102). */
-function isRemovalExchangeSacrifice(
+export function isRemovalExchangeSacrifice(
     state: GameState,
     pid: string,
+    botId: string,
     move: Move
 ): boolean {
+    if (pid !== botId) return false;
+    const inLiveCombat =
+        TRANSIENT_PAYOFF_PHASES.has(state.phase) &&
+        (state.combat?.attackerIds.length ?? 0) > 0;
+    if (inLiveCombat) return false;
     return isSacrificeConversionWhere(
         state,
         pid,
@@ -3057,7 +3070,12 @@ function iterate(
                             pid,
                             k.move
                         ) ||
-                            isRemovalExchangeSacrifice(world, pid, k.move))
+                            isRemovalExchangeSacrifice(
+                                world,
+                                pid,
+                                botId,
+                                k.move
+                            ))
                     )
             );
             if (kept.length > 0) keyed = kept;

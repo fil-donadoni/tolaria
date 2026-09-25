@@ -8,6 +8,11 @@ import type {
     EffectOp,
     TargetRequirement,
 } from "../../../cards/types";
+import { enumerateMoves } from "../../moves";
+import { buildStateFromScenario } from "../../scenarioBuilder";
+import { isRemovalExchangeSacrifice } from "../../search";
+import type { GameState } from "../../state";
+import { buildBladeBaseState } from "../blade/baseState";
 import { abilityIsRemovalExchange } from "../removalExchange";
 
 const ability = (
@@ -87,5 +92,55 @@ describe("abilityIsRemovalExchange", () => {
                 resolve: () => undefined,
             } as ActivatedAbility)
         ).toBe(false);
+    });
+});
+
+describe("isRemovalExchangeSacrifice — where the prune applies (issue #4272)", () => {
+    const position = () => {
+        const base = buildBladeBaseState();
+        const meId = base.players[0]!.id;
+        const state = buildStateFromScenario(
+            base,
+            {
+                cards: [
+                    { name: "Frostling", owner: "me", zone: "battlefield" },
+                    { name: "Mountain", owner: "me", zone: "battlefield" },
+                    {
+                        name: "Grizzly Bears",
+                        owner: "opp",
+                        zone: "battlefield",
+                    },
+                ],
+                phase: "PRECOMBAT_MAIN",
+                turn: 5,
+                libraryCount: 20,
+            },
+            meId
+        );
+        const oppId = state.players.find((p) => p.id !== meId)!.id;
+        const move = enumerateMoves(state, meId).find(
+            (m) => m.kind === "activate-ability"
+        )!;
+        expect(move).toBeDefined();
+        return { state, meId, oppId, move };
+    };
+
+    it("prunes the bot's own exchange in a main phase", () => {
+        const { state, meId, move } = position();
+        expect(isRemovalExchangeSacrifice(state, meId, meId, move)).toBe(true);
+    });
+
+    it("keeps the OPPONENT's exchange in the tree", () => {
+        const { state, meId, oppId, move } = position();
+        expect(isRemovalExchangeSacrifice(state, meId, oppId, move)).toBe(
+            false
+        );
+    });
+
+    it("keeps an exchange in a live combat", () => {
+        const { state, meId, move } = position();
+        state.phase = "DECLARE_BLOCKERS";
+        state.combat = { attackerIds: ["attacker-1"] } as GameState["combat"];
+        expect(isRemovalExchangeSacrifice(state, meId, meId, move)).toBe(false);
     });
 });
