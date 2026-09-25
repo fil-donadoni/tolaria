@@ -88,7 +88,8 @@ type ScriptlessOp = Exclude<EffectOp, { op: ScriptHostOp }>;
 
 /** The `default` arm's witness: it only type-checks for a script-free Op, so
  *  a host `childOpArrays` has no case for reds here. */
-function noChildren(_op: ScriptlessOp): readonly Script[] {
+function noChildren(op: ScriptlessOp): readonly Script[] {
+    void op;
     return [];
 }
 
