@@ -8,7 +8,7 @@ globs:
 
 # Bot Development Rules
 
-You are in the Bot — read `/bot-slice` first; full seam map + doctrine.
+You are in the Bot — read `/bot-slice` first (full seam map + doctrine).
 
 - Every behaviour change ships a `must` blade entry in the same PR
   (`convex/gre/ai/blade/`) — a discriminating pair when the fix is a
@@ -17,17 +17,17 @@ You are in the Bot — read `/bot-slice` first; full seam map + doctrine.
   per-card registries (ADR 0102).
 - **A blunder is a Verdict, not a root rule** (ADR 0124 §5, issue #3399):
   Verdicts → fit → report. `RootDecisionMechanism` is FROZEN behind
-  `ROOT_RULE_ALLOWLIST` (`gre/ai/decisionTelemetry.ts`) — a new member needs
-  the identical-vector proof (both candidates, ONE feature vector, EVERY
-  term). Retiring one needs BOTH `flipped` = 0 on the corpus AND `must` green
-  under `BLADE_VARIANT=no-rule:<mechanism>`; its blade entries stay.
-- Ladder is for STRENGTH claims only — declare rung + pairing dynamics;
-  never to explain WHY a decision happened.
-- Tests are `*.bot.test.ts` (`bot-suite-boundary.test.ts` enforces it).
-- A new `EvalTerms` key needs its row in `src/lib/ai/eval-term-labels.ts`
-  — the ONE table the DecisionTrace line and its legend render from
-  (`Record<keyof EvalTerms, …>`, so `tsc` reds on a missing row). #2686
-  shipped `manaDevelopment` and it was invisible in both.
-- Determinism required — fixed `iterations`, never wall-clock (`timeMs`).
-- A NEW CARD owes a Bot reachability walk too, though its diff touches no bot
-  path (`gre-development.md` § Bot reachability).
+  `ROOT_RULE_ALLOWLIST` (`gre/ai/decisionTelemetry.ts`): a new member needs the
+  identical-vector proof (both candidates, ONE feature vector, EVERY term);
+  retiring one needs BOTH `flipped` = 0 on the corpus AND `must` green under
+  `BLADE_VARIANT=no-rule:<mechanism>`; its blade entries stay.
+- Ladder only for STRENGTH claims (declare rung + pairing dynamics), never to
+  explain WHY a decision happened.
+- Tests are `*.bot.test.ts` (`bot-suite-boundary.test.ts`).
+- A new `EvalTerms` key needs its row in `src/lib/ai/eval-term-labels.ts`, the
+  ONE table the DecisionTrace line and legend render from
+  (`Record<keyof EvalTerms, …>`: `tsc` reds on a missing row; #2686's
+  `manaDevelopment` was invisible in both).
+- Determinism: fixed `iterations`, never wall-clock (`timeMs`).
+- A NEW CARD owes a Bot reachability walk even with no bot path in its diff
+  (`gre-development.md` § Bot reachability).
