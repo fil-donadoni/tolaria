@@ -45,6 +45,7 @@ import {
     SOURCE_CHOSEN_SUBTYPE_REF,
 } from "./targetRef";
 import { SCRIPT_HOST_FIELDS } from "../ai/effectOpChildren";
+import type { BindingFieldName } from "./bindingFields";
 
 /** The slice of CardDefinition the validator reads — kept narrow so tests
  *  can validate synthetic shapes without building a full definition.
@@ -136,54 +137,30 @@ type TaggedFieldCheck =
     | BindingDeclarationCheck
     | ScriptScopeCheck;
 
-/** The field names the `EffectOp` union spells a binding DECLARATION with —
- *  `bind`, `bind<Name>` and `<name>Bind`. A schema row must check every such
- *  field with a {@link BindingDeclarationCheck}: an untagged one, or one tagged
- *  without its family, is a `check:ts` error (issue #4451). */
-type UpperLetter =
-    | "A"
-    | "B"
-    | "C"
-    | "D"
-    | "E"
-    | "F"
-    | "G"
-    | "H"
-    | "I"
-    | "J"
-    | "K"
-    | "L"
-    | "M"
-    | "N"
-    | "O"
-    | "P"
-    | "Q"
-    | "R"
-    | "S"
-    | "T"
-    | "U"
-    | "V"
-    | "W"
-    | "X"
-    | "Y"
-    | "Z";
-type BindingFieldName =
-    | "bind"
-    | `bind${UpperLetter}${string}`
-    | `${string}Bind`;
 /** The type a field has across every variant of one Op. */
 type OpFieldType<U, P> = U extends unknown
     ? P extends keyof U
         ? U[P]
         : never
     : never;
-/** The predicate a schema row must use for field `P`: a binding declaration by
- *  name, an amount when the field admits every `EffectValue`, else any. */
+/** Any predicate but a binding declaration's. */
+type NonDeclaringCheck = FieldCheck & {
+    readonly fieldKind?: Exclude<
+        TaggedFieldCheck["fieldKind"],
+        "bindingDeclaration"
+    >;
+};
+/** The predicate a schema row must use for field `P` (issue #4451). A field
+ *  named like a binding declaration (`BindingFieldName`, the one naming rule
+ *  in `bindingFields.ts`) must be checked by a {@link BindingDeclarationCheck}
+ *  — so an untagged one, or one tagged without its family, is a `check:ts`
+ *  error — and no other field may be. A field that admits every `EffectValue`
+ *  must be an {@link AmountCheck}. */
 type CheckFor<U, P> = P extends BindingFieldName
     ? BindingDeclarationCheck
     : EffectValue extends NonNullable<OpFieldType<U, P>>
       ? AmountCheck
-      : FieldCheck;
+      : NonDeclaringCheck;
 
 type OpVariant<K extends EffectOp["op"]> = Extract<EffectOp, { op: K }>;
 type KeysOfAnyVariant<U> = U extends unknown ? keyof U : never;
@@ -6307,6 +6284,11 @@ function schemaFieldsOf(op: string): readonly [string, FieldCheck][] {
     ];
 }
 
+/** The field names of Op `op`'s schema, in schema order. */
+export function schemaFieldNamesOf(op: string): readonly string[] {
+    return schemaFieldsOf(op).map(([field]) => field);
+}
+
 /** Every Op field whose value is a runtime AMOUNT (an `EffectValue`, CR 107.1)
  *  somewhere in the `EffectOp` union — a GLOBAL key-name set, as the smoke
  *  generator's own-argument read uses it (ADR 0105 § 7.1): the amount-tagged
@@ -6375,14 +6357,6 @@ export function bindingDeclarationsOf(
         ? (BINDING_DECLARATIONS_BY_OP.get(op) ?? [])
         : [];
 }
-
-/** Every field name ANY Op declares a binding through — what a spliced
- *  segment's own binding names are collected from (`splice.ts`). */
-export const BINDING_DECLARATION_FIELDS: ReadonlySet<string> = new Set(
-    [...BINDING_DECLARATIONS_BY_OP.values()].flatMap((decls) =>
-        decls.map((d) => d.field)
-    )
-);
 
 /** Property paths legal in a NUMERIC ref position (amount / count).
  *  `manaValue` (issue #680) reads a `moveZone` reanimation `bind`'s CR 202.3

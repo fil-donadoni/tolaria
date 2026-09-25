@@ -53,9 +53,11 @@
 import type { CardDefinition, EffectOp, KickerCost } from "../cards/types";
 import { tryGetDefinition } from "../cards/registry";
 import type { CardInstanceState, PlayerState } from "./state/declarations";
-// issue #4451 — every field an Effect Script declares a binding through, derived
-// from the tagged Op Schema (the same tags the static ref pass declares from).
-import { BINDING_DECLARATION_FIELDS } from "./effects/validate";
+// issue #4451 — the one naming rule for a binding-declaring field, which the Op
+// Schema is type-checked against (the static ref pass declares from the same
+// fields). A rule, not a list derived from the schema: this module runs in the
+// Brain worker, which must not bundle the validator.
+import { isBindingDeclarationField } from "./effects/bindingFields";
 
 /** Prefix of the synthesized {@link KickerCost.id} of a splice option. The id
  *  carries the revealed hand card's INSTANCE id, not its printed card id: CR
@@ -264,7 +266,7 @@ function spliceSegmentBindings(node: unknown, out: Set<string>): void {
         if (
             typeof value === "string" &&
             value.startsWith("$") &&
-            BINDING_DECLARATION_FIELDS.has(key)
+            isBindingDeclarationField(key)
         ) {
             out.add(value);
         }

@@ -1,19 +1,21 @@
 // Op Schema field kinds (issue #4451) — the binding declarations, read off
 // the tagged `OP_SCHEMAS` rows (`bindingDeclaration(kind)`), that replaced the
 // ref checker's per-Op blocks, the `bindingKindOf` if-chain and `splice.ts`'s
-// hand-kept `BINDING_DECLARATION_FIELDS`. Each of those was first seen equal
-// to its derivation (parity phase), then deleted; this pins the derivation so
-// a re-tagged row is a deliberate edit here. The amount / nested-script key
+// hand-kept `BINDING_DECLARATION_FIELDS` (now the naming rule in
+// `bindingFields.ts`, which `check:ts` holds the schema to). Each of those was
+// first seen equal to its derivation (parity phase), then deleted; this pins
+// the derivation so a re-tagged row is a deliberate edit here. The amount / nested-script key
 // sets are pinned by behaviour in `effectFieldKeySets.test.ts`.
 
 import { describe, expect, it } from "vitest";
 import type { EffectOp } from "../../../cards/types";
 import {
-    BINDING_DECLARATION_FIELDS,
     SCHEMA_OP_NAMES,
     bindingDeclarationsOf,
+    schemaFieldNamesOf,
     validateEffectScript,
 } from "../validate";
+import { isBindingDeclarationField } from "../bindingFields";
 
 /** Every binding declaration in the schema, `op.field:family[@scope]`. */
 const DECLARATIONS = [
@@ -78,16 +80,32 @@ describe("Op Schema binding declarations — derived from the tagged rows (issue
         expect(derived.sort()).toEqual([...DECLARATIONS].sort());
     });
 
-    it("splice's BINDING_DECLARATION_FIELDS is exactly the declaring field names", () => {
-        expect([...BINDING_DECLARATION_FIELDS].sort()).toEqual(
-            [
-                ...new Set(
-                    DECLARATIONS.map((d) =>
-                        d.slice(d.indexOf(".") + 1, d.indexOf(":"))
-                    )
-                ),
-            ].sort()
-        );
+    // `splice.ts` reads the naming rule, never the schema (the Brain worker
+    // bundles it): the rule must pick out exactly the tagged fields.
+    it("a schema field is a binding declaration iff splice's naming rule says so", () => {
+        const mismatches = SCHEMA_OP_NAMES.flatMap((op) => {
+            const declaring = new Set(
+                bindingDeclarationsOf(op).map((d) => d.field)
+            );
+            return schemaFieldNamesOf(op)
+                .filter(
+                    (field) =>
+                        isBindingDeclarationField(field) !==
+                        declaring.has(field)
+                )
+                .map((field) => `${op}.${field}`);
+        });
+        expect(mismatches).toEqual([]);
+        expect(
+            ["bind", "bindAll", "chosenBind", "resultBind"].every(
+                isBindingDeclarationField
+            )
+        ).toBe(true);
+        expect(
+            ["binding", "binder", "ref", "bound"].some(
+                isBindingDeclarationField
+            )
+        ).toBe(false);
     });
 
     it("an Op with no schema, or no declaring field, declares nothing", () => {
