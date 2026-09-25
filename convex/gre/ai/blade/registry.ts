@@ -8546,10 +8546,10 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // The sweep's fourth window for a creature with flash: the opponent's
         // Grizzly Bears attacks, the holder has priority in the declare-attackers
         // step with Benalish Knight (flash, first strike) in hand and the mana
-        // for it. Only the cast creature can block the attacker, and its first
-        // strike kills the attacker unharmed — where in a main phase holding and
-        // casting the same flash creature are one play a turn apart, a tie that
-        // rollout noise settles for `pass`.
+        // for it. Cast now, the creature blocks and its first strike kills the
+        // attacker unharmed — where in a main phase holding and casting the same
+        // flash creature are one play a turn apart, a tie that rollout noise
+        // settles for `pass`.
         label: "Flash creature: casts it to block an attacker",
         spec: {
             cards: [
