@@ -156,3 +156,31 @@ describe("check:test-hygiene — the wiring", () => {
         expect(src).toContain('"scripts/check-test-hygiene.ts"');
     });
 });
+
+/**
+ * Issue #4686: the census is a `health` step, so the FIRST time an author
+ * learns that a constant-pin or object-identity block owes an allow-list row
+ * is when the base tip goes RED — unless the authoring tier says so first.
+ * Both PR #4666 (retitled an allow-listed block) and PR #4667 (added a
+ * re-export identity guard) landed green while `convex/CLAUDE.md` still
+ * described the pre-#4489 card-set guard ("allowlist empty, meant to stay
+ * empty"). The rule lives in prose where the mistake is made; this keeps the
+ * prose from silently dropping it again.
+ */
+describe("check:test-hygiene — the authoring tier names it (issue #4686)", () => {
+    const read = (rel: string) => fs.readFileSync(path.join(ROOT, rel), "utf8");
+
+    it("convex/CLAUDE.md § Card testing convention names the census and the allow-list", () => {
+        const doc = read("convex/CLAUDE.md");
+        expect(doc).toContain("bun run check:test-hygiene");
+        expect(doc).toContain("scripts/lib/identity-test-allowlist.json");
+        // The pre-#4489 claim: an empty allow-list nobody may add to.
+        expect(doc).not.toContain("meant to stay empty");
+    });
+
+    it("/next-issue § 3 tells the author to run it before the PR", () => {
+        const skill = read(".claude/skills/next-issue/SKILL.md");
+        expect(skill).toContain("bun run check:test-hygiene");
+        expect(skill).toContain("scripts/lib/identity-test-allowlist.json");
+    });
+});

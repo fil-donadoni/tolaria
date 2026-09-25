@@ -335,6 +335,11 @@
         "reason": "Cross-file guard: game.ts re-export is reference-identical to the gre source function."
     },
     {
+        "file": "convex/gre/__tests__/lookup.test.ts",
+        "test": "lookup leaf — finders (CR 400.1) > the core re-exports the leaf's helpers, not copies of them",
+        "reason": "Proves re-export not re-implementation via object identity across two modules (core vs lookup leaf)."
+    },
+    {
         "file": "convex/gre/__tests__/owedPayment.test.ts",
         "test": "payment park census (ADR 0091, issue #1209) > gives every park key a ParkKind (and so a gate branch + a pick)",
         "reason": "Coverage check: every park key maps to a ParkKind and counts reconcile."
@@ -426,8 +431,8 @@
     },
     {
         "file": "convex/gre/effects/__tests__/scenarioGenerator.test.ts",
-        "test": "Op vocabulary coverage guard (issue #804) > ASSERTED_OP_KINDS matches the registry exactly",
-        "reason": "Coverage check: ASSERTED_OP_KINDS matches EFFECT_OP_REGISTRY's op names exactly."
+        "test": "Op vocabulary coverage guard (issue #804) > ASSERTED_OP_KINDS and SKIPPED_OP_KINDS partition the registry (issue #4450)",
+        "reason": "Partition check: ASSERTED_OP_KINDS and SKIPPED_OP_KINDS are disjoint and together equal EFFECT_OP_REGISTRY's op names."
     },
     {
         "file": "convex/gre/effects/__tests__/scenarioGenerator.test.ts",
