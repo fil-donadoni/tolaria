@@ -1240,7 +1240,7 @@ export type CardInstanceState = {
      *  dies, is bounced or is exiled — which is exactly what a
      *  `StaticCostModifier` (`kind: "cost-modifier"`) cannot express: that one
      *  is re-scanned off the battlefield at every cost computation and stops
-     *  the moment its carrier leaves. Folded in by `getCostModifiers` (below),
+     *  the moment its carrier leaves. Folded in by `getCostModifiers` (`gre/state.ts`),
      *  the ONE collector every cost site already runs through, so the real
      *  payment (`announceCast`, `convex/game.ts`), the "cast" affordance
      *  (`getLegalActions`, `gre/rules.ts`) and the Bot's tap planner
@@ -3081,7 +3081,7 @@ export type SpellManaRiders = {
 /** The zone a play-land action is sourcing its card from (CR 305.9 — hand
  *  unless an effect explicitly says otherwise). Lives here rather than in
  *  `gre/playLand.ts` because `PendingChoice.landSourceZone` needs it and
- *  `playLand.ts` imports FROM this module, never the other way round;
+ *  `playLand.ts` imports FROM `gre/state.ts`, never the other way round;
  *  `playLand.ts` re-exports it so its existing importers are unaffected. */
 export type PlayLandSourceZone = "hand" | "exile" | "graveyard" | "library-top";
 
@@ -5388,8 +5388,7 @@ export interface StackTransformStamp {
 }
 
 // Loose structural mana-cost shape used by the mana-payment helpers in
-// `gre/state.ts` (and by the declarations here). The
-// value union includes the `phyrexian` object (CR 107.4f, ADR: Phyrexian mana)
+// `gre/state.ts` and by the declarations here. The value union includes the `phyrexian` object (CR 107.4f, ADR: Phyrexian mana)
 // AND the `hybrid` array (CR 202.1a, issue #1338 — guild-hybrid pips) so a real
 // `CardManaCost` carrying either is assignable here; the payment helpers ignore
 // both keys (Phyrexian pips resolve to mana/life before payment, hybrid pips are

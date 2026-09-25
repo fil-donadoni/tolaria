@@ -246,9 +246,9 @@ function declarationSurfaces(
         let label: string | undefined;
         if (ts.isInterfaceDeclaration(stmt)) {
             // `extends` needs no special handling: an interface's OWN members
-            // are `stmt.members` regardless, and a base declared in either
+            // are `stmt.members` regardless, and a base declared in any
             // scanned file is swept as its own surface. Only a base declared
-            // in a third file escapes — a scope limit of "these two files",
+            // in an unscanned file escapes — a scope limit of "the scanned files",
             // not a hole in the walk.
             label = stmt.name.text;
             members = stmt.members;
