@@ -14,6 +14,7 @@ import { BoardDeadSections } from "./design-system/sections-board-dead";
 import { V3Sections } from "./design-system/sections-v3";
 import { IdentityV4Sections } from "./design-system/sections-identity-v4";
 import { BoardDialogsSection } from "./design-system/sections-board-dialogs";
+import { OverlaysSection } from "./design-system/sections-overlays";
 
 const TOC: Array<[string, string]> = [
     ["palette", "01 Palette & contrast"],
@@ -32,6 +33,7 @@ const TOC: Array<[string, string]> = [
     ["v3-tokens", "14 Design system v3"],
     ["identity-v4", "15 Identity v4"],
     ["board-dialogs", "16 Board dialogs"],
+    ["overlays", "17 Cross-cutting overlays"],
 ];
 
 export default function DesignSystemRoute() {
@@ -85,6 +87,7 @@ export default function DesignSystemRoute() {
                     <V3Sections />
                     <IdentityV4Sections />
                     <BoardDialogsSection />
+                    <OverlaysSection />
                 </main>
             </div>
         </div>

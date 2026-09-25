@@ -1600,8 +1600,8 @@ async function ensurePregameGate(page: Page, ctx: WalkContext): Promise<void> {
  * where its controls carry no stable accessible name (a mana pip is an `<img
  * alt="R">`), a `contrast` promise over the layer's own subtree.
  */
-interface BoardDialogSpecimen {
-    /** Surface id suffix and the `data-board-dialog-specimen` opener seam. */
+interface DialogSpecimen {
+    /** Surface id suffix and the value of its section's opener seam. */
     slug: string;
     /** The censused module this row claims in `mounts`, under `src/components/`. */
     module: string;
@@ -1613,7 +1613,7 @@ interface BoardDialogSpecimen {
     entry: NamedAssertion;
 }
 
-const BOARD_DIALOG_SPECIMENS: readonly BoardDialogSpecimen[] = [
+const BOARD_DIALOG_SPECIMENS: readonly DialogSpecimen[] = [
     {
         slug: "activatable-ability",
         module: "board/activatable-ability-menu.tsx",
@@ -1909,30 +1909,137 @@ const BOARD_DIALOG_SPECIMENS: readonly BoardDialogSpecimen[] = [
     },
 ];
 
+/**
+ * The four cross-cutting overlays (issue #4423, slice of the census debt issue
+ * #4402): the legal disclaimer, the bug-report form, the Inspect overlay and
+ * the Scenarios page's active-game confirm. Each belongs to no one page and
+ * sits behind an opener the lane cannot reach with the state it has (a fresh
+ * account, an active game at launch time), so `/admin/design-system` § 17
+ * mounts each from fixture props (`src/routes/design-system/sections-overlays.tsx`)
+ * and the lane walks them exactly as it walks § 16: one row per overlay.
+ */
+const OVERLAY_SPECIMENS: readonly DialogSpecimen[] = [
+    {
+        slug: "disclaimer",
+        module: "legal/disclaimer-dialog.tsx",
+        label: "Legal & Disclaimer",
+        layer: "[role=dialog]",
+        layerAssert: {
+            label: "dialog: Legal & Disclaimer",
+            locator: { role: "dialog", name: "Legal & Disclaimer" },
+            check: "visible",
+        },
+        // The dialog's only action is reading it: its body text is what a
+        // new account is shown, so the promise is that the text is legible.
+        entry: {
+            label: "disclaimer text contrast",
+            locator: { role: "dialog", name: "Legal & Disclaimer" },
+            check: "contrast",
+        },
+    },
+    {
+        slug: "bug-report",
+        module: "bug-report/bug-report-dialog.tsx",
+        label: "Report a bug",
+        layer: "[role=dialog]",
+        layerAssert: {
+            label: "dialog: Report a bug",
+            locator: { role: "dialog", name: "Report a bug" },
+            check: "visible",
+        },
+        // `Submit` is disabled until the description is filled, which is
+        // the state the specimen mounts in — promised `visible`, never
+        // `reachable` (the same call as § 16's `0/N` plates).
+        entry: {
+            label: "primary: Submit",
+            locator: { role: "button", name: "Submit" },
+            check: "visible",
+        },
+    },
+    {
+        slug: "inspect-overlay",
+        module: "editing/inspect-overlay.tsx",
+        label: "Inspect overlay",
+        layer: "[data-inspect-overlay]",
+        layerAssert: {
+            label: "dialog: Lightning Bolt",
+            locator: { role: "dialog", name: "Lightning Bolt" },
+            check: "visible",
+        },
+        entry: {
+            label: "primary: Pick",
+            locator: { role: "button", name: "Pick" },
+            check: "reachable",
+        },
+    },
+    {
+        slug: "scenario-active-game",
+        module: "admin/scenario-active-game-dialog.tsx",
+        label: "Concede active game?",
+        layer: "[role=dialog]",
+        layerAssert: {
+            label: "dialog: Concede active game?",
+            locator: { role: "dialog", name: "Concede active game?" },
+            check: "visible",
+        },
+        entry: {
+            label: "confirm: Concede & Start",
+            locator: { role: "button", name: "Concede & Start" },
+            check: "reachable",
+        },
+    },
+];
+
+/** A section of `/admin/design-system` that mounts dialog specimens one at a
+ *  time behind openers: the opener seam it declares and how a receipt row
+ *  names it. */
+interface DialogSpecimenSection {
+    /** The `data-*` attribute each opener carries, valued with the slug. */
+    seam: string;
+    /** Receipt label prefix and the section's `§ N` on the page. */
+    title: string;
+    index: string;
+}
+
+const BOARD_DIALOGS_SECTION: DialogSpecimenSection = {
+    seam: "data-board-dialog-specimen",
+    title: "Board dialog",
+    index: "16",
+};
+
+const OVERLAYS_SECTION: DialogSpecimenSection = {
+    seam: "data-overlay-specimen",
+    title: "Overlay",
+    index: "17",
+};
+
 /** One `dlg-*` row: open the specimen page, press its opener, measure the
  *  layer it mounted. The entries are the design-system route's, as every
  *  other row on that page: the section lives inside it. */
-function boardDialogSurface(spec: BoardDialogSpecimen): Surface {
+function dialogSpecimenSurface(
+    section: DialogSpecimenSection,
+    spec: DialogSpecimen
+): Surface {
     return {
         id: `dlg-${spec.slug}`,
         entries: [
             "src/routes/admin/admin-layout.route.tsx",
             "src/routes/design-system.route.tsx",
         ],
-        label: `Board dialog — ${spec.label} (/admin/design-system § 16)`,
+        label: `${section.title} — ${spec.label} (/admin/design-system § ${section.index})`,
         asserts: [spec.layerAssert, spec.entry],
         mounts: [`src/components/${spec.module}`],
         settleTargets: [spec.layer],
         async walk(page, ctx) {
             await goto(page, ctx, "/admin/design-system");
             const opener = page
-                .locator(`[data-board-dialog-specimen="${spec.slug}"]`)
+                .locator(`[${section.seam}="${spec.slug}"]`)
                 .first();
             try {
                 await opener.waitFor({ state: "visible", timeout: 10_000 });
             } catch {
                 throw new Unreachable(
-                    `/admin/design-system rendered no board-dialog opener for "${spec.slug}"`
+                    `/admin/design-system rendered no \`${section.seam}\` opener for "${spec.slug}"`
                 );
             }
             await opener.scrollIntoViewIfNeeded({ timeout: STEP_TIMEOUT });
@@ -2590,7 +2697,12 @@ export const SURFACES: readonly Surface[] = [
             await settle(page);
         },
     },
-    ...BOARD_DIALOG_SPECIMENS.map(boardDialogSurface),
+    ...BOARD_DIALOG_SPECIMENS.map((spec) =>
+        dialogSpecimenSurface(BOARD_DIALOGS_SECTION, spec)
+    ),
+    ...OVERLAY_SPECIMENS.map((spec) =>
+        dialogSpecimenSurface(OVERLAYS_SECTION, spec)
+    ),
     {
         id: "admin-card-profiles",
         entries: [
