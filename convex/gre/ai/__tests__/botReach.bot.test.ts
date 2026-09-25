@@ -748,6 +748,19 @@ describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
         }
     }, 600_000);
 
+    // Issue #4275: a flier whose only ability sacrifices a creature for a
+    // transient pump of ITSELF is played — the sacrifice children under its
+    // cast edge are pruned (`isTransientSacrificeConversion`), so they no
+    // longer outweigh `pass`.
+    it("played — a flier that sacrifices a creature to pump itself", () => {
+        for (const name of ["Devouring Swarm", "Fallen Angel"]) {
+            expect(playBotReachSeats(getCardByName(name)), name).toEqual([
+                { holderId: "p1", verdict: { outcome: "played" } },
+                { holderId: "p2", verdict: { outcome: "played" } },
+            ]);
+        }
+    }, 600_000);
+
     it("a draw spell's holder finds spells on top of the library, and only that holder", () => {
         const topOfLibrary = (def: CardDefinition, seat: 0 | 1): unknown => {
             const { state, holderId } = buildBotReachState(def, seat);
