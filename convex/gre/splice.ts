@@ -53,6 +53,11 @@
 import type { CardDefinition, EffectOp, KickerCost } from "../cards/types";
 import { tryGetDefinition } from "../cards/registry";
 import type { CardInstanceState, PlayerState } from "./state/declarations";
+// issue #4451 — the one naming rule for a binding-declaring field, which the Op
+// Schema is type-checked against (the static ref pass declares from the same
+// fields). A rule, not a list derived from the schema: this module runs in the
+// Brain worker, which must not bundle the validator.
+import { isBindingDeclarationField } from "./effects/bindingFields";
 
 /** Prefix of the synthesized {@link KickerCost.id} of a splice option. The id
  *  carries the revealed hand card's INSTANCE id, not its printed card id: CR
@@ -250,24 +255,6 @@ export function splicedCardIdsOfEntries(
     return spliced.length > 0 ? spliced : undefined;
 }
 
-/** Every field an Effect Script DECLARES a binding through (`validate.ts`'s
- *  `declared` map is written from exactly these). Read by
- *  {@link spliceSegmentBindings} to find the names one spliced segment owns. */
-const BINDING_DECLARATION_FIELDS = [
-    "bind",
-    "bindOther",
-    "bindSource",
-    "bindAll",
-    "bindCount",
-    // `coinFlipSeries`'s three NUMBER bindings (issue #3813).
-    "bindFlips",
-    "bindWins",
-    "bindLosses",
-    "resultBind",
-    "chosenBind",
-    "otherBind",
-] as const;
-
 /** The binding names `node` declares, anywhere in its op tree. */
 function spliceSegmentBindings(node: unknown, out: Set<string>): void {
     if (Array.isArray(node)) {
@@ -279,7 +266,7 @@ function spliceSegmentBindings(node: unknown, out: Set<string>): void {
         if (
             typeof value === "string" &&
             value.startsWith("$") &&
-            (BINDING_DECLARATION_FIELDS as readonly string[]).includes(key)
+            isBindingDeclarationField(key)
         ) {
             out.add(value);
         }

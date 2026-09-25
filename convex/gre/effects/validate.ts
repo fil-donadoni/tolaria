@@ -27,6 +27,7 @@ import type {
     CardDefinition,
     EffectChoiceKind,
     EffectOp,
+    EffectValue,
     TokenTriggeredEventKind,
 } from "../../cards/types";
 import { PERMANENT_TYPES, PLAYER_COUNTER_KINDS } from "../../cards/types";
@@ -43,6 +44,8 @@ import {
     parseTargetNameRef,
     SOURCE_CHOSEN_SUBTYPE_REF,
 } from "./targetRef";
+import { SCRIPT_HOST_FIELDS } from "../ai/effectOpChildren";
+import type { BindingFieldName } from "./bindingFields";
 
 /** The slice of CardDefinition the validator reads — kept narrow so tests
  *  can validate synthetic shapes without building a full definition.
@@ -91,6 +94,74 @@ interface OpSchema {
  *  declares it at all; `op` itself is never a schema field. An Op with no
  *  optional field may not carry an `optional` map. */
 type FieldCheck = (value: unknown) => boolean;
+
+/** Issue #4451 — a field's KIND is declared on its schema predicate, once, and
+ *  every reader that needs "which fields are amounts / binding declarations /
+ *  of which binding family" derives it from `OP_SCHEMAS` (the section after
+ *  `SCHEMA_OP_NAMES`) instead of keeping its own list.
+ *
+ *  An AMOUNT predicate validates an `EffectValue` (CR 107.1); its
+ *  `innerAmounts` name the amount fields INSIDE a value it admits (the signed
+ *  grammar's `negate`). Tagged on the predicate function itself, so every
+ *  schema field using it is an amount with no per-row edit. */
+interface AmountCheck extends FieldCheck {
+    readonly fieldKind: "amount";
+    readonly innerAmounts?: readonly string[];
+}
+/** A predicate for a COMPOUND value that is not itself an amount but holds
+ *  amount fields — `mayPay`'s dynamic `cost`, an `if` comparison's operands. */
+interface AmountHostCheck extends FieldCheck {
+    readonly fieldKind: "amountHost";
+    readonly innerAmounts: readonly string[];
+}
+/** A predicate for a field that DECLARES a binding (ADR 0045 `bind`), with the
+ *  family the declared name belongs to. The family is per Op AND per field
+ *  (`mill.bind` is a snapshot, `mill.bindAll` picks), so it is written on the
+ *  row, through {@link bindingDeclaration}, which cannot be called without it.
+ *  `scopedTo` names the sibling script field the binding is visible in, and
+ *  only there (`divideIntoPiles`'s pile bindings, ADR 0053); absent, the name
+ *  is visible to every LATER Op of the declaring list. */
+interface BindingDeclarationCheck extends FieldCheck {
+    readonly fieldKind: "bindingDeclaration";
+    readonly binding: BindingKind;
+    readonly scopedTo?: string;
+}
+/** A predicate for a value that owns its OWN scripts — a token card spec,
+ *  whose abilities are re-entered and checked in their own scope. */
+interface ScriptScopeCheck extends FieldCheck {
+    readonly fieldKind: "scriptScope";
+}
+type TaggedFieldCheck =
+    | AmountCheck
+    | AmountHostCheck
+    | BindingDeclarationCheck
+    | ScriptScopeCheck;
+
+/** The type a field has across every variant of one Op. */
+type OpFieldType<U, P> = U extends unknown
+    ? P extends keyof U
+        ? U[P]
+        : never
+    : never;
+/** Any predicate but a binding declaration's. */
+type NonDeclaringCheck = FieldCheck & {
+    readonly fieldKind?: Exclude<
+        TaggedFieldCheck["fieldKind"],
+        "bindingDeclaration"
+    >;
+};
+/** The predicate a schema row must use for field `P` (issue #4451). A field
+ *  named like a binding declaration (`BindingFieldName`, the one naming rule
+ *  in `bindingFields.ts`) must be checked by a {@link BindingDeclarationCheck}
+ *  — so an untagged one, or one tagged without its family, is a `check:ts`
+ *  error — and no other field may be. A field that admits every `EffectValue`
+ *  must be an {@link AmountCheck}. */
+type CheckFor<U, P> = P extends BindingFieldName
+    ? BindingDeclarationCheck
+    : EffectValue extends NonNullable<OpFieldType<U, P>>
+      ? AmountCheck
+      : NonDeclaringCheck;
+
 type OpVariant<K extends EffectOp["op"]> = Extract<EffectOp, { op: K }>;
 type KeysOfAnyVariant<U> = U extends unknown ? keyof U : never;
 type OptionalKeysOf<T> = {
@@ -102,12 +173,12 @@ type OptionalOpFields<U> = Exclude<
     KeysOfAnyVariant<U>,
     RequiredOpFields<U> | "op"
 >;
-type FieldChecks<K extends PropertyKey> = { [P in K]: FieldCheck };
+type FieldChecks<U, K extends PropertyKey> = { [P in K]: CheckFor<U, P> };
 type TypedOpSchema<U> = Omit<OpSchema, "required" | "optional"> & {
-    required: FieldChecks<RequiredOpFields<U>>;
+    required: FieldChecks<U, RequiredOpFields<U>>;
 } & ([OptionalOpFields<U>] extends [never]
         ? { optional?: never }
-        : { optional: FieldChecks<OptionalOpFields<U>> });
+        : { optional: FieldChecks<U, OptionalOpFields<U>> });
 type OpSchemaTable = {
     [K in EffectOp["op"]]: TypedOpSchema<OpVariant<K>>;
 };
@@ -199,6 +270,22 @@ function isBindingName(value: unknown): boolean {
         typeof value === "string" &&
         /^\$[A-Za-z][A-Za-z0-9]*$/.test(value) &&
         !isReservedTargetBinding(value)
+    );
+}
+
+/** A binding-declaration field's predicate (issue #4451): the name's SHAPE is
+ *  `isBindingName`'s; the family the declared name joins is the caller's, and
+ *  is required — see {@link BindingDeclarationCheck}. */
+function bindingDeclaration(
+    binding: BindingKind,
+    scopedTo?: string
+): BindingDeclarationCheck {
+    const check = (value: unknown) => isBindingName(value);
+    return Object.assign(
+        check,
+        scopedTo === undefined
+            ? { fieldKind: "bindingDeclaration" as const, binding }
+            : { fieldKind: "bindingDeclaration" as const, binding, scopedTo }
     );
 }
 
@@ -1176,18 +1263,6 @@ function isEffectTokenSpec(value: unknown): boolean {
  *  sits outside their scope — the same list scoping `revealedBindings` uses.
  *  Unfiltered hand counts are not returned: their cardinality is public
  *  information (CR 402.3) and they need no reveal. */
-export const NESTED_SCRIPT_KEYS: ReadonlySet<string> = new Set([
-    "then",
-    "else",
-    "effects",
-    "modes",
-    "win",
-    "loss",
-    "chosenEffect",
-    "otherEffect",
-    "token",
-]);
-
 function filteredHandCounts(
     entry: Record<string, unknown>
 ): { controller?: unknown }[] {
@@ -3690,6 +3765,27 @@ function isInlineTargetRequirement(value: unknown): boolean {
 const isClassLevel = (value: unknown): boolean =>
     typeof value === "number" && Number.isInteger(value) && value >= 2;
 
+// Issue #4451 — the field KINDS, tagged on the predicates the rows below use
+// (see `AmountCheck` and siblings). A binding declaration's family is per row
+// (`bindingDeclaration(kind)`); these are the per-PREDICATE kinds.
+isEffectValue.fieldKind = "amount" as const;
+isNominationBound.fieldKind = "amount" as const;
+isSignedEffectValue.fieldKind = "amount" as const;
+// The signed grammar's one wrapper around an amount (`EffectNegatedValue`).
+isSignedEffectValue.innerAmounts = ["negate"] as const;
+isMayPayCostOrDynamic.fieldKind = "amountHost" as const;
+// The three dynamic cost shapes' amounts (`DynamicMayPay*Cost`).
+isMayPayCostOrDynamic.innerAmounts = [
+    "reducedBy",
+    "energyEqualTo",
+    "genericEqualTo",
+] as const;
+isPredicate.fieldKind = "amountHost" as const;
+// A comparison predicate's two operands (`EffectComparisonPredicate`).
+isPredicate.innerAmounts = ["left", "right"] as const;
+isLibraryPosition.fieldKind = "amount" as const;
+isEffectTokenSpec.fieldKind = "scriptScope" as const;
+
 const OP_SCHEMAS: OpSchemaTable = {
     // CR 615.12 (issue #1065) — `unpreventable` skips every CR 615 prevention
     // step, protection's damage leg included (CR 702.16e words itself "is
@@ -3719,7 +3815,7 @@ const OP_SCHEMAS: OpSchemaTable = {
     draw: { required: { player: isPlayerRef, count: isEffectValue } },
     discardAtRandom: {
         required: { player: isPlayerRef, count: isEffectValue },
-        optional: { bind: isBindingName },
+        optional: { bind: bindingDeclaration("snapshot") },
     },
     // issue #1947 — no fields: always picks from the pile linked to
     // $source and routes to that card's own owner's hand.
@@ -3951,7 +4047,7 @@ const OP_SCHEMAS: OpSchemaTable = {
             // CR 116.2a / 305.9 (issue #1961) — true iff the granting Oracle
             // text says "play" (land-inclusive), never for a "cast"-only grant.
             includesLand: isBoolean,
-            resultBind: isBindingName,
+            resultBind: bindingDeclaration("boolean"),
         },
         check: (entry) => {
             const errors: string[] = [];
@@ -4012,11 +4108,14 @@ const OP_SCHEMAS: OpSchemaTable = {
     },
     destroy: {
         required: { target: isObjectSelector },
-        optional: { bind: isBindingName, cantBeRegenerated: isBoolean },
+        optional: {
+            bind: bindingDeclaration("snapshot"),
+            cantBeRegenerated: isBoolean,
+        },
     },
     exile: {
         required: { target: isObjectSelector },
-        optional: { bind: isBindingName },
+        optional: { bind: bindingDeclaration("snapshot") },
     },
     // CR 608.2 (issue #1097) — the resolving spell exiles ITSELF instead of
     // going to the graveyard (Recall / Restock). No fields — it always
@@ -4055,7 +4154,9 @@ const OP_SCHEMAS: OpSchemaTable = {
     // for the rest of the script (the generic `bind` walker below picks it up,
     // so every downstream ref is checked exactly as for a `destroy`/`exile`
     // bind).
-    recallCapturedBinding: { required: { bind: isBindingName } },
+    recallCapturedBinding: {
+        required: { bind: bindingDeclaration("snapshot") },
+    },
     // CR 701.3a/701.3c (ADR 0065, issue #1311) — attach $source to the
     // announced target permanent (Reconfigure's first activated ability).
     attach: {
@@ -4097,7 +4198,7 @@ const OP_SCHEMAS: OpSchemaTable = {
             // FIFTH shape's positional graveyard selector (`{ zone, position,
             // … }`). Widened here and NOWHERE else: see `isMoveZoneTarget`.
             target: isMoveZoneTarget,
-            bind: isBindingName,
+            bind: bindingDeclaration("snapshot"),
             controller: isPlayerRef,
             cards: isBarePicksRef,
             player: isPlayerRef,
@@ -4126,12 +4227,12 @@ const OP_SCHEMAS: OpSchemaTable = {
             // issue #4302 — the whole-zone shape's NUMBER binding: how many
             // cards the move took out of `from` ("shuffle the cards from your
             // hand into your library, then draw that many cards").
-            bindCount: isBindingName,
+            bindCount: bindingDeclaration("number"),
             // issue #3812 — the whole-zone shape's CR 406.3 face-down exile
             // ("exiles all cards from their hand face down", Suppress) and
             // its PICKS binding of every card moved ("those cards").
             faceDown: isBoolean,
-            bindAll: isBindingName,
+            bindAll: bindingDeclaration("picks"),
         },
         check: (entry) => {
             const hasTarget = "target" in entry;
@@ -4570,7 +4671,7 @@ const OP_SCHEMAS: OpSchemaTable = {
             action: isTapUntapAction,
             target: isObjectSelector,
         },
-        optional: { bind: isBindingName },
+        optional: { bind: bindingDeclaration("snapshot") },
     },
     // CR 302.6 / 502.1 (PRD #795) — arm a one-shot "doesn't untap next untap
     // step" flag. `target` is an object selector (announced slot, `$source`, or
@@ -4670,7 +4771,10 @@ const OP_SCHEMAS: OpSchemaTable = {
             token: isEffectTokenSpec,
             controller: isPlayerRef,
         },
-        optional: { count: isEffectValue, bind: isBindingName },
+        optional: {
+            count: isEffectValue,
+            bind: bindingDeclaration("snapshot"),
+        },
     },
     // CR 707.2 + CR 111.1 (issue #1459) — create token COPIES of a runtime
     // source permanent. `source` is an object selector (an announced target
@@ -4684,7 +4788,7 @@ const OP_SCHEMAS: OpSchemaTable = {
         },
         optional: {
             count: isEffectValue,
-            bind: isBindingName,
+            bind: bindingDeclaration("snapshot"),
             // CR 508.4 (issue #1195) — Satya, Aetherflux Genius's "tapped
             // and attacking" token-copy entry flags.
             entersTapped: isBoolean,
@@ -4791,9 +4895,9 @@ const OP_SCHEMAS: OpSchemaTable = {
             player: isPlayerRef,
             count: isNominationBound,
             untilLoss: (v: unknown) => v === true,
-            bindFlips: isBindingName,
-            bindWins: isBindingName,
-            bindLosses: isBindingName,
+            bindFlips: bindingDeclaration("number"),
+            bindWins: bindingDeclaration("number"),
+            bindLosses: bindingDeclaration("number"),
         },
         check: (entry) => {
             const errors: string[] = [];
@@ -5056,7 +5160,10 @@ const OP_SCHEMAS: OpSchemaTable = {
             player: isPlayerRef,
             count: isEffectValue,
         },
-        optional: { bind: isBindingName, bindAll: isBindingName },
+        optional: {
+            bind: bindingDeclaration("snapshot"),
+            bindAll: bindingDeclaration("picks"),
+        },
     },
     // CR 701.13 / 406.3 (issue #3235) — exile the top N of a library, face up.
     // `count` is OPTIONAL here (unlike `mill`'s, which is required): "exile the
@@ -5069,7 +5176,7 @@ const OP_SCHEMAS: OpSchemaTable = {
         optional: {
             count: isEffectValue,
             linkToSource: isBoolean,
-            bindAll: isBindingName,
+            bindAll: bindingDeclaration("picks"),
         },
     },
     // CR 701.20a + CR 400.7 — reveal the top `count` card(s) of a library and
@@ -5160,7 +5267,7 @@ const OP_SCHEMAS: OpSchemaTable = {
             counters: isCountersMap,
             chooser: isPlayerRef,
             randomBottom: isBoolean,
-            bind: isBindingName,
+            bind: bindingDeclaration("snapshot"),
             // CR 701.20a — public reveal of the looked-at window ("window") or
             // only the kept cards ("kept"); omit for a private look (CR 401.4).
             reveal: isRevealScope,
@@ -5395,7 +5502,7 @@ const OP_SCHEMAS: OpSchemaTable = {
             // this only stamps knowledge, which the trailing shuffle clears.
             zone: (v) => v === "hand" || v === "library",
             cards: isBarePicksRef,
-            bind: isBindingName,
+            bind: bindingDeclaration("picks"),
         },
         check: (entry) => {
             const hasZone = "zone" in entry;
@@ -5452,7 +5559,7 @@ const OP_SCHEMAS: OpSchemaTable = {
             zone: isChoiceZone,
             count: isChoiceCount,
             prompt: isNonEmptyString,
-            bind: isBindingName,
+            bind: bindingDeclaration("picks"),
         },
         // `id` (issue #1282) — an optional author-supplied stable choiceId,
         // overriding `bind` as the `PendingChoice.choiceId` a migrated card
@@ -5485,7 +5592,7 @@ const OP_SCHEMAS: OpSchemaTable = {
             id: isNonEmptyString,
             candidates: (v) =>
                 Array.isArray(v) && v.length > 0 && v.every(isObjectSelector),
-            bindOther: isBindingName,
+            bindOther: bindingDeclaration("snapshot"),
             superlative: isChoiceSuperlative,
             // issue #3808 — CATEGORISED selection over a whole library. Same
             // `{ label, filter }` list `revealAndCategorize` /
@@ -5762,7 +5869,7 @@ const OP_SCHEMAS: OpSchemaTable = {
         // so every existing `ref` reader consumes it unchanged.
         optional: {
             destination: isCounterDestination,
-            bindSource: isBindingName,
+            bindSource: bindingDeclaration("snapshot"),
         },
     },
     // CR 701.6-adjacent (issue #2605) — move the target spell off the stack
@@ -5785,7 +5892,7 @@ const OP_SCHEMAS: OpSchemaTable = {
         required: {
             player: isPlayerRef,
             prompt: isNonEmptyString,
-            bind: isBindingName,
+            bind: bindingDeclaration("boolean"),
         },
         // `cost` accepts the static MayPayCost union OR a dynamically-derived
         // mana cost read off a runtime-selected object (issue #1150).
@@ -5800,7 +5907,7 @@ const OP_SCHEMAS: OpSchemaTable = {
         required: {
             player: isPlayerRef,
             prompt: isNonEmptyString,
-            bind: isBindingName,
+            bind: bindingDeclaration("number"),
         },
     },
     // CR 107.1c (issue #1421) — a BARE numeric nomination ("choose a number").
@@ -5813,7 +5920,7 @@ const OP_SCHEMAS: OpSchemaTable = {
         required: {
             player: isPlayerRef,
             prompt: isNonEmptyString,
-            bind: isBindingName,
+            bind: bindingDeclaration("number"),
         },
         optional: {
             min: isNominationBound,
@@ -5857,7 +5964,7 @@ const OP_SCHEMAS: OpSchemaTable = {
             target: isObjectSelector,
             // CR 608.2h — last-known-info snapshot of the sacrificed
             // permanent, same binding family as destroy/exile/moveZone.
-            bind: isBindingName,
+            bind: bindingDeclaration("snapshot"),
         },
         check: (entry) => {
             const hasPicks = "permanents" in entry;
@@ -6041,8 +6148,8 @@ const OP_SCHEMAS: OpSchemaTable = {
             chooser: isPlayerRef,
             dividePrompt: isNonEmptyString,
             pickPrompt: isNonEmptyString,
-            chosenBind: isBindingName,
-            otherBind: isBindingName,
+            chosenBind: bindingDeclaration("list", "chosenEffect"),
+            otherBind: bindingDeclaration("list", "otherEffect"),
             chosenEffect: isOpList,
             otherEffect: isOpList,
         },
@@ -6102,7 +6209,7 @@ const OP_SCHEMAS: OpSchemaTable = {
         required: {
             player: isPlayerRef,
             prompt: isNonEmptyString,
-            bind: isBindingName,
+            bind: bindingDeclaration("picks"),
         },
         optional: { nameRestriction: isNameRestriction },
     },
@@ -6115,7 +6222,7 @@ const OP_SCHEMAS: OpSchemaTable = {
         required: {
             player: isPlayerRef,
             prompt: isNonEmptyString,
-            bind: isBindingName,
+            bind: bindingDeclaration("picks"),
         },
         // CR 205.3m (issue #3809) — "a creature type other than Wall"
         // (Unnatural Selection). Each entry must itself be a creature type
@@ -6145,13 +6252,111 @@ const OP_SCHEMAS: OpSchemaTable = {
             filter: isCardFilter,
             destination: isDigMatchingDestination,
         },
-        optional: { bind: isBindingName },
+        optional: { bind: bindingDeclaration("snapshot") },
     },
 };
 
 /** Names of the Ops that have a static field schema — used by the coverage
  *  guard test to keep schemas 1:1 with the registry and the interpreter. */
 export const SCHEMA_OP_NAMES: readonly string[] = Object.keys(OP_SCHEMAS);
+
+// --- Field kinds, derived from the tagged schema (issue #4451) ---------------
+// Every reader that needs "which fields are amounts / binding declarations /
+// open a new script scope" reads it here, from the predicates the rows above
+// already use, rather than from a list of its own.
+
+/** The kind tag on a schema predicate, when it carries one. */
+function fieldKindOf(check: FieldCheck): TaggedFieldCheck | undefined {
+    const tagged = check as FieldCheck & Partial<TaggedFieldCheck>;
+    return tagged.fieldKind === undefined
+        ? undefined
+        : (tagged as TaggedFieldCheck);
+}
+
+/** Every `[field, predicate]` of one Op's schema — required first, then
+ *  optional, each in its row's declaration order. */
+function schemaFieldsOf(op: string): readonly [string, FieldCheck][] {
+    const schema = (OP_SCHEMAS as Record<string, OpSchema | undefined>)[op];
+    if (schema === undefined) return [];
+    return [
+        ...Object.entries(schema.required),
+        ...Object.entries(schema.optional ?? {}),
+    ];
+}
+
+/** The field names of Op `op`'s schema, in schema order. */
+export function schemaFieldNamesOf(op: string): readonly string[] {
+    return schemaFieldsOf(op).map(([field]) => field);
+}
+
+/** Every Op field whose value is a runtime AMOUNT (an `EffectValue`, CR 107.1)
+ *  somewhere in the `EffectOp` union — a GLOBAL key-name set, as the smoke
+ *  generator's own-argument read uses it (ADR 0105 § 7.1): the amount-tagged
+ *  fields plus the amount fields nested inside a compound value they admit. */
+export const AMOUNT_KEYS: ReadonlySet<string> = new Set(
+    SCHEMA_OP_NAMES.flatMap((op) =>
+        schemaFieldsOf(op).flatMap(([field, check]) => {
+            const kind = fieldKindOf(check);
+            if (kind?.fieldKind === "amount")
+                return [field, ...(kind.innerAmounts ?? [])];
+            if (kind?.fieldKind === "amountHost") return kind.innerAmounts;
+            return [];
+        })
+    )
+);
+
+/** Every key whose value opens an independently-scoped script: the nesting
+ *  fields of the one child-list authority (`SCRIPT_HOST_FIELDS`, beside
+ *  `childOpArrays`), plus the schema fields whose value owns its own scripts
+ *  (a token spec). The filtered-hand-count walk (CR 402.3 / 701.20a) stops at
+ *  each, because each is re-entered and checked in its own scope. */
+export const NESTED_SCRIPT_KEYS: ReadonlySet<string> = new Set([
+    ...Object.values(SCRIPT_HOST_FIELDS).flat(),
+    ...SCHEMA_OP_NAMES.flatMap((op) =>
+        schemaFieldsOf(op)
+            .filter(
+                ([, check]) => fieldKindOf(check)?.fieldKind === "scriptScope"
+            )
+            .map(([field]) => field)
+    ),
+]);
+
+/** One binding an Op declares through one of its fields. */
+export interface BindingDeclaration {
+    readonly field: string;
+    readonly binding: BindingKind;
+    /** The sibling script field the name is visible in, and only there. */
+    readonly scopedTo?: string;
+}
+
+const BINDING_DECLARATIONS_BY_OP: ReadonlyMap<
+    string,
+    readonly BindingDeclaration[]
+> = new Map(
+    SCHEMA_OP_NAMES.map((op) => [
+        op,
+        schemaFieldsOf(op).flatMap(([field, check]): BindingDeclaration[] => {
+            const kind = fieldKindOf(check);
+            if (kind?.fieldKind !== "bindingDeclaration") return [];
+            return [
+                kind.scopedTo === undefined
+                    ? { field, binding: kind.binding }
+                    : { field, binding: kind.binding, scopedTo: kind.scopedTo },
+            ];
+        }),
+    ])
+);
+
+/** The bindings Op `op` declares, field by field, in schema order — empty for
+ *  an Op with none, or a name with no schema (which the schema pass already
+ *  reports). */
+export function bindingDeclarationsOf(
+    op: unknown
+): readonly BindingDeclaration[] {
+    return typeof op === "string"
+        ? (BINDING_DECLARATIONS_BY_OP.get(op) ?? [])
+        : [];
+}
 
 /** Property paths legal in a NUMERIC ref position (amount / count).
  *  `manaValue` (issue #680) reads a `moveZone` reanimation `bind`'s CR 202.3
@@ -6547,32 +6752,39 @@ type BindingKind =
     | "list"
     | "number";
 
-/** The binding family a `bind`-carrying Op declares. */
-function bindingKindOf(op: unknown): BindingKind {
-    if (op === "choice") return "picks";
-    if (op === "mayPay") return "boolean";
-    // issue #1701 — the amount paid, read back in a numeric value position.
-    if (op === "payVariableMana") return "number";
-    // issue #1421 — the amount nominated, same numeric read position, no
-    // payment. The two Ops are one binding family: a reader cannot and need
-    // not tell whether the number it reads back was paid for.
-    if (op === "chooseNumber") return "number";
-    // issue #1085 — `nameCard` stores the chosen name as a single-element
-    // string array, the identical runtime shape a `choice` Op's picks use,
-    // so a later `EffectCardFilter.name` bare ref reads it through the SAME
-    // picks family (not a new binding kind).
-    if (op === "nameCard") return "picks";
-    // issue #3721 — `chooseCreatureType` stores its chosen SUBTYPE the same
-    // way `nameCard` stores a chosen NAME: a single-element string array, read
-    // back only by an `EffectCardFilter.subtype` bare ref.
-    if (op === "chooseCreatureType") return "picks";
-    // issue #3808 — `reveal { zone: "library", bind }` records the ids it just
-    // made public (CR 701.20a) as the same picks family a `choice` binds: a
-    // following `choose-library-card` names it in `candidates`, `moveZone`
-    // could name it in `cards`. It is a SET of instance ids, which is exactly
-    // what the family means.
-    if (op === "reveal") return "picks";
-    return "snapshot";
+/** Declares, in `declared`, every UNSCOPED binding `entry`'s Op declares — each
+ *  field its schema tags `bindingDeclaration(kind)`, in schema order, in the
+ *  family the tag names (issue #4451; a scoped pile binding is declared in its
+ *  branch's own scope instead). A binding is visible only AFTER its Op and
+ *  unique within its scope; `$each` is the forEach construct's alone (issue
+ *  #807). Returns the names this entry newly declared. */
+function declareOpBindings(
+    entry: Record<string, unknown>,
+    at: string,
+    declared: Map<string, BindingKind>,
+    errors: string[]
+): ReadonlySet<string> {
+    const added = new Set<string>();
+    for (const { field, binding, scopedTo } of bindingDeclarationsOf(
+        entry.op
+    )) {
+        if (scopedTo !== undefined) continue;
+        const name = entry[field];
+        if (typeof name !== "string") continue;
+        if (name === "$each") {
+            errors.push(
+                `${at}: ${field} "$each" is reserved — only the forEach construct binds it (issue #807)`
+            );
+        } else if (declared.has(name)) {
+            errors.push(
+                `${at}: ${field} "${name}" re-declares an existing binding — binding names must be unique within a script`
+            );
+        } else {
+            declared.set(name, binding);
+            added.add(name);
+        }
+    }
+    return added;
 }
 
 /** Collects the boolean-binding refs an `if` predicate reads (issue #806): a
@@ -7652,50 +7864,55 @@ function checkOpListRefs(
         // `moveZone { cards: <ref> }` consumes it directly. Each branch's
         // OWN pile binding is NOT visible in the OTHER branch (mirrors an
         // `if`/`optionChoice` branch's isolation): a card that destroys the
-        // chosen pile has no business reading `otherBind`.
-        if (entry.op === "divideIntoPiles") {
-            for (const [bindField, effectsField] of [
-                ["chosenBind", "chosenEffect"],
-                ["otherBind", "otherEffect"],
-            ] as const) {
-                const bindName = entry[bindField];
-                const list = entry[effectsField];
-                if (typeof bindName !== "string" || !Array.isArray(list)) {
-                    continue;
-                }
-                if (declared.has(bindName)) {
-                    errors.push(
-                        `${at}: "${bindField}" "${bindName}" re-declares an existing binding — binding names must be unique within a script`
-                    );
-                }
-                const bodyScope = new Map(declared);
-                bodyScope.set(bindName, "list");
-                checkOpListRefs(
-                    list,
-                    (j) => `${at}: ${effectsField}[${j}]`,
-                    errors,
-                    bodyScope,
-                    eventScope
+        // chosen pile has no business reading `otherBind`. Which field
+        // scopes to which branch, and its family, is the schema's tag
+        // (`bindingDeclaration(kind, scopedTo)`, issue #4451).
+        for (const { field, binding, scopedTo } of bindingDeclarationsOf(
+            entry.op
+        )) {
+            if (scopedTo === undefined) continue;
+            const bindName = entry[field];
+            const list = entry[scopedTo];
+            if (typeof bindName !== "string" || !Array.isArray(list)) {
+                continue;
+            }
+            if (declared.has(bindName)) {
+                errors.push(
+                    `${at}: "${field}" "${bindName}" re-declares an existing binding — binding names must be unique within a script`
                 );
             }
+            const bodyScope = new Map(declared);
+            bodyScope.set(bindName, binding);
+            checkOpListRefs(
+                list,
+                (j) => `${at}: ${scopedTo}[${j}]`,
+                errors,
+                bodyScope,
+                eventScope
+            );
         }
 
         // A binding becomes visible only AFTER its Op (snapshot ordering) and
         // must be unique within its scope (the persisted store keys by name).
         // `$each` is reserved for the forEach construct (issue #807) — an Op
-        // may not bind it.
-        if (typeof entry.bind === "string") {
-            if (entry.bind === "$each") {
-                errors.push(
-                    `${at}: bind "$each" is reserved — only the forEach construct binds it (issue #807)`
-                );
-            } else if (declared.has(entry.bind)) {
-                errors.push(
-                    `${at}: bind "${entry.bind}" re-declares an existing binding — binding names must be unique within a script`
-                );
-            } else {
-                declared.set(entry.bind, bindingKindOf(entry.op));
-            }
+        // may not bind it. Every field the Op's schema tags as a binding
+        // declaration declares one, in the family its tag names (issue
+        // #4451): `bind`, and the second family some Ops also declare under a
+        // field of its own (`choice.bindOther`, `mill.bindAll`,
+        // `moveZone.bindCount`, `coinFlipSeries`'s three counts, …).
+        const newlyDeclared = declareOpBindings(entry, at, declared, errors);
+        // CR 701.17 — a mill fills the milled PLAYER's graveyard, so
+        // `mill.bindAll` (issue #2600) is a public-zone set.
+        if (
+            entry.op === "mill" &&
+            typeof entry.bindAll === "string" &&
+            entry.bindAll !== entry.bind &&
+            newlyDeclared.has(entry.bindAll)
+        ) {
+            publicZoneBindings.set(
+                entry.bindAll,
+                JSON.stringify(entry.player ?? null)
+            );
         }
 
         // CR 608.2h (issue #2384) — `captureBinding.ref` is a BARE binding
@@ -7906,137 +8123,6 @@ function checkOpListRefs(
                         `${at}: zone "${entry.zone}" candidate "${ref}" holds cards in a DIFFERENT player's ${entry.zone} than the one being picked from — set the pick's "zoneOwnerId" to the player whose zone the binding filled, or the two sets never intersect`
                     );
                 }
-            }
-        }
-
-        // `choice.bindOther` declares an object SNAPSHOT binding — the single
-        // candidate the chooser did NOT pick (Barrin's Spite's "the other").
-        // Its own field rather than `bind`, which the Op already spends on the
-        // picks binding, and a different family from it.
-        if (entry.op === "choice" && typeof entry.bindOther === "string") {
-            if (declared.has(entry.bindOther)) {
-                errors.push(
-                    `${at}: bindOther "${entry.bindOther}" re-declares an existing binding — binding names must be unique within a script`
-                );
-            } else {
-                declared.set(entry.bindOther, "snapshot");
-            }
-        }
-
-        // `counter.bindSource` (issue #2708) declares an object SNAPSHOT
-        // binding — the PERMANENT whose ability was countered (CR 113.7a).
-        // Its own field rather than `bind`, exactly like `choice.bindOther`:
-        // the binding is not the Op's target (that is the stack object being
-        // countered, which is never a permanent) but a DIFFERENT object the
-        // Op learned about while doing its work.
-        if (entry.op === "counter" && typeof entry.bindSource === "string") {
-            if (declared.has(entry.bindSource)) {
-                errors.push(
-                    `${at}: bindSource "${entry.bindSource}" re-declares an existing binding — binding names must be unique within a script`
-                );
-            } else {
-                declared.set(entry.bindSource, "snapshot");
-            }
-        }
-
-        // `moveZone.bindCount` (issue #4302) declares a NUMBER binding — the
-        // count of cards a whole-zone move took out of `from`, read back by a
-        // bare ref in a numeric value position (`draw`'s `count`). Its own
-        // field for the reason `mill.bindAll` is one: `bind` on the same Op is
-        // a snapshot, and `bindingKindOf` answers per Op rather than per field.
-        if (entry.op === "moveZone" && typeof entry.bindCount === "string") {
-            if (entry.bindCount === "$each") {
-                errors.push(
-                    `${at}: bindCount "$each" is reserved — only the forEach construct binds it (issue #807)`
-                );
-            } else if (declared.has(entry.bindCount)) {
-                errors.push(
-                    `${at}: bindCount "${entry.bindCount}" re-declares an existing binding — binding names must be unique within a script`
-                );
-            } else {
-                declared.set(entry.bindCount, "number");
-            }
-        }
-
-        // `moveZone.bindAll` (issue #3812) declares a PICKS binding — every
-        // card a whole-zone move took, the same family as `mill.bindAll`.
-        // NOT registered as a public-zone binding: a face-down exile is
-        // hidden (CR 406.3), so no "from among them" pick may name it.
-        if (entry.op === "moveZone" && typeof entry.bindAll === "string") {
-            if (entry.bindAll === "$each") {
-                errors.push(
-                    `${at}: bindAll "$each" is reserved — only the forEach construct binds it (issue #807)`
-                );
-            } else if (declared.has(entry.bindAll)) {
-                errors.push(
-                    `${at}: bindAll "${entry.bindAll}" re-declares an existing binding — binding names must be unique within a script`
-                );
-            } else {
-                declared.set(entry.bindAll, "picks");
-            }
-        }
-
-        // `coinFlipSeries` (issue #3813, ADR 0144) declares up to three
-        // NUMBER bindings — the series' flips / wins / losses — each read back
-        // by a bare ref in a numeric value position. Own fields for the reason
-        // `bindCount` is one: `bindingKindOf` answers per Op, not per field.
-        if (entry.op === "coinFlipSeries") {
-            for (const field of ["bindFlips", "bindWins", "bindLosses"]) {
-                const name = entry[field];
-                if (typeof name !== "string") continue;
-                if (name === "$each") {
-                    errors.push(
-                        `${at}: ${field} "$each" is reserved — only the forEach construct binds it (issue #807)`
-                    );
-                } else if (declared.has(name)) {
-                    errors.push(
-                        `${at}: ${field} "${name}" re-declares an existing binding — binding names must be unique within a script`
-                    );
-                } else {
-                    declared.set(name, "number");
-                }
-            }
-        }
-
-        // `mill.bindAll` (issue #2600) declares a PICKS binding — every card
-        // that genuinely reached the graveyard, whereas the same Op's `bind`
-        // spends the snapshot family on the FIRST of them. Its own field for
-        // the same reason `choice.bindOther` is one: two families, one Op, and
-        // `bindingKindOf` answers per-Op rather than per-field.
-        if (entry.op === "mill" && typeof entry.bindAll === "string") {
-            if (entry.bindAll === "$each") {
-                errors.push(
-                    `${at}: bindAll "$each" is reserved — only the forEach construct binds it (issue #807)`
-                );
-            } else if (declared.has(entry.bindAll)) {
-                errors.push(
-                    `${at}: bindAll "${entry.bindAll}" re-declares an existing binding — binding names must be unique within a script`
-                );
-            } else {
-                declared.set(entry.bindAll, "picks");
-                // CR 701.17 — a mill fills the milled PLAYER's graveyard.
-                publicZoneBindings.set(
-                    entry.bindAll,
-                    JSON.stringify(entry.player ?? null)
-                );
-            }
-        }
-
-        // `castDuringResolution.resultBind` (issue #1478) declares a BOOLEAN
-        // outcome binding (the mirror of `mayPay.bind`) under a distinct field
-        // name — the Op already spends `bind`-family semantics on nothing, so a
-        // dedicated field avoids overloading `bind`. Register it as boolean so a
-        // downstream `if { binding }` / `{ not: { binding } }` resolves.
-        if (
-            entry.op === "castDuringResolution" &&
-            typeof entry.resultBind === "string"
-        ) {
-            if (declared.has(entry.resultBind)) {
-                errors.push(
-                    `${at}: resultBind "${entry.resultBind}" re-declares an existing binding — binding names must be unique within a script`
-                );
-            } else {
-                declared.set(entry.resultBind, "boolean");
             }
         }
     });

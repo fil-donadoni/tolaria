@@ -86,6 +86,47 @@ export type ScriptHostOp = {
 /** An Op the type system has proven carries no nested script. */
 type ScriptlessOp = Exclude<EffectOp, { op: ScriptHostOp }>;
 
+/** The fields of Op variant `O` that carry a nested script — DERIVED from its
+ *  field types, like `ScriptHostOp`. */
+type ScriptFieldOf<O> = {
+    [K in keyof O]-?: true extends HoldsScript<O[K]> ? K : never;
+}[keyof O];
+
+/** The FIELD NAMES each script host nests its scripts under, in the order
+ *  `childOpArrays` returns them (issue #4451) — the key-level half of the one
+ *  child-list authority, read by the walks that must know which KEY of an Op
+ *  opens a new script scope (`validate.ts`'s `NESTED_SCRIPT_KEYS`) rather than
+ *  which lists it holds. Typed both ways: a key that is not one of the
+ *  variant's script fields is a `check:ts` error here, and a script field left
+ *  out is one below (`MissingScriptField`). */
+export const SCRIPT_HOST_FIELDS = {
+    if: ["then", "else"],
+    forEach: ["effects"],
+    optionChoice: ["modes"],
+    coinFlip: ["win", "loss"],
+    coinFlipSync: ["win", "loss"],
+    delayedTrigger: ["effects"],
+    reflexiveTrigger: ["effects"],
+    divideIntoPiles: ["chosenEffect", "otherEffect"],
+} as const satisfies {
+    readonly [N in ScriptHostOp]: readonly ScriptFieldOf<
+        Extract<EffectOp, { op: N }>
+    >[];
+};
+
+/** A script field some host carries that `SCRIPT_HOST_FIELDS` does not list —
+ *  must be `never`. */
+type MissingScriptField = {
+    [N in ScriptHostOp]: Exclude<
+        ScriptFieldOf<Extract<EffectOp, { op: N }>>,
+        (typeof SCRIPT_HOST_FIELDS)[N][number]
+    >;
+}[ScriptHostOp];
+const everyScriptFieldListed: [MissingScriptField] extends [never]
+    ? true
+    : MissingScriptField = true;
+void everyScriptFieldListed;
+
 /** The `default` arm's witness: it only type-checks for a script-free Op, so
  *  a host `childOpArrays` has no case for reds here. */
 function noChildren(op: ScriptlessOp): readonly Script[] {

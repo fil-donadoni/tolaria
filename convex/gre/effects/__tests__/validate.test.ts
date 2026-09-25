@@ -5028,7 +5028,7 @@ describe("validateEffectScript — choice candidates / bindOther", () => {
             expect(validateEffectScript({ ...script, effects })).toEqual([]);
         });
 
-        // Review round 1 — `bindingKindOf` answers "picks" for `nameCard` too,
+        // Review round 1 — `nameCard`'s `bind` is tagged "picks" too,
         // but a nameCard binding stores a card NAME, not an instance id, so it
         // would intersect with nothing. The family check alone cannot tell the
         // two apart; the producer allow-list can.

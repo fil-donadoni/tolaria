@@ -44,6 +44,8 @@ import type {
 import type { CompiledTriggerHead } from "../../cards/compiledTriggers";
 import type { CardInstanceState, GameState, PlayerState } from "../state";
 import { EFFECT_OP_REGISTRY } from "../../cards/mechanicsRegistry";
+// issue #4451 — the amount fields, derived from the tagged Op Schema.
+import { AMOUNT_KEYS } from "./validate";
 import { classLevelOf } from "../../cards/abilities/classLevels";
 import { getEffectivePower, getEffectiveToughness } from "../layers";
 import { readPlayerCounters } from "../playerCounters";
@@ -575,25 +577,6 @@ function isEffectOp(node: unknown): node is EffectOp {
         EFFECT_OP_NAMES.has(String((node as { op?: unknown }).op))
     );
 }
-
-/** Fields typed `EffectValue` somewhere in the `EffectOp` union — an amount. */
-export const AMOUNT_KEYS: ReadonlySet<string> = new Set([
-    "amount",
-    "count",
-    "costPerKept",
-    "look",
-    "max",
-    "min",
-    "take",
-    "energyEqualTo",
-    "genericEqualTo",
-    "left",
-    "right",
-    "negate",
-    "power",
-    "toughness",
-    "reducedBy",
-]);
 
 /**
  * ADR 0105 § 7.1 — what an `op-covered` skip must NOT hide: the card-dependent

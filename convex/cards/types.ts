@@ -13187,8 +13187,8 @@ export interface EffectCountSpec {
      *  `bind` or `mill`'s `bindAll`. `nameCard`'s binding shares that family
      *  tag while storing a card NAME, so pointing `picks` at one validates and
      *  then counts 0 forever; that hole is the family's, shared with `sum` and
-     *  `setSize`, and closing it is a change to `bindingKindOf`, not to this
-     *  field. */
+     *  `setSize`, and closing it is a change to the binding families (the
+     *  schema's `bindingDeclaration` tags, issue #4451), not to this field. */
     picks?: EffectRef;
 }
 
@@ -15634,7 +15634,7 @@ export type EffectOp =
      *  draw that many cards" reads back: the later `draw`'s `count: { ref }`
      *  cannot recount the hand, which the move has just emptied. Its own field
      *  rather than `bind` for the reason `mill.bindAll` is one — two binding
-     *  families on one Op, and `bindingKindOf` answers per Op (this one is a
+     *  families on one Op, one declaring field each (this one is a
      *  number, `bind` is a snapshot). Whole-zone shape ONLY: the other shapes
      *  move a chosen or filtered subset and bind the cards themselves.
      *
@@ -15863,7 +15863,7 @@ export type EffectOp =
      *  a zone change — Backlash ("Tap target untapped creature. That creature
      *  deals damage equal to its power to its controller.") reads `$bound.power`
      *  for a trailing `dealDamage` to `{ ref: "$bound.controller" }`. The
-     *  snapshot is a normal `"snapshot"` binding (bindingKindOf's default), so
+     *  snapshot is a normal `"snapshot"` binding (its schema tag), so
      *  `$bound.power`/`.toughness`/`.controller` refs validate. */
     | {
           op: "tapUntap";

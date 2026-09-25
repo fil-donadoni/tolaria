@@ -1,23 +1,30 @@
-// The two hand-kept Effect Script FIELD-KIND lists, each driven through the
-// public seam that reads it (issue #4477):
+// The two Effect Script FIELD-KIND key sets, each driven through the public
+// seam that reads it (issue #4477):
 //
-//   - `NESTED_SCRIPT_KEYS` (validate.ts) — the keys whose values are an
+//   - `NESTED_SCRIPT_KEYS` — the keys whose values are an
 //     independently-scoped nested script, which the CR 402.3 / 701.20a
 //     filtered-hand-count check must NOT walk from the outer entry.
-//   - `AMOUNT_KEYS` (scenarioGenerator.ts) — the fields typed `EffectValue`,
-//     which the smoke generator's op-covered argument read (ADR 0105 § 7.1)
-//     must treat as a runtime amount.
+//   - `AMOUNT_KEYS` — the fields typed `EffectValue`, which the smoke
+//     generator's op-covered argument read (ADR 0105 § 7.1) must treat as a
+//     runtime amount.
 //
-// Characterisation ahead of the field-kind derivation (issue #4451), which
-// replaces both hand lists: each member is pinned by BEHAVIOUR (a key the
-// derivation drops changes a verdict below), and each list's membership is
-// pinned too, so a derivation that silently narrows or widens it is a
-// deliberate edit here rather than an unnoticed one.
+// Both were hand-kept lists; both are now DERIVED in `validate.ts` from the
+// tagged Op Schema (issue #4451 — `SCRIPT_HOST_FIELDS` beside `childOpArrays`
+// for the nesting keys). Each member is pinned by BEHAVIOUR (a key the
+// derivation drops changes a verdict below), and each set's membership is
+// pinned too, so a re-tag that silently narrows or widens it is a deliberate
+// edit here rather than an unnoticed one. The derivation added one key the
+// hand list had missed: `position` (`moveZone`'s library position admits an
+// `EffectValue` since issue #3242).
 
 import { describe, expect, it } from "vitest";
 import type { EffectOp } from "../../../cards/types";
-import { NESTED_SCRIPT_KEYS, validateEffectScript } from "../validate";
-import { AMOUNT_KEYS, planSmokeTest } from "../scenarioGenerator";
+import {
+    AMOUNT_KEYS,
+    NESTED_SCRIPT_KEYS,
+    validateEffectScript,
+} from "../validate";
+import { planSmokeTest } from "../scenarioGenerator";
 import { NESTING_SHAPES } from "../../__tests__/fixtures/nestedOpShapes";
 
 /** "Count the creature cards in your hand" — a FILTERED hand count, the read
@@ -120,11 +127,11 @@ describe("NESTED_SCRIPT_KEYS — a nested script's hand read is checked in ITS s
  *  so the generator reads its OWN arguments back; `key` carries an object
  *  the generator cannot size.
  *
- *  This pins TODAY's semantics: `AMOUNT_KEYS` is a global key-name list, read
- *  on whatever Op carries the key — hence one host for every name. A
- *  derivation that classifies amounts per Op variant (issue #4451) would stop
- *  reading e.g. `look` on `preventDamage` as an amount; these rows then go red
- *  for a legitimate reason, and move to hosts that really declare each key. */
+ *  `AMOUNT_KEYS` is a GLOBAL key-name set, read on whatever Op carries the
+ *  key — hence one host for every name. The derivation (issue #4451) kept that
+ *  semantics; a per-Op-variant read would stop treating e.g. `look` on
+ *  `preventDamage` as an amount, and these rows would then move to hosts that
+ *  really declare each key. */
 function opCoveredWith(key: string): EffectOp[] {
     return [
         {
@@ -162,6 +169,7 @@ describe("AMOUNT_KEYS — an op-covered Op's runtime amount is card-dependent (A
             "max",
             "min",
             "negate",
+            "position",
             "power",
             "reducedBy",
             "right",
