@@ -2905,6 +2905,20 @@ export const SURFACES: readonly Surface[] = [
                     "opening the contested position rendered no board"
                 );
             }
+            // The resolution form mounts only while the position is
+            // UNRESOLVED, and resolutions are read from the shared Verdict
+            // Store — not from this account's rows — so a resolution anyone
+            // ever recorded on the fixture's fixed position hides the form
+            // from every later run (measured 2026-09-25: every full lane run
+            // that day failed the three form promises, issue #4423). `Resolve
+            // again` opens the same form over a resolved position and records
+            // nothing, so pressing it measures the same screen either way.
+            const resolveAgain = page
+                .getByTestId("verdict-position-detail")
+                .getByRole("button", { name: "Resolve again" });
+            if (await resolveAgain.isVisible()) {
+                await resolveAgain.click({ timeout: STEP_TIMEOUT });
+            }
             await settle(page);
         },
     },
