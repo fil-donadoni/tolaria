@@ -45,9 +45,19 @@ import type {
     StackItem,
 } from "./state";
 import type { Zone } from "./types";
+import type {
+    CardFieldCodec,
+    CustomCardFieldKey,
+    OptionalCardInstanceKey,
+} from "./state/cardFieldLifecycle";
+import {
+    CARD_FIELD_KEYS,
+    CARD_FIELD_LIFECYCLE,
+} from "./state/cardFieldLifecycle";
 import type { FaceDownProducer } from "./faceDown";
 import { isFaceDownProducer } from "./faceDown";
 import type {
+    CardDefinition,
     CardSupertype,
     CardType,
     ManaCost,
@@ -170,180 +180,243 @@ function resolveCardId(raw: unknown, ctx?: ExpandCtx): string {
     return spec !== undefined ? spec : pooled;
 }
 
-/** Optional `CardInstanceState` keys that round-trip through `compactCard` /
- *  `expandCard` — the card-level counterpart to `PERSISTED_OPTIONAL_KEYS`
- *  below, mechanically derived (not hand-transcribed) by cross-referencing
- *  every optional key of `CardInstanceState` (`convex/gre/state.ts`) against
- *  the `card.<field>` reads in `compactCard` and the `result.<field>` /
- *  `item.<field>` writes in `expandCard` — all 109 are currently handled in
- *  both directions (issue #2255; `indefiniteSubtypeSet` was the sole gap).
- *  Purely a classification list for the compile-time guard below — unlike
- *  `PERSISTED_OPTIONAL_KEYS`, `compactCard`/`expandCard` do NOT loop over
- *  this array (each card field needs its own default/shape check), so
- *  adding a name here documents intent but does not itself wire the field —
- *  pair every addition with the actual `compactCard`/`expandCard` branch and
- *  a round-trip test, exactly like the fix in this issue. */
-export const CARD_PERSISTED_OPTIONAL_KEYS = [
-    "abilitiesSuppressedBy",
-    "abilityLossHolds",
-    "baseControllerId",
-    "baseStaticAbilities",
-    "baseSubtypes",
-    "baseTypes",
-    "activationsThisTurn",
-    "adventureOf",
-    "splitHalfOf",
-    "animation",
-    "attachedTo",
-    "attackedDuringLastTurn",
-    "bestowed",
-    "canAttackDespiteDefenderThisTurn",
-    "canBlockAdditional",
-    "cantAttackThisTurn",
-    "cantBeBlockedBySubtypesThisTurn",
-    "cantBeBlockedThisTurn",
-    "cantBeRegeneratedThisTurn",
-    "cantBlockThisTurn",
-    "castFromExileCostIncrease",
-    "castFromExileManaSubstitution",
-    "castFromExileNotAsAdventure",
-    "castFromExileWithoutPayingManaCost",
-    "castFromGraveyardExilesOnResolve",
-    "castFromGraveyardWithoutPayingManaCost",
-    "castOffSorceryTiming",
-    "castableFromExileBy",
-    "castableFromExileIncludesLand",
-    "castableFromExileUntilTurn",
-    "castableFromExileUntilOwnTurn",
-    "castableFromExileFromTurn",
-    "castableFromGraveyardBy",
-    "castableFromGraveyardUntilTurn",
-    "chosenMana",
-    "chosenModeId",
-    "chosenName",
-    "chosenPlayerId",
-    "chosenSubtypes",
-    "chosenXOnCast",
-    "classLevel",
-    "colorOverride",
-    "controlChanges",
-    "copiedFrom",
-    "copyExcept",
-    "copyOptions",
-    "counters",
-    "countersAtLeave",
-    "capturedBindings",
-    "createdBy",
-    "damageLockThisTurn",
-    "damageMarked",
-    "damagedBySources",
-    "dashed",
-    "dealtDamageToOpponentThisTurn",
-    "dealtDeathtouchDamage",
-    "echoPending",
-    "enteredOnTurn",
-    "escaped",
-    "evoked",
-    "exileOnDeath",
-    "exileOnLeave",
-    "exiledBySourceId",
-    "faceDown",
-    "faceDownBy",
-    "faceDownOf",
-    "grantedActivatedAbilities",
-    "grantedAttackRequirements",
-    "grantedColors",
-    "grantedEnchantRestriction",
-    "grantedFlashback",
-    "grantedSupertypes",
-    "grantedTriggeredAbilities",
-    "hasAttackedThisTurn",
-    "hasBlockedThisTurn",
-    "entersAsTypeLine",
-    "enterAttackingTarget",
-    "imagePrintId",
-    "indefiniteSubtypeSet",
-    "exertedThisTap",
-    "isAttacking",
-    "isBlocking",
-    "isSummoningSick",
-    "isToken",
-    "kickerPayments",
-    "knownTo",
-    "lifePaidThisTap",
-    "linkedTokenId",
-    "loyaltyActivationsThisTurn",
-    "madnessExiled",
-    "madnessTriggerPending",
-    "manaCommitted",
-    "manaCostOverride",
-    "manaCounterRemoval",
-    "manaPaidThisTap",
-    "mustAttackThisTurn",
-    "mustBlockAllThisTurn",
-    "notedMana",
-    "notedManaSpentOnCast",
-    // CR 702.96a — the Overload cast marker (issue #3215). Persisted for the
-    // same reason `evoked`/`dashed` are: a spell can sit on the stack across a
-    // save, and a reloaded overloaded item whose marker was dropped would
-    // resolve as its printed, single-target self.
-    "overloaded",
-    "pileLabel",
-    "power",
-    "reboundExiled",
-    "regenerationShields",
-    "removedSupertypes",
-    "skipNextUntap",
-    "sourceTappedPTMods",
-    "startedTurnUntapped",
-    "staticSeq",
-    "subtypeAddHolds",
-    "supertypeHolds",
-    "tapBonusMana",
-    "tapTriggerCommitted",
-    "temporaryColorOverride",
-    "timedCopyEffects",
-    "temporarySubtypeChange",
-    "textChangeHolds",
-    "typeLineHolds",
-    "toughness",
-    "transformCount",
-    "transformed",
-    "transformedAtDelayedSeq",
-    "transformedFrom",
-    "triggersThisTurn",
-    "unkickedCostPayments",
-    "untapLockedBy",
-    "warped",
-    "warpExiled",
-    "wasKicked",
-    "worldSeq",
-] as const;
+/** The card-level wire is TABLE-DRIVEN (issue #4453): `compactCard` /
+ *  `expandCard` walk `CARD_FIELD_LIFECYCLE` (`gre/state/cardFieldLifecycle.ts`)
+ *  in key order and apply each row's `codec`. The rows below are the ones no
+ *  predicate expresses — a definition diff, a legacy-shape coercion, a
+ *  conditional restore — one hand-written pair per `custom` row, exhaustive
+ *  over them (a `custom` row without a pair, or a pair for a non-`custom`
+ *  row, reds `check:ts`). Each pair runs at its row's position in the walk, so
+ *  table order stays wire order. */
+type CardCodecCtx = { def: CardDefinition | null | undefined };
+type CustomCardCodec = {
+    compact: (
+        card: CardInstanceState,
+        out: CompactCard,
+        ctx: CardCodecCtx
+    ) => void;
+    expand: (
+        compact: CompactCard,
+        result: CardInstanceState,
+        ctx: CardCodecCtx
+    ) => void;
+};
 
-/** Optional `CardInstanceState` keys deliberately NOT persisted through
- *  `compactCard`/`expandCard` — empty today (every optional card field
- *  round-trips). A future entry needs a one-line reason on its own line,
- *  mirroring `TRANSIENT_KEYS` below. Kept as a literal tuple (`as const`),
- *  not `string[]` — a widened element type would make the exhaustiveness
- *  check below vacuously pass for every field. */
-export const CARD_TRANSIENT_KEYS = [] as const;
+/** issue #3001 — a RETIRED producer ("impulse-exile") survives in any
+ *  `gameStates` row written before the impulse idiom went face up, and the
+ *  `faceDownBy` seam is a bare assertion that would believe it. Drop it, and
+ *  drop the per-viewer grant it accompanied (`knownTo`): together they ARE the
+ *  retired behaviour, and a half-healed row is worse than either — the knower
+ *  would be handed a `faceDown: true` for a card whose face the client can no
+ *  longer resolve. A card with NO producer at all is pre-#2904 state and is
+ *  left exactly as it is. */
+function hasRetiredFaceDownProducer(compact: CompactCard): boolean {
+    return (
+        compact.faceDownBy !== undefined &&
+        !isFaceDownProducer(compact.faceDownBy)
+    );
+}
 
-// Compile-time card-level drift guard (issue #2255) — NOT a runtime check.
-// tsc computes every optional key of CardInstanceState, subtracts
-// CARD_PERSISTED_OPTIONAL_KEYS and CARD_TRANSIENT_KEYS, and the assignment
-// below type-checks only when nothing is left over. A newly added optional
-// CardInstanceState field that is classified in neither list fails
-// `tsc -b` (part of `bun run check:all`), naming the field in the reported
-// type: `["unlisted CardInstanceState keys:", "someNewField"]`. The mapped
-// type is repeated inline (not hoisted to a named alias) on purpose — tsc
-// only expands an anonymous mapped-type union in an error message, not one
-// reached through a type alias, generic or not (verified by hand while
-// building this guard).
-// prettier-ignore
-const _cardKeysExhaustive: Exclude<{ [K in keyof CardInstanceState]-?: object extends Pick<CardInstanceState, K> ? K : never }[keyof CardInstanceState], (typeof CARD_PERSISTED_OPTIONAL_KEYS)[number] | (typeof CARD_TRANSIENT_KEYS)[number]> extends never
-    ? true
-    : ["unlisted CardInstanceState keys:", Exclude<{ [K in keyof CardInstanceState]-?: object extends Pick<CardInstanceState, K> ? K : never }[keyof CardInstanceState], (typeof CARD_PERSISTED_OPTIONAL_KEYS)[number] | (typeof CARD_TRANSIENT_KEYS)[number]>] = true;
-void _cardKeysExhaustive;
+const CARD_FIELD_CUSTOM_CODECS: {
+    readonly [K in CustomCardFieldKey]: CustomCardCodec;
+} = {
+    // Definition diff: written only when the instance differs from the printed
+    // value, read back through a presence test so an explicit `undefined`
+    // (written when the instance has NO P/T) falls back to the printed one —
+    // see `docs/findings/2388-expandcard-restores-printed-pt-over-a-cleared-one.md`
+    // and the `bestowed` re-clear below.
+    power: {
+        compact: (card, out, { def }) => {
+            if (card.power !== def?.power) out.power = card.power;
+        },
+        expand: (compact, result, { def }) => {
+            const power =
+                "power" in compact
+                    ? (compact.power as number | undefined)
+                    : def?.power;
+            if (power !== undefined) result.power = power;
+        },
+    },
+    toughness: {
+        compact: (card, out, { def }) => {
+            if (card.toughness !== def?.toughness) {
+                out.toughness = card.toughness;
+            }
+        },
+        expand: (compact, result, { def }) => {
+            const toughness =
+                "toughness" in compact
+                    ? (compact.toughness as number | undefined)
+                    : def?.toughness;
+            if (toughness !== undefined) result.toughness = toughness;
+        },
+    },
+    // CR 606.3 — the per-permanent "loyalty abilities activated this turn"
+    // tally must survive a save/load mid-turn, or a planeswalker could activate
+    // a whole second allowance after a reload.
+    loyaltyActivationsThisTurn: {
+        compact: (card, out) => {
+            if (card.loyaltyActivationsThisTurn) {
+                out.loyaltyActivationsThisTurn =
+                    card.loyaltyActivationsThisTurn;
+            }
+        },
+        expand: (compact, result) => {
+            if (compact.loyaltyActivationsThisTurn) {
+                result.loyaltyActivationsThisTurn =
+                    compact.loyaltyActivationsThisTurn as number;
+            } else if (compact.loyaltyActivatedThisTurn) {
+                // LEGACY (issue #3339) — the boolean lock this tally replaced. A
+                // game saved mid-turn before the rename carries the old key;
+                // read it as the one activation it stood for, or a reload would
+                // hand every planeswalker on the board a fresh allowance in the
+                // middle of a turn. Write-only-forward: `compactCard` never
+                // emits it again, so the key dies out on the first save after
+                // the upgrade.
+                result.loyaltyActivationsThisTurn = 1;
+            }
+        },
+    },
+    abilitiesSuppressedBy: {
+        compact: (card, out) => {
+            if (card.abilitiesSuppressedBy?.length) {
+                out.abilitiesSuppressedBy = card.abilitiesSuppressedBy;
+            }
+        },
+        expand: (compact, result) => {
+            if (!compact.abilitiesSuppressedBy) return;
+            // Rows persisted before the field carried a layer timestamp hold
+            // bare source-id STRINGS (CR 613.7 ordering was added later).
+            // Coerce them to seq 0 — the earliest possible stamp, so every
+            // grant on that permanent reads as later and survives, matching
+            // the pre-change behaviour for a game already in flight.
+            result.abilitiesSuppressedBy = (
+                compact.abilitiesSuppressedBy as unknown[]
+            ).map((s) =>
+                typeof s === "string" ? { sourceId: s, seq: 0 } : s
+            ) as CardInstanceState["abilitiesSuppressedBy"];
+        },
+    },
+    faceDownBy: {
+        compact: (card, out) => {
+            if (card.faceDownBy) out.faceDownBy = card.faceDownBy;
+        },
+        expand: (compact, result) => {
+            if (compact.faceDownBy && !hasRetiredFaceDownProducer(compact)) {
+                result.faceDownBy = compact.faceDownBy as FaceDownProducer;
+            }
+        },
+    },
+    // ADR 0026 / PRD #338 — persistent per-viewer card knowledge.
+    knownTo: {
+        compact: (card, out) => {
+            if (card.knownTo?.length) out.knownTo = card.knownTo;
+        },
+        expand: (compact, result) => {
+            if (compact.knownTo && !hasRetiredFaceDownProducer(compact)) {
+                result.knownTo = compact.knownTo as string[];
+            }
+        },
+    },
+    // CR 702.103b — the Bestow marker must survive a save/load for the whole
+    // life of the bestowed object: it is the live discriminator the CR 702.103f
+    // Aura-SBA exception (`sba.ts`) and the CR 702.103e resolution exception
+    // (`state.ts`) both read, so a dropped flag turns a bestowed Nantuko into
+    // an ordinary Aura and the next SBA sweep bins it to the graveyard. The
+    // type-line half of the change rides the ordinary `types`/`subtypes`
+    // definition-diff. On expand it restores the ONE part of the bestow
+    // characteristic change the definition-diff cannot carry: a bestowed
+    // object is an Aura enchantment with NO power or toughness (CR 208.3), so
+    // `compactCard` writes `power: undefined` — and an explicit `undefined`
+    // does not survive JSON, which makes the `"power" in compact` fallback
+    // hand back the printed 1/1 instead. Re-clearing here keeps the round-trip
+    // exact. (The layer-4 half of the pre-slice shape is migrated in
+    // `migrateLegacyBestowTypeLine`, at the END of `expandState`.)
+    bestowed: {
+        compact: (card, out) => {
+            if (card.bestowed) out.bestowed = card.bestowed;
+        },
+        expand: (compact, result) => {
+            if (!compact.bestowed) return;
+            result.bestowed = compact.bestowed as boolean;
+            delete result.power;
+            delete result.toughness;
+        },
+    },
+};
+
+function compactCardField(
+    card: CardInstanceState,
+    out: CompactCard,
+    key: OptionalCardInstanceKey,
+    ctx: CardCodecCtx
+): void {
+    const value: unknown = card[key];
+    // Widened on purpose: no `transient` row exists today, and the switch
+    // must still name the case the table type allows.
+    const codec = CARD_FIELD_LIFECYCLE[key].codec as CardFieldCodec;
+    switch (codec) {
+        case "flag":
+            if (value) out[key] = true;
+            return;
+        case "scalar":
+            if (value) out[key] = value;
+            return;
+        case "defined":
+            if (value !== undefined) out[key] = value;
+            return;
+        case "list":
+            if ((value as unknown[] | undefined)?.length) out[key] = value;
+            return;
+        case "record":
+            if (value && Object.keys(value).length > 0) out[key] = value;
+            return;
+        case "transient":
+            return;
+        case "custom":
+            CARD_FIELD_CUSTOM_CODECS[key as CustomCardFieldKey].compact(
+                card,
+                out,
+                ctx
+            );
+            return;
+    }
+}
+
+function expandCardField(
+    compact: CompactCard,
+    result: CardInstanceState,
+    key: OptionalCardInstanceKey,
+    ctx: CardCodecCtx
+): void {
+    const value = compact[key];
+    const slot = result as Record<string, unknown>;
+    // Widened on purpose: no `transient` row exists today, and the switch
+    // must still name the case the table type allows.
+    const codec = CARD_FIELD_LIFECYCLE[key].codec as CardFieldCodec;
+    switch (codec) {
+        case "flag":
+            if (value) slot[key] = true;
+            return;
+        case "scalar":
+        case "list":
+        case "record":
+            if (value) slot[key] = value;
+            return;
+        case "defined":
+            if (value !== undefined) slot[key] = value;
+            return;
+        case "transient":
+            return;
+        case "custom":
+            CARD_FIELD_CUSTOM_CODECS[key as CustomCardFieldKey].expand(
+                compact,
+                result,
+                ctx
+            );
+            return;
+    }
+}
 
 function compactCard(
     card: CardInstanceState,
@@ -352,6 +425,7 @@ function compactCard(
 ): CompactCard {
     const cardId = (card.card as { id?: string }).id ?? "";
     const def = tryGetDefinition(cardId);
+    const codecCtx: CardCodecCtx = { def };
     const out: CompactCard = {
         id: card.id,
         card: { id: internCardIdForCompact(ctx, cardId) },
@@ -369,464 +443,16 @@ function compactCard(
     if (!eqArray(card.staticAbilities, defStatic)) {
         out.staticAbilities = card.staticAbilities;
     }
-    if (card.power !== def?.power) out.power = card.power;
-    if (card.toughness !== def?.toughness) out.toughness = card.toughness;
-
+    // Wire key order is frozen by the pre-table fixture
+    // (`__tests__/fixtures/cardFieldLifecycle.compact.json`): the two
+    // definition-diffed rows, then the required `isTapped`, then the rest of
+    // the table in its own order.
+    compactCardField(card, out, "power", codecCtx);
+    compactCardField(card, out, "toughness", codecCtx);
     if (card.isTapped) out.isTapped = true;
-    if (card.isToken) out.isToken = true;
-    if (card.isSummoningSick) out.isSummoningSick = true;
-    // CR 400.7 (issue #1458) — the entered-this-turn stamp must survive a
-    // mid-turn stable-point round-trip, or an effect resolving after a save
-    // would stop seeing permanents that entered earlier in the same turn.
-    if (card.enteredOnTurn !== undefined)
-        out.enteredOnTurn = card.enteredOnTurn;
-    if (card.echoPending) out.echoPending = true;
-    if (card.isAttacking) out.isAttacking = true;
-    if (card.isBlocking) out.isBlocking = true;
-    if (card.hasAttackedThisTurn) out.hasAttackedThisTurn = true;
-    if (card.hasBlockedThisTurn) out.hasBlockedThisTurn = true;
-    if (card.attackedDuringLastTurn) out.attackedDuringLastTurn = true;
-    if (card.dealtDamageToOpponentThisTurn) {
-        out.dealtDamageToOpponentThisTurn = true;
-    }
-    if (card.startedTurnUntapped) out.startedTurnUntapped = true;
-    if (card.chosenModeId) out.chosenModeId = card.chosenModeId;
-    if (card.chosenName) out.chosenName = card.chosenName;
-    if (card.manaCommitted) out.manaCommitted = true;
-    if (card.tapTriggerCommitted) out.tapTriggerCommitted = true;
-    if (card.damageMarked) out.damageMarked = card.damageMarked;
-    // CR 716.2b — the class level is a designation carried by the permanent and
-    // has to survive a save/load: it is not a counter (CR 716.4 / 711.7), so
-    // nothing else on the wire stands in for it, and losing it would silently
-    // return every Class to level 1 (CR 716.2d) with its bars re-armed.
-    if (card.classLevel) out.classLevel = card.classLevel;
-    // CR 606.3 — the per-permanent "loyalty abilities activated this turn"
-    // tally must survive a save/load mid-turn, or a planeswalker could activate
-    // a whole second allowance after a reload.
-    if (card.loyaltyActivationsThisTurn) {
-        out.loyaltyActivationsThisTurn = card.loyaltyActivationsThisTurn;
-    }
-    if (card.dealtDeathtouchDamage) out.dealtDeathtouchDamage = true;
-    if (card.regenerationShields) {
-        out.regenerationShields = card.regenerationShields;
-    }
-    if (card.chosenMana) out.chosenMana = card.chosenMana;
-    if (card.manaCounterRemoval)
-        out.manaCounterRemoval = card.manaCounterRemoval;
-    if (card.lifePaidThisTap) out.lifePaidThisTap = card.lifePaidThisTap;
-    if (card.manaPaidThisTap) out.manaPaidThisTap = card.manaPaidThisTap;
-    if (card.tapBonusMana) out.tapBonusMana = card.tapBonusMana;
-    if (card.grantedActivatedAbilities?.length) {
-        out.grantedActivatedAbilities = card.grantedActivatedAbilities;
-    }
-    if (card.abilitiesSuppressedBy?.length) {
-        out.abilitiesSuppressedBy = card.abilitiesSuppressedBy;
-    }
-    if (card.grantedTriggeredAbilities?.length) {
-        out.grantedTriggeredAbilities = card.grantedTriggeredAbilities;
-    }
-    // CR 508.1d (issue #1972) — a granted attack requirement has no definition
-    // to re-derive it from; dropping it would free the creature after a save.
-    if (card.grantedAttackRequirements?.length) {
-        out.grantedAttackRequirements = card.grantedAttackRequirements;
-    }
-    // PRD #2064 S3 — the layer-6 base and the resolving-ability ability-loss
-    // LEDGER. Both are genuine state, not derivable from the definition: the
-    // base carries whatever the lower layers put there (a copy effect's line, a
-    // face-down 2/2's empty list, a CR 614.12c body choice), and the ledger
-    // holds effects whose source has already left the stack.
-    if (card.baseStaticAbilities) {
-        out.baseStaticAbilities = card.baseStaticAbilities;
-    }
-    if (card.abilityLossHolds?.length) {
-        out.abilityLossHolds = card.abilityLossHolds;
-    }
-    // PRD #2064 S4 — the layer-2 and layer-4 bases, and the four layer-2-to-5
-    // LEDGERS. Same argument as the layer-6 pair above: a base carries whatever
-    // the lower layers put there, and a ledger holds an effect whose source has
-    // already left the stack, so neither is derivable from the definition.
-    if (card.baseControllerId) out.baseControllerId = card.baseControllerId;
-    if (card.baseTypes) out.baseTypes = card.baseTypes;
-    if (card.baseSubtypes) out.baseSubtypes = card.baseSubtypes;
-    if (card.textChangeHolds?.length) {
-        out.textChangeHolds = card.textChangeHolds;
-    }
-    if (card.typeLineHolds?.length) out.typeLineHolds = card.typeLineHolds;
-    if (card.subtypeAddHolds?.length) {
-        out.subtypeAddHolds = card.subtypeAddHolds;
-    }
-    if (card.supertypeHolds?.length) out.supertypeHolds = card.supertypeHolds;
-    if (card.damagedBySources?.length) {
-        out.damagedBySources = card.damagedBySources;
-    }
-    if (card.attachedTo) out.attachedTo = card.attachedTo;
-    if (card.controlChanges?.length) out.controlChanges = card.controlChanges;
-    if (card.animation) out.animation = card.animation;
-    if (card.temporarySubtypeChange) {
-        out.temporarySubtypeChange = card.temporarySubtypeChange;
-    }
-    // CR 400.7 / 611.2a (issue #1746) — indefinite subtype-set restore anchor.
-    // No duration ticks this out; its only end is the permanent leaving the
-    // battlefield (`resetBattlefieldTransientState`). Must round-trip or a
-    // save/load boundary loses the anchor while the mutated `subtypes` array
-    // (which IS persisted) survives — the permanent never reverts (#2255).
-    if (card.indefiniteSubtypeSet) {
-        out.indefiniteSubtypeSet = card.indefiniteSubtypeSet;
-    }
-    // CR 205.1a / 613.1d / 614.12a (issue #2993) — the PENDING entry type line
-    // ("return it to the battlefield. It's an enchantment."). Normally stamped
-    // and consumed inside one synchronous entry, but a permanent owing "as it
-    // enters" choices is PARKED in `stagedEntries` across a real save point
-    // (ADR 0100) and re-enters the funnel on a later mutation, so the stamp
-    // must survive the round trip or that permanent enters as its printed self.
-    if (card.enterAttackingTarget) {
-        out.enterAttackingTarget = card.enterAttackingTarget;
-    }
-    if (card.entersAsTypeLine) {
-        out.entersAsTypeLine = card.entersAsTypeLine;
-    }
-    if (card.temporaryColorOverride) {
-        out.temporaryColorOverride = card.temporaryColorOverride;
-    }
-    if (card.sourceTappedPTMods?.length) {
-        out.sourceTappedPTMods = card.sourceTappedPTMods;
-    }
-    if (card.untapLockedBy?.length) {
-        out.untapLockedBy = card.untapLockedBy;
-    }
-    if (card.skipNextUntap) out.skipNextUntap = true;
-    if (card.exertedThisTap) out.exertedThisTap = true;
-    if (card.canAttackDespiteDefenderThisTurn)
-        out.canAttackDespiteDefenderThisTurn = true;
-    if (card.counters && Object.keys(card.counters).length > 0) {
-        out.counters = card.counters;
-    }
-    // CR 608.2h — the moment-of-departure counter snapshot outlives the
-    // permanent, so a death trigger resolving after a save/load boundary still
-    // reads it (see `CardInstanceState.countersAtLeave`).
-    if (card.countersAtLeave && Object.keys(card.countersAtLeave).length > 0) {
-        out.countersAtLeave = card.countersAtLeave;
-    }
-    // CR 608.2h / 400.7 (issue #2384) — the cross-ability binding memory
-    // outlives the resolution that wrote it BY DESIGN (Skyclave Apparition's
-    // ETB exile is read by its own leave-trigger many turns later), so it must
-    // round-trip: state is saved at every stable point, and a memory that did
-    // not survive the save would silently make the later ability do nothing.
-    if (
-        card.capturedBindings &&
-        Object.keys(card.capturedBindings).length > 0
-    ) {
-        out.capturedBindings = card.capturedBindings;
-    }
-    // CR 704.5m world-rule timestamp — battlefield-only, must round-trip so a
-    // mid-game save/load preserves which World permanent is the newest.
-    if (card.worldSeq !== undefined) out.worldSeq = card.worldSeq;
-    // CR 613.7 layer timestamp (issue #1715) — battlefield-only, must
-    // round-trip or a mid-game save/load re-orders every co-applying layer-4/6
-    // static effect the next time one of them is re-applied.
-    if (card.staticSeq !== undefined) out.staticSeq = card.staticSeq;
-    if (
-        card.activationsThisTurn &&
-        Object.keys(card.activationsThisTurn).length > 0
-    ) {
-        out.activationsThisTurn = card.activationsThisTurn;
-    }
-    // CR 603.2 per-turn trigger cap tally — same round-trip contract as
-    // `activationsThisTurn`: a mid-turn save/load must not refund a capped
-    // ability's spent triggers (Nadu, Winged Wisdom).
-    if (
-        card.triggersThisTurn &&
-        Object.keys(card.triggersThisTurn).length > 0
-    ) {
-        out.triggersThisTurn = card.triggersThisTurn;
-    }
-    if (card.colorOverride && card.colorOverride.length > 0) {
-        out.colorOverride = card.colorOverride;
-    }
-    if (card.grantedColors && card.grantedColors.length > 0) {
-        out.grantedColors = card.grantedColors;
-    }
-    if (card.grantedSupertypes && card.grantedSupertypes.length > 0) {
-        out.grantedSupertypes = card.grantedSupertypes;
-    }
-    if (card.removedSupertypes && card.removedSupertypes.length > 0) {
-        out.removedSupertypes = card.removedSupertypes;
-    }
-    // CR 707.2's "except it's N/N" clause, stamped on this copy so a copy OF
-    // it inherits the exception (CR 707.3, issue #2076). Persisted rather than
-    // transient: it is a copiable value of a permanent that survives across
-    // saves, exactly like the copy anchor below.
-    if (card.copyExcept) out.copyExcept = card.copyExcept;
-    // CR 707.2 copy anchor — `card.id` already carries the copied def id; this
-    // preserves the printed identity to restore on leave (`revertCopy`).
-    if (card.copiedFrom) out.copiedFrom = card.copiedFrom;
-    // CR 707.9 — the presented copy effect's "except" options, and the timed
-    // copy effects (CR 611.2a, issue #3236) still to expire. Both persist: a
-    // save between the Saheeli activation and the cleanup step must still
-    // revert the copy, and re-apply the indefinite copy it covered.
-    if (card.copyOptions) out.copyOptions = card.copyOptions;
-    if (card.timedCopyEffects) out.timedCopyEffects = card.timedCopyEffects;
-    // CR 707.2 / 202.3 — the "except it has no mana cost" override (Eternalize
-    // / Embalm token). Persisted even when EMPTY: `{}` IS the override, and a
-    // truthiness/length test would drop exactly the case that matters.
-    if (card.manaCostOverride) out.manaCostOverride = card.manaCostOverride;
-    // CR 111 — cosmetic art pin for a copy with its own printed token card.
-    if (card.imagePrintId) out.imagePrintId = card.imagePrintId;
-    if (card.exileOnDeath) out.exileOnDeath = true;
-    if (card.damageLockThisTurn) out.damageLockThisTurn = true;
-    if (card.exileOnLeave) out.exileOnLeave = true;
-    if (card.cantBeRegeneratedThisTurn) out.cantBeRegeneratedThisTurn = true;
-    if (card.mustAttackThisTurn) out.mustAttackThisTurn = true;
-    if (card.canBlockAdditional !== undefined) {
-        out.canBlockAdditional = card.canBlockAdditional;
-    }
-    if (card.mustBlockAllThisTurn) out.mustBlockAllThisTurn = true;
-    if (card.cantBlockThisTurn) out.cantBlockThisTurn = true;
-    if (card.cantAttackThisTurn) out.cantAttackThisTurn = true;
-    if (card.cantBeBlockedThisTurn) out.cantBeBlockedThisTurn = true;
-    if (card.cantBeBlockedBySubtypesThisTurn?.length) {
-        out.cantBeBlockedBySubtypesThisTurn =
-            card.cantBeBlockedBySubtypesThisTurn;
-    }
-    if (card.chosenPlayerId) out.chosenPlayerId = card.chosenPlayerId;
-    if (card.chosenSubtypes?.length) out.chosenSubtypes = card.chosenSubtypes;
-    if (card.pileLabel) out.pileLabel = card.pileLabel;
-    if (card.faceDown) out.faceDown = true;
-    if (card.faceDownBy) out.faceDownBy = card.faceDownBy;
-    if (card.faceDownOf) out.faceDownOf = card.faceDownOf;
-    // CR 715.3b/715.4 — the front id of a stack item cast as an Adventure.
-    // Public to both players (unlike faceDownOf), so no per-viewer stripping.
-    if (card.adventureOf) out.adventureOf = card.adventureOf;
-    if (card.splitHalfOf) out.splitHalfOf = card.splitHalfOf;
-    // CR 712 / ADR 0067 (issue #1210) — transform face flag + the front
-    // face's own definition id, so a later flip back can restore it. Public
-    // to both players (unlike faceDown/faceDownOf), no per-viewer stripping.
-    if (card.transformed) out.transformed = true;
-    if (card.transformedFrom) out.transformedFrom = card.transformedFrom;
-    if (card.createdBy) out.createdBy = card.createdBy;
-    // CR 603.10 — Dance of Many copy-token leave-linkage anchor.
-    if (card.linkedTokenId) out.linkedTokenId = card.linkedTokenId;
-    // ADR 0026 / PRD #338 — persistent per-viewer card knowledge.
-    if (card.knownTo?.length) out.knownTo = card.knownTo;
-    // CR 106.10 — noted-mana battery (Jeweled Amulet / Ice Cauldron); the noted
-    // type/amount lives on the artifact and must survive a save/load.
-    if (card.notedMana) out.notedMana = card.notedMana;
-    // CR 601.3 — Ice Cauldron's cast-from-exile permission on an exiled card.
-    if (card.castableFromExileBy) {
-        out.castableFromExileBy = card.castableFromExileBy;
-    }
-    // CR 514.2 / 608.2g — the turn-scoped expiry marker for an impulse play
-    // grant (Headliner Scarlett / Expressive Iteration) must survive a save/load
-    // so the cleanup revocation fires on the right turn.
-    if (card.castableFromExileUntilOwnTurn !== undefined) {
-        out.castableFromExileUntilOwnTurn = card.castableFromExileUntilOwnTurn;
-    }
-    if (card.castableFromExileUntilTurn !== undefined) {
-        out.castableFromExileUntilTurn = card.castableFromExileUntilTurn;
-    }
-    // CR 702.185a (issue #1268) — the LOWER bound is the same kind of fact as
-    // the upper bound directly above: a turn number the permission is read
-    // against, and a warped card sits in exile across at least one save/load by
-    // construction (it becomes castable only on the FOLLOWING turn).
-    if (card.castableFromExileFromTurn !== undefined) {
-        out.castableFromExileFromTurn = card.castableFromExileFromTurn;
-    }
-    // CR 702.185b — the "warped card in exile" referent. Persisted because the
-    // fact is unrecoverable once the card is sitting in exile: nothing else
-    // records which ability put it there.
-    if (card.warpExiled) out.warpExiled = true;
-    // CR 702.185a — "if this spell's warp cost was paid". A warp permanent can
-    // sit on the battlefield across a save between its entry and the end step
-    // that exiles it, and the marker is what the delayed trigger re-reads to
-    // answer CR 400.7.
-    if (card.warped) out.warped = true;
-    // CR 701.27f (issue #3249) — a transformed permanent sits on the
-    // battlefield across saves while a delayed trigger that would transform it
-    // again waits for its boundary; the stamp is what that trigger re-reads.
-    if (card.transformedAtDelayedSeq !== undefined) {
-        out.transformedAtDelayedSeq = card.transformedAtDelayedSeq;
-    }
-    // CR 701.27f (issue #3537) — the count an ability on the stack compares
-    // its own put-onto-the-stack stamp against, across a save.
-    if (card.transformCount !== undefined) {
-        out.transformCount = card.transformCount;
-    }
-    // CR 601.3 / 118.9 (issue #1156) — Dauthi Voidwalker's free-cast waiver
-    // rides `castableFromExileBy`'s permission window and must survive a
-    // save/load the same way.
-    // CR 715.3d — the Adventure exile grant does not re-offer the Adventure.
-    if (card.castFromExileNotAsAdventure) {
-        out.castFromExileNotAsAdventure = true;
-    }
-    if (card.castFromExileWithoutPayingManaCost) {
-        out.castFromExileWithoutPayingManaCost = true;
-    }
-    // CR 305.9 (issue #1689) — the land-inclusive marker rides
-    // `castableFromExileBy`'s permission window and must survive a save/load
-    // the same way, so a reloaded exiled land under a "play"-worded grant
-    // (Headliner Scarlett et al.) stays playable.
-    if (card.castableFromExileIncludesLand) {
-        out.castableFromExileIncludesLand = true;
-    }
-    // CR 609.4b (issue #2890) — the "spend mana as though it were mana of any
-    // color/type" marker rides `castableFromExileBy`'s permission window and
-    // must survive a save/load the same way, or a reloaded Robber exile becomes
-    // uncastable for an off-colour caster.
-    if (card.castFromExileManaSubstitution) {
-        out.castFromExileManaSubstitution = card.castFromExileManaSubstitution;
-    }
-    // CR 601.2f (issue #2383) — the object-scoped cost tax (Elite Spellbinder)
-    // rides `castableFromExileBy`'s permission window and must survive a
-    // save/load the same way, or a reloaded exiled card becomes castable for
-    // its untaxed printed cost.
-    if (card.castFromExileCostIncrease) {
-        out.castFromExileCostIncrease = card.castFromExileCostIncrease;
-    }
-    // CR 111 (issue #791) — the per-source exile provenance link (Currency
-    // Converter's "exiled with this artifact") must survive a save/load so the
-    // retrieval ability still finds its linked cards after a round-trip.
-    if (card.exiledBySourceId) {
-        out.exiledBySourceId = card.exiledBySourceId;
-    }
-    // CR 601.3 / 118.9 (issue #1344) — Malcolm, Alluring Scoundrel's
-    // per-card cast-from-graveyard grant on a graveyard card, mirroring
-    // `castableFromExileBy` above.
-    if (card.castableFromGraveyardBy) {
-        out.castableFromGraveyardBy = card.castableFromGraveyardBy;
-    }
-    // CR 514.2 / 608.2g — the turn-scoped expiry marker for the graveyard
-    // grant's impulse window must survive a save/load so the cleanup
-    // revocation fires on the right turn.
-    if (card.castableFromGraveyardUntilTurn !== undefined) {
-        out.castableFromGraveyardUntilTurn =
-            card.castableFromGraveyardUntilTurn;
-    }
-    // CR 601.3 / 118.9 (issue #1344) — Malcolm's free-cast waiver
-    // rides `castableFromGraveyardBy`'s permission window and must survive a
-    // save/load the same way.
-    // issue #2380 — the "exile it instead" rider on the same grant window;
-    // same round-trip requirement as the cost waiver above.
-    if (card.castFromGraveyardExilesOnResolve) {
-        out.castFromGraveyardExilesOnResolve = true;
-    }
-    if (card.castFromGraveyardWithoutPayingManaCost) {
-        out.castFromGraveyardWithoutPayingManaCost = true;
-    }
-    // CR 702.34 — an instance-level Flashback grant (Snapcaster Mage) on a
-    // graveyard card must survive a save/load until it expires at cleanup.
-    if (card.grantedFlashback) {
-        out.grantedFlashback = card.grantedFlashback;
-    }
-    // CR 303.4 / 704.5m — a RUNTIME-granted enchant restriction ("it becomes
-    // an Aura with enchant creature") exists only on the instance: there is no
-    // definition to re-derive it from, unlike a printed Aura's cast-time
-    // `targetRequirement`. Dropped here, the Aura would read as having no
-    // restriction after a save/load and the very next SBA sweep would bin it
-    // (CR 704.5m) with its host still on the battlefield.
-    if (card.grantedEnchantRestriction) {
-        out.grantedEnchantRestriction = card.grantedEnchantRestriction;
-    }
-    // CR 702.138b — a permanent that escaped carries the flag for the life of
-    // the permanent (Uro/Phlage "unless it escaped", Nethergoyf "as long as ~
-    // escaped"); it must survive save/load.
-    if (card.escaped) {
-        out.escaped = card.escaped;
-    }
-    // CR 702.35c — the madness-exile marker on a discarded-and-exiled card must
-    // survive a save/load so the cast window stays consistent.
-    if (card.madnessExiled) {
-        out.madnessExiled = card.madnessExiled;
-    }
-    // CR 702.35a — the pending-reflexive-trigger marker must survive a save/load
-    // between the discard→exile and the trigger being built by collectTriggers.
-    if (card.madnessTriggerPending) {
-        out.madnessTriggerPending = card.madnessTriggerPending;
-    }
-    // CR 702.88a — the rebound-exile marker on a resolved-from-hand card must
-    // survive a save/load so the reflexive cast window stays consistent while
-    // it awaits its next-upkeep delayed trigger (possibly turns away).
-    if (card.reboundExiled) {
-        out.reboundExiled = card.reboundExiled;
-    }
-    // CR 702.74a — the Evoke cast marker must survive a save/load between the
-    // cast committing and the "sacrifice if evoked" trigger resolving.
-    if (card.evoked) {
-        out.evoked = card.evoked;
-    }
-    // CR 702.109a — the Dash cast marker must survive a save/load between the
-    // cast committing and the "gains haste, returned to hand" trigger
-    // resolving.
-    if (card.dashed) {
-        out.dashed = card.dashed;
-    }
-    // CR 702.103b — the Bestow marker must survive a save/load for the whole
-    // life of the bestowed object: it is the live discriminator the CR 702.103f
-    // Aura-SBA exception (`sba.ts`) and the CR 702.103e resolution exception
-    // (`state.ts`) both read, so a dropped flag turns a bestowed Nantuko into
-    // an ordinary Aura and the next SBA sweep bins it to the graveyard. The
-    // type-line half of the change rides the ordinary `types`/`subtypes`
-    // definition-diff above.
-    if (card.bestowed) {
-        out.bestowed = card.bestowed;
-    }
-    // CR 702.96a — the Overload cast marker must survive a save/load while the
-    // spell sits on the stack: it is what `buildSpellContext` reads to decide
-    // whether the script's `forEach { set: "targets" }` sweeps the announced
-    // targets or every matching object, so a reloaded item that lost it
-    // resolves as the printed, single-target spell it was never cast as.
-    if (card.overloaded) {
-        out.overloaded = card.overloaded;
-    }
-    // CR 307.1 / 117.1a / 601.3a (issue #2473) — the "cast when a sorcery
-    // couldn't have been cast" timing snapshot must survive a save/load
-    // between the cast committing and a later check-time predicate (e.g. a
-    // cleanup-step delayed trigger reading it) resolving.
-    if (card.castOffSorceryTiming) {
-        out.castOffSorceryTiming = card.castOffSorceryTiming;
-    }
-    // CR 106.4 / 202.3 — the persistent per-colour spent-mana record (issue
-    // #900) must survive a save/load so a later ETB trigger's condition still
-    // reads it correctly after a DB round-trip.
-    if (
-        card.notedManaSpentOnCast &&
-        Object.keys(card.notedManaSpentOnCast).length > 0
-    ) {
-        out.notedManaSpentOnCast = card.notedManaSpentOnCast;
-    }
-    // CR 702.33 / 614.1c (issue #1716) — the one-shot "was kicked" marker must
-    // survive a save/load so a later check-time predicate (a `keyword-grant`
-    // `applies`, an "if this creature was kicked" trigger condition) reads
-    // the same fixed answer after a DB round-trip.
-    if (card.wasKicked) {
-        out.wasKicked = card.wasKicked;
-    }
-    // CR 702.33 (ADR 0079, issue #1950) — `wasKicked`'s per-Kicker-id twin
-    // must survive the same save/load window: a two-Kicker permanent's ETB
-    // trigger (Nightscape Battlemage — "if it was kicked with its {2}{U}
-    // kicker") re-checks its CR 603.4 intervening-if only once the trigger
-    // resolves, which can be after a stable point was already written.
-    if (card.kickerPayments && Object.keys(card.kickerPayments).length > 0) {
-        out.kickerPayments = card.kickerPayments;
-    }
-    // CR 702.33d / 702.175a (ADR 0085) — the SIBLING record, persisted for the
-    // same reason and in the same breath: an offspring-cost permanent's own ETB
-    // trigger re-checks "if its offspring cost was paid" only once the trigger
-    // resolves, which can be after a stable point was already written. Dropping
-    // one half of a partitioned snapshot is exactly the drift the split exists
-    // to prevent.
-    if (
-        card.unkickedCostPayments &&
-        Object.keys(card.unkickedCostPayments).length > 0
-    ) {
-        out.unkickedCostPayments = card.unkickedCostPayments;
-    }
-    // CR 107.3 / 601.2b (issue #674) — the chosen {X} snapshot must survive a
-    // save/load: Ravenous's ETB trigger goes on the stack, the game reaches a
-    // stable point (state written to `gameStates`), and only THEN does the
-    // trigger resolve and re-check its CR 603.4 intervening-if. Dropped here,
-    // "if X is 5 or greater" would read 0 on every real game.
-    if (card.chosenXOnCast !== undefined) {
-        out.chosenXOnCast = card.chosenXOnCast;
+    for (const key of CARD_FIELD_KEYS) {
+        if (key === "power" || key === "toughness") continue;
+        compactCardField(card, out, key, codecCtx);
     }
     return out;
 }
@@ -839,6 +465,7 @@ function expandCard(
     const cardRef = compact.card as { id: string | number };
     const cardId = resolveCardId(cardRef.id, ctx);
     const def = tryGetDefinition(cardId);
+    const codecCtx: CardCodecCtx = { def };
     const ownerId = (compact.ownerId as string | undefined) ?? opts.ownerId;
     const controllerId =
         (compact.controllerId as string | undefined) ?? ownerId;
@@ -865,448 +492,10 @@ function expandCard(
         isTapped: Boolean(compact.isTapped),
     };
 
-    const power =
-        "power" in compact ? (compact.power as number | undefined) : def?.power;
-    const toughness =
-        "toughness" in compact
-            ? (compact.toughness as number | undefined)
-            : def?.toughness;
-    if (power !== undefined) result.power = power;
-    if (toughness !== undefined) result.toughness = toughness;
-
-    if (compact.chosenModeId)
-        result.chosenModeId = compact.chosenModeId as string;
-    if (compact.chosenName) result.chosenName = compact.chosenName as string;
-    if (compact.isToken) result.isToken = true;
-    if (compact.isSummoningSick) result.isSummoningSick = true;
-    if (typeof compact.enteredOnTurn === "number") {
-        result.enteredOnTurn = compact.enteredOnTurn;
-    }
-    if (compact.echoPending) result.echoPending = true;
-    if (compact.isAttacking) result.isAttacking = true;
-    if (compact.isBlocking) result.isBlocking = true;
-    if (compact.hasAttackedThisTurn) result.hasAttackedThisTurn = true;
-    if (compact.hasBlockedThisTurn) result.hasBlockedThisTurn = true;
-    if (compact.attackedDuringLastTurn) result.attackedDuringLastTurn = true;
-    if (compact.dealtDamageToOpponentThisTurn) {
-        result.dealtDamageToOpponentThisTurn = true;
-    }
-    if (compact.startedTurnUntapped) result.startedTurnUntapped = true;
-    if (compact.manaCommitted) result.manaCommitted = true;
-    if (compact.tapTriggerCommitted) result.tapTriggerCommitted = true;
-    if (compact.damageMarked) {
-        result.damageMarked = compact.damageMarked as number;
-    }
-    if (compact.classLevel) {
-        result.classLevel = compact.classLevel as number;
-    }
-    if (compact.loyaltyActivationsThisTurn) {
-        result.loyaltyActivationsThisTurn =
-            compact.loyaltyActivationsThisTurn as number;
-    } else if (compact.loyaltyActivatedThisTurn) {
-        // LEGACY (issue #3339) — the boolean lock this tally replaced. A game
-        // saved mid-turn before the rename carries the old key; read it as the
-        // one activation it stood for, or a reload would hand every
-        // planeswalker on the board a fresh allowance in the middle of a turn.
-        // Write-only-forward: `compactCard` never emits it again, so the key
-        // dies out on the first save after the upgrade.
-        result.loyaltyActivationsThisTurn = 1;
-    }
-    if (compact.dealtDeathtouchDamage) {
-        result.dealtDeathtouchDamage = true;
-    }
-    if (compact.regenerationShields) {
-        result.regenerationShields = compact.regenerationShields as number;
-    }
-    if (compact.chosenMana) result.chosenMana = compact.chosenMana as ManaCost;
-    if (compact.manaCounterRemoval) {
-        result.manaCounterRemoval =
-            compact.manaCounterRemoval as CardInstanceState["manaCounterRemoval"];
-    }
-    if (compact.lifePaidThisTap) {
-        result.lifePaidThisTap = compact.lifePaidThisTap as number;
-    }
-    if (compact.manaPaidThisTap) {
-        result.manaPaidThisTap = compact.manaPaidThisTap as ManaCost;
-    }
-    if (compact.tapBonusMana) {
-        result.tapBonusMana = compact.tapBonusMana as ManaCost;
-    }
-    if (compact.grantedActivatedAbilities) {
-        result.grantedActivatedAbilities =
-            compact.grantedActivatedAbilities as CardInstanceState["grantedActivatedAbilities"];
-    }
-    if (compact.abilitiesSuppressedBy) {
-        // Rows persisted before the field carried a layer timestamp hold bare
-        // source-id STRINGS (CR 613.7 ordering was added later). Coerce them to
-        // seq 0 — the earliest possible stamp, so every grant on that permanent
-        // reads as later and survives, matching the pre-change behaviour for a
-        // game already in flight.
-        result.abilitiesSuppressedBy = (
-            compact.abilitiesSuppressedBy as unknown[]
-        ).map((s) =>
-            typeof s === "string" ? { sourceId: s, seq: 0 } : s
-        ) as CardInstanceState["abilitiesSuppressedBy"];
-    }
-    if (compact.grantedTriggeredAbilities) {
-        result.grantedTriggeredAbilities =
-            compact.grantedTriggeredAbilities as CardInstanceState["grantedTriggeredAbilities"];
-    }
-    if (compact.grantedAttackRequirements) {
-        result.grantedAttackRequirements =
-            compact.grantedAttackRequirements as CardInstanceState["grantedAttackRequirements"];
-    }
-    if (compact.baseStaticAbilities) {
-        result.baseStaticAbilities = compact.baseStaticAbilities as string[];
-    }
-    if (compact.abilityLossHolds) {
-        result.abilityLossHolds =
-            compact.abilityLossHolds as CardInstanceState["abilityLossHolds"];
-    }
-    if (compact.baseControllerId) {
-        result.baseControllerId = compact.baseControllerId as string;
-    }
-    if (compact.baseTypes) {
-        result.baseTypes = compact.baseTypes as CardInstanceState["baseTypes"];
-    }
-    if (compact.baseSubtypes) {
-        result.baseSubtypes = compact.baseSubtypes as string[];
-    }
-    if (compact.textChangeHolds) {
-        result.textChangeHolds =
-            compact.textChangeHolds as CardInstanceState["textChangeHolds"];
-    }
-    if (compact.typeLineHolds) {
-        result.typeLineHolds =
-            compact.typeLineHolds as CardInstanceState["typeLineHolds"];
-    }
-    if (compact.subtypeAddHolds) {
-        result.subtypeAddHolds =
-            compact.subtypeAddHolds as CardInstanceState["subtypeAddHolds"];
-    }
-    if (compact.supertypeHolds) {
-        result.supertypeHolds =
-            compact.supertypeHolds as CardInstanceState["supertypeHolds"];
-    }
-    if (compact.damagedBySources) {
-        result.damagedBySources = compact.damagedBySources as string[];
-    }
-    if (compact.attachedTo) result.attachedTo = compact.attachedTo as string;
-    if (compact.controlChanges) {
-        result.controlChanges =
-            compact.controlChanges as CardInstanceState["controlChanges"];
-    }
-    if (compact.animation) {
-        result.animation = compact.animation as CardInstanceState["animation"];
-    }
-    if (compact.temporarySubtypeChange) {
-        result.temporarySubtypeChange =
-            compact.temporarySubtypeChange as CardInstanceState["temporarySubtypeChange"];
-    }
-    if (compact.indefiniteSubtypeSet) {
-        result.indefiniteSubtypeSet =
-            compact.indefiniteSubtypeSet as CardInstanceState["indefiniteSubtypeSet"];
-    }
-    if (compact.enterAttackingTarget) {
-        result.enterAttackingTarget = compact.enterAttackingTarget as string;
-    }
-    if (compact.entersAsTypeLine) {
-        result.entersAsTypeLine =
-            compact.entersAsTypeLine as CardInstanceState["entersAsTypeLine"];
-    }
-    if (compact.temporaryColorOverride) {
-        result.temporaryColorOverride =
-            compact.temporaryColorOverride as CardInstanceState["temporaryColorOverride"];
-    }
-    if (compact.sourceTappedPTMods) {
-        result.sourceTappedPTMods =
-            compact.sourceTappedPTMods as CardInstanceState["sourceTappedPTMods"];
-    }
-    if (compact.untapLockedBy) {
-        result.untapLockedBy = compact.untapLockedBy as string[];
-    }
-    if (compact.skipNextUntap) result.skipNextUntap = true;
-    if (compact.exertedThisTap) result.exertedThisTap = true;
-    if (compact.canAttackDespiteDefenderThisTurn)
-        result.canAttackDespiteDefenderThisTurn = true;
-    if (compact.counters) {
-        result.counters = compact.counters as Record<string, number>;
-    }
-    if (compact.countersAtLeave) {
-        result.countersAtLeave = compact.countersAtLeave as Record<
-            string,
-            number
-        >;
-    }
-    if (compact.capturedBindings) {
-        result.capturedBindings = compact.capturedBindings as Record<
-            string,
-            string[]
-        >;
-    }
-    if (compact.worldSeq !== undefined) {
-        result.worldSeq = compact.worldSeq as number;
-    }
-    if (compact.staticSeq !== undefined) {
-        result.staticSeq = compact.staticSeq as number;
-    }
-    if (compact.activationsThisTurn) {
-        result.activationsThisTurn = compact.activationsThisTurn as Record<
-            string,
-            number
-        >;
-    }
-    if (compact.triggersThisTurn) {
-        result.triggersThisTurn = compact.triggersThisTurn as Record<
-            string,
-            number
-        >;
-    }
-    if (compact.colorOverride) {
-        result.colorOverride =
-            compact.colorOverride as CardInstanceState["colorOverride"];
-    }
-    if (compact.grantedColors) {
-        result.grantedColors =
-            compact.grantedColors as CardInstanceState["grantedColors"];
-    }
-    if (compact.grantedSupertypes) {
-        result.grantedSupertypes =
-            compact.grantedSupertypes as CardInstanceState["grantedSupertypes"];
-    }
-    if (compact.removedSupertypes) {
-        result.removedSupertypes =
-            compact.removedSupertypes as CardInstanceState["removedSupertypes"];
-    }
-    if (compact.copyExcept) {
-        result.copyExcept =
-            compact.copyExcept as CardInstanceState["copyExcept"];
-    }
-    if (compact.copiedFrom) result.copiedFrom = compact.copiedFrom as string;
-    if (compact.copyOptions) {
-        result.copyOptions =
-            compact.copyOptions as CardInstanceState["copyOptions"];
-    }
-    if (compact.timedCopyEffects) {
-        result.timedCopyEffects =
-            compact.timedCopyEffects as CardInstanceState["timedCopyEffects"];
-    }
-    // CR 707.2 / 202.3 — `{}` is a meaningful override, so test for PRESENCE
-    // (`!== undefined`), never truthiness of its contents.
-    if (compact.manaCostOverride !== undefined) {
-        result.manaCostOverride =
-            compact.manaCostOverride as CardInstanceState["manaCostOverride"];
-    }
-    if (compact.imagePrintId) {
-        result.imagePrintId = compact.imagePrintId as string;
-    }
-    if (compact.exileOnDeath) result.exileOnDeath = true;
-    if (compact.damageLockThisTurn) result.damageLockThisTurn = true;
-    if (compact.exileOnLeave) result.exileOnLeave = true;
-    if (compact.cantBeRegeneratedThisTurn)
-        result.cantBeRegeneratedThisTurn = true;
-    if (compact.mustAttackThisTurn) result.mustAttackThisTurn = true;
-    if (compact.canBlockAdditional !== undefined) {
-        result.canBlockAdditional = compact.canBlockAdditional as number;
-    }
-    if (compact.mustBlockAllThisTurn) result.mustBlockAllThisTurn = true;
-    if (compact.cantBlockThisTurn) result.cantBlockThisTurn = true;
-    if (compact.cantAttackThisTurn) result.cantAttackThisTurn = true;
-    if (compact.cantBeBlockedThisTurn) result.cantBeBlockedThisTurn = true;
-    if (compact.cantBeBlockedBySubtypesThisTurn) {
-        result.cantBeBlockedBySubtypesThisTurn =
-            compact.cantBeBlockedBySubtypesThisTurn as string[];
-    }
-    if (compact.chosenPlayerId) {
-        result.chosenPlayerId = compact.chosenPlayerId as string;
-    }
-    if (compact.chosenSubtypes) {
-        result.chosenSubtypes = compact.chosenSubtypes as string[];
-    }
-    if (compact.pileLabel) result.pileLabel = compact.pileLabel as string;
-    if (compact.faceDown) result.faceDown = true;
-    // issue #3001 — a RETIRED producer ("impulse-exile") survives in any
-    // `gameStates` row written before the impulse idiom went face up, and this
-    // seam is a bare assertion that would believe it. Drop it, and drop the
-    // per-viewer grant it accompanied (below): together they ARE the retired
-    // behaviour, and a half-healed row is worse than either — the knower would
-    // be handed a `faceDown: true` for a card whose face the client can no
-    // longer resolve. A card with NO producer at all is pre-#2904 state and is
-    // left exactly as it is.
-    const retiredFaceDownProducer =
-        compact.faceDownBy !== undefined &&
-        !isFaceDownProducer(compact.faceDownBy);
-    if (compact.faceDownBy && !retiredFaceDownProducer) {
-        result.faceDownBy = compact.faceDownBy as FaceDownProducer;
-    }
-    if (compact.faceDownOf) result.faceDownOf = compact.faceDownOf as string;
-    if (compact.adventureOf) result.adventureOf = compact.adventureOf as string;
-    if (compact.splitHalfOf) result.splitHalfOf = compact.splitHalfOf as string;
-    if (compact.transformed) result.transformed = true;
-    if (compact.transformedFrom) {
-        result.transformedFrom = compact.transformedFrom as string;
-    }
-    if (compact.createdBy) result.createdBy = compact.createdBy as string;
-    if (compact.linkedTokenId) {
-        result.linkedTokenId = compact.linkedTokenId as string;
-    }
-    if (compact.knownTo && !retiredFaceDownProducer) {
-        result.knownTo = compact.knownTo as string[];
-    }
-    if (compact.notedMana) {
-        result.notedMana = compact.notedMana as CardInstanceState["notedMana"];
-    }
-    if (compact.castableFromExileBy) {
-        result.castableFromExileBy = compact.castableFromExileBy as string;
-    }
-    if (compact.castableFromExileUntilOwnTurn !== undefined) {
-        result.castableFromExileUntilOwnTurn =
-            compact.castableFromExileUntilOwnTurn as number;
-    }
-    if (compact.castableFromExileUntilTurn !== undefined) {
-        result.castableFromExileUntilTurn =
-            compact.castableFromExileUntilTurn as number;
-    }
-    if (compact.castableFromExileFromTurn !== undefined) {
-        result.castableFromExileFromTurn =
-            compact.castableFromExileFromTurn as number;
-    }
-    if (compact.warpExiled) {
-        result.warpExiled = true;
-    }
-    if (compact.warped) {
-        result.warped = true;
-    }
-    if (compact.transformedAtDelayedSeq !== undefined) {
-        result.transformedAtDelayedSeq =
-            compact.transformedAtDelayedSeq as number;
-    }
-    if (compact.transformCount !== undefined) {
-        result.transformCount = compact.transformCount as number;
-    }
-    if (compact.castFromExileNotAsAdventure) {
-        result.castFromExileNotAsAdventure = true;
-    }
-    if (compact.castFromExileWithoutPayingManaCost) {
-        result.castFromExileWithoutPayingManaCost = true;
-    }
-    if (compact.castableFromExileIncludesLand) {
-        result.castableFromExileIncludesLand = true;
-    }
-    if (compact.castFromExileManaSubstitution) {
-        result.castFromExileManaSubstitution =
-            compact.castFromExileManaSubstitution as ManaSubstitutionBreadth;
-    }
-    if (compact.castFromExileCostIncrease) {
-        result.castFromExileCostIncrease =
-            compact.castFromExileCostIncrease as ManaCost;
-    }
-    if (compact.exiledBySourceId) {
-        result.exiledBySourceId = compact.exiledBySourceId as string;
-    }
-    if (compact.castableFromGraveyardBy) {
-        result.castableFromGraveyardBy =
-            compact.castableFromGraveyardBy as string;
-    }
-    if (compact.castableFromGraveyardUntilTurn !== undefined) {
-        result.castableFromGraveyardUntilTurn =
-            compact.castableFromGraveyardUntilTurn as number;
-    }
-    if (compact.castFromGraveyardExilesOnResolve) {
-        result.castFromGraveyardExilesOnResolve = true;
-    }
-    if (compact.castFromGraveyardWithoutPayingManaCost) {
-        result.castFromGraveyardWithoutPayingManaCost = true;
-    }
-    if (compact.grantedFlashback) {
-        result.grantedFlashback =
-            compact.grantedFlashback as CardInstanceState["grantedFlashback"];
-    }
-    // CR 303.4 / 704.5m — restore the runtime-granted enchant restriction; see
-    // the compact side for why losing it is fatal to the Aura.
-    if (compact.grantedEnchantRestriction) {
-        result.grantedEnchantRestriction =
-            compact.grantedEnchantRestriction as CardInstanceState["grantedEnchantRestriction"];
-    }
-    // CR 702.138b — restore the escaped flag on the permanent.
-    if (compact.escaped) {
-        result.escaped = compact.escaped as boolean;
-    }
-    // CR 702.35c — restore the madness-exile marker.
-    if (compact.madnessExiled) {
-        result.madnessExiled = compact.madnessExiled as boolean;
-    }
-    // CR 702.35a — restore the pending-reflexive-trigger marker.
-    if (compact.madnessTriggerPending) {
-        result.madnessTriggerPending = compact.madnessTriggerPending as boolean;
-    }
-    // CR 702.88a — restore the rebound-exile marker.
-    if (compact.reboundExiled) {
-        result.reboundExiled = compact.reboundExiled as boolean;
-    }
-    // CR 702.74a — restore the Evoke cast marker.
-    if (compact.evoked) {
-        result.evoked = compact.evoked as boolean;
-    }
-    // CR 702.109a — restore the Dash cast marker.
-    if (compact.dashed) {
-        result.dashed = compact.dashed as boolean;
-    }
-    // CR 702.103b — restore the Bestow marker, and with it the ONE part of the
-    // bestow characteristic change the definition-diff cannot carry. A
-    // bestowed object is an Aura enchantment with NO power or toughness
-    // (CR 208.3), so `compactCard` writes `power: undefined` — and an
-    // explicit `undefined` does not survive JSON, which makes the
-    // `"power" in compact` fallback above hand back the printed 1/1 instead.
-    // Re-clearing here keeps the round-trip exact.
-    if (compact.overloaded) {
-        result.overloaded = compact.overloaded as boolean;
-    }
-    if (compact.bestowed) {
-        result.bestowed = compact.bestowed as boolean;
-        delete result.power;
-        delete result.toughness;
-        // The layer-4 half of the pre-slice shape is migrated in
-        // `migrateLegacyBestowTypeLine`, at the END of `expandState` — it needs
-        // the legacy-ledger promotions to have run first, and this function
-        // runs before any of them.
-    }
-    // CR 307.1 / 117.1a / 601.3a (issue #2473) — restore the "cast off
-    // sorcery timing" snapshot.
-    if (compact.castOffSorceryTiming) {
-        result.castOffSorceryTiming = compact.castOffSorceryTiming as boolean;
-    }
-    // CR 106.4 / 202.3 — restore the persistent per-colour spent-mana record.
-    if (compact.notedManaSpentOnCast) {
-        result.notedManaSpentOnCast = compact.notedManaSpentOnCast as Record<
-            string,
-            number
-        >;
-    }
-    // CR 702.33 / 614.1c (issue #1716) — restore the one-shot "was kicked"
-    // marker.
-    if (compact.wasKicked) {
-        result.wasKicked = compact.wasKicked as boolean;
-    }
-    // CR 702.33 (ADR 0079, issue #1950) — restore the per-Kicker-id payment
-    // record.
-    if (compact.kickerPayments) {
-        result.kickerPayments = compact.kickerPayments as Record<
-            string,
-            number
-        >;
-    }
-    // CR 702.33d / 702.175a (ADR 0085) — and the sibling half of the same
-    // partitioned snapshot.
-    if (compact.unkickedCostPayments) {
-        result.unkickedCostPayments = compact.unkickedCostPayments as Record<
-            string,
-            number
-        >;
-    }
-    // CR 107.3 / 601.2b (issue #674) — restore the chosen {X} snapshot.
-    if (compact.chosenXOnCast !== undefined) {
-        result.chosenXOnCast = compact.chosenXOnCast as number;
+    // Table order matters here too: the `bestowed` pair re-clears the P/T the
+    // `power` / `toughness` pairs restored, and the table lists them first.
+    for (const key of CARD_FIELD_KEYS) {
+        expandCardField(compact, result, key, codecCtx);
     }
     return result;
 }
