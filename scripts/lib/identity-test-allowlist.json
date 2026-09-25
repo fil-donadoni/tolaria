@@ -978,5 +978,10 @@
         "file": "src/lib/ai/selfplay/loweringSweep.bot.test.ts",
         "test": "lowering sweep: dropped-message classes (issue #3461) > keeps genuinely different causes apart",
         "reason": "Real classifier run on four distinct synthetic messages, asserts it keeps them distinct"
+    },
+    {
+        "file": "scripts/__tests__/check-test-hygiene.test.ts",
+        "test": "check:test-hygiene — the wiring > is a health step, after check:targets",
+        "reason": "Membership + ordering invariant: check:test-hygiene is a health step after check:targets in HEALTH_SCRIPTS (independent list)."
     }
 ]
