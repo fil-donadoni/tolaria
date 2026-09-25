@@ -1,4 +1,5 @@
 import type { CardDefinition, EffectOp } from "@convex/cards/types";
+import { childOpArrays } from "@convex/gre/ai/effectOpChildren";
 
 /**
  * The Card Preview's Engine View BADGE (ADR 0103 §9, issue #2728) — the
@@ -124,28 +125,18 @@ function hasHandWrittenBody(site: ResolutionSite): boolean {
     );
 }
 
-/** Counts Effect Script Ops, walking every structural nesting shape the DSL
- *  admits (ADR 0045/0046): a plain list, `if`'s `then`/`else` branches, a
- *  `choice`/modal Op's `modes[]`, and the inline bodies of `forEach` /
- *  `delayedTrigger` / `reflexiveTrigger` — all keyed `effects`
- *  (`convex/cards/types.ts`). A presence count, not the interpreter-coverage
- *  `n/n` the real Engine View tree (#2704) computes. */
+/** Counts Effect Script Ops, walking every nested Op list through
+ *  `childOpArrays` (`convex/gre/ai/effectOpChildren.ts`), the one child-list
+ *  authority (issue #4442): `if`'s branches, `forEach`, `optionChoice` modes,
+ *  both coin-flip branches, `delayedTrigger` / `reflexiveTrigger` bodies and
+ *  both `divideIntoPiles` piles (issue #4654). A presence count, not the
+ *  interpreter-coverage `n/n` the real Engine View tree (#2704) computes. */
 function countEffectOps(effects: readonly EffectOp[] | undefined): number {
     if (!effects) return 0;
     let count = 0;
     for (const op of effects) {
         count += 1;
-        const nested = op as unknown as {
-            effects?: EffectOp[];
-            then?: EffectOp[];
-            else?: EffectOp[];
-            modes?: { effects?: EffectOp[] }[];
-        };
-        count += countEffectOps(nested.effects);
-        count += countEffectOps(nested.then);
-        count += countEffectOps(nested.else);
-        for (const mode of nested.modes ?? [])
-            count += countEffectOps(mode.effects);
+        for (const child of childOpArrays(op)) count += countEffectOps(child);
     }
     return count;
 }
