@@ -843,6 +843,36 @@ describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
         ]);
     }, 600_000);
 
+    // Issue #4278: a spell that makes the opponent discard is posed against a
+    // hand worth taking (`discardsFromTarget`) — an empty or opaque one takes
+    // nothing, so the Bot rightly passed. Tendrils of Despair pays a creature
+    // for the two cards, so it is the hard case.
+    it("played — a spell that makes the opponent discard", () => {
+        for (const name of ["Deception", "Tendrils of Despair"]) {
+            expect(playBotReach(getCardByName(name)), name).toEqual({
+                outcome: "played",
+            });
+        }
+    }, 600_000);
+
+    it("a discard is sweetened only when it is aimed at a target player", () => {
+        const opponentCards = (name: string) => {
+            const spec = botReachSpec(getCardByName(name));
+            return {
+                hand: spec.hiddenHand?.opp,
+                library: (spec.cards ?? []).filter(
+                    (c) => c.owner === "opp" && c.zone === "library"
+                ).length,
+            };
+        };
+        expect(opponentCards("Deception")).toEqual({ hand: 3, library: 1 });
+        for (const name of ["Faithless Looting", "Wheel of Fortune"])
+            expect(opponentCards(name), name).toEqual({
+                hand: undefined,
+                library: 0,
+            });
+    });
+
     it("a draw spell's holder finds spells on top of the library, and only that holder", () => {
         const topOfLibrary = (def: CardDefinition, seat: 0 | 1): unknown => {
             const { state, holderId } = buildBotReachState(def, seat);
