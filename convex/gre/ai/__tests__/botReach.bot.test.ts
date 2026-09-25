@@ -668,6 +668,23 @@ describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
         }
     }, 600_000);
 
+    // Issue #4270: a sorcery pump pays only in the attack the same main phase
+    // goes on to make, so the sweep poses the race it decides (`sorceryPumpRace`).
+    it("played — a sorcery that pumps a target creature", () => {
+        for (const name of [
+            "Feral Roar",
+            "Howling Fury",
+            "Monstrous Growth",
+            "Phytoburst",
+            "Wielding the Green Dragon",
+        ]) {
+            expect(playBotReachSeats(getCardByName(name)), name).toEqual([
+                { holderId: "p1", verdict: { outcome: "played" } },
+                { holderId: "p2", verdict: { outcome: "played" } },
+            ]);
+        }
+    }, 600_000);
+
     it("a draw spell's holder finds spells on top of the library, and only that holder", () => {
         const topOfLibrary = (def: CardDefinition, seat: 0 | 1): unknown => {
             const { state, holderId } = buildBotReachState(def, seat);

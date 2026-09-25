@@ -327,6 +327,40 @@ export function combatTrickPosition(
         : null;
 }
 
+/** The literal power a sorcery's script adds to its one target creature, when
+ *  the script is that pump and nothing else; `null` for any other spell. */
+function soleSorceryPumpPower(def: CardDefinition): number | null {
+    const [only, ...rest] = def.effects ?? [];
+    if (!def.types.includes("Sorcery") || !only || rest.length > 0) return null;
+    const power = (only as { power?: unknown }).power;
+    return only.op === "pump" && typeof power === "number" && power > 0
+        ? power
+        : null;
+}
+
+/**
+ * The race a sorcery pump is posed in (issue #4270). A pump has nothing to
+ * pay for until its creature attacks, and the same main phase goes on to make
+ * that attack; the generated position (level bodies, a full life total) never
+ * shows the search a swing the pump decides, so the Bot rightly keeps the
+ * card. Here the opponent is at as much life as the pump adds power — out of
+ * reach of the base creature (Grizzly Bears, power 2) alone, within reach of
+ * the pumped one — and the holder has a spare body to attack beside it.
+ * `null` when `def` is not a pump of the holder's own creature.
+ */
+export function sorceryPumpRace(
+    def: CardDefinition
+): { cards: ScenarioCard[]; life: { opp: number } } | null {
+    const req = creatureRequirement(def.targetRequirement);
+    const power = soleSorceryPumpPower(def);
+    if (!req || narrows(req) || power === null || !favoursItsTarget(def, req))
+        return null;
+    return {
+        cards: [{ name: BASE_CREATURE, owner: "me", zone: "battlefield" }],
+        life: { opp: power },
+    };
+}
+
 export type TargetPose = {
     readonly cards: readonly ScenarioCard[];
     /** The position's global enchantment gives its controller's untapped
