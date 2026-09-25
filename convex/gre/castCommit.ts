@@ -116,7 +116,7 @@ export type CastCommitLegs = {
 export type CastCommitRecord = {
     /** CR 601.2c — locked at announcement; omitted for a non-targeted spell. */
     targets?: TargetSelection[];
-    /** CR 601.2d / 120.4 — divide-as-you-choose split. */
+    /** CR 601.2d — divide-as-you-choose split. */
     targetAmounts?: Record<string, number>;
     /** CR 702.33 / 702.27a — the kicker / buyback payment record, partitioned
      *  by keyword at the write (`additionalCostPaymentSnapshot`, ADR 0085). */
@@ -195,20 +195,22 @@ export type CastCommitPlan = {
  *  can no longer be paid — a picked card that vanished between the answer and
  *  the commit — in which case the spell stays where it was and nothing
  *  reaches the stack. Order: mana (CR 601.2h; the one-shot substitution grant
- *  is settled inside the payment seam, before the pool drains), life, the hand
- *  leg, the graveyard exile picks, convoke, the filtered sacrifice / exile
- *  additional cost, the graveyard permission — every leg BEFORE the card
- *  leaves its zone, so a leg reading the caster's hand never sees the cast
- *  card (CR 601.2a) — then the stack item, its cast-mode characteristics, the
- *  placement and the SPELL_CAST announcement (CR 601.2i). */
+ *  is settled inside the payment seam, before the pool drains), the hand leg,
+ *  the graveyard exile picks, convoke, the filtered sacrifice / exile
+ *  additional cost, then life (after every leg whose pick can have vanished),
+ *  the graveyard permission, the card's move out of its zone, the stack item,
+ *  its cast-mode characteristics, the placement and the SPELL_CAST
+ *  announcement (CR 601.2i). Every leg is paid before the card moves, but what
+ *  keeps the cast card out of its own hand or graveyard cost is the PICK,
+ *  built at announcement around it (`excludeInstanceId`), not the order. */
 export function commitCast(
     state: GameState,
     plan: CastCommitPlan
 ): StackItem | null {
     const caster = getPlayer(state, plan.casterId);
-    const { legs, record, mode } = plan;
+    const { legs, record, mode, placement } = plan;
 
-    // CR 601.2h / 106.4 / 202.3 — the mana leg, through the ONE cast-payment
+    // CR 601.2h / 106.4 — the mana leg, through the ONE cast-payment
     // seam: it settles the CR 609.4b one-shot grant, drains the pool and
     // captures the CR 106.6 riders plus the per-colour record a `noteManaSpent`
     // card asked for (Soul Burn, Sunburst).
@@ -236,12 +238,6 @@ export function commitCast(
         notedManaSpent = payment.notedManaSpent;
         commitLandsForCost(caster, plan.manaCost);
     }
-    // CR 601.2b / 118.4 — pay the life leg as the spell moves to the stack
-    // (Fire Covenant, a Phyrexian pip paid with life). Affordability was
-    // validated at announcement; SBA handles a fatal payment.
-    if (legs.payLife && legs.payLife > 0) {
-        caster.life -= legs.payLife;
-    }
     // CR 118.9 — the alternative-cost HAND leg: move each picked card from
     // hand to exile / graveyard. Vanished-card policy: a pick no longer in
     // hand makes the commit stale.
@@ -256,7 +252,7 @@ export function commitCast(
             return null;
         }
     }
-    // CR 702.34a / 118.5 — the flashback / delve / escape exile cost (Flash
+    // CR 702.34a / 702.66b / 702.138 — the flashback / delve / escape exile cost (Flash
     // of Insight): each picked card leaves the caster's own graveyard
     // (default) or hand (`zone: "hand"`, the exile-from-hand flashback cost)
     // for exile. The picks never include the cast card itself (CR 601.2a).
@@ -318,6 +314,13 @@ export function commitCast(
         };
         removePermanentTo(state, exiled.id, "exile");
     }
+    // CR 601.2b / 119.4 — pay the life leg as the spell moves to the stack
+    // (Fire Covenant, a Phyrexian pip paid with life). Affordability was
+    // validated at announcement; SBA handles a fatal payment. Paid AFTER every
+    // leg whose pick can have vanished, so a stale commit costs no life.
+    if (legs.payLife && legs.payLife > 0) {
+        caster.life -= legs.payLife;
+    }
     // CR 601.3 (ADR 0093) — this cast is enabled by a graveyard play
     // permission: spend the selected permission's once-per-turn use now, at
     // commit, against its own source.
@@ -375,10 +378,29 @@ export function commitCast(
         // change functions until the spell has finished resolving.
         ...(mode.overloaded ? { overloaded: true } : {}),
         ...(record.castOffSorceryTiming ? { castOffSorceryTiming: true } : {}),
-        // CR 702.34 / 702.138 / 702.81a / 702.88a — the zone-dependent stack
-        // flags, read from the SAME two helpers the search kernel spreads
-        // (`gre/castCost.ts`): Flashback's `exileOnResolve`, escape, rebound.
-        ...graveyardCastStackFlags(state, spellCard, castFromZone),
+        // CR 702.34 / 702.138 / 702.81a — the zone-dependent stack flags of an
+        // ANNOUNCED graveyard cast, read from the SAME helper the search kernel
+        // spreads (`gre/castCost.ts`): Flashback's `exileOnResolve`, escape.
+        // The helper derives the mechanism from the card's keywords, which is
+        // right for an announcement (`locateCastSource` routed a flashback card
+        // through its flashback cost) and WRONG for a cast made during
+        // resolution under the resolving effect's own permission (Malcolm's
+        // free cast of a discarded Think Twice paid no flashback cost, so
+        // CR 702.34a exiles nothing): that cast carries only the factual
+        // `castFromGraveyard` and the per-card exile rider a graveyard grant
+        // stamped (`castFromGraveyardExilesOnResolve`).
+        ...(placement.kind === "announce"
+            ? graveyardCastStackFlags(state, spellCard, castFromZone)
+            : castFromZone === "graveyard"
+              ? {
+                    castFromGraveyard: true as const,
+                    ...(spellCard.castFromGraveyardExilesOnResolve
+                        ? { exileOnResolve: true as const }
+                        : {}),
+                }
+              : {}),
+        // CR 702.88a — rebound applies to a cast from the caster's hand under
+        // either placement (Word of Command's controlled cast leaves a hand).
         ...reboundCastStackFlags(spellCard, castFromZone),
     };
     // CR 702.103b (issue #2388) — "as a spell cast bestowed is put onto the
@@ -402,7 +424,6 @@ export function commitCast(
     // the half being cast exist." Same seam, same reason.
     if (mode.castAsSplitHalf) castAsSplitHalf(stackItem, mode.castAsSplitHalf);
 
-    const placement = plan.placement;
     if (placement.kind === "during-resolution") {
         // The resolving item is on top of the stack and is popped by
         // `resolveTopOfStack` once its resolve returns. Insert the new spell

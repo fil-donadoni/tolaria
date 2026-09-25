@@ -468,9 +468,9 @@ export function applySacrificeSelection(
         } else {
             // issue #1558 — a CR 614 graveyard-bound replacement can redirect
             // the sacrifice to exile; the departure is then announced as an
-            // exile from the battlefield, exactly as every other sacrifice
-            // seam announces it (the resolution-time cast primitive did so
-            // before it joined this layer, issue #4445).
+            // exile from the battlefield (the resolution-time cast primitive
+            // did so on its own before it joined this layer, issue #4445; the
+            // fixed self-sacrifice legs in `gre/activation.ts` still do not).
             emitCardsExiledFromBattlefield(
                 state,
                 removePermanentTo(state, id, "graveyard", "sacrifice")

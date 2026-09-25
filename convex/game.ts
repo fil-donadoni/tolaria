@@ -6652,7 +6652,7 @@ export function finalizeTargetSelection(
                 warped: isWarpCost,
                 bestowed: isBestowCost,
                 castAsAdventure: isAdventureCast,
-                castAsSplitHalf: splitCastSide || undefined,
+                castAsSplitHalf: splitCastSide,
             },
             placement: { kind: "announce", keepPriority },
         });
@@ -8300,7 +8300,7 @@ export const announceCast = mutation({
                     bestowed: isBestowCost,
                     morphed: isMorphCost,
                     castAsAdventure: isAdventureCast,
-                    castAsSplitHalf: splitCastSide || undefined,
+                    castAsSplitHalf: splitCastSide,
                 },
                 placement: {
                     kind: "announce",
