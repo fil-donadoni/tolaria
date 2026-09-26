@@ -265,10 +265,16 @@ function damagesEveryCreature(def: CardDefinition): boolean {
             Object.values(record).some(damagesEach)
         );
     };
+    // No claim where the card's cost or filter changes what the surplus is
+    // worth: an additional cost (Sickening Dreams discards X) is paid out of
+    // the position and prices the cast itself, and a `hasAbility` filter
+    // (damage to fliers only) never reaches the 1/1s the pose adds.
+    if (def.additionalCosts !== undefined) return false;
     return battlefieldForEaches(def).some(
         ({ select, effects }) =>
             select.controller === undefined &&
             selectsCreatures(select) &&
+            select.filter?.hasAbility === undefined &&
             damagesEach(effects)
     );
 }

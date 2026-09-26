@@ -630,6 +630,9 @@ describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
                 filter: { type: "Creature" },
             }),
             forEachDamage("damage-land", { filter: { type: "Land" } }),
+            forEachDamage("damage-fliers", {
+                filter: { type: "Creature", hasAbility: "flying" },
+            }),
         ])
             withTemporaryDefinition(def, () => {
                 for (const seat of [0, 1] as const) {
@@ -641,6 +644,9 @@ describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
 
     it("played — a damage sweep is cast where it wins", () => {
         for (const name of [
+            // Already played on the level pose: a discard-X cost keeps it.
+            "Sickening Dreams",
+            "Pyroclasm",
             "Tremor",
             "Rain of Embers",
             "Dry Spell",
