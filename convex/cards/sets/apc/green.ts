@@ -2,6 +2,7 @@
 // `import * as apc from "./sets/apc"` resolves through apc/index.ts.
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
+import { attacksTrigger } from "../../abilities/triggers/attacksTrigger";
 import type { CardDefinition } from "../../types";
 
 // Gaea's Balance — the first CATEGORISED SEARCH (issue #3808): "Search your
@@ -80,5 +81,67 @@ export const gaeasBalance: CardDefinition = {
             to: "battlefield",
         },
         { op: "libraryLook", action: "shuffle", player: "controller" },
+    ],
+};
+
+// Kavu Mauler — {4}{G}{G} 4/4 Kavu with trample (CR 702.19a). "Whenever this
+// creature attacks, it gets +1/+1 until end of turn for each other attacking
+// Kavu." (CR 508.1 attack declaration, CR 613.4c layer 7c buff, CR 611.2a
+// duration.)
+//
+// The Goblin Piledriver shape (`ons/red.ts`): a `pump` on `$source` whose power
+// AND toughness are the `count` of attacking Kavu excluding the source itself.
+// `acrossAllPlayers` because the Oracle line scopes the count to no controller.
+// hand-tail: Whenever this creature attacks, it gets +1/+1 until end of turn for each other attacking Kavu. (#4337)
+export const kavuMauler: CardDefinition = {
+    id: "79adc3af-5fa3-4cb6-9bbc-52ede0c69263", // APC 80
+    rarity: "rare",
+    name: "Kavu Mauler",
+    oracleText:
+        "Trample\nWhenever this creature attacks, it gets +1/+1 until end of turn for each other attacking Kavu.",
+    manaCost: { X: 4, G: 2 },
+    types: ["Creature"],
+    subtypes: ["Kavu"],
+    power: 4,
+    toughness: 4,
+    staticAbilities: ["trample"],
+    triggeredAbilities: [
+        attacksTrigger({
+            id: "kavu-mauler-attack-pump",
+            oracleText:
+                "Whenever this creature attacks, it gets +1/+1 until end of turn for each other attacking Kavu.",
+            scope: "self",
+            effects: [
+                {
+                    op: "pump",
+                    target: { ref: "$source" },
+                    power: {
+                        count: {
+                            zone: "battlefield",
+                            acrossAllPlayers: true,
+                            filter: {
+                                type: "Creature",
+                                subtype: "Kavu",
+                                isAttacking: true,
+                                excludeSource: true,
+                            },
+                        },
+                    },
+                    toughness: {
+                        count: {
+                            zone: "battlefield",
+                            acrossAllPlayers: true,
+                            filter: {
+                                type: "Creature",
+                                subtype: "Kavu",
+                                isAttacking: true,
+                                excludeSource: true,
+                            },
+                        },
+                    },
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
+        }),
     ],
 };

@@ -27436,6 +27436,14 @@
         "firstPrintSet": "inv"
     },
     {
+        "name": "Kavu Mauler",
+        "scryfallId": "79adc3af-5fa3-4cb6-9bbc-52ede0c69263",
+        "oracleId": "6ffbcaba-5437-4fb6-a2d6-e94b1e6dc1d2",
+        "firstSet": "apc",
+        "firstPrintId": "79adc3af-5fa3-4cb6-9bbc-52ede0c69263",
+        "firstPrintSet": "apc"
+    },
+    {
         "name": "Kavu Monarch",
         "scryfallId": "ea63dfd5-d8d7-45b8-8219-1cc2b3de5666",
         "oracleId": "98cc734d-16d5-4c3c-98ca-a45efad27127",
