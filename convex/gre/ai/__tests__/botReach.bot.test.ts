@@ -739,6 +739,18 @@ describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
             });
     }, 300_000);
 
+    // Issue #4469: the gap was a stale verdict from before the damage-sweep pose
+    // (issue #4467). Devastate destroys a target land AND damages every
+    // creature and player (CR 120.3e), so its pose is the land-target position
+    // plus the opponent's surplus of small bodies; the Bot now casts it at both
+    // seats.
+    it("played — a land destroyer that also damages every creature", () => {
+        expect(playBotReachSeats(getCardByName("Devastate"))).toEqual([
+            { holderId: "p1", verdict: { outcome: "played" } },
+            { holderId: "p2", verdict: { outcome: "played" } },
+        ]);
+    }, 600_000);
+
     /** CR 701.21 — an "each player sacrifices" edict of `filter`. */
     const eachPlayerSacrifices = (
         id: string,
