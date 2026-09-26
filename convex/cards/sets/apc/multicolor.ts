@@ -488,7 +488,6 @@ export const suffocatingBlast: CardDefinition = {
     ],
 };
 
-// hand-tail: Creatures can't block this turn. (#4473)
 // Order // Chaos — {3}{W} // {2}{R}, Instant // Instant. "Exile target
 // attacking creature." // "Creatures can't block this turn." CR 709.4b makes
 // it a GOLD card (white AND red, mana value 6), so it lives here.
@@ -506,6 +505,7 @@ export const suffocatingBlast: CardDefinition = {
 // creature that enters after resolution; `forEach` freezes its member set at
 // resolution, so a creature with flash that enters before blockers can still
 // block.
+// hand-tail: Creatures can't block this turn. (#4473)
 export const orderChaos: CardDefinition = defineSplitCard({
     id: "14e4f5a4-b1ea-4816-b2d7-cf148468a388",
     rarity: "uncommon",
