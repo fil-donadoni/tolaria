@@ -39124,6 +39124,14 @@
         "source": "compiled"
     },
     {
+        "name": "Putrid Warrior",
+        "scryfallId": "17fce298-3338-4f41-8156-ab6322951a76",
+        "oracleId": "6ec24c24-7e87-4c12-b94e-3cd5b184beb5",
+        "firstSet": "apc",
+        "firstPrintId": "17fce298-3338-4f41-8156-ab6322951a76",
+        "firstPrintSet": "apc"
+    },
+    {
         "name": "Pygmy Allosaurus",
         "scryfallId": "88a68767-9822-4f15-895e-32164e2159be",
         "oracleId": "8c4b1ab2-01d9-486a-a9db-ac7c72500d30",
