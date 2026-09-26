@@ -16431,7 +16431,9 @@ export function buildSpellContext(
             // spell no longer on the stack (CR 608.2b).
             if (target.type === "spell") {
                 const item = state.stack.find((s) => s.id === target.id);
-                return item ? STATIC_EFFECT_CTX.getColors(item) : [];
+                return item && isSpellStackItem(item)
+                    ? STATIC_EFFECT_CTX.getColors(item)
+                    : [];
             }
             if (target.type !== "permanent") return [];
             const found = findOnBattlefield(state, target.id);
