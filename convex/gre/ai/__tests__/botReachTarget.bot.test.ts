@@ -6,7 +6,10 @@
 // (`getLegalActions`), plus a full sweep play for the combat shapes.
 
 import { describe, expect, it } from "vitest";
-import { withTemporaryDefinition } from "../../../cards/registry";
+import {
+    registerTokenDefinition,
+    withTemporaryDefinition,
+} from "../../../cards/registry";
 import type {
     CardDefinition,
     EffectOp,
@@ -206,6 +209,27 @@ describe("what the sweep registered for its own plays never decides the pose", (
         expect(
             withTemporaryDefinition(sweepCreature, () => castable(def))
         ).toBe(false);
+    });
+});
+
+describe("a synthesized token registered by an earlier play is never posed (issue #4624)", () => {
+    it("a `gen-source-…` token satisfying the filter leaves the pose unthrowing and unposed", () => {
+        // A scenario generator registers its source permanent by id, with no
+        // name entry: a spec naming it throws "Card not found by name".
+        const type = "Bot Reach Token Only Type";
+        registerTokenDefinition({
+            id: `gen-source-Creature|${type}|3/3`,
+            name: `gen-source-Creature|${type}|3/3`,
+            rarity: "common",
+            manaCost: { C: 1 },
+            types: ["Creature"],
+            subtypes: [type],
+            power: 3,
+            toughness: 3,
+        });
+        const def = instant("token-only", { subtypeFilter: [type] });
+        expect(() => castable(def)).not.toThrow();
+        expect(castable(def)).toBe(false);
     });
 });
 

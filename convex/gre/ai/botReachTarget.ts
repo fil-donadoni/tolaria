@@ -23,6 +23,7 @@
  * the Bot hash (`scripts/lib/oracle-bot-reach.ts`).
  */
 
+import { tryGetCardByName } from "../../cards/catalogue";
 import { getCardColors } from "../../cards/colors";
 import { registeredDefinitions } from "../../cards/registry";
 import type {
@@ -175,7 +176,8 @@ const SWEEP_ID_PREFIX = "oracle-bot-reach:";
 const creatureCache = new Map<string, CardDefinition | null>();
 
 /** A plain creature satisfying `req`: the base creature when it
- *  already does, else the best plain one in the catalogue — by rank, then by
+ *  already does, else the best plain one in the catalogue (a card a spec can
+ *  place by name — never a synthesized token) — by rank, then by
  *  name, because the registry's load order must not move a verdict. `null`
  *  when there is none. */
 function creatureFor(req: TargetRequirement): CardDefinition | null {
@@ -185,6 +187,12 @@ function creatureFor(req: TargetRequirement): CardDefinition | null {
     let found: { def: CardDefinition; rank: number } | null = null;
     for (const def of registeredDefinitions()) {
         if (def.id.startsWith(SWEEP_ID_PREFIX)) continue;
+        // A synthesized token (`gen-source-…`, registered by a scenario
+        // generator or a `createToken`) sits in the registry by id but has no
+        // NAME entry, so a spec naming it throws "Card not found by name" in
+        // `buildStateFromScenario`; and its presence depends on what the sweep
+        // played before, which must not move a verdict either.
+        if (tryGetCardByName(def.name) === null) continue;
         const rank =
             def.name === BASE_CREATURE
                 ? -1
