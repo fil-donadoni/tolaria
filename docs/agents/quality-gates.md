@@ -938,7 +938,7 @@ classifies; a bundle the lane could not prove the same app on would be a
 faster gate for a different program. `--serve=dev` stays as the escape.
 
 What remains above the target: the acceptance asked ≤ 12 min uncontended for
-the full lane, and 567 s under a 5–11 load clears it with room; a scoped run
+the full lane, and 452 s under a 6–10 load clears it with room; a scoped run
 for one or two surfaces costs the fixed floor (build, five sign-ins, the
 settle self-check) plus a handful of cells and lands well under 5 min. The
 `walk` phase still owns 58 % of cell time, most of it in the game surfaces'
