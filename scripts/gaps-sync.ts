@@ -493,7 +493,7 @@ export function buildAllFilings(
     botFindings?: ReadonlyMap<string, BotGapVerdict>,
     /** Oracle id → the open issue naming the card in its `## Cards` section
      *  (issue #4515) — what a card-keyed claim adopts instead of filing. */
-    openCardIssues?: ReadonlyMap<string, number>
+    openCardIssues?: ReadonlyMap<string, readonly number[]>
 ): {
     filings: GapFiling[];
     handTailHeld: readonly GapFiling[];
