@@ -81,7 +81,8 @@
  */
 
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { gunzipSync } from "node:zlib";
 import { join, resolve } from "node:path";
 import { ALLOWLIST_PATH, parseAllowlist } from "./check-gaps";
 import { BASE_BRANCH } from "./lib/branches";
@@ -110,10 +111,13 @@ import {
     planUnlockEdges,
     clusterIssues,
     isAdoptedFiling,
+    matchCluster,
+    setFileColour,
     syncGaps,
     syncUnlockEdges,
     withPartitionBands,
     withUnlockBlockers,
+    type ClusterIssueState,
     type GapFiling,
     type GapTracker,
     type TrackedIssue,
@@ -156,10 +160,12 @@ import {
     claimId,
     gapIndex,
     parseClaimRows,
+    parseClusterRows,
     readTargetRegistry,
     resolveContext,
     resolveTarget,
     splitClaimId,
+    type CardMatch,
     type GapKind,
 } from "./lib/targets";
 
@@ -324,6 +330,55 @@ export class GhGapTracker implements GapTracker {
 
     addLabel(number: number, label: string): void {
         gh(["issue", "edit", String(number), "--add-label", label]);
+    }
+
+    private openPrIssues: ReadonlySet<number> | null = null;
+
+    /** The issues an OPEN pull request is working on — by its branch
+     *  (`…/issue-N`, `wt:new`'s naming) or a closing keyword in its body. One
+     *  list call per run, read on first need. */
+    private openPrs(): ReadonlySet<number> {
+        if (this.openPrIssues !== null) return this.openPrIssues;
+        const rows = JSON.parse(
+            gh([
+                "pr",
+                "list",
+                "--state",
+                "open",
+                "--limit",
+                "300",
+                "--json",
+                "headRefName,body",
+            ])
+        ) as { headRefName: string; body: string }[];
+        const issues = new Set<number>();
+        for (const row of rows) {
+            const branch = /issue-(\d+)$/.exec(row.headRefName);
+            if (branch !== null) issues.add(Number(branch[1]));
+            for (const m of row.body.matchAll(
+                /\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(\d+)/gi
+            ))
+                issues.add(Number(m[1]));
+        }
+        this.openPrIssues = issues;
+        return issues;
+    }
+
+    clusterState(number: number): ClusterIssueState | null {
+        let row: { state: string; labels: { name: string }[] };
+        try {
+            row = JSON.parse(
+                gh(["issue", "view", String(number), "--json", "state,labels"])
+            ) as typeof row;
+        } catch (err) {
+            if (isIssueNotFound(err)) return null;
+            throw err;
+        }
+        return {
+            open: row.state !== "CLOSED",
+            inProgress: row.labels.some((l) => l.name === "in-progress"),
+            openPr: this.openPrs().has(number),
+        };
     }
 
     comment(number: number, body: string): void {
@@ -558,6 +613,35 @@ export function commitAndPushAllowlist(root: string): void {
 }
 
 /**
+ * Card name → the set file a hand-written definition of it lives in (ADR
+ * 0043's `<set>/<colour>.ts`), read off the committed Full Catalogue: its
+ * first-print set and the colour of its mana cost (`setFileColour`). The
+ * `hand-tail` Cluster Signature's `{ set, colour }` is matched against this
+ * (ADR 0146). Empty when the tree has no catalogue — a Hand Tail gap then
+ * matches no card signature and is filed as a single, never mis-adopted.
+ */
+export function readSetFileMatches(root: string): Map<string, CardMatch> {
+    const dir = join(root, "data", "full-catalogue");
+    const out = new Map<string, CardMatch>();
+    if (!existsSync(dir)) return out;
+    const file = readdirSync(dir).find(
+        (f) => f.startsWith("full-catalogue-") && f.endsWith(".json.gz")
+    );
+    if (file === undefined) return out;
+    const wire = JSON.parse(
+        gunzipSync(readFileSync(join(dir, file))).toString("utf8")
+    ) as { names: string[]; manaCosts: string[]; sets: string[] };
+    wire.names.forEach((name, i) => {
+        if (out.has(name) || wire.sets[i] === undefined) return;
+        out.set(name, {
+            set: wire.sets[i]!,
+            colour: setFileColour(wire.manaCosts[i] ?? ""),
+        });
+    });
+    return out;
+}
+
+/**
  * Every filing of every kind, in the order they are reported — the ONE place
  * the six kinds of issue #3869 are assembled. `hand-tail` is gated by the
  * registry's `handTailFiling` flag and files only for `enforced` Targets'
@@ -619,6 +703,13 @@ export function buildAllFilings(
         opUserOracleIds(ctx.byName),
         inputs.gapKeys
     );
+    const strongest = (filing: GapFiling) =>
+        strongestCardBand(
+            reached.get(claimId(filing.kind, filing.key)) ?? [],
+            index
+        );
+    const nameOf = new Map(lock.cards.map((c) => [c.oracleId, c.name]));
+    const setFiles = readSetFileMatches(root);
     const filings = withPartitionBands(
         [
             ...buildGrammarGapFilings(allowlist),
@@ -629,12 +720,22 @@ export function buildAllFilings(
             ...handTail.filings,
             ...buildMigrationFilings(inputs, buildGraduates(root, ctx)),
         ],
-        (filing) =>
-            strongestCardBand(
-                reached.get(claimId(filing.kind, filing.key)) ?? [],
-                index
-            )?.target ?? null
-    );
+        (filing) => strongest(filing)?.target ?? null
+    ).map((filing): GapFiling => {
+        // What a Cluster Signature matches and a managed block lists
+        // (ADR 0146): the cards the gap reaches, the band they lend, and —
+        // for Hand Tail — the set file the card would be written in.
+        const card =
+            filing.kind === "hand-tail" ? setFiles.get(filing.key) : undefined;
+        return {
+            ...filing,
+            cards: [...(reached.get(claimId(filing.kind, filing.key)) ?? [])]
+                .map((id) => nameOf.get(id) ?? id)
+                .sort(),
+            band: strongest(filing)?.band ?? null,
+            ...(card === undefined ? {} : { card }),
+        };
+    });
     return {
         filings,
         handTailHeld: handTail.held,
@@ -1118,15 +1219,31 @@ function main(): void {
         );
     }
 
+    // Parsed fail-closed BEFORE any write: a malformed signature is a row
+    // that would silently adopt nothing, or the wrong thing (ADR 0146).
+    const signatureRows = parseClusterRows(allowlist, ALLOWLIST_PATH);
+
     if (dryRun) {
         const clusters = clusterIssues(allowlist);
         for (const filing of filings) {
+            // No network on a dry run, so a signature match is previewed
+            // with every matching cluster assumed open and free.
+            const match =
+                filing.currentIssue === null && !isAdoptedFiling(filing)
+                    ? matchCluster(filing, signatureRows, () => ({
+                          open: true,
+                          inProgress: false,
+                          openPr: false,
+                      }))
+                    : null;
             const at =
-                filing.currentIssue === null
-                    ? "would CREATE"
-                    : clusters.has(filing.currentIssue)
-                      ? `would leave Grammar Cluster issue #${filing.currentIssue} alone`
-                      : `would reconcile issue #${filing.currentIssue}`;
+                match?.via === "signature"
+                    ? `would ADOPT into Gap Cluster issue #${match.issue} (if open and not in progress)`
+                    : filing.currentIssue === null
+                      ? "would CREATE"
+                      : clusters.has(filing.currentIssue)
+                        ? `would leave Grammar Cluster issue #${filing.currentIssue} alone`
+                        : `would reconcile issue #${filing.currentIssue}`;
             const origin = originUmbrellaOf(filing, originBand);
             const umbrella = bandUmbrellaOf(filing);
             const band =
@@ -1174,7 +1291,8 @@ function main(): void {
         withUnlockBlockers(filings, blockers),
         tracker,
         originBand,
-        clusterIssues(allowlist)
+        clusterIssues(allowlist),
+        { rows: signatureRows, claims: filed }
     );
 
     const counts = new Map<string, number>();

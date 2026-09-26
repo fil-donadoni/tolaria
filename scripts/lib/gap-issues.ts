@@ -99,10 +99,14 @@ import type { CardRow, Lockfile } from "./oracle-lockfile";
 import {
     claimId,
     GAP_KINDS,
+    parseClusterRows,
     quarantineClass,
     splitClaimId,
+    type CardMatch,
     type ClaimRow,
+    type ClusterRow,
     type GapKind,
+    type SetFileColour,
 } from "./targets";
 
 /** The placeholder every allowlist row was seeded with: "not filed yet". */
@@ -292,6 +296,17 @@ export interface GapFiling {
      * else's, never rewritten to the gap body).
      */
     readonly adopts?: number;
+    /**
+     * The set file a `hand-tail` card would be written in — what a
+     * `{ set, colour }` Cluster Signature matches (ADR 0146). Absent for every
+     * other kind, and for a card the Full Catalogue does not know.
+     */
+    readonly card?: CardMatch;
+    /** The names of the cards the gap reaches — the managed block's column. */
+    readonly cards?: readonly string[];
+    /** The band the gap's strongest ranked Target lends, or null (residue) —
+     *  the managed block's column. */
+    readonly band?: string | null;
     readonly body: (issue: number) => string;
 }
 
@@ -459,6 +474,17 @@ export interface GapTracker {
      *  `gh issue edit --add-blocked-by` exits non-zero when SOME of the
      *  listed edges already exist, so its status says nothing either way. */
     addBlockedBy(issue: number, blocker: number): void;
+    /** What adoption asks of a Gap Cluster's issue (ADR 0146): open, claimed
+     *  by a session (`in-progress`), or with an open PR. null = no such
+     *  issue; anything else throws, like {@link getIssue}. */
+    clusterState(number: number): ClusterIssueState | null;
+}
+
+/** The facts that decide whether a Gap Cluster may adopt a gap. */
+export interface ClusterIssueState {
+    readonly open: boolean;
+    readonly inProgress: boolean;
+    readonly openPr: boolean;
 }
 
 export type GapSyncAction = {
@@ -472,6 +498,9 @@ export type GapSyncAction = {
     readonly kind: GapKind;
     readonly key: string;
     readonly issue: number;
+    /** An `adopt` into a Gap Cluster by its Cluster Signature (ADR 0146) —
+     *  absent on the `## Cards` adoption of issue #4515. */
+    readonly via?: "signature";
     /** The umbrella a `create` filed the issue under — so a run says where
      *  each gap landed, which an origin-band run needs (issue #4158). */
     readonly parent?: number;
@@ -574,12 +603,246 @@ export function planMove(
     return target;
 }
 
+// ── Gap Clusters — adoption by Cluster Signature (ADR 0146) ─────────────
+//
+// A Gap Cluster declares a Cluster Signature as data (`clusters`,
+// `parseClusterRows`); a NEW gap is matched before it is filed and, when an
+// open cluster's signature matches, claimed by that cluster instead of filed
+// as a single. The cluster's body carries a managed `## Adopted gaps` block
+// between fixed markers, regenerated from the claim rows each run — outside
+// the markers the body is never written. Absorbing old singles, re-homing
+// keys off a closed cluster and raising a cluster's band are PRD #4673's
+// later slices.
+
+/** The set-file colour of a card with `manaCost` (ADR 0043's split): one
+ *  coloured symbol colour → that colour, two or more → `multicolor`, none →
+ *  `colorless` (lands included). Hybrid and Phyrexian symbols count each
+ *  colour they name. A colour indicator with no coloured cost reads
+ *  `colorless` — the cost is all the Full Catalogue carries. */
+export function setFileColour(manaCost: string): SetFileColour {
+    const named: Record<string, SetFileColour> = {
+        W: "white",
+        U: "blue",
+        B: "black",
+        R: "red",
+        G: "green",
+    };
+    const colours = new Set<SetFileColour>();
+    for (const [, symbol] of manaCost.matchAll(/\{([^}]*)\}/g))
+        for (const part of symbol!.split("/"))
+            if (named[part] !== undefined) colours.add(named[part]);
+    if (colours.size === 0) return "colorless";
+    return colours.size === 1 ? [...colours][0]! : "multicolor";
+}
+
 /**
- * The Grammar Clusters: issues two or more allowlist rows (`ops` + `claims`)
- * point at. A cluster's body and parent are hand-authored, so `syncGaps`
- * never rewrites nor moves them. Counted from the ROWS, never from one run's
- * filings: a member whose gap has closed files nothing, and counting filings
- * would demote a half-done cluster to a plain issue and clobber it.
+ * Whether segment glob `pattern` matches gap `key`: both split on ` › `, the
+ * same number of segments, each segment matched whole with `*` standing for
+ * any run of characters inside it. An Op segment's `+`-joined list is plain
+ * text to the glob, so `*forEach*` matches `draw+forEach`.
+ */
+export function keyMatchesGlob(pattern: string, key: string): boolean {
+    const want = pattern.split(GAP_KEY_SEPARATOR);
+    const have = key.split(GAP_KEY_SEPARATOR);
+    if (want.length !== have.length) return false;
+    return want.every((segment, i) =>
+        new RegExp(
+            `^${segment
+                .split("*")
+                .map((part) => part.replace(/[.+?^${}()|[\]\\]/g, "\\$&"))
+                .join(".*")}$`,
+            "s"
+        ).test(have[i]!)
+    );
+}
+
+/** The gap a Cluster Signature is matched against. */
+export interface ClusterCandidate {
+    readonly kind: GapKind;
+    readonly key: string;
+    /** A `hand-tail` gap's set file (`GapFiling.card`). */
+    readonly card?: CardMatch;
+    /** The OPEN issue naming the card in its `## Cards` section (issue #4515). */
+    readonly cardsIssue?: number;
+}
+
+/** Whether `row`'s Cluster Signature matches `gap` — kind first, then one
+ *  exact key (a Standalone Gap), one `{ set, colour }` (`hand-tail`), or any
+ *  segment glob. Issue state is {@link matchCluster}'s question. */
+export function signatureMatches(
+    row: ClusterRow,
+    gap: ClusterCandidate
+): boolean {
+    if (row.kind !== gap.kind) return false;
+    if (row.standalone === true) return row.match[0] === gap.key;
+    if (row.kind === "hand-tail") {
+        const card = gap.card;
+        return (
+            card !== undefined &&
+            (row.match as readonly CardMatch[]).some(
+                (m) => m.set === card.set && m.colour === card.colour
+            )
+        );
+    }
+    return (row.match as readonly string[]).some((glob) =>
+        keyMatchesGlob(glob, gap.key)
+    );
+}
+
+/** Where a new gap goes: an issue that claims it, or a single of its own —
+ *  `busy` naming the matching clusters skipped for being in progress. */
+export type ClusterMatch =
+    | { readonly via: "cards" | "signature"; readonly issue: number }
+    | { readonly via: "single"; readonly busy: readonly number[] };
+
+/**
+ * The adoption decision for one new gap (ADR 0146 § Decision 3), pure over
+ * its inputs: an open issue naming the card in `## Cards` wins first (an
+ * explicit claim beats a pattern); else the matching signatures, closed or
+ * missing clusters excluded and clusters `in-progress` or with an open PR
+ * skipped (a session mid-cluster never has its scope grown under it), the
+ * lowest issue number winning. Nothing left → a single, so no key is ever
+ * unclaimed. `stateOf` is asked only about clusters whose signature matched.
+ */
+export function matchCluster(
+    gap: ClusterCandidate,
+    rows: readonly ClusterRow[],
+    stateOf: (issue: number) => ClusterIssueState | null
+): ClusterMatch {
+    if (gap.cardsIssue !== undefined)
+        return { via: "cards", issue: gap.cardsIssue };
+    const busy: number[] = [];
+    const matching = rows
+        .filter((row) => signatureMatches(row, gap))
+        .map((row) => row.issue)
+        .sort((a, b) => a - b);
+    for (const issue of matching) {
+        const state = stateOf(issue);
+        if (state === null || !state.open) continue;
+        if (state.inProgress || state.openPr) {
+            busy.push(issue);
+            continue;
+        }
+        return { via: "signature", issue };
+    }
+    return { via: "single", busy };
+}
+
+/** The fixed markers of a Gap Cluster's managed block. Everything between
+ *  them is `gaps:sync`'s; everything outside is the cutter's. */
+export const ADOPTED_BLOCK_START =
+    "<!-- gaps:sync adopted-gaps (ADR 0146): regenerated every run, edit outside these markers -->";
+export const ADOPTED_BLOCK_END = "<!-- /gaps:sync adopted-gaps -->";
+
+/** One claim row of a Gap Cluster, as its managed block lists it. `live` is
+ *  false for a key this run computes no gap for — it has closed. */
+export interface AdoptedEntry {
+    readonly key: string;
+    readonly live: boolean;
+    readonly cards?: readonly string[];
+    readonly band?: string | null;
+}
+
+const BLOCK_CARD_CAP = 5;
+
+function cell(text: string): string {
+    return text.replace(/\|/g, "\\|");
+}
+
+/** The managed block itself, markers included — sorted by key, so the same
+ *  rows render the same bytes. */
+export function renderAdoptedBlock(entries: readonly AdoptedEntry[]): string {
+    const rows = [...entries]
+        .sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0))
+        .map((e) => {
+            const tick = e.key.includes("`") ? "``" : "`";
+            const cards =
+                !e.live || e.cards === undefined || e.cards.length === 0
+                    ? "—"
+                    : e.cards.slice(0, BLOCK_CARD_CAP).join(", ") +
+                      (e.cards.length > BLOCK_CARD_CAP
+                          ? ` (+${e.cards.length - BLOCK_CARD_CAP} more)`
+                          : "");
+            const band = !e.live ? "closed" : (e.band ?? "residue");
+            return `| ${tick}${cell(e.key)}${tick} | ${cell(cards)} | ${band} |`;
+        });
+    return [
+        ADOPTED_BLOCK_START,
+        "## Adopted gaps",
+        "",
+        "Every gap key this Gap Cluster claims in `data/grammar-gaps.json`, hand-listed or adopted by its Cluster Signature (ADR 0146). The cluster closes when every key is closed.",
+        "",
+        ...(rows.length === 0
+            ? ["None yet."]
+            : ["| Gap | Cards | Band |", "| --- | --- | --- |", ...rows]),
+        ADOPTED_BLOCK_END,
+    ].join("\n");
+}
+
+/**
+ * `body` with its managed block regenerated from `entries`: replaced between
+ * the markers when they are there, appended after the hand-written text when
+ * they are not. The text outside the markers comes back byte-identical, and
+ * a second call on the result returns it unchanged. A body with one marker
+ * and not the other, or either twice, throws — guessing where the block ends
+ * could eat the cutter's text.
+ */
+export function withAdoptedBlock(
+    body: string,
+    entries: readonly AdoptedEntry[],
+    issue = 0
+): string {
+    const count = (marker: string): number => body.split(marker).length - 1;
+    const starts = count(ADOPTED_BLOCK_START);
+    const ends = count(ADOPTED_BLOCK_END);
+    const at = body.indexOf(ADOPTED_BLOCK_START);
+    const end = body.indexOf(ADOPTED_BLOCK_END);
+    const block = renderAdoptedBlock(entries);
+    if (starts === 0 && ends === 0) {
+        if (body === "") return block;
+        return `${body}${body.endsWith("\n") ? "\n" : "\n\n"}${block}`;
+    }
+    if (starts !== 1 || ends !== 1 || end < at)
+        throw new Error(
+            `issue #${issue}: its \`## Adopted gaps\` markers are broken (${starts} start, ${ends} end) — repair the body by hand; gaps:sync will not guess where the block ends`
+        );
+    return (
+        body.slice(0, at) + block + body.slice(end + ADOPTED_BLOCK_END.length)
+    );
+}
+
+/** The comment a Gap Cluster gets for each gap it adopts. */
+export function adoptionComment(filing: GapFiling): string {
+    const cards =
+        filing.cards === undefined || filing.cards.length === 0
+            ? ""
+            : ` Cards: ${filing.cards.slice(0, BLOCK_CARD_CAP).join(", ")}${filing.cards.length > BLOCK_CARD_CAP ? `, +${filing.cards.length - BLOCK_CARD_CAP} more` : ""}.`;
+    return `\`gaps:sync\` adopted the \`${filing.kind}\` gap \`${filing.key}\` into this Gap Cluster: its Cluster Signature matches (ADR 0146).${cards} The \`## Adopted gaps\` block lists it.`;
+}
+
+/** The Cluster Signatures and the claim rows a sync adopts against. */
+export interface ClusterSignatures {
+    readonly rows: readonly ClusterRow[];
+    /** `claimId` → issue, every allowlist row as committed (`ops` included)
+     *  — what a cluster's managed block lists. */
+    readonly claims: ReadonlyMap<string, number>;
+}
+
+export const NO_SIGNATURES: ClusterSignatures = {
+    rows: [],
+    claims: new Map(),
+};
+
+/**
+ * The Gap Clusters whose body and parent `syncGaps` leaves to their cutter:
+ * issues two or more allowlist rows (`ops` + `claims`) point at — a hand-cut
+ * cluster — and every issue with a non-standalone Cluster Signature row. A
+ * signature cluster's managed block is `syncGaps`'s to write (ADR 0146 retired
+ * "`gaps:sync` never rewrites a cluster's body"), but never through the
+ * single-gap body rewrite this set guards against. Counted from the ROWS,
+ * never from one run's filings: a member whose gap has closed files nothing,
+ * and counting filings would demote a half-done cluster to a plain issue and
+ * clobber it.
  */
 export function clusterIssues(allowlist: Allowlist): ReadonlySet<number> {
     const seen = new Map<number, number>();
@@ -587,7 +850,12 @@ export function clusterIssues(allowlist: Allowlist): ReadonlySet<number> {
         if (row.issue === PRD_ISSUE) continue;
         seen.set(row.issue, (seen.get(row.issue) ?? 0) + 1);
     }
-    return new Set([...seen].filter(([, n]) => n > 1).map(([issue]) => issue));
+    return new Set([
+        ...[...seen].filter(([, n]) => n > 1).map(([issue]) => issue),
+        ...parseClusterRows(allowlist)
+            .filter((row) => row.standalone !== true)
+            .map((row) => row.issue),
+    ]);
 }
 
 /**
@@ -615,7 +883,8 @@ export function syncGaps(
     filings: readonly GapFiling[],
     tracker: GapTracker,
     originBand?: UmbrellaBand,
-    clusters: ReadonlySet<number> = new Set()
+    clusters: ReadonlySet<number> = new Set(),
+    signatures: ClusterSignatures = NO_SIGNATURES
 ): GapSyncResult {
     // Adopted (issue #4515): an open issue already names the card, so the
     // claim records THAT issue — nothing is created, and its body, parent and
@@ -632,10 +901,42 @@ export function syncGaps(
             );
         }
     }
-    const isCreate = (filing: GapFiling): boolean =>
+    const wouldCreate = (filing: GapFiling): boolean =>
         !isAdopted(filing) &&
         (filing.currentIssue === null ||
             existing.get(claimId(filing.kind, filing.key)) === null);
+
+    // Filing adopts (ADR 0146 § Decision 3): a gap that would be created is
+    // matched against the Cluster Signatures first. The `## Cards` adoption
+    // (issue #4515) outranks a signature — `isAdopted` settled it above, so
+    // only a gap no issue names reaches the signature match here.
+    const states = new Map<number, ClusterIssueState | null>();
+    const stateOf = (issue: number): ClusterIssueState | null => {
+        if (!states.has(issue)) states.set(issue, tracker.clusterState(issue));
+        return states.get(issue)!;
+    };
+    const intoCluster = new Map<string, number>();
+    if (signatures.rows.length > 0) {
+        for (const filing of filings) {
+            if (!wouldCreate(filing)) continue;
+            const match = matchCluster(
+                {
+                    kind: filing.kind,
+                    key: filing.key,
+                    card: filing.card,
+                    cardsIssue: filing.adopts,
+                },
+                signatures.rows,
+                stateOf
+            );
+            if (match.via === "signature")
+                intoCluster.set(claimId(filing.kind, filing.key), match.issue);
+        }
+    }
+    const isSignatureAdopted = (filing: GapFiling): boolean =>
+        intoCluster.has(claimId(filing.kind, filing.key));
+    const isCreate = (filing: GapFiling): boolean =>
+        wouldCreate(filing) && !isSignatureAdopted(filing);
     const isCluster = (filing: GapFiling): boolean =>
         !isAdopted(filing) &&
         !isCreate(filing) &&
@@ -648,7 +949,7 @@ export function syncGaps(
     const incoming = new Map<number, number>();
     for (const filing of filings) {
         const id = claimId(filing.kind, filing.key);
-        if (isAdopted(filing)) continue;
+        if (isAdopted(filing) || isSignatureAdopted(filing)) continue;
         let parent: number | null;
         if (isCreate(filing)) {
             parent = parentOf(filing, tracker, originBand);
@@ -674,9 +975,28 @@ export function syncGaps(
     const actions: GapSyncAction[] = [];
     const moves: GapMove[] = [];
     const updatedRows = new Map<string, number>();
+    // What this run wrote, so the managed-block pass below reads the body as
+    // it is now, never a prefetched copy from before the write.
+    const written = new Map<number, string>();
+    const updateBody = (issue: number, body: string): void => {
+        tracker.updateBody(issue, body);
+        written.set(issue, body);
+    };
     for (const filing of filings) {
         const id = claimId(filing.kind, filing.key);
         const common = { kind: filing.kind, key: filing.key };
+        const cluster = intoCluster.get(id);
+        if (cluster !== undefined) {
+            updatedRows.set(id, cluster);
+            tracker.comment(cluster, adoptionComment(filing));
+            actions.push({
+                action: "adopt",
+                ...common,
+                issue: cluster,
+                via: "signature",
+            });
+            continue;
+        }
         if (isAdopted(filing)) {
             const issue = filing.adopts!;
             if (filing.currentIssue === null) {
@@ -694,7 +1014,7 @@ export function syncGaps(
             });
             // The body may quote the issue's own number, which only exists now.
             const settled = filing.body(issue);
-            if (settled !== filing.body(0)) tracker.updateBody(issue, settled);
+            if (settled !== filing.body(0)) updateBody(issue, settled);
             updatedRows.set(id, issue);
             actions.push({
                 action: "create",
@@ -724,8 +1044,35 @@ export function syncGaps(
             actions.push({ action: "noop", ...common, issue });
             continue;
         }
-        tracker.updateBody(issue, body);
+        updateBody(issue, body);
         actions.push({ action: "update", ...common, issue });
+    }
+
+    // The managed block of every open signature cluster (ADR 0146 § Decision
+    // 6), regenerated from the claim rows — this run's adoptions included —
+    // and written only when it changed, so a quiet run writes nothing. A
+    // Standalone Gap is a single: its whole body is the filing's.
+    const filingOf = new Map(
+        filings.map((f) => [claimId(f.kind, f.key), f] as const)
+    );
+    const rowsNow = new Map([...signatures.claims, ...updatedRows]);
+    for (const row of signatures.rows) {
+        if (row.standalone === true) continue;
+        const current = tracker.getIssue(row.issue);
+        if (current === null || current.state === "CLOSED") continue;
+        const entries: AdoptedEntry[] = [];
+        for (const [id, issue] of rowsNow) {
+            if (issue !== row.issue) continue;
+            const f = filingOf.get(id);
+            entries.push(
+                f === undefined
+                    ? { key: splitClaimId(id).key, live: false }
+                    : { key: f.key, live: true, cards: f.cards, band: f.band }
+            );
+        }
+        const body = written.get(row.issue) ?? current.body;
+        const next = withAdoptedBlock(body, entries, row.issue);
+        if (next !== body) updateBody(row.issue, next);
     }
     return { actions, moves, updatedRows };
 }

@@ -552,6 +552,181 @@ export function parseClaims(
     );
 }
 
+// ── Cluster Signatures — the `clusters` rows (ADR 0146, issue #4677) ──────
+
+/**
+ * The kinds a Gap Cluster may claim by signature: every kind `gaps:sync`
+ * files except `migration`, whose issues are already one per slot signature
+ * (ADR 0146 § Decision 8).
+ */
+export const CLUSTER_KINDS = [
+    "grammar",
+    "mechanic",
+    "scenario",
+    "bot",
+    "hand-tail",
+] as const;
+export type ClusterKind = (typeof CLUSTER_KINDS)[number];
+
+/**
+ * The set-file colours a hand-written card lives under
+ * (`convex/cards/sets/<set>/<colour>.ts`, ADR 0043) — what a `hand-tail`
+ * signature groups by, since a Hand Tail gap is one card by definition and
+ * what its siblings share is the file they are written in.
+ */
+export const SET_FILE_COLOURS = [
+    "white",
+    "blue",
+    "black",
+    "red",
+    "green",
+    "multicolor",
+    "colorless",
+] as const;
+export type SetFileColour = (typeof SET_FILE_COLOURS)[number];
+
+/** A `hand-tail` Cluster Signature's card match: one set file. */
+export interface CardMatch {
+    readonly set: string;
+    readonly colour: SetFileColour;
+}
+
+/**
+ * One Gap Cluster's Cluster Signature, as `data/grammar-gaps.json`'s
+ * `clusters` array records it. `match` is a list of segment globs over the
+ * ` › `-separated gap key — or, for a `hand-tail` cluster, a list of
+ * `{ set, colour }` card matches. A Standalone Gap (`standalone: true`)
+ * matches ONE exact key and says why it is alone.
+ *
+ * `/cluster-gaps` authors these rows; `gaps:sync` only reads them and stays
+ * the one writer of `claims`.
+ */
+export interface ClusterRow {
+    readonly issue: number;
+    readonly kind: ClusterKind;
+    readonly match: readonly string[] | readonly CardMatch[];
+    readonly standalone?: true;
+    readonly reason?: string;
+}
+
+const CLUSTER_ROW_FIELDS = new Set([
+    "issue",
+    "kind",
+    "match",
+    "standalone",
+    "reason",
+]);
+
+/**
+ * The `clusters` rows of the allowlist document, validated FAIL-CLOSED: a
+ * row the reader skipped or half-read would be a signature that silently
+ * matches nothing (or everything), so every malformed shape throws, naming
+ * the row — an unknown kind or field, an empty `match`, a pattern that is
+ * not a string (or, for `hand-tail`, not a `{ set, colour }`), a Standalone
+ * Gap without a `reason` or with anything but one exact key, and a second
+ * row for the same issue (one row per Gap Cluster).
+ */
+export function parseClusterRows(
+    doc: { readonly clusters?: unknown },
+    path = "data/grammar-gaps.json"
+): ClusterRow[] {
+    if (doc.clusters === undefined) return [];
+    if (!Array.isArray(doc.clusters))
+        throw new Error(`${path}: \`clusters\` must be an array`);
+    const rows: ClusterRow[] = [];
+    const seen = new Set<number>();
+    doc.clusters.forEach((raw: unknown, at: number) => {
+        const fail = (message: string): never => {
+            throw new Error(
+                `${path}: clusters[${at}] ${JSON.stringify(raw)}: ${message}`
+            );
+        };
+        if (typeof raw !== "object" || raw === null || Array.isArray(raw))
+            fail("a row must be an object");
+        const row = raw as Record<string, unknown>;
+        for (const field of Object.keys(row))
+            if (!CLUSTER_ROW_FIELDS.has(field))
+                fail(
+                    `unknown field \`${field}\` (one of: ${[...CLUSTER_ROW_FIELDS].join(", ")})`
+                );
+        const { issue, kind, match, standalone, reason } = row;
+        if (!Number.isInteger(issue) || (issue as number) <= 0)
+            fail(
+                `\`issue\` is ${JSON.stringify(issue)}, want a positive integer`
+            );
+        if (seen.has(issue as number))
+            fail(
+                `issue #${String(issue)} has a second row — one row per Gap Cluster`
+            );
+        seen.add(issue as number);
+        if (!(CLUSTER_KINDS as readonly unknown[]).includes(kind))
+            fail(
+                `unknown kind \`${String(kind)}\` (one of: ${CLUSTER_KINDS.join(", ")}; \`migration\` is clustered by slot signature already)`
+            );
+        if (standalone !== undefined && standalone !== true)
+            fail("`standalone` is `true` or absent");
+        if (
+            reason !== undefined &&
+            (typeof reason !== "string" || reason.trim() === "")
+        )
+            fail("`reason` is a non-empty string");
+        if (standalone === true && reason === undefined)
+            fail(
+                "a Standalone Gap needs a `reason` — why it is alone on purpose"
+            );
+        if (!Array.isArray(match) || match.length === 0)
+            fail("`match` is a non-empty array");
+        const patterns = match as unknown[];
+        if (standalone === true) {
+            if (
+                patterns.length !== 1 ||
+                typeof patterns[0] !== "string" ||
+                patterns[0].length === 0 ||
+                patterns[0].includes("*")
+            )
+                fail("a Standalone Gap matches exactly one key, with no `*`");
+        } else if (kind === "hand-tail") {
+            for (const item of patterns) {
+                const card = item as Record<string, unknown> | null;
+                if (
+                    typeof card !== "object" ||
+                    card === null ||
+                    Array.isArray(card) ||
+                    Object.keys(card).some(
+                        (k) => k !== "set" && k !== "colour"
+                    ) ||
+                    typeof card.set !== "string" ||
+                    !/^[a-z0-9]+$/.test(card.set) ||
+                    !(SET_FILE_COLOURS as readonly unknown[]).includes(
+                        card.colour
+                    )
+                )
+                    fail(
+                        `a \`hand-tail\` signature matches \`{ set, colour }\` — a lower-case set code and one of: ${SET_FILE_COLOURS.join(", ")}`
+                    );
+            }
+        } else {
+            for (const item of patterns)
+                if (
+                    typeof item !== "string" ||
+                    item.trim() === "" ||
+                    /[\t\n]/.test(item)
+                )
+                    fail(
+                        "a pattern is a non-empty segment glob over the ` › `-separated key"
+                    );
+        }
+        rows.push({
+            issue: issue as number,
+            kind: kind as ClusterKind,
+            match: patterns as ClusterRow["match"],
+            ...(standalone === true ? { standalone: true as const } : {}),
+            ...(reason === undefined ? {} : { reason: reason as string }),
+        });
+    });
+    return rows;
+}
+
 /**
  * The class a quarantine reason belongs to — what ONE claim covers for every
  * card that carries it. The key is the reason's kind and detail, minus the

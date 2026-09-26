@@ -74,6 +74,7 @@ import {
     readTargetRegistry,
     resolveContext,
     type ClaimRow,
+    type ClusterRow,
 } from "./lib/targets";
 import { parseLockfile } from "./lib/oracle-lockfile";
 
@@ -100,6 +101,12 @@ export interface Allowlist {
      * about `ops` alone.
      */
     readonly claims?: readonly ClaimRow[];
+    /**
+     * The Cluster Signatures of the Gap Clusters (ADR 0146, issue #4677),
+     * authored by `/cluster-gaps`, read by `gaps:sync` through
+     * `parseClusterRows` (`lib/targets.ts`), which validates them fail-closed.
+     */
+    readonly clusters?: readonly ClusterRow[];
 }
 
 export type Violation =
