@@ -2210,7 +2210,7 @@ describe("gaps-sync main hands the parsed origin band to syncGaps", () => {
     it("passes `originBand` third, the allowlist's Grammar Clusters fourth, its Cluster Signatures fifth and the tip sixth", () => {
         const source = readFileSync("scripts/gaps-sync.ts", "utf8");
         expect(source).toMatch(
-            /syncGaps\(\s*withUnlockBlockers\(filings, blockers\),\s*tracker,\s*originBand,\s*clusterIssues\(allowlist\),\s*signatureRows,\s*tip === "" \? undefined : tip\s*\)/
+            /syncGaps\(\s*withUnlockBlockers\(filings, blockers\),\s*tracker,\s*originBand,\s*clusterIssues\(allowlist\),\s*signatureRows,\s*tip\s*\)/
         );
     });
 });

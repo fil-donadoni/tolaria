@@ -1565,6 +1565,32 @@ describe("syncGaps adopts a new gap into the matching Gap Cluster (ADR 0146)", (
             ]);
         });
 
+        it("an open issue naming the card in `## Cards` outranks the signature — no duplicate filed", () => {
+            const tracker = trackerWithClosed();
+            const result = syncGaps(
+                [botFiling({ currentIssue: CLOSED, adopts: 1234 })],
+                tracker,
+                undefined,
+                new Set([CLOSED, CLUSTER]),
+                [signature, { ...signature, issue: CLOSED }],
+                TIP
+            );
+            expect(result.actions).toEqual([
+                {
+                    action: "re-home",
+                    kind: "bot",
+                    key: BOT,
+                    issue: 1234,
+                    from: CLOSED,
+                },
+            ]);
+            expect(result.updatedRows.get(claimId("bot", BOT))).toBe(1234);
+            expect(tracker.createCalls).toBe(0);
+            expect(tracker.comments).toEqual([
+                { issue: CLOSED, body: reHomeComment(BOT, TIP, 1234) },
+            ]);
+        });
+
         it("a closed SINGLE stays skip-closed, and a gone key is the closer's — no filing, no action", () => {
             const tracker = trackerWithClosed();
             const single = syncGaps(

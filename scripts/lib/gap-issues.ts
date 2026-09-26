@@ -1050,10 +1050,20 @@ export function syncGaps(
         if (!states.has(issue)) states.set(issue, tracker.clusterState(issue));
         return states.get(issue)!;
     };
-    const intoCluster = new Map<string, number>();
-    if (signatureRows.length > 0) {
-        for (const filing of filings) {
-            if (!wouldCreate(filing)) continue;
+    const intoCluster = new Map<
+        string,
+        { readonly issue: number; readonly via: "cards" | "signature" }
+    >();
+    for (const filing of filings) {
+        if (!wouldCreate(filing)) continue;
+        const id = claimId(filing.kind, filing.key);
+        // A re-home honours the `## Cards` claim before any signature, as
+        // `matchCluster` would: an open issue already naming the card owns it.
+        if (rehomeFrom.has(id) && filing.adopts !== undefined) {
+            intoCluster.set(id, { issue: filing.adopts, via: "cards" });
+            continue;
+        }
+        if (signatureRows.length > 0) {
             const match = matchCluster(
                 {
                     kind: filing.kind,
@@ -1065,7 +1075,7 @@ export function syncGaps(
                 stateOf
             );
             if (match.via === "signature")
-                intoCluster.set(claimId(filing.kind, filing.key), match.issue);
+                intoCluster.set(id, { issue: match.issue, via: "signature" });
         }
     }
     const isSignatureAdopted = (filing: GapFiling): boolean =>
@@ -1146,25 +1156,23 @@ export function syncGaps(
         const id = claimId(filing.kind, filing.key);
         const common = { kind: filing.kind, key: filing.key };
         const from = rehomeFrom.get(id);
-        const cluster = intoCluster.get(id);
-        if (cluster !== undefined) {
+        const into = intoCluster.get(id);
+        if (into !== undefined) {
+            const cluster = into.issue;
             updatedRows.set(id, cluster);
-            tracker.comment(cluster, adoptionComment(filing));
+            if (into.via === "signature")
+                tracker.comment(cluster, adoptionComment(filing));
             if (from !== undefined)
                 tracker.comment(from, reHomeComment(filing.key, tip, cluster));
+            const via = into.via === "signature" ? { via: into.via } : {};
             actions.push(
                 from === undefined
-                    ? {
-                          action: "adopt",
-                          ...common,
-                          issue: cluster,
-                          via: "signature",
-                      }
+                    ? { action: "adopt", ...common, issue: cluster, ...via }
                     : {
                           action: "re-home",
                           ...common,
                           issue: cluster,
-                          via: "signature",
+                          ...via,
                           from,
                       }
             );

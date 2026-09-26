@@ -1342,13 +1342,16 @@ function main(): void {
         cwd: root,
         encoding: "utf8",
     }).stdout.trim();
+    // Before any write: a re-home comment naming no tip is worse than no run.
+    if (tip === "")
+        throw new Error("could not read the tip (git rev-parse HEAD)");
     const result = syncGaps(
         withUnlockBlockers(filings, blockers),
         tracker,
         originBand,
         clusterIssues(allowlist),
         signatureRows,
-        tip === "" ? undefined : tip
+        tip
     );
 
     const counts = new Map<string, number>();
@@ -1478,8 +1481,6 @@ function main(): void {
     // The close pass (issue #4516), after every write above: it records
     // nothing, so its own try/catch — a failure here is not a failed filing.
     try {
-        if (tip === "")
-            throw new Error("could not read the tip (git rev-parse HEAD)");
         const done = closeClaims(closures.close, tracker, tip);
         for (const row of done.filter(
             (r) => r.action === "foreign" || r.action === "over-cap"
