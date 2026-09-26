@@ -84,7 +84,11 @@ import {
     setIssueParent,
     subIssueCount as sharedSubIssueCount,
 } from "./lib/gh";
-import { cardBandIndex, strongestCardBand } from "./lib/backlog-triage";
+import {
+    cardBandIndex,
+    openCardIssueIndex,
+    strongestCardBand,
+} from "./lib/backlog-triage";
 import {
     applyUpdatedIssues,
     bandUmbrellaOf,
@@ -405,6 +409,33 @@ export class GhGapTracker implements GapTracker {
     }
 }
 
+/**
+ * Every OPEN issue's number and body, for the `## Cards` adoption index (issue
+ * #4515). FAILS CLOSED on a full page: a truncated list is not "fewer
+ * adoptions", it is a duplicate filed for a card whose issue fell off the page.
+ */
+export function listOpenIssueBodies(): { number: number; body: string }[] {
+    const limit = 2000;
+    const rows = JSON.parse(
+        gh([
+            "issue",
+            "list",
+            "--state",
+            "open",
+            "--limit",
+            String(limit),
+            "--json",
+            "number,body",
+        ])
+    ) as { number: number; body: string }[];
+    if (rows.length >= limit) {
+        throw new Error(
+            `gaps:sync: the open-issue list returned ${rows.length} issue(s), which is the whole page — raise the limit or paginate; a truncated list would file a duplicate for a card whose issue it missed`
+        );
+    }
+    return rows;
+}
+
 /** Commit + push the allowlist update straight to `origin/<base>`, from a
  *  clean primary checkout already on that branch. Never throws: `land`
  *  treats this whole script as non-gating — but it prints, so a human
@@ -458,7 +489,10 @@ export function buildAllFilings(
     ctx: ReturnType<typeof resolveContext>,
     /** The Bot Reach Findings report merged over the lockfile (issue #4406) —
      *  absent exactly when `data/bot-reach-findings.json` is missing. */
-    botFindings?: ReadonlyMap<string, BotGapVerdict>
+    botFindings?: ReadonlyMap<string, BotGapVerdict>,
+    /** Oracle id → the open issue naming the card in its `## Cards` section
+     *  (issue #4515) — what a card-keyed claim adopts instead of filing. */
+    openCardIssues?: ReadonlyMap<string, number>
 ): {
     filings: GapFiling[];
     handTailHeld: readonly GapFiling[];
@@ -486,6 +520,7 @@ export function buildAllFilings(
         floorless: floorlessCardIds(registry, ctx),
         handTail: new Set(markerIssues.keys()),
         botFindings,
+        openCardIssues,
         ...gapIndex(lock),
     };
     const handTail = buildHandTailFilings(inputs);
@@ -685,13 +720,25 @@ function main(): void {
         );
     }
 
+    // Read before anything is filed, and a failed read THROWS: a card-keyed
+    // claim adopts the open issue already naming the card (issue #4515), so an
+    // empty index read as authoritative would file the duplicate. A dry run
+    // makes no network call, so it previews without adoption.
+    const openCardIssues = dryRun
+        ? undefined
+        : openCardIssueIndex(
+              listOpenIssueBodies(),
+              (name) => ctx.byName.get(name)?.oracleId
+          );
+
     const { filings, handTailHeld, filed, settledHandTail } = buildAllFilings(
         root,
         lock,
         allowlist,
         registry,
         ctx,
-        botMerge.merged
+        botMerge.merged,
+        openCardIssues
     );
 
     // Reported whether or not filing is on — but a SUMMARY, plus one line per
