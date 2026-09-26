@@ -580,7 +580,7 @@ describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
             });
     }, 300_000);
 
-    /** CR 120.3 — a sorcery dealing 1 damage to each creature `select` names. */
+    /** CR 120.3e — a sorcery dealing 1 damage to each creature `select` names. */
     const forEachDamage = (
         id: string,
         select: Record<string, unknown>

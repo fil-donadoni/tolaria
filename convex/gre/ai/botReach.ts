@@ -243,7 +243,7 @@ function shrinksEveryCreature(def: CardDefinition): boolean {
 }
 
 /**
- * CR 120.3 / 704.5g — does the SPELL script deal damage to EVERY player's
+ * CR 120.3e / 704.5g — does the SPELL script deal damage to EVERY player's
  * creatures (a `forEach` over their battlefields, no `controller`, whose body
  * has a `dealDamage` aimed at the iteration object)? Damage marked on a
  * creature at least its toughness destroys it, so this is a sweep the way a
