@@ -58718,6 +58718,14 @@
         "source": "compiled"
     },
     {
+        "name": "Wild Research",
+        "scryfallId": "8f00e6f1-e854-40b0-855d-7e0d7d233850",
+        "oracleId": "d4721c7e-1a55-42cf-99c9-9118e386f48b",
+        "firstSet": "apc",
+        "firstPrintId": "8f00e6f1-e854-40b0-855d-7e0d7d233850",
+        "firstPrintSet": "apc"
+    },
+    {
         "name": "Wilderness Reclamation",
         "scryfallId": "54af08f7-9c6c-464e-b2f7-2b5803f36481",
         "oracleId": "6f856f99-4cb4-479d-958d-964220965ed6",
