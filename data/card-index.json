@@ -23380,6 +23380,14 @@
         "firstPrintSet": "inv"
     },
     {
+        "name": "Haunted Angel",
+        "scryfallId": "78d2d11b-12e4-4810-a32d-8f1cdda3ec49",
+        "oracleId": "437be0ad-2dd1-42c8-bf62-5af95228b2f8",
+        "firstSet": "apc",
+        "firstPrintId": "78d2d11b-12e4-4810-a32d-8f1cdda3ec49",
+        "firstPrintSet": "apc"
+    },
+    {
         "name": "Haunted Guardian",
         "scryfallId": "7d97f8b8-bdb0-4d4b-b077-9affe2f9cd91",
         "oracleId": "20b9bc53-7f6d-4616-a2df-5783ab577707",
