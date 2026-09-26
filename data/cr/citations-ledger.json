@@ -42698,6 +42698,7 @@
         {"id":"704.5m","line":"// CR 704.5m SBA regardless of host availability) — this is a","sites":1,"status":"baseline"},
         {"id":"704.5m","line":"// CR 704.5m — an unattached Aura goes to the graveyard whether or","sites":1,"status":"baseline"},
         {"id":"704.5m","line":"// CR 704.5m — if more than one permanent shares the shortest time (a tie),","sites":1,"status":"baseline"},
+        {"id":"704.5m","line":"// CR 704.5m — the Aura is binned before the ability resolves, so the","sites":1,"status":"confirmed","ruleHash":"586dc93d703666e3"},
         {"id":"704.5m","line":"// CR 704.5m — the Aura's host left the battlefield, so it is put into","sites":1,"status":"baseline"},
         {"id":"704.5m","line":"// CR 704.5m — the ongoing-legality SBA must NOT treat a player id as","sites":1,"status":"baseline"},
         {"id":"704.5m","line":"// CR 704.5m — the world-rule timestamp is a battlefield-only property","sites":1,"status":"baseline"},
