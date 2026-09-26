@@ -1982,6 +1982,67 @@ describe("syncGaps raises a Gap Cluster's band to its highest live key, upward o
         expect(result.actions.map((a) => a.action)).not.toContain("raise-band");
         expect(tracker.parents.get(CLUSTER)).toBe(4001);
     });
+
+    it("an origin-`P0` run never pulls an already-claimed member's OWN vote up to P0 — only what's new this run (planMove's own asymmetry)", () => {
+        // The cluster sits at its correct P1 umbrella; the member's own
+        // Target lends only the weakest band. `--band P0` is flagged for an
+        // UNRELATED reason this run (the whole backlog is re-scanned), and
+        // must not force this cluster to P0 on that account alone.
+        const tracker = trackerAt(P1);
+        const result = syncGaps(
+            [botFiling({ currentIssue: CLUSTER, target: "format-premodern" })],
+            tracker,
+            "P0",
+            new Set([CLUSTER]),
+            [signature]
+        );
+        expect(result.actions.map((a) => a.action)).not.toContain("raise-band");
+        expect(tracker.parents.get(CLUSTER)).toBe(P1);
+    });
+
+    it("an absorbed single's key raises the destination cluster's band too", () => {
+        const SINGLE = 4200;
+        const tracker = trackerAt(P2);
+        tracker.issues.set(SINGLE, {
+            state: "OPEN",
+            title: `Bot Gap: ${BOT}`,
+            body: "## Gap\n\nFiled by `gaps:sync`.",
+        });
+        const result = syncGaps(
+            [botFiling({ currentIssue: SINGLE })],
+            tracker,
+            "P0",
+            new Set([CLUSTER]),
+            [signature]
+        );
+        expect(result.actions).toContainEqual(
+            expect.objectContaining({
+                action: "absorb",
+                issue: CLUSTER,
+                single: SINGLE,
+            })
+        );
+        expect(result.actions).toContainEqual({
+            action: "raise-band",
+            kind: "bot",
+            key: BOT,
+            issue: CLUSTER,
+            from: P2,
+            parent: P0,
+        });
+        expect(tracker.parents.get(CLUSTER)).toBe(P0);
+    });
+
+    it("a raise-band's destination is folded into the sub-issue cap check, before any write", () => {
+        const tracker = trackerAt(P2);
+        tracker.children = SUB_ISSUE_CAP;
+        expect(() =>
+            syncGaps([botFiling()], tracker, "P0", new Set([CLUSTER]), [
+                signature,
+            ])
+        ).toThrow(/sub-issues/);
+        expect(tracker.parents.get(CLUSTER)).toBe(P2);
+    });
 });
 
 describe("raiseBandComment — names the old and new parent and the raising key", () => {

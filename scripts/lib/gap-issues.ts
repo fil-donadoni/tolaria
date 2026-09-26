@@ -1193,7 +1193,8 @@ export function syncGaps(
         // NOT already claim) casts an origin-`P0` vote — `planMove`'s own
         // asymmetry (module header: "an existing issue is never pulled up").
         // An already-claimed member re-scanned by an unrelated `--band P0`
-        // run votes its OWN computed Target band, never the run's origin.
+        // run votes its OWN computed Target band, never the run's origin
+        // (issue #4680 review).
         let cluster: number | undefined = intoCluster.get(id)?.issue;
         let isNew = cluster !== undefined;
         if (cluster === undefined) {
