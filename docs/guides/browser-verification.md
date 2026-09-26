@@ -78,9 +78,10 @@ of lane accounts print in the diagnostic block.
 **Served from a bundle, built once** (issue #4687, `--serve=build`, the
 default). The dev server re-transforms the module graph on every one of the
 ~300 navigations a run makes; a `vite build` costs ~12s once and `vite preview`
-serves it statically. Measured on one tree under the same load: 1130s on the
-dev server, 480s on the bundle — so the bundle is the default and `--serve=dev`
-is the escape. It is a **development-mode** bundle (`NODE_ENV=development`,
+serves it statically. Measured on one tree, same day: 1130s on the dev server,
+480s on a production bundle, 567s then 452s on the development-mode bundle
+that was adopted — so the bundle is the default and `--serve=dev` is the
+escape. It is a **development-mode** bundle (`NODE_ENV=development`,
 `--mode development`): the lane measures the same app the dev server serves —
 `game-debug-sheet-ai` walks a seam installed only under `import.meta.env.DEV`,
 and the Infra Verdict reads React's development warnings — where a production

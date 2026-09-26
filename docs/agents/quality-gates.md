@@ -933,6 +933,14 @@ The dev-server vs bundle decision is the third and fourth rows: same tree,
 same parallelism, same census reuse, 1130 s against 480 s, and the phase
 totals name the difference — `walk` fell from 2987 s to 1227 s across 330
 cells, `screenshot` from 560 s to 339 s, `assertions` from 398 s to 88 s.
+Two limits of the scope rule, on the record. The per-surface narrowing holds
+for plain `{ … }` elements of `SURFACES`; the `dlg-*` / `pick-*` rows come from
+a `...SPECIMENS.map(...)` spread and a specimen edit still forces the full lane
+(safe, and the usual census-debt slice). And a scoped `surfaces.ts` run walks
+only the edited surfaces, so a `walk` or `cleanup` that leaves state behind for
+a LATER row (a lane-account game, an open layer) is caught by the next full
+run, not by the run that changed it.
+
 The bundle is served in development mode because the production build lost a
 surface (`game-debug-sheet-ai`) and the console warnings the Infra Verdict
 classifies; a bundle the lane could not prove the same app on would be a

@@ -89,6 +89,42 @@ describe("parseSurfaceElements", () => {
 });
 
 describe("classifySurfaceEdits", () => {
+    it("a comment line between elements that carries code after `*/` is shared, not inert (review of issue #4687)", () => {
+        const after = source({
+            elements: [
+                BASE[0],
+                "    /* x */ ...EXTRA_SURFACES,",
+                BASE[1],
+                BASE[2],
+            ],
+        });
+        expect(classify(after)).toMatchObject({ kind: "shared" });
+    });
+
+    it("a block-comment closing line is inert; one with code after it is not", () => {
+        const inert = source({
+            elements: [
+                BASE[0],
+                "    /*",
+                "     * note",
+                "     */",
+                BASE[1],
+                BASE[2],
+            ],
+        });
+        expect(classify(inert)).toEqual({ kind: "surfaces", ids: [] });
+        const code = source({
+            elements: [BASE[0], "    */ ...EXTRA_SURFACES,", BASE[1], BASE[2]],
+        });
+        expect(classify(code)).toMatchObject({ kind: "shared" });
+    });
+
+    it("a listed file with no hunks at all is shared — the diff was read from the wrong tree", () => {
+        expect(
+            classifySurfaceEdits(source({ elements: BASE }), "")
+        ).toMatchObject({ kind: "shared" });
+    });
+
     it("an edit inside one element selects that surface alone", () => {
         const after = source({
             elements: [BASE[0], element("two", "changed"), BASE[2]],

@@ -70,9 +70,10 @@
  *   bun run check:ui -- --scope-only --base=<ref>        # scope of the diff
  *                                                        # against another ref
  *
- * SPEED IS SIZED TO THE MACHINE (issue #3653). The five viewports are walked
- * `viewportParallelism(ncpu, totalMemory)` at a time — five contexts on an 8-core box,
- * one on a flat-out one — each in its own browser context, each parallel LANE
+ * SPEED IS SIZED TO THE MACHINE (issue #3653, re-sized in #4687). The five
+ * viewports are walked `viewportParallelism(ncpu, totalMemory)` at a time —
+ * five contexts on an 8-core box, never fewer than two (`MIN_PARALLELISM`),
+ * the load average not consulted — each in its own browser context, each parallel LANE
  * signed in as its own lane account (a lane walks its viewports one after
  * another, so the account is the LANE's), because the one-game-per-account
  * lobby gate would otherwise serialise the contexts. The count changes the
@@ -730,7 +731,9 @@ async function main(): Promise<number> {
             "--all and --surface= contradict each other: one forces every surface, the other picks a subset"
         );
     }
-    const loadAtStart = loadAverage();
+    // Re-sampled once the lane lock is held (below): after a queue wait the
+    // load this run met is not the load it was launched into.
+    let loadAtStart = loadAverage();
     const scope = computeRunScope(opts);
     log(renderUiScope(scope, opts.base));
     if (opts.scopeOnly) return 0;
@@ -793,6 +796,7 @@ async function main(): Promise<number> {
         label: `check:ui ${process.argv.slice(2).join(" ")}`.trim(),
         announce: log,
     });
+    loadAtStart = loadAverage();
 
     const port = await freePort();
     const baseUrl = `http://127.0.0.1:${port}`;

@@ -37,7 +37,14 @@ const ELEMENT_OPEN = /^ {4}\{$/;
 const ELEMENT_CLOSE = /^ {4}\},$/;
 const ELEMENT_ID = /^ {8}id: "([^"]+)",?$/;
 const HUNK_HEADER = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/;
-const INERT_LINE = /^\s*(?:\/\/.*|\/\*.*|\*.*)?$/;
+// A line that moves nothing: blank, a line comment, a one-line block comment
+// with NOTHING after its close, a line that opens a block comment, a line
+// inside one, or the line that closes it. A block comment CLOSED and followed
+// by code (`/* x */ ...EXTRA,`) is code — the review of issue #4687 found the
+// earlier `\/\*.*` alternative accepted it, a fail-open in a fail-closed
+// classifier. (Line comments here: the pattern's own text would end a block one.)
+const INERT_LINE =
+    /^\s*(?:\/\/.*|\/\*.*\*\/\s*|\/\*(?!.*\*\/).*|\*\/\s*|\*(?!\/).*)?$/;
 
 /** The `SURFACES` array's bracket lines and its elements, in the NEW source. */
 export function parseSurfaceElements(source: string): {
@@ -109,7 +116,14 @@ export function classifySurfaceEdits(
     const newLines = newSource.split("\n");
     const ids = new Set<string>();
 
-    for (const hunk of parseHunks(zeroContextDiff)) {
+    const hunks = parseHunks(zeroContextDiff);
+    // The caller listed the file as changed; a diff with no hunk was read
+    // from a tree that is not the PR's (a standalone `verify:ui-receipt`
+    // from another checkout). Walk MORE, never less.
+    if (hunks.length === 0) {
+        return shared("the file is listed as changed but its diff has no hunk");
+    }
+    for (const hunk of hunks) {
         const { newStart: c, newCount: d } = hunk;
         const inside =
             d > 0 ? c > open && c + d - 1 < close : c >= open && c < close;

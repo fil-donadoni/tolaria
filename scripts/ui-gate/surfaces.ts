@@ -2336,14 +2336,17 @@ const CAST_PICKERS_SECTION: DialogSpecimenSection = {
 };
 
 /** Every layer a census specimen can mount — the reuse check below counts the
- *  visible ones (`census-page.ts`). */
-const SPECIMEN_LAYERS = specimenLayerSelector(
-    [
+ *  visible ones (`census-page.ts`) — plus the page's own reset seam, mounted
+ *  whenever ANY specimen is open, so an open specimen whose layer is not
+ *  visible still counts. */
+const SPECIMEN_LAYERS = specimenLayerSelector([
+    ...[
         ...BOARD_DIALOG_SPECIMENS,
         ...OVERLAY_SPECIMENS,
         ...CAST_PICKER_SPECIMENS,
-    ].map((s) => s.layer)
-);
+    ].map((s) => s.layer),
+    "[data-specimen-close]",
+]);
 
 /**
  * The census page, loaded ONCE per viewport where the rows allow it (issue
