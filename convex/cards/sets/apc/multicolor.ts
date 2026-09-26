@@ -487,3 +487,65 @@ export const suffocatingBlast: CardDefinition = {
         { op: "dealDamage", amount: 3, to: { target: 1 } },
     ],
 };
+
+// hand-tail: Creatures can't block this turn. (#4473)
+// Order // Chaos — {3}{W} // {2}{R}, Instant // Instant. "Exile target
+// attacking creature." // "Creatures can't block this turn." CR 709.4b makes
+// it a GOLD card (white AND red, mana value 6), so it lives here.
+//
+// ORDER is one `exile` over an announced attacking creature — the Giant Trap
+// Door Spider target shape (`combatRoleFilter: "attacking"`).
+//
+// CHAOS is `forEach` over every creature on EVERY player's battlefield (no
+// `controller` = both battlefields) and one `restrictCombat` "cant-block" per
+// member, the same per-permanent flag Manacles of Decay writes (CR 509.1a).
+// The flag clears at cleanup (CR 514.2), which is the "this turn" duration.
+//
+// Divergence: CR 611.2c makes "creatures can't block" a rules-modifying effect
+// (no characteristic changes), so it must also bind a creature that enters
+// after resolution; `forEach` freezes its member set at resolution, so a
+// creature with flash that enters before blockers can still block.
+// tracked-by: #4726
+export const orderChaos: CardDefinition = defineSplitCard({
+    id: "14e4f5a4-b1ea-4816-b2d7-cf148468a388",
+    rarity: "uncommon",
+    oracleText:
+        "Exile target attacking creature.\nCreatures can't block this turn.",
+    halves: [
+        {
+            name: "Order",
+            manaCost: { X: 3, W: 1 },
+            types: ["Instant"],
+            oracleText: "Exile target attacking creature.",
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                combatRoleFilter: "attacking",
+            },
+            effects: [{ op: "exile", target: { target: 0 } }],
+        },
+        {
+            name: "Chaos",
+            manaCost: { X: 2, R: 1 },
+            types: ["Instant"],
+            oracleText: "Creatures can't block this turn.",
+            effects: [
+                {
+                    op: "forEach",
+                    select: {
+                        set: "permanents",
+                        zone: "battlefield",
+                        filter: { type: "Creature" },
+                    },
+                    effects: [
+                        {
+                            op: "restrictCombat",
+                            restriction: "cant-block",
+                            target: { ref: "$each" },
+                        },
+                    ],
+                },
+            ],
+        },
+    ],
+});
