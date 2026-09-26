@@ -9,6 +9,7 @@ import {
     INITIAL_RENDER_STATE,
     budgetTone,
     classifyLine,
+    flushPending,
     render,
     renderSafely,
     visibleLength,
@@ -114,7 +115,6 @@ describe("glyphs replace the source prefix", () => {
         ["loop-drain[run]: run 1-2", "▶ run 1-2"],
         ["loop-handoff[warn]: WARNING — x", "⚠ WARNING — x"],
         ["loop-drain[error]: pre-flight FAILED", "✗ pre-flight FAILED"],
-        ["loop-drain[sweep]: orphan-claim sweep —", "◌ orphan-claim sweep —"],
         ["loop-drain: waiting 45s", "· waiting 45s"],
     ])("%s", (content, body) => {
         expect(last([`${S}${content}`])).toBe(`10:00:00 │ ${body}`);
@@ -249,6 +249,139 @@ describe("run summary box", () => {
         expect(
             summary(`passes=1 reason=${reason}`, COLOR).join("\n")
         ).toContain(`\x1b[${sgr}m${reason}`);
+    });
+});
+
+describe("sweep collapse — buffered until the block closes (issue #4718)", () => {
+    const T1 = "2026-09-26 10:00:00 ";
+    const T2 = "2026-09-26 10:05:00 ";
+    const T3 = "2026-09-26 10:10:00 ";
+    const CLOSER = `${T3}loop-drain[pass]: pass 1 — issue #1 on tier opus.`;
+
+    /** A sweep block: the tag line plus its rows, all sharing ONE stamp —
+     * the same shape `loop-doctor.ts`'s synchronous run actually produces. */
+    const sweep = (time: string, rows: string[]) => [
+        `${time}loop-drain[sweep]: orphan-claim sweep —`,
+        ...rows.map((r) => `${time}${r}`),
+    ];
+    const healthyRow = (issue: number, age = "claimed 1.0h ago") =>
+        `  · #${issue} some issue title                                       ${age}`;
+    const recoverableRow = (issue: number, age = "claimed 6.2h ago") =>
+        `  ! #${issue} some issue title                                       local branch, ${age}`;
+    const orphanRow = (issue: number, age = "claimed 30.0h ago") =>
+        `  × #${issue} some issue title                                       no branch, no PR — ${age}`;
+    const countLine = (claimed: number, orphaned: number) =>
+        `${claimed} claimed, ${orphaned} orphaned (nothing is going to release them).`;
+    const recoverableHeader = (n: number) =>
+        `${n} RECOVERABLE — a dead pass left committed work behind. Not released; resume the branch or salvage it:`;
+    /** The second, redundant listing `loop-doctor.ts` prints for every
+     * recoverable issue, alongside its roster row. */
+    const recoverableResumeLine = (issue: number, age = "claimed 6.2h ago") =>
+        `  ! #${issue} (branch *issue-${issue}) — local branch, ${age}`;
+
+    it("prints the run's first sweep in full", () => {
+        const out = renderAll([
+            ...sweep(T1, [healthyRow(100), countLine(1, 0)]),
+            CLOSER,
+        ]);
+        expect(out.slice(1, 4)).toEqual([
+            "10:00:00 │ ◌ orphan-claim sweep —",
+            `         │ ${healthyRow(100)}`,
+            `         │ ${countLine(1, 0)}`,
+        ]);
+    });
+
+    it("collapses an identical sweep to one line, ignoring claim age", () => {
+        const first = sweep(T1, [
+            healthyRow(100, "claimed 1.0h ago"),
+            countLine(1, 0),
+        ]);
+        const second = sweep(T2, [
+            healthyRow(100, "claimed 6.2h ago"),
+            countLine(1, 0),
+        ]);
+        const out = renderAll([...first, ...second, CLOSER]);
+        expect(out.at(-2)).toBe(
+            "10:05:00 │ ◌ sweep unchanged · 1 claimed · 0 orphaned · 0 recoverable"
+        );
+    });
+
+    it("prints in full when the row set changes, even with the same counts", () => {
+        // Same claimed/orphaned/recoverable counts both times — only the
+        // issue number differs, isolating the row-set comparison from the
+        // count one.
+        const first = sweep(T1, [healthyRow(100), countLine(1, 0)]);
+        const second = sweep(T2, [healthyRow(200), countLine(1, 0)]);
+        const out = renderAll([...first, ...second, CLOSER]);
+        const headers = out.filter((l) => l.includes("◌ orphan-claim sweep —"));
+        expect(headers).toHaveLength(2);
+        expect(out).toContain(`         │ ${healthyRow(200)}`);
+        expect(out.join("\n")).not.toContain("sweep unchanged");
+    });
+
+    it("prints in full when only a count changes", () => {
+        const first = sweep(T1, [healthyRow(100), countLine(1, 0)]);
+        // Same roster row, different claimed count — the two fields are
+        // parsed independently, so a mismatch here must not be masked by
+        // the row set matching.
+        const second = sweep(T2, [healthyRow(100), countLine(2, 0)]);
+        const out = renderAll([...first, ...second, CLOSER]);
+        expect(out.join("\n")).not.toContain("sweep unchanged");
+        expect(
+            out.filter((l) => l.includes("◌ orphan-claim sweep —"))
+        ).toHaveLength(2);
+    });
+
+    it("never collapses a sweep with orphaned > 0, even repeated identically", () => {
+        const rows = [orphanRow(300), countLine(1, 1)];
+        const out = renderAll([...sweep(T1, rows), ...sweep(T2, rows), CLOSER]);
+        expect(
+            out.filter((l) => l.includes("◌ orphan-claim sweep —"))
+        ).toHaveLength(2);
+        expect(out.join("\n")).not.toContain("sweep unchanged");
+    });
+
+    it("colours recoverable rows yellow and informational rows dim", () => {
+        const rows = [
+            healthyRow(100),
+            recoverableRow(200),
+            countLine(2, 0),
+            recoverableHeader(1),
+            recoverableResumeLine(200),
+        ];
+        const out = renderAll([...sweep(T1, rows), CLOSER], COLOR);
+        const joined = out.join("\n");
+        expect(joined).toContain(`\x1b[2m${healthyRow(100)}\x1b[0m`);
+        expect(joined).toContain(`\x1b[33m${recoverableRow(200)}\x1b[0m`);
+    });
+
+    it("names each recoverable issue once in the collapsed line, despite the doubled listing", () => {
+        const rows = [
+            healthyRow(100),
+            recoverableRow(4352),
+            countLine(2, 0),
+            recoverableHeader(1),
+            recoverableResumeLine(4352),
+        ];
+        const out = renderAll([...sweep(T1, rows), ...sweep(T2, rows), CLOSER]);
+        expect(out.at(-2)).toBe(
+            "10:05:00 │ ◌ sweep unchanged · 2 claimed · 0 orphaned · 1 recoverable (#4352)"
+        );
+    });
+
+    it("flushPending closes a sweep block still open at the end of the stream", () => {
+        let state = INITIAL_RENDER_STATE;
+        for (const line of sweep(T1, [healthyRow(100), countLine(1, 0)])) {
+            state = render(state, line, PLAIN).state;
+        }
+        const flushed = flushPending(state, PLAIN);
+        expect(flushed.output).toEqual([
+            `── 2026-09-26 ${"─".repeat(60 - 14)}`,
+            "10:00:00 │ ◌ orphan-claim sweep —",
+            `         │ ${healthyRow(100)}`,
+            `         │ ${countLine(1, 0)}`,
+        ]);
+        expect(flushPending(flushed.state, PLAIN).output).toEqual([]);
     });
 });
 

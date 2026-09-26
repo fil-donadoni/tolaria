@@ -18,6 +18,7 @@
 import * as readline from "node:readline";
 import {
     INITIAL_RENDER_STATE,
+    flushPending,
     renderSafely,
     type RenderEnv,
 } from "./lib/loop-render";
@@ -39,6 +40,18 @@ function main(): void {
 
     let state = INITIAL_RENDER_STATE;
     let degraded = plain;
+    // Best-effort: flushing is for a human watching the terminal, never
+    // worth failing loudly over on the way out.
+    const flushNow = (): void => {
+        try {
+            const result = flushPending(state, env);
+            state = result.state;
+            if (result.output.length > 0)
+                process.stdout.write(`${result.output.join("\n")}\n`);
+        } catch {
+            // ignore
+        }
+    };
     const lines = readline.createInterface({
         input: process.stdin,
         terminal: false,
@@ -52,10 +65,33 @@ function main(): void {
         state = result.state;
         process.stdout.write(`${result.output.join("\n")}\n`);
         if (result.notice !== undefined) {
+            // `renderSafely` leaves `state` — and any block it was
+            // buffering — untouched on a throw. Flush that block now,
+            // BEFORE switching to raw passthrough, or it is silently
+            // abandoned (issue #4718 review).
+            flushNow();
             degraded = true;
             process.stderr.write(`${result.notice}\n`);
         }
     });
+    // A sweep block still open when the stream ends (the log's last lines
+    // were its rows, with nothing after to close it) would otherwise never
+    // print — flush it (issue #4718).
+    lines.on("close", () => {
+        if (!degraded) flushNow();
+    });
+    // `run_foreground()` (loop-handoff.sh) runs this process undetached in
+    // the same foreground group as the terminal, so Ctrl-C reaches it
+    // directly — readline's `close` never fires on a signal. Without this,
+    // a sweep block still buffered at that instant is lost from the
+    // terminal for good (the log itself is unaffected either way: `tee`
+    // already wrote it before this process ever saw the line).
+    for (const signal of ["SIGINT", "SIGTERM"] as const) {
+        process.on(signal, () => {
+            if (!degraded) flushNow();
+            process.exit(0);
+        });
+    }
 }
 
 main();
