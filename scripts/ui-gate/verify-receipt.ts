@@ -34,12 +34,22 @@
  * vocabularies instead, longest-id-first so one id never swallows another.
  */
 
+import { execFileSync } from "node:child_process";
+import * as fs from "node:fs";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 import { gh } from "../lib/gh.ts";
 import { ORIGIN_BASE } from "../lib/branches.ts";
 import { createImportGraph } from "../lib/import-graph.ts";
-import { computeUiScope, type UiScope } from "../lib/ui-scope.ts";
+import {
+    computeUiScope,
+    SURFACES_FILE,
+    type UiScope,
+} from "../lib/ui-scope.ts";
+import {
+    classifySurfaceEdits,
+    type SurfaceEdits,
+} from "../lib/ui-surface-edits.ts";
 import { UNWALKED_SURFACES, type UnwalkedSurface } from "./floors.ts";
 import {
     evaluateRun,
@@ -79,7 +89,43 @@ export function landingDiffScope(
         changed,
         surfaces: SURFACES,
         graph: createImportGraph({ root }),
+        surfaceEdits: changed.includes(SURFACES_FILE)
+            ? surfaceEditsSinceBase(root)
+            : null,
     });
+}
+
+/**
+ * Which surfaces the tree at `root` edits in `surfaces.ts` relative to the
+ * merge-base with the base branch (issue #4687) — the same reference
+ * `check:ui` and `land` diff against. Anything that cannot be read is
+ * `shared`: the scope walks MORE, never less.
+ */
+export function surfaceEditsSinceBase(root: string): SurfaceEdits {
+    try {
+        const git = (args: string[]) =>
+            execFileSync("git", args, {
+                cwd: root,
+                encoding: "utf8",
+                maxBuffer: 64 * 1024 * 1024,
+            });
+        const mergeBase = git(["merge-base", ORIGIN_BASE, "HEAD"]).trim();
+        const diff = git([
+            "diff",
+            "-U0",
+            "--no-color",
+            mergeBase,
+            "--",
+            SURFACES_FILE,
+        ]);
+        const source = fs.readFileSync(path.join(root, SURFACES_FILE), "utf8");
+        return classifySurfaceEdits(source, diff);
+    } catch (err) {
+        return {
+            kind: "shared",
+            reason: `the surfaces.ts diff could not be read (${(err as Error).message})`,
+        };
+    }
 }
 
 /** What a receipt is re-derived against. Overridable so tests never depend

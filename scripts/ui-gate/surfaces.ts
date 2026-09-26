@@ -30,6 +30,11 @@ import type { FixtureLabels } from "./lane-account.ts";
 // this module, and `ui-gate-settle.test.ts` reds if a sleep comes back.
 import { waitForSettledScreen } from "./settle.ts";
 import type { NamedAssertion } from "./assertions.ts";
+import {
+    CENSUS_PATH,
+    censusPageReuse,
+    specimenLayerSelector,
+} from "./census-page.ts";
 
 /** Thrown by a walk that could not reach its screen. Reason is user-facing. */
 export class Unreachable extends Error {
@@ -2330,6 +2335,88 @@ const CAST_PICKERS_SECTION: DialogSpecimenSection = {
     index: "18",
 };
 
+/** Every layer a census specimen can mount — the reuse check below counts the
+ *  visible ones (`census-page.ts`) — plus the page's own reset seam, mounted
+ *  whenever ANY specimen is open, so an open specimen whose layer is not
+ *  visible still counts. */
+const SPECIMEN_LAYERS = specimenLayerSelector([
+    ...[
+        ...BOARD_DIALOG_SPECIMENS,
+        ...OVERLAY_SPECIMENS,
+        ...CAST_PICKER_SPECIMENS,
+    ].map((s) => s.layer),
+    "[data-specimen-close]",
+]);
+
+/**
+ * The census page, loaded ONCE per viewport where the rows allow it (issue
+ * #4687): when the page is already `/admin/design-system` and no specimen
+ * layer is visible, the row presses its opener on the page the previous row
+ * left; otherwise — first row, a foreign page, or a layer the previous row's
+ * cleanup failed to close — a full navigation, so nothing can leak into this
+ * row's measurement. The decision is `censusPageReuse`, pure and tested.
+ */
+async function gotoCensusPage(page: Page, ctx: WalkContext): Promise<void> {
+    const openLayers = await page
+        .locator(`:is(${SPECIMEN_LAYERS}):visible`)
+        .count()
+        .catch(() => -1);
+    const decision = censusPageReuse({
+        url: page.url(),
+        baseUrl: ctx.baseUrl,
+        openLayers,
+    });
+    if (decision.reuse) {
+        await waitForSettledScreen(page, {});
+        return;
+    }
+    ctx.log(`census page navigated: ${decision.reason}`);
+    await goto(page, ctx, CENSUS_PATH);
+}
+
+/**
+ * Close the layer a census row opened, on the SAME page, so the next row can
+ * reuse it: Escape first (every dialog and anchored picker dismisses on it),
+ * then the layer's own close control. Best-effort by design — a layer that
+ * stays open is caught by `gotoCensusPage`'s count and costs one navigation,
+ * never a leaked measurement. The inline `selectable-card` specimen has no
+ * close path and is the section's last row; the count handles it the same way.
+ */
+async function closeSpecimenLayer(page: Page, layer: string): Promise<void> {
+    const target = page.locator(layer).first();
+    const gone = () =>
+        target
+            .waitFor({ state: "hidden", timeout: 1_500 })
+            .then(() => true)
+            .catch(() => false);
+    if ((await target.count()) === 0) return;
+    // The census page's own reset first (`overlay-specimens.tsx`, issue
+    // #4687): one seam every specimen section renders while a specimen is
+    // open. `dispatchEvent`, not `click`: a modal specimen's backdrop sits
+    // over the page and would intercept the pointer. Measured before the
+    // seam: 9 of 31 rows kept their layer through Escape AND their own
+    // footer (plates disabled until a choice), and 2 more navigated away on
+    // the footer plate that closed them — 11 reloads per viewport.
+    const seam = page.locator("[data-specimen-close]").first();
+    if ((await seam.count()) > 0) {
+        await seam.dispatchEvent("click").catch(() => {});
+        if (await gone()) return;
+    }
+    // Not a section specimen (the GameDialog live demo): Escape, then its
+    // close glyph.
+    await page.keyboard.press("Escape");
+    if (await gone()) return;
+    const closer = target
+        .locator(
+            "[data-game-dialog-close], [data-action-sheet-close], button[aria-label='Close']"
+        )
+        .first();
+    if ((await closer.count()) > 0) {
+        await closer.click({ timeout: 1_500 }).catch(() => {});
+        await gone();
+    }
+}
+
 /** One `dlg-*` row: open the specimen page, press its opener, measure the
  *  layer it mounted. The entries are the design-system route's, as every
  *  other row on that page: the section lives inside it. */
@@ -2347,8 +2434,11 @@ function dialogSpecimenSurface(
         asserts: [spec.layerAssert, spec.entry],
         mounts: [`src/components/${spec.module}`],
         settleTargets: [spec.layer],
+        async cleanup(page) {
+            await closeSpecimenLayer(page, spec.layer);
+        },
         async walk(page, ctx) {
-            await goto(page, ctx, "/admin/design-system");
+            await gotoCensusPage(page, ctx);
             const opener = page
                 .locator(`[${section.seam}="${spec.slug}"]`)
                 .first();
@@ -2944,7 +3034,7 @@ export const SURFACES: readonly Surface[] = [
             // 404 page also renders a `main`, so a `main`-only assertion
             // measured the not-found screen and reported PASS. Measured
             // exactly that on the wrong path while writing this walk.
-            await goto(page, ctx, "/admin/design-system");
+            await gotoCensusPage(page, ctx);
             if (
                 !(await visible(
                     page,
@@ -2990,13 +3080,16 @@ export const SURFACES: readonly Surface[] = [
                 check: "reachable",
             },
         ],
+        async cleanup(page) {
+            await closeSpecimenLayer(page, "[role=dialog]");
+        },
         async walk(page, ctx) {
             // The lane's only MODAL row. Every in-game dialog is a GameDialog,
             // and the census page opens a real one on demand — so the dialog
             // gets measured at all five viewports without touching a live game
             // (issue #2581; ADR 0101 §2 re-specifies the Panel frame those
             // dialogs are built on).
-            await goto(page, ctx, "/admin/design-system");
+            await gotoCensusPage(page, ctx);
             // The FIRST "Open live demo" is specimen A (GameDialog); B is the
             // plain shadcn dialog and C the ActionSheet. Wait rather than
             // probe: the census page is long and its sections mount late.

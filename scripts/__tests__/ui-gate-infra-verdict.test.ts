@@ -101,7 +101,7 @@ describe("retryStep — a pure function of (attempts, load samples)", () => {
         expect(retryStep(1, [], POLICY)).toEqual({ action: "wait", ms: 0 });
     });
 
-    it("waits while the load is at or over the threshold", () => {
+    it("waits one poll on a busy machine to see a trend, then while the load is FALLING", () => {
         expect(retryStep(1, [30], POLICY)).toEqual({
             action: "wait",
             ms: POLICY.pollMs,
@@ -116,14 +116,21 @@ describe("retryStep — a pure function of (attempts, load samples)", () => {
         expect(retryStep(1, [30, 12, 7.9], POLICY)).toEqual({
             action: "retry",
         });
+        expect(retryStep(1, [7.9], POLICY)).toEqual({ action: "retry" });
+    });
+
+    it("retries when the load is not falling — a flat or rising load will not fall in 90s either (issue #4687)", () => {
+        expect(retryStep(1, [30, 30], POLICY)).toEqual({ action: "retry" });
+        expect(retryStep(1, [30, 31], POLICY)).toEqual({ action: "retry" });
+        expect(retryStep(1, [12, 10, 10], POLICY)).toEqual({ action: "retry" });
     });
 
     it("bounds the wait: retries anyway once maxWaitMs of samples are spent", () => {
-        // 5 samples = 4 waits x 5s = 20s = maxWaitMs.
-        expect(retryStep(2, [30, 30, 30, 30, 30], POLICY)).toEqual({
+        // 5 samples = 4 waits x 5s = 20s = maxWaitMs, the load falling all along.
+        expect(retryStep(2, [40, 36, 32, 28, 24], POLICY)).toEqual({
             action: "retry",
         });
-        expect(retryStep(2, [30, 30, 30, 30], POLICY)).toEqual({
+        expect(retryStep(2, [40, 36, 32, 28], POLICY)).toEqual({
             action: "wait",
             ms: POLICY.pollMs,
         });

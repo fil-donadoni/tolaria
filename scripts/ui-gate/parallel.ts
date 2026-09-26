@@ -21,6 +21,7 @@
  * WHAT DOES CHANGE. Wall time, the load line, and the ORDER work happened in —
  * all of them diagnostic, none of them read by `land`.
  */
+import type { CellTiming } from "./phase-timing.ts";
 import type { InfraCell, Measurement, SurfaceWalk } from "./receipt.ts";
 import { VIEWPORTS } from "./viewports.ts";
 
@@ -28,28 +29,56 @@ import { VIEWPORTS } from "./viewports.ts";
 export const MAX_PARALLELISM = VIEWPORTS.length;
 
 /**
- * Cores held back from the count: the lane's own Vite, this process, and the
- * local Convex backend every context is talking to. Without it a quiet
- * 8-core machine would promise a context to every core and then contend with
- * the server answering them.
+ * Cores held back from the count: the lane's own server (Vite or the preview
+ * of the built bundle), this process, and the local Convex backend every
+ * context is talking to. Without it an 8-core machine would promise a context
+ * to every core and then contend with the processes answering them.
  */
-export const RESERVED_CORES = 1;
+export const RESERVED_CORES = 3;
+
+/** The lane never walks fewer than two viewports at once: the floor the
+ *  parallelism cannot collapse under (issue #4687). */
+export const MIN_PARALLELISM = 2;
+
+/** Memory kept out of the budget — the OS, the other sessions' gates, the
+ *  server and the backend — and what one Chromium context with a page, axe and
+ *  a screenshot buffer is budgeted at. Coarse on purpose: the floor and the
+ *  cap do the real clamping; this only keeps a small machine honest. */
+export const MEMORY_RESERVE_BYTES = 6 * 1024 ** 3;
+export const CONTEXT_MEMORY_BYTES = 1024 ** 3;
 
 /**
- * How many viewports to walk at once, from the 1-minute load average and the
- * core count — one context per free core, minus the lane's own reserve,
- * clamped to 1..5.
+ * How many viewports to walk at once, from the core count and the machine's
+ * TOTAL memory — never from the 1-minute load average (issue #4687).
  *
- * Pure, and total: a machine that reports nonsense (a load that is NaN, a core
- * count of zero) gets the sequential lane, which is the answer that is never
- * wrong, only slow.
+ * The load average was the sizing input from issue #3653 to this one, and on
+ * a shared machine it was almost always another session's: the heavy gates
+ * keep the 1-minute average over 6 on 8 cores for most of the day, so five
+ * viewports ran in series 24 runs out of 25. Admission (`ui-admission.ts`)
+ * now guarantees this is the one browser run on the machine, so the contexts
+ * are sized for the run that holds the lane: cores minus the lane's own
+ * reserve, capped by memory, clamped to `MIN_PARALLELISM..MAX_PARALLELISM`.
+ * Total memory, not `os.freemem()`: macOS reports under 2 GiB "free" on a
+ * 16 GiB machine with nothing running, because file cache and inactive pages
+ * are not counted, and a sizing read off that number collapses to the floor.
+ *
+ * Pure, and total: a machine that reports nonsense gets the floor.
  */
-export function viewportParallelism(load: number, ncpu: number): number {
-    if (!Number.isFinite(load) || !Number.isFinite(ncpu)) return 1;
-    const cores = Math.max(1, Math.floor(ncpu));
-    const busy = Math.max(0, load);
-    const free = Math.floor(cores - busy - RESERVED_CORES);
-    return Math.max(1, Math.min(MAX_PARALLELISM, free));
+export function viewportParallelism(
+    ncpu: number,
+    totalMemoryBytes: number
+): number {
+    if (!Number.isFinite(ncpu) || !Number.isFinite(totalMemoryBytes)) {
+        return MIN_PARALLELISM;
+    }
+    const byCores = Math.floor(ncpu) - RESERVED_CORES;
+    const byMemory = Math.floor(
+        (totalMemoryBytes - MEMORY_RESERVE_BYTES) / CONTEXT_MEMORY_BYTES
+    );
+    return Math.max(
+        MIN_PARALLELISM,
+        Math.min(MAX_PARALLELISM, byCores, byMemory)
+    );
 }
 
 /** `--parallel=N`'s value. Throws with the operator's own number in the
@@ -117,6 +146,8 @@ export interface ViewportResult {
     infra: readonly { surface: string; cell: InfraCell }[];
     consoleErrors: readonly string[];
     bandWalks: readonly { where: string; excluded: number }[];
+    /** Per-cell phase timings (issue #4687); diagnostic, never evaluated. */
+    timings?: readonly CellTiming[];
 }
 
 export interface CollectedRun {
@@ -125,6 +156,7 @@ export interface CollectedRun {
     walks: SurfaceWalk[];
     consoleErrors: string[];
     bandWalks: { where: string; excluded: number }[];
+    timings: CellTiming[];
 }
 
 /**
@@ -154,11 +186,13 @@ export function collectRun(input: {
     const lines: string[] = [];
     const consoleErrors: string[] = [];
     const bandWalks: { where: string; excluded: number }[] = [];
+    const timings: CellTiming[] = [];
 
     for (const result of ordered) {
         lines.push(...result.lines);
         consoleErrors.push(...result.consoleErrors);
         bandWalks.push(...result.bandWalks);
+        timings.push(...(result.timings ?? []));
         for (const u of result.unreachable) {
             if (!unreachable.has(u.surface))
                 unreachable.set(u.surface, u.reason);
@@ -194,5 +228,5 @@ export function collectRun(input: {
         }
     }
 
-    return { lines, walks, consoleErrors, bandWalks };
+    return { lines, walks, consoleErrors, bandWalks, timings };
 }

@@ -14,7 +14,10 @@
  *
  * A path is placed, in this order:
  *   - the `check:ui` lane itself (`scripts/ui-gate/**`: walks, probe, floors)
- *     → `full`: it changes what every surface's measurement means;
+ *     → `full`: it changes what every surface's measurement means — EXCEPT
+ *     `surfaces.ts`, whose hunks inside `SURFACES` elements select exactly the
+ *     surfaces they edit (`ui-surface-edits.ts`, issue #4687); a hunk in a
+ *     shared helper, selector or table there is still `full`;
  *   - in the BUILD configuration's closure (`vite.config.ts` and what it
  *     imports, e.g. `scripts/lib/build-define.ts`) → `full`: it shapes the
  *     bundle every route is served from;
@@ -36,6 +39,7 @@
  * hole is limited to runtime-built class strings; it is recorded, not closed.
  */
 import type { ImportGraph } from "./import-graph";
+import type { SurfaceEdits } from "./ui-surface-edits";
 
 /** The module that boots the app; its closure, minus route modules, is the shell. */
 export const SHELL_ENTRY = "src/main.tsx";
@@ -45,6 +49,8 @@ export const ROUTER_MODULE = "src/router.tsx";
 export const BUILD_CONFIG = "vite.config.ts";
 /** The lane's own walks, probe and floors. */
 const UI_GATE_DIR = "scripts/ui-gate/";
+/** The one lane file that also holds per-surface definitions. */
+export const SURFACES_FILE = "scripts/ui-gate/surfaces.ts";
 
 /** A surface as the scoper sees it: an id and its declared route entry modules. */
 export interface ScopeSurface {
@@ -93,12 +99,16 @@ export interface ComputeUiScopeInput {
     changed: readonly string[];
     surfaces: readonly ScopeSurface[];
     graph: ImportGraph;
+    /** Which surfaces a diff to `SURFACES_FILE` edits, when the caller could
+     *  derive it. Absent or `shared` keeps that file a full-lane path. */
+    surfaceEdits?: SurfaceEdits | null;
 }
 
 export function computeUiScope({
     changed,
     surfaces,
     graph,
+    surfaceEdits = null,
 }: ComputeUiScopeInput): UiScope {
     const shell = graph.closureOf(SHELL_ENTRY, { prune: isRouteModulePath });
     const build = graph.closureOf(BUILD_CONFIG);
@@ -112,10 +122,18 @@ export function computeUiScope({
 
     const selected = new Set<string>();
     for (const path of [...changed].sort()) {
+        if (path === SURFACES_FILE && surfaceEdits?.kind === "surfaces") {
+            for (const id of surfaceEdits.ids) selected.add(id);
+            continue;
+        }
         if (path.startsWith(UI_GATE_DIR)) {
             return {
                 kind: "full",
-                reason: `${path} is the check:ui lane itself (walks, probe, floors)`,
+                reason: `${path} is the check:ui lane itself (walks, probe, floors)${
+                    path === SURFACES_FILE && surfaceEdits?.kind === "shared"
+                        ? ` — ${surfaceEdits.reason}`
+                        : ""
+                }`,
             };
         }
         if (build.has(path)) {
