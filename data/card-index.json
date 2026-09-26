@@ -30996,6 +30996,14 @@
         "firstPrintSet": "lea"
     },
     {
+        "name": "Manacles of Decay",
+        "scryfallId": "f3da5010-78b6-426f-aeb4-73c21d2af581",
+        "oracleId": "69095c25-6ae6-42f5-9c3d-1d8f86f03fae",
+        "firstSet": "apc",
+        "firstPrintId": "f3da5010-78b6-426f-aeb4-73c21d2af581",
+        "firstPrintSet": "apc"
+    },
+    {
         "name": "Managorger Hydra",
         "scryfallId": "1a08e5ab-1ff9-4470-ab28-fea19bb79845",
         "oracleId": "b3f2265b-dd65-4b74-8b74-35ee0b147617",
