@@ -3538,8 +3538,11 @@ export const SURFACES: readonly Surface[] = [
         // (`LANE_JOIN_TABLE_NAME`), so this lane — not seated there — gets the
         // `Join game` plate and the deck picker, not the "Can't join game"
         // error panel a lane-hosted table would show its own host. Unlisted,
-        // so no other lane's `lobby` measures it. The walk never presses
-        // `Join game`: every lane walks the same table.
+        // so no other lane's `lobby` measures it. The walk picks the lane's
+        // own deck (`LANE_DECK_NAME`, a freeform row the format filter keeps)
+        // — client state only, it writes nothing — so the `Join game` plate
+        // is live, and it never presses the plate: every lane walks the same
+        // table.
         entries: ["src/routes/join.route.tsx"],
         label: `Join a table (/join/<${LANE_JOIN_TABLE_NAME}>)`,
         asserts: [
@@ -3556,6 +3559,11 @@ export const SURFACES: readonly Surface[] = [
             {
                 label: "deck picker: Preset Decks",
                 locator: { role: "heading", name: "Preset Decks" },
+                check: "visible",
+            },
+            {
+                label: "deck picker: the lane's own deck",
+                locator: { role: "button", name: LANE_DECK_NAME },
                 check: "visible",
             },
             {
@@ -3583,6 +3591,18 @@ export const SURFACES: readonly Surface[] = [
                     `/join/${ctx.joinTableId} did not render the joinable antechamber${reason ? ` — ${reason.trim()}` : ""}`
                 );
             }
+            const deckRow = page
+                .getByRole("button", { name: LANE_DECK_NAME, exact: true })
+                .first();
+            try {
+                await deckRow.waitFor({ state: "visible", timeout: 10_000 });
+            } catch {
+                throw new Unreachable(
+                    `the antechamber's deck picker showed no \`${LANE_DECK_NAME}\` row — the lane seeds it at bootstrap (lane-account.ts)`
+                );
+            }
+            await deckRow.click();
+            await settle(page);
         },
     },
     {
