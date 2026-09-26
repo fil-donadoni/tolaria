@@ -14,7 +14,10 @@
 #      `claude` pass in flight because the driver stays in the caller's
 #      process group. ADR 0109 made a human `--start` the only way a run
 #      begins, so the operator is AT the keyboard: watching the run must not
-#      cost a second shell and a `tail -f`.
+#      cost a second shell and a `tail -f`. What the terminal shows is a
+#      RENDERED VIEW of that log (ADR 0147): time column, pass rules, summary
+#      box — while the log stays plain stamped text. `--plain` / `NO_COLOR`
+#      show the log's own lines instead.
 #   1b. `--detach` is the opt-in that restores the old shape — new session via
 #      `perl POSIX::setsid()`, SIGHUP-immune under `nohup` — for a run that
 #      must outlive the shell, the SSH connection or the Claude Code session
@@ -49,6 +52,9 @@ STOP_FILE="$TELEMETRY_DIR/loop-stop"
 PID_FILE="$TELEMETRY_DIR/loop-drain.pid"
 DETACH_LOG="$TELEMETRY_DIR/loop-afk.log"
 DRIVER="scripts/loop-drain.sh"
+# Beside this script rather than cwd-relative like DRIVER: the renderer is
+# presentation, so it is never swapped for a scratch copy under test.
+RENDERER="$(dirname "$0")/loop-render.ts"
 
 # `--dangerously-skip-permissions` is the default only because an AFK run with
 # any other mode blocks on the first permission prompt with nobody watching —
@@ -85,6 +91,7 @@ ARG_START_DELAY=""
 NO_CAFFEINATE=0
 DRY_RUN=0
 DETACH=0
+PLAIN=0
 
 usage() {
     cat <<'EOF'
@@ -122,6 +129,9 @@ Options (recorded in .claude/telemetry/afk.conf on --arm / --start):
                                (use --stop); output goes only to
                                .claude/telemetry/loop-afk.log. Both paths
                                timestamp every line and write that same log.
+  --plain                      show the stamped log lines as they are, with no
+                               time column, rules or colour (NO_COLOR does the
+                               same). The log itself is plain either way.
   --dry-run                    print the driver command instead of running it
 EOF
 }
@@ -170,6 +180,10 @@ while [ $# -gt 0 ]; do
             ;;
         --detach)
             DETACH=1
+            shift
+            ;;
+        --plain)
+            PLAIN=1
             shift
             ;;
         --dry-run)
@@ -260,9 +274,11 @@ write_conf() {
 #     into .claude/telemetry/loop-drain/pass-N-EPOCH.log and then greps that
 #     file for RATE_LIMIT_PATTERNS (loop-drain.sh:832); a stamp applied inside
 #     the driver would prefix the very lines those patterns must match.
-#   · both sinks see the SAME bytes. One filter feeds one `tee`, so the
-#     terminal, `--status` and anything tailing loop-afk.log agree line for
-#     line, and a detached run produces the same format as a foreground one.
+#   · the LOG sees the same bytes on both paths. One filter feeds one `tee`, so
+#     `--status` and anything tailing loop-afk.log agree line for line, and a
+#     detached run produces the same format as a foreground one. The TERMINAL
+#     no longer sees those bytes (ADR 0147, amending this design): on the
+#     foreground path it is a RENDERED VIEW of the log — see render_stream.
 #   · the `2>&1` merge happens BEFORE the filter, because loop-drain.sh writes
 #     most of its progress to stderr — merging after would leave half the
 #     stream unstamped and interleaved.
@@ -278,6 +294,32 @@ stamp_stream() {
     else
         cat
     fi
+}
+
+# The terminal as a rendered view of the stamped log (ADR 0147). It sits AFTER
+# `tee`, so every line is in loop-afk.log — plain, zero ANSI — before the
+# renderer sees it, and nothing the renderer does can reach the record.
+#
+# `{ renderer; cat; }` and not `renderer | …` or `renderer || cat`: whenever
+# the renderer stops reading — missing `bun`, a crash, even a clean exit 0 —
+# `cat` inherits the same stdin and drains the rest of the stream to the
+# terminal. With nothing reading, `tee` would take SIGPIPE, and so would the
+# driver behind it: a presentation bug would kill an unattended run.
+#
+# `--plain` / `NO_COLOR` skip the renderer entirely. TOLARIA_LOOP_RENDERER is a
+# shell snippet that replaces it — a test seam, run under `sh -c` for exactly
+# that reason (a stub that dies mid-stream is how the fallback is proven).
+render_stream() {
+    if [ "$PLAIN" -eq 1 ] || [ -n "${NO_COLOR:-}" ]; then
+        cat
+        return 0
+    fi
+    if [ -n "${TOLARIA_LOOP_RENDERER:-}" ]; then
+        sh -c "$TOLARIA_LOOP_RENDERER" || true
+    elif [ -f "$RENDERER" ] && command -v bun >/dev/null 2>&1; then
+        bun "$RENDERER" || true
+    fi
+    cat
 }
 
 # The detached path runs the SAME driver|stamper pipeline, but INSIDE the new
@@ -303,7 +345,7 @@ SETSID_PERL='use POSIX (); POSIX::setsid(); exec @ARGV; die "loop-handoff: exec 
 # pipeline — so every line the caller sees carries a timestamp — while the
 # dry-run and --detach paths print it directly.
 announce_start() {
-    echo "loop-handoff: AFK run armed with CLAUDE_ARGS=$(conf_get CLAUDE_ARGS)"
+    echo "loop-handoff[run]: AFK run armed with CLAUDE_ARGS=$(conf_get CLAUDE_ARGS)"
     # Branch on an empty PROMPT exactly as --status does. This line is the
     # last thing an operator reads before walking away, so `claude -p ""` —
     # which is what an unbranched echo prints now that the conf's default is
@@ -311,23 +353,23 @@ announce_start() {
     # driver actually resolves an issue and a tier per pass.
     _start_prompt=$(conf_get PROMPT)
     if [ -n "$_start_prompt" ]; then
-        echo "loop-handoff: every pass will run: claude -p \"$_start_prompt\""
+        echo "loop-handoff[run]: every pass will run: claude -p \"$_start_prompt\""
     else
-        echo "loop-handoff: every pass will run: /next-issue on the issue and tier the driver resolves for it (unscoped)"
+        echo "loop-handoff[run]: every pass will run: /next-issue on the issue and tier the driver resolves for it (unscoped)"
     fi
     case "$(conf_get CLAUDE_ARGS)" in
         *--dangerously-skip-permissions*)
-            echo "loop-handoff: WARNING — this run answers every permission prompt automatically." >&2
-            echo "loop-handoff: it will edit files, push branches and merge PRs with nobody watching." >&2
-            echo "loop-handoff: stop it with 'bun run loop:afk --stop'." >&2
+            echo "loop-handoff[warn]: WARNING — this run answers every permission prompt automatically." >&2
+            echo "loop-handoff[warn]: it will edit files, push branches and merge PRs with nobody watching." >&2
+            echo "loop-handoff[warn]: stop it with 'bun run loop:afk --stop'." >&2
             ;;
     esac
 }
 
 # Run the driver IN THIS PROCESS and block until it exits. Everything the run
 # prints — this script's own announcement included — goes through one
-# `2>&1 | stamp | tee` pipeline, so the terminal and $DETACH_LOG receive
-# identical, timestamped bytes.
+# `2>&1 | stamp | tee | render` pipeline: $DETACH_LOG receives the plain
+# timestamped bytes, the terminal their rendered view (render_stream).
 #
 # No setsid and no nohup here, deliberately: the driver must stay in the
 # caller's process group or Ctrl-C never reaches the `claude` pass in flight,
@@ -354,7 +396,7 @@ run_foreground() {
         else
             echo "$?" >"$_rc_file"
         fi
-    } 2>&1 | stamp_stream | tee -a "$DETACH_LOG"
+    } 2>&1 | stamp_stream | tee -a "$DETACH_LOG" | render_stream
     trap - INT
     trap - TERM
     _rc=$(cat "$_rc_file" 2>/dev/null || echo "")

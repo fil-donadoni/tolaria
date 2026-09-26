@@ -453,6 +453,90 @@ describe("foreground by default, --detach is the opt-in (issue #4389)", () => {
         expect(logLines.slice(-lines.length)).toEqual(lines);
     });
 
+    describe("the terminal is a rendered view of the log (issue #4721, ADR 0147)", () => {
+        const DRIVER_LINES = ["line a", "line b", "line c", "line d", "line e"];
+        const stubFiveLines = (rc: number) =>
+            stubDriver(
+                [...DRIVER_LINES.map((l) => `echo "${l}"`), `exit ${rc}`].join(
+                    "\n"
+                )
+            );
+        /** A renderer stub that paints every line red — ANSI a log must never see. */
+        const ANSI_RENDERER = `sed "s/^/$(printf '\\033')[31m/"`;
+        const logText = () => fs.readFileSync(AFK_LOG(), "utf8");
+
+        it("a renderer that dies mid-stream costs neither the log, the rest of the stream, nor the exit code", () => {
+            stubFiveLines(5);
+            const r = run({
+                args: ["--start", "--budget", "1"],
+                // `read` takes exactly one line off the pipe, byte by byte,
+                // so what it leaves is precisely what the fallback must show.
+                env: {
+                    TOLARIA_LOOP_RENDERER:
+                        'IFS= read -r l; echo "R:$l"; exit 3',
+                },
+            });
+            expect(r.status, `${r.stdout}${r.stderr}`).toBe(5);
+            const out = r.stdout.split("\n").filter((l) => l !== "");
+            expect(out[0]).toMatch(/^R:/);
+            for (const line of DRIVER_LINES) {
+                expect(out.some((l) => l.endsWith(line))).toBe(true);
+                expect(logText()).toContain(line);
+            }
+        });
+
+        it("a renderer that exits 0 before EOF still hands the rest to `cat` (`;`, never `||`)", () => {
+            // `{ renderer || cat; }` would pass the crash test above and fail
+            // here: a clean early exit leaves nothing reading the pipe, and
+            // `tee` — then the driver — would die of SIGPIPE.
+            stubFiveLines(0);
+            const r = run({
+                args: ["--start", "--budget", "1"],
+                env: {
+                    TOLARIA_LOOP_RENDERER:
+                        'IFS= read -r l; echo "R:$l"; exit 0',
+                },
+            });
+            expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
+            for (const line of DRIVER_LINES) {
+                expect(r.stdout.split("\n").some((l) => l.endsWith(line))).toBe(
+                    true
+                );
+            }
+        });
+
+        it("writes the log plain while the terminal is rendered", () => {
+            stubFiveLines(0);
+            const r = run({
+                args: ["--start", "--budget", "1"],
+                env: { TOLARIA_LOOP_RENDERER: ANSI_RENDERER },
+            });
+            expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
+            expect(r.stdout).toContain("\x1b[31m");
+            expect(logText()).toContain("line e");
+            expect(logText()).not.toContain("\x1b");
+        });
+
+        it.each([
+            ["--plain", ["--plain"], {}],
+            ["NO_COLOR", [], { NO_COLOR: "1" }],
+        ])(
+            "%s skips the renderer: the terminal shows the log's own lines",
+            (_, extra, env) => {
+                stubFiveLines(0);
+                const r = run({
+                    args: ["--start", "--budget", "1", ...extra],
+                    env: { TOLARIA_LOOP_RENDERER: ANSI_RENDERER, ...env },
+                });
+                expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
+                expect(r.stdout).not.toContain("\x1b");
+                const lines = r.stdout.split("\n").filter((l) => l !== "");
+                for (const line of lines) expect(line).toMatch(STAMPED);
+                expect(lines.at(-1)).toMatch(/line e$/);
+            }
+        );
+    });
+
     it("propagates the driver's exit code — `$?` after the pipeline is tee's, which is always 0", () => {
         stubDriver('echo "crashing"\nexit 7');
         const r = run({ args: ["--start", "--budget", "1"] });
