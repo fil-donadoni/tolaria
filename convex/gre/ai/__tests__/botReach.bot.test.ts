@@ -916,6 +916,26 @@ describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
         ]);
     }, 600_000);
 
+    // Issue #4288: "untap target permanent" has nothing to do on a board of
+    // untapped permanents, so passing was right and the verdict read
+    // `never-chosen`. The position gives the holder a tapped body to untap
+    // (CR 701.26b), and the Bot then casts it.
+    it("played — an untap spell aimed at a tapped permanent of its own", () => {
+        expect(playBotReachSeats(getCardByName("Burst of Energy"))).toEqual([
+            { holderId: "p1", verdict: { outcome: "played" } },
+            { holderId: "p2", verdict: { outcome: "played" } },
+        ]);
+    }, 600_000);
+
+    // Issue #4288: an untap spell whose target narrows keeps the pose that
+    // narrowing asks for — Foxfire's attacking creature is posed in combat.
+    it("played — an untap spell aimed at an attacking creature", () => {
+        expect(playBotReachSeats(getCardByName("Foxfire"))).toEqual([
+            { holderId: "p1", verdict: { outcome: "played" } },
+            { holderId: "p2", verdict: { outcome: "played" } },
+        ]);
+    }, 600_000);
+
     // Issue #4287: the same exchange behind a creature that also carries a
     // dies trigger (a pump on a target) — the trigger does not turn the
     // sacrifice-for-draw outlet into a scored sacrifice below the cast edge.
