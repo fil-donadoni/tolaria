@@ -44,6 +44,12 @@ const BASE_CREATURE = "Grizzly Bears";
 const DISCARD_LAND = "Plains";
 /** The opponent's land a land-targeting spell is posed against. */
 const TARGET_LAND = "Forest";
+/** The artifact card a graveyard-recursion spell returns: a big body, worth
+ *  more than the recursion spell it costs the holder (a card in hand) and than
+ *  the position's own artifact filler (Ornithopter), which a recursion that
+ *  sacrifices an artifact gives up — a smaller one is a swap the Bot rightly
+ *  declines. */
+const GRAVEYARD_ARTIFACT = "Stratadon";
 
 /** Keys a definition may carry and still be a body with nothing else to it: no
  *  ability, no effect, no replacement — a creature the position can place
@@ -561,6 +567,35 @@ function untapPose(def: CardDefinition): TargetPose | null {
     };
 }
 
+/** The requirement a single-target spell states on an ARTIFACT CARD in a
+ *  graveyard, if it is one. */
+function graveyardArtifactRequirement(
+    req: CardDefinition["targetRequirement"]
+): TargetRequirement | null {
+    if (!req || Array.isArray(req) || req.zone !== "graveyard") return null;
+    const types = Array.isArray(req.type) ? req.type : [req.type];
+    return types.length === 1 && types[0] === "Artifact" ? req : null;
+}
+
+/** The artifact a recursion spell ("return target artifact card from your
+ *  graveyard") is cast at. The position's graveyards hold only a creature
+ *  card, so the engine refuses a HUMAN the cast too — no legal target. The
+ *  card sits in the graveyard of the side the requirement names (the holder's
+ *  own for "you", the opponent's for "opponent"; the holder's for either). */
+function graveyardArtifactPose(req: TargetRequirement): TargetPose {
+    return {
+        cards: [
+            {
+                name: GRAVEYARD_ARTIFACT,
+                owner: req.controller === "opponent" ? "opp" : "me",
+                zone: "graveyard",
+            },
+        ],
+        omitToughnessBoost: false,
+        position: {},
+    };
+}
+
 /** The pose for ONE target requirement — the spell's own, or a mode's. */
 function requirementPose(
     def: CardDefinition,
@@ -569,6 +604,8 @@ function requirementPose(
 ): TargetPose {
     const landReq = landRequirement(target);
     if (landReq) return landPose(def, landReq, modeId);
+    const artifactReq = graveyardArtifactRequirement(target);
+    if (artifactReq) return graveyardArtifactPose(artifactReq);
     const req = creatureRequirement(target);
     // A requirement that narrows keeps its own pose (a combat role, a subtype);
     // the untap pose fills only the plain-creature case that had none.
