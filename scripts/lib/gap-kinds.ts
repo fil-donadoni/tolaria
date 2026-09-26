@@ -208,6 +208,13 @@ export interface KindInputs {
      * Bot Gaps omits it and falls back to the lockfile's own `botReach`).
      */
     readonly botFindings?: ReadonlyMap<string, BotGapVerdict>;
+    /**
+     * Oracle id → the OPEN issues (ascending) whose `## Cards` section
+     * names the card (`openCardIssueIndex`, issue #4515) — the input a
+     * card-keyed kind adopts from instead of filing a duplicate. Absent means
+     * no adoption (a dry run makes no network call).
+     */
+    readonly openCardIssues?: ReadonlyMap<string, readonly number[]>;
 }
 
 /** A filing before its rank is known — the rank needs the whole kind. */
@@ -219,6 +226,9 @@ interface Draft {
     /** Per-slice count, aligned to `KindInputs.slices`, then the corpus. */
     readonly counts: readonly number[];
     readonly corpus: number;
+    /** A card-keyed draft names its card, so the filer can adopt the open
+     *  issue already about it (issue #4515). */
+    readonly oracleId?: string;
     /** The body under its rank line — takes the issue's own number. */
     readonly render: (issue: number) => string;
 }
@@ -241,6 +251,22 @@ function perTargetBlock(
         ...lines,
         `- corpus: ${corpus}`,
     ].join("\n");
+}
+
+/**
+ * The open issue a card-keyed draft adopts (issue #4515): the card's entry in
+ * `openCardIssues`, unless the claim already records a DIFFERENT issue — a
+ * recorded claim is reconciled as it always was. Keyed by card, so the kinds
+ * keyed by gap, class or rule (no `oracleId`) never adopt.
+ */
+function adoption(draft: Draft, inputs: KindInputs): { adopts?: number } {
+    if (draft.oracleId === undefined) return {};
+    const open = inputs.openCardIssues?.get(draft.oracleId) ?? [];
+    const recorded = inputs.filed.get(claimId(draft.kind, draft.key));
+    if (recorded === undefined)
+        return open[0] === undefined ? {} : { adopts: open[0] };
+    // A recorded adoption survives a lower-numbered issue joining the card.
+    return open.includes(recorded) ? { adopts: recorded } : {};
 }
 
 /**
@@ -277,6 +303,7 @@ function rank(
         kind: draft.kind,
         key: draft.key,
         currentIssue: inputs.filed.get(claimId(draft.kind, draft.key)) ?? null,
+        ...adoption(draft, inputs),
         title: draft.title,
         labels: GAP_LABELS[kind],
         parentSetCode: draft.parentSetCode,
@@ -521,6 +548,7 @@ export function buildHandTailFilings(inputs: KindInputs): {
         (inputs.enforced.has(row.oracleId) ? drafts : outOfScope).push({
             kind: "hand-tail",
             key: row.name,
+            oracleId: row.oracleId,
             title: `${GAP_TITLE_PREFIX["hand-tail"]} ${row.name}`,
             parentSetCode: topSetCode(inputs.slices, ids),
             counts,

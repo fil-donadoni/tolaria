@@ -13,6 +13,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
     cardBandIndex,
+    openCardIssueIndex,
     strongestCardBand,
     type Band,
 } from "../lib/backlog-triage";
@@ -1947,5 +1948,151 @@ describe("GAP_LABELS carries the filing stamp (issue #4457)", () => {
         expect(labels.filter((l) => TYPES.includes(l))).toHaveLength(1);
         expect(labels.filter((l) => l.startsWith("area:"))).toHaveLength(1);
         expect(labels.filter((l) => l.startsWith("model:"))).toEqual([]);
+    });
+});
+
+// ── adoption (issue #4515) ──────────────────────────────────────────────
+
+describe("a card-keyed claim adopts the open issue naming the card (issue #4515)", () => {
+    const lock = {
+        fragments: [fragment("a one-off line")],
+        cards: [unparsed("t-1", "Tail Card", [0], ["premodern"]), ...FILLER],
+    };
+    const byName = (name: string) => (name === "Tail Card" ? "t-1" : undefined);
+    const naming = (number: number, state = "OPEN") => ({
+        number,
+        state,
+        body: `## Cards\n\n- Tail Card\n`,
+    });
+    const handTail = (openCardIssues?: ReadonlyMap<string, number>) =>
+        buildHandTailFilings(
+            inputs(lock, { handTailFiling: true, openCardIssues })
+        ).filings;
+
+    it("records the open issue in the claim row and files nothing", () => {
+        const filings = handTail(openCardIssueIndex([naming(3806)], byName));
+        const tracker = new StubTracker();
+        const result = syncGaps(filings, tracker);
+        expect(tracker.created).toEqual([]);
+        expect(tracker.updateCalls).toBe(0);
+        expect(result.actions).toEqual([
+            {
+                action: "adopt",
+                kind: "hand-tail",
+                key: "Tail Card",
+                issue: 3806,
+            },
+        ]);
+        expect([...result.updatedRows]).toEqual([
+            [claimId("hand-tail", "Tail Card"), 3806],
+        ]);
+    });
+
+    it("adopts the LOWER-numbered issue when several name the card, whatever the listing order", () => {
+        for (const listing of [
+            [naming(4338), naming(3806)],
+            [naming(3806), naming(4338)],
+        ]) {
+            const filings = handTail(openCardIssueIndex(listing, byName));
+            expect(
+                syncGaps(filings, new StubTracker()).updatedRows.get(
+                    claimId("hand-tail", "Tail Card")
+                )
+            ).toBe(3806);
+        }
+    });
+
+    it("files as before when the card is named only in a CLOSED issue", () => {
+        const index = openCardIssueIndex([naming(3806, "CLOSED")], byName);
+        expect(index.size).toBe(0);
+        const tracker = new StubTracker();
+        syncGaps(handTail(index), tracker);
+        expect(tracker.created.map((c) => c.title)).toEqual([
+            "Hand Tail: Tail Card",
+        ]);
+    });
+
+    it("files exactly as before when no issue names the card", () => {
+        const tracker = new StubTracker();
+        const result = syncGaps(
+            handTail(openCardIssueIndex([], byName)),
+            tracker
+        );
+        expect(tracker.created).toHaveLength(1);
+        expect(result.actions.map((a) => a.action)).toEqual(["create"]);
+    });
+
+    it("leaves the adopted issue's body alone on the next run", () => {
+        const first = handTail(openCardIssueIndex([naming(3806)], byName));
+        const tracker = new StubTracker();
+        tracker.issues.set(3806, {
+            state: "OPEN",
+            body: "the C2 slice's body",
+        });
+        const recorded = new Map([[claimId("hand-tail", "Tail Card"), 3806]]);
+        const second = buildHandTailFilings(
+            inputs(lock, {
+                handTailFiling: true,
+                filed: recorded,
+                openCardIssues: openCardIssueIndex([naming(3806)], byName),
+            })
+        ).filings;
+        expect(first).toHaveLength(1);
+        const result = syncGaps(second, tracker);
+        expect(result.actions.map((a) => a.action)).toEqual(["noop"]);
+        expect(tracker.updateCalls).toBe(0);
+        expect(tracker.issues.get(3806)!.body).toBe("the C2 slice's body");
+    });
+
+    it("keeps a recorded adoption when a lower-numbered issue joins the card", () => {
+        const filings = buildHandTailFilings(
+            inputs(lock, {
+                handTailFiling: true,
+                filed: new Map([[claimId("hand-tail", "Tail Card"), 4338]]),
+                openCardIssues: openCardIssueIndex(
+                    [naming(3806), naming(4338)],
+                    byName
+                ),
+            })
+        ).filings;
+        const tracker = new StubTracker();
+        tracker.issues.set(4338, { state: "OPEN", body: "the slice's body" });
+        const result = syncGaps(filings, tracker);
+        expect(result.actions.map((a) => a.action)).toEqual(["noop"]);
+        expect(tracker.updateCalls).toBe(0);
+    });
+
+    it("reconciles a claim already recorded against a DIFFERENT issue as always", () => {
+        const filings = buildHandTailFilings(
+            inputs(lock, {
+                handTailFiling: true,
+                filed: new Map([[claimId("hand-tail", "Tail Card"), 4000]]),
+                openCardIssues: openCardIssueIndex([naming(3806)], byName),
+            })
+        ).filings;
+        expect(filings[0]!.adopts).toBeUndefined();
+        expect(filings[0]!.currentIssue).toBe(4000);
+    });
+
+    it("never adopts for the kinds keyed by gap, not by card", () => {
+        const wide = {
+            fragments: [fragment("a widespread line")],
+            cards: [
+                unparsed("t-1", "Tail Card", [0], ["premodern"]),
+                unparsed("t-2", "Other Card", [0], ["premodern"]),
+                unparsed("t-3", "Third Card", [0], ["premodern"]),
+                ...FILLER,
+            ],
+        };
+        const openCardIssues = new Map([
+            ["t-1", [3806]],
+            ["t-2", [3807]],
+            ["t-3", [3808]],
+        ]);
+        const filings = buildFragmentGapFilings(
+            inputs(wide, { openCardIssues })
+        );
+        expect(filings.length).toBeGreaterThan(0);
+        expect(filings.every((f) => f.adopts === undefined)).toBe(true);
     });
 });

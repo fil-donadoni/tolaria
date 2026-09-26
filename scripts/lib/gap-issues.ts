@@ -284,6 +284,14 @@ export interface GapFiling {
      * = not partitioned, or residue (no ranked Target among its cards).
      */
     readonly target?: string | null;
+    /**
+     * The OPEN issue already naming this card in its `## Cards` section (issue
+     * #4515), for a card-keyed kind. While the claim is unrecorded the filing
+     * is ADOPTED — the row records this issue, nothing is created; once
+     * recorded, an issue equal to it is left alone (its body is somebody
+     * else's, never rewritten to the gap body).
+     */
+    readonly adopts?: number;
     readonly body: (issue: number) => string;
 }
 
@@ -454,7 +462,13 @@ export interface GapTracker {
 }
 
 export type GapSyncAction = {
-    readonly action: "create" | "update" | "noop" | "skip-closed" | "cluster";
+    readonly action:
+        | "create"
+        | "update"
+        | "noop"
+        | "skip-closed"
+        | "cluster"
+        | "adopt";
     readonly kind: GapKind;
     readonly key: string;
     readonly issue: number;
@@ -588,14 +602,29 @@ export function clusterIssues(allowlist: Allowlist): ReadonlySet<number> {
  * `P0` files every partitioned create, and every homeless gap, under its
  * family's P0 umbrella; anything else changes nothing.
  */
+/** Whether `filing` is an adoption (issue #4515): its claim records, or is
+ *  about to record, the open issue naming the card — never reconciled. */
+export function isAdoptedFiling(filing: GapFiling): boolean {
+    return (
+        filing.adopts !== undefined &&
+        (filing.currentIssue === null || filing.currentIssue === filing.adopts)
+    );
+}
+
 export function syncGaps(
     filings: readonly GapFiling[],
     tracker: GapTracker,
     originBand?: UmbrellaBand,
     clusters: ReadonlySet<number> = new Set()
 ): GapSyncResult {
+    // Adopted (issue #4515): an open issue already names the card, so the
+    // claim records THAT issue — nothing is created, and its body, parent and
+    // state are never touched. Equal to the recorded row is the same adoption,
+    // read on a later run.
+    const isAdopted = isAdoptedFiling;
     const existing = new Map<string, TrackedIssue | null>();
     for (const filing of filings) {
+        if (isAdopted(filing)) continue;
         if (filing.currentIssue !== null) {
             existing.set(
                 claimId(filing.kind, filing.key),
@@ -604,10 +633,13 @@ export function syncGaps(
         }
     }
     const isCreate = (filing: GapFiling): boolean =>
-        filing.currentIssue === null ||
-        existing.get(claimId(filing.kind, filing.key)) === null;
+        !isAdopted(filing) &&
+        (filing.currentIssue === null ||
+            existing.get(claimId(filing.kind, filing.key)) === null);
     const isCluster = (filing: GapFiling): boolean =>
-        !isCreate(filing) && clusters.has(filing.currentIssue!);
+        !isAdopted(filing) &&
+        !isCreate(filing) &&
+        clusters.has(filing.currentIssue!);
 
     // Resolve each create's parent ONCE — `findSetUmbrella` is a network call
     // and the cap check and the create itself must agree on the answer.
@@ -616,6 +648,7 @@ export function syncGaps(
     const incoming = new Map<number, number>();
     for (const filing of filings) {
         const id = claimId(filing.kind, filing.key);
+        if (isAdopted(filing)) continue;
         let parent: number | null;
         if (isCreate(filing)) {
             parent = parentOf(filing, tracker, originBand);
@@ -644,6 +677,14 @@ export function syncGaps(
     for (const filing of filings) {
         const id = claimId(filing.kind, filing.key);
         const common = { kind: filing.kind, key: filing.key };
+        if (isAdopted(filing)) {
+            const issue = filing.adopts!;
+            if (filing.currentIssue === null) {
+                updatedRows.set(id, issue);
+                actions.push({ action: "adopt", ...common, issue });
+            } else actions.push({ action: "noop", ...common, issue });
+            continue;
+        }
         if (isCreate(filing)) {
             const issue = tracker.createIssue({
                 title: filing.title,
