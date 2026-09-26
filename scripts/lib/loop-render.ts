@@ -304,7 +304,13 @@ export function render(
     const blank = " ".repeat(TIME_WIDTH);
     const cls = classifyLine(content);
     if (cls.kind === "body") {
-        output.push(`${time}${gutter}${cls.text}`.trimEnd());
+        // An empty line is a bare gutter, with no trailing space hidden
+        // inside the gutter's colour codes.
+        output.push(
+            cls.text === ""
+                ? `${time}${paint(env, "dim", GUTTER.trimEnd())}`
+                : `${time}${gutter}${cls.text}`
+        );
     } else if (cls.kind === "info") {
         output.push(`${time}${gutter}${paint(env, "dim", "·")} ${cls.message}`);
     } else if (cls.tag === "pass") {

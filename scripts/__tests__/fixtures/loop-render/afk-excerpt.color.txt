@@ -8,7 +8,7 @@
 [2m20:25:04[0m[2m │ [0m- **Test:** 14 test nuovi, tutti verdi. Ho rotto il codice in 12 punti diversi e ogni rottura ha fatto fallire almeno un test.
         [2m │ [0m- **Review:** un giro opus ha trovato 2 problemi bloccanti, entrambi corretti.
         [2m │ [0m  - Mancava un tetto alle chiusure di massa: aggiunto (25).
-        [2m │ [0m
+        [2m │[0m
         [2m ├─ [0m[32m✓ done[0m · 22m19s · queue 12→11 · [33m████████░░[0m 109.5M/140M 78% [2m─────────────────────────────[0m
 [2m20:25:14[0m[2m │ [0m[2m◌ orphan-claim sweep —[0m
         [2m │ [0mloop:doctor — no claimed issues. Nothing to check.
@@ -18,7 +18,7 @@
         [2m │ [0m[31m✗ pass 20 crashed (claude exit 1; consecutive failure 1/3) — retrying in 60s. Log tail:[0m
 [2m── 2026-09-27 ──────────────────────────────────────────────────────────────────────────────────────[0m
 [2m00:05:00[0m[2m │ [0m[33m⚠ budget guard tripped — run 1790430792-59822 has spent 140420000 of 140000000 weighted tokens (100.3%) >= --max-pct 100%.[0m
-        [2m │ [0m
+        [2m │[0m
         [2m │ [0m[2m╭─[0m[1m run summary [0m[2m───────────────╮[0m
         [2m │ [0m[2m│[0m passes 20 · stopped: [33mbudget[0m [2m│[0m
         [2m │ [0m[2m│[0m queue 30 → 11               [2m│[0m
