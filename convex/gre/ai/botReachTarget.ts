@@ -520,10 +520,11 @@ function requirementPose(
 ): TargetPose {
     const landReq = landRequirement(target);
     if (landReq) return landPose(def, landReq, modeId);
-    const untap = modeId === undefined ? untapPose(def) : null;
-    if (untap) return untap;
     const req = creatureRequirement(target);
-    if (!req || !narrows(req)) return NO_POSE;
+    // A requirement that narrows keeps its own pose (a combat role, a subtype);
+    // the untap pose fills only the plain-creature case that had none.
+    if (!req || !narrows(req))
+        return (req && modeId === undefined ? untapPose(def) : null) ?? NO_POSE;
     const printed = creatureFor(req);
     const granted = printed === null ? grantedBody(req) : null;
     const body = printed ?? granted?.body ?? null;
