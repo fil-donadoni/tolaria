@@ -947,8 +947,9 @@ describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
     }, 600_000);
 
     // Issue #4290: a modal instant (haste / pump / damage to a subtype-filtered
-    // creature). The gap was a stale verdict: the pose holds a target for the
-    // subtype mode (CR 700.2a) and the search now casts it at both seats.
+    // creature). The gap was a stale verdict from before the Bot's later
+    // changes: the search now casts it at both seats (the pump / haste modes
+    // target the seeded plain creature, CR 700.2a).
     it("played — a modal instant with a pump, a grant and a subtype-filtered damage mode", () => {
         expect(playBotReachSeats(getCardByName("Fever Charm"))).toEqual([
             { holderId: "p1", verdict: { outcome: "played" } },
