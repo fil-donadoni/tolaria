@@ -45,8 +45,10 @@ import {
     ADOPTED_BLOCK_START,
     keyMatchesGlob,
     matchCluster,
+    raiseBandComment,
     renderAdoptedBlock,
     setFileColour,
+    umbrellaBandRank,
     withAdoptedBlock,
     reHomeComment,
     type ClusterIssueState,
@@ -1837,6 +1839,219 @@ describe("syncGaps absorbs its own open singles into the matching Gap Cluster (i
         t.states.set(CLUSTER, { open: true, inProgress: true, openPr: false });
         expect(run(t).actions.map((a) => a.action)).toEqual(["update"]);
         expect(t.closed).toEqual([]);
+    });
+});
+
+describe("umbrellaBandRank — a family's band census, P0 first (issue #4680)", () => {
+    it("P0 is the strongest rank, 0", () => {
+        expect(
+            umbrellaBandRank("bot-gaps", BAND_UMBRELLAS["bot-gaps"].P0)
+        ).toBe(0);
+    });
+
+    it("ranks each Target umbrella by its declared position, weaker as it ranks lower", () => {
+        const ranks = (
+            ["premodern-metagame", "vintage-cube", "format-premodern"] as const
+        ).map((t) =>
+            umbrellaBandRank("bot-gaps", BAND_UMBRELLAS["bot-gaps"][t])
+        );
+        expect(ranks).toEqual([1, 2, 3]);
+    });
+
+    it("null for a parent naming none of the family's umbrellas, or no parent at all — a hand-parented cluster, left to its cutter", () => {
+        expect(umbrellaBandRank("bot-gaps", 1)).toBeNull();
+        expect(umbrellaBandRank("bot-gaps", null)).toBeNull();
+    });
+});
+
+describe("syncGaps raises a Gap Cluster's band to its highest live key, upward only (issue #4680)", () => {
+    const BOT = "never-chosen › sorcery › draw+forEach";
+    const CLUSTER = 900;
+    const signature: ClusterRow = {
+        issue: CLUSTER,
+        kind: "bot",
+        match: ["never-chosen › * › *forEach*"],
+    };
+    const botFiling = (over: Partial<GapFiling> = {}) =>
+        filing({ kind: "bot", key: BOT, title: `Bot Gap: ${BOT}`, ...over });
+    const HAND = "## Scope\n\nHand-cut.";
+    const trackerAt = (parent: number): StubTracker => {
+        const t = new StubTracker();
+        t.issues.set(CLUSTER, { state: "OPEN", body: HAND });
+        t.parents.set(CLUSTER, parent);
+        return t;
+    };
+    const P0 = BAND_UMBRELLAS["bot-gaps"].P0;
+    const P1 = BAND_UMBRELLAS["bot-gaps"]["premodern-metagame"];
+    const P2 = BAND_UMBRELLAS["bot-gaps"]["vintage-cube"];
+
+    it("a P0 key adopted into a band-P2 cluster moves it under the P0 umbrella of its kind", () => {
+        const tracker = trackerAt(P2);
+        const result = syncGaps(
+            [botFiling()],
+            tracker,
+            "P0",
+            new Set([CLUSTER]),
+            [signature]
+        );
+        expect(result.actions).toContainEqual({
+            action: "raise-band",
+            kind: "bot",
+            key: BOT,
+            issue: CLUSTER,
+            from: P2,
+            parent: P0,
+        });
+        expect(tracker.parents.get(CLUSTER)).toBe(P0);
+        const comment = tracker.comments.find((c) =>
+            c.body.startsWith("`gaps:sync` raised")
+        )!;
+        expect(comment.issue).toBe(CLUSTER);
+        expect(comment.body).toContain(`#${P2}`);
+        expect(comment.body).toContain(`#${P0}`);
+        expect(comment.body).toContain(BOT);
+    });
+
+    it("a member's own re-home — its Target now lends a stronger band — raises the cluster too", () => {
+        const tracker = trackerAt(P2);
+        const result = syncGaps(
+            [
+                botFiling({
+                    currentIssue: CLUSTER,
+                    target: "premodern-metagame",
+                }),
+            ],
+            tracker,
+            undefined,
+            new Set([CLUSTER]),
+            [signature]
+        );
+        expect(result.actions).toContainEqual({
+            action: "raise-band",
+            kind: "bot",
+            key: BOT,
+            issue: CLUSTER,
+            from: P2,
+            parent: P1,
+        });
+        expect(tracker.parents.get(CLUSTER)).toBe(P1);
+    });
+
+    it("never raises a cluster already at, or above, the band a key would lend", () => {
+        const tracker = trackerAt(P0);
+        const result = syncGaps(
+            [botFiling()],
+            tracker,
+            "P0",
+            new Set([CLUSTER]),
+            [signature]
+        );
+        expect(result.actions.map((a) => a.action)).not.toContain("raise-band");
+        expect(tracker.parents.get(CLUSTER)).toBe(P0);
+    });
+
+    it("a closed P0 key never moves the cluster back — a weaker live key stays under it", () => {
+        const tracker = trackerAt(P0);
+        const result = syncGaps(
+            // The P0 key that raised it earlier no longer appears this run
+            // (fixed, closed) — only a weaker live member remains.
+            [botFiling({ currentIssue: CLUSTER, target: "vintage-cube" })],
+            tracker,
+            undefined,
+            new Set([CLUSTER]),
+            [signature]
+        );
+        expect(result.actions.map((a) => a.action)).toEqual(["cluster"]);
+        expect(result.actions).not.toContainEqual(
+            expect.objectContaining({ action: "raise-band" })
+        );
+        expect(tracker.parents.get(CLUSTER)).toBe(P0);
+    });
+
+    it("never raises a hand-parented cluster — its parent names none of the family's umbrellas, left to its cutter", () => {
+        const tracker = new StubTracker();
+        tracker.issues.set(CLUSTER, { state: "OPEN", body: HAND });
+        tracker.parents.set(CLUSTER, 4001);
+        const result = syncGaps(
+            [botFiling()],
+            tracker,
+            "P0",
+            new Set([CLUSTER]),
+            [signature]
+        );
+        expect(result.actions.map((a) => a.action)).not.toContain("raise-band");
+        expect(tracker.parents.get(CLUSTER)).toBe(4001);
+    });
+
+    it("an origin-`P0` run never pulls an already-claimed member's OWN vote up to P0 — only what's new this run (planMove's own asymmetry)", () => {
+        // The cluster sits at its correct P1 umbrella; the member's own
+        // Target lends only the weakest band. `--band P0` is flagged for an
+        // UNRELATED reason this run (the whole backlog is re-scanned), and
+        // must not force this cluster to P0 on that account alone.
+        const tracker = trackerAt(P1);
+        const result = syncGaps(
+            [botFiling({ currentIssue: CLUSTER, target: "format-premodern" })],
+            tracker,
+            "P0",
+            new Set([CLUSTER]),
+            [signature]
+        );
+        expect(result.actions.map((a) => a.action)).not.toContain("raise-band");
+        expect(tracker.parents.get(CLUSTER)).toBe(P1);
+    });
+
+    it("an absorbed single's key raises the destination cluster's band too", () => {
+        const SINGLE = 4200;
+        const tracker = trackerAt(P2);
+        tracker.issues.set(SINGLE, {
+            state: "OPEN",
+            title: `Bot Gap: ${BOT}`,
+            body: "## Gap\n\nFiled by `gaps:sync`.",
+        });
+        const result = syncGaps(
+            [botFiling({ currentIssue: SINGLE })],
+            tracker,
+            "P0",
+            new Set([CLUSTER]),
+            [signature]
+        );
+        expect(result.actions).toContainEqual(
+            expect.objectContaining({
+                action: "absorb",
+                issue: CLUSTER,
+                single: SINGLE,
+            })
+        );
+        expect(result.actions).toContainEqual({
+            action: "raise-band",
+            kind: "bot",
+            key: BOT,
+            issue: CLUSTER,
+            from: P2,
+            parent: P0,
+        });
+        expect(tracker.parents.get(CLUSTER)).toBe(P0);
+    });
+
+    it("a raise-band's destination is folded into the sub-issue cap check, before any write", () => {
+        const tracker = trackerAt(P2);
+        tracker.children = SUB_ISSUE_CAP;
+        expect(() =>
+            syncGaps([botFiling()], tracker, "P0", new Set([CLUSTER]), [
+                signature,
+            ])
+        ).toThrow(/sub-issues/);
+        expect(tracker.parents.get(CLUSTER)).toBe(P2);
+    });
+});
+
+describe("raiseBandComment — names the old and new parent and the raising key", () => {
+    it("mentions both issue numbers and the kind/key", () => {
+        const body = raiseBandComment("bot", "some › key", 4101, 4099);
+        expect(body).toContain("#4101");
+        expect(body).toContain("#4099");
+        expect(body).toContain("`bot`");
+        expect(body).toContain("some › key");
     });
 });
 
