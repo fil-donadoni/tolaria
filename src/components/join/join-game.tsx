@@ -22,6 +22,7 @@ import ErrorState from "~/components/ui/error-state";
 import AmbientPageGround from "~/components/ui/ambient-page-ground";
 import DeckList from "~/components/lobby/deck-list";
 import JoinAntechamberShell from "./join-antechamber-shell";
+import SurfaceReadyMarker from "~/components/ui/surface-ready-marker";
 import { extractMutationErrorMessage } from "~/lib/mutation-error";
 
 type JoinGameProps = {
@@ -150,6 +151,11 @@ export default function JoinGame({ gameId }: JoinGameProps) {
         // — measured on the lobby, which shares this exact shape. The ambient
         // ground clips itself (`ambient-page-ground.tsx`).
         <div className="relative min-h-full bg-surface-base text-text">
+            {/* Settled once both deck lists answered (issue #4670): an empty
+                picker over a query in flight is not the joinable screen. */}
+            {presetDecks !== undefined && userDecks !== undefined && (
+                <SurfaceReadyMarker />
+            )}
             <AmbientPageGround ring />
             <div className="relative z-10 mx-auto flex max-w-4xl flex-col gap-6 px-6 py-8">
                 <Panel>

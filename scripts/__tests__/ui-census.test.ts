@@ -61,15 +61,6 @@ const DEBT: Record<string, string> = {
     // game), which is a slice of its own: `docs/findings/`.
     "src/components/board/manual-peek-dialog.tsx":
         "the Manual Game library peek — a live `getManualLibraryTop` on a real manual game, so no fixture-prop specimen mounts it (#4402)",
-    // The one row of issue #4421's twelve that its slice could not pay. The
-    // antechamber's real state is `joinable: true`, which needs a WAITING game
-    // hosted by an identity other than the viewer — and `listOpenGames`
-    // broadcasts every waiting game to every account on the deployment, so a
-    // seeded table would join every other lane's lobby measurement. A host
-    // identity plus a table no other lane can see is infrastructure of its
-    // own (issue #4670).
-    "src/routes/join.route.tsx":
-        "the join-a-table screen in its joinable state — needs a fixture table hosted by a second identity and hidden from every other lane's lobby (#4670)",
 };
 
 /**
