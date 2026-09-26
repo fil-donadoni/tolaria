@@ -154,6 +154,16 @@ describe("cost.sacrificeFilter payability threads selfInstanceId (CR 109.2, issu
         );
     });
 
+    it("the mana-source gate in constants.ts threads selfAttachedToId (its filter arg is a local, so the scan above cannot see it)", () => {
+        const src = fs.readFileSync(
+            path.join(REPO_ROOT, "convex/gre/constants.ts"),
+            "utf8"
+        );
+        const at = src.indexOf("const leg = ability.cost.sacrificeFilter;");
+        expect(at).toBeGreaterThan(-1);
+        expect(src.slice(at, at + 900)).toMatch(/\bselfAttachedToId\s*:/);
+    });
+
     it("guards files that actually contain such a call (never vacuously green)", () => {
         for (const rel of GUARDED_FILES) {
             const src = fs.readFileSync(path.join(REPO_ROOT, rel), "utf8");

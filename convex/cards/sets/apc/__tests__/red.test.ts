@@ -16,6 +16,7 @@ import { getDefinition } from "../../../index";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { activateAbilityOnState } from "../../../../game";
 import { resolveTopOfStack } from "../../../../gre/state";
+import { checkStateBasedActions } from "../../../../gre/sba";
 import type { CardInstanceState, GameState } from "../../../../gre/state";
 import { bloodfireInfusion } from "../red";
 import { grizzlyBears } from "../../lea";
@@ -93,6 +94,10 @@ describe("Bloodfire Infusion (APC, issue #4319)", () => {
     it("deals the sacrificed creature's power to each creature (CR 608.2h)", () => {
         const state = board();
         activate(state);
+        // CR 704.5m — the Aura is binned before the ability resolves, so the
+        // damage comes from a source that has already left the battlefield.
+        checkStateBasedActions(state);
+        expect(onBattlefield(state, "aura")).toBeUndefined();
         resolveTopOfStack(state);
 
         // 3 damage: kills the 2/2 foe, marks the 2/5 bystander (survives).
