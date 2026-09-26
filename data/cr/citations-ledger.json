@@ -40010,7 +40010,7 @@
         {"id":"702.33a","line":"* (CR 702.33a — `true` = kicked only, `false` = unkicked only).","sites":1,"status":"baseline"},
         {"id":"702.33a","line":"* (CR 702.33a, ADR 0079). The generalized form `buildAlternativeCostChoice`","sites":1,"status":"baseline"},
         {"id":"702.33a","line":"* A Kicker cost is an additional cost of ANY kind (CR 702.33a), so its legs are","sites":1,"status":"baseline"},
-        {"id":"702.33a","line":"* CR 702.33a (Kicker) — the colours the generated lands must produce: the card's own","sites":1,"status":"confirmed","ruleHash":"53cf3acd0e0717aa"},
+        {"id":"702.33a","line":"* CR 702.33a (Kicker) — the extra lands a kicker leg's coloured mana needs.","sites":1,"status":"confirmed","ruleHash":"53cf3acd0e0717aa"},
         {"id":"702.33a","line":"* CR 702.33a / 702.33b / 702.33c — the kicker line.","sites":1,"status":"confirmed","ruleHash":"53cf3acd0e0717aa"},
         {"id":"702.33a","line":"* CR 702.33a / 702.33b — the kicker line's costs onto `CardDefinition.kickers`.","sites":1,"status":"confirmed","ruleHash":"53cf3acd0e0717aa"},
         {"id":"702.33a","line":"* CR 702.33a / 702.33c / 702.33f — a \"Kicker [cost]\", \"Kicker [cost 1]","sites":1,"status":"confirmed","ruleHash":"53cf3acd0e0717aa"},
