@@ -3,6 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
+import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { AURA_AFFECTS_HOST, type CardDefinition } from "../../types";
 
 // The Flagbearer cycle (issue #3805). All three cards print the SAME
@@ -167,5 +168,65 @@ export const falseDawn: CardDefinition = {
             breadth: "any-color",
         },
         { op: "draw", player: "controller", count: 1 },
+    ],
+};
+
+// Gerrard Capashen — {3}{W}{W} 3/4 Legendary Human Soldier.
+//  • Upkeep: gain 1 life per card in TARGET opponent's hand — a real announced
+//    player target (CR 603.3d); the amount is the `count` of that player's
+//    hand, and `gainLife` no-ops on 0.
+//  • "{3}{W}: Tap target creature. Activate only if {self} is attacking." — the
+//    activation restriction (CR 602.5b) is a `canActivate` predicate reading
+//    the source's own `isAttacking` flag (CR 508.1k: set at declare-attackers,
+//    cleared when it leaves combat), the Clockwork Beast shape. The Bot gates
+//    on it via `activationPreconditionViolation`; the client affordability
+//    sweep skips `canActivate` abilities by design.
+// hand-tail: {3}{W}: Tap target creature. Activate only if {self} is attacking. (#4331)
+export const gerrardCapashen: CardDefinition = {
+    id: "ccca800f-e850-4bec-95d0-70280b51b7a7", // APC 11
+    rarity: "rare",
+    name: "Gerrard Capashen",
+    oracleText:
+        "At the beginning of your upkeep, you gain 1 life for each card in target opponent's hand.\n{3}{W}: Tap target creature. Activate only if Gerrard Capashen is attacking.",
+    manaCost: { X: 3, W: 2 },
+    types: ["Creature"],
+    supertypes: ["Legendary"],
+    subtypes: ["Human", "Soldier"],
+    power: 3,
+    toughness: 4,
+    triggeredAbilities: [
+        phaseTrigger({
+            id: "gerrard-capashen-upkeep-life",
+            oracleText:
+                "At the beginning of your upkeep, you gain 1 life for each card in target opponent's hand.",
+            phase: "UPKEEP",
+            scope: "your",
+            targetRequirement: {
+                type: "player",
+                count: 1,
+                controller: "opponent",
+            },
+            effects: [
+                {
+                    op: "gainLife",
+                    player: "controller",
+                    amount: {
+                        count: { zone: "hand", controller: { target: 0 } },
+                    },
+                },
+            ],
+        }),
+    ],
+    activatedAbilities: [
+        {
+            id: "gerrard-capashen-tap",
+            oracleText:
+                "{3}{W}: Tap target creature. Activate only if Gerrard Capashen is attacking.",
+            cost: { mana: { X: 3, W: 1 } },
+            useStack: true,
+            targetRequirement: { type: "Creature", count: 1 },
+            canActivate: (source) => source.isAttacking === true,
+            effects: [{ op: "tapUntap", action: "tap", target: { target: 0 } }],
+        },
     ],
 };
