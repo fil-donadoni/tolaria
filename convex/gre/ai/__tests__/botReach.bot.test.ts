@@ -580,6 +580,77 @@ describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
             });
     }, 300_000);
 
+    /** CR 120.3 — a sorcery dealing 1 damage to each creature `select` names. */
+    const forEachDamage = (
+        id: string,
+        select: Record<string, unknown>
+    ): CardDefinition => ({
+        id: `bot-reach-test:${id}`,
+        name: `Bot Reach ${id}`,
+        rarity: "common",
+        manaCost: { R: 1 },
+        types: ["Sorcery"],
+        effects: [
+            {
+                op: "forEach",
+                select: {
+                    set: "permanents",
+                    zone: "battlefield",
+                    ...select,
+                },
+                effects: [
+                    { op: "dealDamage", amount: 1, to: { ref: "$each" } },
+                ],
+            },
+        ],
+    });
+
+    it("a damage sweep's position puts the opponent ahead in bodies that die to it, with no Castle to prop them up", () => {
+        for (const def of [
+            forEachDamage("damage-all", { filter: { type: "Creature" } }),
+            forEachDamage("damage-nonflying", {
+                filter: { type: "Creature", excludeAbility: "flying" },
+            }),
+        ])
+            withTemporaryDefinition(def, () => {
+                for (const seat of [0, 1] as const) {
+                    expect(
+                        ahead(def, seat, "Creature"),
+                        def.name
+                    ).toBeGreaterThan(0);
+                    expect(castleCount(def, seat), def.name).toBe(0);
+                }
+            });
+    });
+
+    it("no claim is made where the damage does not reach both sides' creatures", () => {
+        for (const def of [
+            forEachDamage("damage-own", {
+                controller: "controller",
+                filter: { type: "Creature" },
+            }),
+            forEachDamage("damage-land", { filter: { type: "Land" } }),
+        ])
+            withTemporaryDefinition(def, () => {
+                for (const seat of [0, 1] as const) {
+                    expect(ahead(def, seat, "Creature"), def.name).toBe(0);
+                    expect(castleCount(def, seat), def.name).toBe(2);
+                }
+            });
+    });
+
+    it("played — a damage sweep is cast where it wins", () => {
+        for (const name of [
+            "Tremor",
+            "Rain of Embers",
+            "Dry Spell",
+            "Fire Tempest",
+        ] as const)
+            expect(playBotReach(getCardByName(name)), name).toEqual({
+                outcome: "played",
+            });
+    }, 300_000);
+
     /** CR 701.21 — an "each player sacrifices" edict of `filter`. */
     const eachPlayerSacrifices = (
         id: string,

@@ -243,6 +243,37 @@ function shrinksEveryCreature(def: CardDefinition): boolean {
 }
 
 /**
+ * CR 120.3 / 704.5g — does the SPELL script deal damage to EVERY player's
+ * creatures (a `forEach` over their battlefields, no `controller`, whose body
+ * has a `dealDamage` aimed at the iteration object)? Damage marked on a
+ * creature at least its toughness destroys it, so this is a sweep the way a
+ * toughness shrink is: Tremor, Rain of Embers, Dry Spell and Fire Tempest cost
+ * the holder the card and kill whatever the damage reaches. The amount is not
+ * read — the pose hands the opponent bodies that die to ANY damage, so it
+ * reads the same for a 1 as for a 6. The player half of a "each creature and
+ * each player" spell is symmetric and needs no claim. Lives HERE for the same
+ * reason as `sweptTypes`: it decides what the position CONTAINS.
+ */
+function damagesEveryCreature(def: CardDefinition): boolean {
+    const damagesEach = (node: unknown): boolean => {
+        if (Array.isArray(node)) return node.some(damagesEach);
+        if (node === null || typeof node !== "object") return false;
+        const record = node as Record<string, unknown>;
+        const to = record.to as { ref?: unknown } | undefined;
+        return (
+            (record.op === "dealDamage" && to?.ref === "$each") ||
+            Object.values(record).some(damagesEach)
+        );
+    };
+    return battlefieldForEaches(def).some(
+        ({ select, effects }) =>
+            select.controller === undefined &&
+            selectsCreatures(select) &&
+            damagesEach(effects)
+    );
+}
+
+/**
  * CR 613.4c — does the SPELL script raise the POWER of the holder's own
  * creatures alone (a `forEach` over `controller: "controller"`, body pumps
  * power up — Desperate Charge)? Such a spell is worth what the holder's
@@ -581,7 +612,8 @@ function ambushPosition(def: CardDefinition) {
  * legal at instant speed only, which is what such a card is. A card whose
  * value lies in what it does to a whole battlefield is posed where it wins:
  * a destroying sweep against the opponent's surplus of the swept type, a
- * toughness shrink against a surplus of 1/1s (and no Castle to prop them up),
+ * toughness shrink or a damage sweep against a surplus of 1/1s (and no Castle
+ * to prop them up),
  * a pump of the holder's own creatures with the holder's surplus of attackers.
  *
  * The card itself is NOT in the spec: the spec names cards, and a compiled
@@ -604,7 +636,7 @@ export function botReachSpec(
     }
     for (const name of kickerLands(def))
         cards.push({ name, owner: "me", zone: "battlefield" });
-    const shrinks = shrinksEveryCreature(def);
+    const shrinks = shrinksEveryCreature(def) || damagesEveryCreature(def);
     const target = targetPose(def);
     const edicted = edictedTypes(def);
     // A symmetric edict is posed where the holder has nothing of the edicted
