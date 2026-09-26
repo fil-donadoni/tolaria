@@ -35625,7 +35625,7 @@
         {"id":"701.26b","line":"/** Untaps a permanent on the battlefield (CR 701.26b). No-op if already","sites":1,"status":"baseline"},
         {"id":"701.26b","line":"// \"Untap it.\" (CR 701.26b) — control moved off the battlefield array it","sites":1,"status":"baseline"},
         {"id":"701.26b","line":"// (CR 701.26b) on the announced basic-land slot; the target is any basic land","sites":1,"status":"baseline"},
-        {"id":"701.26b","line":"// (CR 701.26b), and the Bot then casts it.","sites":1,"status":"confirmed","ruleHash":"03439481a8804ace"},
+        {"id":"701.26b","line":"// (CR 701.26b), and the Bot then casts it.","sites":2,"status":"confirmed","ruleHash":"03439481a8804ace"},
         {"id":"701.26b","line":"// 107.3 X chosen at activation, CR 601.2c X-bound target count, CR 701.26b","sites":1,"status":"confirmed","ruleHash":"03439481a8804ace"},
         {"id":"701.26b","line":"// 701.13 exile the graveyard-card target; CR 701.26b untap. The famous \"untap","sites":1,"status":"baseline"},
         {"id":"701.26b","line":"// 701.13 exile), then untap the source (CR 701.26b). The \"if tapped\" gate","sites":1,"status":"baseline"},
