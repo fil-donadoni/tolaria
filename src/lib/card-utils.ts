@@ -803,6 +803,9 @@ export function canPayFilteredGiveUpCost(
                 // Prospector IS a Goblin and may eat itself, so a blanket
                 // self-exclusion here would hide a legal payment.
                 selfInstanceId: card.id,
+                // "Sacrifice enchanted creature": the host, or
+                // `hostOfSource` fails closed and hides the ability.
+                selfAttachedToId: card.attachedTo,
             })
         );
         if (candidates.length < (ability.cost.sacrificeFilterCount ?? 1)) {
@@ -1015,6 +1018,14 @@ export interface ClientPermanentFilter {
      *  branch the mirror would fail OPEN and ring the source itself as a legal
      *  sacrifice (the `excludeSubtypes` shape of issue #1938). */
     excludeSource?: boolean;
+    /** "Sacrifice enchanted creature" with the host deferred to match time —
+     *  mirrors `PermanentFilter.hostOfSource`. Same discipline as
+     *  `excludeSource` above: this mirror has no `FilterMatchContext`, so it
+     *  ALWAYS fails closed on it; the working client path is the LOWERED filter
+     *  (`resolveHostOfSource` bakes the host into `instanceIds` at
+     *  `buildActivationSacrificeSelection`), which the `instanceIds` branch
+     *  already mirrors. */
+    hostOfSource?: boolean;
     /** "…that they controlled since the beginning of the turn" (Keldon
      *  Twilight, PLS). Mirrors `PermanentFilter.controlledSinceTurnStart`.
      *  Answering it needs the two turn-scoped `GameState` fields, so callers
@@ -1128,6 +1139,8 @@ export function matchesPermanentFilter(
     // comment on `ClientPermanentFilter` for why an unlowered `excludeSource`
     // reaching here is a server bug and not a case to fail open on.
     if (filter.excludeSource === true) return false;
+    // Same reasoning for the source's host (`hostOfSource`): unlowered = closed.
+    if (filter.hostOfSource === true) return false;
     // "…that they controlled since the beginning of the turn" — delegated to
     // the ONE engine authority (`hasControlledSinceTurnStart`) rather than
     // re-derived here, so the board highlight and the server's pending-choice
@@ -2386,6 +2399,8 @@ export function getStackAbilities(
                     // (fail-closed) and the ability is simply never offered —
                     // wrong, but never an illegal click.
                     selfInstanceId: card.id,
+                    // "Sacrifice enchanted creature".
+                    selfAttachedToId: card.attachedTo,
                 })
             ).length;
             // CR 602.1 / 118.5 (issue #2398) — a multi-permanent sacrifice cost
@@ -2605,6 +2620,8 @@ export function getGraveyardStackAbilities(
                         // filter fails CLOSED without it (the ability would be
                         // permanently hidden rather than wrongly offered).
                         selfInstanceId: card.id,
+                        // "Sacrifice enchanted creature".
+                        selfAttachedToId: card.attachedTo,
                     })
                 ).length;
                 // CR 602.1 / 118.5 (issue #2398) — counted, not merely
@@ -3887,6 +3904,11 @@ export const MIRROR_CENSUS: Record<keyof PermanentFilter, MirrorStatus> = {
     // `excludeInstanceIds` entry at build time, which the branch above already
     // mirrors. Declaring the field is what stops an unlowered one failing OPEN.
     excludeSource: "mirrored",
+    // The host-of-source twin of `excludeSource`, closed the same way on both
+    // paths without a context (engine matcher: no `ctx.selfAttachedToId`; client
+    // mirror: no context at all). The working client path is the lowered
+    // `instanceIds` form `resolveHostOfSource` builds.
+    hostOfSource: "mirrored",
     // — adapter-only: no ClientPermanentFilter field, but toMatchablePermanent
     // populates the underlying MatchablePermanent field so the engine-matcher
     // path (mayPaySacrificeCount / mayPaySacrificePower) matches correctly —
@@ -4000,6 +4022,10 @@ export const TRIGGER_STATE_VIEW_CENSUS: Record<
     // (`getStackAbilities`' `sacrificeFilter` branch passes `selfInstanceId`),
     // not from this reducer, exactly like `controllerRelation` below.
     excludeSource: "populated",
+    // Same `id`-only candidate dependency; the HOST half comes from the gate's
+    // own `FilterMatchContext` (`getStackAbilities`' `sacrificeFilter` branch
+    // passes `selfAttachedToId`), not from this reducer.
+    hostOfSource: "populated",
     // Needs a `FilterMatchContext` with `selfControllerId`/`selfInstanceId` —
     // threaded by the gate's own call (`getStackAbilities`'
     // `sacrificeFilter`/`tapOtherFilter` branches pass `selfControllerId`),

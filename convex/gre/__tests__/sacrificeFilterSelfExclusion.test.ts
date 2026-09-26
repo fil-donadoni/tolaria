@@ -125,6 +125,35 @@ describe("cost.sacrificeFilter payability threads selfInstanceId (CR 109.2, issu
         });
     }
 
+    // CR 303.4b — `PermanentFilter.hostOfSource` ("Sacrifice enchanted
+    // creature", issue #4319) is the same shape one field over: it fails closed
+    // without `ctx.selfAttachedToId`, so a payability site that forgets the host
+    // silently reports the ability as unactivatable.
+    for (const rel of GUARDED_FILES) {
+        it(`${rel} passes ctx.selfAttachedToId to every sacrificeFilter match`, () => {
+            const src = fs.readFileSync(path.join(REPO_ROOT, rel), "utf8");
+            const offenders = sacrificeCostCalls(src).filter(
+                (c) => !/\bselfAttachedToId\s*:/.test(c.ctxArg)
+            );
+            expect(
+                offenders.map((o) => `${rel}:${o.line} → ctx=${o.ctxArg}`)
+            ).toEqual([]);
+        });
+    }
+
+    it("the shared assertSacrificeFilterCostAffordable gate threads selfAttachedToId too", () => {
+        const src = fs.readFileSync(
+            path.join(REPO_ROOT, "convex/gre/activation.ts"),
+            "utf8"
+        );
+        const gate = src.slice(
+            src.indexOf("export function assertSacrificeFilterCostAffordable(")
+        );
+        expect(gate.slice(0, gate.indexOf("\n}\n"))).toMatch(
+            /\bselfAttachedToId\s*:/
+        );
+    });
+
     it("guards files that actually contain such a call (never vacuously green)", () => {
         for (const rel of GUARDED_FILES) {
             const src = fs.readFileSync(path.join(REPO_ROOT, rel), "utf8");

@@ -4395,6 +4395,9 @@ function enumerateAbilityMoves(
                         // filter matches nothing here (fail-closed) and the bot
                         // simply never enumerates the activation.
                         selfInstanceId: perm.id,
+                        // "Sacrifice enchanted creature": the
+                        // `hostOfSource` filter fails closed without the host.
+                        selfAttachedToId: perm.attachedTo,
                         supertypesOf: liveSupertypesOf,
                     }
                 )

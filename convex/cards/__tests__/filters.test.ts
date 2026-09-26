@@ -5,6 +5,7 @@ import {
     matchesPlayerFilter,
     matchesSpellFilter,
     resolveExcludeSource,
+    resolveHostOfSource,
     type FilterMatchContext,
     type MatchableDamageSource,
     type MatchablePermanent,
@@ -235,6 +236,42 @@ describe("matchesPermanentFilter", () => {
         ).toEqual(["a", "src"]);
         const plain = { types: "Artifact" as const };
         expect(resolveExcludeSource(plain, "src")).toBe(plain);
+    });
+
+    it("hostOfSource matches only the source's host, and fails CLOSED without one (issue #4319)", () => {
+        const enchanted = { types: "Creature" as const, hostOfSource: true };
+        const host = permanent({ id: "host" });
+        const other = permanent({ id: "other" });
+        const ctx: FilterMatchContext = { selfAttachedToId: "host" };
+        expect(matchesPermanentFilter(host, enchanted, ctx)).toBe(true);
+        expect(matchesPermanentFilter(other, enchanted, ctx)).toBe(false);
+        // An unattached source, or a caller that never threaded the host,
+        // matches NOTHING rather than "no constraint".
+        expect(matchesPermanentFilter(host, enchanted, {})).toBe(false);
+        expect(matchesPermanentFilter(host, enchanted)).toBe(false);
+    });
+
+    it("resolveHostOfSource lowers the flag to a concrete instanceIds entry (issue #4319)", () => {
+        const lowered = resolveHostOfSource(
+            { types: "Creature", hostOfSource: true },
+            "host"
+        );
+        expect(lowered.hostOfSource).toBeUndefined();
+        expect(lowered.instanceIds).toEqual(["host"]);
+        expect(matchesPermanentFilter(permanent({ id: "host" }), lowered)).toBe(
+            true
+        );
+        expect(
+            matchesPermanentFilter(permanent({ id: "other" }), lowered)
+        ).toBe(false);
+        // No host: an EMPTY id set, which matches nothing.
+        const orphan = resolveHostOfSource({ hostOfSource: true }, undefined);
+        expect(orphan.instanceIds).toEqual([]);
+        expect(matchesPermanentFilter(permanent({ id: "host" }), orphan)).toBe(
+            false
+        );
+        const plain = { types: "Creature" as const };
+        expect(resolveHostOfSource(plain, "host")).toBe(plain);
     });
 
     it("matches by colors (OR semantics, requires populated colors)", () => {

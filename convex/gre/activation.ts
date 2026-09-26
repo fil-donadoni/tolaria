@@ -647,6 +647,9 @@ export function assertSacrificeFilterCostAffordable(
             // CR 109.2 (issue #2367) — "Sacrifice ANOTHER artifact": the
             // source is not a legal payment for its own cost.
             selfInstanceId: card.id,
+            // "Sacrifice enchanted creature" (`hostOfSource`
+            // fails closed without the host).
+            selfAttachedToId: card.attachedTo,
             supertypesOf: liveSupertypesOf,
         })
     );

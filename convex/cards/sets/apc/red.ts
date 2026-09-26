@@ -53,3 +53,58 @@ export const goblinRingleader: CardDefinition = {
         }),
     ],
 };
+
+// Bloodfire Infusion — {2}{R} Aura. "Enchant creature you control / {R},
+// Sacrifice enchanted creature: This Aura deals damage equal to the sacrificed
+// creature's power to each creature."
+//
+// The cost leg is `sacrificeFilter` narrowed by `hostOfSource` (CR 303.4b —
+// the permanent the Aura is attached to is the ENCHANTED one), so the victim is
+// never chosen: the picker auto-resolves to the host. The damage reads the
+// victim's power as last known information (CR 608.2h) off the cost snapshot,
+// then hits every creature on the battlefield — the Aura being the source (it
+// leaves as an SBA once its host is gone, CR 704.5m, but the ability on the
+// stack keeps its last-known identity).
+// hand-tail: {R}, Sacrifice enchanted creature: This Aura deals damage equal to the sacrificed creature's power to each creature. (#4319)
+export const bloodfireInfusion: CardDefinition = {
+    id: "2639e9b7-ed8c-48fd-a8b7-b99d8dad4bc0", // APC 57
+    rarity: "common",
+    name: "Bloodfire Infusion",
+    oracleText:
+        "Enchant creature you control\n{R}, Sacrifice enchanted creature: This Aura deals damage equal to the sacrificed creature's power to each creature.",
+    manaCost: { X: 2, R: 1 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    // CR 303.4a — "Enchant creature you control": the Aura spell targets, and
+    // the `controller` filter is what makes it the caster's own creature.
+    targetRequirement: { type: "Creature", count: 1, controller: "you" },
+    activatedAbilities: [
+        {
+            id: "bloodfire-infusion-sweep",
+            oracleText:
+                "{R}, Sacrifice enchanted creature: This Aura deals damage equal to the sacrificed creature's power to each creature.",
+            cost: {
+                mana: { R: 1 },
+                sacrificeFilter: { types: "Creature", hostOfSource: true },
+            },
+            useStack: true,
+            effects: [
+                {
+                    op: "forEach",
+                    select: {
+                        set: "permanents",
+                        zone: "battlefield",
+                        filter: { type: "Creature" },
+                    },
+                    effects: [
+                        {
+                            op: "dealDamage",
+                            amount: { sacrificed: { read: "power" } },
+                            to: { ref: "$each" },
+                        },
+                    ],
+                },
+            ],
+        },
+    ],
+};

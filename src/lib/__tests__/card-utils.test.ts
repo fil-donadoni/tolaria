@@ -101,6 +101,8 @@ import { disruptingScepter, forest } from "@convex/cards/sets/lea";
 import { powerArmor } from "@convex/cards/sets/inv";
 import { thopterFoundry } from "@convex/cards/sets/arb/multicolor";
 import { legionExtruder } from "@convex/cards/sets/big/red";
+import { bloodfireInfusion } from "@convex/cards/sets/apc/red";
+import { grizzlyBears } from "@convex/cards/sets/lea";
 import { ornithopter } from "@convex/cards/sets/atq/colorless";
 import { caribouRange } from "@convex/cards/sets/ice/white";
 import { norritt } from "@convex/cards/sets/ice/black";
@@ -3944,6 +3946,15 @@ describe("matchesPermanentFilter / toMatchablePermanent — MIRROR_CENSUS parity
                 expected: false,
             },
         ],
+        // CR 303.4b — the source's host, id-less. Like `excludeSource`, the
+        // parity harness supplies no context: BOTH paths must match nothing.
+        hostOfSource: [
+            {
+                card: makeCardInstance({ id: "host-1" }),
+                filter: { hostOfSource: true },
+                expected: false,
+            },
+        ],
         instanceIds: [
             {
                 card: makeCardInstance({ id: "keep-me" }),
@@ -4689,6 +4700,62 @@ describe("buildTriggerStateView — TRIGGER_STATE_VIEW_CENSUS (issue #1951 revie
         );
         expect(offeredAbilityIds([extruder, otherArtifact])).toContain(
             "legion-extruder-make-golem"
+        );
+    });
+
+    it('#4319 — "Sacrifice ENCHANTED creature" is offered only while the Aura has a host on the board (Bloodfire Infusion, through projectPublicState + buildTriggerStateView)', () => {
+        // Same wire-format discipline as above: the host relation rides the
+        // projected Aura's `attachedTo`, so a projection that dropped the field
+        // (or a gate that forgot `selfAttachedToId`) hides the ability here.
+        function offeredAbilityIds(battlefield: CardInstanceState[]): string[] {
+            const state = makeState({
+                players: [
+                    makeServerPlayer("p1", { battlefield }),
+                    makeServerPlayer("p2"),
+                ],
+            });
+            const projected = projectPublicState(state, 1, "p1");
+            const projectedP1 = projected.players.find((p) => p.id === "p1")!;
+            const projectedAura = projectedP1.battlefield.find(
+                (c) => c.id === "aura"
+            )! as unknown as CardInstance;
+            const view = buildTriggerStateView([
+                {
+                    id: "p1",
+                    life: 20,
+                    hand: [],
+                    battlefield:
+                        projectedP1.battlefield as unknown as CardInstance[],
+                },
+            ]);
+            return getStackAbilities(projectedAura, undefined, true, view).map(
+                (a) => a.id
+            );
+        }
+
+        const host = makeInstance(grizzlyBears.id, {
+            id: "host",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const aura = (attachedTo?: string) =>
+            makeInstance(bloodfireInfusion.id, {
+                id: "aura",
+                controllerId: "p1",
+                ownerId: "p1",
+                ...(attachedTo ? { attachedTo } : {}),
+            });
+
+        expect(offeredAbilityIds([aura("host"), host])).toContain(
+            "bloodfire-infusion-sweep"
+        );
+        // Unattached: no host, no payment.
+        expect(offeredAbilityIds([aura(), host])).not.toContain(
+            "bloodfire-infusion-sweep"
+        );
+        // Attached to a creature that is no longer on the board.
+        expect(offeredAbilityIds([aura("gone"), host])).not.toContain(
+            "bloodfire-infusion-sweep"
         );
     });
 });
