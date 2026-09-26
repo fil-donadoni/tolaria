@@ -136,6 +136,13 @@ export type RetryStep =
  * failed, oldest first; the caller samples, asks, and — on `wait` — sleeps and
  * samples again. The first sample is taken with no wait, so `n` samples mean
  * `(n - 1) * pollMs` spent waiting.
+ *
+ * THE WAIT IS PROPORTIONAL TO WHAT CAN CHANGE (issue #4687). A busy machine
+ * earns one poll to show a trend; after that the wait continues only while the
+ * load is FALLING between samples, and stops at `maxWaitMs` regardless. On a
+ * machine whose load sits over the threshold all day — other sessions' gates,
+ * not this run's — the old rule spent the whole budget on every INFRA attempt,
+ * twice per cell, and the load was exactly where it started.
  */
 export function retryStep(
     attempts: number,
@@ -145,11 +152,14 @@ export function retryStep(
     if (attempts >= policy.maxAttempts) return { action: "give-up" };
     const latest = loadSamples.at(-1);
     if (latest === undefined) return { action: "wait", ms: 0 };
+    if (latest < policy.loadThreshold) return { action: "retry" };
     const waited = (loadSamples.length - 1) * policy.pollMs;
-    if (latest >= policy.loadThreshold && waited < policy.maxWaitMs) {
-        return { action: "wait", ms: policy.pollMs };
-    }
-    return { action: "retry" };
+    if (waited >= policy.maxWaitMs) return { action: "retry" };
+    const previous = loadSamples.at(-2);
+    const falling = previous === undefined || latest < previous;
+    return falling
+        ? { action: "wait", ms: policy.pollMs }
+        : { action: "retry" };
 }
 
 /**

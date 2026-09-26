@@ -4,8 +4,12 @@
 import { describe, expect, it } from "vitest";
 import {
     collectRun,
+    CONTEXT_MEMORY_BYTES,
     MAX_PARALLELISM,
+    MEMORY_RESERVE_BYTES,
+    MIN_PARALLELISM,
     parseParallelOverride,
+    RESERVED_CORES,
     runPool,
     viewportParallelism,
     type ViewportResult,
@@ -16,36 +20,40 @@ import type { Measurement } from "../ui-gate/receipt";
 const readings = (n: number): Measurement["readings"] =>
     ({ cardsZero: n }) as unknown as Measurement["readings"];
 
-describe("viewportParallelism (issue #3653)", () => {
-    it("gives a quiet machine every viewport at once", () => {
-        expect(viewportParallelism(0, 8)).toBe(MAX_PARALLELISM);
-        expect(viewportParallelism(0.4, 16)).toBe(MAX_PARALLELISM);
+const GIB = 1024 ** 3;
+
+describe("viewportParallelism (issue #3653, re-sized by issue #4687)", () => {
+    it("gives the 8-core / 16 GiB machine every viewport at once — the load is not an input", () => {
+        expect(viewportParallelism(8, 16 * GIB)).toBe(MAX_PARALLELISM);
+        expect(viewportParallelism(16, 64 * GIB)).toBe(MAX_PARALLELISM);
+        expect(8 - RESERVED_CORES).toBeGreaterThanOrEqual(MAX_PARALLELISM);
     });
 
-    it("gives a flat-out machine the sequential lane", () => {
-        // The measured state of this very machine while the lane was written:
-        // 8 cores, 54 runnable. Five Chromium contexts there is how a UI
-        // question becomes an INFRA verdict (issue #3644).
-        expect(viewportParallelism(54, 8)).toBe(1);
-        expect(viewportParallelism(8, 8)).toBe(1);
-        expect(viewportParallelism(7, 8)).toBe(1);
+    it("spends the cores past the lane's own reserve", () => {
+        expect(viewportParallelism(RESERVED_CORES + 3, 16 * GIB)).toBe(3);
+        expect(viewportParallelism(RESERVED_CORES + 4, 16 * GIB)).toBe(4);
     });
 
-    it("spends the free cores, holding one back for the lane itself", () => {
-        expect(viewportParallelism(4, 8)).toBe(3);
-        expect(viewportParallelism(5.5, 8)).toBe(1);
-        expect(viewportParallelism(2, 8)).toBe(5);
+    it("never collapses under the floor, however small the machine", () => {
+        expect(MIN_PARALLELISM).toBeGreaterThan(1);
+        expect(viewportParallelism(1, 16 * GIB)).toBe(MIN_PARALLELISM);
+        expect(viewportParallelism(2, 16 * GIB)).toBe(MIN_PARALLELISM);
+        expect(viewportParallelism(8, 1 * GIB)).toBe(MIN_PARALLELISM);
     });
 
-    it("never promises more than one context on a single-core machine", () => {
-        expect(viewportParallelism(0, 1)).toBe(1);
-        expect(viewportParallelism(0, 2)).toBe(1);
+    it("caps by memory: one context per budgeted GiB past the reserve", () => {
+        const three = MEMORY_RESERVE_BYTES + 3 * CONTEXT_MEMORY_BYTES;
+        expect(viewportParallelism(16, three)).toBe(3);
+        expect(viewportParallelism(16, three + CONTEXT_MEMORY_BYTES - 1)).toBe(
+            3
+        );
+        expect(viewportParallelism(16, three + CONTEXT_MEMORY_BYTES)).toBe(4);
     });
 
-    it("answers 1 when the machine reports nonsense", () => {
-        expect(viewportParallelism(Number.NaN, 8)).toBe(1);
-        expect(viewportParallelism(0, Number.NaN)).toBe(1);
-        expect(viewportParallelism(-3, 0)).toBe(1);
+    it("answers the floor when the machine reports nonsense", () => {
+        expect(viewportParallelism(Number.NaN, 16 * GIB)).toBe(MIN_PARALLELISM);
+        expect(viewportParallelism(8, Number.NaN)).toBe(MIN_PARALLELISM);
+        expect(viewportParallelism(0, 0)).toBe(MIN_PARALLELISM);
     });
 });
 

@@ -174,6 +174,14 @@ import {
     waitForSettledScreen,
 } from "./settle.ts";
 import { runSettleSelfCheck } from "./settle-selfcheck.ts";
+import {
+    cellTimingSuffix,
+    emptyTimings,
+    phaseSummaryLines,
+    timed,
+    type CellTiming,
+    type PhaseTimings,
+} from "./phase-timing.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, "..", "..");
@@ -193,17 +201,18 @@ const CHOICE_SCENARIO_LABEL =
 
 /**
  * The Infra Verdict's retry policy (issue #3644): three attempts per cell, and
- * before each retry a wait of up to 90s, sampled every 5s, for the 1-minute
- * load average to drop under the threshold. The threshold is the CPU count —
- * at or over it every core has a queue — unless
- * `TOLARIA_UI_GATE_LOAD_THRESHOLD` says otherwise.
+ * before each retry a wait, sampled every 5s, for the 1-minute load average to
+ * drop under the threshold — continued only while the load is FALLING and for
+ * at most 30s (issue #4687; it was 90s spent in full on a load that never
+ * moved). The threshold is the CPU count — at or over it every core has a
+ * queue — unless `TOLARIA_UI_GATE_LOAD_THRESHOLD` says otherwise.
  */
 const RETRY_POLICY: RetryPolicy = {
     maxAttempts: 3,
     loadThreshold:
         Number(process.env.TOLARIA_UI_GATE_LOAD_THRESHOLD) || os.cpus().length,
     pollMs: 5_000,
-    maxWaitMs: 90_000,
+    maxWaitMs: 30_000,
 };
 
 function loadAverage(): number {
@@ -327,7 +336,7 @@ async function waitForServer(url: string, timeoutMs: number): Promise<void> {
         await new Promise((r) => setTimeout(r, 400));
     }
     throw new FatalError(
-        `the dev server never answered on ${url} within ${Math.round(timeoutMs / 1000)}s`
+        `the app server never answered on ${url} within ${Math.round(timeoutMs / 1000)}s`
     );
 }
 
@@ -335,7 +344,22 @@ async function waitForServer(url: string, timeoutMs: number): Promise<void> {
 // Lifecycle
 // ─────────────────────────────────────────────────────────────────────────────
 
-async function startViteServer(port: number): Promise<ChildProcess> {
+/** How the app is served to the browser (issue #4687, `--serve=`). */
+type ServeMode = "dev" | "build";
+
+/** The default is the mode the phase timings picked: see
+ *  `docs/agents/quality-gates.md` § check:ui affordability. */
+const DEFAULT_SERVE: ServeMode = "dev";
+
+interface AppServer {
+    child: ChildProcess;
+    /** The diagnostic block's line for how the app was served. */
+    line: string;
+    /** Remove what the server left on disk (the built bundle's outDir). */
+    dispose(): void;
+}
+
+function ensureCatalogue(): void {
     // `bun run dev` = catalogue:ensure && vite. Run the first half up front so
     // the asset is present, then own the server process ourselves — the repo's
     // `dev` script keeps its default host/port for humans.
@@ -349,27 +373,76 @@ async function startViteServer(port: number): Promise<ChildProcess> {
             `catalogue:ensure failed — ${(ensured.stderr || ensured.stdout || "").trim().slice(0, 400)}`
         );
     }
+}
 
-    const child = spawn(
-        "bunx",
-        [
-            "vite",
-            "--host",
-            "127.0.0.1",
-            "--port",
-            String(port),
-            "--strictPort",
-            "--clearScreen",
-            "false",
-        ],
-        { cwd: REPO_ROOT, stdio: ["ignore", "pipe", "pipe"] }
-    );
+function spawnVite(args: string[]): ChildProcess {
+    const child = spawn("bunx", ["vite", ...args], {
+        cwd: REPO_ROOT,
+        stdio: ["ignore", "pipe", "pipe"],
+    });
     child.stdout?.on("data", () => {});
     child.stderr?.on("data", (d: Buffer) => {
         const text = d.toString();
         if (/error/i.test(text)) process.stderr.write(`[vite] ${text}`);
     });
     return child;
+}
+
+/**
+ * Serve the app on `port`, either from Vite's dev server (every navigation
+ * re-requests the unbundled module graph, transformed on demand) or from a
+ * production build served statically by `vite preview` (issue #4687). The
+ * build costs its own wall time once, printed on the served line so the
+ * trade is visible in every receipt.
+ */
+async function startAppServer(
+    mode: ServeMode,
+    port: number
+): Promise<AppServer> {
+    ensureCatalogue();
+    const listen = [
+        "--host",
+        "127.0.0.1",
+        "--port",
+        String(port),
+        "--strictPort",
+    ];
+    if (mode === "dev") {
+        return {
+            child: spawnVite([...listen, "--clearScreen", "false"]),
+            line: "served: vite dev server (--serve=dev)",
+            dispose: () => {},
+        };
+    }
+    const outDir = fs.mkdtempSync(
+        path.join(os.tmpdir(), "tolaria-ui-gate-dist-")
+    );
+    const t0 = Date.now();
+    const built = spawnSync(
+        "bunx",
+        [
+            "vite",
+            "build",
+            "--outDir",
+            outDir,
+            "--emptyOutDir",
+            "--logLevel",
+            "error",
+        ],
+        { cwd: REPO_ROOT, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 }
+    );
+    if (built.status !== 0) {
+        fs.rmSync(outDir, { recursive: true, force: true });
+        throw new FatalError(
+            `vite build failed — ${(built.stderr || built.stdout || "").trim().slice(0, 600)}`
+        );
+    }
+    const buildSecs = Math.round((Date.now() - t0) / 1000);
+    return {
+        child: spawnVite(["preview", "--outDir", outDir, ...listen]),
+        line: `served: production build via vite preview (--serve=build; vite build took ${buildSecs}s)`,
+        dispose: () => fs.rmSync(outDir, { recursive: true, force: true }),
+    };
 }
 
 async function launchBrowser(headed: boolean): Promise<Browser> {
@@ -533,11 +606,13 @@ interface Options {
     /** Force the full scope whatever the diff. */
     all: boolean;
     /** `--parallel=N`: walk N viewports at once instead of the count the
-     *  machine's load and core count size (issue #3653). */
+     *  machine's cores and memory size (issue #3653, re-sized in #4687). */
     parallel: number | null;
     /** The ref the diff is taken against; the configured base branch unless
      *  `--base=` names another (same flag as `check:lane`). */
     base: string;
+    /** `--serve=dev|build`: the dev server or a production build (issue #4687). */
+    serve: ServeMode;
 }
 
 function parseArgs(argv: string[]): Options {
@@ -549,6 +624,7 @@ function parseArgs(argv: string[]): Options {
         all: false,
         parallel: null,
         base: ORIGIN_BASE,
+        serve: DEFAULT_SERVE,
     };
     for (const arg of argv) {
         // `--record` and `--accept=` died with the budget file (ADR 0132): a
@@ -559,6 +635,14 @@ function parseArgs(argv: string[]): Options {
         else if (arg === "--all") opts.all = true;
         else if (arg.startsWith("--base=")) {
             opts.base = arg.slice("--base=".length);
+        } else if (arg.startsWith("--serve=")) {
+            const mode = arg.slice("--serve=".length);
+            if (mode !== "dev" && mode !== "build") {
+                throw new FatalError(
+                    `--serve=${mode} is not a serve mode: it takes dev or build`
+                );
+            }
+            opts.serve = mode;
         } else if (arg.startsWith("--parallel=")) {
             try {
                 opts.parallel = parseParallelOverride(
@@ -695,16 +779,17 @@ async function main(): Promise<number> {
     const port = await freePort();
     const baseUrl = `http://127.0.0.1:${port}`;
 
-    // How many viewports at once (issue #3653), read ONCE from the load at the
-    // start of the run: a count that drifted mid-run would make this line — and
-    // the account fleet sized from it — a lie about what actually happened.
+    // How many viewports at once (issue #3653), sized ONCE from the machine's
+    // cores and memory — never from the load, which on a shared machine is the
+    // neighbours' (issue #4687): the lane just acquired the one browser slot.
     const ncpu = os.cpus().length;
-    const parallel = opts.parallel ?? viewportParallelism(loadAtStart, ncpu);
+    const totalMem = os.totalmem();
+    const parallel = opts.parallel ?? viewportParallelism(ncpu, totalMem);
     const parallelLine =
         `viewport parallelism: ${parallel} of ${VIEWPORTS.length} at a time, ` +
         `${parallel} lane account(s) — ` +
         (opts.parallel === null
-            ? `sized from load ${loadAtStart.toFixed(1)} on ${ncpu} cpus`
+            ? `sized from ${ncpu} cpus and ${(totalMem / 1024 ** 3).toFixed(0)} GiB (load ${loadAtStart.toFixed(1)} not consulted)`
             : `--parallel=${opts.parallel}`);
     log(`ui-gate: ${parallelLine}`);
 
@@ -723,17 +808,18 @@ async function main(): Promise<number> {
     // run owned, and there are `parallel` of those.
     const shotDir = runScreenshotDir(SHOT_ROOT, newRunId());
 
-    // Not `let vite: ChildProcess | null = null`: it is assigned inside the
+    // Not `let server: AppServer | null = null`: it is assigned inside the
     // `withLaneAccount` callback, and an annotated `null` initialiser narrows
     // the outer `finally`'s read to `never`.
-    let vite = null as ChildProcess | null;
+    let server = null as AppServer | null;
     let browser: Browser | null = null;
     const startedAt = Date.now();
     const uninstallSignals = installSignalTeardown(
         process,
         () => {
             fleet.teardown();
-            vite?.kill("SIGTERM");
+            server?.child.kill("SIGTERM");
+            server?.dispose();
         },
         (code) => process.exit(code)
     );
@@ -741,8 +827,9 @@ async function main(): Promise<number> {
     try {
         return await withLaneFleet(fleet, async () => {
             try {
-                log(`ui-gate: starting vite on ${baseUrl}`);
-                vite = await startViteServer(port);
+                log(`ui-gate: serving the app (${opts.serve}) on ${baseUrl}`);
+                server = await startAppServer(opts.serve, port);
+                log(`ui-gate: ${server.line}`);
                 await waitForServer(baseUrl, 90_000);
 
                 // Const-bound for the viewport walks: the outer `browser` is a
@@ -841,6 +928,8 @@ async function main(): Promise<number> {
                      *  diagnostic block, which `land` never reads, so a new line here can
                      *  never invalidate a pasted receipt. */
                     const bandWalks: { where: string; excluded: number }[] = [];
+                    /** Every cell's phase timings (issue #4687), diagnostic. */
+                    const timings: CellTiming[] = [];
 
                     const context: BrowserContext =
                         await openBrowser.newContext({
@@ -876,7 +965,8 @@ async function main(): Promise<number> {
                      * cell for this viewport — and the answer is false.
                      */
                     const walkToSettled = async (
-                        surface: Surface
+                        surface: Surface,
+                        t: PhaseTimings
                     ): Promise<boolean> => {
                         const cell = `  ${surface.id.padEnd(20)} ${viewport.id.padEnd(12)}`;
                         for (let attempts = 1; ; attempts++) {
@@ -887,10 +977,14 @@ async function main(): Promise<number> {
                             await page.evaluate("0").catch(() => {});
                             attemptConsole.length = 0;
                             try {
-                                await surface.walk(page, ctx);
-                                await waitForSettledScreen(page, {
-                                    targets: surface.settleTargets,
-                                });
+                                await timed(t, "walk", () =>
+                                    surface.walk(page, ctx)
+                                );
+                                await timed(t, "settle", () =>
+                                    waitForSettledScreen(page, {
+                                        targets: surface.settleTargets,
+                                    })
+                                );
                                 // A backend function that timed out can still
                                 // leave a screen that settles — an error panel,
                                 // held data, an empty list — and measuring it
@@ -1018,7 +1112,13 @@ async function main(): Promise<number> {
                      * probed, screenshotted or held to the Floors.
                      */
                     const measure = async (surface: Surface): Promise<void> => {
-                        let walked = await walkToSettled(surface);
+                        const t = emptyTimings();
+                        timings.push({
+                            surface: surface.id,
+                            viewport: viewport.id,
+                            ms: t,
+                        });
+                        let walked = await walkToSettled(surface, t);
 
                         // The page can still navigate between the settle and
                         // the last evaluate — the document the probe measured
@@ -1034,8 +1134,12 @@ async function main(): Promise<number> {
                         } | null = null;
                         for (let tries = 1; walked && !measured; tries++) {
                             try {
-                                const probe = await runProbe(page);
-                                const axe = await runAxe(page);
+                                const probe = await timed(t, "probe", () =>
+                                    runProbe(page)
+                                );
+                                const axe = await timed(t, "axe", () =>
+                                    runAxe(page)
+                                );
                                 measured = { probe, axe };
                             } catch (err) {
                                 const first = (err as Error).message.split(
@@ -1075,7 +1179,9 @@ async function main(): Promise<number> {
                                 shotDir,
                                 `${surface.id}__${viewport.id}.png`
                             );
-                            await page.screenshot({ path: shot });
+                            await timed(t, "screenshot", () =>
+                                page.screenshot({ path: shot })
+                            );
 
                             // `cardsSquare` names its offenders inline (issue #2724):
                             // "5 cards are square" is not actionable, and the whole
@@ -1117,24 +1223,29 @@ async function main(): Promise<number> {
                                 `axe s${axe.serious}/c${axe.critical}${axe.ids.length ? ` (${axe.ids.join(",")})` : ""}` +
                                 `${axe.exempt ? ` exempt${axe.exempt}` : ""} | ` +
                                 `small${probe.smallN} tiny${probe.tinyText} hOverflow${probe.hOverflow}`;
-                            lines.push(
-                                `  ${surface.id.padEnd(20)} ${viewport.id.padEnd(12)} ${detail}`
-                            );
 
                             // AFTER the probe, axe and the screenshot, never
                             // before: a `reachable` check scrolls its element
                             // into view, and the measurement above has to be
                             // taken on the screen as the walk found it.
-                            const asserts = await evaluateAssertions(
-                                page,
-                                surface.asserts ?? [],
-                                {
-                                    viewport: {
-                                        width: viewport.width,
-                                        height: viewport.height,
-                                    },
-                                    ensureAxe: () => injectAxe(page),
-                                }
+                            const asserts = await timed(t, "assertions", () =>
+                                evaluateAssertions(
+                                    page,
+                                    surface.asserts ?? [],
+                                    {
+                                        viewport: {
+                                            width: viewport.width,
+                                            height: viewport.height,
+                                        },
+                                        ensureAxe: () => injectAxe(page),
+                                    }
+                                )
+                            );
+                            // The cell line carries its phase timings (issue
+                            // #4687); pushed after the assertions ran so the
+                            // suffix has them, before their failures print.
+                            lines.push(
+                                `  ${surface.id.padEnd(20)} ${viewport.id.padEnd(12)} ${detail}${cellTimingSuffix(t)}`
                             );
                             for (const a of asserts.filter((r) => !r.ok)) {
                                 lines.push(
@@ -1164,7 +1275,9 @@ async function main(): Promise<number> {
                         // so it is logged rather than failing the surface.
                         if (surface.cleanup) {
                             try {
-                                await surface.cleanup(page, ctx);
+                                await timed(t, "cleanup", () =>
+                                    surface.cleanup!(page, ctx)
+                                );
                             } catch (err) {
                                 lines.push(
                                     `  ${surface.id.padEnd(20)} ${viewport.id.padEnd(12)} CLEANUP FAILED — ${(err as Error).message.split("\n")[0]}`
@@ -1205,6 +1318,7 @@ async function main(): Promise<number> {
                         infra,
                         consoleErrors,
                         bandWalks,
+                        timings,
                     };
                 };
 
@@ -1247,18 +1361,21 @@ async function main(): Promise<number> {
                     bandWalks.length === 0
                         ? "shell return band: absent on every walk — no controls excluded"
                         : `shell return band: MOUNTED on ${bandWalks.length} walk(s) — ${excluded} control(s) excluded from those counts (the run's lane account has a game or event in flight; issue #3337)`;
+                const wallMs = Date.now() - startedAt;
                 return printReceipt(
                     evaluate(knownIds, collected.walks, diffScope),
                     [
                         machineLoadLine(loadAtStart, loadAverage()),
                         parallelLine,
+                        server.line,
                         bandLine,
                         `console errors: ${consoleErrors.length === 0 ? "none" : consoleErrors.length}`,
                         ...consoleErrors
                             .slice(0, 10)
                             .map((line) => `  ${line}`),
                         `screenshots: ${path.relative(REPO_ROOT, shotDir)}/`,
-                        `wall time: ${Math.round((Date.now() - startedAt) / 1000)}s`,
+                        ...phaseSummaryLines(collected.timings, wallMs),
+                        `wall time: ${Math.round(wallMs / 1000)}s`,
                     ],
                     ""
                 );
@@ -1269,7 +1386,10 @@ async function main(): Promise<number> {
             }
         });
     } finally {
-        if (vite) vite.kill("SIGTERM");
+        if (server) {
+            server.child.kill("SIGTERM");
+            server.dispose();
+        }
         uninstallSignals();
     }
 }
