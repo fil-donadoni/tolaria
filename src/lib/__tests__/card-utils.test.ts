@@ -4758,6 +4758,48 @@ describe("buildTriggerStateView — TRIGGER_STATE_VIEW_CENSUS (issue #1951 revie
             "bloodfire-infusion-sweep"
         );
     });
+
+    it("#4319 — the ability-menu gate canPayFilteredGiveUpCost reads the same host (Bloodfire Infusion)", () => {
+        const ability = getDefinition(bloodfireInfusion.id)
+            .activatedAbilities![0];
+        const view = (attachedTo?: string) => {
+            const host = makeInstance(grizzlyBears.id, {
+                id: "host",
+                controllerId: "p1",
+                ownerId: "p1",
+            });
+            const aura = makeInstance(bloodfireInfusion.id, {
+                id: "aura",
+                controllerId: "p1",
+                ownerId: "p1",
+                ...(attachedTo ? { attachedTo } : {}),
+            });
+            const state = makeState({
+                players: [
+                    makeServerPlayer("p1", { battlefield: [aura, host] }),
+                    makeServerPlayer("p2"),
+                ],
+            });
+            const p1 = projectPublicState(state, 1, "p1").players.find(
+                (p) => p.id === "p1"
+            )!;
+            const bf = p1.battlefield as unknown as CardInstance[];
+            return {
+                aura: bf.find((c) => c.id === "aura")!,
+                view: buildTriggerStateView([
+                    { id: "p1", life: 20, hand: [], battlefield: bf },
+                ]),
+            };
+        };
+        const attached = view("host");
+        expect(
+            canPayFilteredGiveUpCost(ability, attached.aura, attached.view)
+        ).toBe(true);
+        const orphan = view();
+        expect(
+            canPayFilteredGiveUpCost(ability, orphan.aura, orphan.view)
+        ).toBe(false);
+    });
 });
 
 // ---------------------------------------------------------------------------
