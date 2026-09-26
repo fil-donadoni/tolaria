@@ -5550,6 +5550,14 @@
         "source": "compiled"
     },
     {
+        "name": "Bloodfire Infusion",
+        "scryfallId": "2639e9b7-ed8c-48fd-a8b7-b99d8dad4bc0",
+        "oracleId": "d5bd7c0b-c412-47ed-afb8-1a9ba04be77c",
+        "firstSet": "apc",
+        "firstPrintId": "2639e9b7-ed8c-48fd-a8b7-b99d8dad4bc0",
+        "firstPrintSet": "apc"
+    },
+    {
         "name": "Bloodfire Mentor",
         "scryfallId": "4836fb70-a8f3-44ed-bae4-890ef7d07f88",
         "oracleId": "2c47319a-4062-4aec-b68a-e8e8f023cf86",

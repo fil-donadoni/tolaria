@@ -52,7 +52,11 @@ import { tryGetDefinition } from "../cards/index";
 // `moves.ts`/`applyMove.ts`, never from `game.ts`, whose sole import from this
 // module is `buildActivationSacrificeSelection`.
 import { abilityBenefitIsConfinedToSource } from "./ai/sourceConfinedBenefit";
-import { matchesPermanentFilter, resolveExcludeSource } from "../cards/filters";
+import {
+    matchesPermanentFilter,
+    resolveExcludeSource,
+    resolveHostOfSource,
+} from "../cards/filters";
 import { liveSupertypesOf } from "./snow";
 import { handCardMatchesFilter } from "./alternativeCost";
 import {
@@ -227,9 +231,12 @@ export function buildActivationSacrificeSelection(
             // `excludeInstanceIds` entry here makes all of them correct at
             // once; the matcher's fail-closed branch is what makes forgetting
             // it safe rather than permissive.
-            filter: resolveExcludeSource(
-                ability.cost.sacrificeFilter,
-                source.id
+            // "Sacrifice enchanted creature": `hostOfSource` bakes
+            // to the source's `attachedTo` host at the same point, for the
+            // same reason.
+            filter: resolveHostOfSource(
+                resolveExcludeSource(ability.cost.sacrificeFilter, source.id),
+                source.attachedTo
             ),
             // CR 602.1 / 118.5 (issue #2398) — "Sacrifice TEN nonland
             // permanents" (Bolas's Citadel). Default 1: the single-permanent

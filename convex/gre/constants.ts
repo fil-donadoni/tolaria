@@ -2037,6 +2037,9 @@ export function getManaTapOptionsDetailed(
                             // filter: Skirk Prospector IS a Goblin and may eat
                             // itself.
                             selfInstanceId: card.id,
+                            // "Sacrifice enchanted creature": `hostOfSource`
+                            // fails closed without the host.
+                            selfAttachedToId: card.attachedTo,
                             supertypesOf: liveSupertypesOf,
                         }
                     )

@@ -20,6 +20,11 @@ export interface FilterMatchContext {
     /** Instance id of the trigger's source permanent (CR 603 — "this"). Used
      *  by `controllerRelation: "self"` to identify the source itself. */
     selfInstanceId?: string;
+    /** Instance id of the permanent the source is attached to (CR 303.4b —
+     *  the `attachedTo` host of an Aura or Equipment source).
+     *  Read only by `PermanentFilter.hostOfSource`; undefined for an
+     *  unattached source. */
+    selfAttachedToId?: string;
     /** Controller of the trigger's source at trigger time (CR 109.4). Used by
      *  `"you"` / `"opponents"` relation checks. */
     selfControllerId?: string;
@@ -135,6 +140,17 @@ export interface PermanentFilter {
      *  permanent pay its own cost by sacrificing itself. AND with every other
      *  field. */
     excludeSource?: boolean;
+    /** Restrict the match to the permanent the source is attached to (CR
+     *  303.4b — "Sacrifice enchanted creature", where the source is the Aura
+     *  paying the cost). AND with every other
+     *  field.
+     *
+     *  **Fail-CLOSED by construction**, like `excludeSource`: with NO
+     *  `ctx.selfAttachedToId` (an unattached source, or a caller that did not
+     *  thread the host) the filter matches NOTHING, so a payability gate that
+     *  forgets the host reports the ability as unactivatable rather than
+     *  offering an arbitrary permanent as the victim. */
+    hostOfSource?: boolean;
     /** Restrict the match set to exactly these instance ids (AND with every
      *  other field). Used to scope a choice to a single named permanent —
      *  e.g. the per-permanent optional-untap prompt (ATQ cluster E "you may
@@ -467,6 +483,11 @@ export function matchesPermanentFilter(
         if (ctx?.selfInstanceId === undefined) return false;
         if (card.id === ctx.selfInstanceId) return false;
     }
+    // CR 303.4b — "enchanted creature": only the source's own host qualifies.
+    if (filter.hostOfSource === true) {
+        if (ctx?.selfAttachedToId === undefined) return false;
+        if (card.id !== ctx.selfAttachedToId) return false;
+    }
     if (
         filter.instanceIds !== undefined &&
         !filter.instanceIds.includes(card.id)
@@ -548,6 +569,28 @@ export function resolveExcludeSource(
             selfInstanceId,
         ],
     };
+}
+
+/** Bakes a filter's `hostOfSource` flag (CR 303.4b) into a concrete
+ *  `instanceIds` entry, returning a filter that needs no `FilterMatchContext`
+ *  to mean the same thing — the twin of `resolveExcludeSource`, applied at the
+ *  same build point (`buildActivationSacrificeSelection`) for the same reason:
+ *  past it the filter is persisted data that its readers re-scan without the
+ *  source. An unattached source (`hostId` undefined) bakes an EMPTY id set,
+ *  which matches nothing — the fail-closed direction. Identity when the filter
+ *  carries no `hostOfSource`. */
+export function resolveHostOfSource(
+    filter: PermanentFilter,
+    hostId: string | undefined
+): PermanentFilter {
+    if (filter.hostOfSource !== true) return filter;
+    const { hostOfSource: _hostOfSource, ...rest } = filter;
+    void _hostOfSource;
+    const ids =
+        hostId === undefined
+            ? []
+            : (filter.instanceIds ?? [hostId]).filter((id) => id === hostId);
+    return { ...rest, instanceIds: ids };
 }
 
 function matchesControllerRelation(
