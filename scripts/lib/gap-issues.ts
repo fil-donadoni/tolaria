@@ -506,12 +506,16 @@ export type GapSyncAction = {
         | "cluster"
         | "adopt"
         | "absorb"
-        | "re-home";
+        | "re-home"
+        | "raise-band";
     readonly kind: GapKind;
     readonly key: string;
     readonly issue: number;
-    /** The CLOSED Gap Cluster a `re-home` moved the live key off
-     *  (issue #4679). */
+    /** The previous parent an action moved something OFF: the CLOSED Gap
+     *  Cluster a `re-home` moved the live key off (issue #4679), or a
+     *  `raise-band`'s previous umbrella — `kind`/`key` name the live key that
+     *  triggered it, `issue` the cluster (`raise-band`) or the new home
+     *  (`re-home`), this and `parent` the old and new umbrella. */
     readonly from?: number;
     /** An `adopt` into a Gap Cluster by its Cluster Signature (ADR 0146) —
      *  absent on the `## Cards` adoption of issue #4515. */
@@ -519,8 +523,9 @@ export type GapSyncAction = {
     /** The single an `absorb` closed (issue #4678); `issue` is the cluster
      *  its claim row now points at. */
     readonly single?: number;
-    /** The umbrella a `create` filed the issue under — so a run says where
-     *  each gap landed, which an origin-band run needs (issue #4158). */
+    /** The umbrella a `create` filed the issue under, or the umbrella a
+     *  `raise-band` moved the cluster TO — so a run says where each gap
+     *  landed, which an origin-band run needs (issue #4158). */
     readonly parent?: number;
 };
 
@@ -634,6 +639,56 @@ export function planMove(
     if (umbrellaKey(PARTITIONED_KINDS[filing.kind]!, parent) === "P0")
         return null;
     return target;
+}
+
+// ── Gap Cluster band raising (issue #4680) ───────────────────────────────
+//
+// A Gap Cluster's band is the highest band among its live keys, upward only:
+// P0 work is never buried under a lower-band umbrella, and closing the key
+// that earned a raise never pulls the cluster back down (stable queue order).
+
+/** `parent`'s strength within `family`'s band census — `BAND_UMBRELLAS`'s own
+ *  declared order, `P0` first (issue #4680): LOWER is stronger. `null` when
+ *  `parent` names none of the family's umbrellas — a hand-parented cluster
+ *  (`clusterIssues`'s "left to the cutter") is never pulled toward the
+ *  partition by this rank being treated as either the strongest or the
+ *  weakest. */
+export function umbrellaBandRank(
+    family: UmbrellaFamily,
+    parent: number | null
+): number | null {
+    if (parent === null) return null;
+    const key = umbrellaKey(family, parent);
+    return key === null
+        ? null
+        : Object.keys(BAND_UMBRELLAS[family]).indexOf(key);
+}
+
+/** Where `filing` would be filed today — the run's origin-`P0` umbrella when
+ *  it applies, else its Target's band umbrella, else `null` (residue, no vote
+ *  in a Gap Cluster's band: an unranked key neither raises nor lowers one). */
+function candidateBandUmbrella(
+    filing: GapFiling,
+    originBand: UmbrellaBand | undefined
+): number | null {
+    return originUmbrellaOf(filing, originBand) ?? bandUmbrellaOf(filing);
+}
+
+/** The comment a Gap Cluster gets when a live key raises its band (issue
+ *  #4680): names the key, and the old and new parent, so the move is
+ *  auditable from the issue alone. */
+export function raiseBandComment(
+    kind: GapKind,
+    key: string,
+    from: number,
+    to: number
+): string {
+    return (
+        `\`gaps:sync\` raised this Gap Cluster's band: the \`${kind}\` key ` +
+        `\`${key}\` now lends it a stronger band than its current parent, so ` +
+        `it moves from issue #${from} to issue #${to} (issue #4680). Upward ` +
+        "only — a live key closing later never moves it back."
+    );
 }
 
 // ── Gap Clusters — adoption by Cluster Signature (ADR 0146) ─────────────
@@ -1115,6 +1170,105 @@ export function syncGaps(
         }
     }
 
+    // A Gap Cluster's band raise (issue #4680): the strongest umbrella any
+    // LIVE key voting for a cluster earns it — an adoption, an absorption, or
+    // an already-claimed member (a re-home: its own Target may have shifted).
+    // Only a rank STRONGER than the cluster's current parent moves it: a key
+    // that stops appearing this run (closed, fixed, held) casts no vote, so
+    // the cluster never drifts back down when the key that raised it goes
+    // quiet — upward only, the module header's rule.
+    interface BandVote {
+        readonly cluster: number;
+        readonly parent: number;
+        readonly rank: number;
+        readonly kind: GapKind;
+        readonly key: string;
+    }
+    const votes: BandVote[] = [];
+    const clusterParentSeen = new Map<number, number | null>();
+    for (const filing of filings) {
+        const id = claimId(filing.kind, filing.key);
+        // Only a gap NEW this run (an adoption, an absorption, or a re-home
+        // off a closed cluster — all three land a key on a cluster it did
+        // NOT already claim) casts an origin-`P0` vote — `planMove`'s own
+        // asymmetry (module header: "an existing issue is never pulled up").
+        // An already-claimed member re-scanned by an unrelated `--band P0`
+        // run votes its OWN computed Target band, never the run's origin.
+        let cluster: number | undefined = intoCluster.get(id)?.issue;
+        let isNew = cluster !== undefined;
+        if (cluster === undefined) {
+            cluster = absorbInto.get(id);
+            isNew = cluster !== undefined;
+        }
+        if (cluster === undefined && isCluster(filing)) {
+            const current = existing.get(id);
+            if (
+                current !== null &&
+                current !== undefined &&
+                current.state === "OPEN"
+            ) {
+                cluster = filing.currentIssue!;
+                clusterParentSeen.set(cluster, current.parent ?? null);
+            }
+        }
+        if (cluster === undefined) continue;
+        const family = PARTITIONED_KINDS[filing.kind];
+        if (family === undefined) continue;
+        const parent = isNew
+            ? candidateBandUmbrella(filing, originBand)
+            : bandUmbrellaOf(filing);
+        if (parent === null) continue; // residue — no vote
+        const rank = umbrellaBandRank(family, parent);
+        if (rank === null) continue;
+        votes.push({
+            cluster,
+            parent,
+            rank,
+            kind: filing.kind,
+            key: filing.key,
+        });
+    }
+    const bandRaises = new Map<
+        number,
+        {
+            readonly from: number;
+            readonly to: number;
+            readonly kind: GapKind;
+            readonly key: string;
+        }
+    >();
+    if (votes.length > 0) {
+        const bestByCluster = new Map<number, BandVote>();
+        for (const vote of votes) {
+            const held = bestByCluster.get(vote.cluster);
+            if (
+                held === undefined ||
+                vote.rank < held.rank ||
+                (vote.rank === held.rank &&
+                    (vote.kind < held.kind ||
+                        (vote.kind === held.kind && vote.key < held.key)))
+            )
+                bestByCluster.set(vote.cluster, vote);
+        }
+        for (const [cluster, vote] of bestByCluster) {
+            const currentParent = clusterParentSeen.has(cluster)
+                ? clusterParentSeen.get(cluster)!
+                : (tracker.getIssue(cluster)?.parent ?? null);
+            const family = PARTITIONED_KINDS[vote.kind]!;
+            const currentRank = umbrellaBandRank(family, currentParent);
+            // Unrecognized parent: a hand-parented cluster, left to its
+            // cutter (`clusterIssues`'s own rule) — never pulled in.
+            if (currentRank === null) continue;
+            if (vote.rank >= currentRank) continue; // never sideways or down
+            bandRaises.set(cluster, {
+                from: currentParent!,
+                to: vote.parent,
+                kind: vote.kind,
+                key: vote.key,
+            });
+        }
+    }
+
     // Resolve each create's parent ONCE — `findSetUmbrella` is a network call
     // and the cap check and the create itself must agree on the answer.
     const parents = new Map<string, number>();
@@ -1137,6 +1291,10 @@ export function syncGaps(
         }
         incoming.set(parent, (incoming.get(parent) ?? 0) + 1);
     }
+    // A cluster raise-band re-parents the cluster itself — the SAME cap
+    // guards its destination, before any write (issue #4680).
+    for (const raise of bandRaises.values())
+        incoming.set(raise.to, (incoming.get(raise.to) ?? 0) + 1);
     for (const [parent, n] of incoming) {
         const children = tracker.subIssueCount(parent);
         if (children + n > SUB_ISSUE_CAP) {
@@ -1247,6 +1405,22 @@ export function syncGaps(
         }
         updateBody(issue, body);
         actions.push({ action: "update", ...common, issue });
+    }
+
+    for (const [cluster, raise] of bandRaises) {
+        tracker.setParent(cluster, raise.to);
+        tracker.comment(
+            cluster,
+            raiseBandComment(raise.kind, raise.key, raise.from, raise.to)
+        );
+        actions.push({
+            action: "raise-band",
+            kind: raise.kind,
+            key: raise.key,
+            issue: cluster,
+            from: raise.from,
+            parent: raise.to,
+        });
     }
 
     return { actions, moves, updatedRows, absorbed };
