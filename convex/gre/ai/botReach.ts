@@ -131,8 +131,9 @@ interface BattlefieldForEach {
 
 /**
  * Every `forEach` over `set: "permanents"` in the card's SPELL script — only
- * `effects` and `modes` are read, so a sweep hosted by a triggered or
- * activated ability is not one. The three detectors below read the same nodes
+ * `effects` and `modes` are read, plus any `extraRoots` a caller names (the
+ * scripts of self-sacrifice abilities, see `spentSweepEffects`); a sweep
+ * hosted by a triggered or any other activated ability is not one. The three detectors below read the same nodes
  * and differ only in which selector and body they claim.
  */
 function battlefieldForEaches(
@@ -250,7 +251,7 @@ function shrinksEveryCreature(def: CardDefinition): boolean {
 }
 
 /**
- * CR 120.3e / 704.5g — does the SPELL script deal damage to EVERY player's
+ * CR 120.3e / 704.5g — does the SPELL script (or a self-sacrifice ability) deal damage to EVERY player's
  * creatures (a `forEach` over their battlefields, no `controller`, whose body
  * has a `dealDamage` aimed at the iteration object)? Damage marked on a
  * creature at least its toughness destroys it, so this is a sweep the way a
@@ -267,8 +268,8 @@ function damagesEveryCreature(def: CardDefinition): boolean {
 
 /**
  * CR 602.2 — the scripts of the abilities a permanent pays for with ITSELF: a
- * sacrifice cost and no tap. A creature with one is cast to be spent, so its
- * sweep is one the holder buys with the card and is posed like the spell's.
+ * sacrifice cost and no tap. A permanent with one is put out to be spent, so
+ * its sweep is one the holder buys with the card and is posed like the spell's.
  * Any other activated ability is a repeatable effect that keeps the body, and
  * is not read.
  */
@@ -278,9 +279,9 @@ function spentSweepEffects(def: CardDefinition): unknown[] {
         .map((a) => a.effects);
 }
 
-/** Is the damage sweep of `def` one it spends ITSELF on, and only that? The
- *  holder's own bodies then stay out of the pose: the sweep is cast for what it
- *  kills of the opponent's, with the card itself the only body it costs. */
+/** Is the damage sweep of `def` one it spends ITSELF on (its spell script is
+ *  not read)? The holder's own bodies then stay out of the pose: the sweep is
+ *  bought for what it kills of the opponent's, the card the only price. */
 function spendsItselfOnDamageSweep(def: CardDefinition): boolean {
     const spent = spentSweepEffects(def);
     return spent.length > 0 && damagesEveryCreatureIn(def, spent, false);
