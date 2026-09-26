@@ -310,3 +310,63 @@ export const hauntedAngel: CardDefinition = {
         }),
     ],
 };
+
+// Manacles of Decay — {1}{W} Aura (issue #4356). "Enchant creature / Enchanted
+// creature can't attack. / {B}: Enchanted creature gets -1/-1 until end of
+// turn. / {R}: Enchanted creature can't block this turn."
+//
+// CR 303.4 Aura: the two activated abilities name the enchanted creature, they
+// never target it (CR 115.10), so both read the implicit `$host` binding
+// (issue #1341). "can't attack" is the same AURA-GRANTED attack-restriction
+// Hobble uses (CR 508.1c); "can't block this turn" is a turn-scoped
+// `restrictCombat` grant (CR 509.1a), not a static.
+// hand-tail: {R}: Enchanted creature can't block this turn. (#4356)
+export const manaclesOfDecay: CardDefinition = {
+    id: "f3da5010-78b6-426f-aeb4-73c21d2af581", // APC 14
+    rarity: "common",
+    name: "Manacles of Decay",
+    oracleText:
+        "Enchant creature\nEnchanted creature can't attack.\n{B}: Enchanted creature gets -1/-1 until end of turn.\n{R}: Enchanted creature can't block this turn.",
+    manaCost: { X: 1, W: 1 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Creature", count: 1 },
+    staticEffects: [
+        {
+            kind: "attack-restriction",
+            id: "manacles-of-decay-cant-attack",
+            predicate: () => false,
+            oracleText: "Enchanted creature can't attack.",
+        },
+    ],
+    activatedAbilities: [
+        {
+            id: "manacles-of-decay-shrink",
+            oracleText: "{B}: Enchanted creature gets -1/-1 until end of turn.",
+            cost: { mana: { B: 1 } },
+            useStack: true,
+            effects: [
+                {
+                    op: "pump",
+                    target: { ref: "$host" },
+                    power: -1,
+                    toughness: -1,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
+        },
+        {
+            id: "manacles-of-decay-cant-block",
+            oracleText: "{R}: Enchanted creature can't block this turn.",
+            cost: { mana: { R: 1 } },
+            useStack: true,
+            effects: [
+                {
+                    op: "restrictCombat",
+                    restriction: "cant-block",
+                    target: { ref: "$host" },
+                },
+            ],
+        },
+    ],
+};
