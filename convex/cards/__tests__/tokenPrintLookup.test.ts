@@ -86,6 +86,8 @@ const NO_PRINTED_TOKEN_ALLOWLIST: Record<string, string> = {
         "Boris Devilboon (LEG) — 1/1 B/R Minor Demon; no printed Minor Demon token exists.",
     "4e6bf56e-2d74-4e4d-a667-885853979377:Wolves of the Hunt":
         "Master of the Hunt (LEG) — 1/1 green Wolf named Wolves of the Hunt; no printed token exists.",
+    "78d2d11b-12e4-4810-a32d-8f1cdda3ec49:Angel":
+        "Haunted Angel (APC) — 3/3 black flying Angel; Scryfall links no token and every printed Angel token is white or blue.",
     // Oracle-compiled producers (issue #4125): the card's FIRST printing — its
     // compiled id (ADR 0108) — links no token in Scryfall's `all_parts`, so
     // `fetch-token-prints.mjs --compiled` has nothing to resolve. They render

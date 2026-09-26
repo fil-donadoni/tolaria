@@ -3,6 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
+import { diedTrigger } from "../../abilities/triggers/diedTrigger";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { AURA_AFFECTS_HOST, type CardDefinition } from "../../types";
 
@@ -228,5 +229,84 @@ export const gerrardCapashen: CardDefinition = {
             canActivate: (source) => source.isAttacking === true,
             effects: [{ op: "tapUntap", action: "tap", target: { target: 0 } }],
         },
+    ],
+};
+
+// Haunted Angel — {2}{W} 3/3 Creature — Angel, flying. "When this creature dies,
+// exile it and each other player creates a 3/3 black Angel creature token with
+// flying." One Oracle line = ONE dies trigger (CR 603.2, CR 700.4).
+//  • "exile it" moves the card now in the graveyard (CR 406, CR 603.10a — a
+//    leaves-the-battlefield trigger looks back); the token comes second.
+//  • "each other player" is every player but the controller (CR 102.2 — in a
+//    two-player game the opponent); the engine has no third seat, so the
+//    tokens go to every id in `allPlayerIds` other than the dead creature's
+//    controller. Tokens are created under that player's control (CR 111.2).
+// protocol card: the exiled object is the dies event's LKI payload — a card
+// already in the graveyard, which no Effect Script selector can name
+// (`$source` only finds a battlefield permanent; same reason as Cyclopean
+// Mummy / Rooting Kavu), so the whole trigger stays resolve().
+// hand-tail: When this creature dies, exile it and each other player creates a 3/3 black Angel creature token with flying. (#4334)
+export const hauntedAngel: CardDefinition = {
+    id: "78d2d11b-12e4-4810-a32d-8f1cdda3ec49", // APC 12
+    rarity: "uncommon",
+    name: "Haunted Angel",
+    oracleText:
+        "Flying\nWhen this creature dies, exile it and each other player creates a 3/3 black Angel creature token with flying.",
+    manaCost: { X: 2, W: 1 },
+    types: ["Creature"],
+    subtypes: ["Angel"],
+    power: 3,
+    toughness: 3,
+    staticAbilities: ["flying"],
+    triggeredAbilities: [
+        diedTrigger({
+            id: "haunted-angel-exile-tokens",
+            oracleText:
+                "When this creature dies, exile it and each other player creates a 3/3 black Angel creature token with flying.",
+            scope: "self",
+            resolve: (ctx, _event, deadCreature) => {
+                ctx.moveCardById(
+                    deadCreature.controllerId,
+                    deadCreature.id,
+                    "graveyard",
+                    "exile"
+                );
+                ctx.forEachPlayer((playerId) => {
+                    if (playerId === deadCreature.controllerId) return;
+                    ctx.createToken(
+                        {
+                            name: "Angel",
+                            types: ["Creature"],
+                            subtypes: ["Angel"],
+                            power: 3,
+                            toughness: 3,
+                            colors: ["B"],
+                            staticAbilities: ["flying"],
+                        },
+                        playerId,
+                        1,
+                        ctx.sourceInstanceId
+                    );
+                });
+            },
+            // aiEffects — shadow script for the bot's value model: the card
+            // leaves, and the opponent gains a 3/3 flier.
+            aiEffects: [
+                { op: "exileSelf" },
+                {
+                    op: "createToken",
+                    controller: "opponent",
+                    token: {
+                        name: "Angel",
+                        types: ["Creature"],
+                        subtypes: ["Angel"],
+                        power: 3,
+                        toughness: 3,
+                        colors: ["B"],
+                        staticAbilities: ["flying"],
+                    },
+                },
+            ],
+        }),
     ],
 };
