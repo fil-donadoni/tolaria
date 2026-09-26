@@ -1172,6 +1172,20 @@ describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
         expect(lands).toContain("Plains");
     });
 
+    it("a kicker leg's lands are added, never dealt out of the printed cost's", () => {
+        const heavy: CardDefinition = {
+            ...KICKED_SWEEP_CREATURE,
+            manaCost: { R: 3 },
+        };
+        const lands = botReachSpec(heavy)
+            .cards.filter((c) => c.zone === "battlefield")
+            .map((c) => c.name);
+        expect(
+            lands.filter((n) => n === "Mountain").length
+        ).toBeGreaterThanOrEqual(3);
+        expect(lands.filter((n) => n === "Plains")).toHaveLength(2);
+    });
+
     it("played — a card whose value lies in its kicked branch is cast kicked", () => {
         withTemporaryDefinition(KICKED_SWEEP_CREATURE, () => {
             expect(playTwice(KICKED_SWEEP_CREATURE)).toEqual({

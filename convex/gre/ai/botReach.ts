@@ -54,11 +54,7 @@ import {
     getCardColors,
     getColorsFromCost,
 } from "../../cards/colors";
-import type {
-    CardDefinition,
-    Color,
-    EffectForEachSelector,
-} from "../../cards/types";
+import type { CardDefinition, EffectForEachSelector } from "../../cards/types";
 import { castShape } from "./botReachForm";
 import {
     combatTrickPosition,
@@ -499,20 +495,23 @@ const MAX_FOLLOW_THROUGH_STEPS = 12;
 const EXTRA_LANDS = 2;
 
 /**
- * CR 702.33a (Kicker) — the colours the generated lands must produce: the card's own
- * (its mana cost) AND those of every kicker leg. A kicker's mana is an
- * additional cost the card's colour never counts (`getCardColors` reads the
- * printed cost only), so a mono-red card kicked with {W}{W} was posed on
- * Mountains alone, the kicked cast was never payable, and the Bot was measured
- * on the unkicked half of the card only. Lives HERE for the same reason as
- * `sweptTypes`: it decides what the position CONTAINS, so it is a verdict
- * input and must be inside the Bot hash.
+ * CR 702.33a (Kicker) — the extra lands a kicker leg's coloured mana needs.
+ * A kicker's mana is an additional cost the card's colour never counts
+ * (`getCardColors` reads the printed cost only), so a mono-red card kicked
+ * with {W}{W} was posed on Mountains alone, the kicked cast was never
+ * payable, and the Bot was measured on the unkicked half of the card only.
+ * One land per coloured pip of each leg, ADDED to the printed-cost lands so
+ * the unkicked cast stays exactly as payable as before. Lives HERE for the
+ * same reason as `sweptTypes`: it decides what the position CONTAINS, so it
+ * is a verdict input and must be inside the Bot hash.
  */
-function poseColors(def: CardDefinition): Color[] {
-    const colors = new Set<Color>(getCardColors(def));
-    for (const kicker of def.kickers ?? [])
-        for (const c of getColorsFromCost(kicker.mana)) colors.add(c);
-    return [...colors];
+function kickerLands(def: CardDefinition): string[] {
+    const lands: string[] = [];
+    for (const { mana } of def.kickers ?? [])
+        for (const color of getColorsFromCost(mana))
+            for (let i = 0; i < (mana?.[color] ?? 0); i++)
+                lands.push(basicLandsForColors([color])[0]!);
+    return lands;
 }
 
 /** How many MORE of each swept type the opponent holds than the holder. A
@@ -587,7 +586,7 @@ export function botReachSpec(
 ): ScenarioSpec {
     const isLand = def.types.includes("Land");
     const landCount = isLand ? 1 : manaValue(def.manaCost) + EXTRA_LANDS;
-    const cycle = basicLandsForColors(poseColors(def));
+    const cycle = basicLandsForColors(getCardColors(def));
     const cards: ScenarioCard[] = [];
     for (let i = 0; i < landCount; i++) {
         cards.push({
@@ -596,6 +595,8 @@ export function botReachSpec(
             zone: "battlefield",
         });
     }
+    for (const name of kickerLands(def))
+        cards.push({ name, owner: "me", zone: "battlefield" });
     const shrinks = shrinksEveryCreature(def);
     const target = targetPose(def);
     const edicted = edictedTypes(def);
