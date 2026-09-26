@@ -6,6 +6,9 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
+# A test fixture is never ignored, whatever its extension: an ignored one
+# passes in its author's tree and ENOENTs everywhere else (issue #4738).
+!**/__tests__/fixtures/**
 
 node_modules
 dist
