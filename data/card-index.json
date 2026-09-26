@@ -20208,6 +20208,14 @@
         "firstPrintSet": "inv"
     },
     {
+        "name": "Gerrard Capashen",
+        "scryfallId": "ccca800f-e850-4bec-95d0-70280b51b7a7",
+        "oracleId": "27521e70-3a1f-4819-a111-c38216ffe7c3",
+        "firstSet": "apc",
+        "firstPrintId": "ccca800f-e850-4bec-95d0-70280b51b7a7",
+        "firstPrintSet": "apc"
+    },
+    {
         "name": "Gerrard's Battle Cry",
         "scryfallId": "504950d5-2df7-4518-b987-fe3a57ad1c58",
         "oracleId": "12ef651c-5a86-49c4-a512-292e9d135a76",
