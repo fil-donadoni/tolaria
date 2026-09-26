@@ -151,3 +151,90 @@ export const bloodfireKavu: CardDefinition = {
         },
     ],
 };
+
+// Wild Research — {2}{R} Enchantment. Two activated abilities, each a tutor:
+// "Search your library for an <enchantment|instant> card and reveal that card.
+// Put it into your hand, then discard a card at random. Then shuffle."
+// (CR 701.23a search — the library is hidden, so the player may find no card
+// (CR 701.23b); CR 701.20a reveal; CR 701.9b random discard, which may pick
+// the card just fetched; CR 701.24a shuffle, last.) Search → reveal → move →
+// discard → shuffle in the printed order, so a card discarded at random is in
+// the graveyard before the shuffle.
+// hand-tail: {1}{U}: Search your library for an instant card and reveal that card. Put it into your hand, then discard a card at random. Then shuffle. (#4343)
+export const wildResearch: CardDefinition = {
+    id: "8f00e6f1-e854-40b0-855d-7e0d7d233850", // APC 72
+    rarity: "rare",
+    name: "Wild Research",
+    oracleText:
+        "{1}{W}: Search your library for an enchantment card and reveal that card. Put it into your hand, then discard a card at random. Then shuffle.\n{1}{U}: Search your library for an instant card and reveal that card. Put it into your hand, then discard a card at random. Then shuffle.",
+    manaCost: { X: 2, R: 1 },
+    types: ["Enchantment"],
+    activatedAbilities: [
+        {
+            id: "wild-research-enchantment",
+            oracleText:
+                "{1}{W}: Search your library for an enchantment card and reveal that card. Put it into your hand, then discard a card at random. Then shuffle.",
+            cost: { mana: { X: 1, W: 1 } },
+            useStack: true,
+            effects: [
+                {
+                    op: "choice",
+                    kind: "search-library",
+                    player: "controller",
+                    zone: "library",
+                    filter: { type: "Enchantment" },
+                    count: { min: 0, max: 1 },
+                    prompt: "Search your library for an enchantment card (or none).",
+                    bind: "$picked",
+                },
+                {
+                    op: "reveal",
+                    player: "controller",
+                    cards: { ref: "$picked" },
+                },
+                {
+                    op: "moveZone",
+                    cards: { ref: "$picked" },
+                    player: "controller",
+                    from: "library",
+                    to: "hand",
+                },
+                { op: "discardAtRandom", player: "controller", count: 1 },
+                { op: "libraryLook", action: "shuffle", player: "controller" },
+            ],
+        },
+        {
+            id: "wild-research-instant",
+            oracleText:
+                "{1}{U}: Search your library for an instant card and reveal that card. Put it into your hand, then discard a card at random. Then shuffle.",
+            cost: { mana: { X: 1, U: 1 } },
+            useStack: true,
+            effects: [
+                {
+                    op: "choice",
+                    kind: "search-library",
+                    player: "controller",
+                    zone: "library",
+                    filter: { type: "Instant" },
+                    count: { min: 0, max: 1 },
+                    prompt: "Search your library for an instant card (or none).",
+                    bind: "$picked",
+                },
+                {
+                    op: "reveal",
+                    player: "controller",
+                    cards: { ref: "$picked" },
+                },
+                {
+                    op: "moveZone",
+                    cards: { ref: "$picked" },
+                    player: "controller",
+                    from: "library",
+                    to: "hand",
+                },
+                { op: "discardAtRandom", player: "controller", count: 1 },
+                { op: "libraryLook", action: "shuffle", player: "controller" },
+            ],
+        },
+    ],
+};
