@@ -228,8 +228,11 @@ describe("a synthesized token registered by an earlier play is never posed (issu
             toughness: 3,
         });
         const def = instant("token-only", { subtypeFilter: [type] });
-        expect(() => castable(def)).not.toThrow();
-        expect(castable(def)).toBe(false);
+        let posed: boolean | undefined;
+        expect(() => {
+            posed = castable(def);
+        }).not.toThrow();
+        expect(posed).toBe(false);
     });
 });
 

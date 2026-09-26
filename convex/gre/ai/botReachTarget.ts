@@ -192,7 +192,7 @@ function creatureFor(req: TargetRequirement): CardDefinition | null {
         // NAME entry, so a spec naming it throws "Card not found by name" in
         // `buildStateFromScenario`; and its presence depends on what the sweep
         // played before, which must not move a verdict either.
-        if (tryGetCardByName(def.name) === null) continue;
+        if (tryGetCardByName(def.name)?.id !== def.id) continue;
         const rank =
             def.name === BASE_CREATURE
                 ? -1
