@@ -1336,12 +1336,22 @@ function main(): void {
         );
     }
 
+    // The tip is read once: a re-home comment names it (issue #4679), and
+    // the close pass below closes at it.
+    const tip = spawnSync("git", ["rev-parse", "HEAD"], {
+        cwd: root,
+        encoding: "utf8",
+    }).stdout.trim();
+    // Before any write: a re-home comment naming no tip is worse than no run.
+    if (tip === "")
+        throw new Error("could not read the tip (git rev-parse HEAD)");
     const result = syncGaps(
         withUnlockBlockers(filings, blockers),
         tracker,
         originBand,
         clusterIssues(allowlist),
-        signatureRows
+        signatureRows,
+        tip
     );
 
     const counts = new Map<string, number>();
@@ -1355,7 +1365,10 @@ function main(): void {
                         : ` (parent #${action.parent})`) +
                     (action.single === undefined
                         ? ""
-                        : ` (absorbs single #${action.single})`)
+                        : ` (absorbs single #${action.single})`) +
+                    (action.from === undefined
+                        ? ""
+                        : ` (off closed Gap Cluster #${action.from})`)
             );
         }
     }
@@ -1468,12 +1481,6 @@ function main(): void {
     // The close pass (issue #4516), after every write above: it records
     // nothing, so its own try/catch — a failure here is not a failed filing.
     try {
-        const tip = spawnSync("git", ["rev-parse", "HEAD"], {
-            cwd: root,
-            encoding: "utf8",
-        }).stdout.trim();
-        if (tip === "")
-            throw new Error("could not read the tip (git rev-parse HEAD)");
         const done = closeClaims(closures.close, tracker, tip);
         for (const row of done.filter(
             (r) => r.action === "foreign" || r.action === "over-cap"

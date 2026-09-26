@@ -505,10 +505,14 @@ export type GapSyncAction = {
         | "skip-closed"
         | "cluster"
         | "adopt"
-        | "absorb";
+        | "absorb"
+        | "re-home";
     readonly kind: GapKind;
     readonly key: string;
     readonly issue: number;
+    /** The CLOSED Gap Cluster a `re-home` moved the live key off
+     *  (issue #4679). */
+    readonly from?: number;
     /** An `adopt` into a Gap Cluster by its Cluster Signature (ADR 0146) —
      *  absent on the `## Cards` adoption of issue #4515. */
     readonly via?: "signature";
@@ -639,9 +643,9 @@ export function planMove(
 // open cluster's signature matches, claimed by that cluster instead of filed
 // as a single. The cluster's body carries a managed `## Adopted gaps` block
 // between fixed markers, regenerated from the claim rows each run — outside
-// the markers the body is never written. Absorbing old singles, re-homing
-// keys off a closed cluster and raising a cluster's band are PRD #4673's
-// later slices.
+// the markers the body is never written. `syncGaps` also absorbs old singles
+// (issue #4678) and re-homes live keys off a closed cluster (issue #4679);
+// raising a cluster's band is PRD #4673's later slice.
 
 /** The set-file colour of a card with `manaCost` (ADR 0043's split): one
  *  coloured symbol colour → that colour, two or more → `multicolor`, none →
@@ -841,6 +845,12 @@ export function withAdoptedBlock(
     );
 }
 
+/** The comment a CLOSED Gap Cluster gets for each live key moved off it
+ *  (issue #4679): the key, the tip it was measured at, and where it went. */
+export function reHomeComment(key: string, tip: string, to: number): string {
+    return `\`${key}\` still live at ${tip}, moved to issue #${to} by \`gaps:sync\` (issue #4679): this Gap Cluster is closed, and a closed cluster never owns a live gap.`;
+}
+
 /** The comment a Gap Cluster gets for each gap it adopts. */
 export function adoptionComment(filing: GapFiling): string {
     const cards =
@@ -976,6 +986,8 @@ export function clusterIssues(allowlist: Allowlist): ReadonlySet<number> {
  * `originBand` is the band of the work that triggered the run (issue #4158):
  * `P0` files every partitioned create, and every homeless gap, under its
  * family's P0 umbrella; anything else changes nothing.
+ *
+ * `tip` is the sha a re-home comment names (issue #4679).
  */
 /** Whether `filing` is an adoption (issue #4515): its claim records, or is
  *  about to record, the open issue naming the card — never reconciled. */
@@ -991,7 +1003,8 @@ export function syncGaps(
     tracker: GapTracker,
     originBand?: UmbrellaBand,
     clusters: ReadonlySet<number> = new Set(),
-    signatureRows: readonly ClusterRow[] = []
+    signatureRows: readonly ClusterRow[] = [],
+    tip = "an unread tip"
 ): GapSyncResult {
     // Adopted (issue #4515): an open issue already names the card, so the
     // claim records THAT issue — nothing is created, and its body, parent and
@@ -1008,10 +1021,25 @@ export function syncGaps(
             );
         }
     }
+    // Re-homed (issue #4679): every filing is a LIVE gap, so a claim on a
+    // CLOSED Gap Cluster is a key nobody owns — a cluster closed with one key
+    // left, or one adopted after the pick. It takes the path of a gap that
+    // would be created: the matcher first (a closed cluster is never its
+    // target), else a single. A claim on a closed single is still
+    // `skip-closed`; a claim whose gap is GONE never reaches here — no
+    // filing names it, and the close pass (issue #4516) owns it.
+    const rehomeFrom = new Map<string, number>();
+    for (const filing of filings) {
+        const id = claimId(filing.kind, filing.key);
+        const current = existing.get(id);
+        if (current?.state === "CLOSED" && clusters.has(filing.currentIssue!))
+            rehomeFrom.set(id, filing.currentIssue!);
+    }
     const wouldCreate = (filing: GapFiling): boolean =>
         !isAdopted(filing) &&
         (filing.currentIssue === null ||
-            existing.get(claimId(filing.kind, filing.key)) === null);
+            existing.get(claimId(filing.kind, filing.key)) === null ||
+            rehomeFrom.has(claimId(filing.kind, filing.key)));
 
     // Filing adopts (ADR 0146 § Decision 3): a gap that would be created is
     // matched against the Cluster Signatures first. The `## Cards` adoption
@@ -1022,10 +1050,20 @@ export function syncGaps(
         if (!states.has(issue)) states.set(issue, tracker.clusterState(issue));
         return states.get(issue)!;
     };
-    const intoCluster = new Map<string, number>();
-    if (signatureRows.length > 0) {
-        for (const filing of filings) {
-            if (!wouldCreate(filing)) continue;
+    const intoCluster = new Map<
+        string,
+        { readonly issue: number; readonly via: "cards" | "signature" }
+    >();
+    for (const filing of filings) {
+        if (!wouldCreate(filing)) continue;
+        const id = claimId(filing.kind, filing.key);
+        // A re-home honours the `## Cards` claim before any signature, as
+        // `matchCluster` would: an open issue already naming the card owns it.
+        if (rehomeFrom.has(id) && filing.adopts !== undefined) {
+            intoCluster.set(id, { issue: filing.adopts, via: "cards" });
+            continue;
+        }
+        if (signatureRows.length > 0) {
             const match = matchCluster(
                 {
                     kind: filing.kind,
@@ -1037,7 +1075,7 @@ export function syncGaps(
                 stateOf
             );
             if (match.via === "signature")
-                intoCluster.set(claimId(filing.kind, filing.key), match.issue);
+                intoCluster.set(id, { issue: match.issue, via: "signature" });
         }
     }
     const isSignatureAdopted = (filing: GapFiling): boolean =>
@@ -1117,16 +1155,27 @@ export function syncGaps(
     for (const filing of filings) {
         const id = claimId(filing.kind, filing.key);
         const common = { kind: filing.kind, key: filing.key };
-        const cluster = intoCluster.get(id);
-        if (cluster !== undefined) {
+        const from = rehomeFrom.get(id);
+        const into = intoCluster.get(id);
+        if (into !== undefined) {
+            const cluster = into.issue;
             updatedRows.set(id, cluster);
-            tracker.comment(cluster, adoptionComment(filing));
-            actions.push({
-                action: "adopt",
-                ...common,
-                issue: cluster,
-                via: "signature",
-            });
+            if (into.via === "signature")
+                tracker.comment(cluster, adoptionComment(filing));
+            if (from !== undefined)
+                tracker.comment(from, reHomeComment(filing.key, tip, cluster));
+            const via = into.via === "signature" ? { via: into.via } : {};
+            actions.push(
+                from === undefined
+                    ? { action: "adopt", ...common, issue: cluster, ...via }
+                    : {
+                          action: "re-home",
+                          ...common,
+                          issue: cluster,
+                          ...via,
+                          from,
+                      }
+            );
             continue;
         }
         if (isAdopted(filing)) {
@@ -1148,11 +1197,14 @@ export function syncGaps(
             const settled = filing.body(issue);
             if (settled !== filing.body(0)) updateBody(issue, settled);
             updatedRows.set(id, issue);
+            if (from !== undefined)
+                tracker.comment(from, reHomeComment(filing.key, tip, issue));
             actions.push({
-                action: "create",
+                action: from === undefined ? "create" : "re-home",
                 ...common,
                 issue,
                 parent: parents.get(id)!,
+                ...(from === undefined ? {} : { from }),
             });
             continue;
         }

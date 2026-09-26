@@ -48,6 +48,7 @@ import {
     renderAdoptedBlock,
     setFileColour,
     withAdoptedBlock,
+    reHomeComment,
     type ClusterIssueState,
     type GapFiling,
     type GapTracker,
@@ -1495,6 +1496,126 @@ describe("syncGaps adopts a new gap into the matching Gap Cluster (ADR 0146)", (
         const none = syncGaps([botFiling()], tracker, undefined, new Set(), []);
         expect(none).toEqual(plain);
         expect(tracker.stateReads).toEqual([]);
+    });
+
+    describe("a live key on a CLOSED Gap Cluster is re-homed (issue #4679)", () => {
+        const CLOSED = 800;
+        const TIP = "abc123def456";
+        const trackerWithClosed = () => {
+            const tracker = trackerWithCluster();
+            tracker.issues.set(CLOSED, { state: "CLOSED", body: HAND });
+            return tracker;
+        };
+
+        it("moves the key into the matching open cluster, commenting on both", () => {
+            const tracker = trackerWithClosed();
+            const result = syncGaps(
+                [botFiling({ currentIssue: CLOSED })],
+                tracker,
+                undefined,
+                new Set([CLOSED, CLUSTER]),
+                [signature, { ...signature, issue: CLOSED }],
+                TIP
+            );
+            expect(result.actions).toEqual([
+                {
+                    action: "re-home",
+                    kind: "bot",
+                    key: BOT,
+                    issue: CLUSTER,
+                    via: "signature",
+                    from: CLOSED,
+                },
+            ]);
+            expect(result.updatedRows.get(claimId("bot", BOT))).toBe(CLUSTER);
+            expect(tracker.createCalls).toBe(0);
+            expect(tracker.comments.map((c) => c.issue).sort()).toEqual([
+                CLOSED,
+                CLUSTER,
+            ]);
+            const moved = tracker.comments.find((c) => c.issue === CLOSED)!;
+            expect(moved.body).toBe(reHomeComment(BOT, TIP, CLUSTER));
+            expect(moved.body).toContain(`\`${BOT}\``);
+            expect(moved.body).toContain(TIP);
+            expect(moved.body).toContain(`issue #${CLUSTER}`);
+        });
+
+        it("files a new single when no open cluster matches", () => {
+            const tracker = trackerWithClosed();
+            tracker.states.set(CLUSTER, {
+                open: true,
+                inProgress: true,
+                openPr: false,
+            });
+            const result = syncGaps(
+                [botFiling({ currentIssue: CLOSED })],
+                tracker,
+                undefined,
+                new Set([CLOSED, CLUSTER]),
+                [signature, { ...signature, issue: CLOSED }],
+                TIP
+            );
+            expect(
+                result.actions.map((a) => [a.action, a.issue, a.from])
+            ).toEqual([["re-home", 5000, CLOSED]]);
+            expect(result.updatedRows.get(claimId("bot", BOT))).toBe(5000);
+            expect(tracker.createCalls).toBe(1);
+            expect(tracker.comments).toEqual([
+                { issue: CLOSED, body: reHomeComment(BOT, TIP, 5000) },
+            ]);
+        });
+
+        it("an open issue naming the card in `## Cards` outranks the signature — no duplicate filed", () => {
+            const tracker = trackerWithClosed();
+            const result = syncGaps(
+                [botFiling({ currentIssue: CLOSED, adopts: 1234 })],
+                tracker,
+                undefined,
+                new Set([CLOSED, CLUSTER]),
+                [signature, { ...signature, issue: CLOSED }],
+                TIP
+            );
+            expect(result.actions).toEqual([
+                {
+                    action: "re-home",
+                    kind: "bot",
+                    key: BOT,
+                    issue: 1234,
+                    from: CLOSED,
+                },
+            ]);
+            expect(result.updatedRows.get(claimId("bot", BOT))).toBe(1234);
+            expect(tracker.createCalls).toBe(0);
+            expect(tracker.comments).toEqual([
+                { issue: CLOSED, body: reHomeComment(BOT, TIP, 1234) },
+            ]);
+        });
+
+        it("a closed SINGLE stays skip-closed, and a gone key is the closer's — no filing, no action", () => {
+            const tracker = trackerWithClosed();
+            const single = syncGaps(
+                [botFiling({ currentIssue: CLOSED })],
+                tracker,
+                undefined,
+                new Set([CLUSTER]),
+                [signature],
+                TIP
+            );
+            expect(single.actions.map((a) => a.action)).toEqual([
+                "skip-closed",
+            ]);
+            const gone = syncGaps(
+                [],
+                tracker,
+                undefined,
+                new Set([CLOSED, CLUSTER]),
+                [signature, { ...signature, issue: CLOSED }],
+                TIP
+            );
+            expect(gone.actions).toEqual([]);
+            expect(tracker.comments).toEqual([]);
+            expect(tracker.createCalls).toBe(0);
+        });
     });
 
     describe("syncAdoptedBlocks — the managed block, after the write-back", () => {
