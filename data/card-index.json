@@ -36098,6 +36098,14 @@
         "firstPrintSet": "fem"
     },
     {
+        "name": "Order // Chaos",
+        "scryfallId": "14e4f5a4-b1ea-4816-b2d7-cf148468a388",
+        "oracleId": "bc540259-459d-4561-9268-c4f323ea62d2",
+        "firstSet": "apc",
+        "firstPrintId": "14e4f5a4-b1ea-4816-b2d7-cf148468a388",
+        "firstPrintSet": "apc"
+    },
+    {
         "name": "Order of Leitbur",
         "scryfallId": "ebd6e51e-f042-4673-a898-291607105829",
         "oracleId": "d8f5279f-c58e-4560-9c68-77d226a3c86c",
