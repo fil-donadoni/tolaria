@@ -280,6 +280,15 @@ that issue, which the card's own PR closes:
 // hand-tail: <the exact Oracle fragment> (#<hand-tail issue>)
 ```
 
+**The marker names the card's claim issue, and the PR body closes it.** Read
+the claim from the Grammar Gap allowlist (`data/grammar-gaps.json`), the
+`claims` row of kind `hand-tail` whose key is the card's lockfile name — or, when
+another issue adopted the card, that issue. The PR body carries
+`Closes #<claim>` as a bare ref (a `Closes issue #N` does not close). The
+`check:gaps` guard (issue #4514) reds a marker that does not name its claim, and
+the `gaps:sync` closer (issue #4516) closes a claim a landing settled; both are
+nets for a miss, so never hand-close the claim.
+
 A well-formed marker is also what keeps the filing idempotent the day its
 Target is enforced — a marked card is settled and is never filed again.
 **`compiler-gap:` here would claim a debt the grammar does not have**, which

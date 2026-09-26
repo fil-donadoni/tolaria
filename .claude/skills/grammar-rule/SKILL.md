@@ -212,6 +212,14 @@ baseline edit is a pure deletion — anything else needs a reason in the PR
 (the file's own SHRINK-ONLY header). `bun run oracle:triage` prints the class
 counts after.
 
+**Every graduate with an open Hand Tail claim closes it.** For each card the
+rule makes `ready`, look up its `claims` row of kind `hand-tail` in the Grammar
+Gap allowlist (`data/grammar-gaps.json`, key = the card's lockfile name); if the
+issue is open, the PR body (§10) carries `Closes #<claim>` as a bare ref beside
+removing the card's `hand-tail:` marker. The `check:gaps` guard (issue #4514)
+catches a marker that misses its claim, and the `gaps:sync` closer (issue #4516)
+closes a claim a landing settled — nets for a miss, so never hand-close.
+
 ## 9. Targeted runs, then `gaps:sync` — from the primary checkout only
 
 ```bash
@@ -253,6 +261,7 @@ Review and `land` are `/next-issue` §4–§5. The body:
 
 ````markdown
 Closes #<cluster issue>
+Closes #<hand-tail claim> <!-- one line per graduate with an open claim (§8) -->
 
 ## Grammar Gaps
 
