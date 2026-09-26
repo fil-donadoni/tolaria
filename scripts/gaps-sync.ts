@@ -183,6 +183,7 @@ interface GhIssueRow {
     readonly number: number;
     readonly state: string;
     readonly body: string;
+    readonly title?: string;
     readonly parent?: { readonly number?: number } | null;
 }
 
@@ -190,6 +191,7 @@ function trackedIssue(row: Omit<GhIssueRow, "number">): TrackedIssue {
     return {
         state: row.state === "CLOSED" ? "CLOSED" : "OPEN",
         body: row.body,
+        ...(row.title === undefined ? {} : { title: row.title }),
         parent: row.parent?.number ?? null,
     };
 }
@@ -230,7 +232,7 @@ export class GhGapTracker implements GapTracker {
             "--limit",
             "500",
             "--json",
-            "number,state,body,parent",
+            "number,state,title,body,parent",
         ]);
         return JSON.parse(out) as GhIssueRow[];
     }
@@ -244,7 +246,7 @@ export class GhGapTracker implements GapTracker {
                 "view",
                 String(number),
                 "--json",
-                "state,body,parent",
+                "state,title,body,parent",
             ]);
             return trackedIssue(JSON.parse(out) as Omit<GhIssueRow, "number">);
         } catch (err) {

@@ -431,6 +431,10 @@ export function withPartitionBands(
 export interface TrackedIssue {
     readonly state: "OPEN" | "CLOSED";
     readonly body: string;
+    /** The title as read — how absorption tells a single `gaps:sync` filed
+     *  (its kind's `GAP_TITLE_PREFIX`) from a hand-filed issue. Absent =
+     *  unknown, and an issue of unknown title is never absorbed. */
+    readonly title?: string;
     /** The native parent, null when none — read with the issue, so deciding a
      *  move costs no call of its own. */
     readonly parent?: number | null;
@@ -465,6 +469,8 @@ export interface GapTracker {
     listOpen(label: string): readonly TrackedIssueSummary[];
     addLabel(number: number, label: string): void;
     comment(number: number, body: string): void;
+    /** Close `number` with `comment` — an absorbed single (issue #4678). */
+    close(number: number, comment: string): void;
     /** Every OPEN issue whose body may carry an `## Unlocks` section — the
      *  candidates {@link parseUnlocks} reads (issue #4052). */
     listUnlockSources(): readonly UnlockSource[];
@@ -475,8 +481,9 @@ export interface GapTracker {
      *  listed edges already exist, so its status says nothing either way. */
     addBlockedBy(issue: number, blocker: number): void;
     /** What adoption asks of a Gap Cluster's issue (ADR 0146): open, claimed
-     *  by a session (`in-progress`), or with an open PR. null = no such
-     *  issue; anything else throws, like {@link getIssue}. */
+     *  by a session (`in-progress`), or with an open PR — and absorption of
+     *  the single it would close (issue #4678). null = no such issue;
+     *  anything else throws, like {@link getIssue}. */
     clusterState(number: number): ClusterIssueState | null;
 }
 
@@ -497,13 +504,17 @@ export type GapSyncAction = {
         | "noop"
         | "skip-closed"
         | "cluster"
-        | "adopt";
+        | "adopt"
+        | "absorb";
     readonly kind: GapKind;
     readonly key: string;
     readonly issue: number;
     /** An `adopt` into a Gap Cluster by its Cluster Signature (ADR 0146) —
      *  absent on the `## Cards` adoption of issue #4515. */
     readonly via?: "signature";
+    /** The single an `absorb` closed (issue #4678); `issue` is the cluster
+     *  its claim row now points at. */
+    readonly single?: number;
     /** The umbrella a `create` filed the issue under — so a run says where
      *  each gap landed, which an origin-band run needs (issue #4158). */
     readonly parent?: number;
@@ -824,6 +835,22 @@ export function adoptionComment(filing: GapFiling): string {
     return `\`gaps:sync\` adopted the \`${filing.kind}\` gap \`${filing.key}\` into this Gap Cluster: its Cluster Signature matches (ADR 0146).${cards} The \`## Adopted gaps\` block lists it.`;
 }
 
+/** The comment an absorbed single is closed with (issue #4678): where its
+ *  gap went, and its body verbatim — the cluster's managed block lists the
+ *  key, never the prose a session may have been reading. */
+export function absorptionComment(cluster: number, body: string): string {
+    const fence = "`".repeat(
+        Math.max(3, ...[...body.matchAll(/`+/g)].map((m) => m[0].length + 1))
+    );
+    return [
+        `absorbed into issue #${cluster}: its Cluster Signature matches this gap (ADR 0146), so \`gaps:sync\` re-pointed the claim row there and closed this single. Its body, verbatim:`,
+        "",
+        `${fence}markdown`,
+        body,
+        fence,
+    ].join("\n");
+}
+
 /**
  * Regenerate the managed block of every open signature cluster (ADR 0146 §
  * Decision 6) from the claim rows as RECORDED — `main` runs this after the
@@ -1007,6 +1034,34 @@ export function syncGaps(
         !isCreate(filing) &&
         clusters.has(filing.currentIssue!);
 
+    // Absorbs (issue #4678): an OPEN single `gaps:sync` filed — its title is
+    // its kind's prefix, so never a hand-filed issue — claimed by this row
+    // alone (never a cluster), with no `## Cards` adoption, whose key a
+    // signature now sends to ANOTHER open, free cluster. Its own issue must
+    // be free too: a session working the single, or a PR on it, keeps it.
+    const absorbInto = new Map<string, number>();
+    if (signatureRows.length > 0) {
+        for (const filing of filings) {
+            if (wouldCreate(filing) || isAdopted(filing)) continue;
+            if (filing.adopts !== undefined || isCluster(filing)) continue;
+            const single = filing.currentIssue!;
+            const current = existing.get(claimId(filing.kind, filing.key))!;
+            if (current.state !== "OPEN") continue;
+            if (!current.title?.startsWith(GAP_TITLE_PREFIX[filing.kind]))
+                continue;
+            const match = matchCluster(
+                { kind: filing.kind, key: filing.key, card: filing.card },
+                signatureRows,
+                stateOf
+            );
+            if (match.via !== "signature" || match.issue === single) continue;
+            const self = stateOf(single);
+            if (self === null || !self.open || self.inProgress || self.openPr)
+                continue;
+            absorbInto.set(claimId(filing.kind, filing.key), match.issue);
+        }
+    }
+
     // Resolve each create's parent ONCE — `findSetUmbrella` is a network call
     // and the cap check and the create itself must agree on the answer.
     const parents = new Map<string, number>();
@@ -1015,6 +1070,7 @@ export function syncGaps(
     for (const filing of filings) {
         const id = claimId(filing.kind, filing.key);
         if (isAdopted(filing) || isSignatureAdopted(filing)) continue;
+        if (absorbInto.has(id)) continue;
         let parent: number | null;
         if (isCreate(filing)) {
             parent = parentOf(filing, tracker, originBand);
@@ -1086,6 +1142,18 @@ export function syncGaps(
         }
         const issue = filing.currentIssue!;
         const current = existing.get(id)!;
+        const absorber = absorbInto.get(id);
+        if (absorber !== undefined) {
+            tracker.close(issue, absorptionComment(absorber, current.body));
+            updatedRows.set(id, absorber);
+            actions.push({
+                action: "absorb",
+                ...common,
+                issue: absorber,
+                single: issue,
+            });
+            continue;
+        }
         if (current.state === "CLOSED") {
             actions.push({ action: "skip-closed", ...common, issue });
             continue;

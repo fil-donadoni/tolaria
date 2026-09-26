@@ -277,6 +277,13 @@ class StubTracker implements GapTracker {
         this.comments.push({ issue: number, body });
     }
 
+    close(number: number, body: string): void {
+        this.comments.push({ issue: number, body });
+        const issue = this.issues.get(number);
+        if (issue !== undefined)
+            this.issues.set(number, { ...issue, state: "CLOSED" });
+    }
+
     /** The `## Unlocks` pass has its own file (`gap-issues.test.ts`); here the
      *  tracker only has to satisfy the seam. */
     listUnlockSources(): readonly UnlockSource[] {
