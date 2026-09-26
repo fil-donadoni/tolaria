@@ -148,6 +148,7 @@ import {
     newLaneAccount,
     newRunId,
     passwordSeedDeck,
+    passwordSeedJoinTable,
     passwordSignUp,
     runScreenshotDir,
     withLaneFleet,
@@ -822,9 +823,12 @@ async function main(): Promise<number> {
     // `finally`.
     const fleet = createLaneFleet({
         accounts: Array.from({ length: parallel }, () => newLaneAccount()),
+        // Hosts the unlisted table `join-table` walks (issue #4670).
+        host: newLaneAccount(),
         run: localConvexRunner(),
         signUp: passwordSignUp(convexUrl),
         seedDeck: passwordSeedDeck(convexUrl),
+        seedJoinTable: passwordSeedJoinTable(convexUrl),
         keepUser: opts.keepUser,
         log,
     });
@@ -919,6 +923,7 @@ async function main(): Promise<number> {
                         choiceScenarioLabel: CHOICE_SCENARIO_LABEL,
                         fixtureLabels: member.labels,
                         laneDeckId: member.deckId,
+                        joinTableId: fleet.joinTableId,
                         createdGame: false,
                         // Buffered with the cells (never logged live: five
                         // viewports would interleave); diagnostic, unread by

@@ -23,7 +23,13 @@ import { ConvexError } from "convex/values";
 
 import type { MutationCtx } from "../_generated/server";
 import type { Id } from "../_generated/dataModel";
-import { createGame, joinGame, joinGameByCode, listOpenGames } from "../game";
+import {
+    createGame,
+    getJoinInfo,
+    joinGame,
+    joinGameByCode,
+    listOpenGames,
+} from "../game";
 import { JOIN_CODE_REJECTED, mintJoinCode } from "../joinCodes";
 import { makeInMemoryDb, type InMemoryRow } from "./fixtures/inMemoryDb";
 
@@ -446,5 +452,61 @@ describe("listOpenGames — a code is the host's to share", () => {
         expect(rows).toHaveLength(1);
         expect(rows[0]!._id).toBe("game-x");
         expect("joinCode" in rows[0]!).toBe(false);
+    });
+});
+
+describe("listOpenGames — an unlisted table is never broadcast (issue #4670)", () => {
+    // The `check:ui` lane's join-table fixture is an unlisted table: a
+    // non-host must reach it by link (`getJoinInfo` → joinable) while no
+    // lobby — another lane's, or a player's — ever lists it.
+    it("hides an unlisted table from a non-host's lobby, and the link still joins", async () => {
+        const CAROL = "user-carol";
+        const host = makeInMemoryDb(
+            {
+                users: [
+                    ...users(),
+                    { _id: CAROL, nickname: "Carol", email: "c@example.com" },
+                ],
+            },
+            { identitySubject: ALICE }
+        );
+        const unlistedId = (await run(createGame, host.ctx, {
+            name: "Alice's unlisted table",
+            deck: DECK,
+            unlisted: true,
+        })) as Id<"games">;
+        // The control: the SAME path without the flag is listed, so an empty
+        // lobby below is the flag's doing and not an empty fixture.
+        const carol = makeInMemoryDb(host.tables, { identitySubject: CAROL });
+        const listedId = (await run(createGame, carol.ctx, {
+            name: "Carol's table",
+            deck: { ...DECK, id: "deck-3" },
+        })) as Id<"games">;
+
+        // Each in-memory db copies the tables it is handed: Bob reads the
+        // state after BOTH writes.
+        const bob = makeInMemoryDb(carol.tables, { identitySubject: BOB });
+        const rows = (await run(listOpenGames, bob.ctx, {})) as {
+            _id: string;
+        }[];
+        expect(rows.map((r) => r._id)).toEqual([listedId]);
+
+        const info = await run(getJoinInfo, bob.ctx, { gameId: unlistedId });
+        expect(info.joinable).toBe(true);
+        expect(info.isHost).toBe(false);
+    });
+
+    it("stamps nothing on a table created without the flag", async () => {
+        const host = makeInMemoryDb(
+            { users: users() },
+            { identitySubject: ALICE }
+        );
+        const gameId = (await run(createGame, host.ctx, {
+            name: "Alice's table",
+            deck: DECK,
+            unlisted: false,
+        })) as Id<"games">;
+        const row = host.tables.games!.find((g) => g._id === gameId)!;
+        expect("unlisted" in row).toBe(false);
     });
 });

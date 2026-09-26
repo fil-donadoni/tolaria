@@ -26,6 +26,7 @@ function harness(overrides: Partial<LaneFleetDeps> = {}) {
     const logs: string[] = [];
     const accounts = overrides.accounts ?? [newLaneAccount()];
     const account = accounts[0];
+    const host = overrides.host ?? newLaneAccount();
     // The RECORDING is the harness's and is never overridden: a test that makes
     // one call throw is still asserting on what the fleet ATTEMPTED, and an
     // override that swallowed the recording would leave `destroys()` at zero
@@ -36,6 +37,7 @@ function harness(overrides: Partial<LaneFleetDeps> = {}) {
             fn.endsWith("sweepStaleLaneAccounts") ? { swept: [] } : null);
     const lane = createLaneFleet({
         accounts,
+        host,
         signUp: async (a) => {
             calls.push(`signUp ${a.email}`);
             return `token-of-${a.runId}`;
@@ -43,6 +45,10 @@ function harness(overrides: Partial<LaneFleetDeps> = {}) {
         seedDeck: async (a, token) => {
             calls.push(`seedDeck ${a.email} ${token}`);
             return `deck-of-${a.runId}`;
+        },
+        seedJoinTable: async (a, token) => {
+            calls.push(`seedJoinTable ${a.email} ${token}`);
+            return `table-of-${a.runId}`;
         },
         keepUser: false,
         log: (m) => logs.push(m),
@@ -52,10 +58,27 @@ function harness(overrides: Partial<LaneFleetDeps> = {}) {
             return answer(fn, args);
         },
     });
+    const destroyCall = (email: string) =>
+        `uiGateAccounts:destroyLaneAccount {"email":"${email}"}`;
+    /** Destroys of the WALKING accounts; the host's are `hostDestroys`. */
     const destroys = () =>
-        calls.filter((c) => c.startsWith("uiGateAccounts:destroyLaneAccount"))
-            .length;
-    return { lane, account, accounts, calls, logs, destroys };
+        calls.filter(
+            (c) =>
+                c.startsWith("uiGateAccounts:destroyLaneAccount") &&
+                c !== destroyCall(host.email)
+        ).length;
+    const hostDestroys = () =>
+        calls.filter((c) => c === destroyCall(host.email)).length;
+    return {
+        lane,
+        account,
+        accounts,
+        host,
+        calls,
+        logs,
+        destroys,
+        hostDestroys,
+    };
 }
 
 describe("newLaneAccount", () => {
@@ -72,7 +95,8 @@ describe("newLaneAccount", () => {
 
 describe("the lane account lifecycle (issue #3626)", () => {
     it("sweeps, signs up, grants, then seeds its run-scoped fixtures — in that order", async () => {
-        const { lane, account, calls } = harness();
+        const h = harness();
+        const { lane, account, calls } = h;
         await lane.bootstrap();
         expect(calls.slice(0, 6)).toEqual([
             "uiGateAccounts:sweepStaleLaneAccounts {}",
@@ -89,10 +113,17 @@ describe("the lane account lifecycle (issue #3626)", () => {
         // Then the declared positions (issue #3652) — the payloads, not the
         // account, so they are the tail of the bootstrap and not part of the
         // run-scoped block above. WHICH positions is the next test's job.
-        expect(calls.slice(6).length).toBeGreaterThan(0);
+        // The host (issue #4670) comes after every member: it signs up and
+        // opens its table, and nothing else.
+        const hostCalls = calls.slice(6, 8);
+        expect(hostCalls).toEqual([
+            `signUp ${h.host.email}`,
+            `seedJoinTable ${h.host.email} token-of-${h.host.runId}`,
+        ]);
+        expect(calls.slice(8).length).toBeGreaterThan(0);
         expect(
             calls
-                .slice(6)
+                .slice(8)
                 .every((c) =>
                     c.startsWith("debugScenarios:seedScenarioDirect ")
                 )
@@ -320,6 +351,68 @@ describe("a fleet of N accounts (issue #3653)", () => {
 
     it("refuses a fleet with no accounts rather than walking signed out", () => {
         expect(() => fleetOf(0)).toThrow(/at least one account/);
+    });
+});
+
+describe("the run's host account and its unlisted join table (issue #4670)", () => {
+    it("opens the table as the host, with the host's own session, and hands its id to the walks", async () => {
+        const h = harness({
+            accounts: [newLaneAccount(), newLaneAccount()],
+        });
+        await h.lane.bootstrap();
+        expect(h.calls).toContain(
+            `seedJoinTable ${h.host.email} token-of-${h.host.runId}`
+        );
+        // ONE table per run, never one per walking account.
+        expect(
+            h.calls.filter((c) => c.startsWith("seedJoinTable ")).length
+        ).toBe(1);
+        expect(h.lane.joinTableId).toBe(`table-of-${h.host.runId}`);
+    });
+
+    it("grants the host nothing and seeds it no member fixture", async () => {
+        const h = harness();
+        await h.lane.bootstrap();
+        const hostRows = h.calls.filter(
+            (c) => c.includes(h.host.email) && !c.startsWith("signUp ")
+        );
+        expect(hostRows).toEqual([
+            `seedJoinTable ${h.host.email} token-of-${h.host.runId}`,
+        ]);
+    });
+
+    it("destroys the host — and with it the table — however the run ends, once", async () => {
+        const ok = harness();
+        await withLaneFleet(ok.lane, async () => 0);
+        expect(ok.hostDestroys()).toBe(1);
+        ok.lane.teardown();
+        expect(ok.hostDestroys()).toBe(1);
+
+        const threw = harness();
+        await expect(
+            withLaneFleet(threw.lane, async () => {
+                throw new Error("walk threw");
+            })
+        ).rejects.toThrow("walk threw");
+        expect(threw.hostDestroys()).toBe(1);
+    });
+
+    it("destroys a host whose table seed failed after the sign-up", async () => {
+        const h = harness({
+            seedJoinTable: async () => {
+                throw new Error("createGame refused");
+            },
+        });
+        await expect(withLaneFleet(h.lane, async () => 0)).rejects.toThrow(
+            "createGame refused"
+        );
+        expect(h.hostDestroys()).toBe(1);
+        expect(h.destroys()).toBe(1);
+    });
+
+    it("is a lane address, so the two-hour sweep collects what a killed run strands", () => {
+        const h = harness();
+        expect(isLaneAccountEmail(h.host.email)).toBe(true);
     });
 });
 

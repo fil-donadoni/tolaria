@@ -17,6 +17,11 @@
  *      on failure, and on SIGINT/SIGTERM. `--keep-user` skips that and prints
  *      the credentials instead; the sweep collects the account later.
  *
+ * Beside the walking accounts, a run mints ONE host account (issue #4670) that
+ * never opens a browser: it hosts the unlisted table `/join/<gameId>` is
+ * walked over. It is a lane account like the others, so the same teardown and
+ * the same two-hour sweep collect it and its table.
+ *
  * The server half, and the refusals that make each step safe, live in
  * `convex/uiGateAccounts.ts`.
  *
@@ -295,14 +300,81 @@ export function passwordSeedDeck(convexUrl: string): SeedDeck {
     };
 }
 
+/**
+ * The table the `join-table` surface walks (issue #4670).
+ *
+ * `/join/<gameId>` is joinable only for a viewer who is NOT seated at the
+ * table (`getJoinInfo`), so its host is the run's own HOST account, never a
+ * walking one — and a walking account hosting it would also carry an active
+ * game into every lobby surface it walks. The table is UNLISTED
+ * (`games.unlisted`): `listOpenGames` broadcasts every other waiting table to
+ * every account on the deployment, so a listed fixture would sit in the
+ * lobby of every other lane of this run and of every concurrent run.
+ *
+ * The deck is the lane deck's list, freeform — the format every walking
+ * account's own deck shares, so the antechamber's pre-filtered deck picker
+ * paints a row. The host's cards are never shown to the viewer.
+ */
+export const LANE_JOIN_TABLE_NAME = "ui-gate join table";
+
+/** The `game:createGame` payload of the host's unlisted table. */
+export function laneJoinTablePayload(): Record<string, unknown> {
+    return {
+        name: LANE_JOIN_TABLE_NAME,
+        deck: {
+            id: "ui-gate-join-table",
+            name: LANE_DECK_NAME,
+            format: "freeform",
+            cards: laneDeckCards(),
+        },
+        unlisted: true,
+    };
+}
+
+/** Open the host's unlisted table, as the host (`token` is the session its
+ *  sign-up issued); resolves to the table's `games` id. */
+export type SeedJoinTable = (
+    host: LaneAccount,
+    token: string | null
+) => Promise<string>;
+
+/** The real seed: the PUBLIC `game:createGame` mutation the lobby's Create
+ *  calls, authenticated as the host — ownership derived server-side, exactly
+ *  as `passwordSeedDeck` does for the deck. */
+export function passwordSeedJoinTable(convexUrl: string): SeedJoinTable {
+    return async (host, token) => {
+        if (!token) {
+            throw new LaneAccountError(
+                `the sign-up issued no session for ${host.email} — the lane cannot open its join table`
+            );
+        }
+        const client = new ConvexHttpClient(convexUrl);
+        client.setAuth(token);
+        const id = await client.mutation(
+            anyApi.game.createGame,
+            laneJoinTablePayload()
+        );
+        if (typeof id !== "string" || id === "") {
+            throw new LaneAccountError(
+                `game:createGame returned no id for ${host.email}`
+            );
+        }
+        return id;
+    };
+}
+
 export interface LaneFleetDeps {
     /** One account per parallel lane (issue #3653). The one-game-per-account
      *  lobby gate is per ACCOUNT, so two contexts that must walk a game surface
      *  at the same time cannot share one. */
     accounts: readonly LaneAccount[];
+    /** The run's HOST account (issue #4670): hosts the unlisted join table,
+     *  walks nothing, holds no roles. */
+    host: LaneAccount;
     run: ConvexRunner;
     signUp: SignUp;
     seedDeck: SeedDeck;
+    seedJoinTable: SeedJoinTable;
     keepUser: boolean;
     log: (message: string) => void;
 }
@@ -317,6 +389,10 @@ export interface LaneMember {
 
 export interface LaneFleet {
     readonly members: readonly LaneMember[];
+    /** The unlisted table the host opened (`LANE_JOIN_TABLE_NAME`), set by
+     *  `bootstrap()`. Every member may walk it: the antechamber is read-only
+     *  until its `Join game` plate is pressed, which no walk does. */
+    readonly joinTableId: string | undefined;
     bootstrap(): Promise<void>;
     /** Synchronous and idempotent — safe from a `finally` AND a signal.
      *  Destroys EVERY member, and a member whose destroy throws never stops
@@ -346,9 +422,13 @@ export function createLaneFleet(deps: LaneFleetDeps): LaneFleet {
     /** Addresses whose sign-up was ATTEMPTED — the set teardown works from. */
     const registering = new Set<string>();
     let tornDown = false;
+    let joinTableId: string | undefined;
 
     return {
         members,
+        get joinTableId() {
+            return joinTableId;
+        },
 
         async bootstrap() {
             const sweep = run("uiGateAccounts:sweepStaleLaneAccounts", {}) as {
@@ -379,6 +459,12 @@ export function createLaneFleet(deps: LaneFleetDeps): LaneFleet {
                 // #4421), written by the account's own authenticated call.
                 member.deckId = await deps.seedDeck(account, token);
             }
+            // The host (issue #4670): signed up like a member — armed first,
+            // for the same lost-response reason — but granted nothing, and
+            // seeded with nothing but its one unlisted table.
+            registering.add(deps.host.email);
+            const hostToken = await deps.signUp(deps.host);
+            joinTableId = await deps.seedJoinTable(deps.host, hostToken);
             // The game surfaces' declared positions (issue #3652). Upsert by
             // label, so this is idempotent and concurrent-run safe; it is the
             // step that makes "debug scenario absent from this deployment"
@@ -399,12 +485,20 @@ export function createLaneFleet(deps: LaneFleetDeps): LaneFleet {
                     `ui-gate: run ${account.runId} — lane account ${account.email}`
                 );
             }
+            log(
+                `ui-gate: host ${deps.host.email} — unlisted join table ${joinTableId}`
+            );
         },
 
         teardown() {
             if (registering.size === 0 || tornDown) return;
             tornDown = true;
-            for (const { account } of members) {
+            // The host last: its table is the only row it owns, and a member
+            // destroy never touches it.
+            for (const account of [
+                ...members.map((m) => m.account),
+                deps.host,
+            ]) {
                 if (!registering.has(account.email)) continue;
                 if (deps.keepUser) {
                     log(

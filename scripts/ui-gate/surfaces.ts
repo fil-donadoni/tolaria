@@ -25,7 +25,11 @@ import type { Page } from "playwright";
 // SEEDING mutation reads them from, so renaming a label cannot leave the lane
 // addressing a row that no longer exists (issue #2822 review), and the walks
 // receive them on `WalkContext` because they are per RUN now (issue #3626).
-import { LANE_DECK_NAME, type FixtureLabels } from "./lane-account.ts";
+import {
+    LANE_DECK_NAME,
+    LANE_JOIN_TABLE_NAME,
+    type FixtureLabels,
+} from "./lane-account.ts";
 // The one wait before a measurement (issue #3644): no fixed sleep remains in
 // this module, and `ui-gate-settle.test.ts` reds if a sleep comes back.
 import { waitForSettledScreen } from "./settle.ts";
@@ -80,6 +84,10 @@ export interface WalkContext {
      *  (`LANE_DECK_NAME`, seeded at bootstrap — issue #4421). The three delete
      *  confirms open over it; `undefined` only if the bootstrap never ran. */
     laneDeckId?: string;
+    /** The `games` id of the run's unlisted join table (issue #4670), hosted
+     *  by the run's HOST account — never this lane's, so `/join/<id>` is
+     *  joinable here. `undefined` only if the bootstrap never ran. */
+    joinTableId?: string;
     /** Set once the lane has created the active game itself. */
     createdGame: boolean;
     /** Issue #2671 review H2. The `deck-builder` walk's fixture import trips
@@ -3521,6 +3529,80 @@ export const SURFACES: readonly Surface[] = [
                 "the deck page's Delete",
                 `Delete "${LANE_DECK_NAME}"?`
             );
+        },
+    },
+    {
+        id: "join-table",
+        // The invite antechamber in its JOINABLE state (issue #4670): the
+        // run's HOST account opened an unlisted table at bootstrap
+        // (`LANE_JOIN_TABLE_NAME`), so this lane — not seated there — gets the
+        // `Join game` plate and the deck picker, not the "Can't join game"
+        // error panel a lane-hosted table would show its own host. Unlisted,
+        // so no other lane's `lobby` measures it. The walk picks the lane's
+        // own deck (`LANE_DECK_NAME`, a freeform row the format filter keeps)
+        // — client state only, it writes nothing — so the `Join game` plate
+        // is live, and it never presses the plate: every lane walks the same
+        // table.
+        entries: ["src/routes/join.route.tsx"],
+        label: `Join a table (/join/<${LANE_JOIN_TABLE_NAME}>)`,
+        asserts: [
+            {
+                label: "antechamber heading",
+                locator: { role: "heading", name: "Join game" },
+                check: "visible",
+            },
+            {
+                label: "deck picker: Your Decks",
+                locator: { role: "heading", name: "Your Decks" },
+                check: "visible",
+            },
+            {
+                label: "deck picker: Preset Decks",
+                locator: { role: "heading", name: "Preset Decks" },
+                check: "visible",
+            },
+            {
+                label: "deck picker: the lane's own deck",
+                locator: { role: "button", name: LANE_DECK_NAME },
+                check: "visible",
+            },
+            {
+                label: "Join game plate",
+                locator: { role: "button", name: "Join game" },
+                check: "reachable",
+            },
+        ],
+        async walk(page, ctx) {
+            if (!ctx.joinTableId) {
+                throw new Unreachable(
+                    `the run opened no join table (\`${LANE_JOIN_TABLE_NAME}\` is seeded at bootstrap by lane-account.ts) — read that run's bootstrap output`
+                );
+            }
+            await goto(page, ctx, `/join/${ctx.joinTableId}`);
+            if (!(await visible(page, "h2:has-text('Join game')", 10_000))) {
+                // The error panel names its reason; a walk over it is not
+                // the screen this row measures.
+                const reason = await page
+                    .locator("[role=alert], p")
+                    .first()
+                    .textContent()
+                    .catch(() => null);
+                throw new Unreachable(
+                    `/join/${ctx.joinTableId} did not render the joinable antechamber${reason ? ` — ${reason.trim()}` : ""}`
+                );
+            }
+            const deckRow = page
+                .getByRole("button", { name: LANE_DECK_NAME, exact: true })
+                .first();
+            try {
+                await deckRow.waitFor({ state: "visible", timeout: 10_000 });
+            } catch {
+                throw new Unreachable(
+                    `the antechamber's deck picker showed no \`${LANE_DECK_NAME}\` row — the lane seeds it at bootstrap (lane-account.ts)`
+                );
+            }
+            await deckRow.click();
+            await settle(page);
         },
     },
     {
