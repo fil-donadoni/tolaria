@@ -5558,6 +5558,14 @@
         "firstPrintSet": "apc"
     },
     {
+        "name": "Bloodfire Kavu",
+        "scryfallId": "1442b1f3-8c2c-4553-906f-c864fcdc6ae5",
+        "oracleId": "a12880c4-1987-42af-8595-0b88981e1091",
+        "firstSet": "apc",
+        "firstPrintId": "1442b1f3-8c2c-4553-906f-c864fcdc6ae5",
+        "firstPrintSet": "apc"
+    },
+    {
         "name": "Bloodfire Mentor",
         "scryfallId": "4836fb70-a8f3-44ed-bae4-890ef7d07f88",
         "oracleId": "2c47319a-4062-4aec-b68a-e8e8f023cf86",
