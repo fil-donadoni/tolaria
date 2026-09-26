@@ -501,11 +501,11 @@ export const suffocatingBlast: CardDefinition = {
 // member, the same per-permanent flag Manacles of Decay writes (CR 509.1a).
 // The flag clears at cleanup (CR 514.2), which is the "this turn" duration.
 //
-// Divergence: CR 611.2c makes "creatures can't block" a rules-modifying effect
-// (no characteristic changes), so it must also bind a creature that enters
-// after resolution; `forEach` freezes its member set at resolution, so a
-// creature with flash that enters before blockers can still block.
-// tracked-by: #4726
+// Divergence (tracked-by: #4726): CR 611.2c makes "creatures can't block" a
+// rules-modifying effect (no characteristic changes), so it must also bind a
+// creature that enters after resolution; `forEach` freezes its member set at
+// resolution, so a creature with flash that enters before blockers can still
+// block.
 export const orderChaos: CardDefinition = defineSplitCard({
     id: "14e4f5a4-b1ea-4816-b2d7-cf148468a388",
     rarity: "uncommon",

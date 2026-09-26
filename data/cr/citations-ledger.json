@@ -29299,7 +29299,7 @@
         {"id":"611.2c","line":"// CR 614 + CR 611.2c — the permanent never entered, so the \"It's an","sites":1,"status":"baseline"},
         {"id":"611.2c","line":"// Call to Arms (CR 611.2c conditional anthem on strict colour plurality +","sites":1,"status":"baseline"},
         {"id":"611.2c","line":"// Creature}` (CR 611.2c/608.2i — Garruk Wildspeaker's −4 shape, `lrw/","sites":1,"status":"baseline"},
-        {"id":"611.2c","line":"// Divergence: CR 611.2c makes \"creatures can't block\" a rules-modifying effect","sites":1,"status":"confirmed","ruleHash":"eb5cc884f54a8ee4"},
+        {"id":"611.2c","line":"// Divergence (tracked-by: #4726): CR 611.2c makes \"creatures can't block\" a","sites":1,"status":"confirmed","ruleHash":"eb5cc884f54a8ee4"},
         {"id":"611.2c","line":"// Hand-size-gated conditions (CR 611.2c, issue #1379 — Carnage","sites":1,"status":"baseline"},
         {"id":"611.2c","line":"// Krovikan Fetish — {2}{B} Aura. Static +1/+1 on the host (CR 611.2c layer 7c)","sites":1,"status":"baseline"},
         {"id":"611.2c","line":"// Modelled as a CR 611.2c \"as long as ...\" conditional layer-6 keyword grant","sites":1,"status":"baseline"},
