@@ -18,10 +18,10 @@ import { activateAbilityOnState } from "../../../../game";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { checkStateBasedActions } from "../../../../gre/sba";
 import type { CardInstanceState, GameState } from "../../../../gre/state";
-import { bloodfireInfusion } from "../red";
-import { grizzlyBears } from "../../lea";
 
 const ABILITY_ID = "bloodfire-infusion-sweep";
+const BLOODFIRE_INFUSION_ID = "2639e9b7-ed8c-48fd-a8b7-b99d8dad4bc0";
+const GRIZZLY_BEARS_ID = "ce2d603a-3231-4a8c-bf39-1617586ea870";
 
 function creature(
     id: string,
@@ -29,7 +29,7 @@ function creature(
     power: number,
     toughness: number
 ): CardInstanceState {
-    return makeInstance(grizzlyBears.id, {
+    return makeInstance(GRIZZLY_BEARS_ID, {
         id,
         controllerId,
         ownerId: controllerId,
@@ -40,7 +40,7 @@ function creature(
 
 /** p1 controls the Aura on `host` (3/3) plus a bystander 2/5; p2 has a 2/2. */
 function board(opts: { attachedTo?: string } = {}): GameState {
-    const aura = makeInstance(bloodfireInfusion.id, {
+    const aura = makeInstance(BLOODFIRE_INFUSION_ID, {
         id: "aura",
         controllerId: "p1",
         ownerId: "p1",
@@ -75,7 +75,7 @@ function onBattlefield(state: GameState, id: string) {
 
 describe("Bloodfire Infusion (APC, issue #4319)", () => {
     it("is the registry definition the tests below drive", () => {
-        expect(getDefinition(bloodfireInfusion.id).name).toBe(
+        expect(getDefinition(BLOODFIRE_INFUSION_ID).name).toBe(
             "Bloodfire Infusion"
         );
     });
