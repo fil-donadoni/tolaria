@@ -49,8 +49,16 @@ import { enumerateMoves, type Move } from "../moves";
 import { getLegalActions } from "../rules";
 import { allocInstanceId, type GameState } from "../state";
 import { hasInstantSpeed, manaValue } from "../constants";
-import { basicLandsForColors, getCardColors } from "../../cards/colors";
-import type { CardDefinition, EffectForEachSelector } from "../../cards/types";
+import {
+    basicLandsForColors,
+    getCardColors,
+    getColorsFromCost,
+} from "../../cards/colors";
+import type {
+    CardDefinition,
+    Color,
+    EffectForEachSelector,
+} from "../../cards/types";
 import { castShape } from "./botReachForm";
 import {
     combatTrickPosition,
@@ -490,6 +498,23 @@ const MAX_FOLLOW_THROUGH_STEPS = 12;
  *  mana value does not count (kicker, an activation after the cast). */
 const EXTRA_LANDS = 2;
 
+/**
+ * CR 702.33a — the colours the generated lands must produce: the card's own
+ * (its mana cost) AND those of every kicker leg. A kicker's mana is an
+ * additional cost the card's colour never counts (`getCardColors` reads the
+ * printed cost only), so a mono-red card kicked with {W}{W} was posed on
+ * Mountains alone, the kicked cast was never payable, and the Bot was measured
+ * on the unkicked half of the card only. Lives HERE for the same reason as
+ * `sweptTypes`: it decides what the position CONTAINS, so it is a verdict
+ * input and must be inside the Bot hash.
+ */
+function poseColors(def: CardDefinition): Color[] {
+    const colors = new Set<Color>(getCardColors(def));
+    for (const kicker of def.kickers ?? [])
+        for (const c of getColorsFromCost(kicker.mana)) colors.add(c);
+    return [...colors];
+}
+
 /** How many MORE of each swept type the opponent holds than the holder. A
  *  sweep costs the holder the card itself and everything of its own it
  *  destroys; the opponent's surplus is what pays for both. Only the SWEPT types
@@ -562,7 +587,7 @@ export function botReachSpec(
 ): ScenarioSpec {
     const isLand = def.types.includes("Land");
     const landCount = isLand ? 1 : manaValue(def.manaCost) + EXTRA_LANDS;
-    const cycle = basicLandsForColors(getCardColors(def));
+    const cycle = basicLandsForColors(poseColors(def));
     const cards: ScenarioCard[] = [];
     for (let i = 0; i < landCount; i++) {
         cards.push({
