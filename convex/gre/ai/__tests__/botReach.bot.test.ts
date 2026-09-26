@@ -1034,7 +1034,9 @@ describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
                 priority: "me",
             })
         );
-        // Not an edict, and a creature spell with no target.
+        // A spell aimed at a player that is not an attacker edict, and a
+        // creature spell with no target.
+        expect(attackEdictPosition(getCardByName("Mind Rot"))).toBeNull();
         expect(attackEdictPosition(getCardByName("Serra Angel"))).toBeNull();
         expect(attackEdictPosition(COUNTER_INSTANT)).toBeNull();
     });
