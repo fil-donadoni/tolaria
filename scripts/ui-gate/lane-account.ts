@@ -185,14 +185,16 @@ export function localConvexRunner(
     };
 }
 
-export type SignUp = (account: LaneAccount) => Promise<void>;
+/** Register the account; resolves to the session token the sign-up issued
+ *  (`null` when the backend issued none). */
+export type SignUp = (account: LaneAccount) => Promise<string | null>;
 
 /** The real sign-up: the same `auth:signIn` action, provider and params the
  *  auth form sends (`src/components/auth/auth-form.tsx`). */
 export function passwordSignUp(convexUrl: string): SignUp {
     return async (account) => {
         const client = new ConvexHttpClient(convexUrl);
-        await client.action(anyApi.auth.signIn, {
+        const res = (await client.action(anyApi.auth.signIn, {
             provider: "password",
             params: {
                 email: account.email,
@@ -200,7 +202,96 @@ export function passwordSignUp(convexUrl: string): SignUp {
                 nickname: account.nickname,
                 flow: "signUp",
             },
-        });
+        })) as { tokens?: { token?: string } | null } | null;
+        return res?.tokens?.token ?? null;
+    };
+}
+
+/**
+ * The deck every lane account OWNS (issue #4421, a slice of the census debt
+ * issue #4402).
+ *
+ * Three confirms are reachable only on a deck the signed-in account can
+ * delete: the lobby's `Delete "…"?` (a Deck Shelf tile's `More actions` menu),
+ * the deck page's, and the deck builder's — the last one exists ONLY on
+ * `/decks/<userDeckId>/edit` (`deck-builder.route.tsx` passes `onDelete` in
+ * user-edit mode alone). A fresh lane account owns nothing, so without this
+ * row none of the three layers can be opened.
+ *
+ * Why a deck the account owns and not a preset the admin lane could delete:
+ * the walks open a DESTRUCTIVE confirm and stop on it. On a preset, one
+ * mis-scoped click would delete a row every account on the deployment plays
+ * with; here the worst a walk can do is delete its own throwaway deck, which
+ * the account's teardown removes anyway (`deleteLaneAccountRows` covers
+ * `userDecks`).
+ *
+ * The cards are `mono-red-burn`'s own prints (`convex/deckPresets.ts`) —
+ * catalogue entries with art on every deployment — so the deck page's curve,
+ * the builder's zones and the Stats dialog all paint real content. The name
+ * never matches the builder's `Deck N` sequence, so the `deck-builder`
+ * surface's cleanup (which deletes by its own auto-assigned name) cannot reach
+ * this row.
+ */
+export const LANE_DECK_NAME = "ui-gate deck";
+
+function laneDeckCards(): { cardId: string; cardName: string }[] {
+    const rows: [number, string, string][] = [
+        [4, "d573ef03-4730-45aa-93dd-e45ac1dbaf4a", "Lightning Bolt"],
+        [4, "b4eb3db3-6a7c-488a-9433-d5d1d3133816", "Mons's Goblin Raiders"],
+        [4, "0ddb98e8-13fe-4786-83f7-b72c56db135a", "Hill Giant"],
+        [4, "78a9088f-8755-47cb-aa93-51d992ccab90", "Hurloon Minotaur"],
+        [8, "eace2c85-976c-425e-9800-5a6ccbd91b56", "Mountain"],
+    ];
+    return rows.flatMap(([n, cardId, cardName]) =>
+        Array.from({ length: n }, () => ({ cardId, cardName }))
+    );
+}
+
+/** The `userDecks:create` payload of the lane's own deck. */
+export function laneDeckPayload(): Record<string, unknown> {
+    return {
+        name: LANE_DECK_NAME,
+        format: "freeform",
+        colors: ["R"],
+        cards: laneDeckCards(),
+    };
+}
+
+/** Create the account's own deck, as the account (`token` is the session
+ *  its sign-up issued); resolves to the deck's `userDecks` id. */
+export type SeedDeck = (
+    account: LaneAccount,
+    token: string | null
+) => Promise<string>;
+
+/**
+ * The real seed: the PUBLIC `userDecks:create` mutation — the one the deck
+ * builder's autosave calls — authenticated with the session the sign-up just
+ * issued. No `convex run` seeder: the row is written by the account's own
+ * call, so ownership is derived server-side exactly as it is for a player,
+ * and the lane needs no function the deployment might not carry yet. And no
+ * second sign-in: a Password sign-in is a password hash on the auth backend,
+ * the step a loaded machine times out first.
+ */
+export function passwordSeedDeck(convexUrl: string): SeedDeck {
+    return async (account, token) => {
+        if (!token) {
+            throw new LaneAccountError(
+                `the sign-up issued no session for ${account.email} — the lane cannot create its own deck`
+            );
+        }
+        const client = new ConvexHttpClient(convexUrl);
+        client.setAuth(token);
+        const id = await client.mutation(
+            anyApi.userDecks.create,
+            laneDeckPayload()
+        );
+        if (typeof id !== "string" || id === "") {
+            throw new LaneAccountError(
+                `userDecks:create returned no id for ${account.email}`
+            );
+        }
+        return id;
     };
 }
 
@@ -211,6 +302,7 @@ export interface LaneFleetDeps {
     accounts: readonly LaneAccount[];
     run: ConvexRunner;
     signUp: SignUp;
+    seedDeck: SeedDeck;
     keepUser: boolean;
     log: (message: string) => void;
 }
@@ -219,6 +311,8 @@ export interface LaneFleetDeps {
 export interface LaneMember {
     readonly account: LaneAccount;
     readonly labels: FixtureLabels;
+    /** The account's own deck (`LANE_DECK_NAME`), set by `bootstrap()`. */
+    deckId?: string;
 }
 
 export interface LaneFleet {
@@ -264,12 +358,13 @@ export function createLaneFleet(deps: LaneFleetDeps): LaneFleet {
             if (swept > 0) {
                 log(`ui-gate: swept ${swept} stale lane account(s)`);
             }
-            for (const { account } of members) {
+            for (const member of members) {
+                const { account } = member;
                 // Armed BEFORE the sign-up call: a sign-up whose response was
                 // lost may still have created the account, and teardown of an
                 // address that does not exist is a no-op.
                 registering.add(account.email);
-                await deps.signUp(account);
+                const token = await deps.signUp(account);
                 run("uiGateAccounts:grantLaneRoles", { email: account.email });
                 run("limitedFixtures:seedUiGateFixtures", {
                     email: account.email,
@@ -280,6 +375,9 @@ export function createLaneFleet(deps: LaneFleetDeps): LaneFleet {
                 run("verdictResolutions:seedUiGateContestedPosition", {
                     email: account.email,
                 });
+                // The deck the three delete confirms open over (issue
+                // #4421), written by the account's own authenticated call.
+                member.deckId = await deps.seedDeck(account, token);
             }
             // The game surfaces' declared positions (issue #3652). Upsert by
             // label, so this is idempotent and concurrent-run safe; it is the

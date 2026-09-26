@@ -70,27 +70,42 @@ export default function DeckBanlistPanel({ format }: DeckBanlistPanelProps) {
                 ) : entries.length === 0 ? (
                     <EmptyState message="No cards are banned or restricted." />
                 ) : (
-                    <ul className="flex max-h-[60vh] flex-col gap-1 overflow-y-auto">
-                        {entries.map((entry) => (
-                            <li
-                                key={entry.cardName}
-                                className="flex items-center justify-between gap-3 border-b border-border-subtle/20 py-1 text-sm last:border-none"
-                            >
-                                <span className="text-text">
-                                    {entry.cardName}
-                                </span>
-                                <span
-                                    className={
-                                        entry.status === "banned"
-                                            ? "rounded-sm bg-danger/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-danger-strong-strong"
-                                            : "rounded-sm bg-accent-soft px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-accent-strong"
-                                    }
+                    // A scroll port with no focusable child needs its own
+                    // tab stop (axe `scrollable-region-focusable`, WCAG
+                    // 2.1.1) — measured on `deck-builder-banlist` at all five
+                    // viewports (issue #4421). `role="region"` + a name, the
+                    // shape `mana-pile-view.tsx` uses for the same rule — on
+                    // a WRAPPER, because a `role` on the `<ul>` itself strips
+                    // its list semantics and orphans every `<li>` (axe
+                    // `listitem`).
+                    <div
+                        tabIndex={0}
+                        role="region"
+                        aria-label="Official banlist (scrollable)"
+                        className="max-h-[60vh] overflow-y-auto"
+                    >
+                        <ul className="flex flex-col gap-1">
+                            {entries.map((entry) => (
+                                <li
+                                    key={entry.cardName}
+                                    className="flex items-center justify-between gap-3 border-b border-border-subtle/20 py-1 text-sm last:border-none"
                                 >
-                                    {entry.status}
-                                </span>
-                            </li>
-                        ))}
-                    </ul>
+                                    <span className="text-text">
+                                        {entry.cardName}
+                                    </span>
+                                    <span
+                                        className={
+                                            entry.status === "banned"
+                                                ? "rounded-sm bg-danger/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-danger-strong-strong"
+                                                : "rounded-sm bg-accent-soft px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-accent-strong"
+                                        }
+                                    >
+                                        {entry.status}
+                                    </span>
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
                 )}
             </GameDialog>
         </>

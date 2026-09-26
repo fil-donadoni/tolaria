@@ -51,7 +51,16 @@ export default function BanlistCardsDialog({
                     No cards are banned or restricted.
                 </p>
             ) : (
-                <div className="flex max-h-[65vh] flex-col gap-4 overflow-y-auto">
+                // Its own tab stop: the card tiles below are not focusable,
+                // so without one the scroll port is unreachable by keyboard
+                // (axe `scrollable-region-focusable`, WCAG 2.1.1 — measured
+                // on `admin-banlist-cards`, issue #4421).
+                <div
+                    tabIndex={0}
+                    role="region"
+                    aria-label={`${label} banlist cards (scrollable)`}
+                    className="flex max-h-[65vh] flex-col gap-4 overflow-y-auto"
+                >
                     {banned.length > 0 && (
                         <section className="flex flex-col gap-2">
                             <h3 className="text-xs font-semibold uppercase tracking-wide text-danger-strong-strong">

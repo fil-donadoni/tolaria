@@ -546,6 +546,64 @@ describe("check:ui surface table — Named Assertions", () => {
         });
     });
 
+    /**
+     * Issue #4421's half: the lobby, deck and banlist LAYERS, each walked open
+     * over a page the lane already measures (`docs/guides/ui-runbooks.md`
+     * § Lobby, deck and banlist layers). Two shapes worth a second look:
+     *
+     *  - the three delete confirms promise their `Cancel`, never the
+     *    destructive `Delete` plate — that name also belongs to the opener
+     *    behind the scrim, so `.first()` could answer with either;
+     *  - the two viewport-SPLIT rows (`deck-builder-filters`,
+     *    `deck-builder-basics`) promise a control INSIDE the panel, the same
+     *    node whether it sits in a BottomSheet, a popover or inline.
+     */
+    it("the lobby, deck and banlist layers promise their entry points", () => {
+        const confirm = [
+            'visible role=dialog name=Delete "ui-gate deck"?',
+            "reachable role=button name=Cancel",
+        ];
+        expectPromised({
+            "lobby-join-by-code": [
+                "visible role=dialog name=Join by code",
+                "reachable role=textbox name=Join code",
+                "reachable role=button name=Cancel",
+            ],
+            "lobby-delete-confirm": confirm,
+            "deck-builder-import": [
+                "visible role=dialog name=Import decklist",
+                "reachable role=button name=Add 5 cards",
+                "reachable role=button name=Cancel",
+            ],
+            "deck-builder-banlist": [
+                "visible role=dialog name=Official banlist",
+                "reachable [data-game-dialog-close]",
+            ],
+            "deck-builder-filters": [
+                "reachable role=button name=Colorless",
+                "reachable role=button name=Color R",
+            ],
+            "deck-builder-basics": [
+                "reachable role=button name=Add five Island",
+            ],
+            "deck-builder-stats": [
+                "visible role=dialog name=Deck Statistics",
+                "visible role=heading name=Mana Curve",
+                "reachable [data-game-dialog-close]",
+            ],
+            "deck-builder-delete-confirm": confirm,
+            "deck-detail-delete-confirm": confirm,
+            "admin-banlist-cards": [
+                "visible role=dialog name=Premodern banlist",
+                "reachable [data-game-dialog-close]",
+            ],
+            "game-concede-confirm": [
+                "visible role=dialog name=Concede match?",
+                "reachable role=button name=Cancel",
+            ],
+        });
+    });
+
     /** The debt list is empty, and every surface carries its own promises —
      *  the end state ADR 0132 §3 describes. A new surface declares them in the
      *  change that adds it rather than re-opening this list. */

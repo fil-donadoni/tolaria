@@ -38,6 +38,11 @@ function harness(overrides: Partial<LaneFleetDeps> = {}) {
         accounts,
         signUp: async (a) => {
             calls.push(`signUp ${a.email}`);
+            return `token-of-${a.runId}`;
+        },
+        seedDeck: async (a, token) => {
+            calls.push(`seedDeck ${a.email} ${token}`);
+            return `deck-of-${a.runId}`;
         },
         keepUser: false,
         log: (m) => logs.push(m),
@@ -69,20 +74,25 @@ describe("the lane account lifecycle (issue #3626)", () => {
     it("sweeps, signs up, grants, then seeds its run-scoped fixtures — in that order", async () => {
         const { lane, account, calls } = harness();
         await lane.bootstrap();
-        expect(calls.slice(0, 5)).toEqual([
+        expect(calls.slice(0, 6)).toEqual([
             "uiGateAccounts:sweepStaleLaneAccounts {}",
             `signUp ${account.email}`,
             `uiGateAccounts:grantLaneRoles {"email":"${account.email}"}`,
             `limitedFixtures:seedUiGateFixtures {"email":"${account.email}","runId":"${account.runId}"}`,
             `verdictResolutions:seedUiGateContestedPosition {"email":"${account.email}"}`,
+            // With the session the sign-up issued — never a second sign-in.
+            `seedDeck ${account.email} token-of-${account.runId}`,
         ]);
+        // The deck the three delete confirms open over (issue #4421), handed
+        // to that account's walks — never another lane's.
+        expect(lane.members[0].deckId).toBe(`deck-of-${account.runId}`);
         // Then the declared positions (issue #3652) — the payloads, not the
         // account, so they are the tail of the bootstrap and not part of the
         // run-scoped block above. WHICH positions is the next test's job.
-        expect(calls.slice(5).length).toBeGreaterThan(0);
+        expect(calls.slice(6).length).toBeGreaterThan(0);
         expect(
             calls
-                .slice(5)
+                .slice(6)
                 .every((c) =>
                     c.startsWith("debugScenarios:seedScenarioDirect ")
                 )
@@ -224,7 +234,15 @@ describe("a fleet of N accounts (issue #3653)", () => {
             expect(h.calls).toContain(
                 `verdictResolutions:seedUiGateContestedPosition {"email":"${account.email}"}`
             );
+            expect(h.calls).toContain(
+                `seedDeck ${account.email} token-of-${account.runId}`
+            );
         }
+        // Each account walks over its OWN deck (issue #4421): a lane that
+        // opened another lane's deck would race that lane's walks for it.
+        expect(h.lane.members.map((m) => m.deckId)).toEqual(
+            h.accounts.map((a) => `deck-of-${a.runId}`)
+        );
         // Each lane walks under its own labels — two contexts listing one
         // `/limited?label=…` would see each other's fixtures.
         expect(new Set(h.lane.members.map((m) => m.labels.prefix)).size).toBe(

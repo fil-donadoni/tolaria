@@ -25,7 +25,7 @@ import type { Page } from "playwright";
 // SEEDING mutation reads them from, so renaming a label cannot leave the lane
 // addressing a row that no longer exists (issue #2822 review), and the walks
 // receive them on `WalkContext` because they are per RUN now (issue #3626).
-import type { FixtureLabels } from "./lane-account.ts";
+import { LANE_DECK_NAME, type FixtureLabels } from "./lane-account.ts";
 // The one wait before a measurement (issue #3644): no fixed sleep remains in
 // this module, and `ui-gate-settle.test.ts` reds if a sleep comes back.
 import { waitForSettledScreen } from "./settle.ts";
@@ -76,6 +76,10 @@ export interface WalkContext {
      *  pass already banked (CR 117.4), so the walk's single pass resolves it
      *  into a mid-resolution card choice (CR 608.2) over the board. */
     choiceScenarioLabel: string;
+    /** The `userDecks` id of the deck this lane's account OWNS
+     *  (`LANE_DECK_NAME`, seeded at bootstrap — issue #4421). The three delete
+     *  confirms open over it; `undefined` only if the bootstrap never ran. */
+    laneDeckId?: string;
     /** Set once the lane has created the active game itself. */
     createdGame: boolean;
     /** Issue #2671 review H2. The `deck-builder` walk's fixture import trips
@@ -2475,6 +2479,103 @@ function dialogSpecimenSurface(
     };
 }
 
+/*
+ * ── The lobby, deck and banlist LAYERS (issue #4421) ──────────────────────
+ *
+ * A slice of the coverage census's debt (issue #4402). Eleven overlays around
+ * the lobby and the deck surfaces were measured at no viewport, and most of
+ * them sit INSIDE pages the lane already walks: `lobby`, `deck-builder` and
+ * `deck-detail` measure the page, never the layer a control on it opens. Each
+ * row below walks to that control, presses it, and ENDS on the open layer — so
+ * the probe photographs it and the row's `mounts` claim is a measurement, not
+ * a reachability argument.
+ *
+ * Nothing here presses a layer's own action. Three of them are DESTRUCTIVE
+ * confirms (`Delete "…"?` twice, `Concede match?` once) and every walk stops
+ * on the open dialog; the next surface's `goto` is a full navigation, which
+ * drops the layer with nothing submitted. The delete confirms open over the
+ * deck the lane's account OWNS (`LANE_DECK_NAME`, seeded at bootstrap by
+ * `lane-account.ts`), never a preset — one mis-scoped click there would
+ * delete a row every account on the deployment plays with.
+ */
+
+/** The lane's own deck, at `/decks/<id><suffix>`. */
+function laneDeckPath(ctx: WalkContext, suffix = ""): string {
+    if (!ctx.laneDeckId) {
+        throw new Unreachable(
+            `the lane account owns no deck (\`${LANE_DECK_NAME}\` is seeded at bootstrap by lane-account.ts) — read that run's bootstrap output`
+        );
+    }
+    return `/decks/${ctx.laneDeckId}${suffix}`;
+}
+
+/**
+ * Press the VISIBLE button named exactly `name`, optionally inside `scope`.
+ *
+ * By role and exact name, never `:text-is()`: `ActionButton` wraps its label
+ * in a `<span>`, so a text selector matches the span and never the button
+ * (the `CONFIRM_CONCEDE` note above). And `visible` because the deck builder
+ * renders several of its controls TWICE — `SaveDeckBar` off a phone and
+ * `DeckBottomBar` in portrait, a header `Stats` and its compact twin — with
+ * one of each pair hidden at any given viewport.
+ */
+async function pressNamed(
+    page: Page,
+    name: string,
+    what: string,
+    scope?: string
+): Promise<void> {
+    const root = scope ? page.locator(scope) : page;
+    const target = root
+        .getByRole("button", { name, exact: true })
+        .filter({ visible: true })
+        .first();
+    try {
+        await target.waitFor({ state: "visible", timeout: STEP_TIMEOUT });
+    } catch {
+        throw new Unreachable(
+            `${what}: no visible \`${name}\` button within 8s`
+        );
+    }
+    try {
+        await target.click({ timeout: STEP_TIMEOUT });
+    } catch (err) {
+        throw new Unreachable(
+            `${what}: \`${name}\` was visible but could not be clicked: ${(err as Error).message.split("\n")[0]}`
+        );
+    }
+}
+
+/** Wait for the layer a press opened, park the pointer off it, settle on it.
+ *
+ *  `name` is the layer's accessible name (a GameDialog's title, a
+ *  BottomSheet's `aria-label`): given, the wait is on THAT dialog, so a
+ *  different layer opening in its place is Unreachable rather than measured.
+ *  The pointer moves for the reason `boardDialogSurface` gives: a dialog
+ *  mounts centred, under the cursor the click left behind, and a card tile
+ *  under the pointer opens the hover preview over the layer being measured. */
+async function settleOnLayer(
+    page: Page,
+    layer: string,
+    what: string,
+    name?: string
+): Promise<void> {
+    await page.mouse.move(2, 2);
+    const target = name
+        ? page.getByRole("dialog", { name, exact: true })
+        : page.locator(layer);
+    try {
+        await target
+            .first()
+            .waitFor({ state: "visible", timeout: STEP_TIMEOUT });
+    } catch {
+        throw new Unreachable(
+            `${what} opened no ${name ? `dialog named "${name}"` : `\`${layer}\` layer`} within 8s`
+        );
+    }
+    await settle(page, [layer]);
+}
+
 export const SURFACES: readonly Surface[] = [
     {
         id: "auth-sign-in",
@@ -2763,6 +2864,110 @@ export const SURFACES: readonly Surface[] = [
         },
     },
     {
+        id: "lobby-join-by-code",
+        // The dialog is still open at measurement — the walk ends on it
+        // (issue #4421).
+        mounts: ["src/components/lobby/join-by-code-dialog.tsx"],
+        entries: ["src/routes/lobby.route.tsx"],
+        label: "Join by code dialog (/ \u2192 Loadout \u2192 Join by code)",
+        // The code-entry step of joining someone else's table (issue #2649):
+        // the field the code goes in and the plate that leaves. `Join table`
+        // is deliberately NOT promised — it is disabled until a code is typed,
+        // and this walk types none.
+        asserts: [
+            {
+                label: "dialog: Join by code",
+                locator: { role: "dialog", name: "Join by code" },
+                check: "visible",
+            },
+            {
+                label: "Join code field",
+                locator: { role: "textbox", name: "Join code" },
+                check: "reachable",
+            },
+            {
+                label: "dialog Cancel",
+                locator: { role: "button", name: "Cancel" },
+                check: "reachable",
+            },
+        ],
+        async walk(page, ctx) {
+            await goto(page, ctx, "/");
+            // `Join by code` shares the primary plate's gate
+            // (`lobbyActionGate`'s `canAct`): disabled until a deck is the
+            // Loadout's active one — the same precondition `lobby-vs-ai`
+            // meets one row up.
+            if (!(await visible(page, DECK_TILE_SELECTED, 2000))) {
+                if (!(await selectPlayableDeck(page))) {
+                    throw new Unreachable(
+                        "the lobby offered no selectable Deck Shelf tile \u2014 is the deployment seeded with preset decks?"
+                    );
+                }
+                await settle(page);
+            }
+            await pressNamed(page, "Join by code", "the lobby's Loadout");
+            await settleOnLayer(
+                page,
+                "[role=dialog]",
+                "`Join by code`",
+                "Join by code"
+            );
+        },
+    },
+    {
+        id: "lobby-delete-confirm",
+        // `lobby.tsx`'s own inline confirm, open at measurement (issue #4421).
+        mounts: ["src/components/lobby/lobby.tsx"],
+        entries: ["src/routes/lobby.route.tsx"],
+        label: `Lobby delete confirm (/ \u2192 ${LANE_DECK_NAME} \u2192 More actions \u2192 Delete)`,
+        // The confirm's own name and its safe exit. The destructive plate is
+        // deliberately NOT promised: `Delete` is also the name of the row
+        // menu's item and of other decks' controls behind the scrim, and a
+        // promise whose `.first()` could land on either is a promise about
+        // neither.
+        asserts: [
+            {
+                label: "dialog: delete the lane deck",
+                locator: {
+                    role: "dialog",
+                    name: `Delete "${LANE_DECK_NAME}"?`,
+                },
+                check: "visible",
+            },
+            {
+                label: "dialog Cancel",
+                locator: { role: "button", name: "Cancel" },
+                check: "reachable",
+            },
+        ],
+        async walk(page, ctx) {
+            await goto(page, ctx, "/");
+            const menu = `button[aria-label="More actions for ${LANE_DECK_NAME}"]`;
+            if (!(await clickIfVisible(page, menu, 10_000))) {
+                throw new Unreachable(
+                    `the lobby's Deck Shelf showed no \`${LANE_DECK_NAME}\` tile \u2014 the lane seeds it at bootstrap (lane-account.ts)`
+                );
+            }
+            if (
+                !(await clickIfVisible(
+                    page,
+                    '[role="menuitem"]:has-text("Delete")',
+                    STEP_TIMEOUT
+                ))
+            ) {
+                throw new Unreachable(
+                    `the \`${LANE_DECK_NAME}\` row menu offered no Delete item`
+                );
+            }
+            await settleOnLayer(
+                page,
+                "[role=dialog]",
+                "the row menu's Delete",
+                `Delete "${LANE_DECK_NAME}"?`
+            );
+        },
+    },
+    {
         id: "deck-builder",
         entries: ["src/routes/deck-builder.route.tsx"],
         label: "Constructed deck builder (/decks/create)",
@@ -2946,6 +3151,276 @@ export const SURFACES: readonly Surface[] = [
         },
     },
     {
+        id: "deck-builder-import",
+        // The import dialog, open with a PREVIEW at measurement (issue #4421).
+        // The `deck-builder` row opens the same dialog and confirms through it
+        // — this one stops on it, after the preview has filled the body.
+        mounts: ["src/components/lobby/deck-builder/deck-import-dialog.tsx"],
+        entries: ["src/routes/deck-builder.route.tsx"],
+        label: "Deck builder \u2014 Import decklist, previewed (/decks/create \u2192 Import \u2192 Preview)",
+        // The dialog, the confirm plate the preview arms (its count is this
+        // walk's own five-line decklist), and the exit.
+        asserts: [
+            {
+                label: "dialog: Import decklist",
+                locator: { role: "dialog", name: "Import decklist" },
+                check: "visible",
+            },
+            {
+                label: "confirm: Add 5 cards",
+                locator: { role: "button", name: "Add 5 cards" },
+                check: "reachable",
+            },
+            {
+                label: "dialog Cancel",
+                locator: { role: "button", name: "Cancel" },
+                check: "reachable",
+            },
+        ],
+        async walk(page, ctx) {
+            await goto(page, ctx, "/decks/create");
+            await pressNamed(page, "Import", "the deck builder");
+            const textarea = '[role="dialog"] textarea';
+            if (!(await visible(page, textarea, STEP_TIMEOUT))) {
+                throw new Unreachable(
+                    "the Import decklist dialog did not open"
+                );
+            }
+            // The `deck-builder` row's own fixture, for the reason it gives:
+            // five unique names, five distinct mana values. Never confirmed —
+            // an import would trip the builder's autosave and write a deck.
+            await page
+                .locator(textarea)
+                .fill(
+                    "Deck\n1 Forest\n1 Llanowar Elves\n1 Grizzly Bears\n\nSideboard\n1 Shivan Dragon\n1 Circle of Protection: Red"
+                );
+            await pressNamed(
+                page,
+                "Preview",
+                "the Import dialog",
+                "[role=dialog]"
+            );
+            await settleOnLayer(
+                page,
+                "[role=dialog]",
+                "the Import dialog's Preview",
+                "Import decklist"
+            );
+        },
+    },
+    {
+        id: "deck-builder-banlist",
+        // The Format's official banlist, open at measurement (issue #4421).
+        mounts: ["src/components/lobby/deck-builder/deck-banlist-panel.tsx"],
+        entries: ["src/routes/deck-builder.route.tsx"],
+        label: "Deck builder \u2014 Official banlist (/decks/create?format=premodern \u2192 Banlist)",
+        // Premodern because `DeckBanlistPanel` renders nothing for a Format
+        // with no DB-backed banlist (`isBanlistFormatId`), and a new deck's
+        // Format is whatever `?format=` seeds. The list is deployment data,
+        // so the promise is the frame, not a row count.
+        asserts: [
+            {
+                label: "dialog: Official banlist",
+                locator: { role: "dialog", name: "Official banlist" },
+                check: "visible",
+            },
+            {
+                label: "dialog close control",
+                locator: { selector: "[data-game-dialog-close]" },
+                check: "reachable",
+            },
+        ],
+        async walk(page, ctx) {
+            await goto(page, ctx, "/decks/create?format=premodern");
+            await pressNamed(page, "Banlist", "the Premodern deck builder");
+            await settleOnLayer(
+                page,
+                "[role=dialog]",
+                "`Banlist`",
+                "Official banlist"
+            );
+        },
+    },
+    {
+        id: "deck-builder-filters",
+        // The card filters, open at measurement (issue #4421). VIEWPORT-SPLIT
+        // by design (issue #2585), like `draft-pool-peek`: on a phone
+        // `DeckFiltersButton` opens its BottomSheet — the censused layer this
+        // row claims — and on anything roomier the same controls in an
+        // anchored popover, which the census does not count. The claim is
+        // therefore "measured where it exists", the granularity `mounts`
+        // documents.
+        mounts: ["src/components/lobby/deck-builder/deck-filters-button.tsx"],
+        entries: ["src/routes/deck-builder.route.tsx"],
+        label: "Deck builder \u2014 card filters open (/decks/create \u2192 Filters)",
+        // Controls INSIDE the panel, never the panel's frame: the frame is a
+        // sheet on the phone viewports and a popover on the rest, while the
+        // colour filters are the same nodes in both — the one promise that
+        // holds at all five.
+        asserts: [
+            {
+                label: "filter: Colorless",
+                locator: { role: "button", name: "Colorless" },
+                check: "reachable",
+            },
+            {
+                label: "filter: Color R",
+                locator: { role: "button", name: "Color R" },
+                check: "reachable",
+            },
+        ],
+        async walk(page, ctx) {
+            await goto(page, ctx, "/decks/create");
+            await pressNamed(page, "Filters", "the deck builder");
+            const sheet = "[data-filters-sheet]";
+            const layer = (await visible(page, sheet, 2000))
+                ? sheet
+                : "[data-filters-popover]";
+            await settleOnLayer(page, layer, "`Filters`");
+        },
+    },
+    {
+        id: "deck-builder-basics",
+        // The basic-lands sheet, open at measurement where the layout folds
+        // the bar into it (issue #4421). VIEWPORT-SPLIT, three regimes
+        // (`deck-builder-shell.tsx`): portrait opens `DeckBasicsSheet` from
+        // the bottom bar's `Lands`, the source-dock layout from its own `Add
+        // Basic`, and every other viewport paints the bar INLINE — where the
+        // bar is part of the page this row still measures.
+        mounts: ["src/components/deckbuilder/deck-basics-sheet.tsx"],
+        entries: ["src/routes/deck-builder.route.tsx"],
+        label: "Deck builder \u2014 basic lands (/decks/create \u2192 Lands)",
+        // A stepper INSIDE the bar, the same node in the sheet and inline —
+        // the one promise that holds in all three regimes.
+        asserts: [
+            {
+                label: "basics stepper: Add five Island",
+                locator: { role: "button", name: "Add five Island" },
+                check: "reachable",
+            },
+        ],
+        async walk(page, ctx) {
+            await goto(page, ctx, "/decks/create");
+            const stepper = '[aria-label="Add five Island"]';
+            let opener: string | null = null;
+            for (const name of ["Lands", "Add Basic"]) {
+                const count = await page
+                    .getByRole("button", { name, exact: true })
+                    .filter({ visible: true })
+                    .count();
+                if (count > 0) {
+                    opener = name;
+                    break;
+                }
+            }
+            const sheet = "[data-basics-sheet]";
+            if (opener !== null) {
+                await pressNamed(page, opener, "the deck builder");
+                if (!(await visible(page, sheet, STEP_TIMEOUT))) {
+                    throw new Unreachable(
+                        `\`${opener}\` opened no basic-lands sheet within 8s`
+                    );
+                }
+            }
+            // On compact chrome the bar folds its steppers behind its own
+            // `Add Basic ▾` disclosure (`CompactChromeDisclosure`, issue
+            // #2511) — inside the sheet as much as inline — so the steppers
+            // this row promises are one more press away there.
+            if (!(await visible(page, stepper, 2000))) {
+                await pressNamed(
+                    page,
+                    "Add Basic \u25be",
+                    "the basics bar's fold",
+                    opener === null ? undefined : sheet
+                );
+            }
+            if (!(await visible(page, stepper, STEP_TIMEOUT))) {
+                throw new Unreachable(
+                    "the deck builder's basics bar showed no steppers"
+                );
+            }
+            if (opener === null) {
+                // The inline regime: nothing to open, the bar is on the page.
+                await settle(page, [stepper]);
+                return;
+            }
+            await settleOnLayer(page, sheet, `\`${opener}\``, "Basic lands");
+        },
+    },
+    {
+        id: "deck-builder-stats",
+        // The Stats dialog over the lane's own deck, open at measurement
+        // (issue #4421) — a real Maindeck, so the curve, the pips and the type
+        // band all paint.
+        mounts: ["src/components/deckbuilder/deck-stats-dialog.tsx"],
+        entries: ["src/routes/deck-builder.route.tsx"],
+        label: `Deck builder \u2014 Deck Statistics (/decks/<${LANE_DECK_NAME}>/edit \u2192 Stats)`,
+        asserts: [
+            {
+                label: "dialog: Deck Statistics",
+                locator: { role: "dialog", name: "Deck Statistics" },
+                check: "visible",
+            },
+            {
+                label: "section: Mana Curve",
+                locator: { role: "heading", name: "Mana Curve" },
+                check: "visible",
+            },
+            {
+                label: "dialog close control",
+                locator: { selector: "[data-game-dialog-close]" },
+                check: "reachable",
+            },
+        ],
+        async walk(page, ctx) {
+            await goto(page, ctx, laneDeckPath(ctx, "/edit"));
+            await pressNamed(page, "Stats", "the deck builder");
+            await settleOnLayer(
+                page,
+                "[role=dialog]",
+                "`Stats`",
+                "Deck Statistics"
+            );
+        },
+    },
+    {
+        id: "deck-builder-delete-confirm",
+        // `deck-builder.tsx`'s own inline confirm, open at measurement (issue
+        // #4421). It exists only in user-EDIT mode — the route passes
+        // `onDelete` nowhere else — hence the lane's own deck.
+        mounts: ["src/components/lobby/deck-builder/deck-builder.tsx"],
+        entries: ["src/routes/deck-builder.route.tsx"],
+        label: `Deck builder delete confirm (/decks/<${LANE_DECK_NAME}>/edit \u2192 Delete)`,
+        // The confirm and its safe exit; the destructive plate shares its
+        // name with the save bar's opener behind the scrim (see
+        // `lobby-delete-confirm`).
+        asserts: [
+            {
+                label: "dialog: delete the lane deck",
+                locator: {
+                    role: "dialog",
+                    name: `Delete "${LANE_DECK_NAME}"?`,
+                },
+                check: "visible",
+            },
+            {
+                label: "dialog Cancel",
+                locator: { role: "button", name: "Cancel" },
+                check: "reachable",
+            },
+        ],
+        async walk(page, ctx) {
+            await goto(page, ctx, laneDeckPath(ctx, "/edit"));
+            await pressNamed(page, "Delete", "the deck builder's save bar");
+            await settleOnLayer(
+                page,
+                "[role=dialog]",
+                "the save bar's Delete",
+                `Delete "${LANE_DECK_NAME}"?`
+            );
+        },
+    },
+    {
         id: "deck-detail",
         entries: ["src/routes/deck-detail.route.tsx"],
         label: "Deck detail (/decks/mono-red-burn)",
@@ -3001,6 +3476,51 @@ export const SURFACES: readonly Surface[] = [
                     "/decks/mono-red-burn did not render the deck detail heading"
                 );
             }
+        },
+    },
+    {
+        id: "deck-detail-delete-confirm",
+        // `deck-detail.tsx`'s own inline confirm, open at measurement (issue
+        // #4421), over the lane's own deck: `Delete` renders for a deck the
+        // viewer may delete, and the walk never presses the confirm's plate.
+        mounts: ["src/components/lobby/deck-detail.tsx"],
+        entries: ["src/routes/deck-detail.route.tsx"],
+        label: `Deck detail delete confirm (/decks/<${LANE_DECK_NAME}> \u2192 Delete)`,
+        asserts: [
+            {
+                label: "dialog: delete the lane deck",
+                locator: {
+                    role: "dialog",
+                    name: `Delete "${LANE_DECK_NAME}"?`,
+                },
+                check: "visible",
+            },
+            {
+                label: "dialog Cancel",
+                locator: { role: "button", name: "Cancel" },
+                check: "reachable",
+            },
+        ],
+        async walk(page, ctx) {
+            await goto(page, ctx, laneDeckPath(ctx));
+            if (
+                !(await visible(
+                    page,
+                    `h1:has-text(${JSON.stringify(LANE_DECK_NAME)})`,
+                    10_000
+                ))
+            ) {
+                throw new Unreachable(
+                    `the deck page did not render the \`${LANE_DECK_NAME}\` heading`
+                );
+            }
+            await pressNamed(page, "Delete", "the deck page");
+            await settleOnLayer(
+                page,
+                "[role=dialog]",
+                "the deck page's Delete",
+                `Delete "${LANE_DECK_NAME}"?`
+            );
         },
     },
     {
@@ -3483,6 +4003,48 @@ export const SURFACES: readonly Surface[] = [
                     "/admin/banlists did not render the page heading — is this account still an admin?"
                 );
             }
+        },
+    },
+    {
+        id: "admin-banlist-cards",
+        // A Format's banlist card list, open at measurement (issue #4421).
+        mounts: ["src/components/lobby/banlist-cards-dialog.tsx"],
+        entries: [
+            "src/routes/admin/admin-layout.route.tsx",
+            "src/routes/admin/admin-banlists.route.tsx",
+        ],
+        label: "Banlist card list (/admin/banlists \u2192 View cards)",
+        // The first `View cards` is the Premodern row's (`BANLIST_FORMATS`
+        // order, the `.first()` note on `admin-banlists`). Its list is
+        // deployment data — the promise is the frame and its exit.
+        asserts: [
+            {
+                label: "dialog: Premodern banlist",
+                locator: { role: "dialog", name: "Premodern banlist" },
+                check: "visible",
+            },
+            {
+                label: "dialog close control",
+                locator: { selector: "[data-game-dialog-close]" },
+                check: "reachable",
+            },
+        ],
+        async walk(page, ctx) {
+            await goto(page, ctx, "/admin/banlists");
+            if (!(await visible(page, "h1:has-text('Banlists')", 10_000))) {
+                throw new Unreachable(
+                    "/admin/banlists did not render the page heading \u2014 is this account still an admin?"
+                );
+            }
+            // `View cards` is DISABLED until its Format's counts answer; the
+            // click's own actionability wait covers that.
+            await pressNamed(page, "View cards", "/admin/banlists");
+            await settleOnLayer(
+                page,
+                "[role=dialog]",
+                "`View cards`",
+                "Premodern banlist"
+            );
         },
     },
     {
@@ -4504,6 +5066,45 @@ export const SURFACES: readonly Surface[] = [
         ],
         async walk(page, ctx) {
             await ensureScenarioBoard(page, ctx, ctx.boardScenarioLabel);
+        },
+    },
+    {
+        id: "game-concede-confirm",
+        needsGame: true,
+        // The lobby's active-game notice, its `Concede match?` confirm open at
+        // measurement (issue #4421). `concedeLaneGame` clicks THROUGH this
+        // dialog; this row stops on it, and the next row's navigation drops it
+        // with the lane's game intact.
+        mounts: ["src/components/lobby/active-game-notice.tsx"],
+        entries: ["src/routes/lobby.route.tsx", "src/routes/game.route.tsx"],
+        label: "Lobby active-game notice \u2014 Concede match? (/ \u2192 Concede Match)",
+        asserts: [
+            {
+                label: "dialog: Concede match?",
+                locator: { role: "dialog", name: "Concede match?" },
+                check: "visible",
+            },
+            {
+                label: "dialog Cancel",
+                locator: { role: "button", name: "Cancel" },
+                check: "reachable",
+            },
+        ],
+        async walk(page, ctx) {
+            await ensureBoard(page, ctx);
+            await goto(page, ctx, "/");
+            if (!(await visible(page, BANNER_RESUME, 10_000))) {
+                throw new Unreachable(
+                    "the lobby showed no active-game notice with the lane's game standing"
+                );
+            }
+            await pressNamed(page, "Concede Match", "the active-game notice");
+            await settleOnLayer(
+                page,
+                "[role=dialog]",
+                "the notice's Concede Match",
+                "Concede match?"
+            );
         },
     },
     {

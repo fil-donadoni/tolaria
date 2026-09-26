@@ -141,6 +141,11 @@ export default function DeckFiltersButton({
             </PopoverTrigger>
             <PopoverContent
                 data-filters-popover=""
+                // The popup is a `role="dialog"`, and a dialog needs a name
+                // (axe `aria-dialog-name`, measured on `deck-builder-filters`
+                // at the three popover viewports, issue #4421) — the sheet
+                // twin above carries its `title` as one already.
+                aria-label="Filters"
                 side="bottom"
                 align="start"
                 className="max-h-[70dvh] w-[min(28rem,calc(100vw-2rem))] overflow-y-auto text-sm"
