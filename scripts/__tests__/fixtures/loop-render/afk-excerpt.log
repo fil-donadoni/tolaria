@@ -1,0 +1,20 @@
+2026-09-26 15:53:12 loop-handoff[run]: AFK run armed with CLAUDE_ARGS=--dangerously-skip-permissions
+2026-09-26 15:53:12 loop-handoff[run]: every pass will run: /next-issue on the issue and tier the driver resolves for it (unscoped)
+2026-09-26 15:53:12 loop-handoff[warn]: WARNING — this run answers every permission prompt automatically.
+2026-09-26 15:53:12 loop-drain[run]: run 1790430792-59822 — budget 140000000 weighted tokens, --max-pct 100% ⇒ effective ceiling 140000000 tokens, counted from this launch over this run's own passes only.
+2026-09-26 15:53:12 loop-drain: waiting 45s before the first pass (handoff grace period).
+2026-09-26 20:02:45 loop-drain[pass]: pass 19 — issue #4516 on tier opus.
+2026-09-26 20:25:04 - **Test:** 14 test nuovi, tutti verdi. Ho rotto il codice in 12 punti diversi e ogni rottura ha fatto fallire almeno un test.
+2026-09-26 20:25:04 - **Review:** un giro opus ha trovato 2 problemi bloccanti, entrambi corretti.
+2026-09-26 20:25:04   - Mancava un tetto alle chiusure di massa: aggiunto (25).
+2026-09-26 20:25:04
+2026-09-26 20:25:04 loop-drain[end]: pass=19 exit=0 reason=- pct=78.2 queue_before=12 queue_after=11 spent=109480000 budget=140000000 ceiling=140000000 duration=1339 retry=0
+2026-09-26 20:25:14 loop-drain[sweep]: orphan-claim sweep —
+2026-09-26 20:25:14 loop:doctor — no claimed issues. Nothing to check.
+2026-09-26 20:25:43 loop-drain[pass]: pass 20 — issue #4517 on tier sonnet.
+2026-09-26 20:32:09 - **PR:** PR #4732, mergiata. Issue #4517 chiusa.
+2026-09-26 20:32:09 loop-drain[end]: pass=20 exit=1 reason=claude-retry pct=92 queue_before=11 queue_after=11 spent=128800000 budget=140000000 ceiling=140000000 duration=384 retry=60
+2026-09-26 20:32:09 loop-drain[error]: pass 20 crashed (claude exit 1; consecutive failure 1/3) — retrying in 60s. Log tail:
+2026-09-27 00:05:00 loop-drain[warn]: budget guard tripped — run 1790430792-59822 has spent 140420000 of 140000000 weighted tokens (100.3%) >= --max-pct 100%.
+2026-09-27 00:05:00
+2026-09-27 00:05:00 loop-drain[summary]: passes=20 reason=budget queue_start=30 queue_end=11 final_pct=100.3 spent=140420000 budget=140000000 ceiling=140000000 duration=29508
