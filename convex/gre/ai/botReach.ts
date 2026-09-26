@@ -49,7 +49,11 @@ import { enumerateMoves, type Move } from "../moves";
 import { getLegalActions } from "../rules";
 import { allocInstanceId, type GameState } from "../state";
 import { hasInstantSpeed, manaValue } from "../constants";
-import { basicLandsForColors, getCardColors } from "../../cards/colors";
+import {
+    basicLandsForColors,
+    getCardColors,
+    getColorsFromCost,
+} from "../../cards/colors";
 import type { CardDefinition, EffectForEachSelector } from "../../cards/types";
 import { castShape } from "./botReachForm";
 import {
@@ -490,6 +494,26 @@ const MAX_FOLLOW_THROUGH_STEPS = 12;
  *  mana value does not count (kicker, an activation after the cast). */
 const EXTRA_LANDS = 2;
 
+/**
+ * CR 702.33a (Kicker) — the extra lands a kicker leg's coloured mana needs.
+ * A kicker's mana is an additional cost the card's colour never counts
+ * (`getCardColors` reads the printed cost only), so a mono-red card kicked
+ * with {W}{W} was posed on Mountains alone, the kicked cast was never
+ * payable, and the Bot was measured on the unkicked half of the card only.
+ * One land per coloured pip of each leg, ADDED to the printed-cost lands so
+ * the unkicked cast stays exactly as payable as before. Lives HERE for the
+ * same reason as `sweptTypes`: it decides what the position CONTAINS, so it
+ * is a verdict input and must be inside the Bot hash.
+ */
+function kickerLands(def: CardDefinition): string[] {
+    const lands: string[] = [];
+    for (const { mana } of def.kickers ?? [])
+        for (const color of getColorsFromCost(mana))
+            for (let i = 0; i < (mana?.[color] ?? 0); i++)
+                lands.push(basicLandsForColors([color])[0]!);
+    return lands;
+}
+
 /** How many MORE of each swept type the opponent holds than the holder. A
  *  sweep costs the holder the card itself and everything of its own it
  *  destroys; the opponent's surplus is what pays for both. Only the SWEPT types
@@ -571,6 +595,8 @@ export function botReachSpec(
             zone: "battlefield",
         });
     }
+    for (const name of kickerLands(def))
+        cards.push({ name, owner: "me", zone: "battlefield" });
     const shrinks = shrinksEveryCreature(def);
     const target = targetPose(def);
     const edicted = edictedTypes(def);

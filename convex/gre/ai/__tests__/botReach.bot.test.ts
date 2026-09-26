@@ -272,6 +272,70 @@ const OPPONENT_DRAW_SORCERY: CardDefinition = {
     effects: [{ op: "draw", player: "opponent", count: 3 }],
 };
 
+/** CR 702.33a (Kicker) / 603.6a — a mono-red creature whose enters trigger
+ *  destroys the holder's OWN other creatures, and every player's other creatures instead
+ *  when kicked with WHITE mana its printed cost never names. Unkicked it is
+ *  strictly a loss in the generated position (two bodies for one), so it is
+ *  cast only if the kicked branch is payable. */
+const KICKED_SWEEP_CREATURE: CardDefinition = {
+    id: "bot-reach-test:kicked-sweep",
+    name: "Bot Reach Kicked Sweeper",
+    rarity: "rare",
+    manaCost: { generic: 2, R: 2 },
+    types: ["Creature"],
+    subtypes: ["Giant"],
+    power: 3,
+    toughness: 3,
+    kickers: [{ id: "kicker", description: "Kicker {W}{W}", mana: { W: 2 } }],
+    compiledTriggeredAbilities: [
+        {
+            id: "bot-reach-test:kicked-sweep:trigger",
+            oracleText:
+                "When this creature enters, destroy all other creatures you control. If it was kicked, destroy all other creatures instead.",
+            head: { kind: "entered", scope: "self" },
+            effects: [
+                {
+                    op: "if",
+                    predicate: {
+                        left: { kickerCount: true },
+                        op: "ge",
+                        right: 1,
+                    },
+                    then: [
+                        {
+                            op: "forEach",
+                            select: {
+                                set: "permanents",
+                                zone: "battlefield",
+                                filter: { type: "Creature" },
+                                excludeSource: true,
+                            },
+                            effects: [
+                                { op: "destroy", target: { ref: "$each" } },
+                            ],
+                        },
+                    ],
+                    else: [
+                        {
+                            op: "forEach",
+                            select: {
+                                set: "permanents",
+                                zone: "battlefield",
+                                controller: "controller",
+                                filter: { type: "Creature" },
+                                excludeSource: true,
+                            },
+                            effects: [
+                                { op: "destroy", target: { ref: "$each" } },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+    ],
+};
+
 describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
     it("played — the Bot casts an affordable creature at both seats", () => {
         expect(playTwice(getCardByName("Grizzly Bears"))).toEqual({
@@ -1094,5 +1158,39 @@ describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
         expect(castShape(getCardByName("Fireball"))).toBe(
             "Sorcery target:any X"
         );
+    });
+
+    // Issue #4284: the pose seeded lands in the colours of the printed cost
+    // only, so a kicker paid in another colour was never payable and the card
+    // was measured on its unkicked half alone (`never-chosen › Creature ›
+    // destroy+forEach+if`).
+    it("the pose's lands cover a kicker leg's colours as well as the cost's", () => {
+        const lands = botReachSpec(KICKED_SWEEP_CREATURE)
+            .cards.filter((c) => c.zone === "battlefield")
+            .map((c) => c.name);
+        expect(lands).toContain("Mountain");
+        expect(lands).toContain("Plains");
+    });
+
+    it("a kicker leg's lands are added, never dealt out of the printed cost's", () => {
+        const heavy: CardDefinition = {
+            ...KICKED_SWEEP_CREATURE,
+            manaCost: { R: 3 },
+        };
+        const lands = botReachSpec(heavy)
+            .cards.filter((c) => c.zone === "battlefield")
+            .map((c) => c.name);
+        expect(
+            lands.filter((n) => n === "Mountain").length
+        ).toBeGreaterThanOrEqual(3);
+        expect(lands.filter((n) => n === "Plains")).toHaveLength(2);
+    });
+
+    it("played — a card whose value lies in its kicked branch is cast kicked", () => {
+        withTemporaryDefinition(KICKED_SWEEP_CREATURE, () => {
+            expect(playTwice(KICKED_SWEEP_CREATURE)).toEqual({
+                outcome: "played",
+            });
+        });
     });
 });
