@@ -482,6 +482,36 @@ export function targetPose(def: CardDefinition): TargetPose {
     };
 }
 
+/**
+ * A spell that untaps an announced target needs something TAPPED to untap
+ * (CR 701.26b — an untapped permanent does not untap). The position seeds only
+ * untapped permanents, so the effect changes nothing in it and passing is the
+ * right play; the pose gives the holder a tapped body of its own, the thing an
+ * untap is worth casting on (issue #4288). `null` when `def` untaps no
+ * announced target.
+ */
+function untapPose(def: CardDefinition): TargetPose | null {
+    const untaps = (def.effects ?? []).some(
+        (e) =>
+            e.op === "tapUntap" &&
+            e.action === "untap" &&
+            typeof (e.target as { target?: unknown }).target === "number"
+    );
+    if (!untaps) return null;
+    return {
+        cards: [
+            {
+                name: BASE_CREATURE,
+                owner: "me",
+                zone: "battlefield",
+                tapped: true,
+            },
+        ],
+        omitToughnessBoost: false,
+        position: {},
+    };
+}
+
 /** The pose for ONE target requirement — the spell's own, or a mode's. */
 function requirementPose(
     def: CardDefinition,
@@ -490,6 +520,8 @@ function requirementPose(
 ): TargetPose {
     const landReq = landRequirement(target);
     if (landReq) return landPose(def, landReq, modeId);
+    const untap = modeId === undefined ? untapPose(def) : null;
+    if (untap) return untap;
     const req = creatureRequirement(target);
     if (!req || !narrows(req)) return NO_POSE;
     const printed = creatureFor(req);
