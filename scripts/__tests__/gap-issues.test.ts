@@ -37,6 +37,8 @@ import {
     SUB_ISSUE_CAP,
     clusterIssues,
     syncGaps,
+    issuesWorkedByPrs,
+    syncAdoptedBlocks,
     ADOPTED_BLOCK_END,
     ADOPTED_BLOCK_START,
     keyMatchesGlob,
@@ -128,13 +130,14 @@ class StubTracker implements GapTracker {
         this.stateReads.push(number);
         const issue = this.issues.get(number);
         if (issue === undefined) return null;
-        return (
-            this.states.get(number) ?? {
+        return {
+            ...(this.states.get(number) ?? {
                 open: issue.state === "OPEN",
                 inProgress: false,
                 openPr: false,
-            }
-        );
+            }),
+            body: issue.body,
+        };
     }
 
     private nextNumber = 5000;
@@ -1362,7 +1365,7 @@ describe("withAdoptedBlock — the managed block of a Gap Cluster", () => {
             "| `a › x` | C1, C2, C3, C4, C5 (+1 more) | residue |"
         );
         expect(block).toContain("| `b › y` | Card B | P1 |");
-        expect(block).toContain("| `c \\| z` | — | closed |");
+        expect(block).toContain("| `c \\| z` | — | no live gap |");
         expect(block.indexOf("a › x")).toBeLessThan(block.indexOf("b › y"));
     });
 
@@ -1396,27 +1399,22 @@ describe("syncGaps adopts a new gap into the matching Gap Cluster (ADR 0146)", (
             band: "P1",
             ...over,
         });
+    const HAND = "## Scope\n\nHand-cut.";
     const trackerWithCluster = () => {
         const tracker = new StubTracker();
-        tracker.issues.set(CLUSTER, {
-            state: "OPEN",
-            body: "## Scope\n\nHand-cut.",
-        });
+        tracker.issues.set(CLUSTER, { state: "OPEN", body: HAND });
         return tracker;
     };
     const HAND_ROW = claimId("bot", "never-chosen › instant › forEach");
 
-    it("claims the gap for the cluster: no create, a comment, the managed block", () => {
+    it("claims the gap for the cluster: no create, no body write, one comment", () => {
         const tracker = trackerWithCluster();
         const result = syncGaps(
             [botFiling()],
             tracker,
             undefined,
             new Set([CLUSTER]),
-            {
-                rows: [signature],
-                claims: new Map([[HAND_ROW, CLUSTER]]),
-            }
+            [signature]
         );
         expect(result.actions).toEqual([
             {
@@ -1429,13 +1427,8 @@ describe("syncGaps adopts a new gap into the matching Gap Cluster (ADR 0146)", (
         ]);
         expect(result.updatedRows.get(claimId("bot", BOT))).toBe(CLUSTER);
         expect(tracker.createCalls).toBe(0);
+        expect(tracker.updateCalls).toBe(0);
         expect(tracker.comments.map((c) => c.issue)).toEqual([CLUSTER]);
-        const body = tracker.issues.get(CLUSTER)!.body;
-        expect(body.startsWith("## Scope\n\nHand-cut.")).toBe(true);
-        expect(body).toContain(`| \`${BOT}\` | Card A | P1 |`);
-        expect(body).toContain(
-            "| `never-chosen › instant › forEach` | — | closed |"
-        );
     });
 
     it("files a single when the only matching cluster is in progress", () => {
@@ -1445,38 +1438,29 @@ describe("syncGaps adopts a new gap into the matching Gap Cluster (ADR 0146)", (
             inProgress: true,
             openPr: false,
         });
-        const result = syncGaps([botFiling()], tracker, undefined, new Set(), {
-            rows: [signature],
-            claims: new Map(),
-        });
+        const result = syncGaps([botFiling()], tracker, undefined, new Set(), [
+            signature,
+        ]);
         expect(result.actions.map((a) => [a.action, a.issue])).toEqual([
             ["create", 5000],
         ]);
         expect(result.updatedRows.get(claimId("bot", BOT))).toBe(5000);
     });
 
-    it("the next run over the recorded claim writes nothing", () => {
+    it("the next run over the recorded claim is the cluster, left alone", () => {
         const tracker = trackerWithCluster();
-        const first = syncGaps(
-            [botFiling()],
-            tracker,
-            undefined,
-            new Set([CLUSTER]),
-            {
-                rows: [signature],
-                claims: new Map(),
-            }
-        );
-        const writes = tracker.updateCalls;
+        syncGaps([botFiling()], tracker, undefined, new Set([CLUSTER]), [
+            signature,
+        ]);
         const second = syncGaps(
             [botFiling({ currentIssue: CLUSTER })],
             tracker,
             undefined,
             new Set([CLUSTER]),
-            { rows: [signature], claims: first.updatedRows }
+            [signature]
         );
         expect(second.actions.map((a) => a.action)).toEqual(["cluster"]);
-        expect(tracker.updateCalls).toBe(writes);
+        expect(tracker.updateCalls).toBe(0);
         expect(tracker.comments).toHaveLength(1);
     });
 
@@ -1487,7 +1471,7 @@ describe("syncGaps adopts a new gap into the matching Gap Cluster (ADR 0146)", (
             tracker,
             undefined,
             new Set(),
-            { rows: [signature], claims: new Map() }
+            [signature]
         );
         expect(result.actions).toEqual([
             { action: "adopt", kind: "bot", key: BOT, issue: 1234 },
@@ -1497,28 +1481,94 @@ describe("syncGaps adopts a new gap into the matching Gap Cluster (ADR 0146)", (
     it("with no signature rows, plans exactly what it planned before — and asks no cluster state", () => {
         const plain = syncGaps([botFiling()], new StubTracker());
         const tracker = new StubTracker();
-        const none = syncGaps([botFiling()], tracker, undefined, new Set(), {
-            rows: [],
-            claims: new Map(),
-        });
+        const none = syncGaps([botFiling()], tracker, undefined, new Set(), []);
         expect(none).toEqual(plain);
         expect(tracker.stateReads).toEqual([]);
     });
 
-    it("never writes a block into a Standalone Gap — its body is the filing's", () => {
-        const tracker = trackerWithCluster();
-        syncGaps([], tracker, undefined, new Set(), {
-            rows: [
-                {
-                    ...signature,
-                    match: [BOT],
-                    standalone: true,
-                    reason: "alone",
-                },
-            ],
-            claims: new Map(),
+    describe("syncAdoptedBlocks — the managed block, after the write-back", () => {
+        const recorded = new Map([
+            [claimId("bot", BOT), CLUSTER],
+            [HAND_ROW, CLUSTER],
+            [claimId("bot", "elsewhere › x"), 777],
+        ]);
+
+        it("lists every recorded key of the cluster; the hand-written text survives", () => {
+            const tracker = trackerWithCluster();
+            expect(
+                syncAdoptedBlocks([signature], recorded, [botFiling()], tracker)
+            ).toEqual([CLUSTER]);
+            const body = tracker.issues.get(CLUSTER)!.body;
+            expect(body.startsWith(HAND)).toBe(true);
+            expect(body).toContain(`| \`${BOT}\` | Card A | P1 |`);
+            expect(body).toContain(
+                "| `never-chosen › instant › forEach` | — | no live gap |"
+            );
+            expect(body).not.toContain("elsewhere");
         });
-        expect(tracker.updateCalls).toBe(0);
+
+        it("a second run writes nothing", () => {
+            const tracker = trackerWithCluster();
+            syncAdoptedBlocks([signature], recorded, [botFiling()], tracker);
+            const writes = tracker.updateCalls;
+            expect(
+                syncAdoptedBlocks([signature], recorded, [botFiling()], tracker)
+            ).toEqual([]);
+            expect(tracker.updateCalls).toBe(writes);
+        });
+
+        it("never writes into a Standalone Gap, a closed cluster or one a session is working", () => {
+            const tracker = trackerWithCluster();
+            syncAdoptedBlocks(
+                [{ ...signature, match: [BOT], standalone: true, reason: "r" }],
+                recorded,
+                [botFiling()],
+                tracker
+            );
+            for (const state of [
+                { open: false, inProgress: false, openPr: false },
+                { open: true, inProgress: true, openPr: false },
+                { open: true, inProgress: false, openPr: true },
+            ]) {
+                tracker.states.set(CLUSTER, state);
+                syncAdoptedBlocks(
+                    [signature],
+                    recorded,
+                    [botFiling()],
+                    tracker
+                );
+            }
+            expect(tracker.updateCalls).toBe(0);
+        });
+    });
+});
+
+describe("issuesWorkedByPrs — which clusters have an open PR", () => {
+    it("reads the `…issue-N` branch and closing keywords, nothing else", () => {
+        expect(
+            [
+                ...issuesWorkedByPrs(
+                    [
+                        { headRefName: "feat/issue-4677", body: "" },
+                        {
+                            headRefName: "fix/other",
+                            body: "Closes #12, fixes #13",
+                        },
+                        {
+                            headRefName: "docs/tweak",
+                            body: "see #14, issue #15",
+                        },
+                    ],
+                    100
+                ),
+            ].sort((a, b) => a - b)
+        ).toEqual([12, 13, 4677]);
+    });
+
+    it("fails closed on a full page — a truncated list would read a busy cluster as free", () => {
+        expect(() =>
+            issuesWorkedByPrs([{ headRefName: "x", body: "" }], 1)
+        ).toThrow(/fill the page/);
     });
 });
 

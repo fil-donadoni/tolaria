@@ -111,7 +111,9 @@ import {
     planUnlockEdges,
     clusterIssues,
     isAdoptedFiling,
+    issuesWorkedByPrs,
     matchCluster,
+    syncAdoptedBlocks,
     setFileColour,
     syncGaps,
     syncUnlockEdges,
@@ -334,41 +336,39 @@ export class GhGapTracker implements GapTracker {
 
     private openPrIssues: ReadonlySet<number> | null = null;
 
-    /** The issues an OPEN pull request is working on — by its branch
-     *  (`…/issue-N`, `wt:new`'s naming) or a closing keyword in its body. One
-     *  list call per run, read on first need. */
+    /** One list call per run, read on first need (`issuesWorkedByPrs`). */
     private openPrs(): ReadonlySet<number> {
         if (this.openPrIssues !== null) return this.openPrIssues;
-        const rows = JSON.parse(
-            gh([
-                "pr",
-                "list",
-                "--state",
-                "open",
-                "--limit",
-                "300",
-                "--json",
-                "headRefName,body",
-            ])
-        ) as { headRefName: string; body: string }[];
-        const issues = new Set<number>();
-        for (const row of rows) {
-            const branch = /issue-(\d+)$/.exec(row.headRefName);
-            if (branch !== null) issues.add(Number(branch[1]));
-            for (const m of row.body.matchAll(
-                /\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(\d+)/gi
-            ))
-                issues.add(Number(m[1]));
-        }
-        this.openPrIssues = issues;
-        return issues;
+        const limit = 500;
+        this.openPrIssues = issuesWorkedByPrs(
+            JSON.parse(
+                gh([
+                    "pr",
+                    "list",
+                    "--state",
+                    "open",
+                    "--limit",
+                    String(limit),
+                    "--json",
+                    "headRefName,body",
+                ])
+            ) as { headRefName: string; body: string }[],
+            limit
+        );
+        return this.openPrIssues;
     }
 
     clusterState(number: number): ClusterIssueState | null {
-        let row: { state: string; labels: { name: string }[] };
+        let row: { state: string; body: string; labels: { name: string }[] };
         try {
             row = JSON.parse(
-                gh(["issue", "view", String(number), "--json", "state,labels"])
+                gh([
+                    "issue",
+                    "view",
+                    String(number),
+                    "--json",
+                    "state,body,labels",
+                ])
             ) as typeof row;
         } catch (err) {
             if (isIssueNotFound(err)) return null;
@@ -378,6 +378,7 @@ export class GhGapTracker implements GapTracker {
             open: row.state !== "CLOSED",
             inProgress: row.labels.some((l) => l.name === "in-progress"),
             openPr: this.openPrs().has(number),
+            body: row.body,
         };
     }
 
@@ -1246,7 +1247,9 @@ function main(): void {
         const clusters = clusterIssues(allowlist);
         for (const filing of filings) {
             // No network on a dry run, so a signature match is previewed
-            // with every matching cluster assumed open and free.
+            // with every matching cluster assumed open and free — and only
+            // for an unfiled gap: one whose recorded issue was deleted
+            // reads "would reconcile" here, though the real run adopts it.
             const match =
                 filing.currentIssue === null && !isAdoptedFiling(filing)
                     ? matchCluster(filing, signatureRows, () => ({
@@ -1311,7 +1314,7 @@ function main(): void {
         tracker,
         originBand,
         clusterIssues(allowlist),
-        { rows: signatureRows, claims: filed }
+        signatureRows
     );
 
     const counts = new Map<string, number>();
@@ -1350,6 +1353,28 @@ function main(): void {
             `gaps:sync: ${result.updatedRows.size} allowlist row(s) updated in ${ALLOWLIST_PATH}`
         );
         commitAndPushAllowlist(root);
+    }
+
+    // The Gap Clusters' managed blocks (ADR 0146), after the write-back and
+    // in their own try/catch: every row is recorded, and a broken marker or a
+    // failed edit is re-tried next run instead of costing this one its rows.
+    if (signatureRows.length > 0) {
+        try {
+            const recorded = new Map([...filed, ...result.updatedRows]);
+            for (const issue of syncAdoptedBlocks(
+                signatureRows,
+                recorded,
+                filings,
+                tracker
+            ))
+                console.log(
+                    `cluster    managed block regenerated -> issue #${issue}`
+                );
+        } catch (err) {
+            console.log(
+                `cluster    managed blocks not regenerated: ${err instanceof Error ? err.message : String(err)} — re-tried next run`
+            );
+        }
     }
 
     // The NATIVE half of every `## Unlocks` edge, after the write-back: the

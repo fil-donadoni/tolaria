@@ -485,6 +485,9 @@ export interface ClusterIssueState {
     readonly open: boolean;
     readonly inProgress: boolean;
     readonly openPr: boolean;
+    /** The body as read NOW — what the managed block is spliced into, never
+     *  a copy prefetched before the run's writes or a hand edit. */
+    readonly body?: string;
 }
 
 export type GapSyncAction = {
@@ -735,7 +738,8 @@ export const ADOPTED_BLOCK_START =
 export const ADOPTED_BLOCK_END = "<!-- /gaps:sync adopted-gaps -->";
 
 /** One claim row of a Gap Cluster, as its managed block lists it. `live` is
- *  false for a key this run computes no gap for — it has closed. */
+ *  false for a key this run computes no gap for — closed, held below the
+ *  floor, or read gone on stale Findings: "no live gap", never "closed". */
 export interface AdoptedEntry {
     readonly key: string;
     readonly live: boolean;
@@ -763,7 +767,7 @@ export function renderAdoptedBlock(entries: readonly AdoptedEntry[]): string {
                       (e.cards.length > BLOCK_CARD_CAP
                           ? ` (+${e.cards.length - BLOCK_CARD_CAP} more)`
                           : "");
-            const band = !e.live ? "closed" : (e.band ?? "residue");
+            const band = !e.live ? "no live gap" : (e.band ?? "residue");
             return `| ${tick}${cell(e.key)}${tick} | ${cell(cards)} | ${band} |`;
         });
     return [
@@ -820,18 +824,79 @@ export function adoptionComment(filing: GapFiling): string {
     return `\`gaps:sync\` adopted the \`${filing.kind}\` gap \`${filing.key}\` into this Gap Cluster: its Cluster Signature matches (ADR 0146).${cards} The \`## Adopted gaps\` block lists it.`;
 }
 
-/** The Cluster Signatures and the claim rows a sync adopts against. */
-export interface ClusterSignatures {
-    readonly rows: readonly ClusterRow[];
-    /** `claimId` → issue, every allowlist row as committed (`ops` included)
-     *  — what a cluster's managed block lists. */
-    readonly claims: ReadonlyMap<string, number>;
+/**
+ * Regenerate the managed block of every open signature cluster (ADR 0146 §
+ * Decision 6) from the claim rows as RECORDED — `main` runs this after the
+ * allowlist write-back, in its own try/catch, because it can throw (broken
+ * markers, a `gh` failure) and nothing it does may cost the run the rows it
+ * already filed (review of PR #3978's rule). Written only when the block
+ * changed, so a quiet run writes nothing. Skipped: a Standalone Gap (a single,
+ * whose whole body is its filing's), a closed or missing cluster, and a
+ * cluster in progress or with an open PR — a session works from that body.
+ * Returns the issues it rewrote.
+ */
+export function syncAdoptedBlocks(
+    rows: readonly ClusterRow[],
+    claims: ReadonlyMap<string, number>,
+    filings: readonly GapFiling[],
+    tracker: Pick<GapTracker, "clusterState" | "updateBody">
+): number[] {
+    const filingOf = new Map(
+        filings.map((f) => [claimId(f.kind, f.key), f] as const)
+    );
+    const rewritten: number[] = [];
+    for (const row of rows) {
+        if (row.standalone === true) continue;
+        const state = tracker.clusterState(row.issue);
+        if (state === null || !state.open || state.inProgress || state.openPr)
+            continue;
+        if (state.body === undefined)
+            throw new Error(
+                `issue #${row.issue}: clusterState read no body — the managed block needs the body as it is now`
+            );
+        const entries: AdoptedEntry[] = [];
+        for (const [id, issue] of claims) {
+            if (issue !== row.issue) continue;
+            const f = filingOf.get(id);
+            entries.push(
+                f === undefined
+                    ? { key: splitClaimId(id).key, live: false }
+                    : { key: f.key, live: true, cards: f.cards, band: f.band }
+            );
+        }
+        const next = withAdoptedBlock(state.body, entries, row.issue);
+        if (next === state.body) continue;
+        tracker.updateBody(row.issue, next);
+        rewritten.push(row.issue);
+    }
+    return rewritten;
 }
 
-export const NO_SIGNATURES: ClusterSignatures = {
-    rows: [],
-    claims: new Map(),
-};
+/**
+ * The issues an OPEN pull request is working on — by its branch (`…issue-N`,
+ * `wt:new`'s naming) or a closing keyword in its body. Throws on a full page:
+ * a truncated list would read a cluster with an open PR as free and grow its
+ * scope under a session (fail-open).
+ */
+export function issuesWorkedByPrs(
+    rows: readonly { readonly headRefName: string; readonly body: string }[],
+    limit: number
+): Set<number> {
+    if (rows.length >= limit)
+        throw new Error(
+            `gaps:sync: ${rows.length} open PRs fill the page of ${limit} — cannot tell which Gap Clusters have an open PR`
+        );
+    const issues = new Set<number>();
+    for (const row of rows) {
+        const branch = /issue-(\d+)$/.exec(row.headRefName);
+        if (branch !== null) issues.add(Number(branch[1]));
+        for (const m of row.body.matchAll(
+            /\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(\d+)\b/gi
+        ))
+            issues.add(Number(m[1]));
+    }
+    return issues;
+}
 
 /**
  * The Gap Clusters whose body and parent `syncGaps` leaves to their cutter:
@@ -884,7 +949,7 @@ export function syncGaps(
     tracker: GapTracker,
     originBand?: UmbrellaBand,
     clusters: ReadonlySet<number> = new Set(),
-    signatures: ClusterSignatures = NO_SIGNATURES
+    signatureRows: readonly ClusterRow[] = []
 ): GapSyncResult {
     // Adopted (issue #4515): an open issue already names the card, so the
     // claim records THAT issue — nothing is created, and its body, parent and
@@ -916,7 +981,7 @@ export function syncGaps(
         return states.get(issue)!;
     };
     const intoCluster = new Map<string, number>();
-    if (signatures.rows.length > 0) {
+    if (signatureRows.length > 0) {
         for (const filing of filings) {
             if (!wouldCreate(filing)) continue;
             const match = matchCluster(
@@ -926,7 +991,7 @@ export function syncGaps(
                     card: filing.card,
                     cardsIssue: filing.adopts,
                 },
-                signatures.rows,
+                signatureRows,
                 stateOf
             );
             if (match.via === "signature")
@@ -975,13 +1040,8 @@ export function syncGaps(
     const actions: GapSyncAction[] = [];
     const moves: GapMove[] = [];
     const updatedRows = new Map<string, number>();
-    // What this run wrote, so the managed-block pass below reads the body as
-    // it is now, never a prefetched copy from before the write.
-    const written = new Map<number, string>();
-    const updateBody = (issue: number, body: string): void => {
+    const updateBody = (issue: number, body: string): void =>
         tracker.updateBody(issue, body);
-        written.set(issue, body);
-    };
     for (const filing of filings) {
         const id = claimId(filing.kind, filing.key);
         const common = { kind: filing.kind, key: filing.key };
@@ -1048,32 +1108,6 @@ export function syncGaps(
         actions.push({ action: "update", ...common, issue });
     }
 
-    // The managed block of every open signature cluster (ADR 0146 § Decision
-    // 6), regenerated from the claim rows — this run's adoptions included —
-    // and written only when it changed, so a quiet run writes nothing. A
-    // Standalone Gap is a single: its whole body is the filing's.
-    const filingOf = new Map(
-        filings.map((f) => [claimId(f.kind, f.key), f] as const)
-    );
-    const rowsNow = new Map([...signatures.claims, ...updatedRows]);
-    for (const row of signatures.rows) {
-        if (row.standalone === true) continue;
-        const current = tracker.getIssue(row.issue);
-        if (current === null || current.state === "CLOSED") continue;
-        const entries: AdoptedEntry[] = [];
-        for (const [id, issue] of rowsNow) {
-            if (issue !== row.issue) continue;
-            const f = filingOf.get(id);
-            entries.push(
-                f === undefined
-                    ? { key: splitClaimId(id).key, live: false }
-                    : { key: f.key, live: true, cards: f.cards, band: f.band }
-            );
-        }
-        const body = written.get(row.issue) ?? current.body;
-        const next = withAdoptedBlock(body, entries, row.issue);
-        if (next !== body) updateBody(row.issue, next);
-    }
     return { actions, moves, updatedRows };
 }
 

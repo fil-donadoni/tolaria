@@ -2203,7 +2203,24 @@ describe("gaps-sync main hands the parsed origin band to syncGaps", () => {
     it("passes `originBand` third, the allowlist's Grammar Clusters fourth and its Cluster Signatures fifth", () => {
         const source = readFileSync("scripts/gaps-sync.ts", "utf8");
         expect(source).toMatch(
-            /syncGaps\(\s*withUnlockBlockers\(filings, blockers\),\s*tracker,\s*originBand,\s*clusterIssues\(allowlist\),\s*\{ rows: signatureRows, claims: filed \}\s*\)/
+            /syncGaps\(\s*withUnlockBlockers\(filings, blockers\),\s*tracker,\s*originBand,\s*clusterIssues\(allowlist\),\s*signatureRows\s*\)/
+        );
+    });
+});
+
+describe("gaps-sync main writes the managed blocks only after the rows are recorded (ADR 0146)", () => {
+    // A block write can throw (broken markers, a gh failure); run before the
+    // write-back it would cost the run every row it filed, and the next run
+    // would file them again (review of PR #3978). Pinned by SHAPE, like the
+    // origin-band pin above: `main()` reads the network.
+    it("calls syncAdoptedBlocks after commitAndPushAllowlist, inside its own try", () => {
+        const source = readFileSync("scripts/gaps-sync.ts", "utf8");
+        const writeBack = source.indexOf("commitAndPushAllowlist(root);");
+        const blocks = source.indexOf("syncAdoptedBlocks(\n");
+        expect(writeBack).toBeGreaterThan(-1);
+        expect(blocks).toBeGreaterThan(writeBack);
+        expect(source.slice(writeBack, blocks)).toMatch(
+            /try \{\s*const recorded/
         );
     });
 });
