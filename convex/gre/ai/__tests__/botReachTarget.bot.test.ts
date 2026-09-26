@@ -271,7 +271,7 @@ describe("the generated position poses an artifact card in the holder's graveyar
                 (c) =>
                     c.owner === "me" &&
                     c.zone === "graveyard" &&
-                    c.name === "Ornithopter"
+                    c.name === "Stratadon"
             )
         ).toBe(true);
     });
@@ -279,7 +279,7 @@ describe("the generated position poses an artifact card in the holder's graveyar
     it("leaves a creature spell's graveyard without one", () => {
         expect(
             botReachSpec(instant("creature", {})).cards.some(
-                (c) => c.zone === "graveyard" && c.name === "Ornithopter"
+                (c) => c.zone === "graveyard" && c.name === "Stratadon"
             )
         ).toBe(false);
     });
@@ -289,6 +289,18 @@ describe("the generated position poses an artifact card in the holder's graveyar
         expect(
             withTemporaryDefinition(RECURSION, () => playBotReach(RECURSION))
         ).toEqual({ outcome: "played" });
+    });
+
+    it("the Bot plays one that sacrifices an artifact to return another", () => {
+        const swap = {
+            ...RETURN_ALL_THE_WAY,
+            id: "bot-reach-target-test:artifact-swap",
+            manaCost: { R: 1, generic: 2 },
+            additionalCosts: { sacrificeFilter: { types: ["Artifact"] } },
+        } as CardDefinition;
+        expect(withTemporaryDefinition(swap, () => playBotReach(swap))).toEqual(
+            { outcome: "played" }
+        );
     });
 
     it("the Bot plays one that returns the artifact to the battlefield", () => {

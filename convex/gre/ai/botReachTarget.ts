@@ -44,8 +44,12 @@ const BASE_CREATURE = "Grizzly Bears";
 const DISCARD_LAND = "Plains";
 /** The opponent's land a land-targeting spell is posed against. */
 const TARGET_LAND = "Forest";
-/** The artifact card a graveyard-recursion spell returns. */
-const GRAVEYARD_ARTIFACT = "Ornithopter";
+/** The artifact card a graveyard-recursion spell returns: a big body, worth
+ *  more than the recursion spell it costs the holder (a card in hand) and than
+ *  the position's own artifact filler (Ornithopter), which a recursion that
+ *  sacrifices an artifact gives up — a smaller one is a swap the Bot rightly
+ *  declines. */
+const GRAVEYARD_ARTIFACT = "Stratadon";
 
 /** Keys a definition may carry and still be a body with nothing else to it: no
  *  ability, no effect, no replacement — a creature the position can place
