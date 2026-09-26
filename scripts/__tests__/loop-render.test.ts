@@ -306,13 +306,12 @@ describe("sweep collapse — buffered until the block closes (issue #4718)", () 
         );
     });
 
-    it("prints in full when the row set changes", () => {
+    it("prints in full when the row set changes, even with the same counts", () => {
+        // Same claimed/orphaned/recoverable counts both times — only the
+        // issue number differs, isolating the row-set comparison from the
+        // count one.
         const first = sweep(T1, [healthyRow(100), countLine(1, 0)]);
-        const second = sweep(T2, [
-            healthyRow(100),
-            healthyRow(200),
-            countLine(2, 0),
-        ]);
+        const second = sweep(T2, [healthyRow(200), countLine(1, 0)]);
         const out = renderAll([...first, ...second, CLOSER]);
         const headers = out.filter((l) => l.includes("◌ orphan-claim sweep —"));
         expect(headers).toHaveLength(2);
