@@ -356,6 +356,36 @@ export function flashAmbushPosition(
         : null;
 }
 
+/**
+ * CR 701.21 + CR 508.1 — the declared attack an edict over ATTACKING creatures
+ * is posed against, or `null` when `def` is not one ("target player sacrifices
+ * an attacking creature"). It shares the flash ambush's window
+ * ({@link flashAmbushPosition}): no main phase holds an attacker, so the
+ * spell has nothing to make the target player sacrifice there, and the Bot
+ * rightly keeps it until the opponent's attack is declared.
+ */
+export function attackEdictPosition(
+    def: CardDefinition
+): TargetPose["position"] | null {
+    const targetsPlayer = def.targetRequirement?.type === "player";
+    const edictsAttacker = (node: unknown): boolean => {
+        if (Array.isArray(node)) return node.some(edictsAttacker);
+        if (node === null || typeof node !== "object") return false;
+        const record = node as Record<string, unknown>;
+        const filter = record.filter as { isAttacking?: unknown } | undefined;
+        const player = record.player as { target?: unknown } | undefined;
+        return (
+            (record.op === "choice" &&
+                record.kind === "sacrifice-permanents" &&
+                record.zone === "battlefield" &&
+                player?.target !== undefined &&
+                filter?.isAttacking === true) ||
+            Object.values(record).some(edictsAttacker)
+        );
+    };
+    return targetsPlayer && edictsAttacker(def.effects) ? FLASH_AMBUSH : null;
+}
+
 /** The literal power a sorcery's script adds to its one target creature, when
  *  the script is that pump and nothing else; `null` for any other spell. */
 function soleSorceryPumpPower(def: CardDefinition): number | null {

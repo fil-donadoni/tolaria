@@ -57,6 +57,7 @@ import {
 import type { CardDefinition, EffectForEachSelector } from "../../cards/types";
 import { castShape } from "./botReachForm";
 import {
+    attackEdictPosition,
     combatTrickPosition,
     flashAmbushPosition,
     costPose,
@@ -564,6 +565,12 @@ const FILLER_TYPES: Readonly<Record<string, readonly SweepableType[]>> = {
     [FILLER_ENCHANTMENT]: ["Enchantment"],
 };
 
+/** The opponent's declared attack a card is posed against in {@link AMBUSH_WINDOW}:
+ *  a flash creature's, or an attacker edict's. */
+function ambushPosition(def: CardDefinition) {
+    return flashAmbushPosition(def) ?? attackEdictPosition(def);
+}
+
 /**
  * The generated position, as a `ScenarioSpec` for the HOLDER seat (`me`): its
  * lands in the colours of the card's own cost, enough of them for the mana
@@ -736,7 +743,7 @@ export function botReachSpec(
         ...target.position,
         ...(race ? { life: race.life } : {}),
         ...(window === TRICK_WINDOW ? combatTrickPosition(def) : null),
-        ...(window === AMBUSH_WINDOW ? flashAmbushPosition(def) : null),
+        ...(window === AMBUSH_WINDOW ? ambushPosition(def) : null),
         ...(cost.manaPool ? { manaPool: cost.manaPool } : {}),
         ...(stack
             ? {
@@ -926,7 +933,7 @@ function playSeat(
     const trick: PoseWindow[] =
         combatTrickPosition(def) === null ? [] : [TRICK_WINDOW];
     const ambush: PoseWindow[] =
-        flashAmbushPosition(def) === null ? [] : [AMBUSH_WINDOW];
+        ambushPosition(def) === null ? [] : [AMBUSH_WINDOW];
     const endStep: PoseWindow[] = isFlashPermanent(def)
         ? [OPPONENT_END_STEP_WINDOW]
         : [];
