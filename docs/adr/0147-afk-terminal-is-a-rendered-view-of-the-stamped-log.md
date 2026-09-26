@@ -37,7 +37,8 @@ and a box around the run summary.
   crash, a clean exit — `cat` drains the rest of the stream; with no reader,
   `tee` and then the driver would take SIGPIPE. A line that throws is printed
   raw with one `loop-render: degraded to plain — <err>` notice, and the rest
-  of the stream passes through raw. `--plain`, `NO_COLOR` or a stdout that is
+  of the stream passes through raw. A renderer killed outright loses from
+  the terminal only the lines it had already buffered; they are in the log. `--plain`, `NO_COLOR` or a stdout that is
   not a TTY show the log's own lines. `--detach` is unchanged: nothing is
   rendered.
 - **Classification is by tag, never by message text.** The driver writes a
@@ -46,7 +47,9 @@ and a box around the run summary.
   A message can be reworded without moving a line into another class.
 - **The pass-end line is new**, emitted right after the `loop-drain.log` row
   with the same facts as `k=v` words, plus the effective ceiling, the pass
-  duration and the retry delay the row has no column for.
+  duration and the retry delay the row has no column for. Its `spent` is
+  the row's: the guard's reading taken BEFORE the pass ran, so the footer's
+  bar trails the pass it closes by that pass's own spend.
 - **The date comes from the line's stamp, never the clock**, so a foreground
   run and a replay of the log (`--watch`, issue #4720) render identically.
 - **A pass is bound to its transcript by `--session-id`.** The driver

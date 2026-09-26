@@ -624,7 +624,7 @@ if [ "$START_DELAY" -gt 0 ]; then
     echo "loop-drain: waiting ${START_DELAY}s before the first pass (handoff grace period)." >&2
     interruptible_sleep "$START_DELAY" || {
         echo ""
-        echo "loop-drain[summary]: passes=0 reason=stop-file queue_start=? queue_end=? final_pct=n/a spent=0 budget=${BUDGET:-n/a}"
+        echo "loop-drain[summary]: passes=0 reason=stop-file queue_start=? queue_end=? final_pct=n/a spent=0 budget=${BUDGET:-n/a} ceiling=${CEILING}"
         exit 0
     }
 fi

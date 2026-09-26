@@ -485,6 +485,26 @@ describe("foreground by default, --detach is the opt-in (issue #4389)", () => {
             }
         });
 
+        it("a renderer that exits 0 before EOF still hands the rest to `cat` (`;`, never `||`)", () => {
+            // `{ renderer || cat; }` would pass the crash test above and fail
+            // here: a clean early exit leaves nothing reading the pipe, and
+            // `tee` — then the driver — would die of SIGPIPE.
+            stubFiveLines(0);
+            const r = run({
+                args: ["--start", "--budget", "1"],
+                env: {
+                    TOLARIA_LOOP_RENDERER:
+                        'IFS= read -r l; echo "R:$l"; exit 0',
+                },
+            });
+            expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
+            for (const line of DRIVER_LINES) {
+                expect(r.stdout.split("\n").some((l) => l.endsWith(line))).toBe(
+                    true
+                );
+            }
+        });
+
         it("writes the log plain while the terminal is rendered", () => {
             stubFiveLines(0);
             const r = run({
