@@ -347,9 +347,10 @@ async function waitForServer(url: string, timeoutMs: number): Promise<void> {
 /** How the app is served to the browser (issue #4687, `--serve=`). */
 type ServeMode = "dev" | "build";
 
-/** The default is the mode the phase timings picked: see
- *  `docs/agents/quality-gates.md` § check:ui affordability. */
-const DEFAULT_SERVE: ServeMode = "dev";
+/** The default is the mode the phase timings picked (a full lane in 480s
+ *  against 1130s on the dev server, same tree, same load): see
+ *  `docs/agents/quality-gates.md` § Affordability. */
+const DEFAULT_SERVE: ServeMode = "build";
 
 interface AppServer {
     child: ChildProcess;
@@ -391,9 +392,19 @@ function spawnVite(args: string[]): ChildProcess {
 /**
  * Serve the app on `port`, either from Vite's dev server (every navigation
  * re-requests the unbundled module graph, transformed on demand) or from a
- * production build served statically by `vite preview` (issue #4687). The
- * build costs its own wall time once, printed on the served line so the
- * trade is visible in every receipt.
+ * bundle built once and served statically by `vite preview` (issue #4687).
+ * The build costs its own wall time once (~12s), printed on the served line
+ * so the trade is visible in every receipt.
+ *
+ * THE BUNDLE IS A DEVELOPMENT-MODE BUILD, not a production one: `NODE_ENV`
+ * and `--mode` both `development`, so `import.meta.env.DEV` is true and React
+ * is its development build. The lane must measure the SAME app the dev server
+ * serves — `game-debug-sheet-ai` walks a seam installed only under
+ * `import.meta.env.DEV` (`src/lib/ai/dev-trace-seam.ts`), and the Infra
+ * Verdict reads React's development warnings off the console. A production
+ * build dropped both (measured: the surface UNWALKED, 65/68). `--mode` alone
+ * is not enough: Vite pins `NODE_ENV=production` for `build` unless the
+ * environment already set it, and the seam was dead-code-eliminated.
  */
 async function startAppServer(
     mode: ServeMode,
@@ -423,13 +434,20 @@ async function startAppServer(
         [
             "vite",
             "build",
+            "--mode",
+            "development",
             "--outDir",
             outDir,
             "--emptyOutDir",
             "--logLevel",
             "error",
         ],
-        { cwd: REPO_ROOT, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 }
+        {
+            cwd: REPO_ROOT,
+            encoding: "utf8",
+            maxBuffer: 64 * 1024 * 1024,
+            env: { ...process.env, NODE_ENV: "development" },
+        }
     );
     if (built.status !== 0) {
         fs.rmSync(outDir, { recursive: true, force: true });
@@ -440,7 +458,7 @@ async function startAppServer(
     const buildSecs = Math.round((Date.now() - t0) / 1000);
     return {
         child: spawnVite(["preview", "--outDir", outDir, ...listen]),
-        line: `served: production build via vite preview (--serve=build; vite build took ${buildSecs}s)`,
+        line: `served: development-mode bundle via vite preview (--serve=build; vite build took ${buildSecs}s)`,
         dispose: () => fs.rmSync(outDir, { recursive: true, force: true }),
     };
 }
@@ -1122,6 +1140,10 @@ async function main(): Promise<number> {
                             ms: t,
                         });
                         let walked = await walkToSettled(surface, t);
+                        /** The measured cell's line body and its failed
+                         *  assertions, written after the cleanup (below). */
+                        let cellDetail: string | null = null;
+                        let assertLines: string[] = [];
 
                         // The page can still navigate between the settle and
                         // the last evaluate — the document the probe measured
@@ -1245,16 +1267,15 @@ async function main(): Promise<number> {
                                 )
                             );
                             // The cell line carries its phase timings (issue
-                            // #4687); pushed after the assertions ran so the
-                            // suffix has them, before their failures print.
-                            lines.push(
-                                `  ${surface.id.padEnd(20)} ${viewport.id.padEnd(12)} ${detail}${cellTimingSuffix(t)}`
-                            );
-                            for (const a of asserts.filter((r) => !r.ok)) {
-                                lines.push(
-                                    `  ${surface.id.padEnd(20)} ${viewport.id.padEnd(12)} ASSERT FAIL ${a.label} — ${a.detail}`
+                            // #4687), so it is written only after the cleanup
+                            // below has run — the last phase it accounts for.
+                            cellDetail = detail;
+                            assertLines = asserts
+                                .filter((r) => !r.ok)
+                                .map(
+                                    (a) =>
+                                        `  ${surface.id.padEnd(20)} ${viewport.id.padEnd(12)} ASSERT FAIL ${a.label} — ${a.detail}`
                                 );
-                            }
 
                             measurements.push({
                                 surface: surface.id,
@@ -1276,17 +1297,25 @@ async function main(): Promise<number> {
                         // row) without touching what was just measured. Best-effort:
                         // a cleanup failure is hygiene debt, not a measurement defect,
                         // so it is logged rather than failing the surface.
+                        let cleanupLine: string | null = null;
                         if (surface.cleanup) {
                             try {
                                 await timed(t, "cleanup", () =>
                                     surface.cleanup!(page, ctx)
                                 );
                             } catch (err) {
-                                lines.push(
-                                    `  ${surface.id.padEnd(20)} ${viewport.id.padEnd(12)} CLEANUP FAILED — ${(err as Error).message.split("\n")[0]}`
-                                );
+                                cleanupLine = `  ${surface.id.padEnd(20)} ${viewport.id.padEnd(12)} CLEANUP FAILED — ${(err as Error).message.split("\n")[0]}`;
                             }
                         }
+                        // Same order as before the timings: the cell, its
+                        // failed assertions, then the cleanup's failure.
+                        if (cellDetail !== null) {
+                            lines.push(
+                                `  ${surface.id.padEnd(20)} ${viewport.id.padEnd(12)} ${cellDetail}${cellTimingSuffix(t)}`
+                            );
+                            lines.push(...assertLines);
+                        }
+                        if (cleanupLine !== null) lines.push(cleanupLine);
                     };
 
                     // Signed-out surfaces FIRST: `<AuthGate>` makes them unreachable

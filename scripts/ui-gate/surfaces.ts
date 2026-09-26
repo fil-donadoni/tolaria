@@ -2389,11 +2389,26 @@ async function closeSpecimenLayer(page: Page, layer: string): Promise<void> {
     if ((await target.count()) === 0) return;
     await page.keyboard.press("Escape");
     if (await gone()) return;
-    const closer = target
-        .locator(
-            "[data-game-dialog-close], [data-action-sheet-close], button[aria-label='Close'], button[aria-label='Dismiss']"
-        )
+    // A GameDialog specimen (§ 16) neither dismisses on Escape nor shows a
+    // close glyph: it closes through its own footer — and on the census page
+    // EVERY handler a specimen is rendered with is `close`
+    // (`overlay-specimens.tsx`), so any enabled button in the layer unmounts
+    // it. Prefer the one that reads as dismissal; fall back to the footer's
+    // last enabled button (the primary plate). Measured before this fallback:
+    // 13 of 31 census rows re-navigated at every viewport.
+    const dismiss = target
+        .getByRole("button", {
+            name: /^(cancel|close|dismiss|done|back|skip|not now|keep|continue|ok|confirm|accept|resume|concede|quit|leave|return|got it)$/i,
+        })
         .first();
+    const closer =
+        (await dismiss.count()) > 0
+            ? dismiss
+            : target
+                  .locator(
+                      "[data-game-dialog-close], [data-action-sheet-close], button[aria-label='Close'], button:enabled"
+                  )
+                  .last();
     if ((await closer.count()) > 0) {
         await closer.click({ timeout: 1_500 }).catch(() => {});
         await gone();
