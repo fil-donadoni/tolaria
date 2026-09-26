@@ -2367,6 +2367,7 @@ async function gotoCensusPage(page: Page, ctx: WalkContext): Promise<void> {
         await waitForSettledScreen(page, {});
         return;
     }
+    ctx.log(`census page navigated: ${decision.reason}`);
     await goto(page, ctx, CENSUS_PATH);
 }
 

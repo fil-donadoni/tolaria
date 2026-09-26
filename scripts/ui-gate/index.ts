@@ -895,7 +895,10 @@ async function main(): Promise<number> {
                         choiceScenarioLabel: CHOICE_SCENARIO_LABEL,
                         fixtureLabels: member.labels,
                         createdGame: false,
-                        log: () => {},
+                        // Buffered with the cells (never logged live: five
+                        // viewports would interleave); diagnostic, unread by
+                        // `land`.
+                        log: (message) => lines.push(`    · ${message}`),
                     };
                     const lines: string[] = [];
                     const measurements: {
