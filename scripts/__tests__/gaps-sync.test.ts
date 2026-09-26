@@ -38,6 +38,7 @@ import {
     type TrackedIssue,
     type TrackedIssueSummary,
     type UnlockSource,
+    type ClusterIssueState,
 } from "../lib/gap-issues";
 import {
     botCauseOf,
@@ -190,6 +191,17 @@ function inputs(
 }
 
 class StubTracker implements GapTracker {
+    clusterState(number: number): ClusterIssueState | null {
+        const issue = this.issues.get(number);
+        return issue === undefined
+            ? null
+            : {
+                  open: issue.state === "OPEN",
+                  inProgress: false,
+                  openPr: false,
+              };
+    }
+
     private next = 5000;
     readonly issues = new Map<number, TrackedIssue>();
     readonly created: Array<{
@@ -2187,10 +2199,10 @@ describe("gaps-sync main hands the parsed origin band to syncGaps", () => {
     // from `parseOriginBand` into `syncGaps` cannot be run under test; a flag
     // parsed and then dropped is exactly the failure issue #4158 exists to end.
     // Pinned by SHAPE, the same way `land.test.ts` pins the locked command.
-    it("passes `originBand` third and the allowlist's Grammar Clusters fourth", () => {
+    it("passes `originBand` third, the allowlist's Grammar Clusters fourth and its Cluster Signatures fifth", () => {
         const source = readFileSync("scripts/gaps-sync.ts", "utf8");
         expect(source).toMatch(
-            /syncGaps\(\s*withUnlockBlockers\(filings, blockers\),\s*tracker,\s*originBand,\s*clusterIssues\(allowlist\)\s*\)/
+            /syncGaps\(\s*withUnlockBlockers\(filings, blockers\),\s*tracker,\s*originBand,\s*clusterIssues\(allowlist\),\s*\{ rows: signatureRows, claims: filed \}\s*\)/
         );
     });
 });
