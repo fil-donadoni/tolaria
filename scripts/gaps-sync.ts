@@ -1261,14 +1261,38 @@ function main(): void {
                           openPr: false,
                       }))
                     : null;
+            // A filed single a signature sends to ANOTHER cluster may be
+            // absorbed (issue #4678) — closed by the real run, so previewed;
+            // its title and state need the network, hence the proviso.
+            const absorb =
+                filing.currentIssue !== null &&
+                filing.adopts === undefined &&
+                !clusters.has(filing.currentIssue)
+                    ? matchCluster(
+                          {
+                              kind: filing.kind,
+                              key: filing.key,
+                              card: filing.card,
+                          },
+                          signatureRows,
+                          () => ({
+                              open: true,
+                              inProgress: false,
+                              openPr: false,
+                          })
+                      )
+                    : null;
             const at =
                 match?.via === "signature"
                     ? `would ADOPT into Gap Cluster issue #${match.issue} (if open and not in progress)`
-                    : filing.currentIssue === null
-                      ? "would CREATE"
-                      : clusters.has(filing.currentIssue)
-                        ? `would leave Grammar Cluster issue #${filing.currentIssue} alone`
-                        : `would reconcile issue #${filing.currentIssue}`;
+                    : absorb?.via === "signature" &&
+                        absorb.issue !== filing.currentIssue
+                      ? `would ABSORB issue #${filing.currentIssue} into Gap Cluster issue #${absorb.issue} and CLOSE it (if gaps:sync filed it, and both are open and free)`
+                      : filing.currentIssue === null
+                        ? "would CREATE"
+                        : clusters.has(filing.currentIssue)
+                          ? `would leave Grammar Cluster issue #${filing.currentIssue} alone`
+                          : `would reconcile issue #${filing.currentIssue}`;
             const origin = originUmbrellaOf(filing, originBand);
             const umbrella = bandUmbrellaOf(filing);
             const band =
