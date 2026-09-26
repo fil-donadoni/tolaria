@@ -26634,6 +26634,14 @@
         "source": "compiled"
     },
     {
+        "name": "Jaded Response",
+        "scryfallId": "6a9ab1f0-4e75-4165-85bc-6f838c221d6a",
+        "oracleId": "23917517-7561-45b3-b156-77cd2f340466",
+        "firstSet": "apc",
+        "firstPrintId": "6a9ab1f0-4e75-4165-85bc-6f838c221d6a",
+        "firstPrintSet": "apc"
+    },
+    {
         "name": "Jagwasp Swarm",
         "scryfallId": "bd4e933b-de65-4089-877f-c598004b8e7e",
         "oracleId": "376d90f6-2ceb-4d9e-a04d-3dd5bafd1e8b",
