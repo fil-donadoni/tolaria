@@ -3333,9 +3333,12 @@ export const listOpenGames = query({
         const mine = waiting.filter(
             // Limited Event challenges (issue #1577) are PRIVATE to their two
             // paired seats — surfaced on the event page, never in the public
-            // open-games lobby.
+            // open-games lobby. An UNLISTED table (issue #4670) is reached by
+            // its invite link or code alone, never by the broadcast.
             (g) =>
-                !g.limitedChallenge && !g.players.some((p) => p.id === userId)
+                !g.limitedChallenge &&
+                !g.unlisted &&
+                !g.players.some((p) => p.id === userId)
         );
         return Promise.all(
             mine.map(async (g) => {
@@ -3439,6 +3442,9 @@ export const createGame = mutation({
         bgColor: v.optional(v.string()),
         // Bo1 | Bo3 (PRD #387). Defaults to Bo1 — the only format #392 plays.
         bestOf: bestOfValidator,
+        // An UNLISTED table (issue #4670, `schema.ts` § games): joinable by
+        // link or code, never broadcast by `listOpenGames`.
+        unlisted: v.optional(v.boolean()),
     },
     handler: async (ctx, args) => {
         // ADR 0080 — a manual-format deck is rejected by the real engine.
@@ -3501,6 +3507,7 @@ export const createGame = mutation({
             // Randomness at the mutation site, the pure part in
             // `joinCodes.ts` — same split as `pickCoinTossWinner` below.
             joinCode: await mintJoinCode(ctx, Math.random),
+            ...(args.unlisted === true ? { unlisted: true as const } : {}),
             createdAt: now,
             updatedAt: now,
         });

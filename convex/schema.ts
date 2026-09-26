@@ -491,11 +491,18 @@ export default defineSchema({
          *  returns the raw row, so any client holding a game id can read that
          *  table's code (`docs/findings/2649-getgame-returns-any-games-row-
          *  unauthenticated-by-membership.md`). That leaks nothing a code buys —
-         *  every table a code can name is already listed, by id, in the public
-         *  lobby — but the next author must not build a secrecy assumption on
-         *  this field. What the code IS: a way to reach a listed table without
-         *  the list. */
+         *  reading it takes the table's id, which already reaches the table
+         *  (`/join/<gameId>`) — but the next author must not build a secrecy
+         *  assumption on this field. What the code IS: a way to reach a table
+         *  without the list, or without the link. */
         joinCode: v.optional(v.string()),
+        /** An UNLISTED table (issue #4670): an ordinary open table that
+         *  `listOpenGames` never broadcasts, reachable only by its invite link
+         *  (`/join/<gameId>`) or its join code. `createGame` stamps it when
+         *  the host asks; absent means listed. Its first user is the
+         *  `check:ui` lane's join-table fixture, which must not appear in any
+         *  other lane's (or any player's) lobby. */
+        unlisted: v.optional(v.literal(true)),
         createdAt: v.number(),
         updatedAt: v.number(),
     })
