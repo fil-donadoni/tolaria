@@ -25,6 +25,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
+    pushSpell,
     submitChoice,
 } from "../../../__tests__/setup";
 import {
@@ -392,5 +393,109 @@ describe('setSubtype family "creature" keeps only real creature types (CR 205.3m
                 "Warrior",
             ]);
         });
+    });
+});
+
+// Jaded Response is a HAND-TAIL card (issue #4336). The colour comparison runs
+// on a SPELL on the stack, which `SpellContext.getColors` used to read as "no
+// colours" — so these tests are what tell "counters when it shares a colour"
+// apart from "never counters" (CR 105.2, CR 608.2b).
+describe("Jaded Response — counter if it shares a colour with a creature you control (CR 105.2, issue #4336)", () => {
+    const JADED_RESPONSE = getDefinition(
+        "6a9ab1f0-4e75-4165-85bc-6f838c221d6a"
+    );
+    const LIGHTNING_BOLT = getDefinition(
+        "d573ef03-4730-45aa-93dd-e45ac1dbaf4a"
+    );
+
+    function creature(
+        id: string,
+        controller: string,
+        colors?: ("W" | "U" | "B" | "R" | "G")[]
+    ): CardInstanceState {
+        const c = makeInstance(BEAR.id, {
+            id,
+            controllerId: controller,
+            ownerId: controller,
+        });
+        if (colors) c.colorOverride = colors;
+        return c;
+    }
+
+    /** p2 casts a (red) Lightning Bolt at p1, p1 answers with Jaded Response. */
+    function respond(battlefield: {
+        p1?: CardInstanceState[];
+        p2?: CardInstanceState[];
+    }): { state: GameState; boltId: string } {
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: battlefield.p1 ?? [] }),
+                makePlayer("p2", { battlefield: battlefield.p2 ?? [] }),
+            ],
+        });
+        const bolt = pushSpell(state, LIGHTNING_BOLT.id, "p2", [
+            { type: "player", id: "p1" },
+        ]);
+        pushSpell(state, JADED_RESPONSE.id, "p1", [
+            { type: "spell", id: bolt.id },
+        ]);
+        resolveTopOfStack(state);
+        return { state, boltId: bolt.id };
+    }
+
+    it("counters a spell sharing a colour with a creature you control", () => {
+        const { state, boltId } = respond({
+            p1: [creature("red-bear", "p1", ["R"])],
+        });
+        expect(state.stack.find((s) => s.id === boltId)).toBeUndefined();
+        expect(state.players[1].graveyard.map((c) => c.id)).toEqual([boltId]);
+        expect(state.players[0].life).toBe(20);
+        // Wire format: the countered spell is gone from the projected stack.
+        expect(projectPublicState(state, 1, "p1").stack).toHaveLength(0);
+    });
+
+    it("does nothing when the spell shares no colour with your creatures — the spell stays on the stack", () => {
+        const { state, boltId } = respond({
+            p1: [creature("green", "p1", ["G"])],
+        });
+        expect(state.stack.map((s) => s.id)).toEqual([boltId]);
+        expect(state.players[1].graveyard).toHaveLength(0);
+    });
+
+    it("reads the creature's PRINTED colour when nothing overrides it", () => {
+        // BEAR is Hill Giant ({3}{R}) — red, like the Bolt.
+        const { state, boltId } = respond({ p1: [creature("giant", "p1")] });
+        expect(state.stack.find((s) => s.id === boltId)).toBeUndefined();
+    });
+
+    it("does nothing with no creature on your side", () => {
+        const { state, boltId } = respond({});
+        expect(state.stack.map((s) => s.id)).toEqual([boltId]);
+    });
+
+    it("an OPPONENT's creature of that colour does not count — only creatures you control", () => {
+        const { state, boltId } = respond({
+            p2: [creature("their-red", "p2", ["R"])],
+        });
+        expect(state.stack.map((s) => s.id)).toEqual([boltId]);
+    });
+
+    it("a colourless creature shares no colour (CR 202.2)", () => {
+        const { state, boltId } = respond({
+            p1: [creature("ghost", "p1", [])],
+        });
+        expect(state.stack.map((s) => s.id)).toEqual([boltId]);
+    });
+
+    it("counters exactly once when several creatures match", () => {
+        const { state, boltId } = respond({
+            p1: [
+                creature("r1", "p1", ["R"]),
+                creature("r2", "p1", ["R"]),
+                creature("r3", "p1", ["R", "G"]),
+            ],
+        });
+        expect(state.stack.find((s) => s.id === boltId)).toBeUndefined();
+        expect(state.players[1].graveyard.map((c) => c.id)).toEqual([boltId]);
     });
 });
