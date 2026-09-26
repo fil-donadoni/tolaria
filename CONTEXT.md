@@ -938,9 +938,33 @@ _Avoid_: Mass removal, board wipe, sweeper (those name the card's role, not the 
 A **Grammar Rule** the corpus needs and the grammar does not have, attributed from **Fragments** and ranked by the cards it **Compiles**, then the cards it **Refuses** — in a **Ranking Target** and across the corpus. The attribution is mechanical: for every refused line the compiler records the deepest failing path — the slot, the shared sub-grammar, and the span that sub-grammar could not consume — and two Fragments failing on the same path at the same span (amounts folded) are the same gap. The backlog unit of grammar-first work, and the reason an Op may exist without the grammar that emits it: every such Op names its gap, and the list of them only shrinks.
 _Avoid_: Missing feature, TODO, unparsed (that is a **Compile State**)
 
-**Grammar Cluster**:
-The unit a **Grammar Gap** is ticketed and landed in: the gaps one rule family closes — one shared sub-grammar, or one clause shape and its variants — cut as ONE issue that claims every member key, so the recompile, the lane, the review and the landing are paid once while the golden fixture is still paid per form. A slot's unrelated one-card gaps form that slot's long-tail cluster. An issue claimed by two or more keys is a cluster by definition, and `gaps:sync` never rewrites its body or moves its parent.
+**Gap Cluster**:
+The unit a gap of ANY kind — **Grammar Gap**, **Bot Gap**, **Hand Tail**, mechanic or scenario quarantine class — is ticketed and landed in: the gaps one family closes, cut as ONE issue that claims every member key, so the recompile, the lane, the review and the landing are paid once. What holds it together is per kind: a rule family (grammar), a cause plus an Op or keyword (bot), a set plus a colour (hand tail), one family or else a **Standalone Gap** (mechanic, scenario). It declares a **Cluster Signature**, and `gaps:sync` **Absorbs** into it every gap that matches: adoption is mechanical, the cut is judgment triggered by a threshold (ADR 0146). `gaps:sync` writes its managed `## Adopted gaps` block and may move its parent upward only; the hand-written body is never touched. An issue claimed by two or more keys with no signature row is a hand-cut cluster and is left alone.
 _Avoid_: Batch, epic, umbrella (an umbrella parents tickets; a cluster IS one ticket)
+
+**Grammar Cluster**:
+The **Gap Cluster** of **Grammar Gaps**: the gaps one rule family closes — one shared sub-grammar, or one clause shape and its variants — the golden fixture still paid per form. A slot's unrelated one-card gaps form that slot's long-tail cluster.
+_Avoid_: Batch, epic, umbrella
+
+**Cluster Signature**:
+The data that says which gaps a **Gap Cluster** owns: a row in the `clusters` array of the Grammar Gap allowlist, `{ issue, kind, match, standalone?, reason? }`, where `match` is a list of segment globs over the `›`-separated gap key or, for **Hand Tail**, a `{ set, colour }` card match. Authored by a `/cluster-gaps` session, read by `gaps:sync`; a reviewer reads a cluster's scope in the diff of its rows. When several open clusters match, the lowest issue number wins.
+_Avoid_: Pattern (one glob is a pattern; the signature is the row), rule (that is a **Grammar Rule**), filter, scope
+
+**Standalone Gap**:
+A gap declared deliberately alone — a `clusters` row with `standalone: true`, a `reason`, and a signature of one exact key (a keyword that is its own CR section). It stops counting as an unabsorbed single, so no census confuses a deliberate single with a forgotten one.
+_Avoid_: Orphan (a key whose issue is closed), singleton, loose gap, leftover
+
+**Absorb**:
+`gaps:sync` closing an open single it filed itself into an open, not-in-progress **Gap Cluster** whose **Cluster Signature** now matches its key: the single is closed with "absorbed into issue #N", its body copied into that comment, its claim row re-pointed. Never applied to a hand-filed issue or an issue in progress. Filing-time adoption (a new gap claimed by a cluster instead of filed) is **adopt**, the same match without a single to close.
+_Avoid_: Merge, fold, dedupe, close as duplicate
+
+**Re-home**:
+`gaps:sync` moving a live key whose claim row points at a closed **Gap Cluster** — a partial PR closed it — to the oldest matching open cluster or to a new single, with a comment on the closed cluster. A closed cluster is never an adoption target, so its signature stops matching the day it closes.
+_Avoid_: Reopen, reassign, migrate (that is the **Migration** kind), rescue
+
+**Cluster Cut ticket**:
+The ONE standing `ready-for-agent` issue per kind that `gaps:sync` opens or updates when the unabsorbable, non-standalone open singles of that kind reach the configured threshold (default 5): it lists them, carries the highest band among them, and names `/cluster-gaps`, which cuts named **Gap Clusters** with their **Cluster Signatures** and marks deliberate singles as **Standalone Gaps**. It is how the judgment of a cut is triggered without a human remembering to.
+_Avoid_: Clustering ticket, cleanup ticket, triage issue
 
 **Ranking Target**:
 The set of cards a **Grammar Gap** ranking counts against — a set's printings, a format pool, or a named list (Vintage Cube, a metagame's decks) — reduced to a set of oracle ids so the ranking never learns which kind it is. The corpus count is printed beside every Target count as the leverage tie-break.
