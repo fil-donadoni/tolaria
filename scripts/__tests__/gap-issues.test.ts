@@ -1555,7 +1555,7 @@ describe("issuesWorkedByPrs — which clusters have an open PR", () => {
                             body: "Closes #12, fixes #13",
                         },
                         {
-                            headRefName: "docs/tweak",
+                            headRefName: "chore/tweak",
                             body: "see #14, issue #15",
                         },
                     ],
