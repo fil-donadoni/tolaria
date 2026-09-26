@@ -52,6 +52,9 @@ STOP_FILE="$TELEMETRY_DIR/loop-stop"
 PID_FILE="$TELEMETRY_DIR/loop-drain.pid"
 DETACH_LOG="$TELEMETRY_DIR/loop-afk.log"
 DRIVER="scripts/loop-drain.sh"
+# Beside this script rather than cwd-relative like DRIVER: the renderer is
+# presentation, so it is never swapped for a scratch copy under test.
+RENDERER="$(dirname "$0")/loop-render.ts"
 
 # `--dangerously-skip-permissions` is the default only because an AFK run with
 # any other mode blocks on the first permission prompt with nobody watching —
@@ -313,8 +316,8 @@ render_stream() {
     fi
     if [ -n "${TOLARIA_LOOP_RENDERER:-}" ]; then
         sh -c "$TOLARIA_LOOP_RENDERER" || true
-    elif command -v bun >/dev/null 2>&1; then
-        bun scripts/loop-render.ts || true
+    elif [ -f "$RENDERER" ] && command -v bun >/dev/null 2>&1; then
+        bun "$RENDERER" || true
     fi
     cat
 }
