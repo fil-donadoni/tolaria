@@ -287,7 +287,12 @@ describe("golden: a real loop-afk.log excerpt", () => {
     });
 
     it("colour forced", async () => {
-        const out = renderAll(excerpt, { ...env, color: true }).join("\n");
+        // ESC is written as a visible `\e`: a raw control byte in a tracked
+        // text file reds `source-control-bytes.test.ts`.
+        const out = renderAll(excerpt, { ...env, color: true })
+            .join("\n")
+            .replaceAll("\x1b", "\\e");
+        expect(out).toContain("\\e[");
         await expect(`${out}\n`).toMatchFileSnapshot(
             path.join(FIXTURES, "afk-excerpt.color.txt")
         );
