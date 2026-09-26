@@ -614,11 +614,16 @@ export function commitAndPushAllowlist(root: string): void {
 
 /**
  * Card name → the set file a hand-written definition of it lives in (ADR
- * 0043's `<set>/<colour>.ts`), read off the committed Full Catalogue: its
- * first-print set and the colour of its mana cost (`setFileColour`). The
- * `hand-tail` Cluster Signature's `{ set, colour }` is matched against this
- * (ADR 0146). Empty when the tree has no catalogue — a Hand Tail gap then
- * matches no card signature and is filed as a single, never mis-adopted.
+ * 0043's `<set>/<colour>.ts`) — what a `hand-tail` Cluster Signature's
+ * `{ set, colour }` is matched against (ADR 0146). The colour is its mana
+ * cost's (`setFileColour`), read off the committed Full Catalogue. The set is
+ * the card's first-print set when `data/card-index.json` knows it; else the
+ * Full Catalogue's preferred printing, which for a reprinted card may be a
+ * later set — the only printing an unwritten card has offline, and the SAME
+ * attribute `/cluster-gaps` reads when it cuts, so a signature matches what
+ * it was written against. Empty when the tree has no catalogue: a Hand Tail
+ * gap then matches no card signature and is filed as a single, never
+ * mis-adopted.
  */
 export function readSetFileMatches(root: string): Map<string, CardMatch> {
     const dir = join(root, "data", "full-catalogue");
@@ -631,10 +636,24 @@ export function readSetFileMatches(root: string): Map<string, CardMatch> {
     const wire = JSON.parse(
         gunzipSync(readFileSync(join(dir, file))).toString("utf8")
     ) as { names: string[]; manaCosts: string[]; sets: string[] };
+    const indexPath = join(root, "data", "card-index.json");
+    const firstSet = new Map(
+        existsSync(indexPath)
+            ? (
+                  JSON.parse(readFileSync(indexPath, "utf8")) as {
+                      name: string;
+                      firstSet?: string;
+                  }[]
+              )
+                  .filter((e) => e.firstSet !== undefined)
+                  .map((e) => [e.name, e.firstSet!] as const)
+            : []
+    );
     wire.names.forEach((name, i) => {
-        if (out.has(name) || wire.sets[i] === undefined) return;
+        const set = firstSet.get(name) ?? wire.sets[i];
+        if (out.has(name) || set === undefined) return;
         out.set(name, {
-            set: wire.sets[i]!,
+            set,
             colour: setFileColour(wire.manaCosts[i] ?? ""),
         });
     });

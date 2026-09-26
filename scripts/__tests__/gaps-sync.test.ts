@@ -62,6 +62,7 @@ import {
     closureComment,
     parseOriginBand,
     planClaimClosures,
+    readSetFileMatches,
     settledHandTailOf,
     staleClaims,
     trustedBotFindings,
@@ -2377,5 +2378,30 @@ describe("a card-keyed claim adopts the open issue naming the card (issue #4515)
         );
         expect(filings.length).toBeGreaterThan(0);
         expect(filings.every((f) => f.adopts === undefined)).toBe(true);
+    });
+});
+
+describe("readSetFileMatches — a Hand Tail card's set file (ADR 0146)", () => {
+    const matches = readSetFileMatches(".");
+
+    it("reads the first-print set and the mana cost's colour off the committed data", () => {
+        expect(matches.get("Illuminate")).toEqual({
+            set: "apc",
+            colour: "red",
+        });
+        expect(matches.get("Last Stand")).toEqual({
+            set: "apc",
+            colour: "multicolor",
+        });
+        // Reprinted many times: `card-index.json`'s first print wins over the
+        // Full Catalogue's preferred (latest) printing.
+        expect(matches.get("Armageddon")).toEqual({
+            set: "lea",
+            colour: "white",
+        });
+    });
+
+    it("a tree with no catalogue matches nothing — a single, never a mis-adoption", () => {
+        expect(readSetFileMatches("/nonexistent").size).toBe(0);
     });
 });
