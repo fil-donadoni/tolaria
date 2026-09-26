@@ -238,3 +238,77 @@ export const wildResearch: CardDefinition = {
         },
     ],
 };
+
+// Illuminate — {X}{R} Sorcery. "Kicker {2}{R} and/or {3}{U}. Illuminate deals X
+// damage to target creature. If this spell was kicked with its {2}{R} kicker,
+// it deals X damage to that creature's controller. If this spell was kicked
+// with its {3}{U} kicker, you draw X cards."
+//
+// CR 702.33b: "Kicker A and/or B" is two INDEPENDENT kicker costs, so two
+// `kickers[]` entries with distinct ids, each read by its own resolution-time
+// `if { additionalCostPaid }` (CR 702.33e — the linked clause names only its
+// own kicker). The Planeshift Battlemage shape (`pls/black.ts`), on a spell:
+// the gate is the resolving stack item's payment record, no permanent needed.
+// X is the base cost's announced X (`manaCost.X: "X"`); neither kicker cost
+// carries an X of its own, so `{ X: true }` is unambiguous in all three
+// clauses. The controller is read via `controllerOf` at resolution, after the
+// creature took the damage and before SBAs remove it (CR 704.3), so a lethal
+// hit still finds it on the battlefield; a target illegal at resolution
+// fizzles the whole spell (CR 608.2b), rider clauses included.
+//
+// hand-tail: {self} deals X damage to target creature. If this spell was kicked with its {2}{R} kicker, it deals X damage to that creature's controller. If this spell was kicked with its {3}{U} kicker, you draw X cards. (#4500)
+export const illuminate: CardDefinition = {
+    id: "ceef2761-7301-42de-8f54-49b8cd1e457b", // APC 63
+    rarity: "uncommon",
+    name: "Illuminate",
+    oracleText:
+        "Kicker {2}{R} and/or {3}{U} (You may pay an additional {2}{R} and/or {3}{U} as you cast this spell.)\nIlluminate deals X damage to target creature. If this spell was kicked with its {2}{R} kicker, it deals X damage to that creature's controller. If this spell was kicked with its {3}{U} kicker, you draw X cards.",
+    manaCost: { X: "X", R: 1 },
+    types: ["Sorcery"],
+    kickers: [
+        {
+            id: "kicker-r",
+            description: "Kicker {2}{R}",
+            mana: { X: 2, R: 1 },
+        },
+        {
+            id: "kicker-u",
+            description: "Kicker {3}{U}",
+            mana: { X: 3, U: 1 },
+        },
+    ],
+    targetRequirement: { type: "Creature", count: 1 },
+    effects: [
+        { op: "dealDamage", amount: { X: true }, to: { target: 0 } },
+        {
+            op: "if",
+            predicate: {
+                left: { additionalCostPaid: "kicker-r" },
+                op: "ge",
+                right: 1,
+            },
+            then: [
+                {
+                    op: "dealDamage",
+                    amount: { X: true },
+                    to: { player: { controllerOf: { target: 0 } } },
+                },
+            ],
+        },
+        {
+            op: "if",
+            predicate: {
+                left: { additionalCostPaid: "kicker-u" },
+                op: "ge",
+                right: 1,
+            },
+            then: [
+                {
+                    op: "draw",
+                    player: "controller",
+                    count: { X: true },
+                },
+            ],
+        },
+    ],
+};
