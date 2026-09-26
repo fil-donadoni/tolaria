@@ -55,7 +55,9 @@ describe("Haunted Angel (dies → exile it, each other player gets an Angel, CR 
         // A token's colour rides on its synthesized definition, whose mana
         // cost carries one pip per colour (a token has no printed cost, colour
         // only): black, and nothing else.
-        expect(getDefinition(token.card.id).manaCost).toEqual({ B: 1 });
+        expect(
+            getDefinition((token.card as { id: string }).id).manaCost
+        ).toEqual({ B: 1 });
         expect(token.power).toBe(3);
         expect(token.toughness).toBe(3);
         expect(token.staticAbilities).toContain("flying");
