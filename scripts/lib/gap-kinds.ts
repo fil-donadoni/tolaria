@@ -399,7 +399,7 @@ export function buildQuarantineFilings(
                     "",
                     `Cards held (${held.length}): ${held.slice(0, 60).join(", ")}${held.length > 60 ? `, … (+${held.length - 60})` : ""}`,
                     "",
-                    "The class disappears when no card carries the reason any more — this issue closes through the PR that does it, never by `gaps:sync`.",
+                    "The class disappears when no card carries the reason any more — this issue closes through the PR that does it, or at the next landing's `gaps:sync` once no card carries it.",
                 ].join("\n"),
         };
     });
@@ -483,7 +483,7 @@ export function buildFragmentGapFilings(inputs: KindInputs): GapFiling[] {
                     "",
                     `Enforced-Target cards held (${names.length}): ${names.join(", ")}`,
                     "",
-                    "The work is `/grammar-rule` on this key. The gap disappears when the rule lands and no card carries it — this issue closes through that PR, never by `gaps:sync`.",
+                    "The work is `/grammar-rule` on this key. The gap disappears when the rule lands and no card carries it — this issue closes through that PR, or at the next landing's `gaps:sync` once no card carries it.",
                 ].join("\n"),
         };
     });
@@ -843,11 +843,59 @@ export function buildBotGapFilings(inputs: KindInputs): GapFiling[] {
                     "",
                     `Cards held (${held.length}): ${held.slice(0, 60).join(", ")}${held.length > 60 ? `, … (+${held.length - 60})` : ""}`,
                     "",
-                    "The gap disappears when the sweep's next verdict plays every card above — `oracle:compile` re-plays a card whenever its definition or the Bot changes. This issue closes through the PR that does it, never by `gaps:sync`. A behaviour change to the Bot owes a `must` blade entry (`/bot-slice`).",
+                    "The gap disappears when the sweep's next verdict plays every card above — `oracle:compile` re-plays a card whenever its definition or the Bot changes. This issue closes through the PR that does it, or at the next landing's `gaps:sync` once no card carries it. A behaviour change to the Bot owes a `must` blade entry (`/bot-slice`).",
                 ].join("\n"),
         });
     }
     return rank(drafts, inputs, "bot");
+}
+
+// ── computed gap keys — what a claim's gap is measured against ───────────
+
+/**
+ * Every gap key this run computes, per kind `gaps:sync` may close a claim of,
+ * over the WHOLE lockfile — never the ranked or enforced slice a filer is
+ * scoped to: a gap that merely left scope still names real work, so only a key
+ * absent from the corpus is gone (issue #4516). `bot` is `null` when the Bot
+ * Reach Findings report is missing or disagrees with the lockfile: its
+ * verdicts then fall back to the lockfile's own, and a key reading "gone" on
+ * that fallback may be spurious.
+ */
+export interface ComputedGapKeys {
+    readonly grammar: ReadonlySet<string>;
+    readonly mechanic: ReadonlySet<string>;
+    readonly scenario: ReadonlySet<string>;
+    readonly bot: ReadonlySet<string> | null;
+}
+
+/**
+ * {@link ComputedGapKeys} from the lockfile. `botFindings` is the merged
+ * report when it agrees with the lockfile, else `null`. A key present
+ * anywhere — a fragment, a quarantine reason, a merged Bot verdict — is live.
+ */
+export function computedGapKeys(
+    lock: Pick<Lockfile, "cards" | "fragments">,
+    botFindings: ReadonlyMap<string, BotGapVerdict> | null
+): ComputedGapKeys {
+    const byKind = {
+        mechanic: new Set<string>(),
+        scenario: new Set<string>(),
+        bot: new Set<string>(),
+    };
+    for (const row of lock.cards) {
+        for (const reason of row.quarantineReasons ?? []) {
+            const cls = quarantineClass(reason);
+            byKind[cls.kind].add(cls.key);
+        }
+        const key = botGapOf(row, botFindings ?? undefined);
+        if (key !== undefined) byKind.bot.add(key);
+    }
+    return {
+        grammar: new Set(lock.fragments.map((f) => gapOf(f).key)),
+        mechanic: byKind.mechanic,
+        scenario: byKind.scenario,
+        bot: botFindings === null ? null : byKind.bot,
+    };
 }
 
 // ── Orphan card issues — the two exits the owner chose ───────────────────

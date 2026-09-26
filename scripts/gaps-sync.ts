@@ -16,7 +16,14 @@
  * a `claims` row for every other kind. A second run against unchanged inputs
  * writes nothing; see `lib/gap-issues.ts`'s header for the idempotency
  * contract, the scope and the umbrella, and `lib/gap-kinds.ts`'s for the two
- * measures and the rank. It closes nothing: an issue closes through its PR.
+ * measures and the rank.
+ *
+ * It CLOSES the claim issues whose work is done (issue #4516) — so no claim
+ * waits on a human to close it: a `hand-tail` claim its card's marker settles
+ * or whose card now compiles `ready`, and a `grammar` / `mechanic` /
+ * `scenario` / `bot` claim whose key this run no longer computes
+ * ({@link planClaimClosures}). Nothing else is ever closed, and the claim row
+ * stays.
  *
  * It parents three kinds by BAND (issue #4056): `grammar` under the Grammar
  * Rules umbrellas, `mechanic` under the Ops umbrellas, `bot` under the Bot
@@ -98,6 +105,7 @@ import {
     originUmbrellaOf,
     PARTITIONED_KINDS,
     partitionCardIndex,
+    PRD_ISSUE,
     RETIRED_UMBRELLAS,
     planUnlockEdges,
     clusterIssues,
@@ -125,9 +133,11 @@ import {
     buildHandTailFilings,
     buildMigrationFilings,
     buildQuarantineFilings,
+    computedGapKeys,
     orphanCardActions,
     prioritySlices,
     enforcedCardIds,
+    type ComputedGapKeys,
     floorlessCardIds,
     rankedCardIds,
     registeredCardIds,
@@ -318,6 +328,10 @@ export class GhGapTracker implements GapTracker {
 
     comment(number: number, body: string): void {
         gh(["issue", "comment", String(number), "--body", body]);
+    }
+
+    close(number: number, comment: string): void {
+        gh(["issue", "close", String(number), "--comment", comment]);
     }
 
     /** One search call, not one read per open issue: the `## Unlocks` section
@@ -572,6 +586,9 @@ export interface SettledHandTail {
     readonly markerIssue: Map<string, number>;
     /** Cards still `unparsed` with at least one residual Grammar Gap. */
     readonly residual: Set<string>;
+    /** Cards that compile `ready` — a Hand Tail claim's gap gone (issue
+     *  #4516). Absent means none. */
+    readonly ready?: Set<string>;
 }
 
 /**
@@ -583,15 +600,17 @@ export function settledHandTailOf(
     markerIssues: ReadonlyMap<string, number>,
     gapKeys: KindInputs["gapKeys"]
 ): SettledHandTail {
-    const settled: SettledHandTail = {
-        markerIssue: new Map(),
-        residual: new Set(),
+    const settled = {
+        markerIssue: new Map<string, number>(),
+        residual: new Set<string>(),
+        ready: new Set<string>(),
     };
     for (const row of lock.cards) {
         const issue = markerIssues.get(row.oracleId);
         if (issue !== undefined) settled.markerIssue.set(row.name, issue);
         if (row.state === "unparsed" && gapKeys(row).length > 0)
             settled.residual.add(row.name);
+        if (row.state === "ready") settled.ready.add(row.name);
     }
     return settled;
 }
@@ -606,8 +625,8 @@ export type StaleClaim =
 /**
  * A `claims` row no filing referenced this run: the gap it names is gone, but
  * rows are never pruned (`applyUpdatedIssues`), so its issue is open and no
- * longer updated by anything. Printed, never acted on — closing it is a
- * human's call, and `gaps:sync` closes nothing.
+ * longer updated by anything. Printed; the ones whose work is provably done
+ * are closed by {@link planClaimClosures}, the rest stay a line in the log.
  *
  * A `hand-tail` row is not filed again once its card is hand-written under a
  * `hand-tail:` marker, yet its gap is still there (issue #4513): while the
@@ -640,6 +659,166 @@ export function staleClaims(
         out.push({ kind, key, issue });
     }
     return out;
+}
+
+/** Why a claim's issue is closed — each names what the run measured. */
+export type ClosureReason =
+    /** A `hand-tail` claim whose card's `hand-tail:` marker names its issue. */
+    | "settled"
+    /** A `hand-tail` claim whose card now compiles `ready`. */
+    | "ready"
+    /** A `grammar` / `mechanic` / `scenario` / `bot` key this run no longer
+     *  computes anywhere in the corpus. */
+    | "gone";
+
+/** One claim issue {@link planClaimClosures} closes. */
+export interface ClaimClosure {
+    readonly kind: GapKind;
+    readonly key: string;
+    readonly issue: number;
+    readonly reason: ClosureReason;
+}
+
+/**
+ * The claim issues whose work is done (issue #4516) — the pure half of the
+ * close pass; `closeClaims` is the shell over it. Over every `claims` row no
+ * filing referenced this run:
+ *
+ * - `hand-tail`: its card's marker names the claim's own issue (`settled`), or
+ *   the card has no marker and compiles `ready` (`ready`). A marker naming
+ *   ANOTHER issue is never closed: that row is the `settled` line of the stale
+ *   report, a possible orphan a human reconciles (issue #4513).
+ * - `grammar` / `mechanic` / `scenario`: its key is absent from `computed`.
+ * - `bot`: the same, but ONLY while the Findings report agrees with the
+ *   lockfile (`computed.bot !== null`); otherwise every stale `bot` row comes
+ *   back in `botSkipped` — "gone" on the lockfile fallback may be spurious.
+ * - `migration` and the `(op) ›` rows (`check:gaps` owns those): never.
+ *
+ * An issue is closed only when EVERY row naming it closes — a Grammar
+ * Cluster with one member still live stays open — and never the PRD
+ * placeholder a row points at before it is filed.
+ */
+export function planClaimClosures(
+    filed: ReadonlyMap<string, number>,
+    filings: readonly GapFiling[],
+    settled: SettledHandTail,
+    computed: ComputedGapKeys
+): {
+    close: ClaimClosure[];
+    botSkipped: { kind: "bot"; key: string; issue: number }[];
+} {
+    const live = new Set(filings.map((f) => claimId(f.kind, f.key)));
+    const candidates: ClaimClosure[] = [];
+    const botSkipped: { kind: "bot"; key: string; issue: number }[] = [];
+    for (const [id, issue] of filed) {
+        if (live.has(id) || issue === PRD_ISSUE) continue;
+        const { kind, key } = splitClaimId(id);
+        const reason = closureReason(kind, key, issue, settled, computed);
+        if (reason === "bot-unverified")
+            botSkipped.push({ kind: "bot", key, issue });
+        else if (reason !== null) candidates.push({ kind, key, issue, reason });
+    }
+    const rowsOf = new Map<number, number>();
+    for (const issue of filed.values())
+        rowsOf.set(issue, (rowsOf.get(issue) ?? 0) + 1);
+    const closingOf = new Map<number, number>();
+    for (const c of candidates)
+        closingOf.set(c.issue, (closingOf.get(c.issue) ?? 0) + 1);
+    return {
+        close: candidates.filter(
+            (c) => closingOf.get(c.issue) === rowsOf.get(c.issue)
+        ),
+        botSkipped,
+    };
+}
+
+function closureReason(
+    kind: GapKind,
+    key: string,
+    issue: number,
+    settled: SettledHandTail,
+    computed: ComputedGapKeys
+): ClosureReason | "bot-unverified" | null {
+    switch (kind) {
+        case "hand-tail": {
+            const marker = settled.markerIssue.get(key);
+            if (marker !== undefined)
+                return marker === issue ? "settled" : null;
+            return settled.ready?.has(key) === true ? "ready" : null;
+        }
+        case "grammar":
+            if (key.startsWith(OP_KEY_PREFIX)) return null;
+            return computed.grammar.has(key) ? null : "gone";
+        case "mechanic":
+        case "scenario":
+            return computed[kind].has(key) ? null : "gone";
+        case "bot":
+            if (computed.bot === null) return "bot-unverified";
+            return computed.bot.has(key) ? null : "gone";
+        case "migration":
+            return null;
+    }
+}
+
+/** Why one closure closes, as the sentence its comment carries. */
+function closureWhy(closure: ClaimClosure): string {
+    switch (closure.reason) {
+        case "settled":
+            return `the card \`${closure.key}\` carries a \`hand-tail:\` marker naming this issue — it is hand-written, the claim is settled`;
+        case "ready":
+            return `the card \`${closure.key}\` now compiles \`ready\` — its Hand Tail gap is gone`;
+        case "gone":
+            return `the ${closure.kind} gap \`${closure.key}\` is no longer computed anywhere in the corpus`;
+    }
+}
+
+/** The comment a close carries: every reason for the issue, and the tip it
+ *  was measured at. */
+export function closureComment(
+    closures: readonly ClaimClosure[],
+    tip: string
+): string {
+    return [
+        `Closed by \`gaps:sync\` at ${tip} (issue #4516):`,
+        "",
+        ...closures.map((c) => `- ${closureWhy(c)}.`),
+        "",
+        "The claim row in `data/grammar-gaps.json` stays; if the gap comes back, re-open this issue.",
+    ].join("\n");
+}
+
+/** What the close pass needs of the tracker — a read and a close. */
+export interface ClaimCloser {
+    getIssue(number: number): TrackedIssue | null;
+    close(number: number, comment: string): void;
+}
+
+/**
+ * The thin shell over {@link planClaimClosures}: one `close` per open issue
+ * (a Grammar Cluster's rows share one), carrying {@link closureComment}. An
+ * already-closed issue — or one deleted — is a no-op, never an error.
+ */
+export function closeClaims(
+    closures: readonly ClaimClosure[],
+    closer: ClaimCloser,
+    tip: string
+): {
+    issue: number;
+    closures: ClaimClosure[];
+    action: "closed" | "already-closed" | "missing";
+}[] {
+    const byIssue = new Map<number, ClaimClosure[]>();
+    for (const c of closures)
+        byIssue.set(c.issue, [...(byIssue.get(c.issue) ?? []), c]);
+    return [...byIssue].map(([issue, rows]) => {
+        const tracked = closer.getIssue(issue);
+        if (tracked === null)
+            return { issue, closures: rows, action: "missing" as const };
+        if (tracked.state === "CLOSED")
+            return { issue, closures: rows, action: "already-closed" as const };
+        closer.close(issue, closureComment(rows, tip));
+        return { issue, closures: rows, action: "closed" as const };
+    });
 }
 
 /** The bands `--band` accepts — the board's whole `Priority` axis. */
@@ -765,11 +944,38 @@ function main(): void {
             `hand-tail  ${f.key} — its \`compiler-gap:\` marker names a gap now below the floor; flip it to \`hand-tail:\``
         );
     }
+    // The close plan (issue #4516): the Bot's verdicts are trusted only while
+    // the Findings report agrees with the lockfile, so a `bot` claim reading
+    // gone on the lockfile's fallback is reported, never closed.
+    const closures = planClaimClosures(
+        filed,
+        filings,
+        settledHandTail,
+        computedGapKeys(
+            lock,
+            findings !== null && botMerge.stale.length === 0
+                ? botMerge.merged
+                : null
+        )
+    );
+    const closing = new Set(closures.close.map((c) => claimId(c.kind, c.key)));
+    const botSkipped = new Set(
+        closures.botSkipped.map((c) => claimId(c.kind, c.key))
+    );
     for (const stale of staleClaims(filed, filings, settledHandTail)) {
+        const id = claimId(stale.kind, stale.key);
+        if (closing.has(id)) continue;
         console.log(
             "settledBy" in stale
                 ? `settled    hand-tail claim \`${stale.key}\` -> issue #${stale.issue} — the card is settled by #${stale.settledBy}; close #${stale.issue} if still open`
-                : `stale      ${stale.kind} claim \`${stale.key}\` -> issue #${stale.issue} — the gap is gone; the row stays, the issue is nobody's now`
+                : botSkipped.has(id)
+                  ? `stale      bot claim \`${stale.key}\` -> issue #${stale.issue} — reads gone, not closed: ${FINDINGS_PATH} ${findings === null ? "is missing" : "disagrees with the lockfile"}`
+                  : `stale      ${stale.kind} claim \`${stale.key}\` -> issue #${stale.issue} — no filing references it; not closable, the row stays`
+        );
+    }
+    for (const c of closures.close) {
+        console.log(
+            `${dryRun ? "would close" : "close     "} ${c.kind} claim \`${c.key}\` -> issue #${c.issue} (${c.reason})`
         );
     }
 
@@ -930,6 +1136,31 @@ function main(): void {
     } catch (err) {
         console.error(
             `gaps:sync: the \`## Unlocks\` edge pass failed (${(err as Error).message}) — every filing above is already recorded`
+        );
+    }
+
+    // The close pass (issue #4516), after every write above: it records
+    // nothing, so its own try/catch — a failure here is not a failed filing.
+    try {
+        const tip = spawnSync("git", ["rev-parse", "HEAD"], {
+            cwd: root,
+            encoding: "utf8",
+        }).stdout.trim();
+        if (tip === "")
+            throw new Error("could not read the tip (git rev-parse HEAD)");
+        const done = closeClaims(closures.close, tracker, tip);
+        for (const row of done.filter((r) => r.action !== "closed")) {
+            console.log(
+                `close      issue #${row.issue} — ${row.action}, nothing to do`
+            );
+        }
+        console.log(
+            `gaps:sync: close pass at ${tip.slice(0, 12)} — ${done.filter((r) => r.action === "closed").length} issue(s) closed, ` +
+                `${done.filter((r) => r.action !== "closed").length} already closed or missing, ${closures.botSkipped.length} bot claim(s) held`
+        );
+    } catch (err) {
+        console.error(
+            `gaps:sync: the close pass failed (${(err as Error).message}) — every filing above is already recorded`
         );
     }
 

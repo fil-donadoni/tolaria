@@ -48,6 +48,7 @@ import {
     buildMigrationFilings,
     buildQuarantineFilings,
     cardsNamedByTitle,
+    computedGapKeys,
     inScopeBotGapKeys,
     orphanCardActions,
     prioritySlices,
@@ -55,7 +56,15 @@ import {
     type Graduate,
     type KindInputs,
 } from "../lib/gap-kinds";
-import { parseOriginBand, settledHandTailOf, staleClaims } from "../gaps-sync";
+import {
+    closeClaims,
+    closureComment,
+    parseOriginBand,
+    planClaimClosures,
+    settledHandTailOf,
+    staleClaims,
+    type ClaimCloser,
+} from "../gaps-sync";
 import { botGapKey, type BotGapVerdict } from "../lib/oracle-bot-reach";
 import type { CardRow, FragmentRow, Lockfile } from "../lib/oracle-lockfile";
 import {
@@ -368,7 +377,7 @@ describe("the mechanic and scenario kinds — one issue per quarantine class", (
         expect(tracker.updateCalls).toBe(0);
     });
 
-    it("a class that disappears from the lockfile closes nothing — it is simply no longer filed", () => {
+    it("a class that disappears from the lockfile is simply no longer filed — closing its claim is the close pass's", () => {
         const tracker = new StubTracker();
         syncGaps(buildQuarantineFilings(inputs(lock), "mechanic"), tracker);
         // The keyword landed: the same cards compile, the class is gone.
@@ -1347,6 +1356,204 @@ describe("staleClaims — a settled hand-tail claim is not stale (issue #4513)",
         expect(staleClaims(others, [], settled)).toEqual(
             staleClaims(others, [])
         );
+    });
+});
+
+// ── the close pass (issue #4516) ────────────────────────────────────────
+
+describe("planClaimClosures — gaps:sync closes the claims whose work is done (issue #4516)", () => {
+    const lock = {
+        fragments: [fragment("rare clause")],
+        cards: [
+            ...FILLER,
+            unparsed("s-1", "Settled Here", [0]),
+            unparsed("o-1", "Settled Elsewhere", [0]),
+            unparsed("u-1", "Still Unmarked", [0]),
+            {
+                oracleId: "r-1",
+                name: "Now Ready",
+                state: "ready" as const,
+                opsUsed: [],
+            },
+            quarantined("q-1", "Still Held", [
+                { kind: "planned-op", detail: "live op" },
+                { kind: "smoke-skip", detail: "live shape" },
+            ]),
+            botRow("b-1", "Still Frozen", NEVER_CHOSEN),
+        ],
+    };
+    const { gapKeys } = gapIndex(lock);
+    const liveGrammar = gapKeys(
+        lock.cards.find((c) => c.oracleId === "s-1")!
+    )[0]!;
+    const settled = settledHandTailOf(
+        lock,
+        new Map([
+            ["s-1", 9001],
+            ["o-1", 3806],
+        ]),
+        gapKeys
+    );
+    const agreeing = computedGapKeys(lock, new Map());
+    const disagreeing = computedGapKeys(lock, null);
+    const filed = new Map([
+        [claimId("hand-tail", "Settled Here"), 9001],
+        [claimId("hand-tail", "Now Ready"), 9002],
+        [claimId("hand-tail", "Settled Elsewhere"), 4338],
+        [claimId("hand-tail", "Still Unmarked"), 9004],
+        [claimId("grammar", "(no slot) › a vanished line"), 9005],
+        [claimId("grammar", liveGrammar), 9006],
+        [claimId("grammar", "(op) › addMana"), 9007],
+        [claimId("mechanic", "planned-op › vanished op"), 9008],
+        [claimId("mechanic", "planned-op › live op"), 9009],
+        [claimId("scenario", "smoke-skip › vanished shape"), 9010],
+        [claimId("scenario", "smoke-skip › live shape"), 9011],
+        [claimId("bot", UNMODELLED), 9012],
+        [claimId("bot", NEVER_CHOSEN), 9013],
+        [claimId("migration", "renamed-slot"), 9014],
+    ]);
+    const plan = (computed = agreeing, rows = filed) =>
+        planClaimClosures(rows, [], settled, computed);
+    const closedKeys = (computed = agreeing, rows = filed) =>
+        plan(computed, rows).close.map((c) => `${c.kind}:${c.key}:${c.reason}`);
+
+    it("closes a Hand Tail claim its card's marker settles", () => {
+        expect(closedKeys()).toContain("hand-tail:Settled Here:settled");
+    });
+
+    it("closes a Hand Tail claim whose card now compiles `ready`", () => {
+        expect(closedKeys()).toContain("hand-tail:Now Ready:ready");
+    });
+
+    it("closes a grammar, a mechanic and a scenario claim whose key is gone", () => {
+        expect(closedKeys()).toEqual(
+            expect.arrayContaining([
+                "grammar:(no slot) › a vanished line:gone",
+                "mechanic:planned-op › vanished op:gone",
+                "scenario:smoke-skip › vanished shape:gone",
+            ])
+        );
+    });
+
+    it("closes a gone `bot` claim only while the Findings report agrees with the lockfile", () => {
+        expect(closedKeys()).toContain(`bot:${UNMODELLED}:gone`);
+        const held = plan(disagreeing);
+        expect(held.close.some((c) => c.kind === "bot")).toBe(false);
+        expect(held.botSkipped.map((c) => c.issue).sort()).toEqual([
+            9012, 9013,
+        ]);
+        expect(plan().botSkipped).toEqual([]);
+    });
+
+    it("never closes an `ops` row, a live gap, a claim settled by another issue, an unmarked residual card, or a migration", () => {
+        expect(closedKeys().sort()).toEqual(
+            [
+                "hand-tail:Settled Here:settled",
+                "hand-tail:Now Ready:ready",
+                "grammar:(no slot) › a vanished line:gone",
+                "mechanic:planned-op › vanished op:gone",
+                "scenario:smoke-skip › vanished shape:gone",
+                `bot:${UNMODELLED}:gone`,
+            ].sort()
+        );
+    });
+
+    it("never closes a claim a filing still references, nor the PRD placeholder", () => {
+        const rows = new Map([
+            [claimId("grammar", "(no slot) › a vanished line"), PRD_ISSUE],
+            [claimId("mechanic", "planned-op › vanished op"), 9008],
+        ]);
+        const live = [
+            { kind: "mechanic", key: "planned-op › vanished op" },
+        ] as GapFiling[];
+        expect(planClaimClosures(rows, live, settled, agreeing).close).toEqual(
+            []
+        );
+    });
+
+    it("closes a Grammar Cluster only when EVERY row naming its issue closes", () => {
+        const half = new Map([
+            [claimId("grammar", "(no slot) › a vanished line"), 9100],
+            [claimId("grammar", liveGrammar), 9100],
+        ]);
+        expect(plan(agreeing, half).close).toEqual([]);
+        const whole = new Map([
+            [claimId("grammar", "(no slot) › a vanished line"), 9100],
+            [claimId("mechanic", "planned-op › vanished op"), 9100],
+        ]);
+        expect(plan(agreeing, whole).close.map((c) => c.issue)).toEqual([
+            9100, 9100,
+        ]);
+    });
+});
+
+describe("closeClaims — the thin shell over the plan (issue #4516)", () => {
+    function closer(states: Record<number, "OPEN" | "CLOSED">) {
+        const closed: { issue: number; comment: string }[] = [];
+        const tracker: ClaimCloser = {
+            getIssue: (n) =>
+                states[n] === undefined
+                    ? null
+                    : { state: states[n]!, body: "", parent: null },
+            close: (issue, comment) => {
+                closed.push({ issue, comment });
+            },
+        };
+        return { tracker, closed };
+    }
+    const gone = {
+        kind: "mechanic" as const,
+        key: "planned-op › vanished op",
+        issue: 9008,
+        reason: "gone" as const,
+    };
+
+    it("each close's comment names the reason and the tip", () => {
+        const { tracker, closed } = closer({ 9008: "OPEN" });
+        expect(
+            closeClaims([gone], tracker, "abc123").map((r) => r.action)
+        ).toEqual(["closed"]);
+        expect(closed).toHaveLength(1);
+        expect(closed[0]!.comment).toContain("abc123");
+        expect(closed[0]!.comment).toContain(
+            "`planned-op › vanished op` is no longer computed"
+        );
+        expect(
+            closureComment(
+                [
+                    {
+                        kind: "hand-tail",
+                        key: "Settled Here",
+                        issue: 9001,
+                        reason: "settled",
+                    },
+                ],
+                "abc123"
+            )
+        ).toContain("`hand-tail:` marker naming this issue");
+    });
+
+    it("skips an already-closed or missing issue without error", () => {
+        const { tracker, closed } = closer({ 9008: "CLOSED" });
+        const missing = { ...gone, issue: 9999 };
+        expect(
+            closeClaims([gone, missing], tracker, "abc123").map((r) => r.action)
+        ).toEqual(["already-closed", "missing"]);
+        expect(closed).toEqual([]);
+    });
+
+    it("a cluster's rows close their one issue once, naming every reason", () => {
+        const { tracker, closed } = closer({ 9100: "OPEN" });
+        const other = {
+            ...gone,
+            kind: "grammar" as const,
+            key: "(no slot) › a vanished line",
+            issue: 9100,
+        };
+        closeClaims([{ ...gone, issue: 9100 }, other], tracker, "abc123");
+        expect(closed).toHaveLength(1);
+        expect(closed[0]!.comment).toContain("vanished op");
+        expect(closed[0]!.comment).toContain("a vanished line");
     });
 });
 

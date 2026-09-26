@@ -157,6 +157,15 @@ whenever the roster shifts, and children inherit it (issue #3212).
   detached — a merge whose `Closes` keyword failed leaves it open, and it
   stays listed until it is closed and the command is re-run by hand. Retired
   umbrellas are not in the census; `gaps:sync` empties those.
+- **`gaps:sync` closes a claim whose work is done** (issue #4516), so no
+  claim waits on a human: a Hand Tail claim its card's `hand-tail:` marker
+  settles or whose card now compiles `ready`, and a Grammar Gap / mechanic /
+  scenario / Bot Gap claim whose key the run no longer computes anywhere in
+  the corpus — Bot Gaps only while `data/bot-reach-findings.json` agrees with
+  the lockfile. Each close comments the reason and the tip; the claim row
+  stays. Never closed: an `(op) ›` row (`check:gaps` owns it), a migration, a
+  Hand Tail claim settled by ANOTHER issue's marker (printed as `settled`, a
+  human reconciles it), and a Grammar Cluster while any of its rows is live.
 - **A hand-filed `[Grammar]` ticket** goes under the Grammar Rules umbrella of
   the Target its cards compute — `gaps:sync` does not file those. It is a
   **Grammar Cluster** (`/new-set` Phase 3): it claims several gap keys, and
