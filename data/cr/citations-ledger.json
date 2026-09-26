@@ -7428,6 +7428,7 @@
         {"id":"120.3e","line":"/** CR 120.3e — a sorcery dealing 1 damage to each creature `select` names. */","sites":1,"status":"confirmed","ruleHash":"4960e7961d54c1cb"},
         {"id":"120.3e","line":"/** CR 602.2 / 120.3e — a creature whose activated ability deals 1 damage","sites":1,"status":"confirmed","ruleHash":"4960e7961d54c1cb"},
         {"id":"120.3e","line":"// `damageMarked` (CR 120.3e — damage from a source with neither","sites":1,"status":"confirmed","ruleHash":"4960e7961d54c1cb"},
+        {"id":"120.3e","line":"// creature and player (CR 120.3e), so its pose is the land-target position","sites":1,"status":"confirmed","ruleHash":"4960e7961d54c1cb"},
         {"id":"120.3e","line":"describe(\"marked damage accumulates across noncombat events (CR 120.3e, 704.5g)\", () => {","sites":1,"status":"confirmed","ruleHash":"4960e7961d54c1cb"},
         {"id":"120.4","line":"* (CR 601.2d / 120.4). When the caster recorded an explicit split at","sites":1,"status":"baseline"},
         {"id":"120.4","line":"* (CR 601.2d / 120.4). `\"X\"` → X, `\"X+1\"` → X+1 (Meteor Shower), a number →","sites":1,"status":"baseline"},
