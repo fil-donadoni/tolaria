@@ -108,3 +108,46 @@ export const bloodfireInfusion: CardDefinition = {
         },
     ],
 };
+
+// Bloodfire Kavu — {2}{R}{R} 2/2 Kavu. "{R}, Sacrifice this creature: It deals
+// 2 damage to each creature."
+//
+// The sacrifice is a cost (CR 118.1, CR 602.2b), so the Kavu is already in the
+// graveyard when the ability resolves and "it" is its last known information
+// (CR 608.2h) — the source of the damage. The sweep is `forEach` over
+// battlefield creatures dealing 2 to each, the Pyroclasm shape (CR 120.3).
+// hand-tail: {R}, Sacrifice this creature: It deals 2 damage to each creature. (#4324)
+export const bloodfireKavu: CardDefinition = {
+    id: "1442b1f3-8c2c-4553-906f-c864fcdc6ae5", // APC 58
+    rarity: "uncommon",
+    name: "Bloodfire Kavu",
+    oracleText:
+        "{R}, Sacrifice this creature: It deals 2 damage to each creature.",
+    manaCost: { X: 2, R: 2 },
+    types: ["Creature"],
+    subtypes: ["Kavu"],
+    power: 2,
+    toughness: 2,
+    activatedAbilities: [
+        {
+            id: "bloodfire-kavu-sweep",
+            oracleText:
+                "{R}, Sacrifice this creature: It deals 2 damage to each creature.",
+            cost: { mana: { R: 1 }, sacrifice: true },
+            useStack: true,
+            effects: [
+                {
+                    op: "forEach",
+                    select: {
+                        set: "permanents",
+                        zone: "battlefield",
+                        filter: { type: "Creature" },
+                    },
+                    effects: [
+                        { op: "dealDamage", amount: 2, to: { ref: "$each" } },
+                    ],
+                },
+            ],
+        },
+    ],
+};
