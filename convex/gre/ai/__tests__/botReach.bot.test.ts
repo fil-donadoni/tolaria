@@ -946,6 +946,17 @@ describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
         ]);
     }, 600_000);
 
+    // Issue #4290: a modal instant (haste / pump / damage to a subtype-filtered
+    // creature). The gap was a stale verdict from before the Bot's later
+    // changes: the search now casts it at both seats. Pins reachability only
+    // (a legal cast is chosen); valuer sensitivity and mode choice are not.
+    it("played — a modal instant with haste, pump and subtype-damage modes", () => {
+        expect(playBotReachSeats(getCardByName("Fever Charm"))).toEqual([
+            { holderId: "p1", verdict: { outcome: "played" } },
+            { holderId: "p2", verdict: { outcome: "played" } },
+        ]);
+    }, 600_000);
+
     // Issue #4287: the same exchange behind a creature that also carries a
     // dies trigger (a pump on a target) — the trigger does not turn the
     // sacrifice-for-draw outlet into a scored sacrifice below the cast edge.
