@@ -28,6 +28,7 @@ import { registeredDefinitions } from "../../cards/registry";
 import type {
     CardDefinition,
     CardSupertype,
+    EffectOp,
     TargetRequirement,
 } from "../../cards/types";
 import type { ScenarioCard, ScenarioSpec } from "../../debugScenarioSpec";
@@ -512,8 +513,24 @@ export function targetPose(def: CardDefinition): TargetPose {
     };
 }
 
+/** An "untap all creatures you control" sweep: a `forEach` over the
+ *  controller's creatures whose body untaps the iterated permanent. */
+function untapsOwnCreatures(op: EffectOp): boolean {
+    if (op.op !== "forEach") return false;
+    const select = op.select as {
+        controller?: unknown;
+        filter?: { type?: unknown };
+    };
+    return (
+        select.controller === "controller" &&
+        select.filter?.type === "Creature" &&
+        op.effects.some((e) => e.op === "tapUntap" && e.action === "untap")
+    );
+}
+
 /**
- * A spell that untaps an announced target needs something TAPPED to untap
+ * A spell that untaps an announced target (or every creature its controller
+ * has) needs something TAPPED to untap
  * (CR 701.26b — an untapped permanent does not untap). The position seeds only
  * untapped permanents, so the effect changes nothing in it and passing is the
  * right play; the pose gives the holder a tapped body of its own, the thing an
@@ -523,9 +540,11 @@ export function targetPose(def: CardDefinition): TargetPose {
 function untapPose(def: CardDefinition): TargetPose | null {
     const untaps = (def.effects ?? []).some(
         (e) =>
-            e.op === "tapUntap" &&
-            e.action === "untap" &&
-            typeof (e.target as { target?: unknown }).target === "number"
+            (e.op === "tapUntap" &&
+                e.action === "untap" &&
+                typeof (e.target as { target?: unknown }).target ===
+                    "number") ||
+            untapsOwnCreatures(e)
     );
     if (!untaps) return null;
     return {
@@ -554,7 +573,7 @@ function requirementPose(
     // A requirement that narrows keeps its own pose (a combat role, a subtype);
     // the untap pose fills only the plain-creature case that had none.
     if (!req || !narrows(req))
-        return (req && modeId === undefined ? untapPose(def) : null) ?? NO_POSE;
+        return (modeId === undefined ? untapPose(def) : null) ?? NO_POSE;
     const printed = creatureFor(req);
     const granted = printed === null ? grantedBody(req) : null;
     const body = printed ?? granted?.body ?? null;

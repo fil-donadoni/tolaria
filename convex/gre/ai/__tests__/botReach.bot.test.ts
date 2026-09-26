@@ -927,6 +927,16 @@ describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
         ]);
     }, 600_000);
 
+    // Issue #4293: "untap all creatures you control" has nothing to untap on
+    // a board of untapped creatures; the position gives the holder a tapped one
+    // (CR 701.26b), and the Bot then casts it.
+    it("played — an untap-all sweep over the holder's own creatures", () => {
+        expect(playBotReachSeats(getCardByName("Vitalize"))).toEqual([
+            { holderId: "p1", verdict: { outcome: "played" } },
+            { holderId: "p2", verdict: { outcome: "played" } },
+        ]);
+    }, 600_000);
+
     // Issue #4288: an untap spell whose target narrows keeps the pose that
     // narrowing asks for — Foxfire's attacking creature is posed in combat.
     it("played — an untap spell aimed at an attacking creature", () => {
