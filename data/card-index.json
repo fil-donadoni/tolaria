@@ -39436,6 +39436,14 @@
         "source": "compiled"
     },
     {
+        "name": "Quicksilver Dagger",
+        "scryfallId": "83c74012-6060-4fad-aa73-6e6afd33c482",
+        "oracleId": "5c77bf76-bb0f-4e44-babe-0e7b7b555e1f",
+        "firstSet": "apc",
+        "firstPrintId": "83c74012-6060-4fad-aa73-6e6afd33c482",
+        "firstPrintSet": "apc"
+    },
+    {
         "name": "Quicksilver Fisher",
         "scryfallId": "bad0e96a-b4cc-4439-aab9-731a1036145d",
         "oracleId": "b3e3d037-992b-4718-913d-7ab509d2047e",

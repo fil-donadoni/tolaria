@@ -3,7 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 import type { CardDefinition } from "../../types";
-import { PERMANENT_TYPES } from "../../types";
+import { AURA_AFFECTS_HOST, PERMANENT_TYPES } from "../../types";
 import { defineSplitCard } from "../../splitCard";
 
 // Vindicate — "Destroy target permanent." (CR 701.8 destroy.) `type: "any"`
@@ -411,6 +411,55 @@ export const putridWarrior: CardDefinition = {
                         },
                     ],
                 },
+            ],
+        },
+    ],
+};
+
+// Quicksilver Dagger — {1}{U}{R} Enchantment — Aura. "Enchant creature.
+// Enchanted creature has '{T}: This creature deals 1 damage to target player
+// or planeswalker. You draw a card.'" (CR 613.1f layer-6 ability grant; CR
+// 602.2 the granted ability is activated by the enchanted creature's
+// controller, so "You" is that player; CR 120.1 the enchanted creature is the
+// damage source, hence `source: $source`.)
+//
+// The granted ability lives on `grantTemplates[]` and an `activated-grant`
+// static pushes it onto the host (the Mystic Might shape). Built by hand: the
+// grammar has no rule for a granted quoted ability that damages and draws.
+// hand-tail: Enchanted creature has "{T}: This creature deals 1 damage to target player or planeswalker. You draw a card." (#4340)
+export const quicksilverDagger: CardDefinition = {
+    id: "83c74012-6060-4fad-aa73-6e6afd33c482", // APC 118
+    rarity: "common",
+    name: "Quicksilver Dagger",
+    oracleText:
+        'Enchant creature\nEnchanted creature has "{T}: This creature deals 1 damage to target player or planeswalker. You draw a card."',
+    manaCost: { U: 1, R: 1, X: 1 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Creature", count: 1 },
+    staticEffects: [
+        {
+            kind: "activated-grant",
+            applies: AURA_AFFECTS_HOST,
+            abilityId: "quicksilver-dagger-ping-draw",
+        },
+    ],
+    grantTemplates: [
+        {
+            id: "quicksilver-dagger-ping-draw",
+            oracleText:
+                "{T}: This creature deals 1 damage to target player or planeswalker. You draw a card.",
+            cost: { tap: true },
+            useStack: true,
+            targetRequirement: { type: ["player", "Planeswalker"], count: 1 },
+            effects: [
+                {
+                    op: "dealDamage",
+                    amount: 1,
+                    to: { target: 0 },
+                    source: { ref: "$source" },
+                },
+                { op: "draw", player: "controller", count: 1 },
             ],
         },
     ],
