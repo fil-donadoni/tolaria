@@ -50000,6 +50000,14 @@
         "source": "compiled"
     },
     {
+        "name": "Suffocating Blast",
+        "scryfallId": "c2a70297-2a7b-4a0c-ace5-cd61bfe6dafd",
+        "oracleId": "2a9d9433-7b0f-45a3-88aa-9fd7e410c224",
+        "firstSet": "apc",
+        "firstPrintId": "c2a70297-2a7b-4a0c-ace5-cd61bfe6dafd",
+        "firstPrintSet": "apc"
+    },
+    {
         "name": "Sugar Rush",
         "scryfallId": "a638c9ba-45d6-4b50-a8ab-ef580a0a5d8e",
         "oracleId": "57085b8e-a85e-4d50-a7d2-9bddfdaf411c",

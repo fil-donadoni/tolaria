@@ -464,3 +464,26 @@ export const quicksilverDagger: CardDefinition = {
         },
     ],
 };
+
+// Suffocating Blast — {1}{U}{U}{R} Instant. "Counter target spell and
+// Suffocating Blast deals 3 damage to target creature." (CR 701.6a counter,
+// CR 120.1 damage, CR 601.2c two INDEPENDENT target groups — one spell, one
+// creature — the Plague Spores `additionalTargetRequirements` precedent; CR
+// 608.2b a target that became illegal is skipped while the other still
+// resolves.) Damage source defaults to the resolving spell itself.
+// hand-tail: Counter target spell and {self} deals 3 damage to target creature. (#4341)
+export const suffocatingBlast: CardDefinition = {
+    id: "c2a70297-2a7b-4a0c-ace5-cd61bfe6dafd", // APC 124
+    rarity: "rare",
+    name: "Suffocating Blast",
+    oracleText:
+        "Counter target spell and Suffocating Blast deals 3 damage to target creature.",
+    manaCost: { X: 1, U: 2, R: 1 },
+    types: ["Instant"],
+    targetRequirement: { type: "spell", count: 1 },
+    additionalTargetRequirements: [{ type: "Creature", count: 1 }],
+    effects: [
+        { op: "counter", target: { target: 0 } },
+        { op: "dealDamage", amount: 3, to: { target: 1 } },
+    ],
+};
