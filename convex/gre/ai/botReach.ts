@@ -499,7 +499,7 @@ const MAX_FOLLOW_THROUGH_STEPS = 12;
 const EXTRA_LANDS = 2;
 
 /**
- * CR 702.33a — the colours the generated lands must produce: the card's own
+ * CR 702.33a (Kicker) — the colours the generated lands must produce: the card's own
  * (its mana cost) AND those of every kicker leg. A kicker's mana is an
  * additional cost the card's colour never counts (`getCardColors` reads the
  * printed cost only), so a mono-red card kicked with {W}{W} was posed on

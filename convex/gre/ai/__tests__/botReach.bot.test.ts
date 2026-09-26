@@ -272,8 +272,8 @@ const OPPONENT_DRAW_SORCERY: CardDefinition = {
     effects: [{ op: "draw", player: "opponent", count: 3 }],
 };
 
-/** CR 702.33a / 603.6a — a mono-red creature whose enters trigger destroys the
- *  holder's OWN other creatures, and every player's other creatures instead
+/** CR 702.33a (Kicker) / 603.6a — a mono-red creature whose enters trigger
+ *  destroys the holder's OWN other creatures, and every player's other creatures instead
  *  when kicked with WHITE mana its printed cost never names. Unkicked it is
  *  strictly a loss in the generated position (two bodies for one), so it is
  *  cast only if the kicked branch is payable. */
