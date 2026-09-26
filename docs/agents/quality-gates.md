@@ -896,6 +896,54 @@ diff with the same function (`landingDiffScope`) and refuses a mismatch. A full
 ADR 0104 defends against — a guard that must notice what the diff did not
 touch — has no instance in this lane: every surface measures one route.
 
+### Affordability — admission, scope, parallelism, timing (issue #4687)
+
+Measured on issue #4422 (PR #4672), 2026-09-25: the code took ~1 h and the UI
+receipt ~6 h — six full runs of 40–90 min plus four diagnostic runs before one
+came back clean. Over 25 full runs on 2026-09-24/25 the uncontended floor was
+1606–1686 s (~6 s per cell, load 5–7) and contended runs took 2760–5670 s. The
+causes and the levers, in the order the phase timings ranked them:
+
+| Cause                                                               | Lever                                                                                                                                                                    |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Runs overlapped on one backend; contention read as UI failures      | machine-wide `check:ui` lane lock (`scripts/lib/ui-admission.ts`), separate from the heavy mutex; `gate:who` names the holder; released on every exit path               |
+| A `surfaces.ts` edit forced the full lane                           | hunks inside `SURFACES` elements select those surfaces (`scripts/lib/ui-surface-edits.ts`); a hunk in shared machinery is still `full`; `land` re-derives it             |
+| Every slice rewrote the census guard's pinned count                 | `DEBT_CEILING` is a set of files, never edited when debt is paid                                                                                                         |
+| Parallelism sized from the load average ran 1 of 5 in 24 runs of 25 | sized from cores and total memory, floor 2 (`scripts/ui-gate/parallel.ts`); the lock makes the load the neighbours' problem, not this run's                              |
+| ~300 navigations paid the dev server's per-request transform        | `--serve=build` (default): a development-mode `vite build` (~12 s) served by `vite preview`                                                                              |
+| 31 rows reloaded `/admin/design-system`                             | one load per viewport; each row's `cleanup` closes its specimen through `data-specimen-close`; a layer still open forces a navigation (`scripts/ui-gate/census-page.ts`) |
+| Every INFRA retry waited the full 90 s on a load that never fell    | wait continues only while the load is falling, 30 s at most (`retryStep`)                                                                                                |
+| No per-phase timing: nothing above could be ranked                  | every cell line ends in its seven phase durations; the diagnostic block totals them (`scripts/ui-gate/phase-timing.ts`)                                                  |
+
+**Measurements, same tree (this branch), same day, all five viewports, `--all`.**
+The `uptime` 1-minute load is printed as the run saw it at its start and end;
+other sessions' gates ran throughout, so none of these is the uncontended
+figure — the closest the day offered is the last row.
+
+| Run                                          | Wall        | Load start → end      | Measured | Notes                                                                                    |
+| -------------------------------------------- | ----------- | --------------------- | -------- | ---------------------------------------------------------------------------------------- |
+| issue #4687 baseline, uncontended (recorded) | 1606 s      | 5–7                   | 52–56    | before: parallelism 1 of 5, dev server, 90 s INFRA waits                                 |
+| issue #4687 baseline, contended (recorded)   | 2760–5670 s | > 6                   | 40/56    | before: overlapping runs                                                                 |
+| `--serve=dev`, parallel 5, census reuse      | 1130 s      | 10.4 → 11.7 (peak 43) | 59/68    | 5 assertion timeouts under load 43, 3 UNWALKED; walk 61 % of phase time, 9.1 s mean      |
+| `--serve=build` (production), parallel 5     | 480 s       | 7.2 → 27.4            | 65/68    | `game-debug-sheet-ai` UNWALKED: its seam is `import.meta.env.DEV`-gated — build rejected |
+| `--serve=build` (development-mode), default  | 567 s       | 4.9 → 10.7            | 66/68    | **PASS**; walk 58 % / 4.1 s mean, screenshot 14 %, cleanup 15 %; the receipt on PR       |
+
+The dev-server vs bundle decision is the third and fourth rows: same tree,
+same parallelism, same census reuse, 1130 s against 480 s, and the phase
+totals name the difference — `walk` fell from 2987 s to 1227 s across 330
+cells, `screenshot` from 560 s to 339 s, `assertions` from 398 s to 88 s.
+The bundle is served in development mode because the production build lost a
+surface (`game-debug-sheet-ai`) and the console warnings the Infra Verdict
+classifies; a bundle the lane could not prove the same app on would be a
+faster gate for a different program. `--serve=dev` stays as the escape.
+
+What remains above the target: the acceptance asked ≤ 12 min uncontended for
+the full lane, and 567 s under a 5–11 load clears it with room; a scoped run
+for one or two surfaces costs the fixed floor (build, five sign-ins, the
+settle self-check) plus a handful of cells and lands well under 5 min. The
+`walk` phase still owns 58 % of cell time, most of it in the game surfaces'
+navigation and scenario dealing — the next lever, if one is ever needed.
+
 ## Hooks, and why they are tracked in git
 
 `.husky/pre-commit` — lint-staged/prettier on staged files. A convenience;

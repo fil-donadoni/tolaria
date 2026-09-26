@@ -44,7 +44,17 @@ bun run check:ui -- --scope-only              # print the scope, no browser
 bun run check:ui -- --surface=lobby           # one surface, same rules (DIAGNOSTIC)
 bun run check:ui -- --headed                  # watch it walk
 bun run check:ui -- --parallel=1              # N viewports at once, 1..5
+bun run check:ui -- --serve=dev               # walk the Vite dev server instead of the built bundle
 ```
+
+**One browser run per machine** (issue #4687). Two `check:ui` runs on one
+machine share one local Convex backend, and contention there reads as UI
+failures (`function-timeout` cells, walks that fail on screens that render
+fine). The lane takes a machine-wide lane lock before it boots a browser —
+`--scope-only` and an empty scope never queue — prints who it is waiting on
+and for how long, reclaims a dead or silent holder, and releases on every exit
+path including a signal. It is a separate mutex from the heavy gate's, so a
+browser run never delays a `land`; `bun run gate:who` names both holders.
 
 **Scope** (issues #3627, #3628; ADR 0131). A run with no `--surface=`/`--all`
 walks only the surfaces whose route import closure contains a file this
@@ -54,14 +64,44 @@ stylesheet, a design token, a shared UI primitive, the shell, the router,
 scoper cannot place forces the full run. Tests, scripts and markdown reach
 nothing, so a diff made only of them walks zero surfaces and says so.
 
-**Speed is sized to the machine** (issue #3653). The five viewports are
-independent, so the lane walks several at once — one context per free core,
-holding one core back for its own Vite and the local backend, clamped to 1..5
-and read ONCE from the 1-minute load average at the start of the run. An idle
-machine walks all five together; a machine at its core count walks them one at
-a time, because five Chromium contexts on a busy box turn a UI question into an
-`INFRA` verdict (issue #3644). The count, the load it was sized from and the
-number of lane accounts print in the diagnostic block.
+**Speed is sized to the machine the run owns** (issue #3653, re-sized in
+issue #4687). The five viewports are independent, so the lane walks several at
+once — one context per core past the three it holds back for its own server,
+itself and the local backend, capped by total memory (one GiB per context past
+a 6 GiB reserve), clamped to 2..5. The 1-minute load average is no longer an
+input: on a shared machine it is the neighbours' test suites, and sizing from
+it ran the five viewports in series 24 runs out of 25. The admission lock above
+guarantees this is the one browser run, so the count is a function of the
+machine, not of the moment. The count, what it was sized from and the number
+of lane accounts print in the diagnostic block.
+
+**Served from a bundle, built once** (issue #4687, `--serve=build`, the
+default). The dev server re-transforms the module graph on every one of the
+~300 navigations a run makes; a `vite build` costs ~12s once and `vite preview`
+serves it statically. Measured on one tree under the same load: 1130s on the
+dev server, 480s on the bundle — so the bundle is the default and `--serve=dev`
+is the escape. It is a **development-mode** bundle (`NODE_ENV=development`,
+`--mode development`): the lane measures the same app the dev server serves —
+`game-debug-sheet-ai` walks a seam installed only under `import.meta.env.DEV`,
+and the Infra Verdict reads React's development warnings — where a production
+build dropped both.
+
+**One census-page load per viewport** (issue #4687). Thirty-one rows are
+`/admin/design-system`: the page, the GameDialog live demo and the § 16–18
+specimen openers. A row that finds the page already loaded with NO specimen
+layer visible presses its opener without navigating; each row's `cleanup`
+closes what it opened through the page's own `data-specimen-close` seam
+(`overlay-specimens.tsx`), then Escape, then the layer's close glyph. The check
+is fail-closed and pure (`scripts/ui-gate/census-page.ts`): a layer the cleanup
+did not close forces a fresh navigation, so it can cost the next row a page
+load and never a leaked measurement. The diagnostic block lists every row that
+had to re-navigate and why.
+
+**Every cell prints where its time went** (issue #4687). A measured cell line
+ends in `| t walk… settle… probe… axe… shot… assert… clean… =Ns`, and the
+diagnostic block closes with a per-phase total, share, mean and worst cell
+(`scripts/ui-gate/phase-timing.ts`). Every lever above was ranked on those
+numbers: `docs/agents/quality-gates.md` § Affordability.
 
 Each viewport now reaches its own verdict on every surface, where a surface
 that failed at the first viewport used to be skipped at the other four. That is
@@ -81,8 +121,8 @@ tree print the same verdict block byte for byte. What changes is the wall time,
 the load line, and the order the work happened in — all diagnostic, none of it
 read by `land`.
 
-It owns the whole lifecycle: it checks the Convex deployment answers, starts
-its **own** Vite on `127.0.0.1` and a free port (your `bun run dev` is left
+It owns the whole lifecycle: it checks the Convex deployment answers, serves
+the app itself on `127.0.0.1` and a free port (your `bun run dev` is left
 alone), registers the run's own throwaway account and signs in as it, walks
 each surface in `scripts/ui-gate/surfaces.ts` at each of the five viewports,
 injects `scripts/ui-gate/probe.js` and `axe-core`, and holds every Floor at
@@ -159,9 +199,12 @@ deployment.
   receipt. The signatures are `function-timeout`, `server-error`,
   `navigation-timeout`, `step-timeout` and `unsettled`
   (`scripts/ui-gate/infra-verdict.ts`); each cell gets three attempts, and
-  before each retry the lane waits up to 90s for the 1-minute load average to
-  drop under the CPU count (`TOLARIA_UI_GATE_LOAD_THRESHOLD` overrides it),
-  ending and re-dealing its own game first when the surface plays in one. A
+  before each retry the lane waits for the 1-minute load average to drop
+  under the CPU count (`TOLARIA_UI_GATE_LOAD_THRESHOLD` overrides it) — one
+  5s poll to see a trend, then only while the load is FALLING, and never past
+  30s (issue #4687: it was 90s spent in full, twice per cell, on a load that
+  never moved) — ending and re-dealing its own game first when the surface
+  plays in one. A
   signature that still fails with the load under that threshold is the walk's
   own failure, and is reported as UNWALKED.
 - **UNWALKED** — the lane could not measure the surface at all: the

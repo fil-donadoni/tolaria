@@ -65,6 +65,24 @@ export default function OverlaySpecimens({
                     </Specimen>
                 ))}
             </div>
+            {open && (
+                // The one reset every specimen shares (issue #4687): a
+                // GameDialog specimen neither dismisses on Escape nor shows a
+                // close glyph, and its footer plates may be disabled until a
+                // choice is made — so `check:ui`'s census rows close the
+                // specimen they measured through this seam and press the next
+                // opener on the same page instead of reloading it. Mounted
+                // only while a specimen is open, so a closed page is exactly
+                // what it was.
+                <button
+                    type="button"
+                    data-specimen-close
+                    onClick={close}
+                    className="btn-base btn-tone-secondary mt-3 px-3 py-1.5 text-xs"
+                >
+                    Close specimen
+                </button>
+            )}
             {wrap(mounted && open ? mounted.render(close, open.anchor) : null)}
         </>
     );
