@@ -927,6 +927,17 @@ describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
         ]);
     }, 600_000);
 
+    // Issue #4294: the gap was a stale verdict from before later Bot changes;
+    // the search now casts a land destroyer that also draws, at both seats.
+    // Pins reachability only (a legal, affordable cast is chosen), not the
+    // `landPose` pose nor the draw valuation.
+    it("played — a land destroyer that draws a card", () => {
+        expect(playBotReachSeats(getCardByName("Implode"))).toEqual([
+            { holderId: "p1", verdict: { outcome: "played" } },
+            { holderId: "p2", verdict: { outcome: "played" } },
+        ]);
+    }, 600_000);
+
     // Issue #4293: "untap all creatures you control" has nothing to untap on
     // a board of untapped creatures; the position gives the holder a tapped one
     // (CR 701.26b), and the Bot then casts it.
