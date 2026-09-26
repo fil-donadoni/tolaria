@@ -17,6 +17,7 @@
          ├─ ✗ crashed · retry in 1m00s · 6m24s · queue 11→11 · █████████░ 128.8M/140M 92% ──────────
          │ ✗ pass 20 crashed (claude exit 1; consecutive failure 1/3) — retrying in 60s. Log tail:
 ── 2026-09-27 ──────────────────────────────────────────────────────────────────────────────────────
+00:04:50 │ ◌ sweep unchanged · 0 claimed · 0 orphaned · 0 recoverable
 00:05:00 │ ⚠ budget guard tripped — run 1790430792-59822 has spent 140420000 of 140000000 weighted tokens (100.3%) >= --max-pct 100%.
          │
          │ ╭─ run summary ───────────────╮

@@ -18,6 +18,7 @@
 import * as readline from "node:readline";
 import {
     INITIAL_RENDER_STATE,
+    flushPending,
     renderSafely,
     type RenderEnv,
 } from "./lib/loop-render";
@@ -54,6 +55,20 @@ function main(): void {
         if (result.notice !== undefined) {
             degraded = true;
             process.stderr.write(`${result.notice}\n`);
+        }
+    });
+    // A sweep block still open when the stream ends (the log's last lines
+    // were its rows, with nothing after to close it) would otherwise never
+    // print — flush it (issue #4718).
+    lines.on("close", () => {
+        if (degraded) return;
+        try {
+            const result = flushPending(state, env);
+            if (result.output.length > 0)
+                process.stdout.write(`${result.output.join("\n")}\n`);
+        } catch {
+            // Best-effort: the stream is ending anyway, and this is not
+            // worth a crash on the way out.
         }
     });
 }
