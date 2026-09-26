@@ -277,6 +277,13 @@ class StubTracker implements GapTracker {
         this.comments.push({ issue: number, body });
     }
 
+    close(number: number, body: string): void {
+        this.comments.push({ issue: number, body });
+        const issue = this.issues.get(number);
+        if (issue !== undefined)
+            this.issues.set(number, { ...issue, state: "CLOSED" });
+    }
+
     /** The `## Unlocks` pass has its own file (`gap-issues.test.ts`); here the
      *  tracker only has to satisfy the seam. */
     listUnlockSources(): readonly UnlockSource[] {
@@ -2204,6 +2211,23 @@ describe("gaps-sync main hands the parsed origin band to syncGaps", () => {
         const source = readFileSync("scripts/gaps-sync.ts", "utf8");
         expect(source).toMatch(
             /syncGaps\(\s*withUnlockBlockers\(filings, blockers\),\s*tracker,\s*originBand,\s*clusterIssues\(allowlist\),\s*signatureRows\s*\)/
+        );
+    });
+});
+
+describe("gaps-sync main closes absorbed singles only after the rows are recorded (issue #4678)", () => {
+    // Closed before the write-back, a failed write would leave a live gap's
+    // row on a closed issue — read `skip-closed` next run, the claim lost.
+    // Pinned by SHAPE, like the managed-block pin below: `main()` reads the
+    // network.
+    it("calls closeAbsorbedSingles after commitAndPushAllowlist, inside its own try", () => {
+        const source = readFileSync("scripts/gaps-sync.ts", "utf8");
+        const writeBack = source.indexOf("commitAndPushAllowlist(root);");
+        const close = source.indexOf("closeAbsorbedSingles(result.absorbed");
+        expect(writeBack).toBeGreaterThan(-1);
+        expect(close).toBeGreaterThan(writeBack);
+        expect(source.slice(writeBack, close)).toMatch(
+            /try \{\s*for \(const single of $/
         );
     });
 });

@@ -36,6 +36,8 @@ import {
     renderOpGapBody,
     SUB_ISSUE_CAP,
     clusterIssues,
+    absorptionComment,
+    closeAbsorbedSingles,
     syncGaps,
     issuesWorkedByPrs,
     syncAdoptedBlocks,
@@ -190,6 +192,15 @@ class StubTracker implements GapTracker {
 
     comment(issue: number, body: string): void {
         this.comments.push({ issue, body });
+    }
+
+    readonly closed: Array<{ issue: number; body: string }> = [];
+
+    close(issue: number, body: string): void {
+        this.closed.push({ issue, body });
+        const existing = this.issues.get(issue);
+        if (existing === undefined) throw new Error(`no issue #${issue}`);
+        this.issues.set(issue, { ...existing, state: "CLOSED" });
     }
 
     listUnlockSources(): readonly UnlockSource[] {
@@ -1540,6 +1551,171 @@ describe("syncGaps adopts a new gap into the matching Gap Cluster (ADR 0146)", (
             }
             expect(tracker.updateCalls).toBe(0);
         });
+    });
+});
+
+describe("syncGaps absorbs its own open singles into the matching Gap Cluster (issue #4678)", () => {
+    const BOT = "never-chosen › sorcery › draw+forEach";
+    const CLUSTER = 900;
+    const SINGLE = 4099;
+    const signature: ClusterRow = {
+        issue: CLUSTER,
+        kind: "bot",
+        match: ["never-chosen › * › *forEach*"],
+    };
+    const SINGLE_BODY =
+        "## Gap\n\n```ts\nforEach()\n```\n\nFiled by `gaps:sync`.";
+    const filed = (over: Partial<GapFiling> = {}) =>
+        filing({
+            kind: "bot",
+            key: BOT,
+            title: `Bot Gap: ${BOT}`,
+            currentIssue: SINGLE,
+            body: () => "body v2",
+            ...over,
+        });
+    const tracker = (title = `Bot Gap: ${BOT}`) => {
+        const t = new StubTracker();
+        t.issues.set(CLUSTER, { state: "OPEN", body: "## Scope" });
+        t.issues.set(SINGLE, { state: "OPEN", title, body: SINGLE_BODY });
+        return t;
+    };
+    // `main`'s order: plan, (write-back), then close the absorbed singles.
+    const run = (t: StubTracker, over: Partial<GapFiling> = {}) => {
+        const result = syncGaps(
+            [filed(over)],
+            t,
+            undefined,
+            new Set([CLUSTER]),
+            [signature]
+        );
+        closeAbsorbedSingles(result.absorbed, t);
+        return result;
+    };
+
+    it("closes the matching filed single, re-points its claim row at the cluster", () => {
+        const t = tracker();
+        const result = run(t);
+        expect(result.actions).toEqual([
+            {
+                action: "absorb",
+                kind: "bot",
+                key: BOT,
+                issue: CLUSTER,
+                single: SINGLE,
+            },
+        ]);
+        expect(result.updatedRows.get(claimId("bot", BOT))).toBe(CLUSTER);
+        expect(t.closed.map((c) => c.issue)).toEqual([SINGLE]);
+        expect(t.issues.get(SINGLE)!.state).toBe("CLOSED");
+        // Neither the single's body nor the cluster's is rewritten here: the
+        // managed block is `syncAdoptedBlocks`'s, after the write-back.
+        expect(t.updateCalls).toBe(0);
+        expect(t.createCalls).toBe(0);
+    });
+
+    it("syncGaps only PLANS the close — the single stays open until after the write-back", () => {
+        const t = tracker();
+        const result = syncGaps([filed()], t, undefined, new Set([CLUSTER]), [
+            signature,
+        ]);
+        expect(t.closed).toEqual([]);
+        expect(t.issues.get(SINGLE)!.state).toBe("OPEN");
+        expect(result.absorbed).toEqual([
+            {
+                kind: "bot",
+                key: BOT,
+                single: SINGLE,
+                cluster: CLUSTER,
+                body: SINGLE_BODY,
+            },
+        ]);
+    });
+
+    it("the closing comment names the cluster and carries the single's body verbatim", () => {
+        const t = tracker();
+        run(t);
+        const body = t.closed[0]!.body;
+        expect(body).toMatch(/^absorbed into issue #900\b/);
+        expect(body).toContain(`\n${SINGLE_BODY}\n`);
+        // The body's own ``` fence cannot close the quoting fence early.
+        expect(body).toContain("````markdown\n");
+        expect(absorptionComment(CLUSTER, SINGLE_BODY)).toBe(body);
+    });
+
+    it("a second run over the re-pointed row plans no absorb — the cluster, left alone", () => {
+        const t = tracker();
+        const first = run(t);
+        const second = run(t, {
+            currentIssue: first.updatedRows.get(claimId("bot", BOT))!,
+        });
+        expect(second.actions.map((a) => a.action)).toEqual(["cluster"]);
+        expect(t.closed).toHaveLength(1);
+        expect(t.updateCalls).toBe(0);
+    });
+
+    it("a hand-filed issue on the claim row is left alone", () => {
+        const t = tracker("Bot never casts forEach sorceries");
+        const result = run(t);
+        expect(result.actions.map((a) => a.action)).toEqual(["update"]);
+        expect(t.closed).toEqual([]);
+        expect(result.updatedRows.size).toBe(0);
+    });
+
+    it("an issue whose title was never read is left alone — fail closed", () => {
+        const t = tracker();
+        t.issues.set(SINGLE, { state: "OPEN", body: SINGLE_BODY });
+        expect(run(t).actions.map((a) => a.action)).toEqual(["update"]);
+        expect(t.closed).toEqual([]);
+    });
+
+    it("an in-progress single is left alone", () => {
+        const t = tracker();
+        t.states.set(SINGLE, { open: true, inProgress: true, openPr: false });
+        expect(run(t).actions.map((a) => a.action)).toEqual(["update"]);
+        expect(t.closed).toEqual([]);
+    });
+
+    it("a single with an open PR is left alone", () => {
+        const t = tracker();
+        t.states.set(SINGLE, { open: true, inProgress: false, openPr: true });
+        expect(run(t).actions.map((a) => a.action)).toEqual(["update"]);
+        expect(t.closed).toEqual([]);
+    });
+
+    it("a multi-claimed issue is a cluster, never absorbed", () => {
+        const t = tracker();
+        const result = syncGaps(
+            [filed()],
+            t,
+            undefined,
+            new Set([CLUSTER, SINGLE]),
+            [signature]
+        );
+        expect(result.actions.map((a) => a.action)).toEqual(["cluster"]);
+        expect(t.closed).toEqual([]);
+    });
+
+    it("a single that IS its own Standalone Gap is never absorbed into itself", () => {
+        const t = tracker();
+        const standalone: ClusterRow = {
+            issue: SINGLE,
+            kind: "bot",
+            match: [BOT],
+            standalone: true,
+        };
+        const result = syncGaps([filed()], t, undefined, new Set(), [
+            standalone,
+        ]);
+        expect(result.actions.map((a) => a.action)).toEqual(["update"]);
+        expect(t.closed).toEqual([]);
+    });
+
+    it("a busy cluster absorbs nothing — the single stays", () => {
+        const t = tracker();
+        t.states.set(CLUSTER, { open: true, inProgress: true, openPr: false });
+        expect(run(t).actions.map((a) => a.action)).toEqual(["update"]);
+        expect(t.closed).toEqual([]);
     });
 });
 

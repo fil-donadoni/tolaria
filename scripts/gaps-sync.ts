@@ -109,6 +109,7 @@ import {
     PRD_ISSUE,
     RETIRED_UMBRELLAS,
     planUnlockEdges,
+    closeAbsorbedSingles,
     clusterIssues,
     isAdoptedFiling,
     issuesWorkedByPrs,
@@ -183,6 +184,7 @@ interface GhIssueRow {
     readonly number: number;
     readonly state: string;
     readonly body: string;
+    readonly title?: string;
     readonly parent?: { readonly number?: number } | null;
 }
 
@@ -190,6 +192,7 @@ function trackedIssue(row: Omit<GhIssueRow, "number">): TrackedIssue {
     return {
         state: row.state === "CLOSED" ? "CLOSED" : "OPEN",
         body: row.body,
+        ...(row.title === undefined ? {} : { title: row.title }),
         parent: row.parent?.number ?? null,
     };
 }
@@ -230,7 +233,7 @@ export class GhGapTracker implements GapTracker {
             "--limit",
             "500",
             "--json",
-            "number,state,body,parent",
+            "number,state,title,body,parent",
         ]);
         return JSON.parse(out) as GhIssueRow[];
     }
@@ -244,7 +247,7 @@ export class GhGapTracker implements GapTracker {
                 "view",
                 String(number),
                 "--json",
-                "state,body,parent",
+                "state,title,body,parent",
             ]);
             return trackedIssue(JSON.parse(out) as Omit<GhIssueRow, "number">);
         } catch (err) {
@@ -1258,14 +1261,38 @@ function main(): void {
                           openPr: false,
                       }))
                     : null;
+            // A filed single a signature sends to ANOTHER cluster may be
+            // absorbed (issue #4678) — closed by the real run, so previewed;
+            // its title and state need the network, hence the proviso.
+            const absorb =
+                filing.currentIssue !== null &&
+                filing.adopts === undefined &&
+                !clusters.has(filing.currentIssue)
+                    ? matchCluster(
+                          {
+                              kind: filing.kind,
+                              key: filing.key,
+                              card: filing.card,
+                          },
+                          signatureRows,
+                          () => ({
+                              open: true,
+                              inProgress: false,
+                              openPr: false,
+                          })
+                      )
+                    : null;
             const at =
                 match?.via === "signature"
                     ? `would ADOPT into Gap Cluster issue #${match.issue} (if open and not in progress)`
-                    : filing.currentIssue === null
-                      ? "would CREATE"
-                      : clusters.has(filing.currentIssue)
-                        ? `would leave Grammar Cluster issue #${filing.currentIssue} alone`
-                        : `would reconcile issue #${filing.currentIssue}`;
+                    : absorb?.via === "signature" &&
+                        absorb.issue !== filing.currentIssue
+                      ? `would ABSORB issue #${filing.currentIssue} into Gap Cluster issue #${absorb.issue} and CLOSE it (if gaps:sync filed it, and both are open and free)`
+                      : filing.currentIssue === null
+                        ? "would CREATE"
+                        : clusters.has(filing.currentIssue)
+                          ? `would leave Grammar Cluster issue #${filing.currentIssue} alone`
+                          : `would reconcile issue #${filing.currentIssue}`;
             const origin = originUmbrellaOf(filing, originBand);
             const umbrella = bandUmbrellaOf(filing);
             const band =
@@ -1325,7 +1352,10 @@ function main(): void {
                 `${action.kind.padEnd(10)} ${action.action.padEnd(11)} ${action.key} -> issue #${action.issue}` +
                     (action.parent === undefined
                         ? ""
-                        : ` (parent #${action.parent})`)
+                        : ` (parent #${action.parent})`) +
+                    (action.single === undefined
+                        ? ""
+                        : ` (absorbs single #${action.single})`)
             );
         }
     }
@@ -1353,6 +1383,20 @@ function main(): void {
             `gaps:sync: ${result.updatedRows.size} allowlist row(s) updated in ${ALLOWLIST_PATH}`
         );
         commitAndPushAllowlist(root);
+    }
+
+    // The absorbed singles (issue #4678), closed only now that their rows
+    // point at their clusters — in their own try/catch, like the blocks: a
+    // failed close leaves an open single, never a row on a closed issue.
+    if (result.absorbed.length > 0) {
+        try {
+            for (const single of closeAbsorbedSingles(result.absorbed, tracker))
+                console.log(`absorb     closed single issue #${single}`);
+        } catch (err) {
+            console.log(
+                `absorb     singles not all closed: ${err instanceof Error ? err.message : String(err)} — close them by hand; their rows already point at the cluster`
+            );
+        }
     }
 
     // The Gap Clusters' managed blocks (ADR 0146), after the write-back and
