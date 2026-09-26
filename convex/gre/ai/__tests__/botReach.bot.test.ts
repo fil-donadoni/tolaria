@@ -957,6 +957,19 @@ describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
         ]);
     }, 600_000);
 
+    // Issue #4291: an instant that retypes a target land (an `optionChoice`
+    // over basic types) and draws. The gap was a stale verdict: the search now
+    // casts it at both seats, the holder's own land being a legal target. What
+    // the cast leans on is the `option-pick` candidate generator, which answers
+    // the mode choice (with none the verdict reads `ignored`). Pins reachability
+    // only; valuer sensitivity and the chosen type are not.
+    it("played — an instant that retypes a target land and draws", () => {
+        expect(playBotReachSeats(getCardByName("Shimmering Mirage"))).toEqual([
+            { holderId: "p1", verdict: { outcome: "played" } },
+            { holderId: "p2", verdict: { outcome: "played" } },
+        ]);
+    }, 600_000);
+
     // Issue #4287: the same exchange behind a creature that also carries a
     // dies trigger (a pump on a target) — the trigger does not turn the
     // sacrifice-for-draw outlet into a scored sacrifice below the cast edge.
