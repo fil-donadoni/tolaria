@@ -38,6 +38,7 @@ import {
     type TrackedIssue,
     type TrackedIssueSummary,
     type UnlockSource,
+    type ClusterIssueState,
 } from "../lib/gap-issues";
 import {
     botCauseOf,
@@ -61,6 +62,7 @@ import {
     closureComment,
     parseOriginBand,
     planClaimClosures,
+    readSetFileMatches,
     settledHandTailOf,
     staleClaims,
     trustedBotFindings,
@@ -190,6 +192,17 @@ function inputs(
 }
 
 class StubTracker implements GapTracker {
+    clusterState(number: number): ClusterIssueState | null {
+        const issue = this.issues.get(number);
+        return issue === undefined
+            ? null
+            : {
+                  open: issue.state === "OPEN",
+                  inProgress: false,
+                  openPr: false,
+              };
+    }
+
     private next = 5000;
     readonly issues = new Map<number, TrackedIssue>();
     readonly created: Array<{
@@ -2187,10 +2200,27 @@ describe("gaps-sync main hands the parsed origin band to syncGaps", () => {
     // from `parseOriginBand` into `syncGaps` cannot be run under test; a flag
     // parsed and then dropped is exactly the failure issue #4158 exists to end.
     // Pinned by SHAPE, the same way `land.test.ts` pins the locked command.
-    it("passes `originBand` third and the allowlist's Grammar Clusters fourth", () => {
+    it("passes `originBand` third, the allowlist's Grammar Clusters fourth and its Cluster Signatures fifth", () => {
         const source = readFileSync("scripts/gaps-sync.ts", "utf8");
         expect(source).toMatch(
-            /syncGaps\(\s*withUnlockBlockers\(filings, blockers\),\s*tracker,\s*originBand,\s*clusterIssues\(allowlist\)\s*\)/
+            /syncGaps\(\s*withUnlockBlockers\(filings, blockers\),\s*tracker,\s*originBand,\s*clusterIssues\(allowlist\),\s*signatureRows\s*\)/
+        );
+    });
+});
+
+describe("gaps-sync main writes the managed blocks only after the rows are recorded (ADR 0146)", () => {
+    // A block write can throw (broken markers, a gh failure); run before the
+    // write-back it would cost the run every row it filed, and the next run
+    // would file them again (review of PR #3978). Pinned by SHAPE, like the
+    // origin-band pin above: `main()` reads the network.
+    it("calls syncAdoptedBlocks after commitAndPushAllowlist, inside its own try", () => {
+        const source = readFileSync("scripts/gaps-sync.ts", "utf8");
+        const writeBack = source.indexOf("commitAndPushAllowlist(root);");
+        const blocks = source.indexOf("syncAdoptedBlocks(\n");
+        expect(writeBack).toBeGreaterThan(-1);
+        expect(blocks).toBeGreaterThan(writeBack);
+        expect(source.slice(writeBack, blocks)).toMatch(
+            /try \{\s*const recorded/
         );
     });
 });
@@ -2365,5 +2395,30 @@ describe("a card-keyed claim adopts the open issue naming the card (issue #4515)
         );
         expect(filings.length).toBeGreaterThan(0);
         expect(filings.every((f) => f.adopts === undefined)).toBe(true);
+    });
+});
+
+describe("readSetFileMatches — a Hand Tail card's set file (ADR 0146)", () => {
+    const matches = readSetFileMatches(".");
+
+    it("reads the first-print set and the mana cost's colour off the committed data", () => {
+        expect(matches.get("Illuminate")).toEqual({
+            set: "apc",
+            colour: "red",
+        });
+        expect(matches.get("Last Stand")).toEqual({
+            set: "apc",
+            colour: "multicolor",
+        });
+        // Reprinted many times: `card-index.json`'s first print wins over the
+        // Full Catalogue's preferred (latest) printing.
+        expect(matches.get("Armageddon")).toEqual({
+            set: "lea",
+            colour: "white",
+        });
+    });
+
+    it("a tree with no catalogue matches nothing — a single, never a mis-adoption", () => {
+        expect(readSetFileMatches("/nonexistent").size).toBe(0);
     });
 });

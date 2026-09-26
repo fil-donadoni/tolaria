@@ -3719,5 +3719,7 @@
             "key": "validate-effect-script › effects[0]: ref \"$source\" references undefined binding \"$source\" — no earlier Op binds it (bare object refs are the forEach \"$each\" of a permanents set)",
             "issue": 4025
         }
-    ]
+    ],
+    "clustersNote": "Cluster Signatures (ADR 0146, issue #4677): one row per Gap Cluster, `{ issue, kind, match, standalone?, reason? }`, authored by `/cluster-gaps`, never by `gaps:sync`. `match` lists segment globs over the ` › `-separated gap key (`*` within one segment) or, for `hand-tail`, `{ set, colour }` set files; `standalone: true` + `reason` marks a deliberate single (one exact key). A NEW gap matching an open cluster that is not `in-progress` and has no open PR is claimed by it (lowest issue wins) and listed in the cluster body's managed `## Adopted gaps` block. Parsed fail-closed by `parseClusterRows` (`scripts/lib/targets.ts`).",
+    "clusters": []
 }

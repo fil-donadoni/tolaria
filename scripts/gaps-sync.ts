@@ -81,7 +81,8 @@
  */
 
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { gunzipSync } from "node:zlib";
 import { join, resolve } from "node:path";
 import { ALLOWLIST_PATH, parseAllowlist } from "./check-gaps";
 import { BASE_BRANCH } from "./lib/branches";
@@ -110,10 +111,15 @@ import {
     planUnlockEdges,
     clusterIssues,
     isAdoptedFiling,
+    issuesWorkedByPrs,
+    matchCluster,
+    syncAdoptedBlocks,
+    setFileColour,
     syncGaps,
     syncUnlockEdges,
     withPartitionBands,
     withUnlockBlockers,
+    type ClusterIssueState,
     type GapFiling,
     type GapTracker,
     type TrackedIssue,
@@ -156,10 +162,12 @@ import {
     claimId,
     gapIndex,
     parseClaimRows,
+    parseClusterRows,
     readTargetRegistry,
     resolveContext,
     resolveTarget,
     splitClaimId,
+    type CardMatch,
     type GapKind,
 } from "./lib/targets";
 
@@ -324,6 +332,54 @@ export class GhGapTracker implements GapTracker {
 
     addLabel(number: number, label: string): void {
         gh(["issue", "edit", String(number), "--add-label", label]);
+    }
+
+    private openPrIssues: ReadonlySet<number> | null = null;
+
+    /** One list call per run, read on first need (`issuesWorkedByPrs`). */
+    private openPrs(): ReadonlySet<number> {
+        if (this.openPrIssues !== null) return this.openPrIssues;
+        const limit = 500;
+        this.openPrIssues = issuesWorkedByPrs(
+            JSON.parse(
+                gh([
+                    "pr",
+                    "list",
+                    "--state",
+                    "open",
+                    "--limit",
+                    String(limit),
+                    "--json",
+                    "headRefName,body",
+                ])
+            ) as { headRefName: string; body: string }[],
+            limit
+        );
+        return this.openPrIssues;
+    }
+
+    clusterState(number: number): ClusterIssueState | null {
+        let row: { state: string; body: string; labels: { name: string }[] };
+        try {
+            row = JSON.parse(
+                gh([
+                    "issue",
+                    "view",
+                    String(number),
+                    "--json",
+                    "state,body,labels",
+                ])
+            ) as typeof row;
+        } catch (err) {
+            if (isIssueNotFound(err)) return null;
+            throw err;
+        }
+        return {
+            open: row.state !== "CLOSED",
+            inProgress: row.labels.some((l) => l.name === "in-progress"),
+            openPr: this.openPrs().has(number),
+            body: row.body,
+        };
     }
 
     comment(number: number, body: string): void {
@@ -558,6 +614,54 @@ export function commitAndPushAllowlist(root: string): void {
 }
 
 /**
+ * Card name → the set file a hand-written definition of it lives in (ADR
+ * 0043's `<set>/<colour>.ts`) — what a `hand-tail` Cluster Signature's
+ * `{ set, colour }` is matched against (ADR 0146). The colour is its mana
+ * cost's (`setFileColour`), read off the committed Full Catalogue. The set is
+ * the card's first-print set when `data/card-index.json` knows it; else the
+ * Full Catalogue's preferred printing, which for a reprinted card may be a
+ * later set — the only printing an unwritten card has offline, and the SAME
+ * attribute `/cluster-gaps` reads when it cuts, so a signature matches what
+ * it was written against. Empty when the tree has no catalogue: a Hand Tail
+ * gap then matches no card signature and is filed as a single, never
+ * mis-adopted.
+ */
+export function readSetFileMatches(root: string): Map<string, CardMatch> {
+    const dir = join(root, "data", "full-catalogue");
+    const out = new Map<string, CardMatch>();
+    if (!existsSync(dir)) return out;
+    const file = readdirSync(dir).find(
+        (f) => f.startsWith("full-catalogue-") && f.endsWith(".json.gz")
+    );
+    if (file === undefined) return out;
+    const wire = JSON.parse(
+        gunzipSync(readFileSync(join(dir, file))).toString("utf8")
+    ) as { names: string[]; manaCosts: string[]; sets: string[] };
+    const indexPath = join(root, "data", "card-index.json");
+    const firstSet = new Map(
+        existsSync(indexPath)
+            ? (
+                  JSON.parse(readFileSync(indexPath, "utf8")) as {
+                      name: string;
+                      firstSet?: string;
+                  }[]
+              )
+                  .filter((e) => e.firstSet !== undefined)
+                  .map((e) => [e.name, e.firstSet!] as const)
+            : []
+    );
+    wire.names.forEach((name, i) => {
+        const set = firstSet.get(name) ?? wire.sets[i];
+        if (out.has(name) || set === undefined) return;
+        out.set(name, {
+            set,
+            colour: setFileColour(wire.manaCosts[i] ?? ""),
+        });
+    });
+    return out;
+}
+
+/**
  * Every filing of every kind, in the order they are reported — the ONE place
  * the six kinds of issue #3869 are assembled. `hand-tail` is gated by the
  * registry's `handTailFiling` flag and files only for `enforced` Targets'
@@ -619,6 +723,13 @@ export function buildAllFilings(
         opUserOracleIds(ctx.byName),
         inputs.gapKeys
     );
+    const strongest = (filing: GapFiling) =>
+        strongestCardBand(
+            reached.get(claimId(filing.kind, filing.key)) ?? [],
+            index
+        );
+    const nameOf = new Map(lock.cards.map((c) => [c.oracleId, c.name]));
+    const setFiles = readSetFileMatches(root);
     const filings = withPartitionBands(
         [
             ...buildGrammarGapFilings(allowlist),
@@ -629,12 +740,22 @@ export function buildAllFilings(
             ...handTail.filings,
             ...buildMigrationFilings(inputs, buildGraduates(root, ctx)),
         ],
-        (filing) =>
-            strongestCardBand(
-                reached.get(claimId(filing.kind, filing.key)) ?? [],
-                index
-            )?.target ?? null
-    );
+        (filing) => strongest(filing)?.target ?? null
+    ).map((filing): GapFiling => {
+        // What a Cluster Signature matches and a managed block lists
+        // (ADR 0146): the cards the gap reaches, the band they lend, and —
+        // for Hand Tail — the set file the card would be written in.
+        const card =
+            filing.kind === "hand-tail" ? setFiles.get(filing.key) : undefined;
+        return {
+            ...filing,
+            cards: [...(reached.get(claimId(filing.kind, filing.key)) ?? [])]
+                .map((id) => nameOf.get(id) ?? id)
+                .sort(),
+            band: strongest(filing)?.band ?? null,
+            ...(card === undefined ? {} : { card }),
+        };
+    });
     return {
         filings,
         handTailHeld: handTail.held,
@@ -1118,15 +1239,33 @@ function main(): void {
         );
     }
 
+    // Parsed fail-closed BEFORE any write: a malformed signature is a row
+    // that would silently adopt nothing, or the wrong thing (ADR 0146).
+    const signatureRows = parseClusterRows(allowlist, ALLOWLIST_PATH);
+
     if (dryRun) {
         const clusters = clusterIssues(allowlist);
         for (const filing of filings) {
+            // No network on a dry run, so a signature match is previewed
+            // with every matching cluster assumed open and free — and only
+            // for an unfiled gap: one whose recorded issue was deleted
+            // reads "would reconcile" here, though the real run adopts it.
+            const match =
+                filing.currentIssue === null && !isAdoptedFiling(filing)
+                    ? matchCluster(filing, signatureRows, () => ({
+                          open: true,
+                          inProgress: false,
+                          openPr: false,
+                      }))
+                    : null;
             const at =
-                filing.currentIssue === null
-                    ? "would CREATE"
-                    : clusters.has(filing.currentIssue)
-                      ? `would leave Grammar Cluster issue #${filing.currentIssue} alone`
-                      : `would reconcile issue #${filing.currentIssue}`;
+                match?.via === "signature"
+                    ? `would ADOPT into Gap Cluster issue #${match.issue} (if open and not in progress)`
+                    : filing.currentIssue === null
+                      ? "would CREATE"
+                      : clusters.has(filing.currentIssue)
+                        ? `would leave Grammar Cluster issue #${filing.currentIssue} alone`
+                        : `would reconcile issue #${filing.currentIssue}`;
             const origin = originUmbrellaOf(filing, originBand);
             const umbrella = bandUmbrellaOf(filing);
             const band =
@@ -1174,7 +1313,8 @@ function main(): void {
         withUnlockBlockers(filings, blockers),
         tracker,
         originBand,
-        clusterIssues(allowlist)
+        clusterIssues(allowlist),
+        signatureRows
     );
 
     const counts = new Map<string, number>();
@@ -1213,6 +1353,28 @@ function main(): void {
             `gaps:sync: ${result.updatedRows.size} allowlist row(s) updated in ${ALLOWLIST_PATH}`
         );
         commitAndPushAllowlist(root);
+    }
+
+    // The Gap Clusters' managed blocks (ADR 0146), after the write-back and
+    // in their own try/catch: every row is recorded, and a broken marker or a
+    // failed edit is re-tried next run instead of costing this one its rows.
+    if (signatureRows.length > 0) {
+        try {
+            const recorded = new Map([...filed, ...result.updatedRows]);
+            for (const issue of syncAdoptedBlocks(
+                signatureRows,
+                recorded,
+                filings,
+                tracker
+            ))
+                console.log(
+                    `cluster    managed block regenerated -> issue #${issue}`
+                );
+        } catch (err) {
+            console.log(
+                `cluster    managed blocks not regenerated: ${err instanceof Error ? err.message : String(err)} — re-tried next run`
+            );
+        }
     }
 
     // The NATIVE half of every `## Unlocks` edge, after the write-back: the

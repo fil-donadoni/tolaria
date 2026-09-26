@@ -10,7 +10,11 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import type { Allowlist } from "../check-gaps";
 import { rankTargetBands } from "../lib/backlog-triage";
-import { readTargetRegistry } from "../lib/targets";
+import {
+    parseClusterRows,
+    readTargetRegistry,
+    type ClusterRow,
+} from "../lib/targets";
 import {
     applyUpdatedIssues,
     bandUmbrellaOf,
@@ -33,6 +37,16 @@ import {
     SUB_ISSUE_CAP,
     clusterIssues,
     syncGaps,
+    issuesWorkedByPrs,
+    syncAdoptedBlocks,
+    ADOPTED_BLOCK_END,
+    ADOPTED_BLOCK_START,
+    keyMatchesGlob,
+    matchCluster,
+    renderAdoptedBlock,
+    setFileColour,
+    withAdoptedBlock,
+    type ClusterIssueState,
     type GapFiling,
     type GapTracker,
     type TrackedIssue,
@@ -107,6 +121,25 @@ describe("an Op gap has no corpus attribution — the premise the body states", 
 // ── syncGaps against a stub tracker ─────────────────────────────────────
 
 class StubTracker implements GapTracker {
+    /** Per-issue adoption facts; an issue absent here reads open and free. */
+    readonly states = new Map<number, ClusterIssueState>();
+    readonly stateReads: number[] = [];
+    readonly comments: Array<{ issue: number; body: string }> = [];
+
+    clusterState(number: number): ClusterIssueState | null {
+        this.stateReads.push(number);
+        const issue = this.issues.get(number);
+        if (issue === undefined) return null;
+        return {
+            ...(this.states.get(number) ?? {
+                open: issue.state === "OPEN",
+                inProgress: false,
+                openPr: false,
+            }),
+            body: issue.body,
+        };
+    }
+
     private nextNumber = 5000;
     readonly issues = new Map<number, TrackedIssue>();
     readonly parents = new Map<number, number>();
@@ -155,7 +188,9 @@ class StubTracker implements GapTracker {
 
     addLabel(): void {}
 
-    comment(): void {}
+    comment(issue: number, body: string): void {
+        this.comments.push({ issue, body });
+    }
 
     listUnlockSources(): readonly UnlockSource[] {
         return this.unlockSources;
@@ -955,5 +990,607 @@ describe("BAND_UMBRELLAS is keyed by Target, not by band letter (issue #4211)", 
             expect(result.moves).toEqual([]);
             expect(tracker.parents.get(4901)).toBe(3838);
         }
+    });
+});
+
+// ── Gap Clusters: adoption by Cluster Signature (ADR 0146, issue #4677) ──
+
+describe("parseClusterRows — fail-closed", () => {
+    const parse = (clusters: unknown) =>
+        parseClusterRows({ clusters } as { clusters?: unknown });
+
+    it("reads a glob row, a `{ set, colour }` row and a Standalone Gap", () => {
+        expect(
+            parse([
+                {
+                    issue: 900,
+                    kind: "bot",
+                    match: ["never-chosen › * › *forEach*"],
+                },
+                {
+                    issue: 901,
+                    kind: "hand-tail",
+                    match: [{ set: "apc", colour: "red" }],
+                },
+                {
+                    issue: 902,
+                    kind: "mechanic",
+                    match: ["planned-mechanic › banding"],
+                    standalone: true,
+                    reason: "its own CR section",
+                },
+            ])
+        ).toEqual([
+            {
+                issue: 900,
+                kind: "bot",
+                match: ["never-chosen › * › *forEach*"],
+            },
+            {
+                issue: 901,
+                kind: "hand-tail",
+                match: [{ set: "apc", colour: "red" }],
+            },
+            {
+                issue: 902,
+                kind: "mechanic",
+                match: ["planned-mechanic › banding"],
+                standalone: true,
+                reason: "its own CR section",
+            },
+        ]);
+    });
+
+    it("an allowlist with no `clusters` has no signatures", () => {
+        expect(parseClusterRows({})).toEqual([]);
+    });
+
+    it("the committed allowlist parses", () => {
+        const doc = JSON.parse(
+            readFileSync(
+                join(
+                    dirname(fileURLToPath(import.meta.url)),
+                    "../../data/grammar-gaps.json"
+                ),
+                "utf8"
+            )
+        ) as { clusters?: unknown };
+        expect(() => parseClusterRows(doc)).not.toThrow();
+    });
+
+    const ok = { issue: 900, kind: "bot", match: ["a › *"] };
+    it.each([
+        ["`clusters` not an array", { a: 1 }, /must be an array/],
+        [
+            "a row that is not an object",
+            ["x"],
+            /clusters\[0\].*must be an object/,
+        ],
+        [
+            "an unknown field",
+            [{ ...ok, stanalone: true }],
+            /clusters\[0\].*unknown field `stanalone`/,
+        ],
+        [
+            "a non-integer issue",
+            [{ ...ok, issue: "900" }],
+            /clusters\[0\].*positive integer/,
+        ],
+        [
+            "a second row for one issue",
+            [ok, { ...ok }],
+            /clusters\[1\].*second row/,
+        ],
+        [
+            "an unknown kind",
+            [{ ...ok, kind: "bots" }],
+            /clusters\[0\].*unknown kind `bots`/,
+        ],
+        [
+            "the migration kind",
+            [{ ...ok, kind: "migration" }],
+            /clusters\[0\].*unknown kind `migration`/,
+        ],
+        [
+            "`standalone: false`",
+            [{ ...ok, standalone: false }],
+            /clusters\[0\].*`standalone` is `true` or absent/,
+        ],
+        [
+            "an empty reason",
+            [{ ...ok, reason: " " }],
+            /clusters\[0\].*`reason` is a non-empty string/,
+        ],
+        [
+            "a Standalone Gap with no reason",
+            [{ ...ok, match: ["a › b"], standalone: true }],
+            /clusters\[0\].*needs a `reason`/,
+        ],
+        [
+            "an empty match",
+            [{ ...ok, match: [] }],
+            /clusters\[0\].*non-empty array/,
+        ],
+        [
+            "a match that is not an array",
+            [{ ...ok, match: "a › *" }],
+            /clusters\[0\].*non-empty array/,
+        ],
+        [
+            "a Standalone Gap with two keys",
+            [{ ...ok, match: ["a", "b"], standalone: true, reason: "r" }],
+            /clusters\[0\].*exactly one key/,
+        ],
+        [
+            "a Standalone Gap with a glob",
+            [{ ...ok, standalone: true, reason: "r" }],
+            /clusters\[0\].*exactly one key/,
+        ],
+        [
+            "a hand-tail string pattern",
+            [{ issue: 1, kind: "hand-tail", match: ["apc"] }],
+            /clusters\[0\].*`\{ set, colour \}`/,
+        ],
+        [
+            "a hand-tail unknown colour",
+            [
+                {
+                    issue: 1,
+                    kind: "hand-tail",
+                    match: [{ set: "apc", colour: "purple" }],
+                },
+            ],
+            /clusters\[0\].*`\{ set, colour \}`/,
+        ],
+        [
+            "a hand-tail extra key",
+            [
+                {
+                    issue: 1,
+                    kind: "hand-tail",
+                    match: [{ set: "apc", colour: "red", rarity: "rare" }],
+                },
+            ],
+            /clusters\[0\].*`\{ set, colour \}`/,
+        ],
+        [
+            "an empty glob",
+            [{ ...ok, match: [""] }],
+            /clusters\[0\].*segment glob/,
+        ],
+        [
+            "a non-string glob",
+            [{ ...ok, match: [{ set: "apc", colour: "red" }] }],
+            /clusters\[0\].*segment glob/,
+        ],
+    ])("throws on %s, naming the row", (_, clusters, message) => {
+        expect(() => parse(clusters)).toThrow(message);
+    });
+});
+
+describe("keyMatchesGlob — segment globs over the ` › ` key", () => {
+    it("`*` matches within a segment; an Op list is plain text", () => {
+        expect(
+            keyMatchesGlob(
+                "never-chosen › * › *forEach*",
+                "never-chosen › sorcery › draw+forEach+tap"
+            )
+        ).toBe(true);
+        expect(
+            keyMatchesGlob(
+                "never-chosen › * › *forEach*",
+                "never-chosen › sorcery › draw+tap"
+            )
+        ).toBe(false);
+    });
+
+    it("never crosses a segment — the segment counts must agree", () => {
+        expect(keyMatchesGlob("never-chosen › *", "never-chosen › a › b")).toBe(
+            false
+        );
+        expect(keyMatchesGlob("never-chosen › * › *", "never-chosen › a")).toBe(
+            false
+        );
+    });
+
+    it("every other character is literal", () => {
+        expect(keyMatchesGlob("(op) › addMana", "(op) › addMana")).toBe(true);
+        expect(keyMatchesGlob("(op) › add.ana", "(op) › addMana")).toBe(false);
+    });
+});
+
+describe("setFileColour — the set file a card is written in", () => {
+    it.each([
+        ["{X}{R}", "red"],
+        ["{W}{U}{B}{R}{G}", "multicolor"],
+        ["{2}", "colorless"],
+        ["", "colorless"],
+        ["{W/U}", "multicolor"],
+        ["{G/P}{1}", "green"],
+        ["{1}{R} // {2}{R}", "red"],
+    ])("%s → %s", (cost, colour) => {
+        expect(setFileColour(cost)).toBe(colour);
+    });
+});
+
+describe("matchCluster — which Gap Cluster adopts a new gap", () => {
+    const BOT = "never-chosen › sorcery › draw+forEach";
+    const rows: ClusterRow[] = [
+        { issue: 900, kind: "bot", match: ["never-chosen › * › *forEach*"] },
+        { issue: 800, kind: "bot", match: ["never-chosen › sorcery › *"] },
+        {
+            issue: 950,
+            kind: "hand-tail",
+            match: [{ set: "apc", colour: "red" }],
+        },
+        {
+            issue: 960,
+            kind: "mechanic",
+            match: ["planned-mechanic › banding"],
+            standalone: true,
+            reason: "its own CR section",
+        },
+    ];
+    const free: ClusterIssueState = {
+        open: true,
+        inProgress: false,
+        openPr: false,
+    };
+    const states =
+        (over: Record<number, ClusterIssueState | null> = {}) =>
+        (issue: number): ClusterIssueState | null =>
+            issue in over ? over[issue]! : free;
+
+    it("the lowest-numbered matching open cluster wins", () => {
+        expect(matchCluster({ kind: "bot", key: BOT }, rows, states())).toEqual(
+            {
+                via: "signature",
+                issue: 800,
+            }
+        );
+    });
+
+    it("skips a cluster in progress or with an open PR, naming it", () => {
+        expect(
+            matchCluster(
+                { kind: "bot", key: BOT },
+                rows,
+                states({ 800: { ...free, inProgress: true } })
+            )
+        ).toEqual({ via: "signature", issue: 900 });
+        expect(
+            matchCluster(
+                { kind: "bot", key: BOT },
+                rows,
+                states({
+                    800: { ...free, inProgress: true },
+                    900: { ...free, openPr: true },
+                })
+            )
+        ).toEqual({ via: "single", busy: [800, 900] });
+    });
+
+    it("excludes a closed or missing cluster — never a target, never busy", () => {
+        expect(
+            matchCluster(
+                { kind: "bot", key: BOT },
+                rows,
+                states({ 800: { ...free, open: false }, 900: null })
+            )
+        ).toEqual({ via: "single", busy: [] });
+    });
+
+    it("a `hand-tail` signature matches the card's set file, nothing else", () => {
+        const tail = (card?: { set: string; colour: "red" | "blue" }) =>
+            matchCluster(
+                { kind: "hand-tail", key: "Illuminate", card },
+                rows,
+                states()
+            );
+        expect(tail({ set: "apc", colour: "red" })).toEqual({
+            via: "signature",
+            issue: 950,
+        });
+        expect(tail({ set: "apc", colour: "blue" }).via).toBe("single");
+        expect(tail(undefined).via).toBe("single");
+    });
+
+    it("an open issue naming the card in `## Cards` outranks every signature", () => {
+        expect(
+            matchCluster(
+                { kind: "bot", key: BOT, cardsIssue: 1234 },
+                rows,
+                states()
+            )
+        ).toEqual({ via: "cards", issue: 1234 });
+    });
+
+    it("a Standalone Gap matches its one key exactly, and a kind only its own", () => {
+        const at = (kind: "mechanic" | "bot", key: string) =>
+            matchCluster({ kind, key }, rows, states());
+        expect(at("mechanic", "planned-mechanic › banding")).toEqual({
+            via: "signature",
+            issue: 960,
+        });
+        expect(at("mechanic", "planned-mechanic › bandin").via).toBe("single");
+        expect(at("bot", "planned-mechanic › banding").via).toBe("single");
+    });
+
+    it("asks about a cluster's state only when its signature matched", () => {
+        const asked: number[] = [];
+        matchCluster({ kind: "bot", key: BOT }, rows, (issue) => {
+            asked.push(issue);
+            return free;
+        });
+        expect(asked).toEqual([800]);
+    });
+});
+
+describe("withAdoptedBlock — the managed block of a Gap Cluster", () => {
+    const HAND = "## Scope\n\nThe cutter's design notes.\n";
+    const entries = [
+        { key: "b › y", live: true, cards: ["Card B"], band: "P1" },
+        {
+            key: "a › x",
+            live: true,
+            cards: ["C1", "C2", "C3", "C4", "C5", "C6"],
+            band: null,
+        },
+        { key: "c | z", live: false },
+    ];
+
+    it("appends after the hand-written text, which stays byte-identical", () => {
+        const out = withAdoptedBlock(HAND, entries);
+        expect(out.startsWith(HAND)).toBe(true);
+        expect(out.slice(HAND.length)).toBe(`\n${renderAdoptedBlock(entries)}`);
+    });
+
+    it("regenerates between the markers, touching nothing outside them", () => {
+        const before = `${HAND}\n${ADOPTED_BLOCK_START}\nstale rows\n${ADOPTED_BLOCK_END}\n\nTrailing notes.`;
+        const out = withAdoptedBlock(before, entries);
+        expect(out).toBe(
+            `${HAND}\n${renderAdoptedBlock(entries)}\n\nTrailing notes.`
+        );
+    });
+
+    it("is idempotent — a second run returns the same bytes", () => {
+        const once = withAdoptedBlock(HAND, entries);
+        expect(withAdoptedBlock(once, entries)).toBe(once);
+        expect(withAdoptedBlock(once, [...entries].reverse())).toBe(once);
+    });
+
+    it("lists key, cards (capped) and band; a closed key says so", () => {
+        const block = renderAdoptedBlock(entries);
+        expect(block).toContain(
+            "| `a › x` | C1, C2, C3, C4, C5 (+1 more) | residue |"
+        );
+        expect(block).toContain("| `b › y` | Card B | P1 |");
+        expect(block).toContain("| `c \\| z` | — | no live gap |");
+        expect(block.indexOf("a › x")).toBeLessThan(block.indexOf("b › y"));
+    });
+
+    it("refuses broken markers rather than guess where the block ends", () => {
+        expect(() =>
+            withAdoptedBlock(`${HAND}${ADOPTED_BLOCK_START}\nrows`, entries, 42)
+        ).toThrow(/issue #42.*markers are broken/);
+        expect(() =>
+            withAdoptedBlock(
+                `${ADOPTED_BLOCK_END}\n${ADOPTED_BLOCK_START}`,
+                entries
+            )
+        ).toThrow(/markers are broken/);
+    });
+});
+
+describe("syncGaps adopts a new gap into the matching Gap Cluster (ADR 0146)", () => {
+    const BOT = "never-chosen › sorcery › draw+forEach";
+    const CLUSTER = 900;
+    const signature: ClusterRow = {
+        issue: CLUSTER,
+        kind: "bot",
+        match: ["never-chosen › * › *forEach*"],
+    };
+    const botFiling = (over: Partial<GapFiling> = {}) =>
+        filing({
+            kind: "bot",
+            key: BOT,
+            title: `Bot Gap: ${BOT}`,
+            cards: ["Card A"],
+            band: "P1",
+            ...over,
+        });
+    const HAND = "## Scope\n\nHand-cut.";
+    const trackerWithCluster = () => {
+        const tracker = new StubTracker();
+        tracker.issues.set(CLUSTER, { state: "OPEN", body: HAND });
+        return tracker;
+    };
+    const HAND_ROW = claimId("bot", "never-chosen › instant › forEach");
+
+    it("claims the gap for the cluster: no create, no body write, one comment", () => {
+        const tracker = trackerWithCluster();
+        const result = syncGaps(
+            [botFiling()],
+            tracker,
+            undefined,
+            new Set([CLUSTER]),
+            [signature]
+        );
+        expect(result.actions).toEqual([
+            {
+                action: "adopt",
+                kind: "bot",
+                key: BOT,
+                issue: CLUSTER,
+                via: "signature",
+            },
+        ]);
+        expect(result.updatedRows.get(claimId("bot", BOT))).toBe(CLUSTER);
+        expect(tracker.createCalls).toBe(0);
+        expect(tracker.updateCalls).toBe(0);
+        expect(tracker.comments.map((c) => c.issue)).toEqual([CLUSTER]);
+    });
+
+    it("files a single when the only matching cluster is in progress", () => {
+        const tracker = trackerWithCluster();
+        tracker.states.set(CLUSTER, {
+            open: true,
+            inProgress: true,
+            openPr: false,
+        });
+        const result = syncGaps([botFiling()], tracker, undefined, new Set(), [
+            signature,
+        ]);
+        expect(result.actions.map((a) => [a.action, a.issue])).toEqual([
+            ["create", 5000],
+        ]);
+        expect(result.updatedRows.get(claimId("bot", BOT))).toBe(5000);
+    });
+
+    it("the next run over the recorded claim is the cluster, left alone", () => {
+        const tracker = trackerWithCluster();
+        syncGaps([botFiling()], tracker, undefined, new Set([CLUSTER]), [
+            signature,
+        ]);
+        const second = syncGaps(
+            [botFiling({ currentIssue: CLUSTER })],
+            tracker,
+            undefined,
+            new Set([CLUSTER]),
+            [signature]
+        );
+        expect(second.actions.map((a) => a.action)).toEqual(["cluster"]);
+        expect(tracker.updateCalls).toBe(0);
+        expect(tracker.comments).toHaveLength(1);
+    });
+
+    it("the `## Cards` adoption outranks the signature", () => {
+        const tracker = trackerWithCluster();
+        const result = syncGaps(
+            [botFiling({ adopts: 1234 })],
+            tracker,
+            undefined,
+            new Set(),
+            [signature]
+        );
+        expect(result.actions).toEqual([
+            { action: "adopt", kind: "bot", key: BOT, issue: 1234 },
+        ]);
+    });
+
+    it("with no signature rows, plans exactly what it planned before — and asks no cluster state", () => {
+        const plain = syncGaps([botFiling()], new StubTracker());
+        const tracker = new StubTracker();
+        const none = syncGaps([botFiling()], tracker, undefined, new Set(), []);
+        expect(none).toEqual(plain);
+        expect(tracker.stateReads).toEqual([]);
+    });
+
+    describe("syncAdoptedBlocks — the managed block, after the write-back", () => {
+        const recorded = new Map([
+            [claimId("bot", BOT), CLUSTER],
+            [HAND_ROW, CLUSTER],
+            [claimId("bot", "elsewhere › x"), 777],
+        ]);
+
+        it("lists every recorded key of the cluster; the hand-written text survives", () => {
+            const tracker = trackerWithCluster();
+            expect(
+                syncAdoptedBlocks([signature], recorded, [botFiling()], tracker)
+            ).toEqual([CLUSTER]);
+            const body = tracker.issues.get(CLUSTER)!.body;
+            expect(body.startsWith(HAND)).toBe(true);
+            expect(body).toContain(`| \`${BOT}\` | Card A | P1 |`);
+            expect(body).toContain(
+                "| `never-chosen › instant › forEach` | — | no live gap |"
+            );
+            expect(body).not.toContain("elsewhere");
+        });
+
+        it("a second run writes nothing", () => {
+            const tracker = trackerWithCluster();
+            syncAdoptedBlocks([signature], recorded, [botFiling()], tracker);
+            const writes = tracker.updateCalls;
+            expect(
+                syncAdoptedBlocks([signature], recorded, [botFiling()], tracker)
+            ).toEqual([]);
+            expect(tracker.updateCalls).toBe(writes);
+        });
+
+        it("never writes into a Standalone Gap, a closed cluster or one a session is working", () => {
+            const tracker = trackerWithCluster();
+            syncAdoptedBlocks(
+                [{ ...signature, match: [BOT], standalone: true, reason: "r" }],
+                recorded,
+                [botFiling()],
+                tracker
+            );
+            for (const state of [
+                { open: false, inProgress: false, openPr: false },
+                { open: true, inProgress: true, openPr: false },
+                { open: true, inProgress: false, openPr: true },
+            ]) {
+                tracker.states.set(CLUSTER, state);
+                syncAdoptedBlocks(
+                    [signature],
+                    recorded,
+                    [botFiling()],
+                    tracker
+                );
+            }
+            expect(tracker.updateCalls).toBe(0);
+        });
+    });
+});
+
+describe("issuesWorkedByPrs — which clusters have an open PR", () => {
+    it("reads the `…issue-N` branch and closing keywords, nothing else", () => {
+        expect(
+            [
+                ...issuesWorkedByPrs(
+                    [
+                        { headRefName: "feat/issue-4677", body: "" },
+                        {
+                            headRefName: "fix/other",
+                            body: "Closes #12, fixes #13",
+                        },
+                        {
+                            headRefName: "chore/tweak",
+                            body: "see #14, issue #15",
+                        },
+                    ],
+                    100
+                ),
+            ].sort((a, b) => a - b)
+        ).toEqual([12, 13, 4677]);
+    });
+
+    it("fails closed on a full page — a truncated list would read a busy cluster as free", () => {
+        expect(() =>
+            issuesWorkedByPrs([{ headRefName: "x", body: "" }], 1)
+        ).toThrow(/fill the page/);
+    });
+});
+
+describe("clusterIssues counts a signature cluster, never a Standalone Gap", () => {
+    it("a signature row with one claim is a cluster; a standalone one is not", () => {
+        const doc = {
+            ops: [],
+            claims: [
+                { kind: "bot" as const, key: "a", issue: 900 },
+                { kind: "bot" as const, key: "b", issue: 960 },
+            ],
+            clusters: [
+                { issue: 900, kind: "bot" as const, match: ["a"] },
+                {
+                    issue: 960,
+                    kind: "bot" as const,
+                    match: ["b"],
+                    standalone: true as const,
+                    reason: "alone",
+                },
+            ],
+        };
+        expect([...clusterIssues(doc)]).toEqual([900]);
     });
 });
