@@ -12,6 +12,7 @@ import {
     renderUiScope,
     type ScopeSurface,
 } from "../lib/ui-scope";
+import type { SurfaceEdits } from "../lib/ui-surface-edits";
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "ui-scope-"));
 afterAll(() => fs.rmSync(root, { recursive: true, force: true }));
@@ -140,6 +141,65 @@ describe("computeUiScope — full (fail-closed)", () => {
                 reason: `${unplaced} is in no surface's entry closure and no rule places it`,
             });
         }
+    });
+});
+
+describe("computeUiScope — surfaces.ts edits (issue #4687)", () => {
+    const withEdits = (surfaceEdits: SurfaceEdits, ...changed: string[]) =>
+        computeUiScope({
+            changed,
+            surfaces: SURFACES,
+            graph: createImportGraph({ root }),
+            surfaceEdits,
+        });
+
+    it("an edit confined to surface elements selects exactly those surfaces, in table order", () => {
+        expect(
+            withEdits(
+                { kind: "surfaces", ids: ["game-debug", "lobby"] },
+                "scripts/ui-gate/surfaces.ts"
+            )
+        ).toEqual({ kind: "scoped", surfaces: ["lobby", "game-debug"] });
+    });
+
+    it("composes with a component diff: the union of both selections", () => {
+        expect(
+            withEdits(
+                { kind: "surfaces", ids: ["game-debug"] },
+                "scripts/ui-gate/surfaces.ts",
+                "src/components/deck-shelf.tsx"
+            )
+        ).toEqual({ kind: "scoped", surfaces: ["lobby", "game-debug"] });
+    });
+
+    it("a shared-helper edit in surfaces.ts still selects full, and says why", () => {
+        const scope = withEdits(
+            { kind: "shared", reason: "hunk outside the array" },
+            "scripts/ui-gate/surfaces.ts"
+        );
+        expect(scope.kind).toBe("full");
+        expect(scope.kind === "full" && scope.reason).toContain(
+            "hunk outside the array"
+        );
+    });
+
+    it("any OTHER lane file alongside a surface edit forces full", () => {
+        const scope = withEdits(
+            { kind: "surfaces", ids: ["lobby"] },
+            "scripts/ui-gate/surfaces.ts",
+            "scripts/ui-gate/probe.js"
+        );
+        expect(scope.kind).toBe("full");
+        expect(scope.kind === "full" && scope.reason).toContain("probe.js");
+    });
+
+    it("a surface edit is never honoured for a path other than surfaces.ts", () => {
+        expect(
+            withEdits(
+                { kind: "surfaces", ids: ["lobby"] },
+                "scripts/ui-gate/floors.ts"
+            ).kind
+        ).toBe("full");
     });
 });
 

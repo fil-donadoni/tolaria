@@ -732,7 +732,7 @@
     {
         "file": "scripts/__tests__/ui-census.test.ts",
         "test": "check:ui coverage census (issue #3420) > DEBT has not grown — a NEW uncovered element may not be recorded as debt",
-        "reason": "Monotonicity guard: live DEBT size compared to independently pinned DEBT_AT_LANDING"
+        "reason": "Monotonicity guard: live DEBT keys compared to the independently pinned DEBT_CEILING set"
     },
     {
         "file": "scripts/__tests__/ui-gate-assertions.test.ts",

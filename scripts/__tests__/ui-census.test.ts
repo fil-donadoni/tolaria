@@ -86,26 +86,38 @@ const DEBT: Record<string, string> = {
     "src/routes/join.route.tsx": "the join-a-table screen (#4402)",
 };
 
-/** What to do about an uncensused element, in the terms of its own kind. */
 /**
- * What `DEBT` holds. Pinned, not a ceiling: paying debt down lowers it, and
- * GROWING it is a two-line edit with a number going UP — which is what a
- * reviewer can see. A row quietly added to a 55-row dictionary is not, and
- * "frozen, shrink-only" was prose until this line.
+ * Every file `DEBT` may ever hold. GROWING `DEBT` means naming a file here,
+ * which is a line a reviewer sees; a row quietly added to the dictionary is
+ * not, and "frozen, shrink-only" was prose until this set.
  *
- * 55 when the census shipped; 47 since issue #4418 walked the eight unwalked
- * `/admin` and `/settings` SCREENS, the first slice of issue #4402; 29 since
- * issue #4419 gave the board's own dialogs seventeen live specimens on
- * `/admin/design-system` and the pregame gate a walk of its own; 25 since
- * issue #4423 gave the four cross-cutting overlays (disclaimer, bug report,
- * Inspect, the Scenarios active-game confirm) walked specimens; 17 since
- * issue #4420 did the same for the eight cast pickers (§ 18); 13 since
- * issue #4422 walked the four Limited overlays open. The remaining slices
- * are that issue's other children, one per area — when the
- * last one lands, this constant, `DEBT` and the tests below go with it.
+ * It is a CEILING SET, not a count, and it is never edited when debt is paid
+ * (issue #4687): the count this replaced, `DEBT_AT_LANDING`, was one line
+ * every census-debt slice rewrote, so two slices in flight conflicted on it
+ * and the loser rebased mid-receipt. A paid row lives on here harmlessly —
+ * re-adding it to `DEBT` while its element is covered reds as stale below —
+ * and each slice now touches only the `DEBT` rows it removes.
+ *
+ * Shrank 55 → 13 across issue #4402's slices (#4418, #4419, #4423, #4420,
+ * #4422). When the last child lands, this set, `DEBT` and the tests below go.
  */
-const DEBT_AT_LANDING = 13;
+const DEBT_CEILING: ReadonlySet<string> = new Set([
+    "src/components/board/manual-peek-dialog.tsx",
+    "src/components/deckbuilder/deck-basics-sheet.tsx",
+    "src/components/deckbuilder/deck-stats-dialog.tsx",
+    "src/components/lobby/active-game-notice.tsx",
+    "src/components/lobby/banlist-cards-dialog.tsx",
+    "src/components/lobby/deck-builder/deck-banlist-panel.tsx",
+    "src/components/lobby/deck-builder/deck-builder.tsx",
+    "src/components/lobby/deck-builder/deck-filters-button.tsx",
+    "src/components/lobby/deck-builder/deck-import-dialog.tsx",
+    "src/components/lobby/deck-detail.tsx",
+    "src/components/lobby/join-by-code-dialog.tsx",
+    "src/components/lobby/lobby.tsx",
+    "src/routes/join.route.tsx",
+]);
 
+/** What to do about an uncensused element, in the terms of its own kind. */
 function fix(row: CensusRow): string {
     if (row.kind === "route") {
         return "a screen with no measurement at any viewport. Add a surface to `scripts/ui-gate/surfaces.ts` declaring it in `entries`, or — if it is not a screen a user reaches — say why in EXEMPT";
@@ -153,10 +165,16 @@ describe("check:ui coverage census (issue #3420)", () => {
     });
 
     it("DEBT has not grown — a NEW uncovered element may not be recorded as debt", () => {
+        const grown = Object.keys(DEBT).filter((f) => !DEBT_CEILING.has(f));
         expect(
-            Object.keys(DEBT).length,
-            "DEBT changed size. Shrinking it? Lower DEBT_AT_LANDING to match. Growing it? A new element does not belong here — give it a specimen or a `mounts` claim"
-        ).toBe(DEBT_AT_LANDING);
+            grown,
+            grown
+                .map(
+                    (f) =>
+                        `${f} — a new DEBT row. A new element does not belong here — give it a specimen or a \`mounts\` claim`
+                )
+                .join("\n")
+        ).toEqual([]);
     });
 
     it("no DEBT entry is stale — a covered element must lose its row", () => {

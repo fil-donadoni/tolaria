@@ -96,6 +96,7 @@ import {
     type GateWaiter,
 } from "./lib/gate-liveness";
 import { gateChildEnv } from "./lib/vitest-fs-cache";
+import { uiLaneWhoLines } from "./lib/ui-admission";
 
 // Overridable so the test suite can exercise the mutex against a temp dir
 // instead of contending with (or blocking) a real gate run on this machine.
@@ -503,7 +504,15 @@ function who(): number {
     return 0;
 }
 
-if (tier === "who") process.exit(who());
+/** `who` also names the `check:ui` lane (issue #4687) — a separate mutex, so
+ *  a browser run never blocks a `land`, but the same one-command diagnosis. */
+function whoAll(): number {
+    const code = who();
+    for (const line of uiLaneWhoLines(LOCK_ROOT)) console.log(line);
+    return code;
+}
+
+if (tier === "who") process.exit(whoAll());
 
 /** `yield` is the heavy tier in every respect but its acquisition (ADR 0136
  *  §6): same mutex, same worker count, same heartbeat, same teardown. */

@@ -160,6 +160,7 @@ import {
 } from "./parallel.ts";
 import { ORIGIN_BASE } from "../lib/branches.ts";
 import { renderUiScope, type UiScope } from "../lib/ui-scope.ts";
+import { acquireUiLane, gateLockRoot } from "../lib/ui-admission.ts";
 import {
     classifyWalkFailure,
     infraDetail,
@@ -680,6 +681,16 @@ async function main(): Promise<number> {
             `axe-core is not installed at ${AXE_PATH} — run \`bun install\``
         );
     }
+
+    // One browser run at a time on this machine (issue #4687): concurrent runs
+    // share one Convex backend, and contention there reads as UI failures. Taken
+    // only now, so `--scope-only` and an empty scope never queue; released by
+    // the hold's own exit / signal handlers on every path out.
+    await acquireUiLane({
+        root: gateLockRoot(),
+        label: `check:ui ${process.argv.slice(2).join(" ")}`.trim(),
+        announce: log,
+    });
 
     const port = await freePort();
     const baseUrl = `http://127.0.0.1:${port}`;
