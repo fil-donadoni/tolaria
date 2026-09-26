@@ -71,7 +71,7 @@
  *                                                        # against another ref
  *
  * SPEED IS SIZED TO THE MACHINE (issue #3653). The five viewports are walked
- * `viewportParallelism(load, ncpu)` at a time — five contexts on an idle box,
+ * `viewportParallelism(ncpu, totalMemory)` at a time — five contexts on an 8-core box,
  * one on a flat-out one — each in its own browser context, each parallel LANE
  * signed in as its own lane account (a lane walks its viewports one after
  * another, so the account is the LANE's), because the one-game-per-account

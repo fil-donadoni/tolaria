@@ -1010,6 +1010,11 @@
         "reason": "Domain pin: brokenFloors iterates FLOORS, so a Floor dropped from the list weakens check:ui silently; disjointness of two independent lists."
     },
     {
+        "file": "scripts/__tests__/ui-gate-census-page.test.ts",
+        "test": "every census row that opens a layer declares the cleanup that closes it > %s declares cleanup",
+        "reason": "Census over the 31 /admin/design-system rows: a row without a cleanup leaves its layer open and forces the next row to reload the page (issue #4687)."
+    },
+    {
         "file": "src/__tests__/design-tokens.test.ts",
         "test": "design tokens v3 — CSS ↔ typed mirror > declares every mirrored family in @layer base :root, not @theme inline",
         "reason": "Domain pin: the sibling it.each iterates the token groups themselves, so a family dropped from the mirror shrinks the sweep silently."

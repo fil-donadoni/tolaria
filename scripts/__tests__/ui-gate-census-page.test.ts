@@ -88,10 +88,8 @@ describe("every census row that opens a layer declares the cleanup that closes i
             s.id.startsWith("pick-")
     );
 
-    it("finds the census rows", () => {
-        expect(rows.length).toBeGreaterThan(20);
-    });
-
+    // A census over the 31 rows the reuse depends on; the table's own
+    // shape is pinned by `ui-gate-surface-entries.test.ts`.
     it.each(rows.map((s) => [s.id, s] as const))(
         "%s declares cleanup",
         (_id, surface) => {
