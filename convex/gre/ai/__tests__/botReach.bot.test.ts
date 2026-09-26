@@ -13,7 +13,7 @@ import type {
 } from "../../../cards/types";
 import { decidingPlayer } from "../../search";
 import { enumerateMoves } from "../../moves";
-import { flashAmbushPosition } from "../botReachTarget";
+import { attackEdictPosition, flashAmbushPosition } from "../botReachTarget";
 import {
     OPPONENT_END_STEP_WINDOW,
     REACH_WINDOWS,
@@ -970,6 +970,15 @@ describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
         ]);
     }, 600_000);
 
+    // Issue #4292: a storm instant that makes a target player sacrifice a
+    // creature (a `choice` over the edict). Pins reachability only.
+    it("played — a storm instant that makes a target player sacrifice a creature", () => {
+        expect(playBotReachSeats(getCardByName("Wing Shards"))).toEqual([
+            { holderId: "p1", verdict: { outcome: "played" } },
+            { holderId: "p2", verdict: { outcome: "played" } },
+        ]);
+    }, 600_000);
+
     // Issue #4287: the same exchange behind a creature that also carries a
     // dies trigger (a pump on a target) — the trigger does not turn the
     // sacrifice-for-draw outlet into a scored sacrifice below the cast edge.
@@ -1015,6 +1024,21 @@ describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
         // Its enters-trigger's target is a targetRequirement of the trigger,
         // not the card, so the flash snake is posed too.
         expect(flashAmbushPosition(FLASH_ETB_COUNTER)).not.toBeNull();
+    });
+
+    it("only an edict over attacking creatures is posed against an attack", () => {
+        expect(attackEdictPosition(getCardByName("Wing Shards"))).toEqual(
+            expect.objectContaining({
+                phase: "DECLARE_ATTACKERS",
+                activePlayer: "opp",
+                priority: "me",
+            })
+        );
+        // A spell aimed at a player that is not an attacker edict, and a
+        // creature spell with no target.
+        expect(attackEdictPosition(getCardByName("Mind Rot"))).toBeNull();
+        expect(attackEdictPosition(getCardByName("Serra Angel"))).toBeNull();
+        expect(attackEdictPosition(COUNTER_INSTANT)).toBeNull();
     });
 
     // Issue #4283: the same sacrifice-to-draw creature, with flying — the
