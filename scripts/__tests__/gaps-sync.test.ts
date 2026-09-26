@@ -2044,6 +2044,24 @@ describe("a card-keyed claim adopts the open issue naming the card (issue #4515)
         expect(tracker.issues.get(3806)!.body).toBe("the C2 slice's body");
     });
 
+    it("keeps a recorded adoption when a lower-numbered issue joins the card", () => {
+        const filings = buildHandTailFilings(
+            inputs(lock, {
+                handTailFiling: true,
+                filed: new Map([[claimId("hand-tail", "Tail Card"), 4338]]),
+                openCardIssues: openCardIssueIndex(
+                    [naming(3806), naming(4338)],
+                    byName
+                ),
+            })
+        ).filings;
+        const tracker = new StubTracker();
+        tracker.issues.set(4338, { state: "OPEN", body: "the slice's body" });
+        const result = syncGaps(filings, tracker);
+        expect(result.actions.map((a) => a.action)).toEqual(["noop"]);
+        expect(tracker.updateCalls).toBe(0);
+    });
+
     it("reconciles a claim already recorded against a DIFFERENT issue as always", () => {
         const filings = buildHandTailFilings(
             inputs(lock, {
@@ -2067,9 +2085,9 @@ describe("a card-keyed claim adopts the open issue naming the card (issue #4515)
             ],
         };
         const openCardIssues = new Map([
-            ["t-1", 3806],
-            ["t-2", 3807],
-            ["t-3", 3808],
+            ["t-1", [3806]],
+            ["t-2", [3807]],
+            ["t-3", [3808]],
         ]);
         const filings = buildFragmentGapFilings(
             inputs(wide, { openCardIssues })

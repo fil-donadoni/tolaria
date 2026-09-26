@@ -441,7 +441,8 @@ export function resolveDeclaredCards(
 
 /**
  * Card → the OPEN issue whose `## Cards` section names it (issue #4515), keyed
- * by oracle id: the input `gaps:sync`'s filer adopts from instead of filing a
+ * by oracle id, every number ascending (the head is the lowest — the one a
+ * fresh claim adopts; a recorded claim keeps its own while it is still listed): the input `gaps:sync`'s filer adopts from instead of filing a
  * duplicate. Several issues naming one card → the lowest number wins, so the
  * answer never depends on the order the tracker listed them in. Residue lines
  * are {@link resolveDeclaredCards}'s to report, not this index's.
@@ -453,15 +454,18 @@ export function openCardIssueIndex(
         readonly state?: string;
     }[],
     byName: (name: string) => string | undefined
-): Map<string, number> {
-    const index = new Map<string, number>();
+): Map<string, number[]> {
+    const index = new Map<string, number[]>();
     for (const issue of open) {
         if (issue.state === "CLOSED") continue;
         for (const id of resolveDeclaredCards(issue.number, issue.body, byName)
             .ids) {
-            const held = index.get(id);
-            if (held === undefined || issue.number < held)
-                index.set(id, issue.number);
+            const held = index.get(id) ?? [];
+            held.push(issue.number);
+            index.set(
+                id,
+                held.sort((a, b) => a - b)
+            );
         }
     }
     return index;

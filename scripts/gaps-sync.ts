@@ -101,6 +101,7 @@ import {
     RETIRED_UMBRELLAS,
     planUnlockEdges,
     clusterIssues,
+    isAdoptedFiling,
     syncGaps,
     syncUnlockEdges,
     withPartitionBands,
@@ -893,9 +894,19 @@ function main(): void {
     // its number only now. Its own try/catch, like the orphan pass — every
     // filing is already recorded, and an unwired edge is re-tried next run.
     try {
+        // An adopted issue's body is somebody else's and is never rewritten
+        // (issue #4515), so it never gets the `## Blocked by` half of an edge:
+        // wiring the native half alone would leave the two out of parity.
+        const adopted = new Set(
+            filings.filter(isAdoptedFiling).map((f) => claimId(f.kind, f.key))
+        );
         const issueOf = new Map(
             result.actions
-                .filter((a) => a.action !== "skip-closed")
+                .filter(
+                    (a) =>
+                        a.action !== "skip-closed" &&
+                        !adopted.has(claimId(a.kind, a.key))
+                )
                 .map((a) => [claimId(a.kind, a.key), a.issue] as const)
         );
         const edges = syncUnlockEdges(blockers, issueOf, tracker);

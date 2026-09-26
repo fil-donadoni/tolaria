@@ -602,6 +602,15 @@ export function clusterIssues(allowlist: Allowlist): ReadonlySet<number> {
  * `P0` files every partitioned create, and every homeless gap, under its
  * family's P0 umbrella; anything else changes nothing.
  */
+/** Whether `filing` is an adoption (issue #4515): its claim records, or is
+ *  about to record, the open issue naming the card — never reconciled. */
+export function isAdoptedFiling(filing: GapFiling): boolean {
+    return (
+        filing.adopts !== undefined &&
+        (filing.currentIssue === null || filing.currentIssue === filing.adopts)
+    );
+}
+
 export function syncGaps(
     filings: readonly GapFiling[],
     tracker: GapTracker,
@@ -612,9 +621,7 @@ export function syncGaps(
     // claim records THAT issue — nothing is created, and its body, parent and
     // state are never touched. Equal to the recorded row is the same adoption,
     // read on a later run.
-    const isAdopted = (filing: GapFiling): boolean =>
-        filing.adopts !== undefined &&
-        (filing.currentIssue === null || filing.currentIssue === filing.adopts);
+    const isAdopted = isAdoptedFiling;
     const existing = new Map<string, TrackedIssue | null>();
     for (const filing of filings) {
         if (isAdopted(filing)) continue;

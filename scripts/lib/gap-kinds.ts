@@ -209,12 +209,12 @@ export interface KindInputs {
      */
     readonly botFindings?: ReadonlyMap<string, BotGapVerdict>;
     /**
-     * Oracle id → the lowest-numbered OPEN issue whose `## Cards` section
+     * Oracle id → the OPEN issues (ascending) whose `## Cards` section
      * names the card (`openCardIssueIndex`, issue #4515) — the input a
      * card-keyed kind adopts from instead of filing a duplicate. Absent means
      * no adoption (a dry run makes no network call).
      */
-    readonly openCardIssues?: ReadonlyMap<string, number>;
+    readonly openCardIssues?: ReadonlyMap<string, readonly number[]>;
 }
 
 /** A filing before its rank is known — the rank needs the whole kind. */
@@ -261,10 +261,12 @@ function perTargetBlock(
  */
 function adoption(draft: Draft, inputs: KindInputs): { adopts?: number } {
     if (draft.oracleId === undefined) return {};
-    const open = inputs.openCardIssues?.get(draft.oracleId);
-    if (open === undefined) return {};
+    const open = inputs.openCardIssues?.get(draft.oracleId) ?? [];
     const recorded = inputs.filed.get(claimId(draft.kind, draft.key));
-    return recorded === undefined || recorded === open ? { adopts: open } : {};
+    if (recorded === undefined)
+        return open[0] === undefined ? {} : { adopts: open[0] };
+    // A recorded adoption survives a lower-numbered issue joining the card.
+    return open.includes(recorded) ? { adopts: recorded } : {};
 }
 
 /**
