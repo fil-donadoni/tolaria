@@ -7,6 +7,7 @@ import {
     matchesPermanentTargetFilters,
     matchesSpellPendingTarget,
     wantsSpellTarget,
+    canPayFilteredGiveUpCost,
     getStackAbilities,
     getGraveyardStackAbilities,
     getHandStackAbilities,
