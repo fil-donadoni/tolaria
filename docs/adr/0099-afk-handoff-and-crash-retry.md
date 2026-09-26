@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted (the `--from-pass` autostart is superseded by ADR 0109; the
+accepted (the `--from-pass` autostart is superseded by ADR 0109; the terminal is a rendered view of the log, not the same bytes — ADR 0147; the
 unconditional detach is amended by issue #4389 — the foreground is now the
 default and `--detach` the opt-in)
 
