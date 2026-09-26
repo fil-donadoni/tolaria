@@ -135,7 +135,11 @@ interface BattlefieldForEach {
  * activated ability is not one. The three detectors below read the same nodes
  * and differ only in which selector and body they claim.
  */
-function battlefieldForEaches(def: CardDefinition): BattlefieldForEach[] {
+function battlefieldForEaches(
+    def: CardDefinition,
+    withSpell = true,
+    extraRoots: unknown[] = []
+): BattlefieldForEach[] {
     const found: BattlefieldForEach[] = [];
     const visit = (node: unknown): void => {
         if (Array.isArray(node)) return node.forEach(visit);
@@ -146,8 +150,11 @@ function battlefieldForEaches(def: CardDefinition): BattlefieldForEach[] {
             found.push({ select, effects: record.effects });
         Object.values(record).forEach(visit);
     };
-    visit(def.effects);
-    visit(def.modes);
+    if (withSpell) {
+        visit(def.effects);
+        visit(def.modes);
+    }
+    extraRoots.forEach(visit);
     return found;
 }
 
@@ -255,6 +262,35 @@ function shrinksEveryCreature(def: CardDefinition): boolean {
  * reason as `sweptTypes`: it decides what the position CONTAINS.
  */
 function damagesEveryCreature(def: CardDefinition): boolean {
+    return damagesEveryCreatureIn(def, spentSweepEffects(def));
+}
+
+/**
+ * CR 602.2 — the scripts of the abilities a permanent pays for with ITSELF: a
+ * sacrifice cost and no tap. A creature with one is cast to be spent, so its
+ * sweep is one the holder buys with the card and is posed like the spell's.
+ * Any other activated ability is a repeatable effect that keeps the body, and
+ * is not read.
+ */
+function spentSweepEffects(def: CardDefinition): unknown[] {
+    return (def.activatedAbilities ?? [])
+        .filter((a) => a.cost.sacrifice === true && a.cost.tap !== true)
+        .map((a) => a.effects);
+}
+
+/** Is the damage sweep of `def` one it spends ITSELF on, and only that? The
+ *  holder's own bodies then stay out of the pose: the sweep is cast for what it
+ *  kills of the opponent's, with the card itself the only body it costs. */
+function spendsItselfOnDamageSweep(def: CardDefinition): boolean {
+    const spent = spentSweepEffects(def);
+    return spent.length > 0 && damagesEveryCreatureIn(def, spent, false);
+}
+
+function damagesEveryCreatureIn(
+    def: CardDefinition,
+    roots: unknown[],
+    withSpell = true
+): boolean {
     const damagesEach = (node: unknown): boolean => {
         if (Array.isArray(node)) return node.some(damagesEach);
         if (node === null || typeof node !== "object") return false;
@@ -270,7 +306,7 @@ function damagesEveryCreature(def: CardDefinition): boolean {
     // the position and prices the cast itself, and a `hasAbility` filter
     // (damage to fliers only) never reaches the 1/1s the pose adds.
     if (def.additionalCosts !== undefined) return false;
-    return battlefieldForEaches(def).some(
+    return battlefieldForEaches(def, withSpell, roots).some(
         ({ select, effects }) =>
             select.controller === undefined &&
             selectsCreatures(select) &&
@@ -643,6 +679,7 @@ export function botReachSpec(
     for (const name of kickerLands(def))
         cards.push({ name, owner: "me", zone: "battlefield" });
     const shrinks = shrinksEveryCreature(def) || damagesEveryCreature(def);
+    const spendsSelf = spendsItselfOnDamageSweep(def);
     const target = targetPose(def);
     const edicted = edictedTypes(def);
     // A symmetric edict is posed where the holder has nothing of the edicted
@@ -655,7 +692,7 @@ export function botReachSpec(
     for (const owner of ["me", "opp"] as const) {
         const stands = (name: string): boolean =>
             owner === "opp" || holderKeeps(name);
-        if (stands(FILLER_CREATURE))
+        if (stands(FILLER_CREATURE) && !(owner === "me" && spendsSelf))
             cards.push({ name: FILLER_CREATURE, owner, zone: "battlefield" });
         if (stands(FILLER_ARTIFACT))
             cards.push({ name: FILLER_ARTIFACT, owner, zone: "battlefield" });
