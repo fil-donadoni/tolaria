@@ -165,11 +165,14 @@ whenever the roster shifts, and children inherit it (issue #3212).
   the lockfile. Each close comments the reason and the tip; the claim row
   stays. Only an issue `gaps:sync` filed (title opens with the kind's prefix) closes — an adopted or hand-authored one is reported `foreign` — and a pass over `CLOSE_CAP` open closes refuses whole. Never closed: an `(op) ›` row (`check:gaps` owns it), a migration, a
   Hand Tail claim settled by ANOTHER issue's marker (printed as `settled`, a
-  human reconciles it), and a Grammar Cluster while any of its rows is live.
+  human reconciles it), and a Gap Cluster while any of its rows is live.
 - **A hand-filed `[Grammar]` ticket** goes under the Grammar Rules umbrella of
   the Target its cards compute — `gaps:sync` does not file those. It is a
-  **Grammar Cluster** (`/new-set` Phase 3): it claims several gap keys, and
-  `gaps:sync` leaves a multi-claimed issue's body and parent alone.
+  **Grammar Cluster** (`/new-set` Phase 3): it claims several gap keys. A
+  multi-claimed issue with no `clusters` signature row is left alone; one WITH
+  a row is a **Gap Cluster** and `gaps:sync` writes only its managed
+  `## Adopted gaps` block and moves its parent upward, never down (ADR 0146,
+  which retires "never rewrites a cluster's body or moves its parent").
 
 A new family gets one umbrella per ranked Target plus a `P0`, a
 `BAND_UMBRELLAS` row and a row here — never one umbrella by type.

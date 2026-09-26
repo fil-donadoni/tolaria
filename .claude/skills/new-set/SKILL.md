@@ -358,9 +358,12 @@ before cutting:
   each key with its counts; each key gets a `claims` row (kind `grammar`) in
   `data/grammar-gaps.json` pointing at the cluster — or, for an Op-census key,
   its `ops` row's `issue`. `gaps:sync` recognises an issue claimed by two or
-  more keys as a cluster and never rewrites its body or moves its parent
-  (`syncGaps` action `cluster`); a cluster of ONE key is a plain gap issue and
-  gets rewritten, so a one-gap ticket stays the exception.
+  more keys as a cluster (`syncGaps` action `cluster`) and leaves its
+  hand-written body alone; a cluster with a `clusters` signature row also gets
+  its managed `## Adopted gaps` block and an upward-only parent move (ADR
+  0146, which retires the old "never rewrites its body or moves its parent");
+  a cluster of ONE key is a plain gap issue and gets rewritten, so a one-gap
+  ticket stays the exception.
 
 - **Title**: `[Grammar] <family>: <N> gaps — N <set> / M corpus`, where the
   counts are the SUM of the member gaps' `compiles`

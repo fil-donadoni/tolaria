@@ -12,7 +12,8 @@ golden fixtures, measured by how many corpus cards it turns `ready`. This skill
 is the sequence one such rule owes. It runs inside `/next-issue` (claim,
 worktree, review, `land` are that skill's); everything below is §3 of it.
 
-**The ticket is a Grammar Cluster** (`/new-set` Phase 3): the gaps one rule
+**The ticket is a Grammar Cluster** (the grammar case of a Gap Cluster, ADR
+0146; `/new-set` Phase 3): the gaps one rule
 family closes, listed under the issue's `## Grammar Gaps`. Steps 1–4 run per
 member gap — read it, sort its forms, place its rule, fixture every accepted
 form; steps 5–10 run ONCE for the whole cluster — one recompile, one delta, one
