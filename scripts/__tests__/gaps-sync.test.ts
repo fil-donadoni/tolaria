@@ -63,6 +63,7 @@ import {
     planClaimClosures,
     settledHandTailOf,
     staleClaims,
+    trustedBotFindings,
     type ClaimCloser,
 } from "../gaps-sync";
 import { botGapKey, type BotGapVerdict } from "../lib/oracle-bot-reach";
@@ -1425,6 +1426,31 @@ describe("planClaimClosures — gaps:sync closes the claims whose work is done (
         expect(closedKeys()).toContain("hand-tail:Now Ready:ready");
     });
 
+    it("never closes a `ready` card's claim while a same-name printing keeps a residual gap", () => {
+        const twin = settledHandTailOf(
+            {
+                cards: [...lock.cards, unparsed("r-2", "Now Ready", [0])],
+            },
+            new Map(),
+            gapKeys
+        );
+        expect(
+            planClaimClosures(
+                new Map([[claimId("hand-tail", "Now Ready"), 9002]]),
+                [],
+                twin,
+                agreeing
+            ).close
+        ).toEqual([]);
+    });
+
+    it("trusts the Bot's verdicts only from a Findings report that exists and agrees with the lockfile", () => {
+        const merged = new Map<string, BotGapVerdict>();
+        expect(trustedBotFindings({}, { merged, stale: [] })).toBe(merged);
+        expect(trustedBotFindings(null, { merged, stale: [] })).toBeNull();
+        expect(trustedBotFindings({}, { merged, stale: ["x"] })).toBeNull();
+    });
+
     it("closes a grammar, a mechanic and a scenario claim whose key is gone", () => {
         expect(closedKeys()).toEqual(
             expect.arrayContaining([
@@ -1488,13 +1514,28 @@ describe("planClaimClosures — gaps:sync closes the claims whose work is done (
 });
 
 describe("closeClaims — the thin shell over the plan (issue #4516)", () => {
-    function closer(states: Record<number, "OPEN" | "CLOSED">) {
+    /** A tracker whose issues are `gaps:sync`-filed unless a title says
+     *  otherwise. */
+    function closer(
+        states: Record<number, "OPEN" | "CLOSED">,
+        titles: Record<number, string> = {}
+    ) {
         const closed: { issue: number; comment: string }[] = [];
         const tracker: ClaimCloser = {
-            getIssue: (n) =>
-                states[n] === undefined
-                    ? null
-                    : { state: states[n]!, body: "", parent: null },
+            readIssues: (numbers) =>
+                new Map(
+                    numbers.map((n) => [
+                        n,
+                        states[n] === undefined
+                            ? null
+                            : {
+                                  state: states[n]!,
+                                  title:
+                                      titles[n] ??
+                                      "Quarantine (mechanic): planned-op › vanished op",
+                              },
+                    ])
+                ),
             close: (issue, comment) => {
                 closed.push({ issue, comment });
             },
@@ -1542,11 +1583,34 @@ describe("closeClaims — the thin shell over the plan (issue #4516)", () => {
         expect(closed).toEqual([]);
     });
 
+    it("never closes an issue gaps:sync did not file — an adopted or hand-authored one stays open", () => {
+        const { tracker, closed } = closer(
+            { 9008: "OPEN" },
+            { 9008: "Bug: Onulet never dies" }
+        );
+        expect(
+            closeClaims([gone], tracker, "abc123").map((r) => r.action)
+        ).toEqual(["foreign"]);
+        expect(closed).toEqual([]);
+    });
+
+    it("refuses the whole pass past the cap — a narrowed lockfile reads as every gap gone", () => {
+        const { tracker, closed } = closer({ 9008: "OPEN", 9009: "OPEN" });
+        const two = [gone, { ...gone, issue: 9009 }];
+        expect(
+            closeClaims(two, tracker, "abc123", 1).map((r) => r.action)
+        ).toEqual(["over-cap", "over-cap"]);
+        expect(closed).toEqual([]);
+        expect(
+            closeClaims(two, tracker, "abc123", 2).map((r) => r.action)
+        ).toEqual(["closed", "closed"]);
+    });
+
     it("a cluster's rows close their one issue once, naming every reason", () => {
         const { tracker, closed } = closer({ 9100: "OPEN" });
         const other = {
             ...gone,
-            kind: "grammar" as const,
+            kind: "mechanic" as const,
             key: "(no slot) › a vanished line",
             issue: 9100,
         };

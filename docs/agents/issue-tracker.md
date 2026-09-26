@@ -163,7 +163,7 @@ whenever the roster shifts, and children inherit it (issue #3212).
   scenario / Bot Gap claim whose key the run no longer computes anywhere in
   the corpus — Bot Gaps only while `data/bot-reach-findings.json` agrees with
   the lockfile. Each close comments the reason and the tip; the claim row
-  stays. Never closed: an `(op) ›` row (`check:gaps` owns it), a migration, a
+  stays. Only an issue `gaps:sync` filed (title opens with the kind's prefix) closes — an adopted or hand-authored one is reported `foreign` — and a pass over `CLOSE_CAP` open closes refuses whole. Never closed: an `(op) ›` row (`check:gaps` owns it), a migration, a
   Hand Tail claim settled by ANOTHER issue's marker (printed as `settled`, a
   human reconciles it), and a Grammar Cluster while any of its rows is live.
 - **A hand-filed `[Grammar]` ticket** goes under the Grammar Rules umbrella of

@@ -334,6 +334,73 @@ export class GhGapTracker implements GapTracker {
         gh(["issue", "close", String(number), "--comment", comment]);
     }
 
+    /** One GraphQL call for every number — the close list re-reads the same
+     *  already-closed issues on every landing. A failed batch (a deleted
+     *  number errors the whole query) falls back to one `view` each. */
+    readIssues(numbers: readonly number[]): Map<number, ClosableIssue | null> {
+        const out = new Map<number, ClosableIssue | null>();
+        if (numbers.length === 0) return out;
+        const fields = numbers
+            .map((n) => `i${n}: issue(number: ${n}) { state title }`)
+            .join(" ");
+        const asIssue = (row: {
+            state: string;
+            title: string;
+        }): ClosableIssue => ({
+            state: row.state === "CLOSED" ? "CLOSED" : "OPEN",
+            title: row.title,
+        });
+        try {
+            const data = JSON.parse(
+                gh([
+                    "api",
+                    "graphql",
+                    "-F",
+                    "owner={owner}",
+                    "-F",
+                    "name={repo}",
+                    "-f",
+                    `query=query($owner: String!, $name: String!) { repository(owner: $owner, name: $name) { ${fields} } }`,
+                ])
+            ) as {
+                data: {
+                    repository: Record<
+                        string,
+                        { state: string; title: string } | null
+                    >;
+                };
+            };
+            for (const n of numbers) {
+                const row = data.data.repository[`i${n}`];
+                out.set(n, row == null ? null : asIssue(row));
+            }
+            return out;
+        } catch {
+            for (const n of numbers) {
+                try {
+                    out.set(
+                        n,
+                        asIssue(
+                            JSON.parse(
+                                gh([
+                                    "issue",
+                                    "view",
+                                    String(n),
+                                    "--json",
+                                    "state,title",
+                                ])
+                            ) as { state: string; title: string }
+                        )
+                    );
+                } catch (err) {
+                    if (!isIssueNotFound(err)) throw err;
+                    out.set(n, null);
+                }
+            }
+            return out;
+        }
+    }
+
     /** One search call, not one read per open issue: the `## Unlocks` section
      *  is rare and the queue is hundreds of issues deep. Search tokenizes, so
      *  this over-fetches (any body saying "unlocks") and `parseUnlocks`
@@ -744,7 +811,10 @@ function closureReason(
             const marker = settled.markerIssue.get(key);
             if (marker !== undefined)
                 return marker === issue ? "settled" : null;
-            return settled.ready?.has(key) === true ? "ready" : null;
+            return settled.ready?.has(key) === true &&
+                !settled.residual.has(key)
+                ? "ready"
+                : null;
         }
         case "grammar":
             if (key.startsWith(OP_KEY_PREFIX)) return null;
@@ -787,38 +857,93 @@ export function closureComment(
     ].join("\n");
 }
 
-/** What the close pass needs of the tracker — a read and a close. */
+/** An issue as the close pass reads it: its state, and the title that says
+ *  who filed it. */
+export interface ClosableIssue {
+    readonly state: "OPEN" | "CLOSED";
+    readonly title: string;
+}
+
+/** What the close pass needs of the tracker — ONE batched read, and a close. */
 export interface ClaimCloser {
-    getIssue(number: number): TrackedIssue | null;
+    /** Every number asked → its issue, or `null` when it does not exist. */
+    readIssues(numbers: readonly number[]): Map<number, ClosableIssue | null>;
     close(number: number, comment: string): void;
 }
+
+/**
+ * More OPEN issues than this in one pass refuses the whole pass: a truncated
+ * or narrowed lockfile reads as every gap gone, and a closed claim is never
+ * re-filed (`syncGaps`' `skip-closed`), so a mass close silently orphans live
+ * work. A real landing closes a handful; a human re-runs past a refusal.
+ */
+export const CLOSE_CAP = 25;
 
 /**
  * The thin shell over {@link planClaimClosures}: one `close` per open issue
  * (a Grammar Cluster's rows share one), carrying {@link closureComment}. An
  * already-closed issue — or one deleted — is a no-op, never an error.
+ *
+ * Only an issue `gaps:sync` FILED is closed: its title opens with the claim
+ * kind's `GAP_TITLE_PREFIX`. A claim may record a human-written issue — one
+ * adopted because its `## Cards` names the card (issue #4515), or a
+ * hand-authored Grammar Cluster — whose scope is wider than the claim, so it
+ * comes back `foreign` and stays open.
  */
 export function closeClaims(
     closures: readonly ClaimClosure[],
     closer: ClaimCloser,
-    tip: string
+    tip: string,
+    cap = CLOSE_CAP
 ): {
     issue: number;
     closures: ClaimClosure[];
-    action: "closed" | "already-closed" | "missing";
+    action: "closed" | "already-closed" | "missing" | "foreign" | "over-cap";
 }[] {
     const byIssue = new Map<number, ClaimClosure[]>();
     for (const c of closures)
         byIssue.set(c.issue, [...(byIssue.get(c.issue) ?? []), c]);
-    return [...byIssue].map(([issue, rows]) => {
-        const tracked = closer.getIssue(issue);
-        if (tracked === null)
-            return { issue, closures: rows, action: "missing" as const };
-        if (tracked.state === "CLOSED")
-            return { issue, closures: rows, action: "already-closed" as const };
-        closer.close(issue, closureComment(rows, tip));
-        return { issue, closures: rows, action: "closed" as const };
+    const tracked = closer.readIssues([...byIssue.keys()]);
+    const decided = [...byIssue].map(([issue, rows]) => {
+        const read = tracked.get(issue) ?? null;
+        const action =
+            read === null
+                ? ("missing" as const)
+                : read.state === "CLOSED"
+                  ? ("already-closed" as const)
+                  : rows.every((c) =>
+                          read.title.startsWith(GAP_TITLE_PREFIX[c.kind])
+                      )
+                    ? ("closed" as const)
+                    : ("foreign" as const);
+        return { issue, closures: rows, action };
     });
+    const closing = decided.filter((d) => d.action === "closed");
+    if (closing.length > cap)
+        return decided.map((d) =>
+            d.action === "closed" ? { ...d, action: "over-cap" as const } : d
+        );
+    for (const d of closing)
+        closer.close(d.issue, closureComment(d.closures, tip));
+    return decided;
+}
+
+/**
+ * The merged Bot verdicts `computedGapKeys` may trust, or `null`: only a
+ * Findings report that exists AND has no row disagreeing with the lockfile
+ * (issue #4516) — on the lockfile's own fallback a Bot Gap reading gone may
+ * be spurious.
+ */
+export function trustedBotFindings(
+    findings: unknown | null,
+    botMerge: {
+        readonly merged: ReadonlyMap<string, BotGapVerdict>;
+        readonly stale: readonly string[];
+    }
+): ReadonlyMap<string, BotGapVerdict> | null {
+    return findings !== null && botMerge.stale.length === 0
+        ? botMerge.merged
+        : null;
 }
 
 /** The bands `--band` accepts — the board's whole `Priority` axis. */
@@ -951,12 +1076,7 @@ function main(): void {
         filed,
         filings,
         settledHandTail,
-        computedGapKeys(
-            lock,
-            findings !== null && botMerge.stale.length === 0
-                ? botMerge.merged
-                : null
-        )
+        computedGapKeys(lock, trustedBotFindings(findings, botMerge))
     );
     const closing = new Set(closures.close.map((c) => claimId(c.kind, c.key)));
     const botSkipped = new Set(
@@ -1149,14 +1269,19 @@ function main(): void {
         if (tip === "")
             throw new Error("could not read the tip (git rev-parse HEAD)");
         const done = closeClaims(closures.close, tracker, tip);
-        for (const row of done.filter((r) => r.action !== "closed")) {
+        for (const row of done.filter(
+            (r) => r.action === "foreign" || r.action === "over-cap"
+        )) {
             console.log(
-                `close      issue #${row.issue} — ${row.action}, nothing to do`
+                row.action === "foreign"
+                    ? `close      issue #${row.issue} — not closed: its title is not a \`${GAP_TITLE_PREFIX[row.closures[0]!.kind]}\` issue gaps:sync filed (adopted or hand-authored)`
+                    : `close      issue #${row.issue} — not closed: over CLOSE_CAP (${CLOSE_CAP}) open issues in one pass; check the lockfile, then close by hand or raise the cap`
             );
         }
         console.log(
             `gaps:sync: close pass at ${tip.slice(0, 12)} — ${done.filter((r) => r.action === "closed").length} issue(s) closed, ` +
-                `${done.filter((r) => r.action !== "closed").length} already closed or missing, ${closures.botSkipped.length} bot claim(s) held`
+                `${done.filter((r) => r.action === "already-closed" || r.action === "missing").length} already closed or missing, ` +
+                `${done.filter((r) => r.action === "foreign").length} foreign, ${done.filter((r) => r.action === "over-cap").length} over cap, ${closures.botSkipped.length} bot claim(s) held`
         );
     } catch (err) {
         console.error(
