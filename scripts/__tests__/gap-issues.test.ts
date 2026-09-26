@@ -37,6 +37,7 @@ import {
     SUB_ISSUE_CAP,
     clusterIssues,
     absorptionComment,
+    closeAbsorbedSingles,
     syncGaps,
     issuesWorkedByPrs,
     syncAdoptedBlocks,
@@ -1579,8 +1580,18 @@ describe("syncGaps absorbs its own open singles into the matching Gap Cluster (i
         t.issues.set(SINGLE, { state: "OPEN", title, body: SINGLE_BODY });
         return t;
     };
-    const run = (t: StubTracker, over: Partial<GapFiling> = {}) =>
-        syncGaps([filed(over)], t, undefined, new Set([CLUSTER]), [signature]);
+    // `main`'s order: plan, (write-back), then close the absorbed singles.
+    const run = (t: StubTracker, over: Partial<GapFiling> = {}) => {
+        const result = syncGaps(
+            [filed(over)],
+            t,
+            undefined,
+            new Set([CLUSTER]),
+            [signature]
+        );
+        closeAbsorbedSingles(result.absorbed, t);
+        return result;
+    };
 
     it("closes the matching filed single, re-points its claim row at the cluster", () => {
         const t = tracker();
@@ -1601,6 +1612,24 @@ describe("syncGaps absorbs its own open singles into the matching Gap Cluster (i
         // managed block is `syncAdoptedBlocks`'s, after the write-back.
         expect(t.updateCalls).toBe(0);
         expect(t.createCalls).toBe(0);
+    });
+
+    it("syncGaps only PLANS the close — the single stays open until after the write-back", () => {
+        const t = tracker();
+        const result = syncGaps([filed()], t, undefined, new Set([CLUSTER]), [
+            signature,
+        ]);
+        expect(t.closed).toEqual([]);
+        expect(t.issues.get(SINGLE)!.state).toBe("OPEN");
+        expect(result.absorbed).toEqual([
+            {
+                kind: "bot",
+                key: BOT,
+                single: SINGLE,
+                cluster: CLUSTER,
+                body: SINGLE_BODY,
+            },
+        ]);
     });
 
     it("the closing comment names the cluster and carries the single's body verbatim", () => {

@@ -109,6 +109,7 @@ import {
     PRD_ISSUE,
     RETIRED_UMBRELLAS,
     planUnlockEdges,
+    closeAbsorbedSingles,
     clusterIssues,
     isAdoptedFiling,
     issuesWorkedByPrs,
@@ -1327,7 +1328,10 @@ function main(): void {
                 `${action.kind.padEnd(10)} ${action.action.padEnd(11)} ${action.key} -> issue #${action.issue}` +
                     (action.parent === undefined
                         ? ""
-                        : ` (parent #${action.parent})`)
+                        : ` (parent #${action.parent})`) +
+                    (action.single === undefined
+                        ? ""
+                        : ` (absorbs single #${action.single})`)
             );
         }
     }
@@ -1355,6 +1359,20 @@ function main(): void {
             `gaps:sync: ${result.updatedRows.size} allowlist row(s) updated in ${ALLOWLIST_PATH}`
         );
         commitAndPushAllowlist(root);
+    }
+
+    // The absorbed singles (issue #4678), closed only now that their rows
+    // point at their clusters — in their own try/catch, like the blocks: a
+    // failed close leaves an open single, never a row on a closed issue.
+    if (result.absorbed.length > 0) {
+        try {
+            for (const single of closeAbsorbedSingles(result.absorbed, tracker))
+                console.log(`absorb     closed single issue #${single}`);
+        } catch (err) {
+            console.log(
+                `absorb     singles not all closed: ${err instanceof Error ? err.message : String(err)} — close them by hand; their rows already point at the cluster`
+            );
+        }
     }
 
     // The Gap Clusters' managed blocks (ADR 0146), after the write-back and

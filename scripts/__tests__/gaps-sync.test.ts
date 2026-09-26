@@ -2215,6 +2215,23 @@ describe("gaps-sync main hands the parsed origin band to syncGaps", () => {
     });
 });
 
+describe("gaps-sync main closes absorbed singles only after the rows are recorded (issue #4678)", () => {
+    // Closed before the write-back, a failed write would leave a live gap's
+    // row on a closed issue — read `skip-closed` next run, the claim lost.
+    // Pinned by SHAPE, like the managed-block pin below: `main()` reads the
+    // network.
+    it("calls closeAbsorbedSingles after commitAndPushAllowlist, inside its own try", () => {
+        const source = readFileSync("scripts/gaps-sync.ts", "utf8");
+        const writeBack = source.indexOf("commitAndPushAllowlist(root);");
+        const close = source.indexOf("closeAbsorbedSingles(result.absorbed");
+        expect(writeBack).toBeGreaterThan(-1);
+        expect(close).toBeGreaterThan(writeBack);
+        expect(source.slice(writeBack, close)).toMatch(
+            /try \{\s*for \(const single of $/
+        );
+    });
+});
+
 describe("gaps-sync main writes the managed blocks only after the rows are recorded (ADR 0146)", () => {
     // A block write can throw (broken markers, a gh failure); run before the
     // write-back it would cost the run every row it filed, and the next run

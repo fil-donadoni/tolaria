@@ -534,6 +534,21 @@ export interface GapSyncResult {
     readonly moves: readonly GapMove[];
     /** `claimId(kind, key)` → the issue number the allowlist must record. */
     readonly updatedRows: ReadonlyMap<string, number>;
+    /** The singles an `absorb` re-pointed away from (issue #4678) — PLANNED,
+     *  not closed: `main` closes them with {@link closeAbsorbedSingles} only
+     *  after the write-back, so a failed write never leaves a live gap's row
+     *  on a closed issue (read `skip-closed`, the claim lost). */
+    readonly absorbed: readonly AbsorbedSingle[];
+}
+
+/** One single an `absorb` re-pointed its claim row away from. */
+export interface AbsorbedSingle {
+    readonly kind: GapKind;
+    readonly key: string;
+    readonly single: number;
+    readonly cluster: number;
+    /** The single's body as read — its closing comment copies it verbatim. */
+    readonly body: string;
 }
 
 /** The Target umbrella `filing` belongs under, or null — not partitioned,
@@ -1096,6 +1111,7 @@ export function syncGaps(
     const actions: GapSyncAction[] = [];
     const moves: GapMove[] = [];
     const updatedRows = new Map<string, number>();
+    const absorbed: AbsorbedSingle[] = [];
     const updateBody = (issue: number, body: string): void =>
         tracker.updateBody(issue, body);
     for (const filing of filings) {
@@ -1144,8 +1160,13 @@ export function syncGaps(
         const current = existing.get(id)!;
         const absorber = absorbInto.get(id);
         if (absorber !== undefined) {
-            tracker.close(issue, absorptionComment(absorber, current.body));
             updatedRows.set(id, absorber);
+            absorbed.push({
+                ...common,
+                single: issue,
+                cluster: absorber,
+                body: current.body,
+            });
             actions.push({
                 action: "absorb",
                 ...common,
@@ -1176,7 +1197,23 @@ export function syncGaps(
         actions.push({ action: "update", ...common, issue });
     }
 
-    return { actions, moves, updatedRows };
+    return { actions, moves, updatedRows, absorbed };
+}
+
+/**
+ * Close each absorbed single with {@link absorptionComment} (issue #4678) —
+ * `main` calls this after the allowlist write-back, in its own try/catch: a
+ * close that fails leaves an open single whose row already points at its
+ * cluster (visible, re-closable), never a recorded row on a closed issue.
+ * Returns the singles it closed.
+ */
+export function closeAbsorbedSingles(
+    absorbed: readonly AbsorbedSingle[],
+    tracker: Pick<GapTracker, "close">
+): number[] {
+    for (const a of absorbed)
+        tracker.close(a.single, absorptionComment(a.cluster, a.body));
+    return absorbed.map((a) => a.single);
 }
 
 /**
