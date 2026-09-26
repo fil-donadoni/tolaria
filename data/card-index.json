@@ -51518,6 +51518,14 @@
         "source": "compiled"
     },
     {
+        "name": "Temporal Spring",
+        "scryfallId": "b584dfd1-a56c-406e-8504-47ea136dc102",
+        "oracleId": "1d7a4e9c-b3c9-421e-b5f4-82d51d7d5125",
+        "firstSet": "apc",
+        "firstPrintId": "b584dfd1-a56c-406e-8504-47ea136dc102",
+        "firstPrintSet": "apc"
+    },
+    {
         "name": "Temur Banner",
         "scryfallId": "9990bdff-c27a-447f-b530-d8b7614fe9a0",
         "oracleId": "8a35f23d-f59a-4677-9736-035c60c22a2b",
