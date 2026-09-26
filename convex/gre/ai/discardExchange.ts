@@ -7,7 +7,9 @@
  * sacrifice is a cost, CR 118.1) and its WHOLE script makes an announced
  * target player discard: the `choice` of `kind: "discard-hand"` that lets the
  * target pick the cards, then the `discard` of that binding (CR 701.9a,
- * "Sacrifice a creature: Target player discards two cards"). Such an
+ * "Sacrifice a creature: Target player discards two cards"), or the
+ * `discardAtRandom` of the announced player (CR 701.9b, "Target opponent
+ * discards a card at random", issue #4285). Such an
  * activation trades a permanent for cards out of the opponent's hand: it
  * creates no card, no mana, no life and no damage for its controller, and the
  * payoff is a hand the opponent may have already emptied. The search still
@@ -41,7 +43,7 @@ function opMakesTargetDiscard(op: EffectOp): boolean {
             namesAnnouncedPlayer((op as { player?: unknown }).player)
         );
     }
-    if (op.op === "discard") {
+    if (op.op === "discard" || op.op === "discardAtRandom") {
         return namesAnnouncedPlayer((op as { player?: unknown }).player);
     }
     return false;
@@ -62,7 +64,12 @@ export function abilityIsDiscardExchange(ability: ActivatedAbility): boolean {
     if (ability.modes && ability.modes.length > 0) return false;
     const effects = ability.effects;
     if (!effects || effects.length === 0) return false;
-    // A discard needs the `discard` Op itself; a lone choice does nothing.
-    if (!effects.some((op) => op.op === "discard")) return false;
+    // A discard needs a discarding Op itself; a lone choice does nothing.
+    if (
+        !effects.some(
+            (op) => op.op === "discard" || op.op === "discardAtRandom"
+        )
+    )
+        return false;
     return effects.every(opMakesTargetDiscard);
 }
