@@ -657,6 +657,88 @@ describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
             });
     }, 300_000);
 
+    /** CR 602.2 / 120.3e — a creature whose activated ability deals 1 damage
+     *  to each creature, behind `cost`. */
+    const creatureWithSweep = (
+        id: string,
+        cost: Record<string, unknown>
+    ): CardDefinition => ({
+        id: `bot-reach-test:${id}`,
+        name: `Bot Reach ${id}`,
+        rarity: "common",
+        manaCost: { R: 1 },
+        types: ["Creature"],
+        power: 1,
+        toughness: 1,
+        activatedAbilities: [
+            {
+                id: `${id}-ability`,
+                oracleText: "Sweep.",
+                cost: { mana: { R: 1 }, ...cost },
+                useStack: true,
+                effects: [
+                    {
+                        op: "forEach",
+                        select: {
+                            set: "permanents",
+                            zone: "battlefield",
+                            filter: { type: "Creature" },
+                        },
+                        effects: [
+                            {
+                                op: "dealDamage",
+                                amount: 1,
+                                to: { ref: "$each" },
+                            },
+                        ],
+                    },
+                ],
+            },
+        ],
+    });
+
+    it("a creature that sweeps behind its own sacrifice is posed against the opponent's surplus, with none of the holder's bodies to lose", () => {
+        const def = creatureWithSweep("spent-sweep", { sacrifice: true });
+        const kept = creatureWithSweep("spent-vs-kept", { tap: true });
+        const ownCreatures = (d: CardDefinition, seat: 0 | 1): number => {
+            const { state, holderId } = buildBotReachState(d, seat);
+            return state.players
+                .find((p) => p.id === holderId)!
+                .battlefield.filter((c) => c.types.includes("Creature")).length;
+        };
+        withTemporaryDefinition(def, () =>
+            withTemporaryDefinition(kept, () => {
+                for (const seat of [0, 1] as const) {
+                    expect(ownCreatures(def, seat), def.name).toBeLessThan(
+                        ownCreatures(kept, seat)
+                    );
+                    expect(
+                        ahead(def, seat, "Creature"),
+                        def.name
+                    ).toBeGreaterThan(0);
+                    expect(castleCount(def, seat), def.name).toBe(0);
+                }
+            })
+        );
+    });
+
+    it("no claim is made for an ability that keeps the body", () => {
+        const def = creatureWithSweep("kept-sweep", { tap: true });
+        withTemporaryDefinition(def, () => {
+            for (const seat of [0, 1] as const) {
+                expect(ahead(def, seat, "Creature"), def.name).toBe(0);
+                expect(castleCount(def, seat), def.name).toBe(2);
+            }
+        });
+    });
+
+    it("played — a creature that spends itself on a damage sweep is cast where it wins", () => {
+        for (const name of ["Bloodfire Dwarf", "Bloodfire Colossus"] as const)
+            expect(playBotReach(getCardByName(name)), name).toEqual({
+                outcome: "played",
+            });
+    }, 300_000);
+
     /** CR 701.21 — an "each player sacrifices" edict of `filter`. */
     const eachPlayerSacrifices = (
         id: string,
