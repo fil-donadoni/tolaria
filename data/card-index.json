@@ -25386,6 +25386,14 @@
         "source": "compiled"
     },
     {
+        "name": "Illuminate",
+        "scryfallId": "ceef2761-7301-42de-8f54-49b8cd1e457b",
+        "oracleId": "f944c245-08ff-41a8-bdfc-7d21a6a63eae",
+        "firstSet": "apc",
+        "firstPrintId": "ceef2761-7301-42de-8f54-49b8cd1e457b",
+        "firstPrintSet": "apc"
+    },
+    {
         "name": "Illuminated Wings",
         "scryfallId": "7f98e703-a0d3-497f-840a-aa026b02d47f",
         "oracleId": "7a22389a-34e7-4726-a551-f6fbc225cefe",

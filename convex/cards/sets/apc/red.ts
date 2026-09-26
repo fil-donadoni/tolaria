@@ -291,7 +291,7 @@ export const illuminate: CardDefinition = {
                 {
                     op: "dealDamage",
                     amount: { X: true },
-                    to: { controllerOf: { target: 0 } },
+                    to: { player: { controllerOf: { target: 0 } } },
                 },
             ],
         },
