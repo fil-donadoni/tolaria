@@ -936,6 +936,16 @@ describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
         ]);
     }, 600_000);
 
+    // Issue #4289: a storm pump instant with an {X}{X} cost is a combat trick
+    // like any other — a main phase has nothing to pump, so it is posed in a
+    // declared combat (`combatTrickPosition`) and cast there.
+    it("played — a storm pump instant, posed as a combat trick", () => {
+        expect(playBotReachSeats(getCardByName("Astral Steel"))).toEqual([
+            { holderId: "p1", verdict: { outcome: "played" } },
+            { holderId: "p2", verdict: { outcome: "played" } },
+        ]);
+    }, 600_000);
+
     // Issue #4287: the same exchange behind a creature that also carries a
     // dies trigger (a pump on a target) — the trigger does not turn the
     // sacrifice-for-draw outlet into a scored sacrifice below the cast edge.
