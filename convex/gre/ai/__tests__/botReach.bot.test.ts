@@ -673,6 +673,7 @@ describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
         activatedAbilities: [
             {
                 id: `${id}-ability`,
+                oracleText: "Sweep.",
                 cost: { mana: { R: 1 }, ...cost },
                 useStack: true,
                 effects: [
