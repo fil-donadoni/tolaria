@@ -549,3 +549,125 @@ export const orderChaos: CardDefinition = defineSplitCard({
         },
     ],
 });
+
+// Last Stand — {W}{U}{B}{R}{G} Sorcery. Five independent clauses, each scaled
+// by one basic land type the caster controls (CR 205.3i land subtypes), every
+// count read as its clause resolves (CR 608.2).
+// - "loses 2 life for each Swamp": `loseLife` over `count` with `times: 2`
+//   (CR 119.3), target 0 = the opponent.
+// - "deals damage equal to the number of Mountains": `dealDamage` (CR 120.3)
+//   to target 1 = the creature; the source defaults to the resolving spell.
+//   CR 601.2c — two INDEPENDENT target groups (Suffocating Blast precedent);
+//   CR 608.2b skips the clause whose target became illegal, the rest resolves.
+// - Saprolings and life: `createToken` / `gainLife` over a `count`.
+// - "Draw a card for each Island you control, then discard that many cards":
+//   the draw is one `draw` over the Island count. Choice `count` is a literal,
+//   not an EffectValue, so the discard is a `forEach` over the Islands
+//   (the same N the draw used, since nothing in this spell changes the Island
+//   count) with one `discard-hand` pick per member, the discarding player
+//   choosing each card (CR 701.9b); a hand smaller than N runs out of cards
+//   and the remaining picks skip.
+// hand-tail: Target opponent loses 2 life for each Swamp you control. {self} deals damage to target creature equal to the number of Mountains you control. Create a 1/1 green Saproling creature token for each Forest you control. You gain 2 life for each Plains you control. Draw a card for each Island you control, then discard that many cards. (#4504)
+export const lastStand: CardDefinition = {
+    id: "7dc3d054-6266-4ce0-89ed-f8b170794f2e", // APC 107
+    rarity: "rare",
+    name: "Last Stand",
+    oracleText:
+        "Target opponent loses 2 life for each Swamp you control. Last Stand deals damage to target creature equal to the number of Mountains you control. Create a 1/1 green Saproling creature token for each Forest you control. You gain 2 life for each Plains you control. Draw a card for each Island you control, then discard that many cards.",
+    manaCost: { W: 1, U: 1, B: 1, R: 1, G: 1 },
+    types: ["Sorcery"],
+    targetRequirement: { type: "player", count: 1, controller: "opponent" },
+    additionalTargetRequirements: [{ type: "Creature", count: 1 }],
+    effects: [
+        {
+            op: "loseLife",
+            player: { target: 0 },
+            amount: {
+                count: {
+                    zone: "battlefield",
+                    controller: "controller",
+                    filter: { subtype: "Swamp" },
+                    times: 2,
+                },
+            },
+        },
+        {
+            op: "dealDamage",
+            to: { target: 1 },
+            amount: {
+                count: {
+                    zone: "battlefield",
+                    controller: "controller",
+                    filter: { subtype: "Mountain" },
+                },
+            },
+        },
+        {
+            op: "createToken",
+            controller: "controller",
+            count: {
+                count: {
+                    zone: "battlefield",
+                    controller: "controller",
+                    filter: { subtype: "Forest" },
+                },
+            },
+            token: {
+                name: "Saproling",
+                types: ["Creature"],
+                subtypes: ["Saproling"],
+                power: 1,
+                toughness: 1,
+                colors: ["G"],
+            },
+        },
+        {
+            op: "gainLife",
+            player: "controller",
+            amount: {
+                count: {
+                    zone: "battlefield",
+                    controller: "controller",
+                    filter: { subtype: "Plains" },
+                    times: 2,
+                },
+            },
+        },
+        {
+            op: "draw",
+            player: "controller",
+            count: {
+                count: {
+                    zone: "battlefield",
+                    controller: "controller",
+                    filter: { subtype: "Island" },
+                },
+            },
+        },
+        {
+            op: "forEach",
+            select: {
+                set: "permanents",
+                zone: "battlefield",
+                controller: "controller",
+                filter: { subtype: "Island" },
+            },
+            effects: [
+                {
+                    op: "choice",
+                    kind: "discard-hand",
+                    player: "controller",
+                    zone: "hand",
+                    count: 1,
+                    prompt: "Last Stand: discard a card.",
+                    bind: "$discards",
+                },
+                {
+                    op: "discard",
+                    player: "controller",
+                    cards: { ref: "$discards" },
+                },
+            ],
+        },
+    ],
+};
