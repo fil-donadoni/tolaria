@@ -176,7 +176,7 @@ export const falseDawn: CardDefinition = {
 //    player target (CR 603.3d); the amount is the `count` of that player's
 //    hand, and `gainLife` no-ops on 0.
 //  • "{3}{W}: Tap target creature. Activate only if {self} is attacking." — the
-//    activation restriction (CR 602.5b) is a `canActivate` predicate reading
+//    activation restriction (CR 602.5) is a `canActivate` predicate reading
 //    the source's own `isAttacking` flag (CR 508.1k: set at declare-attackers,
 //    cleared when it leaves combat), the Clockwork Beast shape. The Bot gates
 //    on it via `activationPreconditionViolation`; the client affordability
