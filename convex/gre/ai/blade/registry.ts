@@ -8435,6 +8435,57 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         note: "Bot Gap `never-chosen › Creature › choice+discard` (2 cards). Issue #4276.",
     },
     {
+        // SACRIFICE-FOR-RANDOM-DISCARD reachability (CR 701.21a, CR 701.9b,
+        // issue #4285). The sweep's own position for a creature whose only
+        // ability is "{B}, Sacrifice this creature: Target opponent discards a
+        // card at random": Urborg Mindsucker in hand, five Swamps, a spare body
+        // on each side.
+        //
+        // The same drag as the entry above, through the `discardAtRandom` Op
+        // instead of the target's own pick: the cast edge read WORSE than
+        // `pass` because the rollout and the tree opened the sacrifice below
+        // the cast. Fixed by class, not by card: `abilityIsDiscardExchange`
+        // (`discardExchange.ts`) reads either discarding Op.
+        label: "Sacrifice-for-random-discard outlet: casts the creature",
+        spec: {
+            cards: [
+                { name: "Urborg Mindsucker", owner: "me", zone: "hand" },
+                { name: "Swamp", owner: "me", zone: "battlefield" },
+                { name: "Swamp", owner: "me", zone: "battlefield" },
+                { name: "Swamp", owner: "me", zone: "battlefield" },
+                { name: "Swamp", owner: "me", zone: "battlefield" },
+                { name: "Swamp", owner: "me", zone: "battlefield" },
+                { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
+                { name: "Ornithopter", owner: "me", zone: "battlefield" },
+                { name: "Castle", owner: "me", zone: "battlefield" },
+                { name: "Grizzly Bears", owner: "me", zone: "graveyard" },
+                { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+                { name: "Ornithopter", owner: "opp", zone: "battlefield" },
+                { name: "Castle", owner: "opp", zone: "battlefield" },
+                { name: "Grizzly Bears", owner: "opp", zone: "graveyard" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            libraryCount: 20,
+        },
+        bot: "me",
+        // A REACHABILITY claim at four times the sweep's budget, so a
+        // PREDICATE, kept out of the weight fit like its discard sibling.
+        budget: { iterations: 200 },
+        seeds: [0xb07, 0x5eed, 1, 2, 3],
+        tier: "must",
+        expect: {
+            predicate: (move, state) =>
+                move !== null &&
+                move.kind === "cast-spell" &&
+                instanceIdsForName(state, "Urborg Mindsucker").has(
+                    move.cardInstanceId
+                ),
+            describe: "casts Urborg Mindsucker",
+        },
+        note: "Bot Gap `never-chosen › Creature › discardAtRandom` (1 card). Issue #4285.",
+    },
+    {
         // SACRIFICE-FOR-DRAIN reachability (CR 701.21a, CR 119.3, issue #4277).
         // The sweep's own position for a creature whose only ability is
         // "Sacrifice this creature: Target player loses 1 life and you gain 1

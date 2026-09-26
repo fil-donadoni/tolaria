@@ -41,6 +41,23 @@ describe("abilityIsDiscardExchange", () => {
         }
     });
 
+    it("accepts a random discard of the announced player (CR 701.9b)", () => {
+        const outlet =
+            getCardByName("Urborg Mindsucker").activatedAbilities?.[0];
+        expect(outlet).toBeDefined();
+        expect(abilityIsDiscardExchange(outlet!)).toBe(true);
+    });
+
+    it("rejects a random discard the controller makes themselves", () => {
+        expect(
+            abilityIsDiscardExchange(
+                ability([
+                    { op: "discardAtRandom", player: "controller", count: 1 },
+                ] as EffectOp[])
+            )
+        ).toBe(false);
+    });
+
     it("rejects a discard the controller makes themselves", () => {
         expect(
             abilityIsDiscardExchange(
