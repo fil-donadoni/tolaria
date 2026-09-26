@@ -550,6 +550,33 @@ describe("gate.ts — liveness wiring (issue #2999)", () => {
         expect(out).toMatch(/pid \d+ · held \S+ · last progress \S+ ago/);
         expect(out).toMatch(/holder pid alive · subtree CPU \d+\.\d\ds/);
     }, 30_000);
+
+    it("`who` also names a live check:ui lane holder, and says free otherwise (issue #4687)", () => {
+        expect(run(["who"]).stdout).toContain("check:ui lane is free");
+
+        // A holder stamp for THIS test process: alive, so `who` reports it as
+        // such without spawning a second real check:ui run.
+        const lane = join(lockRoot, "ui.lock");
+        mkdirSync(lane, { recursive: true });
+        const now = Date.now();
+        writeFileSync(
+            join(lane, "owner.json"),
+            JSON.stringify({
+                pid: process.pid,
+                label: "check:ui --all",
+                cwd: "/some/worktree",
+                ts: now,
+                acquiredAt: now,
+            })
+        );
+        const out = run(["who"]).stdout;
+        expect(out).toMatch(
+            new RegExp(
+                `check:ui lane — pid ${process.pid} · held \\S+ · last heartbeat \\S+ ago · /some/worktree · check:ui --all`
+            )
+        );
+        expect(out).toContain("holder pid alive");
+    }, 30_000);
 });
 
 describe("gate.ts — issue-worktree guard", () => {
