@@ -200,7 +200,7 @@ while [ $# -gt 0 ]; do
             shift
             ;;
         *)
-            echo "loop-drain: unknown argument: $1" >&2
+            echo "loop-drain[error]: unknown argument: $1" >&2
             exit 2
             ;;
     esac
@@ -229,12 +229,12 @@ is_number() {
 # nobody watching. Reject it at startup rather than discovering it in the
 # morning's telemetry as N passes of `no-progress`.
 if [ -z "$PASS_PROMPT" ]; then
-    echo "loop-drain: --prompt must not be empty (omit it for the default '/next-issue')" >&2
+    echo "loop-drain[error]: --prompt must not be empty (omit it for the default '/next-issue')" >&2
     exit 2
 fi
 
 if ! is_uint "$MAX_PASSES"; then
-    echo "loop-drain: --max-passes must be a non-negative integer, got: '$MAX_PASSES'" >&2
+    echo "loop-drain[error]: --max-passes must be a non-negative integer, got: '$MAX_PASSES'" >&2
     exit 2
 fi
 
@@ -246,18 +246,18 @@ for _pair in "max-consecutive-errors:$MAX_CONSECUTIVE_ERRORS" \
     _name=${_pair%%:*}
     _value=${_pair#*:}
     if ! is_uint "$_value"; then
-        echo "loop-drain: --$_name must be a non-negative integer, got: '$_value'" >&2
+        echo "loop-drain[error]: --$_name must be a non-negative integer, got: '$_value'" >&2
         exit 2
     fi
 done
 
 if ! is_number "$MAX_PCT"; then
-    echo "loop-drain: --max-pct must be numeric, got: '$MAX_PCT'" >&2
+    echo "loop-drain[error]: --max-pct must be numeric, got: '$MAX_PCT'" >&2
     exit 2
 fi
 
 if [ -n "$BUDGET" ] && ! is_number "$BUDGET"; then
-    echo "loop-drain: --budget must be a plain number (e.g. 200000000 — no suffix like '2M', no separators like '2_000_000'), got: '$BUDGET'" >&2
+    echo "loop-drain[error]: --budget must be a plain number (e.g. 200000000 — no suffix like '2M', no separators like '2_000_000'), got: '$BUDGET'" >&2
     exit 2
 fi
 
@@ -286,9 +286,9 @@ driver_alive() {
 }
 
 if [ "$SINGLE_INSTANCE" -eq 1 ] && driver_alive; then
-    echo "loop-drain: a driver is already running (pid $(cat "$PID_FILE")) — refusing to start a second one over the same queue." >&2
+    echo "loop-drain[error]: a driver is already running (pid $(cat "$PID_FILE")) — refusing to start a second one over the same queue." >&2
     echo ""
-    echo "loop-drain summary: passes=0 reason=already-running queue_start=? queue_end=? final_pct=n/a spent=n/a budget=n/a"
+    echo "loop-drain[summary]: passes=0 reason=already-running queue_start=? queue_end=? final_pct=n/a spent=n/a budget=n/a"
     exit 0
 fi
 
@@ -336,7 +336,7 @@ RATE_LIMIT_PATTERNS='rate limit|usage limit|quota|limit reached'
 # relevant) — but an empty --claude-args means the first tool-use permission
 # prompt blocks forever with nobody watching, so say so loudly, once.
 if [ -z "$CLAUDE_ARGS" ]; then
-    echo "loop-drain: WARNING — --claude-args is empty. An unattended pass" >&2
+    echo "loop-drain[warn]: WARNING — --claude-args is empty. An unattended pass" >&2
     echo "  will BLOCK on the first permission prompt unless you pass a" >&2
     echo "  permission mode, e.g. --claude-args '--dangerously-skip-permissions'." >&2
     echo "  That is a security-relevant choice this driver will not default for you." >&2
@@ -368,10 +368,10 @@ case "$_budget_positive" in
     0)
         if [ -n "${TOLARIA_LOOP_ALLOW_NO_BUDGET:-}" ]; then
             BUDGET_ENABLED=0
-            echo "loop-drain: TOLARIA_LOOP_ALLOW_NO_BUDGET set (test-only hatch) — the token-budget guard is DISABLED for this run." >&2
+            echo "loop-drain[warn]: TOLARIA_LOOP_ALLOW_NO_BUDGET set (test-only hatch) — the token-budget guard is DISABLED for this run." >&2
         else
-            echo "loop-drain: --budget / TOLARIA_LOOP_TOKEN_BUDGET is REQUIRED — this driver refuses to run unbudgeted (ADR 0109)." >&2
-            echo "loop-drain: e.g. --budget 200000000; the guard stops the run once THIS RUN's own weighted spend, accumulated from launch, reaches --max-pct (${MAX_PCT}%) of it." >&2
+            echo "loop-drain[error]: --budget / TOLARIA_LOOP_TOKEN_BUDGET is REQUIRED — this driver refuses to run unbudgeted (ADR 0109)." >&2
+            echo "loop-drain[error]: e.g. --budget 200000000; the guard stops the run once THIS RUN's own weighted spend, accumulated from launch, reaches --max-pct (${MAX_PCT}%) of it." >&2
             exit 1
         fi
         ;;
@@ -443,7 +443,7 @@ process.stdout.write(
         # Fail CLOSED (see the comment above) but never SILENT — this is a
         # discriminator whose whole purpose is diagnosability, so a swallowed
         # failure here would defeat #2626 as quietly as the bug it fixed.
-        echo "loop-drain: claims-held discriminator unavailable (bun -e lib/loop-status failed) — falling back to no-progress" >&2
+        echo "loop-drain[warn]: claims-held discriminator unavailable (bun -e lib/loop-status failed) — falling back to no-progress" >&2
         echo "false"
     fi
 }
@@ -492,7 +492,7 @@ process.stdout.write(
 reap_orphan_claims() {
     _doctor="$SCRIPT_DIR/loop-doctor.ts"
     if [ ! -f "$_doctor" ]; then
-        echo "loop-drain: orphan-claim sweep skipped — $_doctor not found." >&2
+        echo "loop-drain[warn]: orphan-claim sweep skipped — $_doctor not found." >&2
         return 0
     fi
     # Empty vs `--release`, expanded UNQUOTED so the empty case contributes no
@@ -506,11 +506,11 @@ reap_orphan_claims() {
     fi
     # shellcheck disable=SC2086
     if _reap_out=$(bun "$_doctor" $_reap_flag 2>&1); then
-        printf 'loop-drain: %s —\n%s\n' "$_reap_label" "$_reap_out" >&2
+        printf 'loop-drain[sweep]: %s —\n%s\n' "$_reap_label" "$_reap_out" >&2
     else
         # Never silent: a janitor that stops running without saying so is how
         # the prose version of this rule failed in the first place.
-        echo "loop-drain: $_reap_label FAILED (bun loop-doctor.ts $_reap_flag) — continuing without it." >&2
+        echo "loop-drain[warn]: $_reap_label FAILED (bun loop-doctor.ts $_reap_flag) — continuing without it." >&2
         printf '%s\n' "$_reap_out" >&2
     fi
     return 0
@@ -573,7 +573,7 @@ resolve_head() {
     # the plan.
     _plan_err=$(mktemp)
     if ! _plan=$(bun run queue:plan --cap 1 --exclude-hitl 2>"$_plan_err"); then
-        echo "loop-drain: pre-flight FAILED (bun run queue:plan --cap 1 --exclude-hitl) — STOPPING. A pass handed the bare prompt picks its own issue and knows nothing about HITL, so it could implement and merge work reserved for a human (#3088)." >&2
+        echo "loop-drain[error]: pre-flight FAILED (bun run queue:plan --cap 1 --exclude-hitl) — STOPPING. A pass handed the bare prompt picks its own issue and knows nothing about HITL, so it could implement and merge work reserved for a human (#3088)." >&2
         cat "$_plan_err" >&2 || true
         rm -f "$_plan_err"
         return 1
@@ -590,13 +590,13 @@ if (head && Number.isInteger(head.number) && typeof head.model === "string") {
 }
 ' 2>/dev/null) || _head=""
     if [ -z "$_head" ]; then
-        echo "loop-drain: pre-flight resolved no ELIGIBLE head issue from the plan — stopping rather than letting a pass pick for itself." >&2
+        echo "loop-drain[error]: pre-flight resolved no ELIGIBLE head issue from the plan — stopping rather than letting a pass pick for itself." >&2
         return 1
     fi
     RESOLVED_ISSUE=${_head% *}
     RESOLVED_MODEL=${_head#* }
     if ! is_uint "$RESOLVED_ISSUE" || [ -z "$RESOLVED_MODEL" ]; then
-        echo "loop-drain: pre-flight returned an unusable head ('$_head') — stopping rather than letting a pass pick for itself." >&2
+        echo "loop-drain[error]: pre-flight returned an unusable head ('$_head') — stopping rather than letting a pass pick for itself." >&2
         RESOLVED_ISSUE=""
         RESOLVED_MODEL=""
         return 1
@@ -607,16 +607,24 @@ if (head && Number.isInteger(head.number) && typeof head.model === "string") {
 # A stated budget and a spendable budget must never be different numbers
 # without the output saying so (issue #3699) — `--max-pct` is a multiplier on
 # the declared budget, and for a year it was silently 0.8.
+#
+# Output tags (ADR 0147). The lines the AFK terminal structures carry a
+# bracketed tag after the source — `loop-drain[<tag>]: <message>` — from a
+# CLOSED set: run (banner), warn, error, pass (pass start), end (pass end),
+# sweep, summary. `scripts/lib/loop-render.ts` classifies by that tag and
+# never by the message text, so a message may be reworded freely; a line with
+# no tag renders as plain chatter. A new tag is a change to DRIVER_TAGS there.
+CEILING="-"
 if [ "$BUDGET_ENABLED" -eq 1 ]; then
     CEILING=$(awk -v b="$BUDGET" -v m="$MAX_PCT" 'BEGIN { printf "%.0f", b * m / 100 }')
-    echo "loop-drain: run $RUN_ID — budget ${BUDGET} weighted tokens, --max-pct ${MAX_PCT}% ⇒ effective ceiling ${CEILING} tokens, counted from this launch over this run's own passes only." >&2
+    echo "loop-drain[run]: run $RUN_ID — budget ${BUDGET} weighted tokens, --max-pct ${MAX_PCT}% ⇒ effective ceiling ${CEILING} tokens, counted from this launch over this run's own passes only." >&2
 fi
 
 if [ "$START_DELAY" -gt 0 ]; then
     echo "loop-drain: waiting ${START_DELAY}s before the first pass (handoff grace period)." >&2
     interruptible_sleep "$START_DELAY" || {
         echo ""
-        echo "loop-drain summary: passes=0 reason=stop-file queue_start=? queue_end=? final_pct=n/a spent=0 budget=${BUDGET:-n/a}"
+        echo "loop-drain[summary]: passes=0 reason=stop-file queue_start=? queue_end=? final_pct=n/a spent=0 budget=${BUDGET:-n/a}"
         exit 0
     }
 fi
@@ -662,7 +670,7 @@ while :; do
     # folded into `no-progress`, so the morning's log says what to fix.
     if [ -f "$HEALTH_RED_FILE" ]; then
         stop_reason="health-red"
-        echo "loop-drain: the base tip is RED (the last release/health run found it red, ADR 0116) — stopping rather than stacking work on a red tip. Run 'bun run health:status' and fix forward. Marker:" >&2
+        echo "loop-drain[error]: the base tip is RED (the last release/health run found it red, ADR 0116) — stopping rather than stacking work on a red tip. Run 'bun run health:status' and fix forward. Marker:" >&2
         cat "$HEALTH_RED_FILE" >&2 || true
         break
     fi
@@ -686,7 +694,7 @@ while :; do
         if [ "$usage_rc" -ne 0 ] || [ -z "$pct" ] || ! is_number "$pct"; then
             stop_reason="usage-error"
             pct="n/a"
-            echo "loop-drain: budget guard FAILED CLOSED — could not read a usable pct from 'bun run usage:window' (exit ${usage_rc}). This stops the run rather than skipping the check, per ADR 0097. Reader output was:" >&2
+            echo "loop-drain[error]: budget guard FAILED CLOSED — could not read a usable pct from 'bun run usage:window' (exit ${usage_rc}). This stops the run rather than skipping the check, per ADR 0097. Reader output was:" >&2
             printf '%s\n' "$usage_json" >&2
             break
         fi
@@ -700,7 +708,7 @@ while :; do
         over=$(awk -v p="$pct" -v m="$MAX_PCT" 'BEGIN { print (p + 0 >= m + 0) ? 1 : 0 }')
         if [ "$over" -eq 1 ]; then
             stop_reason="budget"
-            echo "loop-drain: budget guard tripped — run $RUN_ID has spent ${spent} of ${BUDGET} weighted tokens (${pct}%) >= --max-pct ${MAX_PCT}%." >&2
+            echo "loop-drain[warn]: budget guard tripped — run $RUN_ID has spent ${spent} of ${BUDGET} weighted tokens (${pct}%) >= --max-pct ${MAX_PCT}%." >&2
             break
         fi
     fi
@@ -715,7 +723,7 @@ while :; do
     queue_before=$(count_unclaimed 2>/dev/null) || queue_before=""
     if ! is_uint "$queue_before"; then
         stop_reason="gh-error"
-        echo "loop-drain: could not read the ready-for-agent queue count via gh — stopping." >&2
+        echo "loop-drain[error]: could not read the ready-for-agent queue count via gh — stopping." >&2
         break
     fi
     [ -n "$first_queue_count" ] || first_queue_count="$queue_before"
@@ -746,8 +754,13 @@ while :; do
 
     # ── run one pass ────────────────────────────────────────────────────────
     pass=$((pass + 1))
-    [ "$PROMPT_OVERRIDDEN" -eq 1 ] ||
-        echo "loop-drain: pass $pass — issue #${RESOLVED_ISSUE} on tier ${RESOLVED_MODEL}." >&2
+    # The pass-START tag: the renderer opens the pass's header rule on it, so
+    # the override path announces its pass too, naming the prompt it owns.
+    if [ "$PROMPT_OVERRIDDEN" -eq 1 ]; then
+        echo "loop-drain[pass]: pass $pass — prompt \"$pass_prompt\"." >&2
+    else
+        echo "loop-drain[pass]: pass $pass — issue #${RESOLVED_ISSUE} on tier ${RESOLVED_MODEL}." >&2
+    fi
     epoch=$(date +%s)
     pass_log="$LOG_DIR/pass-${pass}-${epoch}.log"
     green_before=$(read_green_sha)
@@ -956,7 +969,7 @@ while :; do
                 stop_now=1
             else
                 reason_field="claims-held-retry"
-                echo "loop-drain: pass $pass died holding claims (consecutive ${claims_held_streak}/${MAX_CONSECUTIVE_CLAIMS_HELD}) — the next pass reaps the orphaned claim and continues." >&2
+                echo "loop-drain[warn]: pass $pass died holding claims (consecutive ${claims_held_streak}/${MAX_CONSECUTIVE_CLAIMS_HELD}) — the next pass reaps the orphaned claim and continues." >&2
             fi
         else
             no_progress_streak=$((no_progress_streak + 1))
@@ -995,9 +1008,15 @@ while :; do
     # when the guard is disabled, so the field count is fixed at 9 and a parser
     # can tell the old 7-field shape from this one by length alone.
     echo "$epoch $pass $claude_exit $pct $queue_before $queue_after ${spent_field} ${budget_field} $reason_field" >>"$LOG_FILE"
+    # The pass-END tag (ADR 0147): the same facts as the row above, plus what
+    # the row has no column for — the effective ceiling the footer's spend bar
+    # is drawn against, the pass's wall duration and the retry delay. Emitted
+    # right after the row so the terminal footer can never describe a pass the
+    # log does not have. `k=v` words, so the renderer reads fields by name.
+    echo "loop-drain[end]: pass=$pass exit=$claude_exit reason=$reason_field pct=$pct queue_before=$queue_before queue_after=$queue_after spent=${spent_field} budget=${budget_field} ceiling=${CEILING} duration=$(($(date +%s) - epoch)) retry=${backoff_secs}" >&2
 
     if [ "$stop_now" -eq 0 ] && [ "$backoff_secs" -gt 0 ]; then
-        echo "loop-drain: pass $pass crashed (claude exit $claude_exit; consecutive failure ${error_streak}/${MAX_CONSECUTIVE_ERRORS}) — retrying in ${backoff_secs}s. Log tail:" >&2
+        echo "loop-drain[error]: pass $pass crashed (claude exit $claude_exit; consecutive failure ${error_streak}/${MAX_CONSECUTIVE_ERRORS}) — retrying in ${backoff_secs}s. Log tail:" >&2
         tail -n 20 "$pass_log" >&2
         if ! interruptible_sleep "$backoff_secs"; then
             stop_reason="stop-file"
@@ -1008,7 +1027,10 @@ while :; do
     if [ "$stop_now" -eq 1 ]; then
         stop_reason="$reason_field"
         if [ "$reason_field" = "rate-limit" ] || [ "$reason_field" = "claude-error" ]; then
-            echo "loop-drain: ${reason_field} (claude exit $claude_exit) detected on pass $pass — stopping. Log tail:" >&2
+            # A usage limit is a pause to wait out (warn); a crash is a fault.
+            _stop_tag=error
+            [ "$reason_field" != "rate-limit" ] || _stop_tag=warn
+            echo "loop-drain[${_stop_tag}]: ${reason_field} (claude exit $claude_exit) detected on pass $pass — stopping. Log tail:" >&2
             tail -n 40 "$pass_log" >&2
         fi
         break
@@ -1017,11 +1039,11 @@ done
 
 echo ""
 if [ "$BUDGET_ENABLED" -eq 1 ]; then
-    _spend_summary="spent=${spent} budget=${BUDGET}"
+    _spend_summary="spent=${spent} budget=${BUDGET} ceiling=${CEILING}"
 else
     _spend_summary="spent=n/a budget=n/a"
 fi
-echo "loop-drain summary: passes=$pass reason=${stop_reason:-unknown} queue_start=${first_queue_count:-?} queue_end=${last_queue_count:-?} final_pct=${pct:-n/a} ${_spend_summary}"
+echo "loop-drain[summary]: passes=$pass reason=${stop_reason:-unknown} queue_start=${first_queue_count:-?} queue_end=${last_queue_count:-?} final_pct=${pct:-n/a} ${_spend_summary} duration=$(($(date +%s) - RUN_START_MS / 1000))"
 
 case "$stop_reason" in
     stop-file | max-passes | queue-empty | budget)
