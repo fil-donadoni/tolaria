@@ -343,3 +343,75 @@ export const temporalSpring: CardDefinition = {
     targetRequirement: { type: [...PERMANENT_TYPES], count: 1 },
     effects: [{ op: "moveZone", target: { target: 0 }, to: "library" }],
 };
+
+// Putrid Warrior — {W}{B} 2/2 Zombie Soldier Warrior. "Whenever this creature
+// deals damage, choose one — • Each player loses 1 life. • Each player gains
+// 1 life." (CR 603.2 damage trigger, CR 700.2b modal triggered ability, CR
+// 119.3 life change for every player via `forEach { set: "players" }`.)
+//
+// Built by hand rather than through `damageDealtTrigger`: the factory has no
+// `modes` member, and the mode is announced as the ability goes on the stack
+// (CR 700.2b), not chosen at resolution. Any damage — combat or not, to any
+// recipient — fires it, so `matches` gates on the source alone.
+// hand-tail: Whenever this creature deals damage, choose one — • Each player loses 1 life. • Each player gains 1 life. (#4339)
+export const putridWarrior: CardDefinition = {
+    id: "17fce298-3338-4f41-8156-ab6322951a76", // APC 117
+    rarity: "common",
+    name: "Putrid Warrior",
+    oracleText:
+        "Whenever this creature deals damage, choose one —\n• Each player loses 1 life.\n• Each player gains 1 life.",
+    manaCost: { W: 1, B: 1 },
+    types: ["Creature"],
+    subtypes: ["Zombie", "Soldier", "Warrior"],
+    power: 2,
+    toughness: 2,
+    triggeredAbilities: [
+        {
+            id: "putrid-warrior-damage",
+            oracleText:
+                "Whenever this creature deals damage, choose one — • Each player loses 1 life. • Each player gains 1 life.",
+            event: "DAMAGE_DEALT",
+            matches: (event, self) =>
+                event.type === "DAMAGE_DEALT" &&
+                event.sourceInstanceId === self.id,
+            modes: [
+                {
+                    id: "each-player-loses-1",
+                    label: "Each player loses 1 life",
+                    oracleText: "Each player loses 1 life.",
+                    effects: [
+                        {
+                            op: "forEach",
+                            select: { set: "players" },
+                            effects: [
+                                {
+                                    op: "loseLife",
+                                    player: { ref: "$each" },
+                                    amount: 1,
+                                },
+                            ],
+                        },
+                    ],
+                },
+                {
+                    id: "each-player-gains-1",
+                    label: "Each player gains 1 life",
+                    oracleText: "Each player gains 1 life.",
+                    effects: [
+                        {
+                            op: "forEach",
+                            select: { set: "players" },
+                            effects: [
+                                {
+                                    op: "gainLife",
+                                    player: { ref: "$each" },
+                                    amount: 1,
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+    ],
+};
