@@ -240,6 +240,66 @@ describe("the generated position poses a land target on the opponent's side (iss
     });
 });
 
+describe("the generated position poses an artifact card in the holder's graveyard (issue #4352)", () => {
+    // CR 115.1 — "target artifact card in your graveyard" needs one there.
+    const RECURSION = instant(
+        "artifact-recursion",
+        { type: "Artifact", zone: "graveyard", controller: "you" },
+        {
+            types: ["Sorcery"],
+            manaCost: { W: 1 },
+            effects: [
+                { op: "moveZone", target: { target: 0 }, to: "hand" },
+            ] as CardDefinition["effects"],
+        }
+    );
+    const RETURN_ALL_THE_WAY = instant(
+        "artifact-reanimation",
+        { type: "Artifact", zone: "graveyard", controller: "you" },
+        {
+            types: ["Sorcery"],
+            manaCost: { W: 1, generic: 3 },
+            effects: [
+                { op: "moveZone", target: { target: 0 }, to: "battlefield" },
+            ] as CardDefinition["effects"],
+        }
+    );
+
+    it("seeds an artifact in the holder's graveyard", () => {
+        expect(
+            botReachSpec(RECURSION).cards.some(
+                (c) =>
+                    c.owner === "me" &&
+                    c.zone === "graveyard" &&
+                    c.name === "Ornithopter"
+            )
+        ).toBe(true);
+    });
+
+    it("leaves a creature spell's graveyard without one", () => {
+        expect(
+            botReachSpec(instant("creature", {})).cards.some(
+                (c) => c.zone === "graveyard" && c.name === "Ornithopter"
+            )
+        ).toBe(false);
+    });
+
+    it("the engine offers the cast, and the Bot plays a recursion spell", () => {
+        expect(castable(RECURSION)).toBe(true);
+        expect(
+            withTemporaryDefinition(RECURSION, () => playBotReach(RECURSION))
+        ).toEqual({ outcome: "played" });
+    });
+
+    it("the Bot plays one that returns the artifact to the battlefield", () => {
+        expect(
+            withTemporaryDefinition(RETURN_ALL_THE_WAY, () =>
+                playBotReach(RETURN_ALL_THE_WAY)
+            )
+        ).toEqual({ outcome: "played" });
+    });
+});
+
 describe("a combat trick is posed in a declared combat once the main phases passed it over (issue #4264)", () => {
     const TRICK = instant("trick", {}, { effects: PUMP });
     const combat = (def: CardDefinition) => botReachSpec(def, TRICK_WINDOW);
