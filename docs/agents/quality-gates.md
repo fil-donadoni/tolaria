@@ -926,7 +926,8 @@ figure — the closest the day offered is the last row.
 | issue #4687 baseline, contended (recorded)   | 2760–5670 s | > 6                   | 40/56    | before: overlapping runs                                                                 |
 | `--serve=dev`, parallel 5, census reuse      | 1130 s      | 10.4 → 11.7 (peak 43) | 59/68    | 5 assertion timeouts under load 43, 3 UNWALKED; walk 61 % of phase time, 9.1 s mean      |
 | `--serve=build` (production), parallel 5     | 480 s       | 7.2 → 27.4            | 65/68    | `game-debug-sheet-ai` UNWALKED: its seam is `import.meta.env.DEV`-gated — build rejected |
-| `--serve=build` (development-mode), default  | 567 s       | 4.9 → 10.7            | 66/68    | **PASS**; walk 58 % / 4.1 s mean, screenshot 14 %, cleanup 15 %; the receipt on PR       |
+| `--serve=build` (development-mode), default  | 567 s       | 4.9 → 10.7            | 66/68    | **PASS**; walk 58 % / 4.1 s mean; 60 of 155 census cells still re-navigated              |
+| same, `data-specimen-close` reset            | 452 s       | 6.3 → 9.5             | 66/68    | **PASS**; 5 of 155 census cells navigated (the first row per viewport); the PR's receipt |
 
 The dev-server vs bundle decision is the third and fourth rows: same tree,
 same parallelism, same census reuse, 1130 s against 480 s, and the phase
