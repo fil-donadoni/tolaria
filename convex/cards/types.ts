@@ -18684,8 +18684,11 @@ export type EffectPredicate =
  *  colour does). Guard Dogs' "if it shares a color with that permanent":
  *  `{ sharesColor: { target: 0 }, with: { ref: "$each" } }`.
  *
- *  Reads `false` when either side is missing, has left the battlefield, or is
- *  not a permanent (CR 608.2b — the effect does as much as it can), and also
+ *  A `"spell"` target slot reads the stack item's own colours (Jaded Response's
+ *  "counter target spell if it shares a color with a creature you control").
+ *  Reads `false` when either side is missing, has left the battlefield (or the
+ *  stack, for a spell), or is neither a permanent nor a spell (CR 608.2b — the
+ *  effect does as much as it can), and also
  *  when either side is COLOURLESS: a colourless object shares no colour with
  *  anything, including another colourless object (CR 202.2 — colourless is the
  *  absence of colour, not a sixth colour). */

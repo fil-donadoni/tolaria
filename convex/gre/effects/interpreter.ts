@@ -620,8 +620,9 @@ function evalPredicate(ctx: SpellContext, pred: EffectPredicate): boolean {
     // referenced objects have at least one colour in common. Both sides read
     // through `ctx.getColors`, the layer-5 materialised colour (CR 613) — so
     // a permanent painted blue by Painter's Servant shares blue exactly as a
-    // printed blue one does. A missing / gone / non-permanent side reads false
-    // (CR 608.2b), and so does a colourless side: colourless is the ABSENCE of
+    // printed blue one does. A `spell` side reads the stack item's colours
+    // (Jaded Response). A missing / gone side, or one that is neither a
+    // permanent nor a spell, reads false (CR 608.2b), and so does a colourless side: colourless is the ABSENCE of
     // colour, so it shares nothing, not even with another colourless object.
     if ("sharesColor" in pred) {
         const a = resolveObjectRef(ctx, pred.sharesColor);

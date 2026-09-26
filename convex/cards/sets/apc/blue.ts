@@ -143,3 +143,46 @@ export const unnaturalSelection: CardDefinition = {
         },
     ],
 };
+
+// Jaded Response — {1}{U} Instant. "Counter target spell if it shares a color
+// with a creature you control." (CR 608.2b, CR 105.2.)
+// "Target spell" is unqualified, so ANY spell is a legal target and the colour
+// test is a resolution-time gate, not a targeting restriction (same reading as
+// Ertai's Trickery in pls/blue.ts): casting it at a spell that shares nothing
+// is legal and simply does nothing.
+// "a creature you control" is existential — `forEach` over the controller's
+// creatures with a `sharesColor` gate (CR 202.2: colourless shares nothing).
+// A spell that matches several creatures is countered by the first; the later
+// `counter` calls find it gone from the stack and do nothing (CR 608.2b).
+// hand-tail: Counter target spell if it shares a color with a creature you control. (#4336)
+export const jadedResponse: CardDefinition = {
+    id: "6a9ab1f0-4e75-4165-85bc-6f838c221d6a", // APC 26
+    name: "Jaded Response",
+    rarity: "common",
+    oracleText:
+        "Counter target spell if it shares a color with a creature you control.",
+    manaCost: { X: 1, U: 1 },
+    types: ["Instant"],
+    targetRequirement: { type: "spell", count: 1 },
+    effects: [
+        {
+            op: "forEach",
+            select: {
+                set: "permanents",
+                zone: "battlefield",
+                controller: "controller",
+                filter: { type: "Creature" },
+            },
+            effects: [
+                {
+                    op: "if",
+                    predicate: {
+                        sharesColor: { target: 0 },
+                        with: { ref: "$each" },
+                    },
+                    then: [{ op: "counter", target: { target: 0 } }],
+                },
+            ],
+        },
+    ],
+};

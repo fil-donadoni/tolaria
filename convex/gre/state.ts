@@ -16424,8 +16424,15 @@ export function buildSpellContext(
         getColors(target: TargetSelection): Color[] {
             // CR 202.2 / 105 — effective colors of a battlefield permanent,
             // honoring any layer-5 color override (Painter's Servant etc.) via
-            // the shared static-effect color derivation. Empty for non-permanent
-            // targets (players / stack spells).
+            // the shared static-effect color derivation. A `"spell"` target
+            // reads the stack item's own colours (CR 105.2 / 202.2 — a spell
+            // has the colours of its mana cost, and a layer-5 override such as
+            // Fork's copy colour rides on the item). Empty for a player, or a
+            // spell no longer on the stack (CR 608.2b).
+            if (target.type === "spell") {
+                const item = state.stack.find((s) => s.id === target.id);
+                return item ? STATIC_EFFECT_CTX.getColors(item) : [];
+            }
             if (target.type !== "permanent") return [];
             const found = findOnBattlefield(state, target.id);
             if (!found) return [];
