@@ -916,6 +916,16 @@ describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
         ]);
     }, 600_000);
 
+    // Issue #4287: the same exchange behind a creature that also carries a
+    // dies trigger (a pump on a target) — the trigger does not turn the
+    // sacrifice-for-draw outlet into a scored sacrifice below the cast edge.
+    it("played — a sacrifice-for-draw creature with a dies-pump trigger", () => {
+        expect(playBotReachSeats(getCardByName("Marker Beetles"))).toEqual([
+            { holderId: "p1", verdict: { outcome: "played" } },
+            { holderId: "p2", verdict: { outcome: "played" } },
+        ]);
+    }, 600_000);
+
     // Issue #4280: a creature with flash is posed once more, against an
     // attacker only it can block (`flashAmbushPosition`) — in a main phase
     // holding it and casting it are one play a turn apart.
