@@ -157,6 +157,20 @@ describe("driver output tags (issue #4721)", () => {
         expect(fromArgv[0]).not.toBe(fromArgv[1]);
     });
 
+    it.skipIf(fs.existsSync("/proc/sys/kernel/random/uuid"))(
+        "stops preflight-error, running no pass, when no session id can be minted",
+        () => {
+            stubGhCountingFrom(5);
+            stubClaudeProgress();
+            writeStub("uuidgen", "exit 1");
+            const r = run({ args: ["--max-passes", "1"] });
+            expect(r.stdout).toMatch(/reason=preflight-error/);
+            expect(r.stderr).toMatch(/could not mint a session id/);
+            expect(r.stderr).not.toMatch(/loop-drain\[pass\]/);
+            expect(logLines()).toHaveLength(0);
+        }
+    );
+
     it("tags the override path's pass with its session id too", () => {
         stubGhCountingFrom(5);
         stubClaudeProgress();

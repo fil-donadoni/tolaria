@@ -21,7 +21,12 @@
  *   * PASS TOKENS — main + subagents, in the SAME weighted unit the driver's
  *     budget uses (`parseUsageLine` + `weightedTokens`, shared with
  *     `usage:window`), so the number sits beside the run's spend without a
- *     unit conversion in the reader's head.
+ *     unit conversion in the reader's head. Like `usage:window` — and unlike
+ *     the dashboard's `LiveIndex` — it does not dedupe a multi-block reply's
+ *     repeated usage by response id: agreeing with the budget is the point.
+ *     A subagent killed mid-turn never writes `end_turn` and stays counted
+ *     until its transcript is gone; no idle-time cutoff, because a subagent
+ *     blocked on a long gate is silent AND running.
  *
  * INCREMENTAL. Each file keeps a byte cursor (`readLinesFrom`, shared); a
  * refresh reads only what was appended, and a half-written last line is
@@ -143,6 +148,10 @@ export class PassActivityReader {
         } catch {
             // No subagent has been spawned yet.
         }
+        // A subagent transcript no longer listed is no longer running.
+        const listed = new Set(subs.map((f) => join(subsDir, f)));
+        for (const path of [...this.subDone.keys()])
+            if (!listed.has(path)) this.subDone.delete(path);
         for (const f of subs) {
             if (!this.readFile(join(subsDir, f), "subagent")) {
                 this.reset();

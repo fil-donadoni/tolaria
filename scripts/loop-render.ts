@@ -123,6 +123,12 @@ function main(): void {
             clearStatus();
         }
     };
+    // Any other way out (an uncaught throw, EPIPE) must not leave the line
+    // drawn: `render_stream`'s fallback `cat` would append onto that row.
+    // `exit` handlers run synchronously, and so does this write.
+    process.on("exit", () => {
+        if (statusShown) process.stdout.write(ERASE_LINE);
+    });
     const ticker = degraded
         ? null
         : setInterval(() => {

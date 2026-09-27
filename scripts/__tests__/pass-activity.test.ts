@@ -137,6 +137,30 @@ describe("PassActivityReader — one pass's transcript (issue #4722)", () => {
         expect(r.refresh()?.tokens).toBe(330);
     });
 
+    it("rebuilds the pass from byte 0 when a transcript shrinks under it", () => {
+        writeLines(mainPath(), [
+            assistant("m1", [toolUse("Read", { file_path: "/old" })]),
+            assistant("m2", []),
+        ]);
+        const r = reader();
+        expect(r.refresh()?.tokens).toBe(220);
+        writeLines(mainPath(), [assistant("m3", [])]);
+        expect(r.refresh()).toEqual({
+            lastTool: null,
+            activeSubagents: 0,
+            tokens: 110,
+        });
+    });
+
+    it("stops counting a subagent whose transcript is gone", () => {
+        writeLines(mainPath(), [assistant("m1", [])]);
+        writeLines(subPath("a"), [user("go")]);
+        const r = reader();
+        expect(r.refresh()?.activeSubagents).toBe(1);
+        rmSync(subPath("a"));
+        expect(r.refresh()?.activeSubagents).toBe(0);
+    });
+
     it("re-reads a half-written last line whole on the next refresh", () => {
         const line = assistant("m1", [toolUse("Edit", { file_path: "/z" })]);
         writeFileSync(mainPath(), line.slice(0, 40));
