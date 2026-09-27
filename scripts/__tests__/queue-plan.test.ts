@@ -50,6 +50,7 @@ import {
     readBoardPriorityCache,
     writeBoardPriorityCache,
     readHealthMarker,
+    readWholeQueue,
     NO_PRIORITY_MESSAGE,
     type BoardPriorityDeps,
     type BoardPrioritySnapshot,
@@ -3100,5 +3101,35 @@ describe("planBatch — a blocker competes in the band of what it blocks (issue 
         );
         expect(numbers(plan)).toEqual([30]);
         expect(deferredNumbers(plan).sort()).toEqual([20, 50]);
+    });
+});
+
+describe("readWholeQueue — the planner reads the whole queue, never a window (issue #4752)", () => {
+    // `gh issue list` is newest first and stops at `--limit`: with 402 queued
+    // against a limit of 300, the 102 OLDEST issues never reached the planner.
+    const QUEUE = Array.from({ length: 402 }, (_, i) => 2500 - i);
+    const gh = (limits: number[]) => (limit: number) => {
+        limits.push(limit);
+        return QUEUE.slice(0, limit);
+    };
+
+    it("a queue larger than the first page is read whole, oldest issues included", () => {
+        const limits: number[] = [];
+        const read = readWholeQueue(gh(limits), 300);
+        expect(read).toHaveLength(402);
+        expect(read).toContain(Math.min(...QUEUE));
+        expect(limits).toEqual([300, 600]);
+    });
+
+    it("a short first page is the whole queue — one read", () => {
+        const limits: number[] = [];
+        expect(readWholeQueue(gh(limits), 500)).toHaveLength(402);
+        expect(limits).toEqual([500]);
+    });
+
+    it("fails loudly, naming the limit, when every page up to the ceiling comes back full", () => {
+        expect(() => readWholeQueue(gh([]), 100, 200)).toThrow(
+            /--limit 200 \(200 issues\)/
+        );
     });
 });

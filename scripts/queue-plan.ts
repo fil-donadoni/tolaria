@@ -93,6 +93,9 @@ export const DEFAULTS = {
     // pass. Silent truncation of a `gh` query is a recurring class here — the
     // default `--limit` is 30, and the previous instance of this bug also
     // under-counted a queue.
+    // The FIRST page only: `readWholeQueue` grows it until a page comes back
+    // short, so the queue outgrowing this number costs a second read, never
+    // its oldest issues (issue #4752).
     limit: 300,
     staleClaimHours: 24,
     // The tier for every issue carrying no `model:*` label — which, since
@@ -108,6 +111,35 @@ export const DEFAULTS = {
     // ones.
     defaultImplModel: "sonnet",
 };
+
+/** Past this the read refuses instead of growing again: a queue this deep is
+ *  a broken query, not a backlog. */
+export const QUEUE_READ_CEILING = 5000;
+
+/**
+ * The WHOLE `ready-for-agent` queue, never a window of it (issue #4752).
+ *
+ * `gh issue list` returns newest first and stops at `--limit`, so a queue that
+ * outgrew the limit lost its OLDEST issues silently — issue #2188's starvation,
+ * returned by growth (402 queued against a limit of 300). A page that comes
+ * back FULL is therefore never trusted as the whole queue: the limit doubles
+ * and the read repeats until a page comes back short, and at the ceiling the
+ * read throws, naming the limit, rather than plan on a truncated queue.
+ */
+export function readWholeQueue<T>(
+    list: (limit: number) => T[],
+    firstLimit: number,
+    ceiling: number = QUEUE_READ_CEILING
+): T[] {
+    for (let limit = Math.max(1, firstLimit); ; limit *= 2) {
+        const page = list(limit);
+        if (page.length < limit) return page;
+        if (limit >= ceiling)
+            throw new Error(
+                `the ready-for-agent read came back full at --limit ${limit} (${page.length} issues) — refusing to plan on a window of the queue`
+            );
+    }
+}
 
 function arg(name: string, fallback: number): number {
     const i = process.argv.indexOf(`--${name}`);
@@ -651,20 +683,24 @@ function main(): void {
 
     const limit = arg("limit", DEFAULTS.limit);
 
-    const issues = JSON.parse(
-        gh([
-            "issue",
-            "list",
-            "--label",
-            "ready-for-agent",
-            "--state",
-            "open",
-            "--json",
-            "number,title,labels,parent,assignees,updatedAt",
-            "--limit",
-            String(limit),
-        ])
-    ) as QueueIssue[];
+    const issues = readWholeQueue(
+        (page) =>
+            JSON.parse(
+                gh([
+                    "issue",
+                    "list",
+                    "--label",
+                    "ready-for-agent",
+                    "--state",
+                    "open",
+                    "--json",
+                    "number,title,labels,parent,assignees,updatedAt",
+                    "--limit",
+                    String(page),
+                ])
+            ) as QueueIssue[],
+        limit
+    );
 
     const detailCache = new Map<number, IssueDetail>();
 
