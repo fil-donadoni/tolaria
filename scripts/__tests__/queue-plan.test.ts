@@ -50,6 +50,7 @@ import {
     readBoardPriorityCache,
     writeBoardPriorityCache,
     readHealthMarker,
+    readWholeQueue,
     NO_PRIORITY_MESSAGE,
     type BoardPriorityDeps,
     type BoardPrioritySnapshot,
@@ -2994,6 +2995,141 @@ describe("admission — reading the health marker off disk (issue #3775)", () =>
         withHealthDir(
             (dir) => fs.writeFileSync(path.join(dir, "RED"), ""),
             (root) => expect(readHealthMarker(root)).toEqual({})
+        );
+    });
+});
+
+describe("planBatch — a blocker competes in the band of what it blocks (issue #4752)", () => {
+    // Observed 2026-09-27: a P0-band issue waited on a prerequisite outside
+    // the band, so the prerequisite queued behind every P1 and the P0 band
+    // could not drain — "no P1 until every P0 is done" was false.
+    const files = (n: number, blockedBy: number[] = []) => ({
+        body: body({ targetFiles: [`src/f${n}.ts`], blockedBy }),
+    });
+
+    it("lifts an unprioritized blocker of a P0-band issue ahead of every P1, and names the lift", () => {
+        // #20: child of P0 umbrella #100, blocked by #50 (unprioritized).
+        // #30: standalone P1, older than #50.
+        const plan = planBatch(
+            [issue(20, { parent: 100 }), issue(30), issue(50)],
+            { ...CONFIG, batchCap: 1 },
+            makePort(
+                { 20: files(20, [50]), 30: files(30), 50: files(50) },
+                [],
+                { 100: "P0", 30: "P1" }
+            )
+        );
+        expect(numbers(plan)).toEqual([50]);
+        expect(plan.batch[0]).toMatchObject({
+            number: 50,
+            priorityBand: "P0",
+            bandLiftedBy: 20,
+        });
+        expect(plan.batch[0]).not.toHaveProperty("priority");
+        expect(plan.deferred).toContainEqual(
+            expect.objectContaining({ number: 20, reason: "blocked by #50" })
+        );
+    });
+
+    it("lifts transitively through the native graph — a blocker's blocker joins the band too", () => {
+        // #20 (P0 band) ← #50 ← #60 (native edge only), #30 standalone P1.
+        const plan = planBatch(
+            [issue(20, { parent: 100 }), issue(30), issue(50), issue(60)],
+            { ...CONFIG, batchCap: 1 },
+            makePort(
+                {
+                    20: files(20, [50]),
+                    30: files(30),
+                    50: { ...files(50), nativeBlockedBy: [60] },
+                    60: files(60),
+                },
+                [],
+                { 100: "P0", 30: "P1" }
+            )
+        );
+        expect(numbers(plan)).toEqual([60]);
+        expect(plan.batch[0]).toMatchObject({
+            priorityBand: "P0",
+            bandLiftedBy: 50,
+        });
+    });
+
+    it("never DEMOTES a blocker — a stronger own band is kept, with no lift named", () => {
+        const plan = planBatch(
+            [issue(20), issue(50)],
+            { ...CONFIG, batchCap: 1 },
+            makePort({ 20: files(20, [50]), 50: files(50) }, [], {
+                20: "P2",
+                50: "P1",
+            })
+        );
+        expect(numbers(plan)).toEqual([50]);
+        expect(plan.batch[0]).not.toHaveProperty("bandLiftedBy");
+        expect(plan.batch[0]).not.toHaveProperty("priorityBand");
+    });
+
+    it("names no lift when the blocker already competes in that band through its own umbrella", () => {
+        // #50 is a P1 slice of P0 umbrella #100: its `priorityBand` is the
+        // parent's, and crediting #20 for it would misname the reason.
+        const plan = planBatch(
+            [issue(20, { parent: 100 }), issue(50, { parent: 100 })],
+            { ...CONFIG, batchCap: 1 },
+            makePort({ 20: files(20, [50]), 50: files(50) }, [], {
+                100: "P0",
+                20: "P0",
+                50: "P1",
+            })
+        );
+        expect(numbers(plan)).toEqual([50]);
+        expect(plan.batch[0]).toMatchObject({ priorityBand: "P0" });
+        expect(plan.batch[0]).not.toHaveProperty("bandLiftedBy");
+    });
+
+    it("terminates on a blocker cycle, and every issue still lands exactly once", () => {
+        const plan = planBatch(
+            [issue(20, { parent: 100 }), issue(50), issue(30)],
+            { ...CONFIG, batchCap: 4 },
+            makePort(
+                {
+                    20: files(20, [50]),
+                    50: files(50, [20]),
+                    30: files(30),
+                },
+                [],
+                { 100: "P0", 30: "P1" }
+            )
+        );
+        expect(numbers(plan)).toEqual([30]);
+        expect(deferredNumbers(plan).sort()).toEqual([20, 50]);
+    });
+});
+
+describe("readWholeQueue — the planner reads the whole queue, never a window (issue #4752)", () => {
+    // `gh issue list` is newest first and stops at `--limit`: with 402 queued
+    // against a limit of 300, the 102 OLDEST issues never reached the planner.
+    const QUEUE = Array.from({ length: 402 }, (_, i) => 2500 - i);
+    const gh = (limits: number[]) => (limit: number) => {
+        limits.push(limit);
+        return QUEUE.slice(0, limit);
+    };
+
+    it("a queue larger than the first page is read whole, oldest issues included", () => {
+        const limits: number[] = [];
+        const read = readWholeQueue(gh(limits), 300);
+        expect(read).toHaveLength(402);
+        expect(read).toContain(Math.min(...QUEUE));
+        expect(limits).toEqual([300, 600]);
+    });
+
+    it("a short first page is the whole queue — one read", () => {
+        const limits: number[] = [];
+        expect(readWholeQueue(gh(limits), 500)).toHaveLength(402);
+        expect(limits).toEqual([500]);
+    });
+
+    it("fails loudly, naming the limit, when every page up to the ceiling comes back full", () => {
+        expect(() => readWholeQueue(gh([]), 100, 200)).toThrow(
+            /--limit 200 \(200 issues\)/
         );
     });
 });

@@ -290,3 +290,68 @@ export function parsePpidComm(
     const comm = m[2].split("/").pop() ?? m[2];
     return { ppid: Number(m[1]), comm };
 }
+
+// ── The release — `queue:claim`'s inverse (issue #4752) ─────────────────────
+//
+// An abort that typed `gh issue edit N --remove-label in-progress` by hand
+// left the `@me` assignee `queue:claim` added and wrote no journal row, so the
+// planner deferred the issue as "assigned — someone is working it" on every
+// pass, forever. The release is ONE act, like the claim: label, assignee and
+// row together. `land`, `claim-sweep.sh` and `loop:doctor --release` already
+// remove both; this is the verb the abort path names.
+
+/** The `gh` edit that undoes `queue:claim`'s — both halves, never one. */
+export function releaseEditArgs(issue: number): string[] {
+    return [
+        "issue",
+        "edit",
+        String(issue),
+        "--remove-label",
+        "in-progress",
+        "--remove-assignee",
+        "@me",
+    ];
+}
+
+export interface ReleaseRow {
+    ts: number;
+    session: string;
+    issue: number;
+    /** `released`, the spelling every reader already folds (`releasedClaims`,
+     *  `claim-sweep.sh`, `loop:doctor`'s `releaseRecord`). */
+    event: "released";
+    by: "queue:release";
+}
+
+export function buildReleaseRow(input: {
+    now: number;
+    session: string;
+    issue: number;
+}): ReleaseRow {
+    return {
+        ts: input.now,
+        session: input.session,
+        issue: input.issue,
+        event: "released",
+        by: "queue:release",
+    };
+}
+
+/**
+ * The release, with its two effects injected: the `gh` edit first, then the
+ * journal row — and the row ONLY when the edit succeeded, because a row that
+ * says "released" over a label still on the issue subtracts a live claim from
+ * the cap's census.
+ */
+export function performRelease(input: {
+    issue: number;
+    session: string;
+    now: number;
+    gh: (args: string[]) => void;
+    appendRow: (row: ReleaseRow) => void;
+}): ReleaseRow {
+    input.gh(releaseEditArgs(input.issue));
+    const row = buildReleaseRow(input);
+    input.appendRow(row);
+    return row;
+}

@@ -801,7 +801,7 @@ fi
 # commit message quoting this rule is not a claim. The label in every form
 # `gh` accepts: `--add-label in-progress`, `--add-label=in-progress`, quoted,
 # first of a comma list. A `--remove-label in-progress` is a release, not a
-# claim, and stays allowed.
+# claim — § 6b below polices that one.
 CLAIM_INVOKE='(^|\|)[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*gh[[:space:]]+issue[[:space:]]+edit[[:space:]].*--add-label(=|[[:space:]]+)["'"'"']?in-progress["'"'"']?([[:space:],]|$)'
 if seg_has "$CLAIM_INVOKE" && ! seg_has 'TOLARIA_ALLOW_MANUAL_CLAIM=1' "$CLAIM_INVOKE"; then
     deny "BLOCKED: hand-typed claim — the claim is one locked act (issue #4375).
@@ -812,6 +812,24 @@ cap or on a collision, then writes the label AND the journal row:
   bun run queue:claim <issue#>          # --no-cap plans past the cap deliberately
 Repairing a label by hand (a release is never denied):
   TOLARIA_ALLOW_MANUAL_CLAIM=1 gh issue edit <issue#> --add-label in-progress"
+fi
+
+# 6b. The release is one act too — `bun run queue:release N` (issue #4752).
+#
+# An abort that typed `gh issue edit N --remove-label in-progress` left the
+# `@me` assignee `queue:claim` added and wrote no journal row, and the planner
+# deferred the issue as "assigned — someone is working it" on every pass,
+# forever. A hand release that ALSO removes the assignee is the repair `land`,
+# `claim-sweep.sh` and `loop:doctor --release` already make, and stays allowed.
+RELEASE_INVOKE='(^|\|)[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*gh[[:space:]]+issue[[:space:]]+edit[[:space:]].*--remove-label(=|[[:space:]]+)["'"'"']?([^[:space:]"'"'"']*,)?in-progress["'"'"']?([[:space:],]|$)'
+if seg_has "$RELEASE_INVOKE" && ! seg_has '[[:space:]]--remove-assignee(=|[[:space:]]+)["'"'"']?([^[:space:]"'"'"']*,)?@me["'"'"']?([[:space:],]|$)' "$RELEASE_INVOKE" && ! seg_has 'TOLARIA_ALLOW_MANUAL_CLAIM=1' "$RELEASE_INVOKE"; then
+    deny "BLOCKED: half a release — the label comes off, the assignee stays (issue #4752).
+The planner defers an assigned issue as \"someone is working it\" on every
+pass, so a label-only release starves it forever. Release as ONE act — label,
+assignee and the claim-journal row:
+  bun run queue:release <issue#>
+Or, repairing by hand, remove both:
+  gh issue edit <issue#> --remove-label in-progress --remove-assignee @me"
 fi
 
 exit 0
