@@ -42890,7 +42890,7 @@
         {"id":"704.5q","line":"zone move, CR 704.5q). Equipment legality is host-still-a-creature-on-the-","sites":1,"status":"baseline"},
         {"id":"705","line":"* (\"Create a 5/5 Djinn\"). Both are public (CR 705) and survive projection. */","sites":1,"status":"baseline"},
         {"id":"705","line":"* one-line `consequence` preview the overlay renders. Public (CR 705),","sites":1,"status":"baseline"},
-        {"id":"705","line":"* random CR 705 outcome, where 0.5 is the true expectation).","sites":1,"status":"baseline"},
+        {"id":"705","line":"* the one exception where the condition is a genuinely random CR 705 outcome","sites":1,"status":"confirmed","ruleHash":"e7854759162053be"},
         {"id":"705","line":"/** CR 705 (issue #1281) — flip a coin INLINE, no reveal-ack suspension: the","sites":1,"status":"baseline"},
         {"id":"705","line":"/** CR 705 (issue #851) — flip a coin, then run one of two nested branches","sites":1,"status":"baseline"},
         {"id":"705","line":"/** Flips a coin (CR 705) using the game's seeded PRNG, so flips are","sites":1,"status":"baseline"},
