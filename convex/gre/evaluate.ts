@@ -71,6 +71,7 @@ import {
 } from "../cards";
 import { dangerClock, predictCombatOutcome } from "./dangerClock";
 import { castableHeldInteraction } from "./heldInteraction";
+import { exileCastPermission } from "./castCost";
 import {
     canPayCost,
     coversCostColors,
@@ -1187,6 +1188,19 @@ export function permanentRealisedValue(
     return total;
 }
 
+/** The exiled cards `player` holds an OPEN play permission for, in any
+ *  player's exile (CR 400.7 — the grant may be cross-player), read through
+ *  `exileCastPermission`, the one authority the enumerator and the payment
+ *  path share (issue #4217). */
+function playableExileCards(
+    state: GameState,
+    player: PlayerState
+): CardInstanceState[] {
+    return state.players.flatMap((owner) =>
+        owner.exile.filter((c) => exileCastPermission(c, player.id, state.turn))
+    );
+}
+
 /** The weighted contributions of one player's resources, from their own
  *  perspective. `sumTerms` of this equals the legacy `playerScore`. */
 /** Which seat `playerTerms` is being asked about, RELATIVE TO THE VIEWER
@@ -1220,7 +1234,14 @@ function playerTerms(
         // target requirements and its instance id) and memoised per slot
         // inside, so this stays one pass over the opponent's permanents per
         // targeted removal spell in hand.
-        hand: player.hand.reduce(
+        //
+        // Issue #4217 — an exiled card this player may still PLAY is latent
+        // material exactly like a hand card (CR 715.3d: an Adventure resolves
+        // into exile and "for as long as that card remains exiled, that player
+        // may play it"; the impulse and madness windows ride the same grant).
+        // Priced at zero, every Adventure cast read as throwing its creature
+        // half away, and a held Adventure poisoned the whole line it was cast in.
+        hand: [...player.hand, ...playableExileCards(state, player)].reduce(
             (sum, c) =>
                 sum +
                 cardValue(
