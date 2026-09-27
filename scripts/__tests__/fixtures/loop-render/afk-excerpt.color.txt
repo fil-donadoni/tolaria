@@ -5,15 +5,16 @@
         \e[2m │ \e[0m\e[1m▶\e[0m run 1790430792-59822 — budget 140000000 weighted tokens, --max-pct 100% ⇒ effective ceiling 140000000 tokens, counted from this launch over this run's own passes only.
         \e[2m │ \e[0m\e[2m·\e[0m waiting 45s before the first pass (handoff grace period).
 \e[2m20:02:45\e[0m\e[2m ├─ \e[0m\e[1mpass 19 · #4516 · opus\e[0m \e[2m─────────────────────────────────────────────────────────────────\e[0m
-\e[2m20:25:04\e[0m\e[2m │ \e[0m- **Test:** 14 test nuovi, tutti verdi. Ho rotto il codice in 12 punti diversi e ogni rottura ha fatto fallire almeno un test.
-        \e[2m │ \e[0m- **Review:** un giro opus ha trovato 2 problemi bloccanti, entrambi corretti.
-        \e[2m │ \e[0m  - Mancava un tetto alle chiusure di massa: aggiunto (25).
+\e[2m20:25:04\e[0m\e[2m │ \e[0m• \e[1mTest:\e[0m 14 test nuovi, tutti verdi. Ho rotto il codice in 12 punti diversi e ogni rottura
+        \e[2m │ \e[0m  ha fatto fallire almeno un test.
+        \e[2m │ \e[0m• \e[1mReview:\e[0m un giro opus ha trovato 2 problemi bloccanti, entrambi corretti.
+        \e[2m │ \e[0m  ◦ Mancava un tetto alle chiusure di massa: aggiunto (25).
         \e[2m │\e[0m
         \e[2m ├─ \e[0m\e[32m✓ done\e[0m · 22m19s · queue 12→11 · \e[33m████████░░\e[0m 109.5M/140M 78% \e[2m─────────────────────────────\e[0m
 \e[2m20:25:14\e[0m\e[2m │ \e[0m\e[2m◌ orphan-claim sweep —\e[0m
         \e[2m │ \e[0mloop:doctor — no claimed issues. Nothing to check.
 \e[2m20:25:43\e[0m\e[2m ├─ \e[0m\e[1mpass 20 · #4517 · sonnet\e[0m \e[2m───────────────────────────────────────────────────────────────\e[0m
-\e[2m20:32:09\e[0m\e[2m │ \e[0m- **PR:** PR #4732, mergiata. Issue #4517 chiusa.
+\e[2m20:32:09\e[0m\e[2m │ \e[0m• \e[1mPR:\e[0m \e[36mPR #4732\e[0m, mergiata. \e[36mIssue #4517\e[0m chiusa.
         \e[2m ├─ \e[0m\e[31m✗ crashed · retry in 1m00s\e[0m · 6m24s · queue 11→11 · \e[31m█████████░\e[0m 128.8M/140M 92% \e[2m──────────\e[0m
         \e[2m │ \e[0m\e[31m✗ pass 20 crashed (claude exit 1; consecutive failure 1/3) — retrying in 60s. Log tail:\e[0m
 \e[2m── 2026-09-27 ──────────────────────────────────────────────────────────────────────────────────────\e[0m

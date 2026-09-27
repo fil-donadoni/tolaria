@@ -30,6 +30,7 @@
 import * as os from "node:os";
 import * as path from "node:path";
 import * as readline from "node:readline";
+import { execFileSync } from "node:child_process";
 import {
     INITIAL_RENDER_STATE,
     flushPending,
@@ -53,6 +54,32 @@ const ACTIVITY_REFRESH_MS = 2000;
 /** Erase the current terminal row and return to its first column. */
 const ERASE_LINE = "\r\x1b[2K";
 
+/** `https://github.com/<owner>/<repo>` from `origin`'s URL, whichever form
+ * git hands back (`git@host:owner/repo.git`, `https://host/owner/repo.git`,
+ * `ssh://git@host/owner/repo`) — `undefined` when there is no remote or it
+ * isn't a recognisable GitHub-shaped URL (issue #4719). I/O lives here, in
+ * the wrapper, never in the pure renderer. */
+function resolveRepoUrl(): string | undefined {
+    let raw: string;
+    try {
+        raw = execFileSync("git", ["config", "--get", "remote.origin.url"], {
+            encoding: "utf8",
+        }).trim();
+    } catch {
+        return undefined;
+    }
+    const stripped = raw.replace(/\.git$/, "");
+    const scp = /^(?:[\w-]+@)?([^:/]+):(.+)$/.exec(stripped);
+    const path = scp
+        ? scp[2]
+        : stripped.replace(/^\w+:\/\/(?:[\w-]+@)?[^/]+\//, "");
+    const host = scp
+        ? scp[1]
+        : /^\w+:\/\/(?:[\w-]+@)?([^/]+)\//.exec(stripped)?.[1];
+    if (!host || !path) return undefined;
+    return `https://${host}/${path}`;
+}
+
 function main(): void {
     const tty =
         process.stdout.isTTY || process.env.TOLARIA_LOOP_RENDER_TTY === "1";
@@ -63,6 +90,10 @@ function main(): void {
     const env: RenderEnv = {
         width: process.stdout.columns || DEFAULT_WIDTH,
         color: true,
+        // Plain mode never renders a line (raw passthrough from the first
+        // line on), so resolving the remote would only cost a `git` spawn
+        // for nothing.
+        repoUrl: plain ? undefined : resolveRepoUrl(),
     };
     process.stdout.on("resize", () => {
         env.width = process.stdout.columns || DEFAULT_WIDTH;
