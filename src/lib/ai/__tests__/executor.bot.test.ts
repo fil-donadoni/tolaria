@@ -358,6 +358,33 @@ describe("executeMove (issue #110)", () => {
         });
     });
 
+    // CR 107.3a / 601.2h (issue #4506) — the DISTINCT colours the enumerator
+    // picked for a `xSpendDistinctColors` Kicker's X (Emblazoned Golem). Same
+    // invisibility risk as the additional-cost-leg and Kicker/Buyback forwards
+    // above: a dropped `chosenXColors` reads as `undefined`, which
+    // `toHaveBeenCalledWith` treats as equal to an omitted key, so nothing
+    // else in this file would catch its removal — and the server throws
+    // "must choose colours" on exactly the move the enumerator generated,
+    // the same bot-freeze shape #2081 fixed for Kicker itself.
+    it("cast-spell → announceCast carries chosenXColors (#4506)", async () => {
+        const m = await run({
+            kind: "cast-spell",
+            cardInstanceId: "emblazoned-golem",
+            chosenX: 3,
+            chosenModeIds: undefined,
+            kickerPayments: { kicker: 1 },
+            chosenXColors: ["W", "U", "B"],
+            confirmTargets: false,
+            targets: [],
+            tapPlan: [],
+        });
+        expect(m.announceCast.mock.calls[0][0].chosenXColors).toEqual([
+            "W",
+            "U",
+            "B",
+        ]);
+    });
+
     it("cast-spell → announceCast carries buyback: true (#2081)", async () => {
         const m = await run({
             kind: "cast-spell",

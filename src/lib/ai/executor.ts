@@ -58,6 +58,11 @@ export type MoveMutations = {
         a: GP & {
             cardInstanceId: string;
             chosenX?: number;
+            /** CR 107.3a / 601.2h (issue #4506) — the DISTINCT colours the
+             *  Bot picked for X on a `xSpendDistinctColors` Kicker leg
+             *  (Emblazoned Golem), computed by `enumerateCastMovesFromZone`
+             *  (`gre/moves.ts`) and carried verbatim on the Move. */
+            chosenXColors?: string[];
             chosenModeIds?: string[];
             /** CR 118.9 / 702.103a — chosen alternative casting cost (Bestow
              *  today, issue #2388). */
@@ -522,6 +527,11 @@ export async function executeMove(
                 ...base,
                 cardInstanceId: move.cardInstanceId,
                 chosenX: move.chosenX,
+                // CR 107.3a / 601.2h (issue #4506) — the DISTINCT colours the
+                // enumerator picked for a `xSpendDistinctColors` Kicker's X
+                // (Emblazoned Golem). Omitting it would announce a colourless
+                // X the server's own validation rejects.
+                chosenXColors: move.chosenXColors,
                 chosenModeIds: move.chosenModeIds,
                 // CR 118.9 / 702.103a (issue #2388) — the chosen alternative
                 // casting cost. The enumerator emits it for Bestow, whose

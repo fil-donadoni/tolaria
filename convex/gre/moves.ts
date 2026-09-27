@@ -72,6 +72,7 @@ import {
     kickedCountOfPayments,
     kickerLifeCost,
     paidKickersAnnounceX,
+    paidKickersRequireDistinctColorX,
     type KickerPayments,
 } from "./kicker";
 // CR 601.2c (issue #4193) — whether a group's announced slots receive
@@ -93,6 +94,8 @@ import {
     getProducibleManaSourceView,
     maxAffordableX,
     maxAffordableXOverCost,
+    maxAffordableDistinctColorX,
+    buildManaSourceUnits,
     solvePhyrexianSplit,
     genericManaShortfall,
     targetingSourceFromCard,
@@ -124,8 +127,10 @@ import {
 } from "./targetChoiceRequirements";
 import {
     applyGenericOffset,
+    consumeColoredAndHybridPips,
     delveEligibleCards,
     genericPortion,
+    greedyDistinctColorMatch,
     spellHasDelve,
 } from "./payWith";
 import { PHYREXIAN_LIFE_PER_PIP, phyrexianPipCount } from "./phyrexian";
@@ -144,6 +149,7 @@ import {
 } from "./manaConverters";
 import {
     MANA_COLORS,
+    normalizedHybridPips,
     declaresAsEntersMode,
     isPlaneswalker,
     isTapLockedBySummoningSickness,
@@ -483,6 +489,13 @@ export type Move =
            *  .buyback`. */
           buybackPaid?: boolean;
           chosenX?: number;
+          /** CR 107.3a / 601.2h (issue #4506) — the DISTINCT colours this
+           *  variant announces for X, when a paid Kicker's `{X}` carries
+           *  `xSpendDistinctColors` (Emblazoned Golem). Picked greedily off
+           *  the board (`greedyDistinctColorMatch`) at enumeration time,
+           *  forwarded verbatim to `announceCast.chosenXColors`. Absent for
+           *  every card without such a leg, or when `chosenX` is 0. */
+          chosenXColors?: Color[];
           targets: TargetSelection[];
           /** CR 601.2c — whether the executor owes a trailing `confirmTargets`
            *  after its batched `selectTargets`. Computed by
@@ -2970,6 +2983,21 @@ function kickerXValues(
     rawCost: ManaCost,
     kickerPayments: KickerPayments | undefined
 ): number[] {
+    // CR 107.3a / 601.2h (issue #4506) — a Kicker whose `{X}` carries
+    // `xSpendDistinctColors` (Emblazoned Golem) can't be priced at X = 1 the
+    // way the generic branch below does: folding needs the caster's actual
+    // colour PICK, which doesn't exist yet at enumeration time, and no fixed
+    // per-unit generic cost exists to divide by (five Plains price X = 1 the
+    // same as X = 5). Bound the ceiling directly from the board's reachable
+    // DISTINCT colours instead — `maxAffordableDistinctColorX`, the same
+    // greedy `enumerateCastMovesFromZone`'s own per-candidate colour pick
+    // uses, so the two can't disagree about which X values are reachable.
+    if (paidKickersRequireDistinctColorX(def, kickerPayments)) {
+        const fixed = normalizeManaCost(rawCost, { chosenX: 0 });
+        foldKickerCosts(fixed, def, kickerPayments, 0);
+        const ceiling = maxAffordableDistinctColorX(player, card, fixed, state);
+        return Array.from({ length: ceiling + 1 }, (_, i) => i);
+    }
     const priced = (x: number) => {
         const cost = normalizeManaCost(rawCost, { chosenX: x });
         foldKickerCosts(cost, def, kickerPayments, x);
@@ -3559,6 +3587,34 @@ function enumerateCastMovesFromZone(
                 : xValues;
         for (const x of variantXValues) {
             const normCost = normalizeManaCost(rawCost, { chosenX: x ?? 0 });
+            // CR 107.3a / 601.2h (issue #4506) — this variant's caster-chosen
+            // DISTINCT colours for X (Emblazoned Golem's Kicker), picked the
+            // same way `kickerXValues`'s own ceiling bounded `x`: leftover
+            // sources after the FIXED (X = 0) cost, greedily matched
+            // (`greedyDistinctColorMatch` — the same primitive
+            // `maxAffordableDistinctColorX` uses, so ceiling and pick can't
+            // disagree). `x` never exceeds that ceiling, so the match should
+            // return exactly `x` colours; the length check fails the variant
+            // closed rather than emit an announcement `normalizeManaCost`'s
+            // own fold would then reject.
+            let chosenXColors: Color[] | undefined;
+            if (
+                def &&
+                x &&
+                paidKickersRequireDistinctColorX(def, kickerPayments)
+            ) {
+                const fixed = normalizeManaCost(rawCost, { chosenX: 0 });
+                foldKickerCosts(fixed, def, kickerPayments, 0);
+                const leftover = consumeColoredAndHybridPips(
+                    buildManaSourceUnits(player, card, { state }),
+                    fixed,
+                    normalizedHybridPips(fixed)
+                );
+                chosenXColors = leftover
+                    ? greedyDistinctColorMatch(leftover, x)
+                    : [];
+                if (chosenXColors.length !== x) continue;
+            }
             // CR 702.33a / 601.2f (issue #2081) — a paid Kicker's MANA leg
             // joins the total ON TOP of the printed cost (CR 702.33a), folded
             // BEFORE the flash surcharge and cost modifiers, mirroring
@@ -3566,7 +3622,14 @@ function enumerateCastMovesFromZone(
             // called before `foldFlashSurchargeCost`/`applyCostModifiers`
             // there). No-op for the `undefined` (unkicked) variant and for
             // every card without `kickers`.
-            if (def) foldKickerCosts(normCost, def, kickerPayments, x);
+            if (def)
+                foldKickerCosts(
+                    normCost,
+                    def,
+                    kickerPayments,
+                    x,
+                    chosenXColors
+                );
             // CR 702.27a / 601.2f (issue #2081) — mirrors the fold above for
             // Buyback's flat extra mana cost. No-op unless this variant's
             // `buybackPaid` axis chose to pay it.
@@ -3753,6 +3816,7 @@ function enumerateCastMovesFromZone(
                         ...(kickerPayments ? { kickerPayments } : {}),
                         ...(buybackPaid ? { buybackPaid } : {}),
                         chosenX: x,
+                        ...(chosenXColors ? { chosenXColors } : {}),
                         targets,
                         // Only the LAST group can be variable (guarded above), so
                         // it alone decides whether the cast needs a confirm.

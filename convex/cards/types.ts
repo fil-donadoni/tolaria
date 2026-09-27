@@ -173,8 +173,35 @@ export type ManaCost = {
      *  printed card needs at most two; a wider list is refused by
      *  `normalizeManaCost`. "Only coloured mana, at most one of each colour"
      *  (Emblazoned Golem's Kicker {X}) is a different constraint, not
-     *  expressible as pips, and waits on issue #4506. */
+     *  expressible as pips — see {@link xSpendDistinctColors} below. */
     xSpendColors?: Color[];
+    /** CR 107.3a / 601.2h (issue #4506) — "Spend only colored mana on X. No
+     *  more than one mana of each color may be spent this way." (Emblazoned
+     *  Golem's Kicker {X}). Unlike {@link xSpendColors} (a card-declared FIXED
+     *  1-2 colour set any X pip may draw from), this is a DISTINCTNESS rule
+     *  across the announced X pips themselves: the caster may pick ANY of the
+     *  five colours, but never the same one twice, so it can't be owed as a
+     *  static pip record the way `xSpendColors` is — the colour SET isn't
+     *  fixed by the card, only the rule that it be a set (no repeats).
+     *
+     *  CR 601.2b already makes the caster announce a colour choice for a
+     *  hybrid or Phyrexian pip at the SAME step X itself is announced, so this
+     *  restriction is resolved the same way: `normalizeManaCost` needs
+     *  `opts.chosenXColors` (one entry per point of X, all distinct, drawn
+     *  from `COLORED_MANA_COLORS`) to fold it — a missing or mismatched-length
+     *  array throws. Once folded, the result is ordinary single-colour pips
+     *  (`{W:1, U:1, ...}`), so every downstream payment consumer (auto-tap,
+     *  manual tap, `commitLandsForCost`, `coloredCostLeftover`) needs no
+     *  changes at all — only the ANNOUNCE-time colour choice
+     *  (`convex/game.ts` `announceCast`) and the pre-choice castability
+     *  CEILING (`gre/rules.ts` `maxAffordableDistinctColorX`) are new.
+     *
+     *  RULES TEXT, not a mana symbol: ignored by `getColorsFromCost` and
+     *  `manaValue`, exactly as `xSpendColors` is (CR 105.2 / 202.3e). Mutually
+     *  exclusive with `xSpendColors` on the same `ManaCost` — no printed card
+     *  combines a fixed colour set with a distinctness rule, and nothing reads
+     *  both at once. */
+    xSpendDistinctColors?: true;
 };
 
 /** CR 702.34a / 118.5 — the full Flashback cost, generalizing the mana-only

@@ -33,6 +33,12 @@ type CastCostDialogProps = {
         description: string;
         multi: boolean;
         announcesX?: boolean;
+        /** CR 107.3a / 601.2h (issue #4506) — this Kicker's `{X}` carries
+         *  "spend only colored mana on X, no more than one of each color"
+         *  (Emblazoned Golem). While it announces X (`announcesX` +
+         *  toggled on), the dialog also asks for X DISTINCT colours instead
+         *  of letting the payment step pick generic mana for it. */
+        requiresDistinctColorX?: boolean;
     }[];
     /** CR 702.27 — true when the card has an optional Buyback cost: render a
      *  single yes/no "pay the buyback cost" toggle, mirroring the single
@@ -58,9 +64,18 @@ type CastCostDialogProps = {
          *  `flashSurcharge` was shown; `announceCast` derives the charge itself
          *  and merely validates this declaration. */
         payFlashSurcharge?: boolean;
+        /** CR 107.3a / 601.2h (issue #4506) — the DISTINCT colours chosen for
+         *  X on a `requiresDistinctColorX` Kicker. Present only when such a
+         *  Kicker was toggled on and X > 0. */
+        chosenXColors?: string[];
     }) => void;
     onCancel: () => void;
 };
+
+/** CR 105.1 — the five coloured mana symbols a caster may pick from for a
+ *  "spend only coloured mana" restriction (issue #4506); colourless is never
+ *  offered. */
+const DISTINCT_X_COLORS = ["W", "U", "B", "R", "G"] as const;
 
 /** Non-negative integer parse: returns the value or `null` when the raw text
  *  isn't a clean base-10 non-negative integer (empty, `-1`, `1.5`, `abc`). */
@@ -92,6 +107,9 @@ export default function CastCostDialog({
     // so a half-typed Multikicker value round-trips (CR 702.33e). Absent = "0".
     const [kickerRaw, setKickerRaw] = useState<Record<string, string>>({});
     const [buybackPay, setBuybackPay] = useState(false);
+    // CR 107.3a / 601.2h (issue #4506) — the distinct colours picked so far
+    // for a `requiresDistinctColorX` Kicker's X, in click order.
+    const [xColors, setXColors] = useState<string[]>([]);
 
     // Reset the form each time the dialog is (re)opened so a previous cast's
     // entries never leak into the next one.
@@ -102,6 +120,7 @@ export default function CastCostDialog({
             setXRaw("0");
             setKickerRaw({});
             setBuybackPay(false);
+            setXColors([]);
         }
     }
 
@@ -126,7 +145,30 @@ export default function CastCostDialog({
     // hand-typed value must block submit so the caster can't announce an
     // unpayable X.
     const xWithinCap = maxX === undefined || xValue === null || xValue <= maxX;
-    const valid = xValue !== null && kickersValid && xWithinCap;
+    // CR 107.3a / 601.2h (issue #4506) — a PAID Kicker whose `{X}` restricts
+    // payment to distinct colours (Emblazoned Golem) asks for those colours
+    // right here, alongside X itself — mirroring how CR 601.2b already makes
+    // the caster announce a hybrid pip's non-hybrid equivalent at this same
+    // announcement step.
+    const distinctColorXNeeded =
+        showX &&
+        (kickers ?? []).some(
+            (k, i) =>
+                k.announcesX === true &&
+                k.requiresDistinctColorX === true &&
+                (kickerCounts[i].count ?? 0) > 0
+        );
+    const xColorsValid =
+        !distinctColorXNeeded || (xValue !== null && xColors.length === xValue);
+    const valid = xValue !== null && kickersValid && xWithinCap && xColorsValid;
+
+    const toggleXColor = (color: string) => {
+        setXColors((prev) => {
+            if (prev.includes(color)) return prev.filter((c) => c !== color);
+            if (xValue !== null && prev.length >= xValue) return prev;
+            return [...prev, color];
+        });
+    };
 
     const submit = () => {
         if (!valid) return;
@@ -143,6 +185,7 @@ export default function CastCostDialog({
                 Object.keys(payments).length > 0 ? payments : undefined,
             buyback: buyback ? buybackPay : undefined,
             payFlashSurcharge: flashSurcharge !== undefined ? true : undefined,
+            chosenXColors: distinctColorXNeeded ? xColors : undefined,
         });
     };
 
@@ -171,6 +214,45 @@ export default function CastCostDialog({
         </div>
     );
 
+    // CR 107.3a / 601.2h (issue #4506) — "spend only colored mana on X, no
+    // more than one mana of each color" (Emblazoned Golem's Kicker): asks for
+    // X DISTINCT colours right alongside X itself, mirroring how CR 601.2b
+    // already makes the caster announce a hybrid pip's non-hybrid equivalent
+    // at this same announcement step.
+    const xColorPicker = (
+        <div className="flex flex-col gap-1.5">
+            <span className="text-sm font-medium text-text">
+                Choose {xValue} distinct colour{xValue === 1 ? "" : "s"} to
+                spend on X ({xColors.length}/{xValue ?? 0})
+            </span>
+            <div className="flex flex-wrap gap-2">
+                {DISTINCT_X_COLORS.map((color) => {
+                    const picked = xColors.includes(color);
+                    return (
+                        <button
+                            key={color}
+                            type="button"
+                            aria-pressed={picked}
+                            onClick={() => toggleXColor(color)}
+                            title={`Spend {${color}} on X`}
+                            className={`flex items-center justify-center gap-0.5 rounded-full p-2 cursor-pointer ring-1 transition-colors ${
+                                picked
+                                    ? "bg-white/25 ring-white/60"
+                                    : "bg-white/5 ring-white/15 hover:bg-white/15"
+                            }`}
+                        >
+                            <img
+                                src={`/img/symbols/${color}.svg`}
+                                alt={color}
+                                className="size-8 shrink-0"
+                            />
+                        </button>
+                    );
+                })}
+            </div>
+        </div>
+    );
+
     return (
         <GameDialog
             open={open}
@@ -191,6 +273,7 @@ export default function CastCostDialog({
                 className="flex flex-col gap-4"
             >
                 {askX && xField}
+                {askX && distinctColorXNeeded && xColorPicker}
 
                 {(kickers ?? []).map((k, i) => (
                     <CastCostKickerField
@@ -209,6 +292,7 @@ export default function CastCostDialog({
                 {/* A Kicker-only X sits BELOW the toggle that reveals it, so
                     turning the Kicker on never shifts the toggle itself. */}
                 {!askX && kickerAsksX && xField}
+                {!askX && distinctColorXNeeded && xColorPicker}
 
                 {buyback && (
                     <label className="flex items-center gap-2.5">

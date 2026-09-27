@@ -240,6 +240,7 @@ import {
     manaValue,
     stackManaValue,
     MANA_COLORS,
+    COLORED_MANA_COLORS,
     assignHybridPips,
     hybridCostKey,
     normalizedHybridPips,
@@ -20791,7 +20792,18 @@ function xSpendCostKey(colors: readonly Color[] | undefined): string | null {
 
 export function normalizeManaCost(
     cost: ManaCost,
-    opts: { chosenX?: number; additionalGeneric?: number } = {}
+    opts: {
+        chosenX?: number;
+        additionalGeneric?: number;
+        /** CR 107.3a / 601.2h (issue #4506) — the DISTINCT colours the caster
+         *  announced for X on a `cost.xSpendDistinctColors` leg (Emblazoned
+         *  Golem's Kicker {X}), one entry per point of X, in any order.
+         *  Required (and length-checked against the folded X) whenever
+         *  `cost.xSpendDistinctColors` is set and X > 0; ignored otherwise —
+         *  see that field's own doc for why this can't be a static pip like
+         *  `xSpendColors`. */
+        chosenXColors?: Color[];
+    } = {}
 ): Record<string, number> {
     const result: Record<string, number> = {};
     let extraGeneric = opts.additionalGeneric ?? 0;
@@ -20800,7 +20812,12 @@ export function normalizeManaCost(
     const xFactor =
         typeof cost.xFactor === "number" && cost.xFactor > 0 ? cost.xFactor : 1;
     for (const [key, val] of Object.entries(cost)) {
-        if (key === "xFactor" || key === "xSpendColors") continue;
+        if (
+            key === "xFactor" ||
+            key === "xSpendColors" ||
+            key === "xSpendDistinctColors"
+        )
+            continue;
         // CR 107.3 — fixed generic that coexists with a variable `{X}` pip
         // (Soul Burn `{X}{2}{B}`). Folded into the generic total, never a key
         // of its own in the normalized record.
@@ -20810,6 +20827,41 @@ export function normalizeManaCost(
         }
         if (key === "X" && typeof val === "string") {
             const xMana = (opts.chosenX ?? 0) * xFactor;
+            // CR 107.3a / 601.2h (issue #4506) — "Spend only colored mana on
+            // X. No more than one mana of each color may be spent this way."
+            // The caster's announced colour choice folds directly into
+            // ordinary single-colour pips (one per chosen colour), never
+            // through `xSpendCostKey`'s fixed-set composite key: there is no
+            // card-declared colour set here, only the caster's own distinct
+            // picks.
+            if (cost.xSpendDistinctColors === true) {
+                const picked = opts.chosenXColors ?? [];
+                if (xMana > 0) {
+                    if (picked.length !== xMana) {
+                        throw new Error(
+                            `xSpendDistinctColors needs ${xMana} chosen colour(s), got ${picked.length}`
+                        );
+                    }
+                    if (new Set(picked).size !== picked.length) {
+                        throw new Error(
+                            "xSpendDistinctColors forbids repeating a colour"
+                        );
+                    }
+                    for (const c of picked) {
+                        if (
+                            !(COLORED_MANA_COLORS as readonly Color[]).includes(
+                                c
+                            )
+                        ) {
+                            throw new Error(
+                                `xSpendDistinctColors requires coloured mana, got "${c}"`
+                            );
+                        }
+                        result[c] = (result[c] ?? 0) + 1;
+                    }
+                }
+                continue;
+            }
             const xKey = xSpendCostKey(
                 cost.xSpendColors as Color[] | undefined
             );

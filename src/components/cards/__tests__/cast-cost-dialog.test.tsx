@@ -422,6 +422,123 @@ describe("CastCostDialog — Kicker {X} (CR 107.3a / 601.2b, issue #2141)", () =
     });
 });
 
+// issue #4506 — CR 107.3a / 601.2h: "Spend only colored mana on X, no more
+// than one of each color" (Emblazoned Golem's Kicker {X}) leaves WHICH
+// colours to the caster, so the dialog collects X distinct colours alongside
+// X itself — mirroring how CR 601.2b already makes the caster announce a
+// hybrid pip's non-hybrid equivalent at this same announcement step.
+describe("CastCostDialog — distinct-colour X (CR 107.3a / 601.2h, issue #4506)", () => {
+    const distinctColorKicker = [
+        {
+            id: "kicker",
+            description: "Kicker {X}",
+            multi: false,
+            announcesX: true,
+            requiresDistinctColorX: true,
+        },
+    ];
+
+    const pickColor = (color: string) =>
+        fireEvent.click(screen.getByTitle(`Spend {${color}} on X`));
+
+    it("hides the colour picker until the Kicker is toggled on", () => {
+        renderDialog({ askX: false, kickers: distinctColorKicker });
+        expect(screen.queryByTitle("Spend {W} on X")).toBeNull();
+        fireEvent.click(screen.getByRole("checkbox"));
+        expect(screen.getByTitle("Spend {W} on X")).toBeTruthy();
+    });
+
+    it("disables Cast until exactly X distinct colours are picked", () => {
+        renderDialog({ askX: false, kickers: distinctColorKicker });
+        fireEvent.click(screen.getByRole("checkbox"));
+        fireEvent.change(screen.getByLabelText("Choose X"), {
+            target: { value: "2" },
+        });
+        expect((castButton() as HTMLButtonElement).disabled).toBe(true);
+        pickColor("W");
+        expect((castButton() as HTMLButtonElement).disabled).toBe(true);
+        pickColor("U");
+        expect((castButton() as HTMLButtonElement).disabled).toBe(false);
+    });
+
+    it("clicking a picked colour again deselects it", () => {
+        renderDialog({ askX: false, kickers: distinctColorKicker });
+        fireEvent.click(screen.getByRole("checkbox"));
+        fireEvent.change(screen.getByLabelText("Choose X"), {
+            target: { value: "1" },
+        });
+        pickColor("W");
+        expect((castButton() as HTMLButtonElement).disabled).toBe(false);
+        pickColor("W");
+        expect((castButton() as HTMLButtonElement).disabled).toBe(true);
+    });
+
+    it("a colour click past the X cap is a no-op — never more than X picks", () => {
+        const { onConfirm } = renderDialog({
+            askX: false,
+            kickers: distinctColorKicker,
+        });
+        fireEvent.click(screen.getByRole("checkbox"));
+        fireEvent.change(screen.getByLabelText("Choose X"), {
+            target: { value: "1" },
+        });
+        pickColor("W");
+        pickColor("U"); // over the X = 1 cap — ignored
+        fireEvent.click(castButton());
+        expect(onConfirm).toHaveBeenCalledWith(
+            expect.objectContaining({ chosenXColors: ["W"] })
+        );
+    });
+
+    it("sends the chosen distinct colours alongside X and the kick", () => {
+        const { onConfirm } = renderDialog({
+            askX: false,
+            kickers: distinctColorKicker,
+        });
+        fireEvent.click(screen.getByRole("checkbox"));
+        fireEvent.change(screen.getByLabelText("Choose X"), {
+            target: { value: "3" },
+        });
+        pickColor("W");
+        pickColor("U");
+        pickColor("B");
+        fireEvent.click(castButton());
+        expect(onConfirm).toHaveBeenCalledWith({
+            chosenX: 3,
+            kickerPayments: { kicker: 1 },
+            chosenXColors: ["W", "U", "B"],
+        });
+    });
+
+    it("declining the Kicker sends no colours at all", () => {
+        const { onConfirm } = renderDialog({
+            askX: false,
+            kickers: distinctColorKicker,
+        });
+        fireEvent.click(castButton());
+        expect(onConfirm).toHaveBeenCalledWith({
+            chosenX: undefined,
+            kickerPayments: undefined,
+        });
+    });
+
+    it("a plain Kicker {X} (no distinct-colour restriction) never shows the colour picker", () => {
+        renderDialog({
+            askX: false,
+            kickers: [
+                {
+                    id: "kicker",
+                    description: "Kicker {X}",
+                    multi: false,
+                    announcesX: true,
+                },
+            ],
+        });
+        fireEvent.click(screen.getByRole("checkbox"));
+        expect(screen.queryByTitle(/Spend \{.\} on X/)).toBeNull();
+    });
+});
+
 // #2934 — CR 601.3c: the conditional-flash surcharge is a COST, so it renders
 // as mana symbols like every other cost surface in the app, not as the literal
 // characters the server sent.

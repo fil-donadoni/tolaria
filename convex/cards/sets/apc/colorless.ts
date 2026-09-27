@@ -191,25 +191,45 @@ export const dodecapod: CardDefinition = {
     ],
 };
 
-// Emblazoned Golem — {2} Artifact Creature — Golem, 1/2 (issue #3811). "Kicker
-// {X} / Spend only colored mana on X. No more than one mana of each color may
-// be spent this way. / If this creature was kicked, it enters with X +1/+1
-// counters on it."
+// Emblazoned Golem — {2} Artifact Creature — Golem, 1/2 (issue #3811 /
+// #4506). "Kicker {X} / Spend only colored mana on X. No more than one mana
+// of each color may be spent this way. / If this creature was kicked, it
+// enters with X +1/+1 counters on it."
 //
-// The VARIABLE Kicker itself is payable since issue #2141 (CR 107.3a — the
-// Kicker's {X} is the spell's one announced X; see Verdeloth the Ancient,
-// `inv/green.ts`). What still blocks the card is its spend clause, a
-// different constraint from `ManaCost.xSpendColors` (issue #3811): "only
-// coloured, at most one of each colour" is a distinctness rule across the X
-// pips, not a per-pip colour set, so it cannot be owed as pips.
-// tracked-by: #4506
-// export const emblazonedGolem: CardDefinition = {
-//     id: "98527fc6-4f4c-4ded-9e72-49186b7e5bd3", // APC 136
-//     name: "Emblazoned Golem",
-//     rarity: "uncommon",
-//     manaCost: { X: 2 },
-//     types: ["Artifact", "Creature"],
-//     subtypes: ["Golem"],
-//     power: 1,
-//     toughness: 2,
-// };
+// The VARIABLE Kicker itself has been payable since issue #2141 (CR 107.3a —
+// the Kicker's {X} is the spell's one announced X; see Verdeloth the Ancient,
+// `inv/green.ts`). The spend clause — issue #4506 — is a DIFFERENT
+// constraint from `ManaCost.xSpendColors` (issue #3811, Drain Life /
+// Soul Burn): "only coloured, at most one of each colour" is a distinctness
+// rule across the X pips the CASTER resolves (which colours, not just how
+// many), never a card-declared fixed colour set, so it is
+// `ManaCost.xSpendDistinctColors: true` on the Kicker's own mana leg — see
+// that field's doc (`cards/types.ts`) for the full announce/fold/payment
+// design.
+//
+// hand-tail: "Spend only colored mana on X. No more than one mana of each color may be spent this way." (#4506)
+export const emblazonedGolem: CardDefinition = {
+    id: "98527fc6-4f4c-4ded-9e72-49186b7e5bd3", // APC 136
+    name: "Emblazoned Golem",
+    rarity: "uncommon",
+    oracleText:
+        "Kicker {X} (You may pay an additional {X} as you cast this spell.)\nSpend only colored mana on X. No more than one mana of each color may be spent this way.\nIf this creature was kicked, it enters with X +1/+1 counters on it.",
+    manaCost: { X: 2 },
+    types: ["Artifact", "Creature"],
+    subtypes: ["Golem"],
+    power: 1,
+    toughness: 2,
+    kickers: [
+        {
+            id: "kicker",
+            description: "Kicker {X}",
+            mana: { X: "X", xSpendDistinctColors: true },
+        },
+    ],
+    // CR 107.3a / 122.6a — `count: "X"` reads the resolving stack item's
+    // `chosenX` (`resolveEntersWithCounters`, `cards/entersWith.ts`), 0 when
+    // unkicked (no X announced at all) — the "if this creature was kicked"
+    // intervening clause falls out of that for free, with no separate
+    // trigger.
+    entersWith: { counters: [{ type: "+1/+1", count: "X" }] },
+};

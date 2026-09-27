@@ -35,7 +35,7 @@ import type {
 } from "./state/declarations";
 import type { Color } from "../cards/types";
 import { getInstanceManaCost, tryGetDefinition } from "../cards";
-import { MANA_COLORS } from "./manaColors";
+import { MANA_COLORS, COLORED_MANA_COLORS } from "./manaColors";
 import { STATIC_EFFECT_CTX } from "./layers";
 import { isCreature } from "./constants";
 
@@ -238,6 +238,25 @@ export function coverColoredAndHybridPips(
     coloredNeed: Record<string, number>,
     hybridPips: ReadonlyArray<readonly [Color, Color]>
 ): number | null {
+    const remaining = consumeColoredAndHybridPips(
+        sources,
+        coloredNeed,
+        hybridPips
+    );
+    return remaining === null ? null : remaining.length;
+}
+
+/** The same greedy as {@link coverColoredAndHybridPips}, returning the
+ *  LEFTOVER source sets themselves rather than just their count (issue #4506)
+ *  — what `maxAffordableDistinctColorX` (`gre/rules.ts`) needs to then match
+ *  DISTINCT colours out of whatever mana survives paying the rest of a cost.
+ *  `coverColoredAndHybridPips` is now a thin count-only wrapper around this;
+ *  every existing caller is unaffected. */
+export function consumeColoredAndHybridPips(
+    sources: ReadonlyArray<ReadonlySet<Color>>,
+    coloredNeed: Record<string, number>,
+    hybridPips: ReadonlyArray<readonly [Color, Color]>
+): Set<Color>[] | null {
     const remaining = sources.map((s) => new Set(s));
     for (const c of MANA_COLORS) {
         let need = coloredNeed[c] ?? 0;
@@ -269,7 +288,49 @@ export function coverColoredAndHybridPips(
         if (bestIdx === -1) return null;
         remaining.splice(bestIdx, 1);
     }
-    return remaining.length;
+    return remaining;
+}
+
+/** CR 107.3a / 601.2h (issue #4506) — greedily match as many DISTINCT
+ *  colours (up to `maxColors`, default all five — CR 105.1) as `sources` can
+ *  simultaneously supply, one source per colour. Least-flexible-colour-first
+ *  (the colour with the fewest eligible sources is matched before a more
+ *  common one can be greedily spent on it), mirroring the
+ *  least-flexible-SOURCE-first choice `consumeColoredAndHybridPips` makes for
+ *  a single pip. A GREEDY approximation, not a maximum-bipartite-matching
+ *  solve — like every other probe in this module (see
+ *  `coloredCostLeftover`'s own doc) it can under-count a board of
+ *  heavily-shared dual lands, which only makes it conservative, never
+ *  optimistic. Shared by the castability CEILING
+ *  (`maxAffordableDistinctColorX`, `gre/rules.ts`, which only reads the
+ *  returned length) and the Bot's own colour PICK (`gre/moves.ts`), so ceiling
+ *  and pick can never disagree about which colours are reachable. */
+export function greedyDistinctColorMatch(
+    sources: ReadonlyArray<ReadonlySet<Color>>,
+    maxColors: number = COLORED_MANA_COLORS.length
+): Color[] {
+    const remaining = sources.map((s) => new Set(s));
+    const order = [...COLORED_MANA_COLORS].sort((a, b) => {
+        const countFor = (c: Color) => remaining.filter((s) => s.has(c)).length;
+        return countFor(a) - countFor(b);
+    });
+    const matched: Color[] = [];
+    for (const c of order) {
+        if (matched.length >= maxColors) break;
+        let bestIdx = -1;
+        let bestSize = Infinity;
+        for (let i = 0; i < remaining.length; i++) {
+            const s = remaining[i];
+            if (s.has(c) && s.size < bestSize) {
+                bestIdx = i;
+                bestSize = s.size;
+            }
+        }
+        if (bestIdx === -1) continue;
+        remaining.splice(bestIdx, 1);
+        matched.push(c);
+    }
+    return matched;
 }
 
 /** The single-colour pips of a normalized cost (every `MANA_COLORS` key except

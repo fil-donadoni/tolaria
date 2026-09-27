@@ -15434,6 +15434,14 @@
         "source": "compiled"
     },
     {
+        "name": "Emblazoned Golem",
+        "scryfallId": "98527fc6-4f4c-4ded-9e72-49186b7e5bd3",
+        "oracleId": "fbeafc81-1ddb-4b54-8f86-e6afd5f81db8",
+        "firstSet": "apc",
+        "firstPrintId": "98527fc6-4f4c-4ded-9e72-49186b7e5bd3",
+        "firstPrintSet": "apc"
+    },
+    {
         "name": "Emblem of the Warmind",
         "scryfallId": "03ab2a41-315b-439c-b02c-f12335fc903a",
         "oracleId": "86e88219-0f8e-405d-8439-c3b4acf11330",
