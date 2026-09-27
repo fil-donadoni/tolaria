@@ -62,6 +62,13 @@ type AltCostPickerState = {
     payFlashSurcharge: boolean | undefined;
     keepPriority: boolean | undefined;
     position: { x: number; y: number };
+    /** CR 107.3a / 601.2h (issue #4506) — the DISTINCT colours chosen for X
+     *  on a `requiresDistinctColorX` Kicker. A board permission's alternative
+     *  cost (Aluren) DOES compose with a kicked cast — any creature MV ≤ 3,
+     *  Emblazoned Golem included — so unlike the mode / additional-cost-leg /
+     *  Phyrexian pickers this one is reachable with a shipped card and must
+     *  carry the field through to `commitAnnounceCast`. */
+    chosenXColors: string[] | undefined;
     /** The alternative costs the caster can currently afford (CR 118.9) — the
      *  picker offers exactly these, plus "Pay mana cost" when
      *  {@link printedCostAvailable}. Filtered at open time so a
@@ -287,12 +294,14 @@ export function useHandCardCommit(
          *  card declaring `additionalCosts.oneOf`, rejected for any other. */
         additionalCostLegId?: string | undefined;
         /** CR 107.3a / 601.2h (issue #4506) — the DISTINCT colours chosen for
-         *  X on a `requiresDistinctColorX` Kicker (Emblazoned Golem). Only the
-         *  DIRECT dialog → dispatch path forwards this today — no shipped
-         *  card combines the restriction with a mode / alt-cost / caster-chosen
-         *  additional cost / Phyrexian split, so those intermediate pickers
-         *  don't carry it; a future card that does would hit the server's own
-         *  "must choose colours" rejection rather than a silently wrong cast. */
+         *  X on a `requiresDistinctColorX` Kicker (Emblazoned Golem). Forwarded
+         *  by the direct dispatch path AND the alternative-cost picker (Aluren
+         *  DOES compose with a kicked cast — any creature MV ≤ 3, review
+         *  finding #4506). The mode / caster-chosen-additional-cost / Phyrexian
+         *  pickers do NOT carry it: no shipped card combines this restriction
+         *  with any of those three, so a future one that does would hit the
+         *  server's own "must choose colours" rejection rather than a silently
+         *  wrong cast. */
         chosenXColors?: string[] | undefined;
     }) {
         // Every pre-cast picker is DONE the moment the cast is dispatched —
@@ -549,6 +558,7 @@ export function useHandCardCommit(
                     kickerPayments,
                     buyback,
                     payFlashSurcharge,
+                    chosenXColors,
                 });
                 return;
             }
@@ -562,6 +572,7 @@ export function useHandCardCommit(
                     position,
                     altCosts: options,
                     printedCostAvailable,
+                    chosenXColors,
                 });
                 return;
             }
@@ -837,6 +848,7 @@ export function useHandCardCommit(
                         buyback,
                         payFlashSurcharge,
                         keepPriority,
+                        chosenXColors,
                     } = altCostPickerState;
                     setAltCostPickerState(null);
                     commitAnnounceCast({
@@ -847,6 +859,7 @@ export function useHandCardCommit(
                         kickerPayments,
                         buyback,
                         payFlashSurcharge,
+                        chosenXColors,
                     });
                 }}
                 onCancel={() => setAltCostPickerState(null)}
