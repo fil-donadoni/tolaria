@@ -262,6 +262,10 @@ export interface DriverPassLine {
      *  existed — the log is append-only and spans driver versions. */
     spent?: string;
     budget?: string;
+    /** The pass's `claude --session-id` (issue #4722) — its transcript is
+     *  `<projects>/<slug>/<session>.jsonl`, exactly. `undefined` on a 7- or
+     *  9-field line written before the field existed. */
+    session?: string;
 }
 
 export interface DriverState {
@@ -312,13 +316,17 @@ export function passesInWindow(
 }
 
 /**
- * One `loop-drain.log` line. TWO shapes, and the field COUNT tells them apart:
+ * One `loop-drain.log` line. THREE shapes, and the field COUNT tells them
+ * apart:
  *
- *   7 fields  `epoch pass claude_exit pct queue_before queue_after reason`
- *   9 fields  `… queue_after spent budget reason`  (issue #3699)
+ *   7 fields   `epoch pass claude_exit pct queue_before queue_after reason`
+ *   9 fields   `… queue_after spent budget reason`  (issue #3699)
+ *   10 fields  `… queue_after spent budget session reason`  (issue #4722)
  *
- * The log is append-only and spans driver versions, so both are live and the
- * old one is not a failure. The new fields sit BEFORE the reason because
+ * The log is append-only and spans driver versions, so all three are live and
+ * the older ones are not a failure. The 10-field shape is recognised by its
+ * ninth field being a session UUID, never by count alone: a width no driver
+ * writes stays a 9-field row, as it read before the field existed. The new fields sit BEFORE the reason because
  * `reason` is the last field by contract — readers here and in the dashboard,
  * and most of the driver's own tests, take it with a `split(" ").pop()`.
  *
@@ -327,6 +335,10 @@ export function passesInWindow(
  * mode everywhere else in this loop, so callers see an empty result, never a
  * thrown parse error.
  */
+/** The driver's `new_session_id` shape — lower-case, and nothing else. */
+const SESSION_UUID_RE =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
 export function parseDriverPassLine(line: string): DriverPassLine | null {
     const parts = line.trim().split(/\s+/);
     if (parts.length < 7) return null;
@@ -335,6 +347,7 @@ export function parseDriverPassLine(line: string): DriverPassLine | null {
         if (!/^-?\d+$/.test(n)) return null;
     }
     const wide = parts.length >= 9;
+    const bound = parts.length >= 10 && SESSION_UUID_RE.test(parts[8]);
     return {
         epoch: Number(epochStr),
         pass: Number(passStr),
@@ -342,8 +355,9 @@ export function parseDriverPassLine(line: string): DriverPassLine | null {
         pct,
         queueBefore: Number(beforeStr),
         queueAfter: Number(afterStr),
-        reason: parts.slice(wide ? 8 : 6).join(" "),
+        reason: parts.slice(bound ? 9 : wide ? 8 : 6).join(" "),
         ...(wide ? { spent: parts[6], budget: parts[7] } : {}),
+        ...(bound ? { session: parts[8] } : {}),
     };
 }
 

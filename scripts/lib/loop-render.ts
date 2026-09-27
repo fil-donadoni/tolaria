@@ -105,7 +105,7 @@ const GUTTER = " │ ";
 const RULE_GUTTER = " ├─ ";
 const BAR_CELLS = 10;
 
-type Tone = "dim" | "bold" | "red" | "green" | "yellow" | "cyan";
+export type Tone = "dim" | "bold" | "red" | "green" | "yellow" | "cyan";
 const SGR: Record<Tone, string> = {
     dim: "2",
     bold: "1",
@@ -115,7 +115,7 @@ const SGR: Record<Tone, string> = {
     cyan: "36",
 };
 
-const paint = (env: RenderEnv, tone: Tone, text: string): string =>
+export const paint = (env: RenderEnv, tone: Tone, text: string): string =>
     env.color && text !== "" ? `\x1b[${SGR[tone]}m${text}\x1b[0m` : text;
 
 // eslint-disable-next-line no-control-regex
@@ -130,6 +130,13 @@ export type LineClass =
     | { kind: "tagged"; tag: DriverTag; message: string }
     | { kind: "info"; message: string }
     | { kind: "body"; text: string };
+
+/** A log line's content — the part after its `YYYY-MM-DD HH:MM:SS` stamp,
+ *  or the whole line when it carries none. */
+export function stripStamp(line: string): string {
+    const m = STAMP_RE.exec(line);
+    return m ? m[3] : line;
+}
 
 /** Classify a line's content (the part after the stamp) by its tag alone. */
 export function classifyLine(content: string): LineClass {
@@ -244,12 +251,27 @@ function rule(env: RenderEnv, time: string, label: string): string {
     return head + paint(env, "dim", "─".repeat(fill));
 }
 
-function passHeaderLabel(env: RenderEnv, message: string): string {
+/** The pass-START tag's trailing `session=<uuid>` word (issue #4722) —
+ *  split off before the header is read, so the header regex never has to
+ *  know about it. */
+export function splitPassSession(message: string): {
+    message: string;
+    session: string | null;
+} {
+    const m = /^(.*?) session=(\S+)$/s.exec(message);
+    return m ? { message: m[1], session: m[2] } : { message, session: null };
+}
+
+function passHeaderLabel(env: RenderEnv, raw: string): string {
+    const { message, session } = splitPassSession(raw);
     const m = /^pass (\d+) — issue #(\d+) on tier (\S+?)\.?$/.exec(message);
     const text = m
         ? `pass ${m[1]} · #${m[2]} · ${m[3]}`
         : message.replace(/\.$/, "");
-    return paint(env, "bold", text);
+    // The id's first block is enough to find the transcript by eye; the
+    // log row carries it whole.
+    const tail = session ? ` ${paint(env, "dim", session.slice(0, 8))}` : "";
+    return paint(env, "bold", text) + tail;
 }
 
 function passFooterLabel(env: RenderEnv, message: string): string {

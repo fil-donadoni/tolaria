@@ -410,6 +410,22 @@ read_green_sha() {
     fi
 }
 
+# A fresh session id per pass (issue #4722): the pass runs as
+# `claude -p --session-id <uuid>`, so its transcript is exactly
+# `~/.claude/projects/<slug>/<uuid>.jsonl` — no mention-count heuristic, no
+# guessing which of the day's transcripts a pass wrote. The same id goes in
+# the pass-START tag (the terminal's status line reads the transcript off it)
+# and in the log row. Lower-case, and validated: `claude` refuses anything that
+# is not a UUID, and a malformed id in the row would be a binding to nothing.
+# Empty output when neither source is there — the caller stops the run rather
+# than run a pass it cannot bind.
+new_session_id() {
+    _sid=$({ uuidgen 2>/dev/null || cat /proc/sys/kernel/random/uuid 2>/dev/null; } | tr 'A-F' 'a-f' | tr -d '\n')
+    if printf '%s' "$_sid" | grep -Eq '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'; then
+        printf '%s' "$_sid"
+    fi
+}
+
 # `claims-held` discriminator (#2626 / #2624 AC). A pass that is forcibly
 # terminated exits 0, so it looks identical to a pass that genuinely found
 # nothing to do — both leave `total_open`/green-sha unchanged. The only
@@ -751,15 +767,25 @@ while :; do
             break
         fi
     fi
+    # The pass's session id (issue #4722, see new_session_id) — minted before
+    # the pass counter moves, for the same reason the head is resolved there.
+    pass_session=$(new_session_id)
+    if [ -z "$pass_session" ]; then
+        echo "loop-drain[error]: could not mint a session id (neither uuidgen nor /proc/sys/kernel/random/uuid) — stopping rather than run a pass no transcript can be bound to." >&2
+        stop_reason="preflight-error"
+        break
+    fi
 
     # ── run one pass ────────────────────────────────────────────────────────
     pass=$((pass + 1))
     # The pass-START tag: the renderer opens the pass's header rule on it, so
     # the override path announces its pass too, naming the prompt it owns.
+    # `session=<uuid>` is a trailing `k=v` word on both forms: the status line
+    # reads the pass's transcript off it (issue #4722).
     if [ "$PROMPT_OVERRIDDEN" -eq 1 ]; then
-        echo "loop-drain[pass]: pass $pass — prompt \"$pass_prompt\"." >&2
+        echo "loop-drain[pass]: pass $pass — prompt \"$pass_prompt\". session=$pass_session" >&2
     else
-        echo "loop-drain[pass]: pass $pass — issue #${RESOLVED_ISSUE} on tier ${RESOLVED_MODEL}." >&2
+        echo "loop-drain[pass]: pass $pass — issue #${RESOLVED_ISSUE} on tier ${RESOLVED_MODEL}. session=$pass_session" >&2
     fi
     epoch=$(date +%s)
     pass_log="$LOG_DIR/pass-${pass}-${epoch}.log"
@@ -773,9 +799,9 @@ while :; do
         # never has (the shell collapses it), so an echo that showed one would
         # be a dry run of a command nobody runs.
         if [ -n "$pass_model_arg" ]; then
-            _dry_claude="claude $pass_model_arg -p"
+            _dry_claude="claude $pass_model_arg --session-id $pass_session -p"
         else
-            _dry_claude="claude -p"
+            _dry_claude="claude --session-id $pass_session -p"
         fi
         echo "loop-drain: [dry-run] pass $pass would run: CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0 $_dry_claude \"$pass_prompt\" $CLAUDE_ARGS" >&2
         : >"$pass_log"
@@ -815,7 +841,7 @@ while :; do
             # shellcheck disable=SC2086  # intentional word-splitting of the
             # resolved tier flag and of a user-supplied flag string, both
             # documented above.
-            TOLARIA_LOOP_DRAIN=1 TOLARIA_LOOP_RUN_ID="$RUN_ID" CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0 claude $pass_model_arg -p "$pass_prompt" $CLAUDE_ARGS 2>&1
+            TOLARIA_LOOP_DRAIN=1 TOLARIA_LOOP_RUN_ID="$RUN_ID" CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0 claude $pass_model_arg --session-id "$pass_session" -p "$pass_prompt" $CLAUDE_ARGS 2>&1
             echo $? >"$rc_file"
         ) | tee "$pass_log"
         set -e
@@ -999,7 +1025,7 @@ while :; do
     esac
 
     # 9. one line per pass:
-    #   epoch pass claude_exit pct queue_before queue_after spent budget reason
+    #   epoch pass claude_exit pct queue_before queue_after spent budget session reason
     #
     # `spent`/`budget` are new (issue #3699) and sit BEFORE the reason, not
     # after it: `reason` is the LAST field by contract — every reader in this
@@ -1007,7 +1033,12 @@ while :; do
     # there would have silently renamed the reason of every pass. `-` in both
     # when the guard is disabled, so the field count is fixed at 9 and a parser
     # can tell the old 7-field shape from this one by length alone.
-    echo "$epoch $pass $claude_exit $pct $queue_before $queue_after ${spent_field} ${budget_field} $reason_field" >>"$LOG_FILE"
+    #
+    # `session` (issue #4722) follows the same rule, one field later: the
+    # pass's `--session-id`, BEFORE the reason, making the row 10 fields — a
+    # parser tells 7, 9 and 10 apart by length alone, and the row binds the
+    # pass to exactly one transcript.
+    echo "$epoch $pass $claude_exit $pct $queue_before $queue_after ${spent_field} ${budget_field} ${pass_session} $reason_field" >>"$LOG_FILE"
     # The pass-END tag (ADR 0147): the same facts as the row above, plus what
     # the row has no column for — the effective ceiling the footer's spend bar
     # is drawn against, the pass's wall duration and the retry delay. Emitted
