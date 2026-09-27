@@ -31,8 +31,10 @@ import type {
     EffectOp,
     EffectMoveZone,
     EffectPlayerRef,
+    EffectPredicate,
     EffectRef,
     EffectCaptureSource,
+    EffectValue,
     PlayerCounterKind,
     RevealRouteDestination,
 } from "../../cards/types";
@@ -220,14 +222,28 @@ const COPY_TOKEN_REPRESENTATIVE_STAT = 2; // unknown copied body's P/T — same 
  *
  *  `controllerChosenPicks` holds the picks-binding names a `choice` Op whose
  *  `player` is the literal `"controller"` has bound. A `sacrifice` over such a
- *  binding is the CASTER's own permanent (a cost), not an edict. */
+ *  binding is the CASTER's own permanent (a cost), not an edict.
+ *
+ *  `coinFlipSeriesWinProbability` (issue #4470) maps a `coinFlipSeries`
+ *  `bindLosses` name to the probability that series lands at zero losses —
+ *  CR 705.2's flips are independent and even-odds, so `count` flips ALL won is
+ *  `0.5 ** count`. Read by `if`'s walker below to discount a "won every flip"
+ *  branch instead of assuming it happens for free: `chooseNumber` /
+ *  `coinFlipSeries` themselves are correctly ZERO-valued (their whole
+ *  consequence is the branch that reads the binding back), so nothing else in
+ *  the walk ever prices the ODDS of getting there — a script conditioned on a
+ *  coin-flip win priced its `then` branch as certain, which is how Squee's
+ *  Revenge's hand-value out-priced Lightning Bolt: `evaluate.ts`'s `hand` term
+ *  then rated NEVER casting it above every real line of play. */
 type ScriptScope = {
     readonly controllerChosenPicks: ReadonlySet<string>;
+    readonly coinFlipSeriesWinProbability: ReadonlyMap<string, number>;
 };
 
 /** The scope a script walk starts from — nothing bound yet. */
 const EMPTY_SCRIPT_SCOPE: ScriptScope = {
     controllerChosenPicks: new Set<string>(),
+    coinFlipSeriesWinProbability: new Map<string, number>(),
 };
 
 /** A valuer: projects one Op onto the feature basis under a grounding mode,
@@ -377,8 +393,20 @@ function isEachPlayerRef(ref: EffectPlayerRef): boolean {
  *  Zone-agnostic: Flash binds a HAND card (`zone: "hand"`) that a later
  *  `moveZone` puts onto the battlefield before the `sacrifice` reads the same
  *  binding, so keying on `zone: "battlefield"` would miss the card that
- *  surfaced the bug. */
-function withBindingsOf(scope: ScriptScope, op: EffectOp): ScriptScope {
+ *  surfaced the bug.
+ *
+ *  Also binds a `coinFlipSeries`' win probability (issue #4470) — see
+ *  `ScriptScope`'s own doc comment — which needs `ctx` (to ground the
+ *  series' `count`) where the picks binding above needs none, hence the
+ *  extra parameter this function takes over its pre-#4470 shape. */
+function withBindingsOf(
+    scope: ScriptScope,
+    op: EffectOp,
+    ctx: GroundingContext
+): ScriptScope {
+    if (op.op === "coinFlipSeries") {
+        return withCoinFlipSeriesWinProbability(scope, op, ctx);
+    }
     if (op.op !== "choice" || !op.bind || op.player !== "controller") {
         return scope;
     }
@@ -407,8 +435,89 @@ function withControllerChosenPick(
 ): ScriptScope {
     if (scope.controllerChosenPicks.has(name)) return scope;
     return {
+        ...scope,
         controllerChosenPicks: new Set([...scope.controllerChosenPicks, name]),
     };
+}
+
+/** issue #4470 — binds a `coinFlipSeries`' win probability (see
+ *  `ScriptScope`'s doc comment) as it is walked. No-op without a `bindLosses`
+ *  (nothing later can read it back) or without a `count` (an unbounded
+ *  "flip until you lose" series has no flip-count to ground a probability
+ *  from — no shipped card needs that case, so it keeps the pre-#4470 "no
+ *  opinion" default rather than guessing). */
+function withCoinFlipSeriesWinProbability(
+    scope: ScriptScope,
+    op: OpOf<"coinFlipSeries">,
+    ctx: GroundingContext
+): ScriptScope {
+    if (!op.bindLosses || op.count === undefined) return scope;
+    const { amount } = ctx.value(op.count);
+    const probability = Math.pow(0.5, Math.max(0, amount));
+    return {
+        ...scope,
+        coinFlipSeriesWinProbability: new Map(
+            scope.coinFlipSeriesWinProbability
+        ).set(op.bindLosses, probability),
+    };
+}
+
+/** issue #4470 — does `predicate` read as "this `coinFlipSeries` landed at
+ *  ZERO losses" (CR 705.2's "if you win all the flips"), and if so, at what
+ *  probability? Matches on OP SHAPE plus a scope-tracked binding NAME, never a
+ *  card identity: a comparison predicate naming a bound `coinFlipSeries`
+ *  losses ref against the literal `0`/`1` on either side, with the operator
+ *  oriented so the check reads "losses is at most zero". `undefined` for
+ *  every other predicate (every `if` that isn't this shape keeps valuing its
+ *  `then` branch as certain — the pre-#4470 default, unchanged). */
+function coinFlipSeriesWinProbabilityFor(
+    predicate: EffectPredicate,
+    scope: ScriptScope
+): number | undefined {
+    if (
+        !("op" in predicate) ||
+        !("left" in predicate) ||
+        !("right" in predicate)
+    ) {
+        return undefined;
+    }
+    const { left, op, right } = predicate;
+    const lossesRefLeft = coinFlipLossesRef(left, scope);
+    if (lossesRefLeft !== undefined && typeof right === "number") {
+        // `losses <op> right` — "losses is at most zero" is `lt 1` or `le 0`
+        // or `eq 0`.
+        if (
+            (op === "lt" && right === 1) ||
+            (op === "le" && right === 0) ||
+            (op === "eq" && right === 0)
+        ) {
+            return lossesRefLeft;
+        }
+    }
+    const lossesRefRight = coinFlipLossesRef(right, scope);
+    if (lossesRefRight !== undefined && typeof left === "number") {
+        // `left <op> losses` — the mirror image of the three shapes above.
+        if (
+            (op === "gt" && left === 1) ||
+            (op === "ge" && left === 0) ||
+            (op === "eq" && left === 0)
+        ) {
+            return lossesRefRight;
+        }
+    }
+    return undefined;
+}
+
+/** The bound win-probability for `v`'s `{ ref }` name, when `v` is a bare
+ *  ref AND that name is a `coinFlipSeries`' tracked `bindLosses` — else
+ *  `undefined`, structurally, so a numeric literal or an unrelated ref never
+ *  matches. */
+function coinFlipLossesRef(
+    v: EffectValue,
+    scope: ScriptScope
+): number | undefined {
+    if (typeof v !== "object" || v === null || !("ref" in v)) return undefined;
+    return scope.coinFlipSeriesWinProbability.get((v as { ref: string }).ref);
 }
 
 /** issue #3292 — the picks twin of `withCapturedSourceAliases` (PR #3298
@@ -2153,7 +2262,21 @@ export function valueOp(
             // whose `$picked` was bound at the top level, so a branch that
             // dropped the scope would leave the card that surfaced the bug
             // still priced as removal.
-            return valueEffectScript(op.then, ctx, scope);
+            const branch = valueEffectScript(op.then, ctx, scope);
+            // Issue #4470 — the ONE exception to "assume the effect happens":
+            // a branch gated on a `coinFlipSeries` landing at zero losses is
+            // not certain, it is `0.5 ** count` (CR 705.2), and pricing it as
+            // certain is what made Squee's Revenge's static hand-value beat
+            // every real line of play (`evaluate.ts`'s `hand` term then never
+            // let the search prefer casting it — see `ScriptScope`'s doc
+            // comment). `undefined` — every OTHER `if` — takes the unscaled
+            // branch verbatim, byte-identical to before.
+            const probability = coinFlipSeriesWinProbabilityFor(
+                op.predicate,
+                scope
+            );
+            if (probability === undefined) return branch;
+            return { points: branch.points * probability, tags: branch.tags };
         }
         case "forEach": {
             const { amount, scaling } = ctx.forEachCount(op.select);
@@ -2779,7 +2902,7 @@ export function valueEffectScript(
     // then the Ops after it read the binding back.
     let walkScope = scope;
     for (const op of effects) {
-        walkScope = withBindingsOf(walkScope, op);
+        walkScope = withBindingsOf(walkScope, op, ctx);
         acc = addValues(acc, valueOp(op, ctx, walkScope));
     }
     return acc;
