@@ -8,20 +8,27 @@ import { opGapKey } from "../lib/grammar-gaps";
 import {
     auditOpCensus,
     baselineAllowlist,
+    censusClusters,
     emittedOps,
     gapsVerdict,
+    handTailCardMatch,
+    liveClusterKeys,
     parseAllowlist,
     render,
     renderBotGaps,
+    renderClusterCensus,
     renderHandTailClaims,
     unclaimedBotGaps,
     type Allowlist,
+    type LiveGapKey,
     type Violation,
 } from "../check-gaps";
 import {
     handTailClaimMismatches,
     scanCompilerGapMarkers,
 } from "../lib/compiler-gap-markers";
+import type { CardRow, FragmentRow } from "../lib/oracle-lockfile";
+import type { ClusterRow } from "../lib/targets";
 
 /**
  * The derived Op census guard (ADR 0105 § 7.3, issue #3824).
@@ -455,5 +462,312 @@ describe("hand-tail markers name their claim (issue #4514)", () => {
         );
         expect(found).toEqual([]);
         expect(renderHandTailClaims(found)).toMatch(/^✓ gaps: every/);
+    });
+});
+
+describe("handTailCardMatch (ADR 0146, issue #4682)", () => {
+    it("reads set and colour off the card's own set file", () => {
+        expect(handTailCardMatch("convex/cards/sets/inv/blue.ts")).toEqual({
+            set: "inv",
+            colour: "blue",
+        });
+    });
+
+    it("is undefined for a legacy flat set file with no colour segment", () => {
+        expect(handTailCardMatch("convex/cards/sets/inv.ts")).toBeUndefined();
+    });
+
+    it("is undefined for an unrecognised colour segment", () => {
+        expect(
+            handTailCardMatch("convex/cards/sets/inv/notacolour.ts")
+        ).toBeUndefined();
+    });
+});
+
+describe("liveClusterKeys (ADR 0146, issue #4682)", () => {
+    const fragment = (text: string): FragmentRow => ({
+        text,
+        reason: "no slot consumed the line",
+        cards: 1,
+    });
+    const quarantined = (
+        oracleId: string,
+        kind: string,
+        detail: string
+    ): CardRow => ({
+        oracleId,
+        name: oracleId,
+        state: "quarantine",
+        opsUsed: [],
+        quarantineReasons: [{ kind, detail }] as CardRow["quarantineReasons"],
+    });
+    const handTailMarker = (card: string, file: string, issue = 4338) =>
+        scanCompilerGapMarkers([
+            `// hand-tail: some fragment (#${issue})`,
+            `export const Only: CardDefinition = {`,
+            `    name: "${card}",`,
+            "};",
+        ]).map((m) => ({ ...m, file }));
+
+    it("unions the op census with the fragment-level Grammar Gaps", () => {
+        const lock = { cards: [], fragments: [fragment("a one-off line")] };
+        const keys = liveClusterKeys(
+            lock,
+            ["mill", "draw"],
+            new Set(["draw"]),
+            null,
+            []
+        );
+        expect(
+            keys.filter((k) => k.kind === "grammar").map((k) => k.key)
+        ).toEqual(expect.arrayContaining([opGapKey("mill")]));
+        expect(keys.filter((k) => k.kind === "grammar")).toHaveLength(2);
+    });
+
+    it("does not count an emitted implemented Op as live", () => {
+        const lock = { cards: [], fragments: [] };
+        const keys = liveClusterKeys(
+            lock,
+            ["draw"],
+            new Set(["draw"]),
+            null,
+            []
+        );
+        expect(keys).toEqual([]);
+    });
+
+    it("reads mechanic and scenario keys off quarantine reasons", () => {
+        const lock = {
+            cards: [
+                quarantined("c1", "planned-op", "c1 (uuid): some op"),
+                quarantined("c2", "smoke-skip", "some shape"),
+            ],
+            fragments: [],
+        };
+        const keys = liveClusterKeys(lock, [], new Set(), null, []);
+        expect(keys.map((k) => k.kind).sort()).toEqual([
+            "mechanic",
+            "scenario",
+        ]);
+    });
+
+    // The regression this test exists for (review of issue #4682's PR): the
+    // first implementation threaded `unclaimedBotGaps`'s RANKED-scoped key
+    // list here, which reads a Bot Gap as "gone" the moment its cards leave
+    // ranked scope — exactly the false conclusion `computedGapKeys`'s own
+    // docstring says a whole-corpus census must not draw. A card whose Target
+    // was never ranked (never in scope) still owes a `bot` live key.
+    it("reads WHOLE-CORPUS bot keys, never the ranked-scoped filing list", () => {
+        const unranked: CardRow = {
+            oracleId: "c1",
+            name: "Unranked Frozen Card",
+            state: "quarantine",
+            opsUsed: [],
+            botReach: "frozen",
+            botGap: "never-chosen › Enchantment › destroy",
+        };
+        const keys = liveClusterKeys(
+            { cards: [unranked], fragments: [] },
+            [],
+            new Set(),
+            new Map(),
+            []
+        );
+        expect(keys).toEqual([
+            { kind: "bot", key: "never-chosen › Enchantment › destroy" },
+        ]);
+    });
+
+    it("reports no `bot` key at all when there is no Bot Reach Findings report", () => {
+        const unranked: CardRow = {
+            oracleId: "c1",
+            name: "Unranked Frozen Card",
+            state: "quarantine",
+            opsUsed: [],
+            botReach: "frozen",
+            botGap: "never-chosen › Enchantment › destroy",
+        };
+        const keys = liveClusterKeys(
+            { cards: [unranked], fragments: [] },
+            [],
+            new Set(),
+            null,
+            []
+        );
+        expect(keys.filter((k) => k.kind === "bot")).toEqual([]);
+    });
+
+    it("counts only kind `hand-tail` exempting markers, carrying the set file's card match", () => {
+        const markers = [
+            ...handTailMarker(
+                "Arena of Glory",
+                "convex/cards/sets/inv/blue.ts"
+            ),
+            ...scanCompilerGapMarkers([
+                "// compiler-gap: some fragment (#1)",
+                `export const Only: CardDefinition = {`,
+                '    name: "Some Other Card",',
+                "};",
+            ]).map((m) => ({ ...m, file: "convex/cards/sets/inv/red.ts" })),
+        ];
+        const keys = liveClusterKeys(
+            { cards: [], fragments: [] },
+            [],
+            new Set(),
+            null,
+            markers
+        );
+        expect(keys).toEqual([
+            {
+                kind: "hand-tail",
+                key: "Arena of Glory",
+                card: { set: "inv", colour: "blue" },
+            },
+        ]);
+    });
+
+    it("leaves `card` undefined for a hand-tail marker in a legacy flat set file", () => {
+        const keys = liveClusterKeys(
+            { cards: [], fragments: [] },
+            [],
+            new Set(),
+            null,
+            handTailMarker("Arena of Glory", "convex/cards/sets/inv.ts")
+        );
+        expect(keys).toEqual([
+            { kind: "hand-tail", key: "Arena of Glory", card: undefined },
+        ]);
+    });
+});
+
+describe("censusClusters (ADR 0146, issue #4682)", () => {
+    const cluster = (
+        issue: number,
+        kind: ClusterRow["kind"],
+        match: readonly string[]
+    ): ClusterRow => ({ issue, kind, match });
+
+    it("flags a live key two signatures match, the lowest issue winning", () => {
+        const liveKeys: LiveGapKey[] = [{ kind: "bot", key: "cause › form" }];
+        const { ambiguities } = censusClusters(
+            liveKeys,
+            [],
+            [
+                cluster(101, "bot", ["cause › form"]),
+                cluster(100, "bot", ["cause › *"]),
+            ]
+        );
+        expect(ambiguities).toEqual([
+            { kind: "bot", key: "cause › form", issues: [100, 101] },
+        ]);
+    });
+
+    it("is no ambiguity when only one signature matches", () => {
+        const liveKeys: LiveGapKey[] = [{ kind: "bot", key: "cause › form" }];
+        const { ambiguities } = censusClusters(
+            liveKeys,
+            [],
+            [cluster(100, "bot", ["cause › *"])]
+        );
+        expect(ambiguities).toEqual([]);
+    });
+
+    it("counts a live claimed key no signature matches as a residual single of its kind", () => {
+        const liveKeys: LiveGapKey[] = [
+            { kind: "grammar", key: opGapKey("mill") },
+        ];
+        const { residualSingles } = censusClusters(
+            liveKeys,
+            [{ kind: "grammar", key: opGapKey("mill"), issue: 200 }],
+            []
+        );
+        expect(residualSingles).toEqual([
+            { kind: "grammar", count: 1 },
+            { kind: "mechanic", count: 0 },
+            { kind: "scenario", count: 0 },
+            { kind: "bot", count: 0 },
+            { kind: "hand-tail", count: 0 },
+        ]);
+    });
+
+    it("never counts a claim whose key this run computes no live gap for", () => {
+        const { residualSingles } = censusClusters(
+            [],
+            [{ kind: "scenario", key: "dead › key", issue: 300 }],
+            []
+        );
+        expect(residualSingles.find((r) => r.kind === "scenario")?.count).toBe(
+            0
+        );
+    });
+
+    it("does not count a residual single once a signature matches it", () => {
+        const liveKeys: LiveGapKey[] = [
+            { kind: "grammar", key: opGapKey("mill") },
+        ];
+        const { residualSingles } = censusClusters(
+            liveKeys,
+            [{ kind: "grammar", key: opGapKey("mill"), issue: 200 }],
+            [cluster(201, "grammar", ["(op) › *"])]
+        );
+        expect(residualSingles.find((r) => r.kind === "grammar")?.count).toBe(
+            0
+        );
+    });
+
+    it("flags a Cluster Signature matching no live key as dead", () => {
+        const { deadSignatures } = censusClusters(
+            [{ kind: "bot", key: "cause › form" }],
+            [],
+            [cluster(555, "mechanic", ["nonexistent › *"])]
+        );
+        expect(deadSignatures).toEqual([555]);
+    });
+
+    it("a signature matching a live key is not dead", () => {
+        const { deadSignatures } = censusClusters(
+            [{ kind: "bot", key: "cause › form" }],
+            [],
+            [cluster(100, "bot", ["cause › *"])]
+        );
+        expect(deadSignatures).toEqual([]);
+    });
+});
+
+describe("renderClusterCensus (ADR 0146, issue #4682)", () => {
+    it("prints clean when there is nothing to report", () => {
+        expect(
+            renderClusterCensus({
+                ambiguities: [],
+                residualSingles: [
+                    { kind: "grammar", count: 0 },
+                    { kind: "mechanic", count: 0 },
+                    { kind: "scenario", count: 0 },
+                    { kind: "bot", count: 0 },
+                    { kind: "hand-tail", count: 0 },
+                ],
+                deadSignatures: [],
+            })
+        ).toMatch(/^✓ gaps: Gap Cluster census clean/);
+    });
+
+    it("never prints ✗ — informational, never red", () => {
+        const out = renderClusterCensus({
+            ambiguities: [
+                { kind: "bot", key: "cause › form", issues: [100, 101] },
+            ],
+            residualSingles: [
+                { kind: "grammar", count: 3 },
+                { kind: "mechanic", count: 0 },
+                { kind: "scenario", count: 0 },
+                { kind: "bot", count: 0 },
+                { kind: "hand-tail", count: 0 },
+            ],
+            deadSignatures: [555],
+        });
+        expect(out).not.toContain("✗");
+        expect(out).toContain("cause › form: #100, #101 — #100 would win");
+        expect(out).toContain("grammar 3");
+        expect(out).toContain("#555");
     });
 });
