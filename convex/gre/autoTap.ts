@@ -119,13 +119,15 @@ function toContribution(cost: {
     // Value union widened to admit the `phyrexian` object key AND the `hybrid`
     // array key (CR 107.4f / 202.1a — issue #1338) on a real `CardManaCost` —
     // this reads only numeric colour pips and ignores everything else, so the
-    // extra members are harmless here.
+    // extra members are harmless here. `boolean` admits `xSpendDistinctColors`
+    // (issue #4506) on the same terms.
     [k: string]:
         | number
         | string
         | Partial<Record<Color, number>>
         | Array<[Color, Color]>
         | Color[]
+        | boolean
         | undefined;
 }): ManaContribution {
     const out: ManaContribution = {};

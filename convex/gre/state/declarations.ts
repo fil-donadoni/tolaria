@@ -3721,6 +3721,14 @@ export type PendingTarget = {
     keepPriority?: boolean;
     /** Propagated from announceCast when the spell has X in its mana cost. */
     chosenX?: number;
+    /** CR 107.3a / 601.2h (issue #4506) — the DISTINCT colours the caster
+     *  announced for X, when a paid Kicker (or the printed cost) carries
+     *  `ManaCost.xSpendDistinctColors` (Emblazoned Golem's "spend only
+     *  coloured mana on X, no more than one of each colour"). Propagated from
+     *  `announceCast`'s validated `chosenXColors` arg through
+     *  `finalizeTargetSelection`'s `foldKickerCosts` fold; undefined for every
+     *  spell without such a leg, or when `chosenX` is 0 (nothing to fold). */
+    chosenXColors?: Color[];
     /** CR 702.33 — which of this spell's Kickers the caster chose to pay at
      *  announcement, and how many times each (absent = not kicked). Propagated
      *  from announceCast through `finalizeTargetSelection` → pendingCast → stack
@@ -5402,6 +5410,9 @@ export type ManaCost = Record<
     | Array<[Color, Color]>
     // CR 107.3a (issue #3811) — `xSpendColors`, folded by `normalizeManaCost`.
     | Color[]
+    // CR 107.3a / 601.2h (issue #4506) — `xSpendDistinctColors: true`, folded
+    // by `normalizeManaCost` given the caster's announced `chosenXColors`.
+    | boolean
     | undefined
 >;
 

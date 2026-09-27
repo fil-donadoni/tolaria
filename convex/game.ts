@@ -320,6 +320,7 @@ import {
     kickedCountOfPayments,
     kickerLifeCost,
     paidKickersAnnounceX,
+    paidKickersRequireDistinctColorX,
     resolveCastPermanentSelection,
     resolveKickerPayments,
 } from "./gre/kicker";
@@ -407,6 +408,7 @@ import {
 import {
     DAMAGEABLE_PERMANENT_TYPES,
     MANA_COLORS,
+    COLORED_MANA_COLORS,
     applyLandManaReplacement,
     replaceProducedManaColor,
     declaresAsEntersMode,
@@ -5657,6 +5659,11 @@ export function finalizeTargetSelection(
     const cardInstanceId = pt.cardInstanceId;
     const keepPriority = pt.keepPriority;
     const chosenX = pt.chosenX;
+    // CR 107.3a / 601.2h (issue #4506) — the caster's announced DISTINCT
+    // colours for X, validated at `announceCast` and carried through target
+    // selection exactly like `chosenX` itself; forwarded to `foldKickerCosts`
+    // below.
+    const chosenXColors = pt.chosenXColors;
     // CR 702.33 — the PER-KICKER payment record chosen at announcement, whose
     // mana legs fold into the cost paid at this commit and which is propagated
     // whole to the resolving stack item (ADR 0079).
@@ -6258,9 +6265,16 @@ export function finalizeTargetSelection(
     // else park for `tapForPayment`) is unaffected by WHICH leg produced this
     // value — it always just pays `manaCost`.
     const manaCost = chosenAltCost
-        ? normalizeManaCost(chosenAltCost.mana ?? {}, { chosenX })
+        ? normalizeManaCost(chosenAltCost.mana ?? {}, {
+              chosenX,
+              chosenXColors,
+          })
         : rawCost
-          ? normalizeManaCost(rawCost, { chosenX, additionalGeneric })
+          ? normalizeManaCost(rawCost, {
+                chosenX,
+                additionalGeneric,
+                chosenXColors,
+            })
           : {};
     // CR 702.33a / 601.2f — a Kicker cast pays the kicker cost ON TOP of the
     // cost, as an ADDITIONAL cost. It composes with an ALTERNATIVE cost (CR
@@ -6271,7 +6285,7 @@ export function finalizeTargetSelection(
     // clobbering the other. `foldKickerCosts` iterates only the PAID kickers, so
     // this is a no-op for a plain alt-cost cast. Folded BEFORE cost modifiers so
     // reductions/increases apply to the total (CR 601.2f).
-    foldKickerCosts(manaCost, cardDef, kickerPayments, chosenX);
+    foldKickerCosts(manaCost, cardDef, kickerPayments, chosenX, chosenXColors);
     // CR 702.27a / 601.2f — mirrors the Kicker fold above for Buyback's
     // additional cost.
     foldBuybackCost(manaCost, cardDef, buybackPaid);
@@ -6969,6 +6983,13 @@ export const announceCast = mutation({
         /** Value chosen for X at cast-time (CR 107.3, 601.2b). Required when
          *  the spell has `X: "X"` in its mana cost. */
         chosenX: v.optional(v.number()),
+        /** CR 107.3a / 601.2h (issue #4506) — the DISTINCT colours the caster
+         *  announces for X (one entry per point of X, no repeats, coloured
+         *  only), required iff `chosenX > 0` on a spell whose printed cost or
+         *  a paid Kicker carries `ManaCost.xSpendDistinctColors` ("spend only
+         *  coloured mana on X, no more than one of each colour", Emblazoned
+         *  Golem). Rejected for every other spell. */
+        chosenXColors: v.optional(v.array(v.string())),
         /** CR 702.33 — which of this spell's optional Kickers to pay as it is
          *  cast, and how many times each, keyed by `KickerCost.id`
          *  (omitted/empty = don't kick). A single Kicker accepts 0 or 1; a
@@ -7537,6 +7558,54 @@ export const announceCast = mutation({
                 ? args.chosenX
                 : derivedGraveyardX;
 
+        // CR 107.3a / 601.2h (issue #4506) — "Spend only colored mana on X.
+        // No more than one mana of each color may be spent this way."
+        // (Emblazoned Golem). Unlike `xSpendColors` (a card-declared FIXED
+        // colour set), the colours here are the CASTER's own choice, so — just
+        // as CR 601.2b already makes the caster announce a hybrid pip's
+        // non-hybrid equivalent at this same step — they are named right here,
+        // alongside X itself. Validated for shape only (distinct, coloured,
+        // right count); actual affordability is the ordinary payment gate's
+        // job once these fold into ordinary colour pips below.
+        const requiresDistinctColorX =
+            (hasX && cardDef.manaCost?.xSpendDistinctColors === true) ||
+            paidKickersRequireDistinctColorX(cardDef, kickerPayments);
+        if (requiresDistinctColorX) {
+            const wantedX = chosenX ?? 0;
+            if (wantedX > 0) {
+                const picked = args.chosenXColors ?? [];
+                if (picked.length !== wantedX) {
+                    throw new Error(
+                        `Must choose exactly ${wantedX} distinct colour(s) for X (CR 107.3a, 601.2b)`
+                    );
+                }
+                if (new Set(picked).size !== picked.length) {
+                    throw new Error(
+                        "X must be paid with distinct colours — no colour twice (CR 601.2h)"
+                    );
+                }
+                if (
+                    picked.some(
+                        (c) =>
+                            !(
+                                COLORED_MANA_COLORS as readonly string[]
+                            ).includes(c)
+                    )
+                ) {
+                    throw new Error(
+                        "X must be paid with colored mana only (CR 601.2h)"
+                    );
+                }
+            } else if (args.chosenXColors && args.chosenXColors.length > 0) {
+                throw new Error("X is 0 — no colours to choose");
+            }
+        } else if (args.chosenXColors !== undefined) {
+            throw new Error(`${cardDef.name} has no distinct-colour X to pay`);
+        }
+        const chosenXColors = requiresDistinctColorX
+            ? (args.chosenXColors as Color[] | undefined)
+            : undefined;
+
         // Modal spell — caster locks in a mode at announcement (CR 700.2c).
         // The chosen mode's targetRequirement / resolve drive the rest of
         // the announcement and resolution flow.
@@ -7909,6 +7978,7 @@ export const announceCast = mutation({
                 selected: [],
                 keepPriority: args.keepPriority,
                 chosenX,
+                ...(chosenXColors ? { chosenXColors } : {}),
                 ...(kickerPayments ? { kickerPayments } : {}),
                 ...(buybackPaid ? { buybackPaid: true } : {}),
                 // CR 601.3c / 601.6a — the announcement-time surcharge verdict
@@ -8012,13 +8082,20 @@ export const announceCast = mutation({
         if (chosenAltCost) {
             const altManaCost = normalizeManaCost(chosenAltCost.mana ?? {}, {
                 chosenX,
+                chosenXColors,
             });
             // CR 702.33a / 601.2f — a Kicker is an ADDITIONAL cost, so it
             // composes with the alternative cost rather than being replaced by
             // it: the kicker's mana folds ON TOP of the alt cost's mana leg, and
             // its permanent / hand / life legs join the alt cost's in the same
             // pickers (ADR 0079).
-            foldKickerCosts(altManaCost, cardDef, kickerPayments, chosenX);
+            foldKickerCosts(
+                altManaCost,
+                cardDef,
+                kickerPayments,
+                chosenX,
+                chosenXColors
+            );
             // CR 601.3c / 601.2f (issue #2146 review, finding 3) — the
             // conditional-flash surcharge composes with an alternative cost the
             // same way the Kicker above does: the alt cost replaces the PRINTED
@@ -8334,10 +8411,18 @@ export const announceCast = mutation({
         // graveyard instead of the printed mana cost.
         const rawCost = castRawManaCost(state, cardInHand, castFromZone);
 
-        const manaCost = rawCost ? normalizeManaCost(rawCost, { chosenX }) : {};
+        const manaCost = rawCost
+            ? normalizeManaCost(rawCost, { chosenX, chosenXColors })
+            : {};
         // CR 702.33a — fold the optional Kicker cost into the total (before cost
         // modifiers, CR 601.2f). No-op when the caster didn't kick.
-        foldKickerCosts(manaCost, cardDef, kickerPayments, chosenX);
+        foldKickerCosts(
+            manaCost,
+            cardDef,
+            kickerPayments,
+            chosenX,
+            chosenXColors
+        );
         // CR 702.27a — fold the optional Buyback cost into the total the same
         // way. No-op when the caster didn't pay it.
         foldBuybackCost(manaCost, cardDef, buybackPaid);

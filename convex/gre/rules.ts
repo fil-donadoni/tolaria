@@ -98,6 +98,8 @@ import type { TextChangeCarrier } from "./textChanges";
 import {
     convokeEligibleCreatures,
     coverColoredAndHybridPips,
+    consumeColoredAndHybridPips,
+    greedyDistinctColorMatch,
     creatureConvokeColors,
     delveEligibleCards,
     spellHasConvoke,
@@ -1949,10 +1951,23 @@ function spellHasImprovise(card: CardInstanceState): boolean {
     );
 }
 
-function coloredCostLeftover(
+/** CR 601.2g / 609.4b / 602.5b (issue #4506) — the mana-producing UNITS a
+ *  castability probe draws from: pool mana, spendable restricted mana, every
+ *  board mana source (`boardManaUnits`), CR 609.4b substitutions widening what
+ *  a source may PAY, and the `payWith` pseudo-sources (Improvise / Delve /
+ *  Convoke). Split out of `coloredCostLeftover` (which now just consumes
+ *  `cost`'s pips from the sources this returns) so
+ *  `maxAffordableDistinctColorX` can draw from the SAME census — an
+ *  Emblazoned-Golem-shaped "spend only coloured mana, one per colour" X needs
+ *  the actual LEFTOVER source sets, not just their count, to know which
+ *  colours are reachable (primitive-reuse rule: one board census, not two).
+ *  Cost-blind on purpose — nothing here reads WHAT is being paid for, only
+ *  what CAN pay, so the same result serves every `cost` a caller probes. See
+ *  the `opts` fields' own doc (unchanged from `coloredCostLeftover`, which
+ *  re-exports this type) for `payWith` / `state` / `printedManaCostOnly`. */
+export function buildManaSourceUnits(
     player: PlayerState,
     card: CardInstanceState,
-    cost: Record<string, number>,
     opts: {
         /** CR 601.2g (`payWith`, ADR 0063) — include the chosen-resource pseudo
          *  sources (delve's graveyard cards) in the probe. Default true: the
@@ -2007,7 +2022,7 @@ function coloredCostLeftover(
          *  than offering a cast the payment layer will refuse. */
         printedManaCostOnly?: boolean;
     } = {}
-): number | null {
+): Set<Color>[] {
     const includePayWith = opts.payWith ?? true;
     // CR 601.2f (issue #1338) — "You can't spend mana to cast this spell"
     // (Hogaak). When set, NO real mana source counts toward affordability: every
@@ -2035,27 +2050,6 @@ function coloredCostLeftover(
     const spellSupertypes =
         tryGetDefinition((card.card as { id?: string }).id ?? "")?.supertypes ??
         [];
-    // CR 202.1a — guild-hybrid pips are read off the COST BEING PAID and matched
-    // by the shared greedy below (a real source or a convoke creature of either
-    // colour pays each). Orthogonal to Phyrexian pips — no card carries both.
-    //
-    // The cost, not the card's PRINTED cost (issue #2981). `normalizeManaCost`
-    // folds each hybrid pip into the normalized record under its composite
-    // `"R/W"` key, and every payment-side reader takes them back out of the
-    // cost with this same helper (`isManaCostCovered`, `payHybridPips`,
-    // `assignHybridPips`'s callers — all in `gre/state.ts`). This probe was the
-    // one site reading the printed cost instead, which only stayed invisible
-    // while a cost SUBSTITUTION could never reach here: a waived cast probed
-    // `{}`, whose `totalRequired` is 0, so `canPotentiallyPayCost` returned
-    // early and never called this function. Once cost modifiers fold onto that
-    // empty cost, an increase makes `totalRequired` positive, this probe runs,
-    // and reading the PRINTED cost demanded the guild-hybrid pips the waiver
-    // had just zeroed — pips no payment site charges. The gate then refused the
-    // cast outright (`assertLegalAction` consults it too), so the Cast button
-    // vanished and the mutation threw. Reading the passed cost also retires the
-    // same mismatch for a flashback / escape / madness override cost on a
-    // hybrid-printed card, where the override replaces the printed pips.
-    const hybridPips = normalizedHybridPips(cost as Record<string, number>);
     // See `opts.state` doc above: only built when the caller passed a full
     // `GameState`, and always spans EVERY player, never just `player`. Shared
     // with moves.ts / game.ts via `manaGateBattlefields` (issue #1754 finding
@@ -2250,12 +2244,88 @@ function coloredCostLeftover(
         }
     }
 
+    return sources;
+}
+
+function coloredCostLeftover(
+    player: PlayerState,
+    card: CardInstanceState,
+    cost: Record<string, number>,
+    opts: Parameters<typeof buildManaSourceUnits>[2] = {}
+): number | null {
+    // CR 202.1a — guild-hybrid pips are read off the COST BEING PAID and matched
+    // by the shared greedy below (a real source or a convoke creature of either
+    // colour pays each). Orthogonal to Phyrexian pips — no card carries both.
+    //
+    // The cost, not the card's PRINTED cost (issue #2981). `normalizeManaCost`
+    // folds each hybrid pip into the normalized record under its composite
+    // `"R/W"` key, and every payment-side reader takes them back out of the
+    // cost with this same helper (`isManaCostCovered`, `payHybridPips`,
+    // `assignHybridPips`'s callers — all in `gre/state.ts`). This probe was the
+    // one site reading the printed cost instead, which only stayed invisible
+    // while a cost SUBSTITUTION could never reach here: a waived cast probed
+    // `{}`, whose `totalRequired` is 0, so `canPotentiallyPayCost` returned
+    // early and never called this function. Once cost modifiers fold onto that
+    // empty cost, an increase makes `totalRequired` positive, this probe runs,
+    // and reading the PRINTED cost demanded the guild-hybrid pips the waiver
+    // had just zeroed — pips no payment site charges. The gate then refused the
+    // cast outright (`assertLegalAction` consults it too), so the Cast button
+    // vanished and the mutation threw. Reading the passed cost also retires the
+    // same mismatch for a flashback / escape / madness override cost on a
+    // hybrid-printed card, where the override replaces the printed pips.
+    const hybridPips = normalizedHybridPips(cost as Record<string, number>);
+    const sources = buildManaSourceUnits(player, card, opts);
     // Greedy: assign single-colour then guild-hybrid pips, each to the
     // least-flexible source able to pay it, and return the leftover sources the
     // generic portion ({cost.X}) draws from — or null when a coloured/hybrid pip
     // can't be covered. The one shared primitive (`gre/payWith.ts`) the convoke
     // coverage computation reuses (primitive-reuse rule).
     return coverColoredAndHybridPips(sources, cost, hybridPips);
+}
+
+/** CR 107.3a / 601.2h (issue #4506) — the castability CEILING for a "spend
+ *  only coloured mana on X, no more than one mana of each colour" leg
+ *  (Emblazoned Golem's Kicker {X}): the largest X such that the caster's
+ *  leftover mana sources — everything `buildManaSourceUnits` finds, AFTER
+ *  paying `fixedCost`'s own coloured/hybrid pips (the whole cast's cost with
+ *  X priced at 0, exactly what `maxAffordableXOverCost` calls its own
+ *  `fixedCost`) — could still supply X pips of X DISTINCT colours, WITH
+ *  `fixedCost`'s own GENERIC amount (`fixedCost.X`, e.g. Emblazoned Golem's
+ *  printed {2}) still payable out of the same leftover pool afterwards.
+ *
+ *  Two bounds, both necessary: `colorCeiling` — how many distinct colours
+ *  the leftover sources could EVER supply, via `greedyDistinctColorMatch`,
+ *  the same greedy the Bot's own colour PICK uses (`gre/moves.ts`), so
+ *  ceiling and pick can't disagree — and `genericSlack` — how many sources
+ *  remain once `fixedCost.X` of them are set aside for the FLAT generic, which
+ *  the colour match (unlike `coverColoredAndHybridPips`) never consumes.
+ *  Omitting `genericSlack` is the bug this comment exists to flag: on a board
+ *  of exactly one land per colour, `colorCeiling` alone claims X = 5 payable —
+ *  but paying the Golem's own {2} ALSO needs two of those five, so the true
+ *  ceiling is 3. Generic is fungible (any leftover source pays it, of any
+ *  colour), so `min(colorCeiling, leftover.length - fixedCost.X)` is exact,
+ *  not merely conservative: reserving `x ≤ colorCeiling` sources for colours
+ *  always leaves `leftover.length − x` for the rest. A ceiling, not a plan:
+ *  `normalizeManaCost`'s own length check at announcement is what actually
+ *  enforces the picked colours, and the real tap-plan solver
+ *  (`castTapPlans`) is the final word on any one candidate X. */
+export function maxAffordableDistinctColorX(
+    player: PlayerState,
+    card: CardInstanceState,
+    fixedCost: Record<string, number>,
+    state?: GameState
+): number {
+    const hybridPips = normalizedHybridPips(fixedCost);
+    const sources = buildManaSourceUnits(player, card, { state });
+    const leftover = consumeColoredAndHybridPips(
+        sources,
+        fixedCost,
+        hybridPips
+    );
+    if (leftover === null) return 0;
+    const colorCeiling = greedyDistinctColorMatch(leftover).length;
+    const genericSlack = leftover.length - (fixedCost.X ?? 0);
+    return Math.max(0, Math.min(colorCeiling, genericSlack));
 }
 
 /** Whether the player can pay a fully-normalized mana cost (colored pips + the

@@ -47,6 +47,7 @@ import {
 import type { LayerStateView } from "./layers";
 import {
     MANA_COLORS,
+    COLORED_MANA_COLORS,
     LAND_SUBTYPE_MANA,
     hybridCostKey,
     parseHybridCostKey,
@@ -161,7 +162,7 @@ export function isPlaneswalker(card: CardInstanceState): boolean {
  *  dependency-free `gre/manaColors.ts` leaf (see the re-export note above);
  *  re-exported here so every existing `from "../gre/constants"` import site
  *  is unaffected. */
-export { MANA_COLORS };
+export { MANA_COLORS, COLORED_MANA_COLORS };
 
 /** Guild-hybrid pip helpers for a NORMALIZED cost (CR 202.1a, issue #1738).
  *  Canonical definitions live in the same dependency-free leaf; re-exported

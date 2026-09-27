@@ -27,7 +27,11 @@ import {
     modePickerConstraint,
     viewerModeSelectionFacts,
 } from "~/lib/mode-picker-constraint";
-import { kickedCountOfPayments, kickerAnnouncesX } from "@convex/gre/kicker";
+import {
+    kickedCountOfPayments,
+    kickerAnnouncesX,
+    kickerAnnouncesDistinctColorX,
+} from "@convex/gre/kicker";
 import AltCostPicker from "~/components/cards/alt-cost-picker";
 import { isCastPermissionAltCostId } from "@convex/gre/castPermissions";
 import { splitCastOptionsFor } from "@convex/gre/splitCast";
@@ -118,6 +122,11 @@ type CostDialogState = {
               description: string;
               multi: boolean;
               announcesX: boolean;
+              /** CR 107.3a / 601.2h (issue #4506) — this Kicker's `{X}` is
+               *  "spend only colored mana on X, no more than one of each
+               *  color" (Emblazoned Golem): the dialog also collects X
+               *  distinct colours. */
+              requiresDistinctColorX: boolean;
           }[]
         | undefined;
     buyback: boolean;
@@ -277,6 +286,14 @@ export function useHandCardCommit(
          *  pay ("discard a card or pay 3 life"). Required by the server for a
          *  card declaring `additionalCosts.oneOf`, rejected for any other. */
         additionalCostLegId?: string | undefined;
+        /** CR 107.3a / 601.2h (issue #4506) — the DISTINCT colours chosen for
+         *  X on a `requiresDistinctColorX` Kicker (Emblazoned Golem). Only the
+         *  DIRECT dialog → dispatch path forwards this today — no shipped
+         *  card combines the restriction with a mode / alt-cost / caster-chosen
+         *  additional cost / Phyrexian split, so those intermediate pickers
+         *  don't carry it; a future card that does would hit the server's own
+         *  "must choose colours" rejection rather than a silently wrong cast. */
+        chosenXColors?: string[] | undefined;
     }) {
         // Every pre-cast picker is DONE the moment the cast is dispatched —
         // clear them all here rather than trusting each picker to close itself.
@@ -309,6 +326,7 @@ export function useHandCardCommit(
                     payFlashSurcharge: args.payFlashSurcharge,
                     phyrexianLifePips: args.phyrexianLifePips,
                     additionalCostLegId: args.additionalCostLegId,
+                    chosenXColors: args.chosenXColors,
                 })
             )
         ).catch(reportError);
@@ -339,6 +357,10 @@ export function useHandCardCommit(
          *  on the first pass — which is exactly the "not asked yet" signal the
          *  leg gate reads. */
         additionalCostLegId?: string | undefined;
+        /** CR 107.3a / 601.2h (issue #4506) — see `commitAnnounceCast`'s own
+         *  doc on this field: forwarded only to the direct dispatch at the
+         *  bottom of this function. */
+        chosenXColors?: string[] | undefined;
     }) {
         const {
             chosenX,
@@ -348,6 +370,7 @@ export function useHandCardCommit(
             keepPriority,
             position,
             additionalCostLegId,
+            chosenXColors,
         } = params;
         const def = getDefinition(cardInstance.card.id);
         // CR 700.2 — modal spell: pick a mode before announcement.
@@ -611,6 +634,7 @@ export function useHandCardCommit(
             buyback,
             payFlashSurcharge,
             additionalCostLegId,
+            chosenXColors,
         });
     }
 
@@ -716,6 +740,7 @@ export function useHandCardCommit(
                     description: k.description,
                     multi: k.multi === true,
                     announcesX: kickerAnnouncesX(k),
+                    requiresDistinctColorX: kickerAnnouncesDistinctColorX(k),
                 })),
                 buyback: def.buyback !== undefined,
                 flashSurcharge,
@@ -917,6 +942,7 @@ export function useHandCardCommit(
                 kickerPayments,
                 buyback,
                 payFlashSurcharge,
+                chosenXColors,
             }) => {
                 const { keepPriority, position } = costDialogState;
                 setCostDialogState(null);
@@ -927,6 +953,7 @@ export function useHandCardCommit(
                     payFlashSurcharge,
                     keepPriority,
                     position,
+                    chosenXColors,
                 });
             }}
             onCancel={() => setCostDialogState(null)}

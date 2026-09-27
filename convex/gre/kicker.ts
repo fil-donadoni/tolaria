@@ -545,6 +545,32 @@ export function kickerAnnouncesX(kicker: Pick<KickerCost, "mana">): boolean {
     return typeof kicker.mana?.X === "string";
 }
 
+/** CR 107.3a / 601.2h (issue #4506) — does this Kicker's `{X}` also carry the
+ *  "spend only coloured mana, no more than one of each colour" restriction
+ *  (Emblazoned Golem)? Distinct from `kickerAnnouncesX` because a card can
+ *  announce X for a Kicker without this extra colour-distinctness rule
+ *  (Verdeloth's `{X}` is plain generic). */
+export function kickerAnnouncesDistinctColorX(
+    kicker: Pick<KickerCost, "mana">
+): boolean {
+    return (
+        kickerAnnouncesX(kicker) && kicker.mana?.xSpendDistinctColors === true
+    );
+}
+
+/** CR 107.3a / 601.2h (issue #4506) — does THIS cast owe a caster-chosen
+ *  DISTINCT-colour set for X because of a paid Kicker (`kickerAnnouncesDistinctColorX`)?
+ *  Sibling of `paidKickersAnnounceX`, same "one X per spell" reasoning (CR
+ *  107.3a). */
+export function paidKickersRequireDistinctColorX(
+    cardDef: CardDefinition,
+    payments: KickerPayments | undefined
+): boolean {
+    return paidKickers(cardDef, payments).some(({ kicker }) =>
+        kickerAnnouncesDistinctColorX(kicker)
+    );
+}
+
 /** CR 107.3a / 601.2b — does THIS cast owe an announced X because of a paid
  *  Kicker? True iff at least one Kicker the caster chose to pay carries `{X}`
  *  in its mana leg. An unpaid `{X}` Kicker is not a cost "that will be paid as
@@ -573,11 +599,16 @@ export function foldKickerCosts(
     cost: Record<string, number>,
     cardDef: CardDefinition,
     payments: KickerPayments | undefined,
-    chosenX: number | undefined
+    chosenX: number | undefined,
+    /** CR 107.3a / 601.2h (issue #4506) — the caster's announced DISTINCT
+     *  colours for a Kicker's `xSpendDistinctColors` `{X}` (Emblazoned Golem).
+     *  Forwarded to `normalizeManaCost` untouched; irrelevant (and unused) for
+     *  every Kicker without that flag. */
+    chosenXColors?: Color[]
 ): void {
     for (const { kicker, times } of paidKickers(cardDef, payments)) {
         if (!kicker.mana) continue;
-        const per = normalizeManaCost(kicker.mana, { chosenX });
+        const per = normalizeManaCost(kicker.mana, { chosenX, chosenXColors });
         for (const [sym, amt] of Object.entries(per)) {
             cost[sym] = (cost[sym] ?? 0) + amt * times;
         }

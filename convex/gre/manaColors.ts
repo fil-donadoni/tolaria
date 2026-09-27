@@ -13,6 +13,14 @@ import type { Color, ManaSubstitutionBreadth } from "../cards/types";
 /** All six mana colors in canonical order. */
 export const MANA_COLORS = ["W", "U", "B", "R", "G", "C"] as const;
 
+/** The five COLOURED mana types — `MANA_COLORS` minus colourless `"C"` (CR
+ *  105.1). Shared by every "spend only coloured mana" cost restriction
+ *  (issue #4506, `ManaCost.xSpendDistinctColors` — Emblazoned Golem): the set
+ *  a caster may pick from when no generic/colourless pip counts. */
+export const COLORED_MANA_COLORS = MANA_COLORS.filter(
+    (c): c is Exclude<Color, "C"> => c !== "C"
+);
+
 // ─── "Spend mana as though it were mana of any …" (CR 609.4b) ────────────────
 //
 // CR 609.4b — "If an effect allows a player to spend mana 'as though it were
