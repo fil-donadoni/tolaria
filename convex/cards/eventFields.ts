@@ -323,6 +323,19 @@ export const EVENT_FIELD_REGISTRY: Record<
                 e.type === "PERMANENT_LEFT" ? e.ownerId : undefined,
         },
     },
+    // CR 701.17a / issue #3011 — "When this card is put into your graveyard
+    // from your library, shuffle your graveyard into your library" (Gaea's
+    // Blessing). The milled card's OWNER is the player whose library and
+    // graveyard it moved between, and `CARD_MILLED` already carries it. The
+    // trigger's controller is not a safe stand-in: it is copied from the
+    // source's `controllerId`, which a card cast by a non-owner can still
+    // carry into its owner's graveyard. Mirrors `PERMANENT_LEFT.ownerId`.
+    CARD_MILLED: {
+        ownerId: {
+            family: "player",
+            resolve: (e) => (e.type === "CARD_MILLED" ? e.ownerId : undefined),
+        },
+    },
     // CR 121.1 / 117.3a / issue #1946 — "whenever a player draws a card, THAT
     // PLAYER loses 2 life unless they pay {2}" (Phyrexian Tyranny). The
     // drawing player is CR 117.3a's "triggering player" for the mayPay

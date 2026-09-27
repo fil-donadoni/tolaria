@@ -17,9 +17,12 @@ import type { CardDefinition, GameEvent } from "../../types";
 //
 // Clause 3 is `moveZone`'s whole-zone shape (graveyard → library, issue
 // #1279) + a `libraryLook` shuffle — Feldon's Cane's composition
-// (atq/colorless). The milled card's owner is the player whose library it
-// left (CR 701.17 — a mill never crosses owners), and that owner controls the
-// trigger, so `"controller"` names the right graveyard whoever caused the mill.
+// (atq/colorless). Both Ops name `{ ref: "$event.ownerId" }`: the milled
+// card's owner is the player whose library it left (CR 701.17 — a mill never
+// crosses owners), whoever caused the mill. CR 113.8 / 108.4a make that owner
+// the trigger's controller too, but the engine copies the trigger's
+// controller from the source's `controllerId`, which a card cast by a
+// non-owner can still carry, so the event is the field to read.
 export const gaeasBlessing: CardDefinition = {
     id: "ee83d511-57e0-40fb-a4db-62f6c2c39888",
     rarity: "uncommon",
@@ -64,17 +67,20 @@ export const gaeasBlessing: CardDefinition = {
                 event.type === "CARD_MILLED" &&
                 event.cardInstanceId === self.id,
             // CR 701.24 — shuffle the OWNER's graveyard into their library:
-            // Feldon's Cane's composition (atq/colorless.ts). "controller" is
-            // the owner here: a graveyard card has no controller, so the
-            // trigger is controlled by its source's owner (CR 113.8, 108.4a).
+            // Feldon's Cane's composition (atq/colorless.ts), aimed at the
+            // milled card's owner read off the firing event.
             effects: [
                 {
                     op: "moveZone",
-                    player: "controller",
+                    player: { ref: "$event.ownerId" },
                     from: "graveyard",
                     to: "library",
                 },
-                { op: "libraryLook", action: "shuffle", player: "controller" },
+                {
+                    op: "libraryLook",
+                    action: "shuffle",
+                    player: { ref: "$event.ownerId" },
+                },
             ],
         },
     ],
