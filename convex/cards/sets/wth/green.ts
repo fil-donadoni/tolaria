@@ -1,5 +1,5 @@
 // wth — green cards (ADR 0043 colour split).
-import type { CardDefinition, GameEvent, SpellContext } from "../../types";
+import type { CardDefinition, GameEvent } from "../../types";
 
 // Gaea's Blessing — {1}{G} Sorcery (issue #1055 — the mill / library→graveyard
 // zone-change trigger). Oracle (three clauses):
@@ -15,15 +15,14 @@ import type { CardDefinition, GameEvent, SpellContext } from "../../types";
 //      instance id, that shuffles the OWNER's whole graveyard back into their
 //      library.
 //
-// resolve() JUSTIFICATION (clause 3, DSL-first escape hatch): the effect is a
-// WHOLE-graveyard bulk move (every card graveyard→library) + shuffle. There is
-// no DSL Op for a bulk graveyard-set move — that gap is tracked as issue #1056
-// (needs-design) and is NOT this issue. The imperative form here is the exact,
-// already-shipped Feldon's Cane composition (atq/colorless): the
-// `moveZone(owner, graveyard→library)` + `shuffleLibrary(owner)` SpellContext
-// primitives. resolve() reads the firing event's `ownerId` (CARD_MILLED) so it
-// shuffles the graveyard of the player whose library the card was milled from,
-// regardless of who caused the mill (CR 701.17 — a mill never crosses owners).
+// Clause 3 is `moveZone`'s whole-zone shape (graveyard → library, issue
+// #1279) + a `libraryLook` shuffle — Feldon's Cane's composition
+// (atq/colorless). Both Ops name `{ ref: "$event.ownerId" }`: the milled
+// card's owner is the player whose library it left (CR 701.17 — a mill never
+// crosses owners), whoever caused the mill. CR 113.8 / 108.4a make that owner
+// the trigger's controller too, but the engine copies the trigger's
+// controller from the source's `controllerId`, which a card cast by a
+// non-owner can still carry, so the event is the field to read.
 export const gaeasBlessing: CardDefinition = {
     id: "ee83d511-57e0-40fb-a4db-62f6c2c39888",
     rarity: "uncommon",
@@ -67,14 +66,22 @@ export const gaeasBlessing: CardDefinition = {
             matches: (event: GameEvent, self) =>
                 event.type === "CARD_MILLED" &&
                 event.cardInstanceId === self.id,
-            // resolve() — whole-graveyard bulk move has no DSL Op (issue #1056);
-            // Feldon's Cane composition (see file-level justification above).
-            resolve: (ctx: SpellContext, event: GameEvent) => {
-                if (event.type !== "CARD_MILLED") return;
-                // CR 701.24 — shuffle the OWNER's graveyard into their library.
-                ctx.moveZone(event.ownerId, "graveyard", "library");
-                ctx.shuffleLibrary(event.ownerId);
-            },
+            // CR 701.24 — shuffle the OWNER's graveyard into their library:
+            // Feldon's Cane's composition (atq/colorless.ts), aimed at the
+            // milled card's owner read off the firing event.
+            effects: [
+                {
+                    op: "moveZone",
+                    player: { ref: "$event.ownerId" },
+                    from: "graveyard",
+                    to: "library",
+                },
+                {
+                    op: "libraryLook",
+                    action: "shuffle",
+                    player: { ref: "$event.ownerId" },
+                },
+            ],
         },
     ],
 };

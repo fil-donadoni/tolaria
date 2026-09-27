@@ -389,7 +389,10 @@ export const stoneCalendar: CardDefinition = {
 
 // Tormod's Crypt — "{T}, Sacrifice this artifact: Exile target player's
 // graveyard." (CR 605 activated ability; CR 406 / 400.7 — move the whole target
-// player's graveyard to exile via `moveZone`.)
+// player's graveyard to exile.) An Effect Script on `moveZone`'s whole-zone
+// shape (issue #1279), a skin over the same `ctx.moveZone(player,
+// "graveyard", "exile")` the old closure called; `{ target: 0 }` skips a
+// target that is no longer a player (CR 608.2b), as the closure's guard did.
 export const tormodsCrypt: CardDefinition = {
     id: "0f9668ba-d26d-4484-b4b8-6fb91fbfb617",
     rarity: "uncommon",
@@ -406,11 +409,14 @@ export const tormodsCrypt: CardDefinition = {
             cost: { tap: true, sacrifice: true },
             useStack: true,
             targetRequirement: { type: "player", count: 1 },
-            resolve: (ctx: SpellContext) => {
-                const t = ctx.targets[0];
-                if (t?.type !== "player") return;
-                ctx.moveZone(t.id, "graveyard", "exile");
-            },
+            effects: [
+                {
+                    op: "moveZone",
+                    player: { target: 0 },
+                    from: "graveyard",
+                    to: "exile",
+                },
+            ],
         },
     ],
 };

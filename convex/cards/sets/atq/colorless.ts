@@ -199,9 +199,9 @@ export const obeliskOfUndoing: CardDefinition = {
 
 // Feldon's Cane — {1} Artifact. "{T}, Exile this artifact: Shuffle your
 // graveyard into your library." (CR 400.7 zone change + CR 701.24 shuffle.)
-// Composition: moveZone(graveyard → library) appends the graveyard cards to the
-// library, then shuffleLibrary randomizes — exactly "shuffle your graveyard
-// into your library".
+// Composition: `moveZone`'s whole-zone shape (graveyard → library, issue
+// #1279) appends the graveyard cards to the library, then `libraryLook`
+// shuffles — exactly "shuffle your graveyard into your library".
 //
 // "Exile this artifact" is a COST (CR 118.1; CR 601.2h via CR 602.2b — costs
 // are paid while the ability is put on the stack), declared as
@@ -224,10 +224,15 @@ export const feldonsCane: CardDefinition = {
                 "{T}, Exile this artifact: Shuffle your graveyard into your library.",
             cost: { tap: true, exileThis: true },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.moveZone(ctx.controller, "graveyard", "library");
-                ctx.shuffleLibrary(ctx.controller);
-            },
+            effects: [
+                {
+                    op: "moveZone",
+                    player: "controller",
+                    from: "graveyard",
+                    to: "library",
+                },
+                { op: "libraryLook", action: "shuffle", player: "controller" },
+            ],
         },
     ],
 };

@@ -728,8 +728,13 @@ export const activeVolcano: CardDefinition = {
 // --- Hand / library disruption (CR 121, 701.20) ----------------------------
 
 // Winds of Change — "Each player shuffles the cards from their hand into their
-// library, then draws that many cards." (Composed: count each hand, move
-// hand → library, shuffle, redraw that many. CR 701.24 / 121.1.)
+// library, then draws that many cards." (CR 701.24 / 121.1.)
+// CR 608.2h — "that many" is each hand's size BEFORE the move: the whole-zone
+// `moveZone` shape (issue #1279) records it through `bindCount` (issue
+// #4302) as the hand empties, since a later `draw` could only recount an
+// empty hand. The same three Ops under `forEach { set: "players" }` as
+// Whirlpool Warrior's activated half (apc/blue.ts): a body binding is scoped
+// to its iteration, so each player draws back their OWN hand size.
 export const windsOfChange: CardDefinition = {
     id: "186fd917-8d65-4de5-8546-a32a5f6d3bab",
     rarity: "uncommon",
@@ -738,23 +743,31 @@ export const windsOfChange: CardDefinition = {
         "Each player shuffles the cards from their hand into their library, then draws that many cards.",
     manaCost: { R: 1 },
     types: ["Sorcery"],
-    // NOT DSL-migratable (ADR 0045): the whole-hand-zone move gap #1279
-    // tracked is now CLOSED (`moveZone`'s bulk whole-zone shape, no
-    // target/cards) — Timetwister / Echo of Eons / Wheel of Fortune / Anje's
-    // Ravager all migrated on it. Winds of Change stays resolve() on a
-    // DIFFERENT, narrower gap that shape doesn't close: "then draws THAT MANY
-    // cards" needs each player's hand size captured BEFORE the shuffle (the
-    // whole-zone move carries no count-of-cards-moved bind, and the `count`
-    // construct doesn't support `zone: "hand"`). Blocked on: a dynamic
-    // count-of-cards-moved / hand-size-count capability. tracked-by: #1388
-    resolve: (ctx: SpellContext) => {
-        for (const pid of ctx.allPlayerIds) {
-            const handSize = ctx.getHandSize(pid);
-            ctx.moveZone(pid, "hand", "library");
-            ctx.shuffleLibrary(pid);
-            ctx.drawCards(pid, handSize);
-        }
-    },
+    effects: [
+        {
+            op: "forEach",
+            select: { set: "players" },
+            effects: [
+                {
+                    op: "moveZone",
+                    player: { ref: "$each" },
+                    from: "hand",
+                    to: "library",
+                    bindCount: "$eachHandSize",
+                },
+                {
+                    op: "libraryLook",
+                    action: "shuffle",
+                    player: { ref: "$each" },
+                },
+                {
+                    op: "draw",
+                    player: { ref: "$each" },
+                    count: { ref: "$eachHandSize" },
+                },
+            ],
+        },
+    ],
 };
 
 // Aerathi Berserker — {2}{R}{R}{R} 2/4, Rampage 3.

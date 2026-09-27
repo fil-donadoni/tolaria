@@ -541,12 +541,6 @@
     },
     {
         "class": "card",
-        "cardId": "186fd917-8d65-4de5-8546-a32a5f6d3bab",
-        "name": "Winds of Change",
-        "note": "no honest shadow script: pre-existing resolve() card, backfill tracked by #1436"
-    },
-    {
-        "class": "card",
         "cardId": "fb846366-2105-4999-8af1-a11687f42e17",
         "name": "Winter Blast",
         "note": "no honest shadow script: pre-existing resolve() card, backfill tracked by #1436"
@@ -1331,13 +1325,6 @@
     },
     {
         "class": "ability",
-        "cardId": "bb6af436-bcfd-4d47-a1aa-e84b587a725a",
-        "name": "Feldon's Cane",
-        "abilityId": "feldons-cane-shuffle",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
         "cardId": "3eb27381-505d-4e47-bf66-9e7ba91a5075",
         "name": "Firebreathing",
         "abilityId": "firebreathing-pump",
@@ -1404,13 +1391,6 @@
         "cardId": "3efbe59d-bebc-40b1-85ac-2e4c1ff3731e",
         "name": "Fyndhorn Pollen",
         "abilityId": "fyndhorn-pollen-cumulative-upkeep",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
-        "cardId": "ee83d511-57e0-40fb-a4db-62f6c2c39888",
-        "name": "Gaea's Blessing",
-        "abilityId": "gaeas-blessing-mill-shuffle",
         "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
     },
     {
@@ -2930,13 +2910,6 @@
         "cardId": "d43c01b7-443d-4061-a934-6863d230c9b8",
         "name": "Tolaria",
         "abilityId": "tolaria-strip",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
-        "cardId": "0f9668ba-d26d-4484-b4b8-6fb91fbfb617",
-        "name": "Tormod's Crypt",
-        "abilityId": "tormods-crypt-exile-graveyard",
         "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
     },
     {

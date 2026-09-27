@@ -193,3 +193,49 @@ describe("Gaea's Blessing — mill self-trigger (CR 701.17 / 603.6e, issue #1055
         expect(libIds).toContain("junk");
     });
 });
+
+describe("Gaea's Blessing — the mill trigger shuffles the milled card's OWNER's graveyard (CR 701.17a / 108.4a, issue #3011)", () => {
+    it("a stale non-owner controllerId on the source does not redirect the shuffle", () => {
+        // Cast by p2 under a cross-player permission, the card reached p1's
+        // graveyard still carrying p2 as `controllerId`; the trigger inherits
+        // it. The shuffle must still act on the owner's zones.
+        const gaea = makeInstance(gaeasBlessing.id, {
+            id: "gaea",
+            controllerId: "p2",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        const ownersJunk = makeInstance(FOREST, {
+            id: "p1-junk",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        const castersJunk = makeInstance(FOREST, {
+            id: "p2-junk",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "graveyard",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { graveyard: [gaea, ownersJunk] }),
+                makePlayer("p2", { graveyard: [castersJunk] }),
+            ],
+        });
+        resolveTrigger(
+            state,
+            gaea,
+            MILL_ABILITY,
+            MILLED("p1", "gaea", gaeasBlessing.id)
+        );
+        expect(state.players[0].graveyard).toHaveLength(0);
+        expect(state.players[0].library.map((c) => c.id).sort()).toEqual([
+            "gaea",
+            "p1-junk",
+        ]);
+        expect(state.players[1].graveyard.map((c) => c.id)).toEqual([
+            "p2-junk",
+        ]);
+    });
+});
