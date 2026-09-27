@@ -87,6 +87,7 @@ import {
 const REGISTRY: TargetRegistry = {
     handTailFloor: 3,
     handTailFiling: false,
+    clusterCutThreshold: 5,
     targets: [
         {
             id: "format-premodern",
@@ -1084,6 +1085,7 @@ describe("the ranked set is priority ∪ enforced", () => {
         const registry: TargetRegistry = {
             handTailFloor: 3,
             handTailFiling: true,
+            clusterCutThreshold: 5,
             targets: [
                 {
                     id: "format-premodern",

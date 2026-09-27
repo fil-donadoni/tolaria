@@ -98,6 +98,7 @@ import {
     strongestCardBand,
 } from "./lib/backlog-triage";
 import {
+    applyUpdatedCuts,
     applyUpdatedIssues,
     bandUmbrellaOf,
     buildGrammarGapFilings,
@@ -115,6 +116,7 @@ import {
     issuesWorkedByPrs,
     matchCluster,
     syncAdoptedBlocks,
+    syncClusterCutTickets,
     setFileColour,
     syncGaps,
     syncUnlockEdges,
@@ -164,6 +166,7 @@ import {
     gapIndex,
     parseClaimRows,
     parseClusterRows,
+    parseCutRows,
     readTargetRegistry,
     resolveContext,
     resolveTarget,
@@ -1116,7 +1119,10 @@ function main(): void {
         process.exit(1);
     }
     const lock = parseLockfile(readFileSync(join(root, LOCKFILE_PATH), "utf8"));
-    const allowlist = parseAllowlist(
+    // Reassigned once the write-back below lands, so the Cluster Cut ticket
+    // pass's OWN write-back (further down) starts from the up-to-date rows,
+    // never the tree read at the top of this run.
+    let allowlist = parseAllowlist(
         readFileSync(join(root, ALLOWLIST_PATH), "utf8")
     );
     const registry = readTargetRegistry(root);
@@ -1387,10 +1393,10 @@ function main(): void {
     // leaves the tracker holding issues the allowlist never recorded — the
     // next run would file every one of them again (review of PR #3978).
     if (result.updatedRows.size > 0) {
-        const updated = applyUpdatedIssues(allowlist, result.updatedRows);
+        allowlist = applyUpdatedIssues(allowlist, result.updatedRows);
         writeFileSync(
             join(root, ALLOWLIST_PATH),
-            `${JSON.stringify(updated, null, 4)}\n`
+            `${JSON.stringify(allowlist, null, 4)}\n`
         );
         console.log(
             `gaps:sync: ${result.updatedRows.size} allowlist row(s) updated in ${ALLOWLIST_PATH}`
@@ -1432,6 +1438,45 @@ function main(): void {
                 `cluster    managed blocks not regenerated: ${err instanceof Error ? err.message : String(err)} — re-tried next run`
             );
         }
+    }
+
+    // Cluster Cut tickets (ADR 0146 § Decision 7, issue #4681), after the
+    // write-back and in its own try/catch: a failure here is not a failed
+    // filing, and the `cuts` write-back that follows a `create` is its own
+    // small file write, re-tried next run like the managed blocks above.
+    try {
+        const cutIssues = new Map(
+            parseCutRows(allowlist, ALLOWLIST_PATH).map(
+                (row) => [row.kind, row.issue] as const
+            )
+        );
+        const cuts = syncClusterCutTickets(
+            result.unabsorbable,
+            cutIssues,
+            tracker,
+            registry.clusterCutThreshold
+        );
+        for (const action of cuts.actions) {
+            if (action.action !== "noop")
+                console.log(
+                    `cut        ${action.kind.padEnd(10)} ${action.action} -> issue #${action.issue}`
+                );
+        }
+        if (cuts.updatedRows.size > 0) {
+            allowlist = applyUpdatedCuts(allowlist, cuts.updatedRows);
+            writeFileSync(
+                join(root, ALLOWLIST_PATH),
+                `${JSON.stringify(allowlist, null, 4)}\n`
+            );
+            console.log(
+                `gaps:sync: ${cuts.updatedRows.size} Cluster Cut ticket(s) recorded in ${ALLOWLIST_PATH}`
+            );
+            commitAndPushAllowlist(root);
+        }
+    } catch (err) {
+        console.log(
+            `cut        Cluster Cut tickets not synced: ${err instanceof Error ? err.message : String(err)} — re-tried next run`
+        );
     }
 
     // The NATIVE half of every `## Unlocks` edge, after the write-back: the

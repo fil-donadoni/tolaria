@@ -75,6 +75,7 @@ import {
     resolveContext,
     type ClaimRow,
     type ClusterRow,
+    type CutRow,
 } from "./lib/targets";
 import { parseLockfile } from "./lib/oracle-lockfile";
 
@@ -107,6 +108,12 @@ export interface Allowlist {
      * `parseClusterRows` (`lib/targets.ts`), which validates them fail-closed.
      */
     readonly clusters?: readonly ClusterRow[];
+    /**
+     * The standing Cluster Cut tickets (ADR 0146 § Decision 7, issue #4681),
+     * one row per kind, authored by `gaps:sync` itself — the "clusters-adjacent
+     * record" it finds its own ticket by, never written by `/cluster-gaps`.
+     */
+    readonly cuts?: readonly CutRow[];
 }
 
 export type Violation =

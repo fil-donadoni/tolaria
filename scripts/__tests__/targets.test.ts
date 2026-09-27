@@ -50,6 +50,7 @@ describe("data/targets.json — the registered Target Lists", () => {
     it("carries the seed rows and the registry-level fields", () => {
         expect(registry.handTailFloor).toBe(3);
         expect(registry.handTailFiling).toBe(true);
+        expect(registry.clusterCutThreshold).toBe(5);
         const ids = registry.targets.map((t) => t.id);
         for (const id of [
             "premodern-metagame",
@@ -220,6 +221,7 @@ describe("parseTargetRegistry rejects a malformed registry", () => {
         JSON.stringify({
             handTailFloor: 3,
             handTailFiling: false,
+            clusterCutThreshold: 5,
             targets: [
                 { id: "a", kind: "format", source: "premodern", priority: 1 },
                 { id: "b", kind: "set", source: "data/json/APC.json" },
@@ -263,6 +265,11 @@ describe("parseTargetRegistry rejects a malformed registry", () => {
             "a non-boolean filing switch",
             { handTailFiling: "no" },
             /handTailFiling/,
+        ],
+        [
+            "a non-positive Cluster Cut threshold",
+            { clusterCutThreshold: 0 },
+            /clusterCutThreshold/,
         ],
         ["no targets", { targets: [] }, /non-empty/],
         [
