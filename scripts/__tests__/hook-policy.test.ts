@@ -1333,10 +1333,13 @@ describe("deny-guard — the claim is one locked act: queue:claim, never a hand-
         expect(denied(r)).toBe(false);
     });
 
-    it("allows a release — `--remove-label in-progress` is not a claim", () => {
+    it("allows a whole release — `--remove-label in-progress --remove-assignee` is not a claim", () => {
         const r = runHook(
             DENY_GUARD,
-            bash("gh issue edit 4375 --remove-label in-progress", issueWorktree)
+            bash(
+                "gh issue edit 4375 --remove-label in-progress --remove-assignee @me",
+                issueWorktree
+            )
         );
         expect(denied(r)).toBe(false);
     });
@@ -1413,6 +1416,58 @@ describe("deny-guard — the claim is one locked act: queue:claim, never a hand-
     });
 });
 
+describe("deny-guard — the release is one act too: queue:release, never half a release (issue #4752)", () => {
+    // A label-only release left the `@me` assignee, and the planner deferred
+    // the issue as "assigned — someone is working it" on every pass, forever.
+    it("denies `--remove-label in-progress` without `--remove-assignee`, and names the verb", () => {
+        for (const cmd of [
+            "gh issue edit 4470 --remove-label in-progress",
+            "git fetch && gh issue edit 4470 --remove-label in-progress",
+            "FOO=1 gh issue edit 4470 --remove-label in-progress",
+            "true | gh issue edit 4470 --remove-label in-progress",
+            "gh issue edit 4470 --remove-label=in-progress",
+            'gh issue edit 4470 --remove-label "in-progress"',
+            "gh issue edit 4470 --remove-label in-progress,model:opus",
+            "gh issue edit 4470 --remove-label ready-for-agent,in-progress",
+        ]) {
+            const r = runHook(DENY_GUARD, bash(cmd, issueWorktree));
+            expect(denied(r), `expected DENY for: ${cmd}`).toBe(true);
+            expect(r.stderr).toMatch(/bun run queue:release/);
+        }
+    });
+
+    it("allows the release that removes both, in either order", () => {
+        for (const cmd of [
+            "gh issue edit 4470 --remove-label in-progress --remove-assignee @me",
+            "gh issue edit 4470 --remove-assignee @me --remove-label in-progress",
+        ]) {
+            const r = runHook(DENY_GUARD, bash(cmd, issueWorktree));
+            expect(denied(r), `expected ALLOW for: ${cmd}`).toBe(false);
+        }
+    });
+
+    it("allows `bun run queue:release N`, a label that merely starts with the claim's name, and prose", () => {
+        for (const cmd of [
+            "bun run queue:release 4470",
+            "gh issue edit 4470 --remove-label in-progress-review",
+            "git commit -m 'never type gh issue edit N --remove-label in-progress by hand'",
+        ]) {
+            const r = runHook(DENY_GUARD, bash(cmd, issueWorktree));
+            expect(denied(r), `expected ALLOW for: ${cmd}`).toBe(false);
+        }
+    });
+
+    it("allows the repair hatch, on the command itself", () => {
+        const r = runHook(
+            DENY_GUARD,
+            bash(
+                "TOLARIA_ALLOW_MANUAL_CLAIM=1 gh issue edit 4470 --remove-label in-progress",
+                issueWorktree
+            )
+        );
+        expect(denied(r)).toBe(false);
+    });
+});
 describe("claim-ledger — records what THIS session claimed", () => {
     let projectDir: string;
 
