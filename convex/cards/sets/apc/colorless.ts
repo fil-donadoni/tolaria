@@ -226,7 +226,7 @@ export const emblazonedGolem: CardDefinition = {
             mana: { X: "X", xSpendDistinctColors: true },
         },
     ],
-    // CR 107.3a / 121.6 — `count: "X"` reads the resolving stack item's
+    // CR 107.3a / 122.6a — `count: "X"` reads the resolving stack item's
     // `chosenX` (`resolveEntersWithCounters`, `cards/entersWith.ts`), 0 when
     // unkicked (no X announced at all) — the "if this creature was kicked"
     // intervening clause falls out of that for free, with no separate
