@@ -775,8 +775,16 @@ The **Brain**'s numeric judgement of how good a position is for a given **Player
 _Avoid_: Score, heuristic, fitness
 
 **Card Value**:
-The **Brain**'s worth of a single card, in **Evaluation** units. Has two faces: _latent_ value (potential while the card sits in **Hand**/**Library**/**Graveyard**) and _realized_ value (a **Permanent**'s contribution once on the **Battlefield**, its power/toughness/keywords). Derived from card characteristics (mana value, P/T, keywords), with an optional per-**Card Definition** override for cards the heuristic misjudges. Lets the **Brain** prefer keeping/fetching a bomb over a **Land** and refuse to spend a good card for no effect.
+The **Brain**'s worth of a single card, in **Evaluation** units. Has two faces: _latent_ value (potential while the card sits in **Hand**/**Library**/**Graveyard**, or in **Exile** while its owner may still play it) and _realized_ value (a **Permanent**'s contribution once on the **Battlefield**, its power/toughness/keywords). Derived from card characteristics (mana value, P/T, keywords), with an optional per-**Card Definition** override for cards the heuristic misjudges. Lets the **Brain** prefer keeping/fetching a bomb over a **Land** and refuse to spend a good card for no effect.
 _Avoid_: Card weight, card score, rating
+
+**ETB Ability** (enters-the-battlefield ability):
+A triggered ability that fires when its OWN **Permanent** enters the **Battlefield** — "When this creature enters, …". Counted in the card's latent **Card Value** and never in its realized one: it is spent the moment the permanent enters, and whatever it did shows up in the game it leaves behind. Entering with no legal target therefore throws its worth away, which is how the **Brain** learns to hold a card until its ETB has something to hit. An ability that fires when ANOTHER permanent enters ("Whenever another creature enters, …") is not an ETB Ability here: it fires again and again, and stays realized.
+_Avoid_: Enters trigger, entry ability, self-ETB
+
+**LTB Ability** (leaves-the-battlefield ability):
+A triggered ability that fires when its OWN **Permanent** leaves the **Battlefield** — "When this creature leaves the battlefield, …". The mirror of the **ETB Ability**; an ability that fires when ANOTHER permanent leaves is not one.
+_Avoid_: Leaves trigger, dies trigger (a dies trigger is the narrower case of leaving for a graveyard)
 
 **Latent Weight**:
 One fitted number per feature-basis dimension — the price of ONE unit of
