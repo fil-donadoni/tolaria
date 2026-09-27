@@ -542,6 +542,7 @@ describe("foreground by default, --detach is the opt-in (issue #4389)", () => {
                 },
             });
             expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
+            // eslint-disable-next-line no-control-regex -- the erase sequence IS the assertion
             expect(r.stdout).toMatch(/\r\x1b\[2K.*pass 1.*#4722 · opus/);
             const log = logText();
             expect(log).toContain(
