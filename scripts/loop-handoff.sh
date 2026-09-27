@@ -23,6 +23,14 @@
 #      must outlive the shell, the SSH connection or the Claude Code session
 #      that started it. `caffeinate` holds the Mac awake on BOTH paths: an
 #      overnight FOREGROUND run sleeps through the night otherwise.
+#   1c. `--watch` (issue #4720) is the READ-ONLY counterpart: the rendered view
+#      of a `--detach` run, or of a foreground run in another terminal. It
+#      never writes to `loop-afk.log`, never touches the pid/stop files, and
+#      never starts or stops anything — it `tail -F`s the existing log through
+#      the same `render_stream` the live paths use, after replaying the last
+#      few passes so the first live line arrives with context. The renderer's
+#      only time source is each line's own stamp (ADR 0147), which is what
+#      lets a foreground run and a `--watch` of its log render identically.
 #   2. `--from-pass` — DEAD SWITCH (ADR 0109). It used to detach the driver
 #      at the end of a `/process-gh-issues` pass whenever an `afk.conf` was
 #      present. In practice a weeks-old conf turned a single interactive pass
@@ -80,6 +88,11 @@ DEFAULT_PROMPT=""
 # releasing claims when the handoff fires.
 DEFAULT_START_DELAY=45
 
+# Passes replayed at `--watch` start (issue #4720) — fixed, not user-tunable:
+# enough for an operator to reorient before live lines arrive, never a full
+# reprint of an hours-long run.
+REPLAY_PASSES=3
+
 MODE=""
 ARG_CLAUDE_ARGS=""
 ARG_PROMPT=""
@@ -102,6 +115,11 @@ loop-handoff — start / stop / inspect the detached AFK driver.
   bun run loop:afk --resume            same as --start, but clears the stop-file first
   bun run loop:afk --stop              ask the running driver to stop after the current pass
   bun run loop:afk --status            armed? driver alive? stop-file? last log lines
+  bun run loop:afk --watch             rendered view of an existing loop-afk.log
+                                       (a --detach run, or a foreground run in
+                                       another terminal) — read-only, replays
+                                       the last few passes then follows new
+                                       ones. Never starts or stops a driver.
   bun run loop:afk --arm               write the conf (defaults for --start) without starting anything
   bun run loop:afk --disarm            remove the conf
   sh scripts/loop-handoff.sh --from-pass   dead switch (ADR 0109): always a no-op — a pass never starts the driver
@@ -138,7 +156,7 @@ EOF
 
 while [ $# -gt 0 ]; do
     case "$1" in
-        --start | --resume | --stop | --status | --arm | --disarm | --from-pass)
+        --start | --resume | --stop | --status | --arm | --disarm | --from-pass | --watch)
             if [ -n "$MODE" ]; then
                 echo "loop-handoff: pick ONE mode, got both --$MODE and $1" >&2
                 exit 2
@@ -476,6 +494,43 @@ launch_driver() {
     echo "loop-handoff: driver detached (wrapper pid $!) — output: $DETACH_LOG"
 }
 
+# `--watch` (issue #4720): the read-only counterpart to the foreground and
+# --detach paths. It reuses `render_stream` verbatim — same renderer, same
+# --plain/NO_COLOR bypass — so a foreground run and a --watch of its log
+# render identically; the only new work is finding where to start reading.
+#
+# Replay start line: the Nth-from-last `loop-drain[pass]:` tag line, so the
+# operator sees the last REPLAY_PASSES passes' worth of context before the
+# first live line arrives. `index()`, not a regex match, because the tag
+# contains literal `[`/`]`; awk's own `~` would need them escaped for no
+# benefit. Fewer than REPLAY_PASSES passes in the log (including zero, e.g. a
+# run still in its start-delay) replays from line 1 — the whole log, never an
+# error, since "not enough history yet" is not "nothing to watch".
+watch_replay_start_line() {
+    awk -v tag='loop-drain[pass]:' -v n="$REPLAY_PASSES" '
+        index($0, tag) > 0 { c++; lines[c] = NR }
+        END {
+            if (c == 0) { print 1; exit }
+            idx = c - n + 1
+            if (idx < 1) idx = 1
+            print lines[idx]
+        }
+    ' "$1"
+}
+
+watch_log() {
+    if [ ! -f "$DETACH_LOG" ]; then
+        echo "loop-handoff: --watch found no log at $DETACH_LOG — nothing to render yet. Start a run first: 'bun run loop:afk --start' or '--detach'." >&2
+        exit 1
+    fi
+    _start_line=$(watch_replay_start_line "$DETACH_LOG")
+    # `-F`, never `-f`: a detached run's log can be recreated (e.g. a fresh
+    # arm), and `-F` re-opens it by name; `tail`'s own SIGINT/SIGTERM handling
+    # ends the follow the moment the terminal (or the test harness) signals
+    # this process group — nothing here needs its own trap.
+    tail -n "+${_start_line}" -F "$DETACH_LOG" | render_stream
+}
+
 # Every reason a start must NOT happen, in one place so `--start` and
 # `--from-pass` can never drift apart on the safety checks. Prints the reason
 # and returns 1; the caller decides whether that is an error or a quiet no-op.
@@ -576,6 +631,10 @@ case "$MODE" in
         # foreground path it has to be printed INSIDE the stamped pipeline, or
         # the caller's first lines would be the only unstamped ones.
         launch_driver
+        ;;
+
+    watch)
+        watch_log
         ;;
 
     from-pass)
