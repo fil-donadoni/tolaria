@@ -586,6 +586,22 @@ describe("kicked entry riders that also grant an ability (CR 614.1c / 702.33e–
     });
 });
 
+/**
+ * A restriction on how the kicker's X may be paid ("Spend only colored mana on
+ * X…", issue #4506) is its OWN Oracle line, which the gold below never feeds
+ * the kicker slot — so it is stripped from the author's side only. A kicker
+ * line that ever emits one itself still reds: the received side keeps it.
+ */
+function withoutXSpendRestrictions(kickers: KickerCost[] | undefined) {
+    return kickers?.map((k) => {
+        if (k.mana === undefined) return k;
+        const { xSpendColors, xSpendDistinctColors, ...mana } = k.mana;
+        void xSpendColors;
+        void xSpendDistinctColors;
+        return { ...k, mana };
+    });
+}
+
 describe("Kicker gold over the hand-written catalogue", () => {
     const KICKER_LINE = /^(?:Multi)?[Kk]icker[ —].*$/m;
 
@@ -612,7 +628,13 @@ describe("Kicker gold over the hand-written catalogue", () => {
             expect(
                 sortKeys(canonicaliseShorthands(lowered.value)),
                 def.name
-            ).toEqual(sortKeys(canonicaliseShorthands(def.kickers)));
+            ).toEqual(
+                sortKeys(
+                    canonicaliseShorthands(
+                        withoutXSpendRestrictions(def.kickers)
+                    )
+                )
+            );
         }
         // Arctic Merfolk's "Return a creature you control to its owner's hand"
         // is a cost leg the shared cost grammar does not read (it reads a
