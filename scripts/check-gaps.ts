@@ -55,11 +55,18 @@ import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { EFFECT_OP_REGISTRY } from "../convex/cards/mechanicsRegistry";
-import { inScopeBotGapKeys, rankedCardIds } from "./lib/gap-kinds";
+import {
+    computedGapKeys,
+    inScopeBotGapKeys,
+    rankedCardIds,
+} from "./lib/gap-kinds";
+import { matchingClusterIssues, signatureMatches } from "./lib/gap-issues";
 import { opGapKey } from "./lib/grammar-gaps";
 import {
     handTailClaimMismatches,
+    isExempting,
     scanFilesForCompilerGaps,
+    type CompilerGapMarker,
     type HandTailClaimMismatch,
 } from "./lib/compiler-gap-markers";
 import { collectSetFiles } from "./lib/divergence-markers";
@@ -68,16 +75,24 @@ import {
     FINDINGS_PATH,
     mergeBotVerdicts,
     parseFindings,
+    type BotGapVerdict,
 } from "./lib/oracle-bot-reach";
 import {
+    claimId,
+    CLUSTER_KINDS,
     parseClaimRows,
+    parseClusterRows,
     readTargetRegistry,
     resolveContext,
+    SET_FILE_COLOURS,
+    type CardMatch,
     type ClaimRow,
+    type ClusterKind,
     type ClusterRow,
     type CutRow,
+    type SetFileColour,
 } from "./lib/targets";
-import { parseLockfile } from "./lib/oracle-lockfile";
+import { parseLockfile, type Lockfile } from "./lib/oracle-lockfile";
 
 export const ALLOWLIST_PATH = "data/grammar-gaps.json";
 export const LOCKFILE_PATH = "data/oracle-compiled.json";
@@ -358,6 +373,191 @@ export function gapsVerdict(
     };
 }
 
+// ── Gap Cluster census (ADR 0146 § Decision 8, issue #4682) ──────────────
+//
+// Informational, NEVER red — no gate reads it, `gapsVerdict.ok` never sees it
+// (issue #4681 already ships `clusters` rows and their matcher; this only
+// prints what they resolve to, so a cutter can tighten a signature). Pure
+// over the LIVE keys this run computes (never a claim row's mere presence —
+// a closed gap's row stays forever, and reporting it here would read a dead
+// claim as a live ambiguity) and the `clusters` rows read off the allowlist.
+
+/** One live gap, in the shape `signatureMatches` is asked about. */
+export interface LiveGapKey {
+    readonly kind: ClusterKind;
+    readonly key: string;
+    readonly card?: CardMatch;
+}
+
+const HAND_TAIL_SET_FILE = /(?:^|[\\/])sets[\\/]([a-z0-9]+)[\\/](\w+)\.ts$/i;
+
+/** The `{ set, colour }` a `hand-tail:` marker's own file is written in — the
+ *  file IS the card's set file (ADR 0043), so no catalogue lookup is owed.
+ *  `undefined` for a legacy flat `sets/<code>.ts` or an unrecognised colour:
+ *  such a card then matches no `hand-tail` Cluster Signature, same as a card
+ *  the Full Catalogue does not know (`gaps-sync.ts`'s `readSetFileMatches`). */
+export function handTailCardMatch(file: string): CardMatch | undefined {
+    const m = HAND_TAIL_SET_FILE.exec(file);
+    if (m === null) return undefined;
+    const colour = m[2]!.toLowerCase();
+    if (!(SET_FILE_COLOURS as readonly string[]).includes(colour))
+        return undefined;
+    return { set: m[1]!.toLowerCase(), colour: colour as SetFileColour };
+}
+
+/**
+ * Every LIVE gap key this run computes, across the five signature-clustered
+ * kinds (`migration` is out of scope, ADR 0146 § Decision 8) — pure over the
+ * lockfile, the Bot Reach Findings report, and the `hand-tail:` markers
+ * `handTailClaimMismatches` already scanned. `grammar` unions the derived Op
+ * census (`(op) › …`, {@link opGapKey}) with the fragment-level Grammar Gaps
+ * `computedGapKeys` reads off `lock.fragments` — the two key schemes the
+ * module header's "ops rows are grammar rows" note describes.
+ *
+ * `bot` is the WHOLE-CORPUS set (`computedGapKeys`'s own `.bot`), never the
+ * ranked slice `unclaimedBotGaps` is scoped to: a Bot Gap key whose cards fell
+ * out of ranked scope while the Bot still cannot play them is "merely absent
+ * from scope", not gone (`gap-kinds.ts`'s own docstring) — reading it as gone
+ * here would print it as a dead signature or drop it from the residual count,
+ * exactly the false "gone" the ranked scope exists to avoid drawing. `null`
+ * (no report, or one that disagrees with the lockfile) reports no `bot` key
+ * at all rather than risk a spurious one off the lockfile's own fallback.
+ */
+export function liveClusterKeys(
+    lock: Pick<Lockfile, "cards" | "fragments">,
+    implemented: readonly string[],
+    emitted: ReadonlySet<string>,
+    botFindings: ReadonlyMap<string, BotGapVerdict> | null,
+    handTailMarkers: readonly (CompilerGapMarker & { readonly file: string })[]
+): LiveGapKey[] {
+    const computed = computedGapKeys(lock, botFindings);
+    const keys: LiveGapKey[] = [];
+    for (const op of implemented)
+        if (!emitted.has(op)) keys.push({ kind: "grammar", key: opGapKey(op) });
+    for (const key of computed.grammar) keys.push({ kind: "grammar", key });
+    for (const key of computed.mechanic) keys.push({ kind: "mechanic", key });
+    for (const key of computed.scenario) keys.push({ kind: "scenario", key });
+    for (const key of computed.bot ?? []) keys.push({ kind: "bot", key });
+    for (const marker of handTailMarkers) {
+        if (marker.kind !== "hand-tail" || !isExempting(marker)) continue;
+        keys.push({
+            kind: "hand-tail",
+            key: marker.card,
+            card: handTailCardMatch(marker.file),
+        });
+    }
+    return keys;
+}
+
+/** A live key two or more Cluster Signatures claim — the lowest issue number
+ *  is the one `matchCluster` would adopt into first (ADR 0146 § Decision 3);
+ *  offline, `check:gaps` cannot ask which is OPEN, so this names every match
+ *  and the lowest as the would-be winner, never a verdict `gaps:sync` owes. */
+export interface ClusterAmbiguity {
+    readonly kind: ClusterKind;
+    readonly key: string;
+    /** Ascending; `issues[0]` is the lowest-numbered match. */
+    readonly issues: readonly number[];
+}
+
+/** One kind's count of live, claimed keys no Cluster Signature matches — a
+ *  forgotten single, ripe for `/cluster-gaps` once its kind crosses the
+ *  threshold (ADR 0146 § Decision 7). Counted, never enumerated: the
+ *  allowlist carries hundreds of claims and this runs on every `health`. */
+export interface ResidualSingles {
+    readonly kind: ClusterKind;
+    readonly count: number;
+}
+
+export interface ClusterCensusResult {
+    readonly ambiguities: readonly ClusterAmbiguity[];
+    readonly residualSingles: readonly ResidualSingles[];
+    /** Cluster issue numbers whose signature matches no live key. */
+    readonly deadSignatures: readonly number[];
+}
+
+/**
+ * The three halves of the census, pure over its inputs. `claims` is every
+ * `(kind, key, issue)` row the allowlist carries (`ops` + `claims`,
+ * {@link parseClaimRows}) — a claim whose key is not among `liveKeys` is a
+ * closed or stale gap, never reported (its row stays forever; that is not
+ * this census's business).
+ */
+export function censusClusters(
+    liveKeys: readonly LiveGapKey[],
+    claims: readonly ClaimRow[],
+    clusters: readonly ClusterRow[]
+): ClusterCensusResult {
+    const ambiguities: ClusterAmbiguity[] = [];
+    for (const key of liveKeys) {
+        const issues = matchingClusterIssues(key, clusters);
+        if (issues.length >= 2) ambiguities.push({ ...key, issues });
+    }
+    ambiguities.sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
+
+    const liveById = new Map(
+        liveKeys.map((key) => [claimId(key.kind, key.key), key] as const)
+    );
+    const residualCounts = new Map<ClusterKind, number>();
+    for (const kind of CLUSTER_KINDS) residualCounts.set(kind, 0);
+    for (const row of claims) {
+        if (!(CLUSTER_KINDS as readonly string[]).includes(row.kind)) continue;
+        const kind = row.kind as ClusterKind;
+        const live = liveById.get(claimId(kind, row.key));
+        if (live === undefined) continue;
+        if (matchingClusterIssues(live, clusters).length === 0)
+            residualCounts.set(kind, (residualCounts.get(kind) ?? 0) + 1);
+    }
+    const residualSingles = CLUSTER_KINDS.map((kind) => ({
+        kind,
+        count: residualCounts.get(kind) ?? 0,
+    }));
+
+    const deadSignatures = clusters
+        .filter((row) => !liveKeys.some((key) => signatureMatches(row, key)))
+        .map((row) => row.issue)
+        .sort((a, b) => a - b);
+
+    return { ambiguities, residualSingles, deadSignatures };
+}
+
+export function renderClusterCensus(result: ClusterCensusResult): string {
+    const clean =
+        result.ambiguities.length === 0 &&
+        result.residualSingles.every((r) => r.count === 0) &&
+        result.deadSignatures.length === 0;
+    if (clean)
+        return (
+            "✓ gaps: Gap Cluster census clean — no signature ambiguity, " +
+            "no residual single, no dead signature (ADR 0146, informational)"
+        );
+    const lines = [
+        "· gaps: Gap Cluster census (ADR 0146, informational — never red):",
+        "",
+    ];
+    if (result.ambiguities.length === 0) {
+        lines.push("  no live key matches two or more Cluster Signatures");
+    } else {
+        lines.push(
+            `  ${result.ambiguities.length} live key(s) matched by two or more Cluster Signatures:`
+        );
+        for (const a of result.ambiguities)
+            lines.push(
+                `    - [${a.kind}] ${a.key}: #${a.issues.join(", #")} — #${a.issues[0]} would win (lowest)`
+            );
+    }
+    lines.push(
+        "",
+        `  residual singles per kind: ${result.residualSingles.map((r) => `${r.kind} ${r.count}`).join(", ")}`
+    );
+    if (result.deadSignatures.length > 0)
+        lines.push(
+            "",
+            `  ${result.deadSignatures.length} Cluster Signature(s) match no live key: #${result.deadSignatures.join(", #")}`
+        );
+    return lines.join("\n");
+}
+
 const EXITS: Record<Violation["kind"], string> = {
     missing:
         "implemented, emitted by no Compiled Definition, and NOT allowlisted.\n" +
@@ -413,11 +613,13 @@ function main(): void {
     const root = resolve(".");
     const lock = parseLockfile(readFileSync(LOCKFILE_PATH, "utf8"));
     const allowlist = parseAllowlist(readFileSync(ALLOWLIST_PATH, "utf8"));
+    const implemented = EFFECT_OP_REGISTRY.filter(
+        (r) => r.status === "implemented"
+    ).map((r) => r.op);
+    const emitted = emittedOps(lock.cards);
     const result = auditOpCensus({
-        implemented: EFFECT_OP_REGISTRY.filter(
-            (r) => r.status === "implemented"
-        ).map((r) => r.op),
-        emitted: emittedOps(lock.cards),
+        implemented,
+        emitted,
         allowlist,
         baseline: baselineAllowlist(root),
     });
@@ -433,23 +635,34 @@ function main(): void {
     );
     const claims = parseClaimRows(allowlist, ALLOWLIST_PATH);
     const unclaimed = unclaimedBotGaps(inScope, claims);
-    const mismatches = handTailClaimMismatches(
-        scanFilesForCompilerGaps(
-            collectSetFiles(join(root, "convex", "cards", "sets"))
-        ),
-        claims
+    const markers = scanFilesForCompilerGaps(
+        collectSetFiles(join(root, "convex", "cards", "sets"))
     );
+    const mismatches = handTailClaimMismatches(markers, claims);
     const { ok, out } = gapsVerdict(
         result,
         inScope.length,
         unclaimed,
         mismatches
     );
+    const clusterCensus = renderClusterCensus(
+        censusClusters(
+            liveClusterKeys(
+                lock,
+                implemented,
+                emitted,
+                botMerge.merged,
+                markers
+            ),
+            claims,
+            parseClusterRows(allowlist, ALLOWLIST_PATH)
+        )
+    );
     if (ok) {
-        console.log(out);
+        console.log(`${out}\n\n${clusterCensus}`);
         return;
     }
-    console.error(out);
+    console.error(`${out}\n\n${clusterCensus}`);
     process.exit(1);
 }
 

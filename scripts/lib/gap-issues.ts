@@ -805,6 +805,20 @@ export type ClusterMatch =
     | { readonly via: "cards" | "signature"; readonly issue: number }
     | { readonly via: "single"; readonly busy: readonly number[] };
 
+/** Every Cluster Signature's issue that matches `gap`, ascending — the lowest
+ *  is whichever kind of "wins" the caller is asking about: the adoption
+ *  target for `matchCluster`, the informational winner for `check:gaps`'s
+ *  ambiguity census (issue #4682). Shared so the two never drift apart. */
+export function matchingClusterIssues(
+    gap: ClusterCandidate,
+    rows: readonly ClusterRow[]
+): number[] {
+    return rows
+        .filter((row) => signatureMatches(row, gap))
+        .map((row) => row.issue)
+        .sort((a, b) => a - b);
+}
+
 /**
  * The adoption decision for one new gap (ADR 0146 § Decision 3), pure over
  * its inputs: an open issue naming the card in `## Cards` wins first (an
@@ -822,10 +836,7 @@ export function matchCluster(
     if (gap.cardsIssue !== undefined)
         return { via: "cards", issue: gap.cardsIssue };
     const busy: number[] = [];
-    const matching = rows
-        .filter((row) => signatureMatches(row, gap))
-        .map((row) => row.issue)
-        .sort((a, b) => a - b);
+    const matching = matchingClusterIssues(gap, rows);
     for (const issue of matching) {
         const state = stateOf(issue);
         if (state === null || !state.open) continue;
