@@ -2997,3 +2997,91 @@ describe("admission — reading the health marker off disk (issue #3775)", () =>
         );
     });
 });
+
+describe("planBatch — a blocker competes in the band of what it blocks (issue #4752)", () => {
+    // Observed 2026-09-27: a P0-band issue waited on a prerequisite outside
+    // the band, so the prerequisite queued behind every P1 and the P0 band
+    // could not drain — "no P1 until every P0 is done" was false.
+    const files = (n: number, blockedBy: number[] = []) => ({
+        body: body({ targetFiles: [`src/f${n}.ts`], blockedBy }),
+    });
+
+    it("lifts an unprioritized blocker of a P0-band issue ahead of every P1, and names the lift", () => {
+        // #20: child of P0 umbrella #100, blocked by #50 (unprioritized).
+        // #30: standalone P1, older than #50.
+        const plan = planBatch(
+            [issue(20, { parent: 100 }), issue(30), issue(50)],
+            { ...CONFIG, batchCap: 1 },
+            makePort(
+                { 20: files(20, [50]), 30: files(30), 50: files(50) },
+                [],
+                { 100: "P0", 30: "P1" }
+            )
+        );
+        expect(numbers(plan)).toEqual([50]);
+        expect(plan.batch[0]).toMatchObject({
+            number: 50,
+            priorityBand: "P0",
+            bandLiftedBy: 20,
+        });
+        expect(plan.batch[0]).not.toHaveProperty("priority");
+        expect(plan.deferred).toContainEqual(
+            expect.objectContaining({ number: 20, reason: "blocked by #50" })
+        );
+    });
+
+    it("lifts transitively through the native graph — a blocker's blocker joins the band too", () => {
+        // #20 (P0 band) ← #50 ← #60 (native edge only), #30 standalone P1.
+        const plan = planBatch(
+            [issue(20, { parent: 100 }), issue(30), issue(50), issue(60)],
+            { ...CONFIG, batchCap: 1 },
+            makePort(
+                {
+                    20: files(20, [50]),
+                    30: files(30),
+                    50: { ...files(50), nativeBlockedBy: [60] },
+                    60: files(60),
+                },
+                [],
+                { 100: "P0", 30: "P1" }
+            )
+        );
+        expect(numbers(plan)).toEqual([60]);
+        expect(plan.batch[0]).toMatchObject({
+            priorityBand: "P0",
+            bandLiftedBy: 50,
+        });
+    });
+
+    it("never DEMOTES a blocker — a stronger own band is kept, with no lift named", () => {
+        const plan = planBatch(
+            [issue(20), issue(50)],
+            { ...CONFIG, batchCap: 1 },
+            makePort({ 20: files(20, [50]), 50: files(50) }, [], {
+                20: "P2",
+                50: "P1",
+            })
+        );
+        expect(numbers(plan)).toEqual([50]);
+        expect(plan.batch[0]).not.toHaveProperty("bandLiftedBy");
+        expect(plan.batch[0]).not.toHaveProperty("priorityBand");
+    });
+
+    it("terminates on a blocker cycle, and every issue still lands exactly once", () => {
+        const plan = planBatch(
+            [issue(20, { parent: 100 }), issue(50), issue(30)],
+            { ...CONFIG, batchCap: 4 },
+            makePort(
+                {
+                    20: files(20, [50]),
+                    50: files(50, [20]),
+                    30: files(30),
+                },
+                [],
+                { 100: "P0", 30: "P1" }
+            )
+        );
+        expect(numbers(plan)).toEqual([30]);
+        expect(deferredNumbers(plan).sort()).toEqual([20, 50]);
+    });
+});

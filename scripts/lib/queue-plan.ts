@@ -402,6 +402,10 @@ export interface PlannedIssue {
      *  planned under a `P1` band looks like a planner bug until the band is on
      *  the row beside it. */
     priorityBand?: BoardPriority;
+    /** The issue this one BLOCKS, when `priorityBand` came from it rather than
+     *  from a parent PRD (issue #4752): a prerequisite competes in the band of
+     *  the work it holds up. */
+    bandLiftedBy?: number;
     targetFiles: string[];
     blastRadius: BlastRadius;
     /**
@@ -580,19 +584,6 @@ const hasLabel = (issue: QueueIssue, name: string): boolean =>
  *  list payload's `parent` object carries no date at all. */
 const lineage = (issue: QueueIssue): number =>
     issue.parent?.number ?? issue.number;
-
-/** The band, but only when the parent MOVED it off the issue's own value —
- *  lifting it or, since issue #4371, demoting it. Either way it is the one
- *  case the plan owes the reader an explanation for; equal values explain
- *  themselves. */
-const inheritedBand = (
-    issue: QueueIssue,
-    priority: Record<number, BoardPriority>
-): BoardPriority | null => {
-    const band = effectivePriority(issue, priority);
-    if (band === null) return null;
-    return band === (priority[issue.number] ?? null) ? null : band;
-};
 
 function hoursBetween(fromIso: string, toIso: string): number {
     return (Date.parse(toIso) - Date.parse(fromIso)) / 3_600_000;
@@ -882,13 +873,28 @@ export function planBatch(
     // first two, and own priority is what orders the slices inside one
     // umbrella's turn. `bug` sits below all three — it is the default for what
     // nobody ruled on, and a ruling outranks a default.
+    //
+    // A BLOCKER competes in the band of what it blocks (issue #4752), when
+    // that is stronger than its own: a P0-band issue waiting on an
+    // unprioritized prerequisite would otherwise wait behind the whole P1
+    // band, and "no P1 until every P0 is done" would be false. The edges are
+    // Stage-2 data (one read per candidate), so the lift is discovered where
+    // they are read — the blocked issue's deferral below — and the rest of the
+    // order is re-sorted then. Every issue is visited once, so a cycle
+    // terminates; a lifted blocker's own blockers lift in turn, transitively.
+    const lifted = new Map<number, { band: BoardPriority; by: number }>();
+    const competedBand = (issue: QueueIssue): BoardPriority | null => {
+        const base = effectivePriority(issue, port.priority);
+        const lift = lifted.get(issue.number)?.band ?? null;
+        return priorityRank(lift) < priorityRank(base) ? lift : base;
+    };
     const band = (issue: QueueIssue): number =>
-        priorityRank(effectivePriority(issue, port.priority));
+        priorityRank(competedBand(issue));
     const inherited = (issue: QueueIssue): number =>
         bandIsInherited(issue, port.priority) ? 1 : 0;
     const own = (issue: QueueIssue): number =>
         priorityRank(port.priority[issue.number]);
-    candidates.sort((a, b) => {
+    const order = (a: QueueIssue, b: QueueIssue): number => {
         const bandDelta = band(a) - band(b);
         if (bandDelta !== 0) return bandDelta;
         const inheritedDelta = inherited(a) - inherited(b);
@@ -901,13 +907,15 @@ export function planBatch(
         const lineageDelta = lineage(a) - lineage(b);
         if (lineageDelta !== 0) return lineageDelta;
         return a.number - b.number;
-    });
+    };
+    candidates.sort(order);
 
     // ── Stage 2: admission ──────────────────────────────────────────────────
     /** Set once a solo issue is admitted: nothing else may join it. */
     let closed = false;
 
-    for (const issue of candidates) {
+    for (let at = 0; at < candidates.length; at++) {
+        const issue = candidates[at];
         if (batch.length >= config.batchCap) {
             deferred.push({
                 number: issue.number,
@@ -1063,6 +1071,24 @@ export function planBatch(
             (n) => port.issueDetail(n).state === "OPEN"
         );
         if (openBlocker !== undefined) {
+            const blocking = competedBand(issue);
+            const pending = candidates.slice(at + 1);
+            let moved = false;
+            for (const waiting of pending) {
+                if (!blockers.includes(waiting.number)) continue;
+                if (priorityRank(blocking) >= band(waiting)) continue;
+                lifted.set(waiting.number, {
+                    band: blocking as BoardPriority,
+                    by: issue.number,
+                });
+                moved = true;
+            }
+            if (moved)
+                candidates.splice(
+                    at + 1,
+                    pending.length,
+                    ...pending.sort(order)
+                );
             deferred.push({
                 number: issue.number,
                 reason: `blocked by #${openBlocker}`,
@@ -1126,7 +1152,13 @@ export function planBatch(
         }
 
         const { model, ambiguity } = resolveModel(issue, config);
-        const movedBand = inheritedBand(issue, port.priority);
+        const competed = competedBand(issue);
+        const movedBand =
+            competed !== null &&
+            competed !== (port.priority[issue.number] ?? null)
+                ? competed
+                : null;
+        const liftedBy = lifted.get(issue.number);
         batch.push({
             number: issue.number,
             title: issue.title,
@@ -1138,6 +1170,9 @@ export function planBatch(
                 ? { priority: port.priority[issue.number] }
                 : {}),
             ...(movedBand !== null ? { priorityBand: movedBand } : {}),
+            ...(liftedBy !== undefined && liftedBy.band === movedBand
+                ? { bandLiftedBy: liftedBy.by }
+                : {}),
             targetFiles: comparable,
             blastRadius,
             lane,
