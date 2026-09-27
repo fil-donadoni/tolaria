@@ -1242,6 +1242,164 @@ describe("walker — structural constructs (PRD #1423)", () => {
         expect(valueOp(op, cf).points).toBe(LATENT.boardRemoval);
     });
 
+    // issue #4470 — Bot Gap: Squee's Revenge (`chooseNumber` + `coinFlipSeries`
+    // + `if you win all the flips` + `draw`) priced its `then` branch as
+    // CERTAIN, which put its static hand-value at 2.4x Lightning Bolt's and
+    // made the search prefer NEVER casting it over any real line of play.
+    describe("coinFlipSeries win-check discount (CR 705.1 / 705.2, issue #4470)", () => {
+        // Squee's Revenge's own shape: choose a number, flip that many times
+        // (stopping at the first loss), and draw two cards per flip ONLY if
+        // every flip was won.
+        const squeesRevengeShape: EffectOp[] = [
+            {
+                op: "chooseNumber",
+                player: "controller",
+                prompt: "Choose a number.",
+                bind: "$n",
+            },
+            {
+                op: "coinFlipSeries",
+                count: { ref: "$n" },
+                untilLoss: true,
+                bindFlips: "$flips",
+                bindLosses: "$losses",
+            },
+            {
+                op: "if",
+                predicate: { left: { ref: "$losses" }, op: "lt", right: 1 },
+                then: [
+                    {
+                        op: "draw",
+                        player: "controller",
+                        count: {
+                            scaled: { value: { ref: "$flips" }, times: 2 },
+                        },
+                    },
+                ],
+            },
+        ];
+
+        it("chooseNumber and coinFlipSeries are themselves zero — the consequence is the reader's", () => {
+            expect(
+                valueOp(
+                    {
+                        op: "chooseNumber",
+                        player: "controller",
+                        prompt: "Choose a number.",
+                        bind: "$n",
+                    },
+                    cf
+                ).points
+            ).toBe(0);
+            expect(
+                valueOp(
+                    {
+                        op: "coinFlipSeries",
+                        count: { ref: "$n" },
+                        untilLoss: true,
+                        bindLosses: "$losses",
+                    },
+                    cf
+                ).points
+            ).toBe(0);
+        });
+
+        it("discounts the win branch by 0.5 ** the representative flip count (context-free)", () => {
+            // CF_ASSUMED_REF (2) is the representative magnitude a bare `ref`
+            // grounds to context-free, for BOTH `$n` (coinFlipSeries' own
+            // `count`) and `$flips` (draw's `count`) — so this reproduces
+            // "chose 2, drew 2*2 = 4 cards, at a 0.5**2 = 25% chance".
+            const drawnIfWon = 4 * LATENT.cardAdvantage;
+            expect(
+                valueEffectScript(squeesRevengeShape, cf).points
+            ).toBeCloseTo(drawnIfWon * 0.25);
+        });
+
+        it("discounts by the grounded flip count (context-aware)", () => {
+            // Context-aware resolvers settle a whole `EffectValue` in one call
+            // (unlike the context-free closure, which recurses into `scaled`
+            // itself) — so this resolves `$n`/`$flips` to the chosen 3 AND
+            // the draw's `{ scaled: { value: { ref: "$flips" }, times: 2 } }`
+            // in the one shape a real caller's resolver would.
+            const ctx = contextAwareGrounding({
+                resolveValue: (v) => {
+                    if (typeof v === "number") return v;
+                    if (typeof v === "object" && v !== null && "scaled" in v) {
+                        const inner =
+                            typeof v.scaled.value === "object" &&
+                            "ref" in v.scaled.value
+                                ? 3
+                                : (v.scaled.value as number);
+                        return inner * v.scaled.times;
+                    }
+                    if (typeof v === "object" && v !== null && "ref" in v) {
+                        return 3; // both $n and $flips resolve to the chosen 3
+                    }
+                    return 1;
+                },
+                resolveIsSelf: () => true,
+                resolveForEachCount: () => 1,
+            });
+            const drawnIfWon = 3 * 2 * LATENT.cardAdvantage;
+            expect(
+                valueEffectScript(squeesRevengeShape, ctx).points
+            ).toBeCloseTo(drawnIfWon * 0.5 ** 3);
+        });
+
+        it("matches the mirrored comparand order (`1 gt losses`)", () => {
+            const script: EffectOp[] = [
+                {
+                    op: "coinFlipSeries",
+                    count: 2,
+                    untilLoss: true,
+                    bindLosses: "$losses",
+                },
+                {
+                    op: "if",
+                    predicate: { left: 1, op: "gt", right: { ref: "$losses" } },
+                    then: [
+                        {
+                            op: "dealDamage",
+                            amount: 3,
+                            to: { player: "opponent" },
+                        },
+                    ],
+                },
+            ];
+            expect(valueEffectScript(script, cf).points).toBeCloseTo(
+                3 * LATENT.damage * 0.25
+            );
+        });
+
+        it("a losses check that ISN'T a zero-losses shape keeps the then branch uncertain-discount-free", () => {
+            // `losses < 2` does not mean "won every flip" (`untilLoss` caps
+            // losses at 1 anyway) — the matcher must not fire on a comparand
+            // it does not recognize as the CR 705.2 all-wins shape.
+            const script: EffectOp[] = [
+                {
+                    op: "coinFlipSeries",
+                    count: 2,
+                    untilLoss: true,
+                    bindLosses: "$losses",
+                },
+                {
+                    op: "if",
+                    predicate: { left: { ref: "$losses" }, op: "lt", right: 2 },
+                    then: [
+                        {
+                            op: "dealDamage",
+                            amount: 3,
+                            to: { player: "opponent" },
+                        },
+                    ],
+                },
+            ];
+            expect(valueEffectScript(script, cf).points).toBe(
+                3 * LATENT.damage
+            );
+        });
+    });
+
     it("`forEach` values the body once and flags board-scaling (context-free)", () => {
         const op: EffectOp = {
             op: "forEach",
