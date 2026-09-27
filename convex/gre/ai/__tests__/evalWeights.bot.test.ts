@@ -39,6 +39,18 @@ describe("DEFAULT_EVAL_WEIGHTS (issue #2683)", () => {
         expect(DEFAULT_EVAL_WEIGHTS.tappedManaWeight).toBeGreaterThan(0);
     });
 
+    it("TAPPING a renewable source costs less than SPENDING a finite source's charge (issue #4761)", () => {
+        // CR 502.3 / 118.3 — a tap comes back at the next untap step, a charge
+        // never does. The relation spans three weights, which no fit band can
+        // state, so it is asserted here on the committed vector: the first
+        // verdict promotion inverted it (5.7 against 4.006) and the Bot paid a
+        // two-drop with its depletion land's charge instead of its basics.
+        const tapCost =
+            DEFAULT_EVAL_WEIGHTS.manaWeight -
+            DEFAULT_EVAL_WEIGHTS.tappedManaWeight;
+        expect(tapCost).toBeLessThan(DEFAULT_EVAL_WEIGHTS.finiteManaUseWeight);
+    });
+
     it("is frozen — a mutation attempt is a no-op / throws in strict mode", () => {
         expect(Object.isFrozen(DEFAULT_EVAL_WEIGHTS)).toBe(true);
         expect(Object.isFrozen(FIT_BASE_EVAL_WEIGHTS)).toBe(true);
