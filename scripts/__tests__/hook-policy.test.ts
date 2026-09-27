@@ -1429,6 +1429,8 @@ describe("deny-guard — the release is one act too: queue:release, never half a
             'gh issue edit 4470 --remove-label "in-progress"',
             "gh issue edit 4470 --remove-label in-progress,model:opus",
             "gh issue edit 4470 --remove-label ready-for-agent,in-progress",
+            // Removing someone ELSE leaves `@me` — still half a release.
+            "gh issue edit 4470 --remove-label in-progress --remove-assignee someone-else",
         ]) {
             const r = runHook(DENY_GUARD, bash(cmd, issueWorktree));
             expect(denied(r), `expected DENY for: ${cmd}`).toBe(true);
@@ -1440,6 +1442,7 @@ describe("deny-guard — the release is one act too: queue:release, never half a
         for (const cmd of [
             "gh issue edit 4470 --remove-label in-progress --remove-assignee @me",
             "gh issue edit 4470 --remove-assignee @me --remove-label in-progress",
+            "gh issue edit 4470 --remove-label in-progress --remove-assignee=@me",
         ]) {
             const r = runHook(DENY_GUARD, bash(cmd, issueWorktree));
             expect(denied(r), `expected ALLOW for: ${cmd}`).toBe(false);

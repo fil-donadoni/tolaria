@@ -822,7 +822,7 @@ fi
 # forever. A hand release that ALSO removes the assignee is the repair `land`,
 # `claim-sweep.sh` and `loop:doctor --release` already make, and stays allowed.
 RELEASE_INVOKE='(^|\|)[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*gh[[:space:]]+issue[[:space:]]+edit[[:space:]].*--remove-label(=|[[:space:]]+)["'"'"']?([^[:space:]"'"'"']*,)?in-progress["'"'"']?([[:space:],]|$)'
-if seg_has "$RELEASE_INVOKE" && ! seg_has '[[:space:]]--remove-assignee' "$RELEASE_INVOKE" && ! seg_has 'TOLARIA_ALLOW_MANUAL_CLAIM=1' "$RELEASE_INVOKE"; then
+if seg_has "$RELEASE_INVOKE" && ! seg_has '[[:space:]]--remove-assignee(=|[[:space:]]+)["'"'"']?([^[:space:]"'"'"']*,)?@me["'"'"']?([[:space:],]|$)' "$RELEASE_INVOKE" && ! seg_has 'TOLARIA_ALLOW_MANUAL_CLAIM=1' "$RELEASE_INVOKE"; then
     deny "BLOCKED: half a release — the label comes off, the assignee stays (issue #4752).
 The planner defers an assigned issue as \"someone is working it\" on every
 pass, so a label-only release starves it forever. Release as ONE act — label,
