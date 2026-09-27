@@ -1371,18 +1371,6 @@ describe("walker — structural constructs (PRD #1423)", () => {
             );
         });
 
-        it("an ordinary `if` — no coinFlipSeries binding in scope — is unaffected", () => {
-            // The exact pre-#4470 assertion above, restated here so a future
-            // edit cannot narrow the match to "any `if`" and silently discount
-            // every conditional in the catalogue.
-            const op: EffectOp = {
-                op: "if",
-                predicate: { left: { X: true }, op: "ge", right: 1 },
-                then: [{ op: "destroy", target: { target: 0 } }],
-            };
-            expect(valueOp(op, cf).points).toBe(LATENT.boardRemoval);
-        });
-
         it("a losses check that ISN'T a zero-losses shape keeps the then branch uncertain-discount-free", () => {
             // `losses < 2` does not mean "won every flip" (`untilLoss` caps
             // losses at 1 anyway) — the matcher must not fire on a comparand
