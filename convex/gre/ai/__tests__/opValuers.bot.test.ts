@@ -1246,12 +1246,17 @@ describe("walker — structural constructs (PRD #1423)", () => {
     // + `if you win all the flips` + `draw`) priced its `then` branch as
     // CERTAIN, which put its static hand-value at 2.4x Lightning Bolt's and
     // made the search prefer NEVER casting it over any real line of play.
-    describe("coinFlipSeries win-check discount (CR 705.2, issue #4470)", () => {
+    describe("coinFlipSeries win-check discount (CR 705.1 / 705.2, issue #4470)", () => {
         // Squee's Revenge's own shape: choose a number, flip that many times
         // (stopping at the first loss), and draw two cards per flip ONLY if
         // every flip was won.
         const squeesRevengeShape: EffectOp[] = [
-            { op: "chooseNumber", player: "controller", bind: "$n" },
+            {
+                op: "chooseNumber",
+                player: "controller",
+                prompt: "Choose a number.",
+                bind: "$n",
+            },
             {
                 op: "coinFlipSeries",
                 count: { ref: "$n" },
@@ -1277,7 +1282,12 @@ describe("walker — structural constructs (PRD #1423)", () => {
         it("chooseNumber and coinFlipSeries are themselves zero — the consequence is the reader's", () => {
             expect(
                 valueOp(
-                    { op: "chooseNumber", player: "controller", bind: "$n" },
+                    {
+                        op: "chooseNumber",
+                        player: "controller",
+                        prompt: "Choose a number.",
+                        bind: "$n",
+                    },
                     cf
                 ).points
             ).toBe(0);
@@ -1305,7 +1315,7 @@ describe("walker — structural constructs (PRD #1423)", () => {
             ).toBeCloseTo(drawnIfWon * 0.25);
         });
 
-        it("discounts by the REAL chosen flip count (context-aware)", () => {
+        it("discounts by the grounded flip count (context-aware)", () => {
             // Context-aware resolvers settle a whole `EffectValue` in one call
             // (unlike the context-free closure, which recurses into `scaled`
             // itself) — so this resolves `$n`/`$flips` to the chosen 3 AND
@@ -1328,11 +1338,37 @@ describe("walker — structural constructs (PRD #1423)", () => {
                     return 1;
                 },
                 resolveIsSelf: () => true,
+                resolveForEachCount: () => 1,
             });
             const drawnIfWon = 3 * 2 * LATENT.cardAdvantage;
             expect(
                 valueEffectScript(squeesRevengeShape, ctx).points
             ).toBeCloseTo(drawnIfWon * 0.5 ** 3);
+        });
+
+        it("matches the mirrored comparand order (`1 gt losses`)", () => {
+            const script: EffectOp[] = [
+                {
+                    op: "coinFlipSeries",
+                    count: 2,
+                    untilLoss: true,
+                    bindLosses: "$losses",
+                },
+                {
+                    op: "if",
+                    predicate: { left: 1, op: "gt", right: { ref: "$losses" } },
+                    then: [
+                        {
+                            op: "dealDamage",
+                            amount: 3,
+                            to: { player: "opponent" },
+                        },
+                    ],
+                },
+            ];
+            expect(valueEffectScript(script, cf).points).toBeCloseTo(
+                3 * LATENT.damage * 0.25
+            );
         });
 
         it("an ordinary `if` — no coinFlipSeries binding in scope — is unaffected", () => {

@@ -226,8 +226,9 @@ const COPY_TOKEN_REPRESENTATIVE_STAT = 2; // unknown copied body's P/T — same 
  *
  *  `coinFlipSeriesWinProbability` (issue #4470) maps a `coinFlipSeries`
  *  `bindLosses` name to the probability that series lands at zero losses —
- *  CR 705.2's flips are independent and even-odds, so `count` flips ALL won is
- *  `0.5 ** count`. Read by `if`'s walker below to discount a "won every flip"
+ *  CR 705.1's equal-likelihood flip is independent each time, so `count`
+ *  flips ALL won is `0.5 ** count`. Read by `if`'s walker below (CR 705.2 is
+ *  the win/loss half — see that citation) to discount a "won every flip"
  *  branch instead of assuming it happens for free: `chooseNumber` /
  *  `coinFlipSeries` themselves are correctly ZERO-valued (their whole
  *  consequence is the branch that reads the binding back), so nothing else in
@@ -466,10 +467,14 @@ function withCoinFlipSeriesWinProbability(
  *  ZERO losses" (CR 705.2's "if you win all the flips"), and if so, at what
  *  probability? Matches on OP SHAPE plus a scope-tracked binding NAME, never a
  *  card identity: a comparison predicate naming a bound `coinFlipSeries`
- *  losses ref against the literal `0`/`1` on either side, with the operator
- *  oriented so the check reads "losses is at most zero". `undefined` for
+ *  losses ref, less than the literal `1`, on either side. `undefined` for
  *  every other predicate (every `if` that isn't this shape keeps valuing its
- *  `then` branch as certain — the pre-#4470 default, unchanged). */
+ *  `then` branch as certain — the pre-#4470 default, unchanged).
+ *
+ *  Only `lt 1` / its mirror `gt 1` are checked — an `eq`/`le`/`ge` comparand
+ *  of the literal `0` is the same claim ("losses is at most zero") but
+ *  `validate.ts`'s `isEffectValue` (`isPositiveInt`) rejects a bare `0`
+ *  operand outright, so no script can ever carry that shape to reach here. */
 function coinFlipSeriesWinProbabilityFor(
     predicate: EffectPredicate,
     scope: ScriptScope
@@ -482,28 +487,15 @@ function coinFlipSeriesWinProbabilityFor(
         return undefined;
     }
     const { left, op, right } = predicate;
+    // `losses lt 1`.
     const lossesRefLeft = coinFlipLossesRef(left, scope);
-    if (lossesRefLeft !== undefined && typeof right === "number") {
-        // `losses <op> right` — "losses is at most zero" is `lt 1` or `le 0`
-        // or `eq 0`.
-        if (
-            (op === "lt" && right === 1) ||
-            (op === "le" && right === 0) ||
-            (op === "eq" && right === 0)
-        ) {
-            return lossesRefLeft;
-        }
+    if (lossesRefLeft !== undefined && op === "lt" && right === 1) {
+        return lossesRefLeft;
     }
+    // `1 gt losses` — the mirror image.
     const lossesRefRight = coinFlipLossesRef(right, scope);
-    if (lossesRefRight !== undefined && typeof left === "number") {
-        // `left <op> losses` — the mirror image of the three shapes above.
-        if (
-            (op === "gt" && left === 1) ||
-            (op === "ge" && left === 0) ||
-            (op === "eq" && left === 0)
-        ) {
-            return lossesRefRight;
-        }
+    if (lossesRefRight !== undefined && op === "gt" && left === 1) {
+        return lossesRefRight;
     }
     return undefined;
 }
@@ -517,7 +509,7 @@ function coinFlipLossesRef(
     scope: ScriptScope
 ): number | undefined {
     if (typeof v !== "object" || v === null || !("ref" in v)) return undefined;
-    return scope.coinFlipSeriesWinProbability.get((v as { ref: string }).ref);
+    return scope.coinFlipSeriesWinProbability.get(v.ref);
 }
 
 /** issue #3292 — the picks twin of `withCapturedSourceAliases` (PR #3298
@@ -2265,7 +2257,7 @@ export function valueOp(
             const branch = valueEffectScript(op.then, ctx, scope);
             // Issue #4470 — the ONE exception to "assume the effect happens":
             // a branch gated on a `coinFlipSeries` landing at zero losses is
-            // not certain, it is `0.5 ** count` (CR 705.2), and pricing it as
+            // not certain, it is `0.5 ** count` (CR 705.1), and pricing it as
             // certain is what made Squee's Revenge's static hand-value beat
             // every real line of play (`evaluate.ts`'s `hand` term then never
             // let the search prefer casting it — see `ScriptScope`'s doc

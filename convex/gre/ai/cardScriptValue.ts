@@ -167,9 +167,12 @@ export function delayedTriggerTemplateOpValue(
  *
  *  **Face value — a deliberate no-op** (issue #1936, PR #1962 review). The
  *  precedent that governs an unresolvable STATE predicate in this codebase is
- *  `case "if"` in `opValuers.ts`, which values a conditional branch at 1.0;
- *  `coinFlip`'s even-odds split is NOT the analogue (that is a genuinely
- *  random CR 705 outcome, where 0.5 is the true expectation).
+ *  `case "if"` in `opValuers.ts`, which values a conditional branch at 1.0 —
+ *  UNLESS the predicate reads as a `coinFlipSeries` win-check (issue #4470),
+ *  the one exception where the condition is a genuinely random CR 705 outcome
+ *  rather than an authoring-form discriminator, and 0.5 ** count IS the true
+ *  expectation. `coinFlip`'s even-odds split is the same exception, one
+ *  construct over.
  *
  *  Discounting here would penalise AUTHORING FORM rather than semantics.
  *  `{ undecidable }` is overwhelmingly not "an uncertain condition" but an

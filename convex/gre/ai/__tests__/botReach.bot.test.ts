@@ -404,6 +404,20 @@ describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
         });
     });
 
+    // Issue #4470 (Bot Gap `never-chosen › Sorcery ›
+    // chooseNumber+coinFlipSeries+draw+if`) — Squee's Revenge's "if you win
+    // all the flips, draw two cards for each flip" priced its `then` branch
+    // as CERTAIN (`opValuers.ts`'s pre-#4470 `if` walker), so its static
+    // hand-value out-priced Lightning Bolt's and the search preferred NEVER
+    // casting it over any real line of play. `opValuers.ts`'s
+    // `coinFlipSeriesWinProbability` discount is what turns this `ignored`
+    // into `played` — a regression here means that discount regressed.
+    it("played — Squee's Revenge, once its coin-flip win-check is priced at its real odds instead of 1.0", () => {
+        expect(playTwice(getCardByName("Squee's Revenge")).outcome).toBe(
+            "played"
+        );
+    });
+
     // Issue #4069 (and its twin Bot Gap `Creature [haste]`): into an untapped
     // blocker the first main phase's `pass` beats the cast on every seed, and
     // the Bot casts the creature in the second. A sweep that posed only the
