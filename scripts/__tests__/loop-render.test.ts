@@ -507,10 +507,15 @@ describe("pass-summary markdown in body lines (issue #4719)", () => {
         expect(visibleLength(codeLine as string)).toBeGreaterThan(NARROW.width);
     });
 
-    it("passes a table row through untouched, pipes and all", () => {
+    it("passes a table row through untouched, pipes and all, even wider than the terminal", () => {
         expect(last([`${S}| a | b | c |`], PLAIN)).toBe(
             "10:00:00 │ | a | b | c |"
         );
+        const wideRow =
+            "| aaaaaaaaaa | bbbbbbbbbb | cccccccccc | dddddddddd | eeeeeeeeee |";
+        const out = last([`${S}${wideRow}`], NARROW);
+        expect(out).toBe(`10:00:00 │ ${wideRow}`);
+        expect(visibleLength(out)).toBeGreaterThan(NARROW.width);
     });
 
     it("emits no escape sequences, OSC 8 included, with colour off", () => {
