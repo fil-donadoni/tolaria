@@ -105,14 +105,6 @@ const DRAW_PRIMITIVE_ALLOWLIST: readonly AllowlistEntry[] = [
         classification: "out-of-scope-structural",
     },
     {
-        file: "leg/red.ts",
-        count: 1,
-        cards: "Winds of Change",
-        reason: 'the whole-hand-zone-move gap (#1279) closed -- this card now needs a NARROWER, different gap: "draws THAT MANY cards" requires a dynamic count-of-cards-moved (each player\'s hand size captured before the shuffle) the moveZone bulk shape does not carry.',
-        classification: "planned-migratable",
-        issue: 1388,
-    },
-    {
         file: "nph/blue.ts",
         count: 1,
         cards: "Gitaxian Probe",
@@ -125,14 +117,6 @@ const DRAW_PRIMITIVE_ALLOWLIST: readonly AllowlistEntry[] = [
         cards: "Memory Jar",
         reason: "compound protocol card (pre-existing): a WHOLE-hand exile now has an Op (issue #1279 moveZone bulk shape), but this is a FACE-DOWN exile, which that shape does not do; exileFaceDown has no Op skin, and the per-player list-valued delayedTrigger capture the return trigger needs has no capture shape.",
         classification: "protocol",
-    },
-    {
-        file: "usg/blue.ts",
-        count: 1,
-        cards: "Time Spiral",
-        reason: 'the SAME Timetwister-shape gap as lea/blue.ts: "shuffles hand and graveyard into library" is a bulk whole-zone move -- moveZone only moves an announced target or a choice-picked set, never an entire zone.',
-        classification: "planned-migratable",
-        issue: 1279,
     },
     {
         file: "voc/blue.ts",
