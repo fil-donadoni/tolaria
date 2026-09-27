@@ -1,4 +1,4 @@
-import { beforeEach, afterEach, vi } from "vitest";
+import { beforeEach, afterEach, expect, vi } from "vitest";
 import { spawnSync } from "child_process";
 import * as fs from "fs";
 import * as os from "os";
@@ -382,3 +382,13 @@ export const installLoopDrainHarness = (): void => {
         fs.rmSync(bin, { recursive: true, force: true });
     });
 };
+
+/** The two argv words every pass carries since issue #4722 — `--session-id`
+ *  and a fresh lower-case UUID — as they read in a `stubClaudeRecordingArgv`
+ *  file (`arg=<word>`). Spread into an expected argv array. */
+export const SESSION_ID_ARGV = [
+    "arg=--session-id",
+    expect.stringMatching(
+        /^arg=[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
+    ),
+];

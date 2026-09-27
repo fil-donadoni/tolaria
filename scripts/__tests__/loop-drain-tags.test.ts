@@ -8,6 +8,8 @@
 // by field against the row is what keeps the footer from describing a pass
 // the log does not have.
 import { describe, it, expect } from "vitest";
+import * as fs from "node:fs";
+import * as path from "node:path";
 import {
     installLoopDrainHarness,
     writeStub,
@@ -17,8 +19,11 @@ import {
     stubBunUsageWindow,
     run,
     logLines,
+    tmp,
+    bin,
 } from "./loop-drain-harness";
 import { parseFields } from "../lib/loop-render";
+import { SESSION_ID_RE as UUID_RE } from "../lib/live-activity";
 
 installLoopDrainHarness();
 
@@ -38,7 +43,7 @@ describe("driver output tags (issue #4721)", () => {
         expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
 
         expect(r.stderr).toMatch(
-            /^loop-drain\[pass\]: pass 1 — issue #2707 on tier opus\.$/m
+            /^loop-drain\[pass\]: pass 1 — issue #2707 on tier opus\. session=[0-9a-f-]{36}$/m
         );
         expect(r.stdout).toMatch(
             /^loop-drain\[summary\]: passes=1 reason=max-passes .* duration=\d+$/m
@@ -56,8 +61,8 @@ describe("driver output tags (issue #4721)", () => {
 
         const rows = logLines();
         expect(rows).toHaveLength(1);
-        // epoch pass exit pct queue_before queue_after spent budget reason
-        const [, pass, exit, pct, qb, qa, spent, budget, reason] =
+        // epoch pass exit pct queue_before queue_after spent budget session reason
+        const [, pass, exit, pct, qb, qa, spent, budget, , reason] =
             rows[0].split(" ");
         const ends = endFields(r.stderr);
         expect(ends).toHaveLength(1);
@@ -118,6 +123,50 @@ describe("driver output tags (issue #4721)", () => {
             retry: "1",
         });
         expect(r.stderr).toMatch(/^loop-drain\[error\]: pass 1 crashed/m);
+    });
+
+    it("binds each pass to ONE session id: argv, pass tag and log row agree (issue #4722)", () => {
+        stubGhCountingFrom(5);
+        stubBunPlanHead(2707, "opus");
+        // Records each pass's argv on its own line, then makes progress.
+        const argvFile = path.join(tmp, "claude-argv");
+        stubClaudeProgress();
+        const progress = fs.readFileSync(path.join(bin, "claude"), "utf8");
+        writeStub(
+            "claude",
+            `echo "$*" >> "${argvFile}"\n${progress.replace(/^#!.*\n/, "")}`
+        );
+        const r = run({ args: ["--max-passes", "2"] });
+        expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
+
+        const fromArgv = fs
+            .readFileSync(argvFile, "utf8")
+            .trim()
+            .split("\n")
+            .map((l) => /--session-id (\S+) /.exec(l)?.[1]);
+        const fromTags = [
+            ...r.stderr.matchAll(/^loop-drain\[pass\]: .* session=(\S+)$/gm),
+        ].map((m) => m[1]);
+        const fromRows = logLines().map((l) => l.split(" ")[8]);
+
+        expect(fromArgv).toHaveLength(2);
+        for (const id of fromArgv) expect(id).toMatch(UUID_RE);
+        expect(fromTags).toEqual(fromArgv);
+        expect(fromRows).toEqual(fromArgv);
+        // A fresh id per pass — two passes never share a transcript.
+        expect(fromArgv[0]).not.toBe(fromArgv[1]);
+    });
+
+    it("tags the override path's pass with its session id too", () => {
+        stubGhCountingFrom(5);
+        stubClaudeProgress();
+        const r = run({
+            args: ["--max-passes", "1", "--prompt", "/process-gh-issues x"],
+        });
+        expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
+        expect(r.stderr).toMatch(
+            /^loop-drain\[pass\]: pass 1 — prompt "\/process-gh-issues x"\. session=[0-9a-f-]{36}$/m
+        );
     });
 
     it("tags a run-level warning", () => {

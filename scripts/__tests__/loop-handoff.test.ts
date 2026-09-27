@@ -517,6 +517,41 @@ describe("foreground by default, --detach is the opt-in (issue #4389)", () => {
             expect(logText()).not.toContain("\x1b");
         });
 
+        it("draws the live status line on the terminal and never in loop-afk.log (issue #4722)", () => {
+            // The REAL renderer, forced into terminal mode through the pipe
+            // and ticking fast, so the status line is drawn while the pass
+            // is in flight. It must reach the terminal — else this proves
+            // nothing — and it must never reach the log.
+            stubDriver(
+                [
+                    `echo "loop-drain[pass]: pass 1 — issue #4722 on tier opus. session=00000000-0000-4000-8000-000000000000" >&2`,
+                    "sleep 1",
+                    `echo "loop-drain[end]: pass=1 exit=0 reason=- pct=0 queue_before=2 queue_after=1 spent=10 budget=100 ceiling=100 duration=1 retry=0" >&2`,
+                    "exit 0",
+                ].join("\n")
+            );
+            const r = run({
+                args: ["--start", "--budget", "1"],
+                env: {
+                    TOLARIA_LOOP_RENDERER: `bun "${path.join(REPO_ROOT, "scripts", "loop-render.ts")}"`,
+                    TOLARIA_LOOP_RENDER_TTY: "1",
+                    TOLARIA_LOOP_STATUS_TICK_MS: "50",
+                    // Hermetic: no transcript exists here, so the line is
+                    // level A and nothing reads the operator's real ones.
+                    CLAUDE_CONFIG_DIR: tmp,
+                },
+            });
+            expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
+            expect(r.stdout).toMatch(/\r\x1b\[2K.*pass 1.*#4722 · opus/);
+            const log = logText();
+            expect(log).toContain(
+                "session=00000000-0000-4000-8000-000000000000"
+            );
+            expect(log).not.toContain("\x1b");
+            expect(log).not.toContain("\r");
+            expect(log).not.toMatch(/#4722 · opus/);
+        });
+
         it.each([
             ["--plain", ["--plain"], {}],
             ["NO_COLOR", [], { NO_COLOR: "1" }],

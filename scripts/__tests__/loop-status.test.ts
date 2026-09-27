@@ -304,6 +304,48 @@ describe("loop-status — parseDriverPassLine / readRecentPasses", () => {
         );
     });
 
+    it("reads the 9-field shape's spend and budget before the reason (issue #3699)", () => {
+        const line = "1755000000 3 0 52.03 201 198 1234 10000 claims-held";
+        expect(parseDriverPassLine(line)).toEqual({
+            epoch: 1755000000,
+            pass: 3,
+            claudeExit: 0,
+            pct: "52.03",
+            queueBefore: 201,
+            queueAfter: 198,
+            spent: "1234",
+            budget: "10000",
+            reason: "claims-held",
+        });
+    });
+
+    it("reads the 10-field shape's session id before the reason (issue #4722)", () => {
+        const session = "0f8c2a4e-1b2c-4d3e-8f9a-0b1c2d3e4f5a";
+        const line = `1755000000 3 0 52.03 201 198 1234 10000 ${session} -`;
+        expect(parseDriverPassLine(line)).toEqual({
+            epoch: 1755000000,
+            pass: 3,
+            claudeExit: 0,
+            pct: "52.03",
+            queueBefore: 201,
+            queueAfter: 198,
+            spent: "1234",
+            budget: "10000",
+            session,
+            reason: "-",
+        });
+    });
+
+    it("keeps a 10-word line whose ninth word is no session id a 9-field row", () => {
+        // A width is recognised by what the field IS, never by count alone:
+        // a multi-word reason on a 9-field row must not lose its first word
+        // to a `session` it never had.
+        const line = "1755000000 3 1 n/a 201 201 - - usage-error extra-words";
+        const parsed = parseDriverPassLine(line);
+        expect(parsed?.session).toBeUndefined();
+        expect(parsed?.reason).toBe("usage-error extra-words");
+    });
+
     it("drops a line that does not fit the shape, rather than throwing", () => {
         expect(parseDriverPassLine("garbage")).toBeNull();
     });

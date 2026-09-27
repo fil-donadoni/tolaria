@@ -16,6 +16,7 @@ import {
     stubBunReap,
     run,
     passLogCount,
+    SESSION_ID_ARGV,
 } from "./loop-drain-harness";
 
 installLoopDrainHarness();
@@ -60,9 +61,10 @@ describe("--prompt — the prompt each pass runs", () => {
         // from inside the model's context. The default `bun` stub answers the
         // pre-flight with issue 101 on sonnet.
         expect(argvForOnePass([])).toEqual([
-            "argc=5",
+            "argc=7",
             "arg=--model",
             "arg=sonnet",
+            ...SESSION_ID_ARGV,
             "arg=-p",
             "arg=/next-issue 101",
             "arg=x",
@@ -76,7 +78,8 @@ describe("--prompt — the prompt each pass runs", () => {
         expect(
             argvForOnePass(["--prompt", "/process-gh-issues figli di 2405"])
         ).toEqual([
-            "argc=3",
+            "argc=5",
+            ...SESSION_ID_ARGV,
             "arg=-p",
             "arg=/process-gh-issues figli di 2405",
             "arg=x",
@@ -86,7 +89,8 @@ describe("--prompt — the prompt each pass runs", () => {
     it("treats $(...) / backticks in the prompt as literal text, never as shell", () => {
         const prompt = "/process-gh-issues $(touch pwned) `touch pwned2` a=b";
         expect(argvForOnePass(["--prompt", prompt])).toEqual([
-            "argc=3",
+            "argc=5",
+            ...SESSION_ID_ARGV,
             "arg=-p",
             `arg=${prompt}`,
             "arg=x",
@@ -112,7 +116,7 @@ describe("--prompt — the prompt each pass runs", () => {
         });
         expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
         expect(r.stderr).toMatch(
-            /would run: CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0 claude -p "\/process-gh-issues figli di 2405" x/
+            /would run: CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0 claude --session-id [0-9a-f-]{36} -p "\/process-gh-issues figli di 2405" x/
         );
     });
 

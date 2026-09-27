@@ -297,7 +297,7 @@ describe("background-wait ceiling — a pass runs to completion (#2622)", () => 
         expect(r.stderr).toMatch(
             // `claude --model <tier> -p` on the default path (#3083) — the
             // assertion is about the ceiling override, not the tier flag.
-            /would run: CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0 claude --model \S+ -p/
+            /would run: CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0 claude --model \S+ --session-id [0-9a-f-]{36} -p/
         );
     });
 });

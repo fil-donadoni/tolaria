@@ -374,18 +374,18 @@ describe("progress — draining the queue to zero", () => {
 });
 
 describe("one log line per pass", () => {
-    it("each line has 9 whitespace-separated fields: epoch pass exit pct before after spent budget reason", () => {
+    it("each line has 10 whitespace-separated fields: epoch pass exit pct before after spent budget session reason", () => {
         stubGhCountingFrom(2);
         stubClaudeProgress();
         run({ args: ["--claude-args", "x"] });
         const lines = logLines();
         expect(lines.length).toBeGreaterThan(0);
         for (const line of lines) {
-            expect(line.split(/\s+/)).toHaveLength(9);
+            expect(line.split(/\s+/)).toHaveLength(10);
         }
     });
 
-    it("still has 9 fields when gh fails AFTER the pass (queue_after unreadable)", () => {
+    it("still has 10 fields when gh fails AFTER the pass (queue_after unreadable)", () => {
         // Reproduces the hole a re-review found: `queue_after=$(count_unclaimed
         // 2>/dev/null) || queue_after=""` had no default, unlike
         // `claude_exit`, which DOES get `is_uint "$claude_exit" || claude_exit=1`.
@@ -398,7 +398,7 @@ describe("one log line per pass", () => {
         const lines = logLines();
         expect(lines.length).toBeGreaterThan(0);
         for (const line of lines) {
-            expect(line.split(/\s+/)).toHaveLength(9);
+            expect(line.split(/\s+/)).toHaveLength(10);
         }
         // field 6 (0-indexed 5) is queue_after — must be the `-` placeholder,
         // never empty, when gh couldn't be read post-pass.
