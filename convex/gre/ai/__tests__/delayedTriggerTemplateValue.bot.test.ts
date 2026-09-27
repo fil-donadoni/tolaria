@@ -248,7 +248,7 @@ describe("where the template's value LANDS (issue #3383)", () => {
         // The premise of the floor branch: the reader has read the template and
         // NOTHING else on the card (its ability is a `resolve()`).
         expect(carriesSpellOrAbilityScript(bauble)).toBe(false);
-        const blank = cardNamed("Tormod's Crypt");
+        const blank = cardNamed("Dark Sphere");
         expect(carriesSpellOrAbilityScript(blank)).toBe(false);
         // A partially-read card must not fall BELOW a card nothing is known
         // about — without the floor branch the Bauble priced at 6.4 against the
@@ -268,7 +268,7 @@ describe("where the template's value LANDS (issue #3383)", () => {
 
     it("the leaf evaluator's latent worth rises for a template-only noncreature, by the discounted template value", () => {
         const bauble = cardNamed("Mishra's Bauble");
-        const blank = cardNamed("Tormod's Crypt");
+        const blank = cardNamed("Dark Sphere");
         // Same type, same mana value ({0} artifacts) — so the ONLY difference
         // the latent core can see is the delayed draw.
         expect(cardValueById(bauble.id)).toBeGreaterThan(
