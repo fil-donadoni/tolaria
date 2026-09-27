@@ -119,6 +119,14 @@ const DRAW_PRIMITIVE_ALLOWLIST: readonly AllowlistEntry[] = [
         classification: "protocol",
     },
     {
+        file: "usg/blue.ts",
+        count: 1,
+        cards: "Time Spiral",
+        reason: 'the whole-zone move is shipped (#1279, Timetwister\'s script); the remaining step is "untap up to six lands" across both battlefields, whose DSL `choice` (allControllers) raises no candidateIds allow-list while the resolveSteps closure does -- the migration is not wire-equivalent yet.',
+        classification: "planned-migratable",
+        issue: 1727,
+    },
+    {
         file: "voc/blue.ts",
         count: 1,
         cards: "Occult Epiphany",
