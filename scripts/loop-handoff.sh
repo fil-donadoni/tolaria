@@ -28,9 +28,11 @@
 #      never writes to `loop-afk.log`, never touches the pid/stop files, and
 #      never starts or stops anything — it `tail -F`s the existing log through
 #      the same `render_stream` the live paths use, after replaying the last
-#      few passes so the first live line arrives with context. The renderer's
-#      only time source is each line's own stamp (ADR 0147), which is what
-#      lets a foreground run and a `--watch` of its log render identically.
+#      few passes so the first live line arrives with context. Its day/time
+#      column reads each line's own stamp, never the clock (ADR 0147), which
+#      is what lets a foreground run and a `--watch` of its log render
+#      identically — the live status line is the one exception, ticking on
+#      wall-clock time, but it is terminal-only and never reaches this log.
 #   2. `--from-pass` — DEAD SWITCH (ADR 0109). It used to detach the driver
 #      at the end of a `/process-gh-issues` pass whenever an `afk.conf` was
 #      present. In practice a weeks-old conf turned a single interactive pass
@@ -503,9 +505,10 @@ launch_driver() {
 # operator sees the last REPLAY_PASSES passes' worth of context before the
 # first live line arrives. `index()`, not a regex match, because the tag
 # contains literal `[`/`]`; awk's own `~` would need them escaped for no
-# benefit. Fewer than REPLAY_PASSES passes in the log (including zero, e.g. a
-# run still in its start-delay) replays from line 1 — the whole log, never an
-# error, since "not enough history yet" is not "nothing to watch".
+# benefit. Fewer than REPLAY_PASSES passes in the log replays from the
+# earliest tag present — line 1 only when there is no tag at all yet (e.g. a
+# run still in its start-delay) — never an error, since "not enough history
+# yet" is not "nothing to watch".
 watch_replay_start_line() {
     awk -v tag='loop-drain[pass]:' -v n="$REPLAY_PASSES" '
         index($0, tag) > 0 { c++; lines[c] = NR }
