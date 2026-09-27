@@ -105,6 +105,21 @@ describe("next-issue consumes the planner (issue #2184, re-homed by ADR 0110)", 
         expect(pkg.scripts["queue:plan"]).toBeTruthy();
     });
 
+    it("the abort step releases through `queue:release` and wires a prerequisite in both stores (issue #4752)", () => {
+        const text = body();
+        const abort = text.slice(text.indexOf("### Abort"));
+        expect(text.indexOf("### Abort")).toBeGreaterThan(-1);
+        expect(abort).toMatch(/bun run queue:release N/);
+        expect(abort).toMatch(/--add-blocked-by/);
+        expect(abort).toMatch(/## Blocked by/);
+        expect(abort).toMatch(/bun run queue:lint N/);
+        const pkg = JSON.parse(
+            fs.readFileSync(path.join(REPO_ROOT, "package.json"), "utf8")
+        ) as { scripts: Record<string, string> };
+        expect(pkg.scripts["queue:release"]).toBeTruthy();
+        expect(text).not.toMatch(/On abort: remove `in-progress`/);
+    });
+
     it("lands through `land` and creates worktrees through `wt:new` — never by hand", () => {
         // `gate:run land` since issue #3698 — `land` is a gate, and a gate
         // that can outrun the Bash tool's 600s cap is driven so that no
