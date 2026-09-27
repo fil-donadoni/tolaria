@@ -15,6 +15,7 @@ import {
     visibleLength,
     type RenderEnv,
 } from "../lib/loop-render";
+import { parseRemoteUrl } from "../loop-render";
 
 const PLAIN: RenderEnv = { width: 60, color: false };
 const COLOR: RenderEnv = { width: 60, color: true };
@@ -414,6 +415,145 @@ describe("renderSafely — a throw costs no line", () => {
     });
 });
 
+describe("pass-summary markdown in body lines (issue #4719)", () => {
+    const NARROW: RenderEnv = { width: 30, color: false };
+    const REPO: RenderEnv = {
+        width: 60,
+        color: true,
+        repoUrl: "https://github.com/acme/widgets",
+    };
+
+    it("renders **bold** without the asterisks", () => {
+        expect(last([`${S}**Test:** all green`], PLAIN)).toBe(
+            "10:00:00 │ Test: all green"
+        );
+        expect(last([`${S}**Test:** all green`], COLOR)).toContain(
+            "\x1b[1mTest:\x1b[0m all green"
+        );
+    });
+
+    it("renders `code` in cyan without backticks", () => {
+        expect(last([`${S}run \`bun test\` first`], PLAIN)).toBe(
+            "10:00:00 │ run bun test first"
+        );
+        expect(last([`${S}run \`bun test\` first`], COLOR)).toContain(
+            "\x1b[36mbun test\x1b[0m"
+        );
+    });
+
+    it("a ** inside a code span never pairs with a later real **bold** on the same line (PR #4745 review)", () => {
+        const out = last(
+            [`${S}use \`x**2\` and also **real bold** here`],
+            PLAIN
+        );
+        // Plain text stays fully readable either way; the real regression is
+        // colour mode below, where the stray `**` used to steal the reset
+        // and swallow "and also".
+        expect(out).toBe("10:00:00 │ use x**2 and also real bold here");
+        const colored = last(
+            [`${S}use \`x**2\` and also **real bold** here`],
+            COLOR
+        );
+        expect(colored).toContain("\x1b[36mx**2\x1b[0m");
+        expect(colored).toContain("\x1b[1mreal bold\x1b[0m");
+        expect(colored).toContain("and also");
+    });
+
+    it("turns - and 2-space -- into two bullet levels", () => {
+        const out = renderAll([`${S}- top`, `${S}  - nested`], PLAIN);
+        expect(out[1]).toBe("10:00:00 │ • top");
+        expect(out[2]).toMatch(/^ {9}│ {3}◦ nested$/);
+    });
+
+    it("wraps a PR reference in an OSC 8 link to the resolved repo's pull path", () => {
+        const out = last([`${S}see PR #4732 for it`], REPO);
+        expect(out).toContain(
+            "\x1b]8;;https://github.com/acme/widgets/pull/4732\x1b\\"
+        );
+        expect(out).toContain("PR #4732");
+        expect(out).toContain("\x1b]8;;\x1b\\");
+        expect(out).toContain("\x1b[36m");
+    });
+
+    it("wraps an issue reference in an OSC 8 link to the resolved repo's issues path", () => {
+        const out = last([`${S}closes issue #4517`], REPO);
+        expect(out).toContain(
+            "\x1b]8;;https://github.com/acme/widgets/issues/4517\x1b\\"
+        );
+        expect(out).toContain("issue #4517");
+    });
+
+    it("links a bare #N reference too, to the issues path", () => {
+        const out = last([`${S}see #4517`], REPO);
+        expect(out).toContain(
+            "\x1b]8;;https://github.com/acme/widgets/issues/4517\x1b\\"
+        );
+    });
+
+    it("highlights a reference without a link when no repo URL resolved", () => {
+        const out = last([`${S}see #4517`], COLOR);
+        expect(out).not.toContain("\x1b]8;;");
+        expect(out).toContain("\x1b[36m#4517\x1b[0m");
+    });
+
+    it("soft-wraps a long bullet with a hanging indent under the bullet, never a bare glyph on a continuation", () => {
+        const words = Array.from({ length: 14 }, (_, i) => `word${i}`);
+        const out = renderAll([`${S}- ${words.join(" ")}`], NARROW).slice(1);
+        expect(out.length).toBeGreaterThan(1);
+        expect(out[0]).toMatch(/^10:00:00 │ • word0\b/);
+        for (const line of out)
+            expect(visibleLength(line)).toBeLessThanOrEqual(NARROW.width);
+        for (const cont of out.slice(1)) expect(cont).toMatch(/^ {9}│ {3}\S/);
+        // every word survives, in order, none split across the wrap
+        const allWords = out
+            .map((l) => l.replace(/^.*?│ {1,3}(?:[•◦] )?/, ""))
+            .join(" ")
+            .split(/\s+/);
+        expect(allWords).toEqual(words);
+    });
+
+    it("passes a fenced code block through untouched and unwrapped", () => {
+        const out = renderAll(
+            [
+                `${S}\`\`\`ts`,
+                `${S}const x = 1; // a comment far too long to fit inside width 30 unwrapped`,
+                `${S}\`\`\``,
+            ],
+            NARROW
+        );
+        const codeLine = out.find((l) => l.includes("const x = 1"));
+        expect(codeLine).toBeDefined();
+        expect(visibleLength(codeLine as string)).toBeGreaterThan(NARROW.width);
+    });
+
+    it("passes a table row through untouched, pipes and all, even wider than the terminal", () => {
+        expect(last([`${S}| a | b | c |`], PLAIN)).toBe(
+            "10:00:00 │ | a | b | c |"
+        );
+        const wideRow =
+            "| aaaaaaaaaa | bbbbbbbbbb | cccccccccc | dddddddddd | eeeeeeeeee |";
+        const out = last([`${S}${wideRow}`], NARROW);
+        expect(out).toBe(`10:00:00 │ ${wideRow}`);
+        expect(visibleLength(out)).toBeGreaterThan(NARROW.width);
+    });
+
+    it("emits no escape sequences, OSC 8 included, with colour off", () => {
+        const out = last(
+            [`${S}**bold** \`code\` see PR #4732 and issue #4517`],
+            {
+                ...NARROW,
+                width: 100,
+                repoUrl: "https://github.com/acme/widgets",
+            }
+        );
+        expect(out).not.toContain("\x1b");
+        expect(out).toContain("bold");
+        expect(out).toContain("code");
+        expect(out).toContain("PR #4732");
+        expect(out).toContain("issue #4517");
+    });
+});
+
 describe("golden: a real loop-afk.log excerpt", () => {
     const excerpt = fs
         .readFileSync(path.join(FIXTURES, "afk-excerpt.log"), "utf8")
@@ -454,5 +594,31 @@ describe("the stdin→stdout wrapper", () => {
         );
         expect(r.status, r.stderr).toBe(0);
         expect(r.stdout).toBe(input);
+    });
+});
+
+describe("parseRemoteUrl — the three remote-URL shapes git hands back (PR #4745 review)", () => {
+    it.each([
+        ["git@github.com:acme/widgets.git", "https://github.com/acme/widgets"],
+        ["git@github.com:acme/widgets", "https://github.com/acme/widgets"],
+        [
+            "https://github.com/acme/widgets.git",
+            "https://github.com/acme/widgets",
+        ],
+        ["https://github.com/acme/widgets", "https://github.com/acme/widgets"],
+        [
+            "ssh://git@github.com/acme/widgets.git",
+            "https://github.com/acme/widgets",
+        ],
+        [
+            "ssh://git@github.com/acme/widgets",
+            "https://github.com/acme/widgets",
+        ],
+    ])("%s → %s", (raw, expected) => {
+        expect(parseRemoteUrl(raw)).toBe(expected);
+    });
+
+    it("returns undefined for a shape it doesn't recognise", () => {
+        expect(parseRemoteUrl("not a remote url")).toBeUndefined();
     });
 });

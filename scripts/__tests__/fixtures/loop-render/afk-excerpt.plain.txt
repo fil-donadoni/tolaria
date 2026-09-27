@@ -5,15 +5,16 @@
          │ ▶ run 1790430792-59822 — budget 140000000 weighted tokens, --max-pct 100% ⇒ effective ceiling 140000000 tokens, counted from this launch over this run's own passes only.
          │ · waiting 45s before the first pass (handoff grace period).
 20:02:45 ├─ pass 19 · #4516 · opus ─────────────────────────────────────────────────────────────────
-20:25:04 │ - **Test:** 14 test nuovi, tutti verdi. Ho rotto il codice in 12 punti diversi e ogni rottura ha fatto fallire almeno un test.
-         │ - **Review:** un giro opus ha trovato 2 problemi bloccanti, entrambi corretti.
-         │   - Mancava un tetto alle chiusure di massa: aggiunto (25).
+20:25:04 │ • Test: 14 test nuovi, tutti verdi. Ho rotto il codice in 12 punti diversi e ogni rottura
+         │   ha fatto fallire almeno un test.
+         │ • Review: un giro opus ha trovato 2 problemi bloccanti, entrambi corretti.
+         │   ◦ Mancava un tetto alle chiusure di massa: aggiunto (25).
          │
          ├─ ✓ done · 22m19s · queue 12→11 · ████████░░ 109.5M/140M 78% ─────────────────────────────
 20:25:14 │ ◌ orphan-claim sweep —
          │ loop:doctor — no claimed issues. Nothing to check.
 20:25:43 ├─ pass 20 · #4517 · sonnet ───────────────────────────────────────────────────────────────
-20:32:09 │ - **PR:** PR #4732, mergiata. Issue #4517 chiusa.
+20:32:09 │ • PR: PR #4732, mergiata. Issue #4517 chiusa.
          ├─ ✗ crashed · retry in 1m00s · 6m24s · queue 11→11 · █████████░ 128.8M/140M 92% ──────────
          │ ✗ pass 20 crashed (claude exit 1; consecutive failure 1/3) — retrying in 60s. Log tail:
 ── 2026-09-27 ──────────────────────────────────────────────────────────────────────────────────────

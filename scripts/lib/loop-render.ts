@@ -39,6 +39,12 @@ export interface RenderEnv {
     width: number;
     /** ANSI colour on/off. Off keeps the layout and drops every escape. */
     color: boolean;
+    /** `https://github.com/<owner>/<repo>`, resolved from the git remote by
+     * the wrapper (`scripts/loop-render.ts`) — never derived here, `render`
+     * stays pure I/O-free. `undefined` when the remote can't be resolved: a
+     * `#N` / `issue #N` / `PR #N` reference still highlights, it just isn't
+     * wrapped in an OSC 8 link (issue #4719). */
+    repoUrl?: string;
 }
 
 /** A sweep block being buffered — its header seen, its rows not yet closed
@@ -84,6 +90,10 @@ export interface RenderState {
      * against. `null` before a run's first sweep — which is therefore always
      * full. */
     lastSweep: SweepSignature | null;
+    /** Inside a fenced code block (odd number of ``` lines seen so far in a
+     * body run) — every line in it, fence included, passes through raw
+     * (issue #4719): no bold/code/bullet/ref markdown, no wrapping. */
+    inCodeFence: boolean;
 }
 
 export const INITIAL_RENDER_STATE: RenderState = {
@@ -91,6 +101,7 @@ export const INITIAL_RENDER_STATE: RenderState = {
     stamp: null,
     pendingSweep: null,
     lastSweep: null,
+    inCodeFence: false,
 };
 
 export interface RenderResult {
@@ -118,8 +129,17 @@ const SGR: Record<Tone, string> = {
 export const paint = (env: RenderEnv, tone: Tone, text: string): string =>
     env.color && text !== "" ? `\x1b[${SGR[tone]}m${text}\x1b[0m` : text;
 
+/** An OSC 8 hyperlink (`ESC ] 8 ; ; url ST text ESC ] 8 ; ; ST`), or `text`
+ * bare when colour is off or no repo URL was resolved (issue #4719): a link
+ * is a visual affordance the same as SGR colour, gated the same way — "with
+ * colour off, no escape sequences are emitted, OSC 8 included." */
+const link = (env: RenderEnv, url: string | undefined, text: string): string =>
+    env.color && url !== undefined
+        ? `\x1b]8;;${url}\x1b\\${text}\x1b]8;;\x1b\\`
+        : text;
+
 // eslint-disable-next-line no-control-regex
-const ANSI_RE = /\x1b\[[0-9;]*m/g;
+const ANSI_RE = /\x1b\[[0-9;]*m|\x1b\]8;;[^\x1b]*\x1b\\/g;
 export const visibleLength = (text: string): number =>
     [...text.replace(ANSI_RE, "")].length;
 
@@ -430,6 +450,131 @@ function bodyLine(
     return `${time}${gutter}${colorFn ? colorFn(env, text) : text}`;
 }
 
+// --- Pass-summary markdown (issue #4719) -----------------------------------
+//
+// `claude` writes each pass's own summary as plain markdown body lines
+// (`- **Test:** …`, `  - nested …`, a bare issue/PR ref). This is deliberately
+// NOT a full parser — only the markdown that passes actually emit: bold,
+// inline code, two bullet levels, `#N`/`issue #N`/`PR #N` references, and
+// fenced code blocks / tables passed through verbatim.
+
+const CODE_SPAN_RE = /`([^`]+)`/g;
+const BOLD_RE = /\*\*([^*]+)\*\*/g;
+const REF_RE = /(\b(?:pr|issue)\s)?#(\d+)\b/gi;
+const FENCE_RE = /^\s*```/;
+/** A markdown table row — this repo's own tables (`CLAUDE.md`,
+ * `gre-development.md`) are always `| cell | cell |`, header and separator
+ * rows included, so one regex covers both. */
+const TABLE_ROW_RE = /^\s*\|.*\|\s*$/;
+/** Two bullet levels only (issue #4719's acceptance list): no indent → `•`,
+ * exactly two spaces → `◦`. Anything deeper reads as body text. */
+const BULLET_RE = /^( {2})?- (.*)$/;
+
+/** `**bold**` and `#N` / `issue #N` / `PR #N` references, applied to one
+ * NON-CODE segment of a line. Never called on a code span's own content —
+ * inline code is verbatim, same as real markdown: a stray `**` inside
+ * `` `a**b` `` must not pair up with a later REAL `**bold**` marker on the
+ * same line and corrupt it (PR #4745 review finding). */
+function renderTextSegment(env: RenderEnv, text: string): string {
+    let out = text.replace(BOLD_RE, (_, inner: string) =>
+        paint(env, "bold", inner)
+    );
+    out = out.replace(REF_RE, (_, kind: string | undefined, n: string) => {
+        const label = `${kind ?? ""}#${n}`;
+        const path = kind?.trim().toLowerCase() === "pr" ? "pull" : "issues";
+        const url = env.repoUrl ? `${env.repoUrl}/${path}/${n}` : undefined;
+        return link(env, url, paint(env, "cyan", label));
+    });
+    return out;
+}
+
+/** `` `code` `` splits a line into code spans and everything else; the
+ * spans are painted verbatim and never handed to `renderTextSegment` —
+ * bold/ref markup is looked for only in what is left, so a reference
+ * textually inside a `**bold #12**` span still renders (the DSL here is
+ * line-oriented, not a nested tree), but a `**` living inside a code span
+ * never reaches the bold pass at all. */
+function renderInlineMarkdown(env: RenderEnv, text: string): string {
+    let out = "";
+    let last = 0;
+    CODE_SPAN_RE.lastIndex = 0;
+    let m: RegExpExecArray | null;
+    while ((m = CODE_SPAN_RE.exec(text)) !== null) {
+        out += renderTextSegment(env, text.slice(last, m.index));
+        out += paint(env, "cyan", m[1]);
+        last = CODE_SPAN_RE.lastIndex;
+    }
+    out += renderTextSegment(env, text.slice(last));
+    return out;
+}
+
+/** Word-wrap already-rendered (ANSI/OSC 8 included) text to `width` visible
+ * columns, breaking only on spaces — no hyphenation, and a single word wider
+ * than `width` still gets its own line rather than being cut mid-character. */
+function wrapWords(words: string[], width: number): string[] {
+    const lines: string[] = [];
+    let cur: string[] = [];
+    let curLen = 0;
+    for (const w of words) {
+        const wLen = visibleLength(w);
+        const sep = cur.length > 0 ? 1 : 0;
+        if (cur.length > 0 && curLen + sep + wLen > width) {
+            lines.push(cur.join(" "));
+            cur = [w];
+            curLen = wLen;
+        } else {
+            cur.push(w);
+            curLen += sep + wLen;
+        }
+    }
+    if (cur.length > 0) lines.push(cur.join(" "));
+    return lines;
+}
+
+/** Render one markdown body line: bold/code/refs plus width-aware wrapping
+ * with a hanging indent under the gutter and the bullet (issue #4719). A
+ * fenced code block (every line from an opening ``` to the matching closing
+ * one) or a table row passes through untouched and unwrapped — table columns
+ * and code are pre-formatted by whoever wrote them. */
+function markdownBodyLines(
+    env: RenderEnv,
+    time: string,
+    text: string,
+    inCodeFence: boolean
+): { lines: string[]; inCodeFence: boolean } {
+    if (text === "") return { lines: [bodyLine(env, time, text)], inCodeFence };
+    const fenceToggle = FENCE_RE.test(text);
+    if (inCodeFence || fenceToggle || TABLE_ROW_RE.test(text)) {
+        return {
+            lines: [bodyLine(env, time, text)],
+            inCodeFence: fenceToggle ? !inCodeFence : inCodeFence,
+        };
+    }
+    const bulletM = BULLET_RE.exec(text);
+    const nested = bulletM?.[1] !== undefined;
+    const indentWidth = bulletM ? (nested ? 4 : 2) : 0;
+    const bulletPrefix = bulletM
+        ? `${bulletM[1] ?? ""}${nested ? "◦" : "•"} `
+        : "";
+    const content = bulletM ? bulletM[2] : text;
+    const rendered = renderInlineMarkdown(env, content);
+    const available = Math.max(
+        1,
+        env.width - TIME_WIDTH - visibleLength(GUTTER) - indentWidth
+    );
+    const wrapped = wrapWords(rendered.split(" "), available);
+    const gutter = paint(env, "dim", GUTTER);
+    const blank = " ".repeat(TIME_WIDTH);
+    const indentSpaces = " ".repeat(indentWidth);
+    return {
+        lines: wrapped.map(
+            (ln, i) =>
+                `${i === 0 ? time : blank}${gutter}${i === 0 ? bulletPrefix : indentSpaces}${ln}`
+        ),
+        inCodeFence: false,
+    };
+}
+
 /** The day rule (0 or 1 line) and time cell for ONE stamped line, plus the
  * content past the stamp and the state it advances to. Pulled out of
  * `render` so a buffered sweep row can compute the exact same cells the
@@ -569,8 +714,11 @@ export function render(
     const gutter = paint(env, "dim", GUTTER);
     const blank = " ".repeat(TIME_WIDTH);
     const output: string[] = [...dayRule];
+    let nextInCodeFence = next.inCodeFence;
     if (cls.kind === "body") {
-        output.push(bodyLine(env, time, cls.text));
+        const md = markdownBodyLines(env, time, cls.text, next.inCodeFence);
+        output.push(...md.lines);
+        nextInCodeFence = md.inCodeFence;
     } else if (cls.kind === "info") {
         output.push(`${time}${gutter}${paint(env, "dim", "·")} ${cls.message}`);
     } else if (cls.tag === "pass") {
@@ -584,7 +732,7 @@ export function render(
     } else {
         output.push(`${time}${gutter}${glyphLine(env, cls.tag, cls.message)}`);
     }
-    return { output, state: next };
+    return { output, state: { ...next, inCodeFence: nextInCodeFence } };
 }
 
 /**
