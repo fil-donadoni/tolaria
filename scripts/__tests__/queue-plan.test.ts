@@ -3067,6 +3067,23 @@ describe("planBatch — a blocker competes in the band of what it blocks (issue 
         expect(plan.batch[0]).not.toHaveProperty("priorityBand");
     });
 
+    it("names no lift when the blocker already competes in that band through its own umbrella", () => {
+        // #50 is a P1 slice of P0 umbrella #100: its `priorityBand` is the
+        // parent's, and crediting #20 for it would misname the reason.
+        const plan = planBatch(
+            [issue(20, { parent: 100 }), issue(50, { parent: 100 })],
+            { ...CONFIG, batchCap: 1 },
+            makePort({ 20: files(20, [50]), 50: files(50) }, [], {
+                100: "P0",
+                20: "P0",
+                50: "P1",
+            })
+        );
+        expect(numbers(plan)).toEqual([50]);
+        expect(plan.batch[0]).toMatchObject({ priorityBand: "P0" });
+        expect(plan.batch[0]).not.toHaveProperty("bandLiftedBy");
+    });
+
     it("terminates on a blocker cycle, and every issue still lands exactly once", () => {
         const plan = planBatch(
             [issue(20, { parent: 100 }), issue(50), issue(30)],
