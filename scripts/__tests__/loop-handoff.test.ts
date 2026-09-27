@@ -663,3 +663,158 @@ describe("foreground by default, --detach is the opt-in (issue #4389)", () => {
         });
     });
 });
+
+describe("--watch renders an existing log, read-only (issue #4720)", () => {
+    const AFK_LOG = () => telemetry("loop-afk.log");
+    const STAMPED = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} /;
+    /** A renderer stub that paints every line red — ANSI a log must never see. */
+    const ANSI_RENDERER = `sed "s/^/$(printf '\\033')[31m/"`;
+
+    /** One synthetic pass — a `[pass]` tag, one body line, an `[end]` tag —
+     *  matching the shape `watch_replay_start_line` scans for. */
+    const passBlock = (n: number): string =>
+        [
+            `2026-09-27 10:0${n}:00 loop-drain[pass]: pass ${n} — issue #${n} on tier sonnet`,
+            `2026-09-27 10:0${n}:05 loop-drain: body line for pass ${n}`,
+            `2026-09-27 10:0${n}:10 loop-drain[end]: pass=${n} exit=0 reason=- pct=0 queue_before=2 queue_after=1 spent=1 budget=100 duration=1 retry=0`,
+        ].join("\n") + "\n";
+
+    const writeLog = (passes: number[]): void =>
+        fs.writeFileSync(AFK_LOG(), passes.map(passBlock).join(""));
+
+    /** `--watch` never exits on its own (`tail -F` runs forever): every test
+     *  spawns it detached (its own process group, exactly as the SIGINT test
+     *  above), polls stdout against a small step list — each step's `until`
+     *  gates an optional one-shot `then` side effect (e.g. appending a new
+     *  pass mid-stream) — and once every step has fired, signals the WHOLE
+     *  group: `-pgid`, not the wrapper's own pid, because the pipeline's
+     *  members (`tail`, the renderer, `cat`) are siblings under it, not
+     *  descendants a plain `kill` would reach. */
+    interface WatchStep {
+        until: (stdout: string) => boolean;
+        then?: () => void;
+    }
+    const runWatch = (
+        args: string[],
+        env: Record<string, string>,
+        steps: WatchStep[]
+    ): Promise<{ stdout: string; stderr: string; pgid: number }> =>
+        new Promise((resolve, reject) => {
+            const child = spawn("sh", [HANDOFF, "--watch", ...args], {
+                cwd: tmp,
+                detached: true,
+                stdio: ["ignore", "pipe", "pipe"],
+                env: {
+                    ...process.env,
+                    TOLARIA_LOOP_DRAIN: "",
+                    TOLARIA_LOOP_TOKEN_BUDGET: "",
+                    ...env,
+                },
+            });
+            const pgid = child.pid!;
+            let out = "";
+            let err = "";
+            child.stdout!.on("data", (b: Buffer) => (out += b.toString()));
+            child.stderr!.on("data", (b: Buffer) => (err += b.toString()));
+            const fail = (e: unknown) => {
+                try {
+                    process.kill(-pgid, "SIGKILL");
+                } catch {
+                    /* already gone */
+                }
+                reject(e);
+            };
+            let stepIx = 0;
+            let interrupted = false;
+            const poll = setInterval(() => {
+                if (stepIx >= steps.length) return;
+                if (!steps[stepIx].until(out)) return;
+                steps[stepIx].then?.();
+                stepIx++;
+                if (stepIx < steps.length) return;
+                clearInterval(poll);
+                interrupted = true;
+                process.kill(-pgid, "SIGINT");
+            }, 50);
+            const guard = setTimeout(
+                () =>
+                    fail(
+                        new Error(
+                            interrupted
+                                ? `--watch still alive 10s after SIGINT:\n${out}${err}`
+                                : `--watch output stalled at step ${stepIx}/${steps.length}:\n${out}${err}`
+                        )
+                    ),
+                10_000
+            );
+            child.on("exit", () => {
+                clearInterval(poll);
+                clearTimeout(guard);
+                resolve({ stdout: out, stderr: err, pgid });
+            });
+        });
+
+    it("refuses when no log exists yet, and touches neither the pid nor the stop file", () => {
+        const r = run({ args: ["--watch", "--plain"] });
+        expect(r.status).toBe(1);
+        expect(r.stderr).toMatch(/--watch found no log at .*loop-afk\.log/);
+        expect(fs.existsSync(PID())).toBe(false);
+        expect(fs.existsSync(STOP())).toBe(false);
+    });
+
+    it("replays only the last 3 passes, then follows a new one, writing nothing to the log", () => {
+        writeLog([1, 2, 3, 4, 5]);
+        const beforeBytes = fs.readFileSync(AFK_LOG(), "utf8").length;
+
+        return runWatch([], { TOLARIA_LOOP_RENDERER: "cat" }, [
+            {
+                // The replay has landed — append a 6th pass to prove this is
+                // a `tail -F`, not a one-shot read of what was there at start.
+                until: (out) => out.includes("pass 5 — issue #5"),
+                then: () => fs.appendFileSync(AFK_LOG(), passBlock(6)),
+            },
+            { until: (out) => out.includes("pass 6 — issue #6") },
+        ]).then(({ stdout }) => {
+            // Replayed: the last three of the five passes already on disk.
+            for (const n of [3, 4, 5]) {
+                expect(stdout).toContain(`pass ${n} — issue #${n}`);
+            }
+            // NOT replayed: passes older than the last three.
+            for (const n of [1, 2]) {
+                expect(stdout).not.toContain(`pass ${n} — issue #${n}`);
+            }
+
+            // Read-only start to finish: --watch never opens the log for
+            // writing, so it grew by exactly what THIS TEST appended, and the
+            // pid/stop files it never touches stay absent.
+            expect(fs.existsSync(PID())).toBe(false);
+            expect(fs.existsSync(STOP())).toBe(false);
+            const afterBytes = fs.readFileSync(AFK_LOG(), "utf8").length;
+            expect(afterBytes).toBe(beforeBytes + passBlock(6).length);
+        });
+    });
+
+    it("--watch --plain output is plain: the renderer is skipped", () => {
+        writeLog([1, 2, 3]);
+        return runWatch(["--plain"], { TOLARIA_LOOP_RENDERER: ANSI_RENDERER }, [
+            { until: (out) => out.includes("pass 3") },
+        ]).then(({ stdout }) => {
+            expect(stdout).not.toContain("\x1b");
+            const lines = stdout.split("\n").filter((l) => l !== "");
+            for (const line of lines) expect(line).toMatch(STAMPED);
+            expect(stdout).toContain("pass 3 — issue #3");
+        });
+    });
+
+    it("exits cleanly on SIGINT, leaving no live descendant", () => {
+        writeLog([1]);
+        return runWatch([], { TOLARIA_LOOP_RENDERER: "cat" }, [
+            { until: (out) => out.includes("pass 1") },
+        ]).then(({ pgid }) => {
+            const survivors = spawnSync("pgrep", ["-g", String(pgid)], {
+                encoding: "utf8",
+            });
+            expect(survivors.stdout.trim()).toBe("");
+        });
+    });
+});
