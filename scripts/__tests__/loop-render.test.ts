@@ -141,6 +141,16 @@ describe("pass header rule", () => {
         expect(visibleLength(line)).toBe(60);
     });
 
+    it("reads the header past a trailing session id, showing its first block (issue #4722)", () => {
+        const line = last([
+            `${S}loop-drain[pass]: pass 19 — issue #4516 on tier opus. session=0f8c2a4e-1b2c-4d3e-8f9a-0b1c2d3e4f5a`,
+        ]);
+        expect(line).toMatch(
+            /^10:00:00 ├─ pass 19 · #4516 · opus 0f8c2a4e ─+$/
+        );
+        expect(visibleLength(line)).toBe(60);
+    });
+
     it("keeps the message of a prompt-scoped pass", () => {
         expect(
             last([`${S}loop-drain[pass]: pass 2 — prompt "/next-issue 3131".`])

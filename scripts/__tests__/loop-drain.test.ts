@@ -200,7 +200,7 @@ describe("the budget is THIS RUN's spend, not a window over the machine (#3699)"
         run({ args: ["--claude-args", "x", "--budget", "10000"] });
         for (const line of logLines()) {
             const f = line.split(/\s+/);
-            expect(f).toHaveLength(9);
+            expect(f).toHaveLength(10);
             expect(f[6]).toBe("1234");
             expect(f[7]).toBe("10000");
         }

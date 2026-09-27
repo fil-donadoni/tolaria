@@ -12,6 +12,7 @@ import {
     stubBunPlanHead,
     run,
     passLogCount,
+    SESSION_ID_ARGV,
 } from "./loop-drain-harness";
 
 installLoopDrainHarness();
@@ -44,9 +45,10 @@ describe("pre-flight — WHICH issue, on WHICH tier (#3083)", () => {
         stubGhCountingFrom(5);
         stubBunPlanHead(2707, "opus");
         expect(argvForOnePass()).toEqual([
-            "argc=4",
+            "argc=6",
             "arg=--model",
             "arg=opus",
+            ...SESSION_ID_ARGV,
             "arg=-p",
             "arg=/next-issue 2707",
         ]);
@@ -59,9 +61,10 @@ describe("pre-flight — WHICH issue, on WHICH tier (#3083)", () => {
         stubGhCountingFrom(5);
         stubBunPlanHead(3083, "sonnet");
         expect(argvForOnePass()).toEqual([
-            "argc=4",
+            "argc=6",
             "arg=--model",
             "arg=sonnet",
+            ...SESSION_ID_ARGV,
             "arg=-p",
             "arg=/next-issue 3083",
         ]);
@@ -77,7 +80,7 @@ describe("pre-flight — WHICH issue, on WHICH tier (#3083)", () => {
         expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
         expect(r.stderr).toMatch(/issue #2707 on tier opus/);
         expect(r.stderr).toMatch(
-            /would run: CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0 claude --model opus -p "\/next-issue 2707"/
+            /would run: CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0 claude --model opus --session-id [0-9a-f-]{36} -p "\/next-issue 2707"/
         );
     });
 
@@ -218,9 +221,10 @@ describe("pre-flight — WHICH issue, on WHICH tier (#3083)", () => {
             ].join("\n")
         );
         expect(argvForOnePass()).toEqual([
-            "argc=4",
+            "argc=6",
             "arg=--model",
             "arg=opus",
+            ...SESSION_ID_ARGV,
             "arg=-p",
             "arg=/next-issue 2288",
         ]);
