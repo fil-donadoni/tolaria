@@ -76,6 +76,7 @@
         "preview": "vite preview",
         "prints:sync": "bun scripts/prints-sync.ts",
         "queue:claim": "bun scripts/queue-claim.ts",
+        "queue:release": "bun scripts/queue-release.ts",
         "queue:lint": "bun scripts/queue-lint.ts",
         "card:link": "bun scripts/card-link.ts",
         "queue:plan": "bun scripts/queue-plan.ts",

@@ -11,7 +11,10 @@ import {
     liveClaimSet,
     ownsClaimLock,
     parsePpidComm,
+    performRelease,
+    type ReleaseRow,
 } from "../lib/queue-claim";
+import { releasedClaims } from "../lib/queue-plan";
 import { capCensus, isStaleClaim } from "../lib/queue-plan";
 import {
     claimVerdicts,
@@ -600,4 +603,72 @@ rmSync(dir, { recursive: true, force: true });
             rmSync(root, { recursive: true, force: true });
         }
     }, 30_000);
+});
+
+describe("queue:release — the claim's inverse is ONE act: label, assignee, journal row (issue #4752)", () => {
+    // An abort that removed only the label left the `@me` assignee, and the
+    // planner deferred the issue as "assigned — someone is working it" on
+    // every pass, forever.
+    function release(ghFails = false): {
+        calls: string[][];
+        rows: ReleaseRow[];
+        error: unknown;
+    } {
+        const calls: string[][] = [];
+        const rows: ReleaseRow[] = [];
+        let error: unknown = null;
+        try {
+            performRelease({
+                issue: 4470,
+                session: "sess-a",
+                now: 1_700_000_000,
+                gh: (args) => {
+                    calls.push(args);
+                    if (ghFails) throw new Error("gh: HTTP 502");
+                },
+                appendRow: (row) => rows.push(row),
+            });
+        } catch (err) {
+            error = err;
+        }
+        return { calls, rows, error };
+    }
+
+    it("removes the in-progress label AND the assignee, in one edit", () => {
+        const { calls } = release();
+        expect(calls).toHaveLength(1);
+        const args = calls[0];
+        expect(args.slice(0, 3)).toEqual(["issue", "edit", "4470"]);
+        expect(args[args.indexOf("--remove-label") + 1]).toBe("in-progress");
+        expect(args[args.indexOf("--remove-assignee") + 1]).toBe("@me");
+    });
+
+    it("appends a `released` row every journal reader folds out of the live set", () => {
+        const { rows } = release();
+        expect(rows).toEqual([
+            {
+                ts: 1_700_000_000,
+                session: "sess-a",
+                issue: 4470,
+                event: "released",
+                by: "queue:release",
+            },
+        ]);
+        const ledger = [
+            JSON.stringify({
+                ts: 1,
+                session: "sess-a",
+                issue: 4470,
+                event: "claim",
+            }),
+            ...rows.map((r) => JSON.stringify(r)),
+        ].join("\n");
+        expect(releasedClaims(ledger)).toEqual([4470]);
+    });
+
+    it("writes no row when the edit failed — a row over a live label would hide a claim from the cap", () => {
+        const { rows, error } = release(true);
+        expect(error).toBeInstanceOf(Error);
+        expect(rows).toEqual([]);
+    });
 });
