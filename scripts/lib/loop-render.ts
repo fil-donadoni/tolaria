@@ -470,22 +470,41 @@ const TABLE_ROW_RE = /^\s*\|.*\|\s*$/;
  * exactly two spaces → `◦`. Anything deeper reads as body text. */
 const BULLET_RE = /^( {2})?- (.*)$/;
 
-/** `**bold**`, `` `code` `` and `#N` / `issue #N` / `PR #N` references,
- * applied to one line's worth of already bullet-stripped text. Order matters
- * only in that a reference is looked for in what is left after bold/code are
- * resolved, so a ref textually inside a `**bold #12**` span still renders —
- * the DSL here is line-oriented, not a nested tree. */
-function renderInlineMarkdown(env: RenderEnv, text: string): string {
-    let out = text.replace(CODE_SPAN_RE, (_, code: string) =>
-        paint(env, "cyan", code)
+/** `**bold**` and `#N` / `issue #N` / `PR #N` references, applied to one
+ * NON-CODE segment of a line. Never called on a code span's own content —
+ * inline code is verbatim, same as real markdown: a stray `**` inside
+ * `` `a**b` `` must not pair up with a later REAL `**bold**` marker on the
+ * same line and corrupt it (PR #4745 review finding). */
+function renderTextSegment(env: RenderEnv, text: string): string {
+    let out = text.replace(BOLD_RE, (_, inner: string) =>
+        paint(env, "bold", inner)
     );
-    out = out.replace(BOLD_RE, (_, inner: string) => paint(env, "bold", inner));
     out = out.replace(REF_RE, (_, kind: string | undefined, n: string) => {
         const label = `${kind ?? ""}#${n}`;
         const path = kind?.trim().toLowerCase() === "pr" ? "pull" : "issues";
         const url = env.repoUrl ? `${env.repoUrl}/${path}/${n}` : undefined;
         return link(env, url, paint(env, "cyan", label));
     });
+    return out;
+}
+
+/** `` `code` `` splits a line into code spans and everything else; the
+ * spans are painted verbatim and never handed to `renderTextSegment` —
+ * bold/ref markup is looked for only in what is left, so a reference
+ * textually inside a `**bold #12**` span still renders (the DSL here is
+ * line-oriented, not a nested tree), but a `**` living inside a code span
+ * never reaches the bold pass at all. */
+function renderInlineMarkdown(env: RenderEnv, text: string): string {
+    let out = "";
+    let last = 0;
+    CODE_SPAN_RE.lastIndex = 0;
+    let m: RegExpExecArray | null;
+    while ((m = CODE_SPAN_RE.exec(text)) !== null) {
+        out += renderTextSegment(env, text.slice(last, m.index));
+        out += paint(env, "cyan", m[1]);
+        last = CODE_SPAN_RE.lastIndex;
+    }
+    out += renderTextSegment(env, text.slice(last));
     return out;
 }
 

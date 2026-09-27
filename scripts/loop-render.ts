@@ -54,30 +54,36 @@ const ACTIVITY_REFRESH_MS = 2000;
 /** Erase the current terminal row and return to its first column. */
 const ERASE_LINE = "\r\x1b[2K";
 
-/** `https://github.com/<owner>/<repo>` from `origin`'s URL, whichever form
- * git hands back (`git@host:owner/repo.git`, `https://host/owner/repo.git`,
- * `ssh://git@host/owner/repo`) — `undefined` when there is no remote or it
- * isn't a recognisable GitHub-shaped URL (issue #4719). I/O lives here, in
- * the wrapper, never in the pure renderer. */
+/** `https://<host>/<owner>/<repo>` from a remote URL, whichever form git
+ * hands back (`git@host:owner/repo.git`, `https://host/owner/repo.git`,
+ * `ssh://git@host/owner/repo`) — `undefined` when it isn't a recognisable
+ * shape. Kept apart from the `execFileSync` call below (and exported) so
+ * this — the actual parsing — is unit-testable without shelling out: a
+ * fused version shipped mis-detecting BOTH the `https://` and `ssh://`
+ * forms as scp-style (PR #4745 review), because an scp-style regex tried
+ * unconditionally will happily match a scheme name as the "host" up to its
+ * first `:`. Checking the `scheme://` shape first, and requiring it
+ * outright, is what keeps the two apart. */
+export function parseRemoteUrl(raw: string): string | undefined {
+    const stripped = raw.trim().replace(/\.git$/, "");
+    const urlM = /^\w+:\/\/(?:[\w-]+@)?([^/]+)\/(.+)$/.exec(stripped);
+    if (urlM) return `https://${urlM[1]}/${urlM[2]}`;
+    const scpM = /^(?:[\w-]+@)?([^:/]+):(.+)$/.exec(stripped);
+    if (scpM) return `https://${scpM[1]}/${scpM[2]}`;
+    return undefined;
+}
+
+/** I/O lives here, in the wrapper, never in the pure renderer (issue #4719). */
 function resolveRepoUrl(): string | undefined {
-    let raw: string;
     try {
-        raw = execFileSync("git", ["config", "--get", "remote.origin.url"], {
-            encoding: "utf8",
-        }).trim();
+        return parseRemoteUrl(
+            execFileSync("git", ["config", "--get", "remote.origin.url"], {
+                encoding: "utf8",
+            })
+        );
     } catch {
         return undefined;
     }
-    const stripped = raw.replace(/\.git$/, "");
-    const scp = /^(?:[\w-]+@)?([^:/]+):(.+)$/.exec(stripped);
-    const path = scp
-        ? scp[2]
-        : stripped.replace(/^\w+:\/\/(?:[\w-]+@)?[^/]+\//, "");
-    const host = scp
-        ? scp[1]
-        : /^\w+:\/\/(?:[\w-]+@)?([^/]+)\//.exec(stripped)?.[1];
-    if (!host || !path) return undefined;
-    return `https://${host}/${path}`;
 }
 
 function main(): void {

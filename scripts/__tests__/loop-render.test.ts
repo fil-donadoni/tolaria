@@ -15,6 +15,7 @@ import {
     visibleLength,
     type RenderEnv,
 } from "../lib/loop-render";
+import { parseRemoteUrl } from "../loop-render";
 
 const PLAIN: RenderEnv = { width: 60, color: false };
 const COLOR: RenderEnv = { width: 60, color: true };
@@ -440,6 +441,24 @@ describe("pass-summary markdown in body lines (issue #4719)", () => {
         );
     });
 
+    it("a ** inside a code span never pairs with a later real **bold** on the same line (PR #4745 review)", () => {
+        const out = last(
+            [`${S}use \`x**2\` and also **real bold** here`],
+            PLAIN
+        );
+        // Plain text stays fully readable either way; the real regression is
+        // colour mode below, where the stray `**` used to steal the reset
+        // and swallow "and also".
+        expect(out).toBe("10:00:00 │ use x**2 and also real bold here");
+        const colored = last(
+            [`${S}use \`x**2\` and also **real bold** here`],
+            COLOR
+        );
+        expect(colored).toContain("\x1b[36mx**2\x1b[0m");
+        expect(colored).toContain("\x1b[1mreal bold\x1b[0m");
+        expect(colored).toContain("and also");
+    });
+
     it("turns - and 2-space -- into two bullet levels", () => {
         const out = renderAll([`${S}- top`, `${S}  - nested`], PLAIN);
         expect(out[1]).toBe("10:00:00 │ • top");
@@ -575,5 +594,31 @@ describe("the stdin→stdout wrapper", () => {
         );
         expect(r.status, r.stderr).toBe(0);
         expect(r.stdout).toBe(input);
+    });
+});
+
+describe("parseRemoteUrl — the three remote-URL shapes git hands back (PR #4745 review)", () => {
+    it.each([
+        ["git@github.com:acme/widgets.git", "https://github.com/acme/widgets"],
+        ["git@github.com:acme/widgets", "https://github.com/acme/widgets"],
+        [
+            "https://github.com/acme/widgets.git",
+            "https://github.com/acme/widgets",
+        ],
+        ["https://github.com/acme/widgets", "https://github.com/acme/widgets"],
+        [
+            "ssh://git@github.com/acme/widgets.git",
+            "https://github.com/acme/widgets",
+        ],
+        [
+            "ssh://git@github.com/acme/widgets",
+            "https://github.com/acme/widgets",
+        ],
+    ])("%s → %s", (raw, expected) => {
+        expect(parseRemoteUrl(raw)).toBe(expected);
+    });
+
+    it("returns undefined for a shape it doesn't recognise", () => {
+        expect(parseRemoteUrl("not a remote url")).toBeUndefined();
     });
 });
