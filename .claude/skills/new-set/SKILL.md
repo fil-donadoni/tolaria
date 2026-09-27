@@ -345,7 +345,7 @@ one parameter shape). The recompile, the lane, the review and the landing are
 paid per PR; the golden fixture is paid per form anyway — so a ticket per gap
 pays the fixed cost N times for no extra evidence. Cluster the ranked list
 before cutting: the family-boundary and long-tail rules ("one family, never a
-grab-bag"; "the long tail clusters by slot") are `/cluster-gaps`'s
+grab-bag"; "the long tail clusters by its own axis") are `/cluster-gaps`'s
 (`.claude/skills/cluster-gaps/SKILL.md` § Cutting rules, ADR 0146) — shared
 with the other four gap kinds, not restated here. Invoke `/cluster-gaps
 grammar` over this ranked list for the grouping decision (its "grouping-only
