@@ -36,6 +36,7 @@ const IN_REPO_SKILLS = [
     "new-card",
     "to-prd",
     "to-tickets",
+    "cluster-gaps",
 ];
 
 function isTracked(relPath: string): boolean {
@@ -333,6 +334,7 @@ describe("every filing skill points at the filing stamp (issue #4457)", () => {
      *  slices / umbrellas / gap issues it cuts through another skill. */
     const FILING_SKILLS = [
         "audit-tracker",
+        "cluster-gaps",
         "grammar-rule",
         "health-fix",
         "new-card",

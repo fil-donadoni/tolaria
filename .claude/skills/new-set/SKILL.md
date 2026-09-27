@@ -344,16 +344,16 @@ fetch, every `Whenever you cast a <filter> spell` head, every keyword line of
 one parameter shape). The recompile, the lane, the review and the landing are
 paid per PR; the golden fixture is paid per form anyway — so a ticket per gap
 pays the fixed cost N times for no extra evidence. Cluster the ranked list
-before cutting:
+before cutting: the family-boundary and long-tail rules ("one family, never a
+grab-bag"; "the long tail clusters by its own axis") are `/cluster-gaps`'s
+(`.claude/skills/cluster-gaps/SKILL.md` § Cutting rules, ADR 0146) — shared
+with the other four gap kinds, not restated here. Invoke `/cluster-gaps
+grammar` over this ranked list for the grouping decision (its "grouping-only
+mode" — this backlog is unfiled and one-shot, so it authors no `clusters` row
+and creates no issue itself); this skill still owns:
 
-- **One family, never a grab-bag.** A cluster is one rule (or one shared
-  sub-grammar plus the slots that route through it) — the reviewer must be
-  able to read it as one design. Two unrelated gaps are two clusters.
 - **Cap ~10 gaps.** Past that the PR is too big to review and one red form
   blocks the rest; split by form.
-- **The long tail clusters by slot.** Singletons with no family (one card, one
-  shape) go in a few `[Grammar] <slot> long tail` tickets, one per slot, each
-  still capped — never one ticket each.
 - **Every gap key is listed and claimed.** The body's `## Grammar Gaps` lists
   each key with its counts; each key gets a `claims` row (kind `grammar`) in
   `data/grammar-gaps.json` pointing at the cluster — or, for an Op-census key,
