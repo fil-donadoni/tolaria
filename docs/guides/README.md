@@ -24,16 +24,17 @@ an agent's context automatically — these are read on demand.
 
 Not every document is a guide. Where to look for the other kinds:
 
-| You want                                         | Look in                                                                        |
-| ------------------------------------------------ | ------------------------------------------------------------------------------ |
-| The norms an agent must follow                   | `CLAUDE.md`, `.claude/rules/**` (both loaded into every session automatically) |
-| Why a decision was made                          | `docs/adr/` — index at `docs/adr/README.md`                                    |
-| Domain vocabulary                                | `CONTEXT.md`                                                                   |
-| What the quality gates are and why               | `docs/agents/quality-gates.md`                                                 |
-| How the issue queue and its labels work          | `docs/agents/issue-tracker.md`, `docs/agents/triage-labels.md`                 |
-| What the loop costs, measured                    | `docs/agents/workflow-token-economics.md`                                      |
-| What a subagent noticed but was not asked to fix | `docs/findings/` — read with `bun run findings`                                |
-| The workflow skills themselves                   | `.claude/skills/<name>/SKILL.md` (invoked as `/<name>`)                        |
+| You want                                         | Look in                                                                                                                                        |
+| ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| The norms an agent must follow                   | `CLAUDE.md`, `.claude/rules/**` (both loaded into every session automatically)                                                                 |
+| Why a decision was made                          | `docs/adr/` — index at `docs/adr/README.md`                                                                                                    |
+| Domain vocabulary                                | `CONTEXT.md`                                                                                                                                   |
+| What the quality gates are and why               | `docs/agents/quality-gates.md`                                                                                                                 |
+| How the issue queue and its labels work          | `docs/agents/issue-tracker.md`, `docs/agents/triage-labels.md`                                                                                 |
+| What the loop costs, measured                    | `docs/agents/workflow-token-economics.md`                                                                                                      |
+| How to start, watch or stop the AFK driver       | `bun run loop:afk --help` — `--start`/`--detach`/`--watch` (read-only rendered view of a `--detach` or other-terminal run)/`--status`/`--stop` |
+| What a subagent noticed but was not asked to fix | `docs/findings/` — read with `bun run findings`                                                                                                |
+| The workflow skills themselves                   | `.claude/skills/<name>/SKILL.md` (invoked as `/<name>`)                                                                                        |
 
 ## Every guide carries a glossary
 
