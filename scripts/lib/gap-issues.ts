@@ -98,13 +98,16 @@ import { declaredSection } from "./declared-section";
 import type { CardRow, Lockfile } from "./oracle-lockfile";
 import {
     claimId,
+    CLUSTER_KINDS,
     GAP_KINDS,
     parseClusterRows,
     quarantineClass,
     splitClaimId,
     type CardMatch,
     type ClaimRow,
+    type ClusterKind,
     type ClusterRow,
+    type CutRow,
     type GapKind,
     type SetFileColour,
 } from "./targets";
@@ -548,6 +551,25 @@ export interface GapSyncResult {
      *  after the write-back, so a failed write never leaves a live gap's row
      *  on a closed issue (read `skip-closed`, the claim lost). */
     readonly absorbed: readonly AbsorbedSingle[];
+    /**
+     * The open, unabsorbable, non-standalone singles `syncGaps` itself filed,
+     * per kind (ADR 0146 § Decision 7, issue #4681) — the count
+     * {@link syncClusterCutTickets}'s threshold reads. `migration` never
+     * appears: `CLUSTER_KINDS` excludes it.
+     */
+    readonly unabsorbable: ReadonlyMap<
+        ClusterKind,
+        readonly ClusterCutSingle[]
+    >;
+}
+
+/** One open single counted toward a Cluster Cut ticket's threshold. */
+export interface ClusterCutSingle {
+    readonly key: string;
+    readonly issue: number;
+    /** The gap's own band (`GapFiling.band`), or null (residue) — the ticket's
+     *  `## Band` line is the strongest of these. */
+    readonly band: string | null;
 }
 
 /** One single an `absorb` re-pointed its claim row away from. */
@@ -1170,6 +1192,44 @@ export function syncGaps(
         }
     }
 
+    // Cluster Cut tickets (ADR 0146 § Decision 7, issue #4681): the open
+    // singles `gaps:sync` itself filed that NO Cluster Signature currently
+    // absorbs — free or merely busy — and that no Standalone Gap declares
+    // deliberately alone. A signature match, free or busy, means a human
+    // already ruled on this shape (`matchCluster`'s `via: "signature"`, a
+    // Standalone row included — it matches itself); only `via: "single"` with
+    // an EMPTY `busy` means nobody has. Reuses `stateOf`'s cache — never a
+    // second read of an issue this run already looked at. `migration` never
+    // enters: `CLUSTER_KINDS` excludes it (ADR 0146 § Decision 8).
+    const unabsorbable = new Map<ClusterKind, ClusterCutSingle[]>();
+    for (const filing of filings) {
+        if (!(CLUSTER_KINDS as readonly string[]).includes(filing.kind))
+            continue;
+        if (isAdopted(filing) || wouldCreate(filing)) continue;
+        const id = claimId(filing.kind, filing.key);
+        if (absorbInto.has(id) || isCluster(filing)) continue;
+        const current = existing.get(id);
+        if (current === null || current === undefined) continue;
+        if (current.state !== "OPEN") continue;
+        if (!current.title?.startsWith(GAP_TITLE_PREFIX[filing.kind])) continue;
+        const match = matchCluster(
+            { kind: filing.kind, key: filing.key, card: filing.card },
+            signatureRows,
+            stateOf
+        );
+        if (match.via !== "single" || match.busy.length > 0) continue;
+        const kind = filing.kind as ClusterKind;
+        const list = unabsorbable.get(kind) ?? [];
+        list.push({
+            key: filing.key,
+            issue: filing.currentIssue!,
+            band: filing.band ?? null,
+        });
+        unabsorbable.set(kind, list);
+    }
+    for (const list of unabsorbable.values())
+        list.sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
+
     // A Gap Cluster's band raise (issue #4680): the strongest umbrella any
     // LIVE key voting for a cluster earns it — an adoption, an absorption, or
     // an already-claimed member (a re-home: its own Target may have shifted).
@@ -1424,7 +1484,7 @@ export function syncGaps(
         });
     }
 
-    return { actions, moves, updatedRows, absorbed };
+    return { actions, moves, updatedRows, absorbed, unabsorbable };
 }
 
 /**
@@ -1495,6 +1555,140 @@ export function applyUpdatedIssues(
     return sorted.length === 0
         ? { ...allowlist, ops }
         : { ...allowlist, ops, claims: sorted };
+}
+
+// ── Cluster Cut tickets (ADR 0146 § Decision 7, issue #4681) ─────────────
+//
+// A threshold triggers the CUT, never the adoption — adoption is mechanical
+// (the section above), the cut is a judgment call `/cluster-gaps` makes. When
+// one kind's `unabsorbable` singles (`syncGaps`'s own count) reach
+// `clusterCutThreshold`, ONE standing ticket is opened or, once open, kept
+// current — never duplicated, never one per kind twice.
+
+/** The title `gaps:sync` files (and re-finds nothing by — the `cuts` row is
+ *  the record) a Cluster Cut ticket under. */
+export function clusterCutTitle(kind: ClusterKind): string {
+    return `[Cluster] cut ${kind} singles`;
+}
+
+/** The strongest (lowest-lettered) band among `singles`, or null when every
+ *  one is residue — `"P1"` < `"P2"` < `"P3"` sorts correctly as plain text. */
+function strongestSingleBand(
+    singles: readonly ClusterCutSingle[]
+): string | null {
+    let best: string | null = null;
+    for (const single of singles) {
+        if (single.band === null) continue;
+        if (best === null || single.band < best) best = single.band;
+    }
+    return best;
+}
+
+/**
+ * A Cluster Cut ticket's body — a function of the CURRENT single list, so a
+ * later run rewrites it only when the list actually changed, like every other
+ * kind's body (module header § Idempotency). The `## Band` line (issue #4230
+ * shape) is the strongest of the listed singles', omitted when every one is
+ * residue.
+ */
+export function clusterCutBody(
+    kind: ClusterKind,
+    singles: readonly ClusterCutSingle[]
+): string {
+    const lines = [
+        `\`gaps:sync\` computed ${singles.length} open \`${kind}\` single(s) that no Cluster Signature currently absorbs and no Standalone Gap declares deliberately alone (ADR 0146 § Decision 7) — past \`clusterCutThreshold\` in \`data/targets.json\`.`,
+        "",
+        `Run \`/cluster-gaps ${kind}\` to decide what belongs together: cut the Cluster Signature(s) that adopt them (a \`clusters\` row each), or mark a deliberate single Standalone with its \`reason\`.`,
+        "",
+        "## Singles",
+        "",
+        ...(singles.length === 0
+            ? ["None."]
+            : singles.map((s) => `- \`${s.key}\` — issue #${s.issue}`)),
+    ];
+    const band = strongestSingleBand(singles);
+    if (band !== null)
+        lines.push(
+            "",
+            "## Band",
+            "",
+            `${band} — highest band among the listed singles`
+        );
+    return lines.join("\n");
+}
+
+export interface ClusterCutAction {
+    readonly kind: ClusterKind;
+    readonly action: "create" | "update" | "noop";
+    /** null only on a `noop` with no standing ticket yet. */
+    readonly issue: number | null;
+}
+
+/**
+ * Create, update or leave alone — one decision per kind, entirely through
+ * `tracker`, pure over `unabsorbable` and `cutIssues` (`syncGaps`'s own count,
+ * the allowlist's `cuts` rows). A ticket already OPEN is always kept current
+ * (its list may shrink back under threshold and stays reported — closing it
+ * is `/cluster-gaps`'s call, never this one's); closed or never filed, a
+ * fresh one is opened only at or past `threshold`.
+ */
+export function syncClusterCutTickets(
+    unabsorbable: ReadonlyMap<ClusterKind, readonly ClusterCutSingle[]>,
+    cutIssues: ReadonlyMap<ClusterKind, number>,
+    tracker: Pick<GapTracker, "getIssue" | "createIssue" | "updateBody">,
+    threshold: number
+): {
+    readonly actions: readonly ClusterCutAction[];
+    readonly updatedRows: ReadonlyMap<ClusterKind, number>;
+} {
+    const actions: ClusterCutAction[] = [];
+    const updatedRows = new Map<ClusterKind, number>();
+    for (const kind of CLUSTER_KINDS) {
+        const singles = unabsorbable.get(kind) ?? [];
+        const issueNumber = cutIssues.get(kind) ?? null;
+        const current =
+            issueNumber === null ? null : tracker.getIssue(issueNumber);
+        if (current !== null && current.state === "OPEN") {
+            const body = clusterCutBody(kind, singles);
+            if (body !== current.body) {
+                tracker.updateBody(issueNumber!, body);
+                actions.push({ kind, action: "update", issue: issueNumber });
+            } else {
+                actions.push({ kind, action: "noop", issue: issueNumber });
+            }
+            continue;
+        }
+        if (singles.length < threshold) {
+            actions.push({ kind, action: "noop", issue: issueNumber });
+            continue;
+        }
+        const issue = tracker.createIssue({
+            title: clusterCutTitle(kind),
+            body: clusterCutBody(kind, singles),
+            labels: ["ready-for-agent", "area:workflow"],
+            parent: KIND_FALLBACK[kind],
+        });
+        updatedRows.set(kind, issue);
+        actions.push({ kind, action: "create", issue });
+    }
+    return { actions, updatedRows };
+}
+
+/** Upsert `updatedRows` into the allowlist's `cuts` array, sorted by kind —
+ *  the write-back {@link applyUpdatedIssues} does for `ops` / `claims`. */
+export function applyUpdatedCuts(
+    allowlist: Allowlist,
+    updatedRows: ReadonlyMap<ClusterKind, number>
+): Allowlist {
+    if (updatedRows.size === 0) return allowlist;
+    const cuts = new Map<ClusterKind, number>(
+        (allowlist.cuts ?? []).map((row) => [row.kind, row.issue] as const)
+    );
+    for (const [kind, issue] of updatedRows) cuts.set(kind, issue);
+    const sorted: CutRow[] = [...cuts.entries()]
+        .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+        .map(([kind, issue]) => ({ kind, issue }));
+    return { ...allowlist, cuts: sorted };
 }
 
 // ── `## Unlocks` — the engine issue a gap is blocked by (issue #4052) ─────

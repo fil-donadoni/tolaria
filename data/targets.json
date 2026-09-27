@@ -1,6 +1,7 @@
 {
     "handTailFloor": 3,
     "handTailFiling": true,
+    "clusterCutThreshold": 5,
     "targets": [
         {
             "id": "premodern-metagame",

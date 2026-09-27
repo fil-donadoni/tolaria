@@ -3721,5 +3721,7 @@
         }
     ],
     "clustersNote": "Cluster Signatures (ADR 0146, issue #4677): one row per Gap Cluster, `{ issue, kind, match, standalone?, reason? }`, authored by `/cluster-gaps`, never by `gaps:sync`. `match` lists segment globs over the ` › `-separated gap key (`*` within one segment) or, for `hand-tail`, `{ set, colour }` set files; `standalone: true` + `reason` marks a deliberate single (one exact key). A NEW gap matching an open cluster that is not `in-progress` and has no open PR is claimed by it (lowest issue wins) and listed in the cluster body's managed `## Adopted gaps` block. Parsed fail-closed by `parseClusterRows` (`scripts/lib/targets.ts`).",
-    "clusters": []
+    "clusters": [],
+    "cutsNote": "Cluster Cut ticket rows (ADR 0146 § Decision 7, issue #4681): one row per kind, { kind, issue } — gaps:sync's own \"clusters-adjacent record\" of the ONE standing Cluster Cut ticket it opened for that kind past `clusterCutThreshold` (data/targets.json), how it finds the ticket again without a title search. Never written by `/cluster-gaps`, unlike `clusters`. Parsed fail-closed by `parseCutRows` (`scripts/lib/targets.ts`).",
+    "cuts": []
 }

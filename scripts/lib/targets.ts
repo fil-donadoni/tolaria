@@ -93,6 +93,13 @@ export interface TargetRegistry {
     /** Whether `gaps:sync` files hand-tail issues — for cards of `enforced`
      *  Targets only (issue #4219). Read by the filer, not here. */
     readonly handTailFiling: boolean;
+    /**
+     * The open, unabsorbable, non-standalone single count (per kind) past
+     * which `gaps:sync` opens or updates ONE standing Cluster Cut ticket
+     * (ADR 0146 § Decision 7, issue #4681) — configuration, never a literal in
+     * the filer.
+     */
+    readonly clusterCutThreshold: number;
     readonly targets: readonly TargetRow[];
 }
 
@@ -114,6 +121,11 @@ export function parseTargetRegistry(
         fail("`handTailFloor` must be a positive integer");
     if (typeof doc.handTailFiling !== "boolean")
         fail("`handTailFiling` must be a boolean");
+    if (
+        !Number.isInteger(doc.clusterCutThreshold) ||
+        doc.clusterCutThreshold < 1
+    )
+        fail("`clusterCutThreshold` must be a positive integer");
     if (!Array.isArray(doc.targets) || doc.targets.length === 0)
         fail("`targets` must be a non-empty array");
 
@@ -723,6 +735,65 @@ export function parseClusterRows(
             ...(standalone === true ? { standalone: true as const } : {}),
             ...(reason === undefined ? {} : { reason: reason as string }),
         });
+    });
+    return rows;
+}
+
+// ── Cluster Cut tickets — the `cuts` rows (ADR 0146 § Decision 7, #4681) ──
+
+/**
+ * One standing Cluster Cut ticket, as `data/grammar-gaps.json`'s `cuts` array
+ * records it — the "clusters-adjacent record" the ticket is found again by,
+ * one row per kind, `gaps:sync`'s own (`/cluster-gaps` never writes it, unlike
+ * `clusters`).
+ */
+export interface CutRow {
+    readonly kind: ClusterKind;
+    readonly issue: number;
+}
+
+/**
+ * The `cuts` rows of the allowlist document, validated FAIL-CLOSED like
+ * {@link parseClusterRows}: an unknown kind, a non-positive issue, an unknown
+ * field or a second row for the same kind throws — one standing ticket per
+ * kind, never two silently open at once.
+ */
+export function parseCutRows(
+    doc: { readonly cuts?: unknown },
+    path = "data/grammar-gaps.json"
+): CutRow[] {
+    if (doc.cuts === undefined) return [];
+    if (!Array.isArray(doc.cuts))
+        throw new Error(`${path}: \`cuts\` must be an array`);
+    const rows: CutRow[] = [];
+    const seen = new Set<ClusterKind>();
+    doc.cuts.forEach((raw: unknown, at: number) => {
+        const fail = (message: string): never => {
+            throw new Error(
+                `${path}: cuts[${at}] ${JSON.stringify(raw)}: ${message}`
+            );
+        };
+        if (typeof raw !== "object" || raw === null || Array.isArray(raw))
+            fail("a row must be an object");
+        const row = raw as Record<string, unknown>;
+        for (const field of Object.keys(row))
+            if (field !== "kind" && field !== "issue")
+                fail(`unknown field \`${field}\` (one of: kind, issue)`);
+        const { kind, issue } = row;
+        if (!(CLUSTER_KINDS as readonly unknown[]).includes(kind))
+            fail(
+                `unknown kind \`${String(kind)}\` (one of: ${CLUSTER_KINDS.join(", ")}; \`migration\` is clustered by slot signature already)`
+            );
+        if (!Number.isInteger(issue) || (issue as number) <= 0)
+            fail(
+                `\`issue\` is ${JSON.stringify(issue)}, want a positive integer`
+            );
+        if (seen.has(kind as ClusterKind))
+            fail(
+                `a second \`cuts\` row for kind \`${String(kind)}\` — one Cluster Cut ticket per kind`
+            );
+        seen.add(kind as ClusterKind);
+        rows.push({ kind: kind as ClusterKind, issue: issue as number });
     });
     return rows;
 }

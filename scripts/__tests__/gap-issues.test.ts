@@ -16,6 +16,7 @@ import {
     type ClusterRow,
 } from "../lib/targets";
 import {
+    applyUpdatedCuts,
     applyUpdatedIssues,
     bandUmbrellaOf,
     BAND_UMBRELLAS,
@@ -31,6 +32,8 @@ import {
     syncUnlockEdges,
     umbrellaKey,
     withUnlockBlockers,
+    clusterCutBody,
+    clusterCutTitle,
     KIND_FALLBACK,
     PRD_ISSUE,
     renderOpGapBody,
@@ -38,6 +41,7 @@ import {
     clusterIssues,
     absorptionComment,
     closeAbsorbedSingles,
+    syncClusterCutTickets,
     syncGaps,
     issuesWorkedByPrs,
     syncAdoptedBlocks,
@@ -51,6 +55,7 @@ import {
     umbrellaBandRank,
     withAdoptedBlock,
     reHomeComment,
+    type ClusterCutSingle,
     type ClusterIssueState,
     type GapFiling,
     type GapTracker,
@@ -2104,5 +2109,315 @@ describe("clusterIssues counts a signature cluster, never a Standalone Gap", () 
             ],
         };
         expect([...clusterIssues(doc)]).toEqual([900]);
+    });
+});
+
+describe("syncGaps computes the unabsorbable singles a Cluster Cut ticket counts (issue #4681)", () => {
+    const BOT_A = "never-chosen › sorcery › draw+forEach";
+    const BOT_B = "never-chosen › instant › draw+forEach";
+    const A_ISSUE = 5001;
+    const B_ISSUE = 5002;
+    const CLUSTER = 900;
+    const bot = (key: string, issue: number, band: string | null = "P2") =>
+        filing({
+            kind: "bot",
+            key,
+            title: `Bot Gap: ${key}`,
+            currentIssue: issue,
+            band,
+            body: () => "body",
+        });
+    const tracker = () => {
+        const t = new StubTracker();
+        t.issues.set(A_ISSUE, {
+            state: "OPEN",
+            title: `Bot Gap: ${BOT_A}`,
+            body: "body",
+        });
+        t.issues.set(B_ISSUE, {
+            state: "OPEN",
+            title: `Bot Gap: ${BOT_B}`,
+            body: "body",
+        });
+        return t;
+    };
+
+    it("no Cluster Signature at all — every open single counts, sorted by key", () => {
+        const result = syncGaps(
+            [bot(BOT_A, A_ISSUE), bot(BOT_B, B_ISSUE)],
+            tracker()
+        );
+        expect(result.unabsorbable.get("bot")).toEqual([
+            { key: BOT_B, issue: B_ISSUE, band: "P2" },
+            { key: BOT_A, issue: A_ISSUE, band: "P2" },
+        ]);
+    });
+
+    it("a free Cluster Signature match — absorbable, excluded", () => {
+        const t = tracker();
+        t.issues.set(CLUSTER, { state: "OPEN", body: "## Scope" });
+        const signature = {
+            issue: CLUSTER,
+            kind: "bot" as const,
+            match: ["never-chosen › sorcery › *forEach*"],
+        };
+        const result = syncGaps(
+            [bot(BOT_A, A_ISSUE), bot(BOT_B, B_ISSUE)],
+            t,
+            undefined,
+            new Set([CLUSTER]),
+            [signature]
+        );
+        expect(result.unabsorbable.get("bot")).toEqual([
+            { key: BOT_B, issue: B_ISSUE, band: "P2" },
+        ]);
+    });
+
+    it("a busy Cluster Signature match — still unabsorbable right now, but a signature already exists: excluded", () => {
+        const t = tracker();
+        t.issues.set(CLUSTER, { state: "OPEN", body: "## Scope" });
+        t.states.set(CLUSTER, { open: true, inProgress: true, openPr: false });
+        const signature = {
+            issue: CLUSTER,
+            kind: "bot" as const,
+            match: ["never-chosen › sorcery › *forEach*"],
+        };
+        const result = syncGaps(
+            [bot(BOT_A, A_ISSUE), bot(BOT_B, B_ISSUE)],
+            t,
+            undefined,
+            new Set([CLUSTER]),
+            [signature]
+        );
+        expect(result.unabsorbable.get("bot")).toEqual([
+            { key: BOT_B, issue: B_ISSUE, band: "P2" },
+        ]);
+    });
+
+    it("a Standalone Gap declaring itself alone — excluded, not standalone's whole point", () => {
+        const t = tracker();
+        const standalone = {
+            issue: A_ISSUE,
+            kind: "bot" as const,
+            match: [BOT_A],
+            standalone: true as const,
+            reason: "deliberately alone",
+        };
+        const result = syncGaps(
+            [bot(BOT_A, A_ISSUE), bot(BOT_B, B_ISSUE)],
+            t,
+            undefined,
+            new Set(),
+            [standalone]
+        );
+        expect(result.unabsorbable.get("bot")).toEqual([
+            { key: BOT_B, issue: B_ISSUE, band: "P2" },
+        ]);
+    });
+
+    it("a hand-filed issue (title mismatch) — never gaps:sync's own single, excluded", () => {
+        const t = tracker();
+        t.issues.set(B_ISSUE, {
+            state: "OPEN",
+            title: "Bot never casts forEach sorceries",
+            body: "body",
+        });
+        const result = syncGaps([bot(BOT_A, A_ISSUE), bot(BOT_B, B_ISSUE)], t);
+        expect(result.unabsorbable.get("bot")).toEqual([
+            { key: BOT_A, issue: A_ISSUE, band: "P2" },
+        ]);
+    });
+
+    it("migration never enters — CLUSTER_KINDS excludes it (ADR 0146 § Decision 8)", () => {
+        const t = tracker();
+        const migrationFiling = filing({
+            kind: "migration",
+            key: "slot-1",
+            title: "Migration: slot-1",
+            currentIssue: 6000,
+            body: () => "body",
+        });
+        t.issues.set(6000, {
+            state: "OPEN",
+            title: "Migration: slot-1",
+            body: "body",
+        });
+        const result = syncGaps(
+            [bot(BOT_A, A_ISSUE), bot(BOT_B, B_ISSUE), migrationFiling],
+            t
+        );
+        expect(result.unabsorbable.size).toBe(1);
+        expect(result.unabsorbable.has("bot")).toBe(true);
+    });
+});
+
+describe("clusterCutTitle / clusterCutBody — a Cluster Cut ticket's shape (issue #4681)", () => {
+    it("titles by kind", () => {
+        expect(clusterCutTitle("bot")).toBe("[Cluster] cut bot singles");
+        expect(clusterCutTitle("hand-tail")).toBe(
+            "[Cluster] cut hand-tail singles"
+        );
+    });
+
+    it("lists every single and the strongest band", () => {
+        const body = clusterCutBody("bot", [
+            { key: "b", issue: 2, band: "P2" },
+            { key: "a", issue: 1, band: "P1" },
+        ]);
+        expect(body).toContain("- `b` — issue #2");
+        expect(body).toContain("- `a` — issue #1");
+        expect(body).toMatch(
+            /## Band\n\nP1 — highest band among the listed singles/
+        );
+    });
+
+    it("omits `## Band` when every single is residue", () => {
+        const body = clusterCutBody("bot", [
+            { key: "a", issue: 1, band: null },
+        ]);
+        expect(body).not.toContain("## Band");
+    });
+
+    it("prints `None.` for an empty list", () => {
+        expect(clusterCutBody("bot", [])).toContain("None.");
+    });
+});
+
+describe("syncClusterCutTickets — the threshold decision (ADR 0146 § Decision 7, issue #4681)", () => {
+    const singles = (n: number): ClusterCutSingle[] =>
+        Array.from({ length: n }, (_, i) => ({
+            key: `k${i}`,
+            issue: 100 + i,
+            band: "P2",
+        }));
+
+    it("below threshold, no standing ticket — nothing", () => {
+        const t = new StubTracker();
+        const result = syncClusterCutTickets(
+            new Map([["bot", singles(4)]]),
+            new Map(),
+            t,
+            5
+        );
+        expect(result.actions.find((a) => a.kind === "bot")).toEqual({
+            kind: "bot",
+            action: "noop",
+            issue: null,
+        });
+        expect(t.createCalls).toBe(0);
+        expect(result.updatedRows.size).toBe(0);
+    });
+
+    it("at threshold, no standing ticket — creates one under the kind's fallback, labelled and bodied", () => {
+        const t = new StubTracker();
+        const result = syncClusterCutTickets(
+            new Map([["bot", singles(5)]]),
+            new Map(),
+            t,
+            5
+        );
+        const action = result.actions.find((a) => a.kind === "bot")!;
+        expect(action.action).toBe("create");
+        const issue = action.issue!;
+        expect(t.issues.get(issue)!.body).toContain("## Singles");
+        expect(t.parents.get(issue)).toBe(KIND_FALLBACK.bot);
+        expect(result.updatedRows.get("bot")).toBe(issue);
+    });
+
+    it("ticket already open, list changed — rewritten", () => {
+        const t = new StubTracker();
+        const TICKET = 7000;
+        t.issues.set(TICKET, {
+            state: "OPEN",
+            body: clusterCutBody("bot", singles(5)),
+        });
+        const result = syncClusterCutTickets(
+            new Map([["bot", singles(6)]]),
+            new Map([["bot", TICKET]]),
+            t,
+            5
+        );
+        expect(result.actions.find((a) => a.kind === "bot")).toEqual({
+            kind: "bot",
+            action: "update",
+            issue: TICKET,
+        });
+        expect(t.updateCalls).toBe(1);
+        expect(result.updatedRows.size).toBe(0);
+    });
+
+    it("ticket already open, list unchanged — noop, no rewrite", () => {
+        const t = new StubTracker();
+        const TICKET = 7000;
+        t.issues.set(TICKET, {
+            state: "OPEN",
+            body: clusterCutBody("bot", singles(5)),
+        });
+        const result = syncClusterCutTickets(
+            new Map([["bot", singles(5)]]),
+            new Map([["bot", TICKET]]),
+            t,
+            5
+        );
+        expect(result.actions.find((a) => a.kind === "bot")).toEqual({
+            kind: "bot",
+            action: "noop",
+            issue: TICKET,
+        });
+        expect(t.updateCalls).toBe(0);
+    });
+
+    it("singles all absorbed, no standing ticket — no new ticket", () => {
+        const t = new StubTracker();
+        const result = syncClusterCutTickets(new Map(), new Map(), t, 5);
+        expect(result.actions.find((a) => a.kind === "bot")).toEqual({
+            kind: "bot",
+            action: "noop",
+            issue: null,
+        });
+        expect(t.createCalls).toBe(0);
+    });
+
+    it("a CLOSED standing ticket, past threshold again — opens a fresh one", () => {
+        const t = new StubTracker();
+        const TICKET = 7000;
+        t.issues.set(TICKET, { state: "CLOSED", body: "old" });
+        const result = syncClusterCutTickets(
+            new Map([["bot", singles(5)]]),
+            new Map([["bot", TICKET]]),
+            t,
+            5
+        );
+        const action = result.actions.find((a) => a.kind === "bot")!;
+        expect(action.action).toBe("create");
+        expect(action.issue).not.toBe(TICKET);
+    });
+});
+
+describe("applyUpdatedCuts — the `cuts` write-back (issue #4681)", () => {
+    it("upserts by kind, sorted", () => {
+        const allowlist = {
+            ops: [],
+            cuts: [{ kind: "bot" as const, issue: 100 }],
+        };
+        const updated = applyUpdatedCuts(
+            allowlist,
+            new Map([
+                ["hand-tail", 300],
+                ["bot", 200],
+            ])
+        );
+        expect(updated.cuts).toEqual([
+            { kind: "bot", issue: 200 },
+            { kind: "hand-tail", issue: 300 },
+        ]);
+    });
+
+    it("an empty update leaves the allowlist untouched", () => {
+        const allowlist = {
+            ops: [],
+            cuts: [{ kind: "bot" as const, issue: 1 }],
+        };
+        expect(applyUpdatedCuts(allowlist, new Map())).toBe(allowlist);
     });
 });
