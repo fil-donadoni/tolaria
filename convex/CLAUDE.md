@@ -251,12 +251,10 @@ simply never shows up in a game against the Bot.
 
 Procedure, checklist and the failure gallery: `docs/guides/bot-reachability.md`.
 
-## Pending-choice wire safety (CR 406.3, issue #1982)
+## Pending-choice wire safety (CR 406.3)
 
-`pendingChoices` crosses the wire UNREDACTED, by design — safety is per-site
-(byte-identical prompt/options across hidden branches; `subjectCardId` only
-via `getPublicCardIdentity` or an allowlisted producer, guarded by
-`subjectCardIdProducers.test.ts`). Derivation: `docs/agents/gre-guards.md`
+`pendingChoices` crosses the wire UNREDACTED — per-site safety discipline,
+`subjectCardId` producer guard. Derivation: `docs/agents/gre-guards.md`
 § Pending-choice wire safety.
 
 ## Exhaustive target-type matching
