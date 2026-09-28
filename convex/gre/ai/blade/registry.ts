@@ -15,14 +15,14 @@
  *                 makes it pass.
  */
 
-import type { BladeScenario, BladeSeat } from "./types";
+import type { BladeScenario, BladeSeat, MoveMatcher } from "./types";
 import type { GameState } from "../../state";
 import type { Move } from "../../moves";
 import { enumerateMoves, enumerateRaisedTargetMoves } from "../../moves";
 import { applyMoveInSearch, isDiscouragedRolloutMove } from "../../search";
 import { raisedPendingTargetOwedBy } from "../../pendingTargetOrigin";
 import { cloneGameState } from "../../clone";
-import { instanceIdsForName, seatPlayerId } from "./matcher";
+import { instanceIdsForName, matchesMove, seatPlayerId } from "./matcher";
 import { materialMargin } from "../../evaluate";
 import { isLand, manaValue } from "../../constants";
 import { DEFAULT_EVAL_WEIGHTS } from "../evalWeights";
@@ -407,6 +407,25 @@ function mayAttackAgain(
             m.kind === "declare-attackers" &&
             m.attackerIds.some((a) => ids.has(a))
     );
+}
+
+/** Issue #4765 — a TIMING measurement written as a `predicate`, never as
+ *  `moves` / `forbidden`. Those two shapes lower to a Verdict, and a Verdict
+ *  enters the weight fit (`weightFit.bot.test.ts`): a report-only entry would
+ *  then move `DEFAULT_EVAL_WEIGHTS`, i.e. change behaviour. PRD #4754 records
+ *  why timing must not reach the fit at all — the fit cannot express it, and
+ *  the first promotion bent unrelated weights (issue #4761). `expected` is the
+ *  same name-based matcher a `moves` entry would carry; `hold` asserts the
+ *  bot chose something OTHER than it (the `forbidden` shape). */
+function timingMeasurement(
+    expected: MoveMatcher,
+    hold = false
+): BladeScenario["expect"] {
+    return {
+        predicate: (move, state) =>
+            move !== null && matchesMove(state, move, expected) !== hold,
+        describe: `${hold ? "does NOT choose" : "chooses"} ${expected.kind} ${expected.card ?? ""}${expected.target ? ` → ${expected.target}` : ""}`,
+    };
 }
 
 /** The exact MIRROR of {@link activationStaysAvailable} — the activation is
@@ -3863,7 +3882,8 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     // interaction: removal and combat responses are outside the deferral
     // perimeter by design (their timing depends on what the opponent does,
     // so only the search's leaves can price it). One hold position and three
-    // reactive windows, each walked forward through the real engine.
+    // reactive windows, each walked forward through the real engine. Each is
+    // a `timingMeasurement` predicate, so none of them reaches the weight fit.
     {
         label: "removal timing: holds Terror in its own main with no immediate threat",
         spec: {
@@ -3886,9 +3906,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         budget: { iterations: 300 },
         seeds: [0xb1ade, 1, 2, 3, 4],
         tier: "stretch",
-        expect: {
-            forbidden: [{ kind: "cast-spell", card: "Terror" }],
-        },
+        expect: timingMeasurement({ kind: "cast-spell", card: "Terror" }, true),
         note: "Issue #4765. Nothing else to spend mana on and the opposing Bears is no threat this turn: Terror (CR 304.1, instant) kills it as well after it attacks, or at the end step, while the untapped mana keeps the answer open against whatever the opponent casts next. Casting it at sorcery speed buys nothing and forecloses the choice of target.",
     },
     {
@@ -3927,15 +3945,11 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         budget: { iterations: 300 },
         seeds: [0xb1ade, 1, 2, 3, 4],
         tier: "stretch",
-        expect: {
-            moves: [
-                {
-                    kind: "cast-spell",
-                    card: "Swords to Plowshares",
-                    target: "Craw Wurm",
-                },
-            ],
-        },
+        expect: timingMeasurement({
+            kind: "cast-spell",
+            card: "Swords to Plowshares",
+            target: "Craw Wurm",
+        }),
         note: "Issue #4765. The removal belongs HERE, after attackers are declared: the attacker is committed, no later window precedes its damage, and exiling it now saves 6 life on top of the creature. A pass is not a deferral to a later window but a strictly worse line.",
     },
     {
@@ -3984,15 +3998,11 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         budget: { iterations: 300 },
         seeds: [0xb1ade, 1, 2, 3, 4],
         tier: "stretch",
-        expect: {
-            moves: [
-                {
-                    kind: "cast-spell",
-                    card: "Lightning Bolt",
-                    target: "Grizzly Bears",
-                },
-            ],
-        },
+        expect: timingMeasurement({
+            kind: "cast-spell",
+            card: "Lightning Bolt",
+            target: "Grizzly Bears",
+        }),
         note: "Issue #4765. Bolting the 2/2 in response kills it before the pump resolves, and Giant Growth then has no legal target (CR 608.2b): a two-for-one that also keeps the Hill Giant. Passing lets a 5/5 kill the blocker and survive.",
     },
     {
@@ -4040,15 +4050,11 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         budget: { iterations: 300 },
         seeds: [0xb1ade, 1, 2, 3, 4],
         tier: "stretch",
-        expect: {
-            moves: [
-                {
-                    kind: "cast-spell",
-                    card: "Giant Growth",
-                    target: "Hill Giant",
-                },
-            ],
-        },
+        expect: timingMeasurement({
+            kind: "cast-spell",
+            card: "Giant Growth",
+            target: "Hill Giant",
+        }),
         note: "Issue #4765. Giant Growth in response makes the Hill Giant a 6/6: it survives the Bolt's 3 damage (CR 704.5g) and still kills the attacking Bears. Passing loses the blocker for nothing.",
     },
     {
