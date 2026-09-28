@@ -515,6 +515,7 @@ sequence in front of it — they are pages reached by URL:
 | `/admin/pick-ratings` | Pick Ratings editor — the Rating Scope radiogroup over a searchable card list                                         |
 | `/admin/testers`      | Tester roles — every account, and the control that grants or revokes the role                                         |
 | `/admin/bug-reports`  | Bug report evidence — the report list beside the selected report's detail, read-only                                  |
+| `/admin/bot-findings` | Bot Findings (ADR 0141) — the Cards panel: measured-vs-total line, one row per card the Bot does not play             |
 | `/admin/draft-lab`    | Draft Lab — Synthetic/Replay tabs, pack source, seed, `Start draft`                                                   |
 | `/settings`           | Settings — Density, Motion, Phase stops, Card preview default                                                         |
 

@@ -4249,6 +4249,44 @@ export const SURFACES: readonly Surface[] = [
         },
     },
     {
+        id: "admin-bot-findings",
+        entries: [
+            "src/routes/admin/admin-layout.route.tsx",
+            "src/routes/admin/admin-bot-findings.route.tsx",
+        ],
+        label: "Bot Findings (/admin/bot-findings)",
+        // Promised WITHOUT a finding row: the rows are whatever the deployment
+        // was seeded with (`bun run seed:bot-findings`), and the lane seeds
+        // nothing — so the rows are a fixture, while the page, the Cards panel
+        // and its measured-vs-total line (which states "no measurement" on an
+        // unseeded deployment rather than rendering nothing) are the screen.
+        asserts: [
+            {
+                label: "page heading",
+                locator: { role: "heading", name: "Bot Findings" },
+                check: "visible",
+            },
+            {
+                label: "cards panel",
+                locator: { role: "heading", name: "Cards" },
+                check: "visible",
+            },
+            {
+                label: "measured-vs-total line",
+                locator: { selector: "[data-bot-findings-measurement]" },
+                check: "visible",
+            },
+        ],
+        async walk(page, ctx) {
+            await goto(page, ctx, "/admin/bot-findings");
+            if (!(await visible(page, "h1:has-text('Bot Findings')", 10_000))) {
+                throw new Unreachable(
+                    "/admin/bot-findings did not render the page heading — is this account still an admin?"
+                );
+            }
+        },
+    },
+    {
         id: "draft-lab",
         entries: [
             "src/routes/admin/admin-layout.route.tsx",

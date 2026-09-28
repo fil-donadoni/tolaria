@@ -33,6 +33,7 @@ import AdminBanlistsRoute from "./routes/admin/admin-banlists.route";
 import AdminPickRatingsRoute from "./routes/admin/admin-pick-ratings.route";
 import AdminCardProfilesRoute from "./routes/admin/admin-card-profiles.route";
 import AdminBugReportsRoute from "./routes/admin/admin-bug-reports.route";
+import AdminBotFindingsRoute from "./routes/admin/admin-bot-findings.route";
 import AppShell from "./components/chrome/app-shell";
 import CatalogueGate from "./components/ui/catalogue-gate";
 import UserPreferencesEffect from "./components/settings/user-preferences-effect";
@@ -304,6 +305,14 @@ const adminVerdictsRoute = createRoute({
     component: AdminVerdictsRoute,
 });
 
+// Bot Findings (issue #4176, PRD #4174, ADR 0141): every card the play Bot is
+// measured not to play, seeded from `data/bot-reach-findings.json`.
+const adminBotFindingsRoute = createRoute({
+    getParentRoute: () => adminRoute,
+    path: "bot-findings",
+    component: AdminBotFindingsRoute,
+});
+
 // Bug-report evidence (issue #2250, following PR #2243's public/private
 // split): reporter email, the full game state at the moment they filed, and
 // the attachment — previously reachable only via `bunx convex run
@@ -355,6 +364,7 @@ const routeTree = rootRoute.addChildren([
         adminPickRatingsRoute,
         adminCardProfilesRoute,
         adminBugReportsRoute,
+        adminBotFindingsRoute,
         adminDraftLabRoute,
         adminDesignSystemRoute,
     ]),

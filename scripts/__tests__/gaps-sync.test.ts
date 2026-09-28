@@ -10,6 +10,7 @@
  */
 
 import { readFileSync } from "node:fs";
+import { buildBotFindingsPayload } from "../lib/bot-findings-seed";
 import { describe, expect, it } from "vitest";
 import {
     cardBandIndex,
@@ -688,6 +689,41 @@ describe("the bot kind — one issue per Bot Gap key, scoped to the ranked Targe
         expect(second.actions.map((a) => a.action)).toEqual(
             withMerge.map(() => "noop")
         );
+    });
+
+    it("the Bot Findings page reads the same prose the filed issue carries (ADR 0141 § 9, issue #4176)", () => {
+        // The page renders a class's `causeText` as seeded; the issue body is
+        // rendered here. Both must hold the filer's text verbatim, for every
+        // cause the filings above carry — a second copy of the prose anywhere
+        // would let the two drift.
+        const payload = buildBotFindingsPayload({
+            artifact: {
+                generator: "test",
+                header: { sha: "abc", botHash: "h", measuredAt: "t" },
+                targets: ["premodern"],
+                findings: [NEVER_CHOSEN, UNMODELLED].map((gap, i) => ({
+                    oracleId: `f-${i}`,
+                    name: `Card ${i}`,
+                    targets: ["premodern"],
+                    outcome: "ignored" as const,
+                    cause: botCauseOf(gap) as "never-chosen",
+                    gap,
+                    blame: "bot" as const,
+                })),
+            },
+            claims: [],
+            cardIndex: [],
+            handWritten: new Set(),
+        });
+        const filings = buildBotGapFilings(inputs(lock));
+        expect(filings.map((f) => f.key)).toEqual(
+            payload.classes.map((c) => c.key)
+        );
+        for (const filing of filings) {
+            const cls = payload.classes.find((c) => c.key === filing.key)!;
+            expect(cls.causeText.length).toBeGreaterThan(80);
+            expect(filing.body(7001)).toContain(cls.causeText);
+        }
     });
 });
 

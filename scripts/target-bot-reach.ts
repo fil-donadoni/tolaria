@@ -37,6 +37,10 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
+import {
+    handWrittenPrintIds,
+    type CardIndexEntry,
+} from "./lib/bot-findings-seed";
 import type { CardDefinition } from "../convex/cards/types";
 import type {
     BotReachOutcome,
@@ -253,18 +257,11 @@ async function main(): Promise<void> {
     // first print id, as `catalogue-artifact.ts` joins the merge.
     const index = JSON.parse(
         readFileSync(join(ROOT, POOL_PROJECTION_SOURCE), "utf8")
-    ) as Array<{ oracleId?: string; firstPrintId?: string; source?: string }>;
-    const oracleIdByPrintId = new Map(
-        index
-            .filter((e) => e.source !== "compiled" && e.oracleId)
-            .map((e) => [e.firstPrintId, e.oracleId!] as const)
+    ) as CardIndexEntry[];
+    const handWritten = handWrittenPrintIds(
+        index,
+        getAllRawCards().map((raw) => raw.id)
     );
-    const handWritten = new Map<string, string>();
-    for (const raw of getAllRawCards()) {
-        const oracleId = oracleIdByPrintId.get(raw.id);
-        if (oracleId !== undefined && !handWritten.has(oracleId))
-            handWritten.set(oracleId, raw.id);
-    }
 
     // The committed artifact IS the cache (ADR 0141 § 4): a verdict survives
     // while the definition AND the Bot hash are unchanged.

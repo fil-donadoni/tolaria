@@ -332,6 +332,11 @@ describe("check:ui surface table — Named Assertions", () => {
                 "visible role=heading name=Reports",
                 "reachable role=link name=\u2190 Admin",
             ],
+            "admin-bot-findings": [
+                "visible role=heading name=Bot Findings",
+                "visible role=heading name=Cards",
+                "visible [data-bot-findings-measurement]",
+            ],
             "draft-lab": [
                 "reachable role=button name=Synthetic",
                 "reachable role=combobox name=Pack source",

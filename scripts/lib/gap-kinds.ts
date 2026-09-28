@@ -710,6 +710,19 @@ const BOT_CAUSE_TEXT: Readonly<Record<string, string>> = {
 };
 
 /**
+ * The triage prose for a Bot Gap cause — the ONE copy of it (ADR 0141 § 9).
+ * The filed issue's body and the admin Bot Findings page (seeded through
+ * `scripts/lib/bot-findings-seed.ts`) both read it here, so the page and the
+ * issue cannot tell two different stories about one class.
+ */
+export function botCauseText(cause: string): string {
+    return (
+        BOT_CAUSE_TEXT[cause] ??
+        `Cause \`${cause}\` has no triage text in \`gap-kinds.ts\` yet — read \`BotReachCause\` in \`convex/gre/ai/botReach.ts\`.`
+    );
+}
+
+/**
  * The cause a Bot Gap key opens with (`botGapKey`: `<cause> › <form>…`). The
  * separator is `oracle-bot-reach.ts`'s, restated rather than imported: that
  * module is a compiler-hash input, and pulling it here would drag the engine
@@ -826,8 +839,7 @@ export function buildBotGapFilings(inputs: KindInputs): GapFiling[] {
                 [
                     `A **Bot Gap** (ADR 0105 § 7.2): the Bot-play sweep (\`oracle:compile\`, issue #3830) does not see the Bot play the cards below, and every one of them fails the same way — cause \`${cause}\`.`,
                     "",
-                    BOT_CAUSE_TEXT[cause] ??
-                        `Cause \`${cause}\` has no triage text in \`gap-kinds.ts\` yet — read \`BotReachCause\` in \`convex/gre/ai/botReach.ts\`.`,
+                    botCauseText(cause),
                     "",
                     `Bot Gap key (\`botGaps[].key\` in \`data/oracle-compiled.json\`): \`${key}\``,
                     entry.frozen
