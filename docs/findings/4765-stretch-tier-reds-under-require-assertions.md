@@ -1,7 +1,8 @@
 ---
 title: Every stretch blade entry without beyondBudget reds under requireAssertions
 discoveredBy: 4765
-status: draft
+status: triaged
+issue: 4769
 confidence: high
 ---
 
