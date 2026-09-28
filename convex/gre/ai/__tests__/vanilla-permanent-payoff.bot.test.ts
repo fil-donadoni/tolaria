@@ -25,8 +25,9 @@
  * #4070, "a beater held back can carry sequencing value"). The second test
  * below pins that exclusion with the issue's OWN card, Sadistic Hypnotist —
  * a creature whose only ability is a sacrifice outlet, structurally the same
- * "self-confined, no ETB, controller-only ability" shape as Fellwar Stone,
- * differing in nothing but `types`.
+ * "self-confined, no ETB, controller-only ability" shape as Fellwar Stone —
+ * differing in what the ability DOES, but not in anything this predicate
+ * reads, which is exactly why `types` alone is what has to gate it.
  */
 
 import { describe, expect, it } from "vitest";
@@ -98,9 +99,10 @@ describe("resolved-payoff reaches a vanilla permanent cast (issue #4785)", () =>
 
     /** A hand-built root with exactly two edges, rigged into the noise-pin
      *  shape issue #4785 measured: outcome-tied (within `outcomeEps`) but
-     *  `pass`'s SUBTREE `meanMargin` edges out `cast`'s — 400 vs 350 here,
-     *  the same ~50-point spread as the real seed 17 reading (347.76 vs
-     *  345.53) scaled up for a robust assertion. */
+     *  `pass`'s SUBTREE `meanMargin` edges out `cast`'s — 400 vs 350 here, a
+     *  wider spread than the real seed 17 reading (347.76 vs 345.53, a 2.2-
+     *  point gap) so the assertion is robust rather than pinned to a razor
+     *  margin. */
     function riggedRoot(cast: Move, pass: Move, botId: string): Node {
         const children = new Map<string, Edge>();
         const visits = 100;

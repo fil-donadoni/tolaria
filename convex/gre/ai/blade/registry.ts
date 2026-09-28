@@ -7579,9 +7579,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // strictly better on reward and the rule is never consulted (measured:
         // the entry passes with the rule off there, so it would prove nothing).
         //
-        // Proven red by turning the rule off
-        // (`BLADE_VARIANT=no-rule:free-development`): the Bot passes.
-        // Its negative controls are unit tests, not registry entries — a
+        // NOT a reliable `no-rule:free-development` discriminator (issue
+        // #4785 review) — weight drift alone (no code change) already moved
+        // this position off the tie `free-development` exists to break, and
+        // separately `resolved-payoff` (issue #3388) now also independently
+        // reaches this shape (`isSelfConfinedVanillaPermanentCast`), so
+        // disabling `free-development` alone no longer isolates it. Its
+        // negative controls are unit tests, not registry entries — a
         // creature, a Flash permanent, a targeted Aura and a hand that holds a
         // castable instant must each be left to the search, and none of them
         // has a position whose right answer is unambiguous (`selectRootMove —
@@ -7607,7 +7611,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         seeds: [0xb1ade, 1, 2, 3, 4],
         tier: "must",
         expect: { moves: [{ kind: "cast-spell", card: "Seal of Doom" }] },
-        note: "Issue #4070 — free-development covers an untargeted sorcery-speed non-creature permanent. Turning the rule off (`BLADE_VARIANT=no-rule:free-development`) makes the Bot pass on every seed.",
+        note: "Issue #4070 — free-development covers an untargeted sorcery-speed non-creature permanent; `resolved-payoff` (issue #4785) independently covers the same shape now, so a `no-rule:free-development` run no longer isolates this rule (see comment above).",
     },
     {
         // DISCRIMINATING PAIR, half 1 (issue #3398, PRD #3397). The position
