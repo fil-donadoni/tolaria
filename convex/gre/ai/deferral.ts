@@ -12,8 +12,12 @@
 //     the Weight Fit, which reads a position's terms and never its window, can
 //     only answer it by bending material weights. Such a pair yields no Eval
 //     Pair; the report lists it as checked by the search instead.
-//   * the root rule of issue #4757 — the same perimeter decides which actions
-//     wait for the last window at the root.
+//   * the root rule of issue #4757 (not built yet) — the same perimeter
+//     decides which actions wait for the last window at the root.
+//
+// A third reader asks only the pre-attack clause: `selectRootMove`'s
+// `last-window-fire` rule fires a {@link isPreAttackGrant} in ITS last window
+// (issue #4768), the one the perimeter refuses to defer to the end step.
 //
 // A predicate the two disagreed on would let the fit and the root rule each
 // claim the other owns a position — so the perimeter is asked here, once.
@@ -26,11 +30,8 @@
 
 import { tryGetDefinition } from "../../cards";
 import type { EffectOp, TargetSelection } from "../../cards/types";
-import {
-    hasInstantSpeed,
-    isCreature,
-    isTapLockedBySummoningSickness,
-} from "../constants";
+import { validateAttackerEligibility } from "../combat";
+import { hasInstantSpeed, isTapLockedBySummoningSickness } from "../constants";
 import type { Move } from "../moves";
 import { getLegalTargets, targetingSourceFromCard } from "../rules";
 import type { CardInstanceState, GameState } from "../state";
@@ -79,7 +80,8 @@ export function isLastDeferralWindow(state: GameState, pid: string): boolean {
  *     board" at the opponent's end step: its last USEFUL window is before the
  *     declaration (CR 508.1a / 302.6), and held past it the grant expires at
  *     this turn's cleanup (CR 514.2) having enabled nothing. The root rule
- *     that makes the bot wait for the end step must never hold it.
+ *     of issue #4757, which will make the bot wait for the end step, must
+ *     never hold it.
  *
  *     Deliberately NOT every this-turn effect (`isTransientOnlyScript`):
  *     measured, excluding them all put the Mother of Runes hold back into the
@@ -122,7 +124,6 @@ export function isDeferrableAction(
         const ability = effectiveAbilityOf(source, move.abilityId);
         if (!ability || !isDeferrableStackAbility(ability)) return false;
         if (ability.cost.sacrificeFilter !== undefined) return false;
-        if (isPreAttackGrant(state, pid, move)) return false;
         return reachesOnlyOwnSide(state, pid, move.targets);
     }
     return false;
@@ -130,7 +131,7 @@ export function isDeferrableAction(
 
 /**
  * Is `move` a PRE-ATTACK GRANT for `pid` — an own-side haste grant whose whole
- * worth is the attack it enables THIS turn, taken in the last windows before
+ * worth is the attack it enables THIS turn, cast in the last windows before
  * that attack is declared (issue #4768)?
  *
  * The timing, printed rather than recalled: attackers are declared as the
@@ -138,31 +139,37 @@ export function isDeferrableAction(
  * priority before it (CR 508.1), and each attacker "must either have haste or
  * have been controlled by the active player continuously since the turn
  * began" (CR 508.1a, 302.6, 702.10b). The grant lasts "until end of turn"
- * (CR 514.2). So the grant's useful windows are the active player's own
- * precombat main phase and beginning of combat step (CR 507.2 gives priority
- * there) — and they are ONE window for this action: nothing but priority
- * passes lies between them, so casting in either reaches the same board at the
- * declaration. Past it the grant buys nothing (the {T}-ability half of
- * CR 302.6 is left to the search: this predicate answers only for a body
- * that could not otherwise attack).
+ * (CR 514.2). So its useful windows are the active player's own precombat
+ * main phase and beginning of combat step (CR 507.2 gives priority there);
+ * past them it buys nothing. Between the two only priority passes and
+ * beginning-of-combat triggers happen, and the Bot's search models neither
+ * bluffing nor the information a main-phase cast gives away — so for the
+ * search they are one window (the {T}-ability half of CR 302.6 is left to it:
+ * this predicate answers only for a body the grant lets attack).
  *
  * All required, every doubt answering `false`:
  *
  *  - own turn, precombat main or beginning of combat, empty stack, no attack
  *    declared;
- *  - an instant-speed cast or a deferrable activation (the
- *    {@link isDeferrableAction} clause-1 reading) whose script expires this
- *    turn AND grants haste at its top level;
+ *  - a CAST of an instant-speed card whose script expires this turn and
+ *    grants haste at its top level. Activations are out, fail-closed: an
+ *    activated haste grant is the `hold-trick` rule's (a transient activation
+ *    at sorcery timing, `isSorcerySpeedTrickDump`), can carry a sacrifice of
+ *    another permanent (the conversion class the perimeter keeps out), and in
+ *    the catalogue mostly grants to its own source with no announced target;
  *  - at least one announced target, and every one of them a creature `pid`
- *    controls that is untapped and summoning-sick without haste
- *    (`isTapLockedBySummoningSickness`, the engine's one reading of CR 302.6)
- *    — a grant on a body that could already attack enables nothing.
+ *    controls that cannot attack now only because it is summoning-sick
+ *    (`isTapLockedBySummoningSickness`) and could attack with haste — asked
+ *    of `validateAttackerEligibility`, the one reading of CR 508.1a-c, so a
+ *    tapped body, a defender or a body under an attack prohibition enables
+ *    nothing and is refused.
  */
 export function isPreAttackGrant(
     state: GameState,
     pid: string,
     move: Move
 ): boolean {
+    if (move.kind !== "cast-spell") return false;
     if (state.activePlayerId !== pid) return false;
     if (
         state.phase !== "PRECOMBAT_MAIN" &&
@@ -174,34 +181,24 @@ export function isPreAttackGrant(
     if ((state.combat?.attackerIds.length ?? 0) > 0) return false;
     const player = state.players.find((p) => p.id === pid);
     if (!player) return false;
-    let script: readonly EffectOp[] | undefined;
-    if (move.kind === "cast-spell") {
-        const card = castCardOf(player, move.cardInstanceId);
-        if (!card || !hasInstantSpeed(card)) return false;
-        script = castScriptOf(card);
-    } else if (move.kind === "activate-ability") {
-        const source = player.battlefield.find(
-            (c) => c.id === move.cardInstanceId
-        );
-        if (!source) return false;
-        const ability = effectiveAbilityOf(source, move.abilityId);
-        if (!ability || !isDeferrableStackAbility(ability)) return false;
-        script = ability.effects;
-    } else {
-        return false;
-    }
+    const card = castCardOf(player, move.cardInstanceId);
+    if (!card || !hasInstantSpeed(card)) return false;
+    const script = castScriptOf(card);
     if (!script || !expiresThisTurn(script)) return false;
     if (!script.some(isHasteGrant)) return false;
     if (move.targets.length === 0) return false;
+    const defenders = state.players
+        .filter((p) => p.id !== pid)
+        .flatMap((p) => p.battlefield);
     return move.targets.every((t) => {
         if (t.type !== "permanent") return false;
         const body = player.battlefield.find((c) => c.id === t.id);
-        return (
-            !!body &&
-            isCreature(body) &&
-            !body.isTapped &&
-            isTapLockedBySummoningSickness(body)
-        );
+        if (!body || !isTapLockedBySummoningSickness(body)) return false;
+        const hasty = {
+            ...body,
+            staticAbilities: [...body.staticAbilities, "haste"],
+        };
+        return validateAttackerEligibility(hasty, defenders, state).eligible;
     });
 }
 

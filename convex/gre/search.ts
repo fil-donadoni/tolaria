@@ -4780,20 +4780,23 @@ export function selectRootMove(
     //
     // The PRE-ATTACK window (issue #4768) is the same rule for an action whose
     // last useful window comes EARLIER than the opponent's end step: a haste
-    // grant on the bot's own summoning-sick body (`isPreAttackGrant`, CR
-    // 508.1a / 302.6). Its windows are the bot's own precombat main and
-    // beginning of combat, one window for this action — casting in either
-    // reaches the same board at the declaration (CR 508.1, no priority before
-    // it) — and past them it buys nothing. The identical-vector argument is the
-    // one above: the `pass` edge's subtree contains the same grant one window
-    // later, so `meanMargin` measures rollout noise — MEASURED on the blade
-    // `must` entry "boon on own creature: casts the haste grant" (seeds 0..19
-    // at 200 iterations), the material tie-break picked `pass` on seeds 1, 13
-    // and 14 although the grant out-meant it on all three. No
-    // `firingBeatsHolding` gate: the immediate position cannot see the grant
-    // (an until-end-of-turn keyword moves no permanent material) — its whole
-    // worth is the attack, which only the search's mean reward prices, and the
-    // outcome-equal gate below already requires that.
+    // grant cast on the bot's own summoning-sick body (`isPreAttackGrant`,
+    // CR 508.1a / 302.6). Its windows are the bot's own precombat main and
+    // beginning of combat — for the search one window, which models neither
+    // bluffing nor what a main-phase cast tells the opponent — and past them
+    // it buys nothing. The identical-vector argument is the one above: the
+    // `pass` edge's subtree contains the same grant one window later, so
+    // `meanMargin` measures rollout noise — MEASURED on the blade `must` entry
+    // "boon on own creature: casts the haste grant" (seeds 0..19 at 200
+    // iterations), the material tie-break picked `pass` on seeds 1, 13 and 14
+    // although the grant out-meant it on all three. No `firingBeatsHolding`
+    // gate: the immediate position cannot see the grant (an until-end-of-turn
+    // keyword moves no permanent material). What keeps a grant that pays
+    // nothing from firing is the predicate's own "the body could attack with
+    // haste" clause plus the outcome-equal gate; a grant enabling an attack
+    // the search prices as a loss sits below it. Among several qualifying
+    // grants (bodies, sources) the best `meanMargin` wins, as in the
+    // free-development tie-break — never the pool's insertion order.
 
     if (
         rootState &&
@@ -4802,15 +4805,23 @@ export function selectRootMove(
         ruleOn("last-window-fire") &&
         best.move.kind === "pass"
     ) {
-        const atEndStep = isLastDeferralWindow(rootState, botId);
-        const fire = pool.find(
-            (e) =>
-                mean(e) >= bestMean - weights.outcomeEps &&
-                ((atEndStep &&
+        // The two windows never coincide (the opponent's end step is not the
+        // bot's own turn), so at most one arm can match.
+        let fire: Edge | undefined;
+        if (isLastDeferralWindow(rootState, botId)) {
+            fire = pool.find(
+                (e) =>
+                    mean(e) >= bestMean - weights.outcomeEps &&
                     isDeferredEngineActivation(rootState, botId, e.move) &&
-                    firingBeatsHolding(rootState, botId, e.move, weights)) ||
-                    isPreAttackGrant(rootState, botId, e.move))
-        );
+                    firingBeatsHolding(rootState, botId, e.move, weights)
+            );
+        } else {
+            for (const e of pool) {
+                if (mean(e) < bestMean - weights.outcomeEps) continue;
+                if (!isPreAttackGrant(rootState, botId, e.move)) continue;
+                if (!fire || meanMargin(e) > meanMargin(fire)) fire = e;
+            }
+        }
         if (fire) return finish(fire, "last-window-fire", fire !== best);
     }
     return finish(best, mechanism, flipped);

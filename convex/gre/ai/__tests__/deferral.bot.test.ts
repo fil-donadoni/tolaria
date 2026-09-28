@@ -13,7 +13,8 @@
 // flash Flametongue Kavu (a temporary definition) a flash body whose entering
 // trigger can target an opposing creature. Unnatural Speed is an instant
 // whose whole script is a haste grant until end of turn, Giant Growth one
-// whose whole script is a pump until end of turn.
+// whose whole script is a pump until end of turn, Wall of Stone a defender
+// (CR 702.3b: it can't attack, haste or not).
 import { describe, expect, it } from "vitest";
 import { getCardByName, withTemporaryDefinition } from "../../../cards";
 import {
@@ -39,6 +40,7 @@ const DELTA = getCardByName("Polluted Delta").id;
 const KAVU = getCardByName("Flametongue Kavu");
 const SPEED = getCardByName("Unnatural Speed").id;
 const GROWTH = getCardByName("Giant Growth").id;
+const WALL = getCardByName("Wall of Stone").id;
 
 const FACTORY = getCardByName("Mishra's Factory").id;
 const ORB = getCardByName("Zuran Orb").id;
@@ -325,9 +327,15 @@ describe("a pre-attack grant (CR 508.1a / 302.6, issue #4768)", () => {
 
     it("refuses a body that could already attack, or cannot attack at all", () => {
         const tapped = { ...sick("tapped"), isTapped: true };
+        const wall = makeInstance(WALL, {
+            id: "wall",
+            controllerId: "p1",
+            ownerId: "p1",
+            isSummoningSick: true,
+        });
         const state = board({
             hand: [card(SPEED, "speed")],
-            battlefield: [card(BEARS, "ready"), tapped],
+            battlefield: [card(BEARS, "ready"), tapped, wall],
             oppBattlefield: [
                 makeInstance(BEARS, {
                     id: "theirs",
@@ -339,6 +347,7 @@ describe("a pre-attack grant (CR 508.1a / 302.6, issue #4768)", () => {
         });
         expect(isPreAttackGrant(state, "p1", onto("ready"))).toBe(false);
         expect(isPreAttackGrant(state, "p1", onto("tapped"))).toBe(false);
+        expect(isPreAttackGrant(state, "p1", onto("wall"))).toBe(false);
         expect(isPreAttackGrant(state, "p1", onto("theirs"))).toBe(false);
     });
 
