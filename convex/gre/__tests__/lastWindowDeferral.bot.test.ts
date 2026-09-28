@@ -7,11 +7,15 @@
 // The positions the real search plays are the blade `keep mana open` pairs
 // (`ai/blade/registry.ts`); this file names the mechanism and its gates.
 import { describe, expect, it } from "vitest";
-import { getCardByName } from "../../cards";
+import { getCardByName, withTemporaryDefinition } from "../../cards";
 import { selectRootMove, type Edge, type Node } from "../search";
 import type { RootDecisionMechanism } from "../ai/decisionTelemetry";
 import type { Move } from "../moves";
-import type { TargetSelection } from "../../cards/types";
+import type {
+    ActivatedAbility,
+    CardDefinition,
+    TargetSelection,
+} from "../../cards/types";
 import {
     makeInstance,
     makePlayer,
@@ -241,5 +245,72 @@ describe("last-window-deferral — FIRE half: the opponent's end step acts (issu
         expect(
             pick(root, [PASS, IMP], state, ["last-window-deferral"]).kind
         ).toBe("pass");
+    });
+});
+
+describe("last-window-deferral — its floors (issue #4757 review)", () => {
+    // A repeatable, lasting, own-side activation with no tap and no sacrifice
+    // — the shape the once-per-turn floor exists for.
+    const DRAW: ActivatedAbility = {
+        id: "issue-4757-draw",
+        oracleText: "{1}: Draw a card.",
+        cost: { mana: { generic: 1 } },
+        useStack: true,
+        effects: [{ op: "draw", player: "controller", count: 1 }],
+    };
+    const ENGINE: CardDefinition = {
+        id: "issue-4757:engine",
+        name: "Issue 4757 draw engine",
+        rarity: "common",
+        manaCost: { generic: 3 },
+        types: ["Artifact"],
+        activatedAbilities: [DRAW],
+    };
+    const ACT: Move = {
+        kind: "activate-ability",
+        cardInstanceId: "eng",
+        abilityId: DRAW.id,
+        targets: [],
+        confirmTargets: false,
+        tapPlan: [],
+    };
+    const endStepWith = (used: number) => {
+        const engine = {
+            ...card(ENGINE.id, "eng", "battlefield"),
+            activationsThisTurn: used ? { [DRAW.id]: used } : undefined,
+        };
+        return at("END_STEP", "p2", [], [engine]);
+    };
+    const root = () =>
+        rootOf([
+            { move: PASS, meanReward: 0.6635, meanMargin: 330 },
+            { move: ACT, meanReward: 0.6631, meanMargin: 327 },
+        ]);
+
+    it("FIRE takes the first activation of an ability this turn", () => {
+        withTemporaryDefinition(ENGINE, () => {
+            expect(pick(root(), [PASS, ACT], endStepWith(0)).kind).toBe(
+                "activate-ability"
+            );
+        });
+    });
+
+    it("NO-FIRE: a second activation this turn earns itself on mean reward", () => {
+        withTemporaryDefinition(ENGINE, () => {
+            expect(pick(root(), [PASS, ACT], endStepWith(1)).kind).toBe("pass");
+        });
+    });
+
+    it("NO-HOLD: mana already floating empties as the step ends (CR 106.4 / 500.5)", () => {
+        const IMP = cast("imp");
+        const root2 = rootOf([
+            { move: IMP, meanReward: 0.6635, meanMargin: 330 },
+            { move: PASS, meanReward: 0.6631, meanMargin: 327 },
+        ]);
+        const state = at("PRECOMBAT_MAIN", "p1", [
+            card(IMPULSE, "imp", "hand"),
+        ]);
+        state.players[0].manaPool = { W: 0, U: 2, B: 0, R: 0, G: 0, C: 0 };
+        expect(pick(root2, [IMP, PASS], state).kind).toBe("cast-spell");
     });
 });

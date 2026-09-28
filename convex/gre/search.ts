@@ -82,7 +82,9 @@ import {
     markAttacking,
     markDeclaredBlockers,
     recordAttackerDeclared,
+    validateAttackerEligibility,
 } from "./combat";
+import { getEffectivePower, getEffectiveToughness } from "./layers";
 import {
     enumerateMoves,
     type ModeCombinationTruncation,
@@ -170,7 +172,6 @@ import {
     isLastDeferralWindow,
     isPreAttackGrant,
     isTransientOnlyAction,
-    waitsUnchanged,
 } from "./ai/deferral";
 import { abilityBenefitIsConfinedToSource } from "./ai/sourceConfinedBenefit";
 import { abilityIsDiscardExchange } from "./ai/discardExchange";
@@ -4259,11 +4260,16 @@ export function selectRootMove(
     // and counting that as a flip would count the order `pool` was built in.
     // `mean-reward` has nothing before it and never flips.
     let flipped = contenders.length > 1 && mean(best) < bestMean;
+    // The search's pick the `last-window-deferral` hold replaced, if it did —
+    // the hold does not return, so a later rule may take it back.
+    let heldFrom: Edge | undefined;
     const finish = (
         edge: Edge,
         mech: RootDecisionMechanism,
-        didFlip: boolean
+        flippedByRule: boolean
     ): Move => {
+        const didFlip =
+            heldFrom !== undefined && edge === heldFrom ? false : flippedByRule;
         if (out) out.mechanism = mech;
         if (sink) {
             const meansDesc = explored
@@ -4680,6 +4686,14 @@ export function selectRootMove(
     // turn, its own attack (counters, a hasty token copy). Those are not the
     // same act later, and the search keeps them.
     //
+    // Two exclusions, both ownership. A source that sacrifices ITSELF (a
+    // fetchland) is also a standing spend, and `standing-spend-hold` /
+    // `last-window-fire` already own it in every window with the
+    // `firingBeatsHolding` gate this rule does not carry — two owners of one
+    // edge would let rollout noise pick the rule (PR review). And mana already
+    // FLOATING in the bot's pool empties as the step ends (CR 106.4 / 500.5),
+    // so acting now and acting later are not the same act.
+    //
     // This SUBSUMES the flash-permanent shape of `isSorcerySpeedTrickDump`
     // (issue #2248, removed there): same argument, now read through the one
     // perimeter in every earlier window rather than only the active player's
@@ -4693,7 +4707,10 @@ export function selectRootMove(
     // at the end of this function takes over.
     //
     // It does NOT return: the held `pass` becomes the pick the rules below
-    // read, exactly as if the search had picked it. Two of them credit an
+    // read, exactly as if the search had picked it. `heldFrom` keeps the
+    // search's own pick, so a later rule that takes that very edge back is
+    // recorded as no flip at all (telemetry reads `flipped` to retire rules,
+    // ADR 0124 §5). Two of them credit an
     // outcome-equal action over `pass` with an argument the deferral does not
     // make, and each keeps its own: `resolved-payoff`, a self-confined cast
     // whose SETTLED resolution strictly pays (the owner's cheat-into-play
@@ -4706,16 +4723,18 @@ export function selectRootMove(
         !!botId &&
         ruleOn("last-window-deferral") &&
         !isLastDeferralWindow(rootState, botId) &&
+        !floatsMana(rootState, botId) &&
         isDeferrableAction(rootState, botId, best.move) &&
-        waitsUnchanged(rootState, botId, best.move)
+        !isStandingSpendActivation(rootState, botId, best.move)
     ) {
         const hold = pool.find(
             (e) =>
                 e.move.kind === "pass" &&
                 mean(e) >= bestMean - weights.outcomeEps
         );
-        if (hold) {
-            flipped = hold !== best;
+        if (hold && waitsUnchanged(rootState, botId, best.move, weights)) {
+            heldFrom = best;
+            flipped = true;
             best = hold;
             mechanism = "last-window-deferral";
         }
@@ -5083,8 +5102,15 @@ export function selectRootMove(
     //
     // Among several qualifying actions (cards, variants, tap plans) the best
     // `meanMargin` wins, never the pool's insertion order. Disjoint from
-    // `last-window-fire` per edge: that rule converts a sacrifice of ANOTHER
-    // permanent, which the perimeter keeps out (`cost.sacrificeFilter`).
+    // `last-window-fire` per edge: a standing spend — a sacrifice of the
+    // source ITSELF (a fetchland) as much as of another permanent — is that
+    // rule's, gated on `firingBeatsHolding`, and skipped here (PR review).
+    //
+    // ONE activation per ability per turn, the floor `isDeferredEngineActivation`
+    // sets for the same reason: a tie-break redirects one outcome-equal pick,
+    // never runs a repeatable ability ({B}, pay 2 life: draw a card) to
+    // exhaustion one noise-width at a time. A second activation earns itself
+    // on mean reward. Casts carry no such floor: each is a different card.
     // `stack.length === 0` is the perimeter's own clause 3, asserted at the
     // guard as the rules above do.
     if (
@@ -5095,12 +5121,16 @@ export function selectRootMove(
         best.move.kind === "pass" &&
         isLastDeferralWindow(rootState, botId)
     ) {
+        const before = waitReadingOf(rootState, botId);
         let act: Edge | undefined;
         for (const e of pool) {
             if (mean(e) < bestMean - weights.outcomeEps) continue;
             if (!isDeferrableAction(rootState, botId, e.move)) continue;
+            if (isStandingSpendActivation(rootState, botId, e.move)) continue;
             if (isTransientOnlyAction(rootState, botId, e.move)) continue;
-            if (!waitsUnchanged(rootState, botId, e.move)) continue;
+            if (!isFirstActivationThisTurn(rootState, botId, e.move)) continue;
+            if (!waitsUnchanged(rootState, botId, e.move, weights, before))
+                continue;
             if (!act || meanMargin(e) > meanMargin(act)) act = e;
         }
         if (act) return finish(act, "last-window-deferral", act !== best);
@@ -5211,6 +5241,155 @@ function isSorcerySpeedTrickDump(state: GameState, move: Move): boolean {
         );
     }
     return false;
+}
+
+/**
+ * Does `move`, RESOLVED, leave untouched everything that happens between now
+ * and the last window — so that taking it there reaches the same board, which
+ * is the premise of the identical-vector argument (issue #4757)?
+ *
+ * The `last-window-deferral` root rule's own admission test, asked ON TOP of
+ * `isDeferrableAction` (`ai/deferral.ts`) — deliberately NOT a sixth clause of the
+ * perimeter. The perimeter answers "is this pair a question of WHEN", which is
+ * all the Verdict lowering needs to keep it out of the Weight Fit; this asks
+ * whether the rule may answer it by construction. Measured when it was a
+ * clause: it moved six pairs back into the fit (a Mother of Runes activation
+ * taps an attacker, a Walking Ballista shot shrinks one, a Blazing Rootwalla
+ * pump grows one, a Dark Ritual makes mana) and the fit printed DO NOT PASTE —
+ * the committed weights stopped being the fit of the committed verdicts for a
+ * reason no weight could repair. Those positions stay timing pairs, answered
+ * by the search and by the root rules that already own them (`hold-trick`,
+ * `standing-spend-hold`, `wasted-mana-hold`).
+ *
+ * Read off the resolution through the seams the search itself uses:
+ * `applyMoveInSearch`, then `policyProbeState` — the one-resolution probe the
+ * rollout policy scores, which resolves the action and settles it through a
+ * choice the mover owns when it can. Three readings, each a way the "same
+ * board later" premise fails:
+ *
+ *  - **The opponent's side moved.** Its evaluation terms (the `observed`
+ *    reading `evaluateBreakdown` makes) differ after the resolution: a sweep
+ *    that bounces its permanents with no target named, a mode that re-types
+ *    its lands. What the opponent does in between answers to that board, so
+ *    acting later is not the same act. This is clause 2's KNOWN LIMIT closed.
+ *  - **Mana was made.** The mover's spendable pool is larger after than
+ *    before: a ritual's product empties as the step ends (CR 106.4 / 500.5),
+ *    so its worth is the window it is made in — the `wasted-mana-hold` rule's
+ *    question, never a deferral.
+ *  - **The mover's own attack changed** — in the mover's own turn, before
+ *    attackers are declared (CR 508.1a): its creatures able to attack, or
+ *    their power and toughness, differ after the resolution. Counters on an
+ *    attacker, a hasty token copy, a grant that lets a body attack: their
+ *    last useful window is before the declaration, as clause 5 already says
+ *    of a haste grant, and the end step comes after it.
+ *
+ * KNOWN LIMIT, the mover's BLOCKING side: a flash body cast in the mover's
+ * own main can block in the opponent's combat, and one cast at the end step
+ * cannot; counters on its own creatures likewise change its blocks. Those
+ * are refused by nobody here — refusing them would refuse the flash-body hold
+ * itself — so what they are worth is left to the outcome band: a body the
+ * search sees blocking something that matters out-rewards `pass` and never
+ * reaches the rule.
+ *
+ * FAIL-CLOSED where it can be: an action that cannot be simulated is not
+ * deferrable. KNOWN LIMIT, stated rather than hidden: a resolution the probe
+ * cannot settle through a mover's choice (Impulse's look-and-distribute has
+ * no candidate generator the settle can walk) is read at that choice, so an
+ * Op AFTER it is not seen. Refusing every such action instead would make the
+ * rule dead for the draw instants it exists for; the reach clause 2 reads off
+ * the announced targets still holds for them.
+ */
+export function waitsUnchanged(
+    state: GameState,
+    pid: string,
+    move: Move,
+    weights: EvalWeights = DEFAULT_EVAL_WEIGHTS,
+    before: WaitReading | undefined = waitReadingOf(state, pid)
+): boolean {
+    if (!before) return false;
+    const probe = cloneGameState(state);
+    let settled: GameState;
+    try {
+        applyMoveInSearch(probe, pid, move);
+        settled = policyProbeState(probe, move, weights, pid);
+    } catch {
+        return false;
+    }
+    const after = waitReadingOf(settled, pid);
+    if (!after) return false;
+    if (after.opponent !== before.opponent) return false;
+    if (after.pool > before.pool) return false;
+    return !attacksBeforeTheWait(state, pid) || after.roster === before.roster;
+}
+
+/** The three readings {@link waitsUnchanged} compares, as comparable values. */
+export type WaitReading = { opponent: string; pool: number; roster: string };
+
+/** {@link WaitReading} of a position — exported so a caller asking the premise
+ *  of several candidates on ONE root reads the root once. */
+export function waitReadingOf(
+    state: GameState,
+    pid: string
+): WaitReading | undefined {
+    const me = state.players.find((p) => p.id === pid);
+    if (!me) return undefined;
+    const defenders = state.players
+        .filter((p) => p.id !== pid)
+        .flatMap((p) => p.battlefield);
+    const roster = me.battlefield
+        .filter(
+            (c) =>
+                isCreature(c) &&
+                validateAttackerEligibility(c, defenders, state).eligible
+        )
+        .map(
+            (c) =>
+                `${c.id}:${getEffectivePower(state, c)}/${getEffectiveToughness(state, c)}`
+        )
+        .sort()
+        .join(",");
+    return {
+        opponent: JSON.stringify(evaluateBreakdown(state, pid).opp),
+        pool: spendableManaTotal(me),
+        roster,
+    };
+}
+
+/** The mover's own turn, before attackers are declared (CR 508.1a): its own
+ *  attack still lies between now and the last window. */
+function attacksBeforeTheWait(state: GameState, pid: string): boolean {
+    if (state.activePlayerId !== pid) return false;
+    if (state.combat) return false;
+    return (
+        state.phase === "UPKEEP" ||
+        state.phase === "DRAW" ||
+        state.phase === "PRECOMBAT_MAIN" ||
+        state.phase === "BEGINNING_OF_COMBAT"
+    );
+}
+
+/** Whether `pid` has mana floating — it empties as the step ends (CR 106.4 /
+ *  500.5), so a deferral would let it go unused (issue #4757 review). */
+function floatsMana(state: GameState, pid: string): boolean {
+    const player = state.players.find((p) => p.id === pid);
+    return !!player && spendableManaTotal(player) > 0;
+}
+
+/** Whether `move` is not an activation `pid` has already made this turn — the
+ *  once-per-turn floor of the `last-window-deferral` fire half, read off the
+ *  engine's own tally (`activationsThisTurn`) exactly as
+ *  `isDeferredEngineActivation` reads it. A cast is always "first". */
+function isFirstActivationThisTurn(
+    state: GameState,
+    pid: string,
+    move: Move
+): boolean {
+    if (move.kind !== "activate-ability") return true;
+    const player = state.players.find((p) => p.id === pid);
+    const source = player?.battlefield.find(
+        (c) => c.id === move.cardInstanceId
+    );
+    return (source?.activationsThisTurn?.[move.abilityId] ?? 0) === 0;
 }
 
 /** Whether `sourceId` is inside a combat exchange whose damage has not been

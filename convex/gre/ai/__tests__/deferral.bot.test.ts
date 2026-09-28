@@ -21,8 +21,8 @@ import {
     isDeferrableAction,
     isLastDeferralWindow,
     isPreAttackGrant,
-    waitsUnchanged,
 } from "../deferral";
+import { waitsUnchanged } from "../../search";
 import { timingPairClassifier } from "../verdicts/evalPairs";
 import type { Move } from "../../moves";
 import type { CardInstanceState, GameState } from "../../state";

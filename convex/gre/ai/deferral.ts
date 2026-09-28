@@ -14,7 +14,9 @@
 //     Pair; the report lists it as checked by the search instead.
 //   * the `last-window-deferral` root rule (issue #4757, `search.ts`) — the
 //     same perimeter decides which actions wait for the last window at the
-//     root, and which one it spends there.
+//     root, and which one it spends there; the rule then asks its own premise
+//     of each (`waitsUnchanged`, a resolution probe that lives beside the
+//     search it drives, so this module stays a pure reading of the position).
 //
 // A third reader asks only the pre-attack clause: `selectRootMove`'s
 // `last-window-fire` rule fires a {@link isPreAttackGrant} in ITS last window
@@ -31,23 +33,11 @@
 
 import { tryGetDefinition } from "../../cards";
 import type { EffectOp, TargetSelection } from "../../cards/types";
-import { cloneGameState } from "../clone";
 import { validateAttackerEligibility } from "../combat";
-import {
-    hasInstantSpeed,
-    isCreature,
-    isTapLockedBySummoningSickness,
-} from "../constants";
-import { evaluateBreakdown } from "../evaluate";
-import { getEffectivePower, getEffectiveToughness } from "../layers";
+import { hasInstantSpeed, isTapLockedBySummoningSickness } from "../constants";
 import type { Move } from "../moves";
 import { getLegalTargets, targetingSourceFromCard } from "../rules";
-import { applyMoveInSearch, policyProbeState } from "../search";
-import {
-    spendableManaTotal,
-    type CardInstanceState,
-    type GameState,
-} from "../state";
+import type { CardInstanceState, GameState } from "../state";
 import {
     effectiveAbilityOf,
     isDeferrableStackAbility,
@@ -145,118 +135,6 @@ export function isDeferrableAction(
 }
 
 /**
- * Does `move`, RESOLVED, leave untouched everything that happens between now
- * and the last window — so that taking it there reaches the same board, which
- * is the premise of the identical-vector argument (issue #4757)?
- *
- * The `last-window-deferral` root rule's own admission test, asked ON TOP of
- * {@link isDeferrableAction} — deliberately NOT a sixth clause of the
- * perimeter. The perimeter answers "is this pair a question of WHEN", which is
- * all the Verdict lowering needs to keep it out of the Weight Fit; this asks
- * whether the rule may answer it by construction. Measured when it was a
- * clause: it moved six pairs back into the fit (a Mother of Runes activation
- * taps an attacker, a Walking Ballista shot shrinks one, a Blazing Rootwalla
- * pump grows one, a Dark Ritual makes mana) and the fit printed DO NOT PASTE —
- * the committed weights stopped being the fit of the committed verdicts for a
- * reason no weight could repair. Those positions stay timing pairs, answered
- * by the search and by the root rules that already own them (`hold-trick`,
- * `standing-spend-hold`, `wasted-mana-hold`).
- *
- * Read off the resolution through the seams the search itself uses:
- * `applyMoveInSearch`, then `policyProbeState` — the one-resolution probe the
- * rollout policy scores, which resolves the action and settles it through a
- * choice the mover owns when it can. Three readings, each a way the "same
- * board later" premise fails:
- *
- *  - **The opponent's side moved.** Its evaluation terms (the `observed`
- *    reading `evaluateBreakdown` makes) differ after the resolution: a sweep
- *    that bounces its permanents with no target named, a mode that re-types
- *    its lands. What the opponent does in between answers to that board, so
- *    acting later is not the same act. This is clause 2's KNOWN LIMIT closed.
- *  - **Mana was made.** The mover's spendable pool is larger after than
- *    before: a ritual's product empties as the step ends (CR 106.4 / 500.5),
- *    so its worth is the window it is made in — the `wasted-mana-hold` rule's
- *    question, never a deferral.
- *  - **The mover's own attack changed** — in the mover's own turn, before
- *    attackers are declared (CR 508.1a): its creatures able to attack, or
- *    their power and toughness, differ after the resolution. Counters on an
- *    attacker, a hasty token copy, a grant that lets a body attack: their
- *    last useful window is before the declaration, as clause 5 already says
- *    of a haste grant, and the end step comes after it.
- *
- * FAIL-CLOSED where it can be: an action that cannot be simulated is not
- * deferrable. KNOWN LIMIT, stated rather than hidden: a resolution the probe
- * cannot settle through a mover's choice (Impulse's look-and-distribute has
- * no candidate generator the settle can walk) is read at that choice, so an
- * Op AFTER it is not seen. Refusing every such action instead would make the
- * rule dead for the draw instants it exists for; the reach clause 2 reads off
- * the announced targets still holds for them.
- */
-export function waitsUnchanged(
-    state: GameState,
-    pid: string,
-    move: Move
-): boolean {
-    const before = sidesAround(state, pid);
-    if (!before) return false;
-    const probe = cloneGameState(state);
-    let settled: GameState;
-    try {
-        applyMoveInSearch(probe, pid, move);
-        settled = policyProbeState(probe, move, undefined, pid);
-    } catch {
-        return false;
-    }
-    const after = sidesAround(settled, pid);
-    if (!after) return false;
-    if (after.opponent !== before.opponent) return false;
-    if (after.pool > before.pool) return false;
-    return !attacksBeforeTheWait(state, pid) || after.roster === before.roster;
-}
-
-/** The three readings {@link waitsUnchanged} compares, as comparable values. */
-function sidesAround(
-    state: GameState,
-    pid: string
-): { opponent: string; pool: number; roster: string } | undefined {
-    const me = state.players.find((p) => p.id === pid);
-    if (!me) return undefined;
-    const defenders = state.players
-        .filter((p) => p.id !== pid)
-        .flatMap((p) => p.battlefield);
-    const roster = me.battlefield
-        .filter(
-            (c) =>
-                isCreature(c) &&
-                validateAttackerEligibility(c, defenders, state).eligible
-        )
-        .map(
-            (c) =>
-                `${c.id}:${getEffectivePower(state, c)}/${getEffectiveToughness(state, c)}`
-        )
-        .sort()
-        .join(",");
-    return {
-        opponent: JSON.stringify(evaluateBreakdown(state, pid).opp),
-        pool: spendableManaTotal(me),
-        roster,
-    };
-}
-
-/** The mover's own turn, before attackers are declared (CR 508.1a): its own
- *  attack still lies between now and the last window. */
-function attacksBeforeTheWait(state: GameState, pid: string): boolean {
-    if (state.activePlayerId !== pid) return false;
-    if (state.combat) return false;
-    return (
-        state.phase === "UPKEEP" ||
-        state.phase === "DRAW" ||
-        state.phase === "PRECOMBAT_MAIN" ||
-        state.phase === "BEGINNING_OF_COMBAT"
-    );
-}
-
-/**
  * Is `move` a PRE-ATTACK GRANT for `pid` — an own-side haste grant whose whole
  * worth is the attack it enables THIS turn, cast in the last windows before
  * that attack is declared (issue #4768)?
@@ -330,7 +208,7 @@ export function isPreAttackGrant(
 }
 
 /**
- * Does `move`'s whole effect EXPIRE THIS TURN (CR 514.2 / 511.3) — a pump, a
+ * Does `move`'s whole effect EXPIRE THIS TURN (CR 514.2 / 500.5a) — a pump, a
  * protection grant, any until-end-of-turn script?
  *
  * The question the last-window half of issue #4757 asks before it spends a
@@ -376,7 +254,7 @@ function isHasteGrant(op: EffectOp): boolean {
     return op.op === "grantAbility" && op.ability === "haste";
 }
 
-/** The script ends within this turn (CR 514.2 / 511.3). An absent script (an
+/** The script ends within this turn (CR 514.2 / 500.5a). An absent script (an
  *  imperative `resolve()` card) is unreadable, so it is NOT called transient —
  *  {@link isPreAttackGrant} claims only what it can prove. */
 function expiresThisTurn(script: readonly EffectOp[] | undefined): boolean {
