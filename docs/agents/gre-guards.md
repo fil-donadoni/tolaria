@@ -291,3 +291,43 @@ available. Printing both rules side by side is what caught all three. Tree
 fixes land one directory batch per PR through the normal gate.
 
 Wizards republishes roughly per set at <https://magic.wizards.com/en/rules>.
+
+## Pending-choice wire safety (CR 406.3, issue #1982)
+
+`pendingChoices` crosses the wire to BOTH viewers UNREDACTED —
+`projectPublicState` (`convex/gameProjections.ts`) forwards it via the
+`...state` spread, and `<PendingChoicePrompt>` renders `prompt` verbatim into
+the non-chooser's "Waiting for X — …" banner. **There is no
+projection-level scrub to fall back on.** One was tried for issue #1982 and
+reverted: it broke 7 pre-existing, individually-tested, CR-correct cases —
+CR 603.3c mandates a modal triggered ability's mode be PUBLICLY ANNOUNCED
+when put on the stack (`trigger-mode`), `chooseNumber`/`payVariableMana`'s
+`prompt` is a card-authoring-time literal that can never vary by hidden
+runtime state, Wan Shi Tong's position-choice labels name nothing hidden, and
+stripping `subjectCardId` blanket hid a legitimately public cascade hit (CR
+406.3's own opening line: exiled cards are face up by default). Safety is
+per-site instead:
+
+- **Wording must not vary by hidden state.** A choice whose branch depends on
+  a face-down/hidden object (Shelldock Isle's Hideaway Cast/Decline offer,
+  `gre/effects/interpreter.ts`'s `OFFER_PROMPT`) uses ONE prompt string and
+  ONE option list for every branch — differing wording is itself the leak
+  (CR 116.1's "play" covers casting, so "Play it or decline." is accurate
+  whichever branch was taken). Reference: `colorless.test.ts`'s
+  `"CR 406.3 — the offer is BYTE-IDENTICAL…"` test.
+- **`subjectCardId` only from a derivation that already gates on
+  visibility** — `SpellContext.getPublicCardIdentity`
+  (`gre/effects/interpreter.ts`), never authored by hand. Two
+  SpellContext-less producers (`gre/madness.ts`, `gre/rebound.ts`) set it
+  unconditionally and are correct in substance (the card was already made
+  public by an earlier step in the same turn); a fourth site in
+  `gre/state.ts` forwards a caller-supplied value / derives it for an
+  as-enters staged choice (`presentedDefId`, always a public zone
+  transition, CR 303.4f).
+- **Guard, mechanical, Guard-B-shaped**:
+  `convex/gre/__tests__/subjectCardIdProducers.test.ts` fails CI the moment a
+  FIFTH file assigns `subjectCardId` outside the four-file allowlist above —
+  extend it deliberately, never silently. Presence only, exactly like Guard
+  B above: it does not re-verify each allowlisted site derives the id
+  correctly (that is each site's own reference test's job), only that a new
+  producer can't land unnoticed.
