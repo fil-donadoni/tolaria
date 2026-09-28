@@ -21,6 +21,7 @@ import {
     isDeferrableAction,
     isLastDeferralWindow,
     isPreAttackGrant,
+    waitsUnchanged,
 } from "../deferral";
 import { timingPairClassifier } from "../verdicts/evalPairs";
 import type { Move } from "../../moves";
@@ -163,11 +164,9 @@ describe("own side only", () => {
                 cast("bolt", [{ type: "permanent", id: "theirs" }])
             )
         ).toBe(false);
-        // On the OPPONENT's turn: in the mover's own turn before attackers,
-        // killing its own attacker changes its own attack (clause 6, below).
         expect(
             isDeferrableAction(
-                { ...state, activePlayerId: "p2" },
+                state,
                 "p1",
                 cast("bolt", [{ type: "permanent", id: "mine" }])
             )
@@ -443,23 +442,23 @@ describe("timing pairs, both directions (issue #4764)", () => {
     });
 });
 
-describe("clause 6 — nothing in between it would change (issue #4757)", () => {
+describe("waitsUnchanged — the root rule's premise: nothing in between it would change (issue #4757)", () => {
     it("refuses a ritual: its mana empties with the step (CR 106.4 / 500.5)", () => {
         const state = board({ hand: [card(RITUAL, "ritual")] });
-        expect(isDeferrableAction(state, "p1", cast("ritual"))).toBe(false);
+        expect(waitsUnchanged(state, "p1", cast("ritual"))).toBe(false);
     });
 
     it("refuses an untargeted effect that reaches the opponent's side", () => {
-        // Hibernation names no target, so clause 2 cannot see it; its
+        // Hibernation names no target, so the perimeter's clause 2 cannot see it; its
         // resolution returns the opponent's green permanent.
         const reaching = board({
             hand: [card(HIBERNATION, "hib")],
             oppBattlefield: [card(BEARS, "theirs", "p2")],
         });
-        expect(isDeferrableAction(reaching, "p1", cast("hib"))).toBe(false);
+        expect(waitsUnchanged(reaching, "p1", cast("hib"))).toBe(false);
         // With nothing green on either side it moves nothing and waits.
         const inert = board({ hand: [card(HIBERNATION, "hib")] });
-        expect(isDeferrableAction(inert, "p1", cast("hib"))).toBe(true);
+        expect(waitsUnchanged(inert, "p1", cast("hib"))).toBe(true);
     });
 
     it("refuses a change to the mover's own attack before attackers (CR 508.1a)", () => {
@@ -470,14 +469,10 @@ describe("clause 6 — nothing in between it would change (issue #4757)", () => 
             activePlayerId: "p1",
         });
         const shot = cast("bolt", [{ type: "permanent", id: "mine" }]);
-        expect(isDeferrableAction(state, "p1", shot)).toBe(false);
+        expect(waitsUnchanged(state, "p1", shot)).toBe(false);
         // Past the attack the same shot no longer changes it.
         expect(
-            isDeferrableAction(
-                { ...state, phase: "POSTCOMBAT_MAIN" },
-                "p1",
-                shot
-            )
+            waitsUnchanged({ ...state, phase: "POSTCOMBAT_MAIN" }, "p1", shot)
         ).toBe(true);
     });
 });

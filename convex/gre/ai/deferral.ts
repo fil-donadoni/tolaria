@@ -73,7 +73,7 @@ export function isLastDeferralWindow(state: GameState, pid: string): boolean {
  * Is `move` a DEFERRABLE action for `pid` — one whose only question is WHEN,
  * because a later window offers the same action on the same board?
  *
- * Six clauses, all required:
+ * Five clauses, all required:
  *
  *  1. **Instant timing.** A cast of a card with instant speed
  *     (`hasInstantSpeed`: an Instant, or Flash — CR 117.1a / 702.8a), or an
@@ -106,15 +106,6 @@ export function isLastDeferralWindow(state: GameState, pid: string): boolean {
  *     is the last-window rule's own question (issue #4757): nothing, and
  *     {@link isTransientOnlyAction} is how it refuses to spend one there.
  *
- *  6. **Nothing in between it would change** — {@link waitsUnchanged}, a
- *     resolution probe (issue #4757). Clauses 2-5 read what the action NAMES;
- *     this one reads what it DOES, and asks after the three things that lie
- *     between now and the last window: the opponent's side (an untargeted
- *     effect reaching it — the known limit clause 2 states), the step's mana
- *     (a ritual's product empties with the step, CR 106.4 / 500.5), and, in
- *     the mover's own turn before attackers are declared, the mover's own
- *     attack (CR 508.1a — the general form of clause 5).
- *
  * And one exclusion inside clause 1: an activation whose cost sacrifices
  * ANOTHER permanent (`cost.sacrificeFilter` — Zuran Orb's land, Sylvan
  * Safekeeper's) is a CONVERSION, and whether a land is worth two life is a
@@ -138,8 +129,7 @@ export function isDeferrableAction(
         const card = castCardOf(player, move.cardInstanceId);
         if (!card || !hasInstantSpeed(card)) return false;
         if (isPreAttackGrant(state, pid, move)) return false;
-        if (!reachesOnlyOwnSide(state, pid, move.targets, card)) return false;
-        return waitsUnchanged(state, pid, move);
+        return reachesOnlyOwnSide(state, pid, move.targets, card);
     }
     if (move.kind === "activate-ability") {
         const source = player.battlefield.find(
@@ -149,16 +139,28 @@ export function isDeferrableAction(
         const ability = effectiveAbilityOf(source, move.abilityId);
         if (!ability || !isDeferrableStackAbility(ability)) return false;
         if (ability.cost.sacrificeFilter !== undefined) return false;
-        if (!reachesOnlyOwnSide(state, pid, move.targets)) return false;
-        return waitsUnchanged(state, pid, move);
+        return reachesOnlyOwnSide(state, pid, move.targets);
     }
     return false;
 }
 
 /**
- * Clause 6: does `move`, RESOLVED, leave untouched everything that happens
- * between now and the last window — so that taking it there reaches the same
- * board, which is the whole identical-vector argument (issue #4757)?
+ * Does `move`, RESOLVED, leave untouched everything that happens between now
+ * and the last window — so that taking it there reaches the same board, which
+ * is the premise of the identical-vector argument (issue #4757)?
+ *
+ * The `last-window-deferral` root rule's own admission test, asked ON TOP of
+ * {@link isDeferrableAction} — deliberately NOT a sixth clause of the
+ * perimeter. The perimeter answers "is this pair a question of WHEN", which is
+ * all the Verdict lowering needs to keep it out of the Weight Fit; this asks
+ * whether the rule may answer it by construction. Measured when it was a
+ * clause: it moved six pairs back into the fit (a Mother of Runes activation
+ * taps an attacker, a Walking Ballista shot shrinks one, a Blazing Rootwalla
+ * pump grows one, a Dark Ritual makes mana) and the fit printed DO NOT PASTE —
+ * the committed weights stopped being the fit of the committed verdicts for a
+ * reason no weight could repair. Those positions stay timing pairs, answered
+ * by the search and by the root rules that already own them (`hold-trick`,
+ * `standing-spend-hold`, `wasted-mana-hold`).
  *
  * Read off the resolution through the seams the search itself uses:
  * `applyMoveInSearch`, then `policyProbeState` — the one-resolution probe the
@@ -190,7 +192,11 @@ export function isDeferrableAction(
  * rule dead for the draw instants it exists for; the reach clause 2 reads off
  * the announced targets still holds for them.
  */
-function waitsUnchanged(state: GameState, pid: string, move: Move): boolean {
+export function waitsUnchanged(
+    state: GameState,
+    pid: string,
+    move: Move
+): boolean {
     const before = sidesAround(state, pid);
     if (!before) return false;
     const probe = cloneGameState(state);

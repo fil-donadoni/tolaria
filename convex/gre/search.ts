@@ -170,6 +170,7 @@ import {
     isLastDeferralWindow,
     isPreAttackGrant,
     isTransientOnlyAction,
+    waitsUnchanged,
 } from "./ai/deferral";
 import { abilityBenefitIsConfinedToSource } from "./ai/sourceConfinedBenefit";
 import { abilityIsDiscardExchange } from "./ai/discardExchange";
@@ -4672,6 +4673,13 @@ export function selectRootMove(
     // 11 act-over-pass pairs — the fit cannot do it, by construction, and the
     // timing verdicts left it (issue #4764).
     //
+    // The proof's PREMISE is asked of each action, not assumed:
+    // `waitsUnchanged` resolves it and refuses one that changes what lies
+    // between now and the last window — the opponent's side (an untargeted
+    // sweep), the step's mana (a ritual), or, before attackers in the bot's own
+    // turn, its own attack (counters, a hasty token copy). Those are not the
+    // same act later, and the search keeps them.
+    //
     // This SUBSUMES the flash-permanent shape of `isSorcerySpeedTrickDump`
     // (issue #2248, removed there): same argument, now read through the one
     // perimeter in every earlier window rather than only the active player's
@@ -4698,7 +4706,8 @@ export function selectRootMove(
         !!botId &&
         ruleOn("last-window-deferral") &&
         !isLastDeferralWindow(rootState, botId) &&
-        isDeferrableAction(rootState, botId, best.move)
+        isDeferrableAction(rootState, botId, best.move) &&
+        waitsUnchanged(rootState, botId, best.move)
     ) {
         const hold = pool.find(
             (e) =>
@@ -5059,13 +5068,14 @@ export function selectRootMove(
     // same argument for a sacrifice engine, and this extends it to every
     // action of the perimeter, casts included.
     //
-    // "Does not worsen the position" is read two ways, both required:
+    // "Does not worsen the position" is read three ways, all required:
     //  - on MEAN REWARD, the outcome band every tie-break shares — the search
     //    carries the line into the bot's own untap step, where the mana spent
     //    now comes back. An immediate-position probe (`firingBeatsHolding`)
     //    would read the lands the action taps as lost (`tappedManaWeight`) and
     //    refuse every draw instant, which is exactly the verdict this rule
     //    exists to honour;
+    //  - on the PREMISE: `waitsUnchanged`, as for the hold;
     //  - on the EFFECT: one whose whole payoff expires this turn
     //    (`isTransientOnlyAction`, CR 514.2) has nothing left to act on
     //    between the end step and the cleanup, so spending it is a card or a
@@ -5090,6 +5100,7 @@ export function selectRootMove(
             if (mean(e) < bestMean - weights.outcomeEps) continue;
             if (!isDeferrableAction(rootState, botId, e.move)) continue;
             if (isTransientOnlyAction(rootState, botId, e.move)) continue;
+            if (!waitsUnchanged(rootState, botId, e.move)) continue;
             if (!act || meanMargin(e) > meanMargin(act)) act = e;
         }
         if (act) return finish(act, "last-window-deferral", act !== best);

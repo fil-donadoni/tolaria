@@ -55,7 +55,7 @@ function library(): CardInstanceState[] {
     );
 }
 
-/** Mana for the cast: the deferral perimeter RESOLVES the action (clause 6,
+/** Mana for the cast: the rule RESOLVES the action (`waitsUnchanged`,
  *  `ai/deferral.ts`), and an unpayable cast fails closed. */
 function lands(): CardInstanceState[] {
     return ["isl0", "isl1", "for0"].map((id) =>
