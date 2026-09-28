@@ -423,7 +423,7 @@ function timingMeasurement(
 ): BladeScenario["expect"] {
     return {
         predicate: (move, state) =>
-            move !== null && matchesMove(state, move, expected) !== hold,
+            move === null ? hold : matchesMove(state, move, expected) !== hold,
         describe: `${hold ? "does NOT choose" : "chooses"} ${expected.kind} ${expected.card ?? ""}${expected.target ? ` → ${expected.target}` : ""}`,
     };
 }
@@ -3907,7 +3907,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         seeds: [0xb1ade, 1, 2, 3, 4],
         tier: "stretch",
         expect: timingMeasurement({ kind: "cast-spell", card: "Terror" }, true),
-        note: "Issue #4765. Nothing else to spend mana on and the opposing Bears is no threat this turn: Terror (CR 304.1, instant) kills it as well after it attacks, or at the end step, while the untapped mana keeps the answer open against whatever the opponent casts next. Casting it at sorcery speed buys nothing and forecloses the choice of target.",
+        note: "Issue #4765. Nothing else to spend mana on and the opposing Bears is no threat this turn: Terror (CR 304.1, instant) kills it as well after it attacks, or at the end step, while the untapped mana keeps the answer open against whatever the opponent casts next. Casting it at sorcery speed buys nothing.",
     },
     {
         label: "removal timing: exiles the attacker in the last window before damage",
@@ -3934,8 +3934,9 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         },
         // `me` attacks, `opp` declares no block (the Ornithopter could block,
         // which is what opens the declare-blockers window at all), `me` passes
-        // — the defender's LAST priority window before combat damage
-        // (CR 510.1): passing here is taking 6.
+        // — the defender's LAST priority window before combat damage: an
+        // unblocked attacker deals its damage to the player (CR 510.1b), so
+        // passing here is taking 6.
         setup: [
             { kind: "declare-attackers", cards: ["Craw Wurm"] },
             { kind: "declare-blockers" },
@@ -3950,7 +3951,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
             card: "Swords to Plowshares",
             target: "Craw Wurm",
         }),
-        note: "Issue #4765. The removal belongs HERE, after attackers are declared: the attacker is committed, no later window precedes its damage, and exiling it now saves 6 life on top of the creature. A pass is not a deferral to a later window but a strictly worse line.",
+        note: "Issue #4765. The removal belongs HERE, after attackers are declared: the attacker is committed, no later window precedes its damage, and exiling it now saves 6 life on top of the creature. A pass is not a deferral to a later window but a strictly worse line. This is the COMPLEMENT of the Terror hold above, not a timing discrimination on its own: it measures that a held removal is actually fired once the attack gives it a reason, so the hold is never a mute button. The earlier window (`haltForDefenderResponse`) is deliberately not the position: there casting now and casting after blocks are both correct.",
     },
     {
         label: "response timing: bolts the attacker in response to its pump",
@@ -4003,7 +4004,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
             card: "Lightning Bolt",
             target: "Grizzly Bears",
         }),
-        note: "Issue #4765. Bolting the 2/2 in response kills it before the pump resolves, and Giant Growth then has no legal target (CR 608.2b): a two-for-one that also keeps the Hill Giant. Passing lets a 5/5 kill the blocker and survive.",
+        note: "Issue #4765. Bolting the 2/2 in response kills it before the pump resolves, and Giant Growth then has no legal target (CR 608.2b): a two-for-one that also keeps the Hill Giant. Passing lets the pump resolve: even a Bolt afterwards only trades the 5/5 for the Hill Giant, where responding kills it and keeps the Giant.",
     },
     {
         label: "response timing: saves its blocker by pumping it in response to removal",
