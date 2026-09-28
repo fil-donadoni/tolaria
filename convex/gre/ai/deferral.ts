@@ -171,14 +171,18 @@ export function reachesOnlyOwnSide(
             ? trigger.event
             : [trigger.event];
         if (!events.includes("PERMANENT_ENTERED")) continue;
-        if (!trigger.targetRequirement) continue;
-        const legal = getLegalTargets(
-            state,
+        // A modal trigger (CR 700.2b) carries its requirements per mode: any
+        // mode that can point at the opponent's side takes the cast out.
+        const requirements = [
             trigger.targetRequirement,
-            source,
-            pid
-        );
-        if (!legal.every((t) => isOwnSideTarget(state, pid, t))) return false;
+            ...(trigger.modes ?? []).map((m) => m.targetRequirement),
+        ];
+        for (const requirement of requirements) {
+            if (!requirement) continue;
+            const legal = getLegalTargets(state, requirement, source, pid);
+            if (!legal.every((t) => isOwnSideTarget(state, pid, t)))
+                return false;
+        }
     }
     return true;
 }

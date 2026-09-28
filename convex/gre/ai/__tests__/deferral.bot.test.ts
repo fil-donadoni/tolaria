@@ -190,6 +190,32 @@ describe("own side only", () => {
             });
             expect(isDeferrableAction(alone, "p1", cast("kavu"))).toBe(true);
         });
+
+        // The same trigger as a MODAL one (CR 700.2b): the requirement sits
+        // on the mode, not on the trigger, and still takes the cast out.
+        const modalKavu = {
+            ...flashKavu,
+            triggeredAbilities: (KAVU.triggeredAbilities ?? []).map((t) => ({
+                ...t,
+                targetRequirement: undefined,
+                modes: [
+                    {
+                        id: "burn",
+                        label: "burn",
+                        oracleText: t.oracleText,
+                        targetRequirement: t.targetRequirement,
+                        effects: t.effects,
+                    },
+                ],
+            })),
+        };
+        withTemporaryDefinition(modalKavu, () => {
+            const facing = board({
+                hand: [card(KAVU.id, "kavu")],
+                oppBattlefield: [card(BEARS, "theirs", "p2")],
+            });
+            expect(isDeferrableAction(facing, "p1", cast("kavu"))).toBe(false);
+        });
     });
 });
 
