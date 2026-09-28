@@ -3026,7 +3026,11 @@ function isDynamicMayPayManaCost(value: unknown): boolean {
     // Exactly one base source (the `keys.length === 2` above plus `reducedBy`
     // already forces it to be the only other key).
     if ("manaCostOf" in obj) {
-        if (!isBarePicksRef(obj.manaCostOf)) return false;
+        // A bare picks ref, or an `$event` ref (issue #4335 — a SPELL_CAST
+        // trigger's `$event.spell`, "pay that spell's mana cost"); the ordered
+        // ref pass checks the `$event` field is a stack object.
+        if (!isBarePicksRef(obj.manaCostOf) && !isEventRefValue(obj.manaCostOf))
+            return false;
     } else if ("mana" in obj) {
         if (!isManaCost(obj.mana)) return false;
     } else {
@@ -6491,8 +6495,10 @@ function collectRefUses(value: unknown, keyHint: string, out: RefUse[]): void {
                         keyHint === "permanents" ||
                         // `mayPay`'s dynamically-derived cost (issue #1150):
                         // `manaCostOf` is a bare picks ref — the object an
-                        // earlier `choice` Op selected.
-                        keyHint === "manaCostOf" ||
+                        // earlier `choice` Op selected. Its `$event` form is
+                        // a stack object (issue #4335), routed below.
+                        (keyHint === "manaCostOf" &&
+                            !obj.ref.startsWith("$event.")) ||
                         // `grantCastFromExile`'s `card` field (issue #1156)
                         // — a bare picks ref naming a `choice` Op's bind
                         // (singular: the choice's `count: 1` pick).
@@ -6531,7 +6537,11 @@ function collectRefUses(value: unknown, keyHint: string, out: RefUse[]): void {
                             // a SYNTHETIC key by the per-entry walk, because the
                             // bare key `target` is shared by a dozen Ops that all
                             // mean a battlefield object. See its collection site.
-                            keyHint === "counterTarget"
+                            keyHint === "counterTarget" ||
+                              // `mayPay.cost.manaCostOf` as `$event.spell`
+                              // (issue #4335) — read off the spell ON THE
+                              // STACK by `resolveStackObjectRef`.
+                              keyHint === "manaCostOf"
                             ? "stack-object"
                             : keyHint === "target" ||
                                 keyHint === "to" ||
