@@ -28,6 +28,20 @@
 // produces, and a refit re-derives it. Documented rather than hidden, because
 // a fit consuming these must know that the forbidden constraints move under it
 // while the `right` ones do not.
+//
+// TIMING PAIRS (issue #4764). A pair whose two sides are "pass" and a
+// DEFERRABLE action (`ai/deferral.ts`) states WHEN to act, not what: "pass"
+// over a draw instant in the mover's own main phase and "cast it" at the
+// opponent's end step are one rule — keep mana open, act in the last window —
+// and acting now or later reaches the same board when nothing happens in
+// between. The fit reads a position's terms, never its window, so it can only
+// answer such a pair by bending material weights (measured on the first
+// promotion's corpus, issue #4761: three blade `must` entries reddened through
+// `colorCoverageWeight`, `manaWeight` and `latent.pump`). So both directions —
+// pass over a deferrable action in an EARLIER window, a deferrable action over
+// pass in the LAST window (`isLastDeferralWindow`) — are built exactly like
+// any pair and routed to `timing` instead of `pairs`: never fitted, never
+// dropped silently, and checked by the search (`verdicts:search`).
 
 import { cloneGameState } from "../../clone";
 import type { EvalTerms } from "../../evaluate";
@@ -40,6 +54,7 @@ import {
     policyProbeState,
 } from "../../search";
 import { DEFAULT_EVAL_WEIGHTS, type EvalWeights } from "../evalWeights";
+import { isDeferrableAction, isLastDeferralWindow } from "../deferral";
 import { makeInterchangeableKeyer } from "../interchangeable";
 import { seatPlayerId } from "../blade/matcher";
 import {
@@ -86,6 +101,9 @@ export type EvalPair = {
 export type VerdictPairs = {
     verdict: Verdict;
     pairs: EvalPair[];
+    /** The TIMING pairs (issue #4764, header): built like `pairs`, never
+     *  fitted. Empty when the verdict yielded an error. */
+    timing: EvalPair[];
     /** One per candidate, in the verdict's own candidate order. Empty when
      *  the verdict could not be evaluated. */
     features: FeatureVector[];
@@ -136,6 +154,7 @@ export function evalPairsOf(
     const fail = (error: string): VerdictPairs => ({
         verdict,
         pairs: [],
+        timing: [],
         features: [],
         error,
     });
@@ -296,13 +315,35 @@ export function evalPairsOf(
     // orders FEWER verdicts than the committed one"). The double-counting is a
     // census question, not this slice's.
     const rightKey = moveKey(moves[best]);
-    const pairs = disallowed
+    const built = disallowed
         .filter((i) => moveKey(moves[i]) !== rightKey)
         .map((i) => pairOf(verdict.answer.kind, best, i));
-    if (pairs.length === 0) {
+    if (built.length === 0) {
         return fail(
             "every disallowed candidate is interchangeable with the allowed one — no constraint to express"
         );
     }
-    return { verdict, pairs, features };
+    const isTiming = timingPairClassifier(state, botId, moves);
+    const pairs = built.filter((p) => !isTiming(p));
+    const timing = built.filter(isTiming);
+    return { verdict, pairs, timing, features };
+}
+
+/** Is a pair a TIMING judgement (header)? Both directions, on the verdict's
+ *  own rebuilt position: "pass" over a deferrable action in a window that is
+ *  not the last, or a deferrable action over "pass" in the last one. Any other
+ *  shape — two actions, or "pass" against an action outside the perimeter —
+ *  is a question of WHAT, and stays in the fit. */
+export function timingPairClassifier(
+    state: GameState,
+    botId: string,
+    moves: readonly Move[]
+): (pair: Pick<EvalPair, "rightIndex" | "otherIndex">) => boolean {
+    const last = isLastDeferralWindow(state, botId);
+    const deferrable = moves.map((m) => isDeferrableAction(state, botId, m));
+    const isPass = moves.map((m) => m.kind === "pass");
+    return ({ rightIndex, otherIndex }) =>
+        last
+            ? deferrable[rightIndex] && isPass[otherIndex]
+            : isPass[rightIndex] && deferrable[otherIndex];
 }

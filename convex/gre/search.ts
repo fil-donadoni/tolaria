@@ -165,6 +165,7 @@ import {
     isTransientOnlyAbility,
     spendsStandingPermanent,
 } from "./ai/abilityTiming";
+import { isLastDeferralWindow } from "./ai/deferral";
 import { abilityBenefitIsConfinedToSource } from "./ai/sourceConfinedBenefit";
 import { abilityIsDiscardExchange } from "./ai/discardExchange";
 import { abilityIsDrainExchange } from "./ai/drainExchange";
@@ -4911,20 +4912,6 @@ function isSorcerySpeedTrickDump(state: GameState, move: Move): boolean {
         );
     }
     return false;
-}
-
-/** Whether `pid` is at the LAST priority window of this turn cycle in which
- *  deferring still costs nothing — the opponent's end step (CR 513.1, issue
- *  #2939). "The last window before the bot's own turn" is the normal case, not
- *  an invariant: an extra turn taken by the opponent makes this one cycle
- *  early, which converts sooner than strictly necessary and never later.
- *
- *  Deliberately not "any window on the opponent's turn": the end step is the
- *  one where every threat and answer of the turn is already known, which is the
- *  whole payoff the hold rule defers FOR. Anything earlier still has
- *  information left to buy. */
-function isLastDeferralWindow(state: GameState, pid: string): boolean {
-    return state.phase === "END_STEP" && state.activePlayerId !== pid;
 }
 
 /** Whether `sourceId` is inside a combat exchange whose damage has not been
