@@ -11,9 +11,11 @@ import { describe, expect, it } from "vitest";
 import {
     FIT_MARGIN,
     formatMinimalPairSection,
+    formatPromotionReport,
     minimalPairFitOutcomes,
     verdictIdOf,
     type Discriminant,
+    type PromotionPlan,
     type Verdict,
 } from "../verdicts";
 
@@ -245,5 +247,43 @@ describe("formatMinimalPairSection (issue #4794)", () => {
         );
         expect(text).toContain("(none)");
         expect(text).not.toContain("other Discriminant phrases");
+    });
+});
+
+describe("the Promotion delta carries the Minimal Pair section (issue #4794)", () => {
+    const plan: PromotionPlan = {
+        lock: { verdictIds: [], packHash: "0".repeat(64) },
+        entries: [],
+        added: [],
+        dropped: [],
+        noop: false,
+    };
+
+    it("prints the headline count and the full section beside the unsatisfied pairs", () => {
+        const text = formatPromotionReport({
+            plan,
+            lockedBefore: 0,
+            newPairs: [],
+            unsatisfied: [],
+            minimalPairs: [
+                {
+                    anchorId: anchor.id,
+                    halfId: half.id,
+                    discriminant: STEP,
+                    anchorSatisfied: true,
+                    halfSatisfied: false,
+                },
+            ],
+            movement: [],
+        });
+        expect(text).toContain(
+            "minimal pairs          : 1 (both 0 / one 1 / neither 0)"
+        );
+        expect(text).toContain(
+            "Minimal Pairs (1) — both halves satisfied / one / none (ADR 0148)"
+        );
+        expect(text).toContain(
+            "Discriminant no term reads: step: opponent's end step"
+        );
     });
 });
