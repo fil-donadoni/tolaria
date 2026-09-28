@@ -61,8 +61,8 @@ const RESIDENT = ["CLAUDE.md", ".claude/rules"];
 const RESIDENT_CEILING_BYTES = 35_500;
 
 /**
- * Measured 2026-09-02: 24,163 bytes across `convex/CLAUDE.md` (19,731) and
- * `src/CLAUDE.md` (4,432). (Was 21,225 / 23,000 on 2026-08-29.)
+ * Measured 2026-09-28: 24,718 bytes across `convex/CLAUDE.md` (20,370) and
+ * `src/CLAUDE.md` (4,348). (Was 24,163 / 19,731 / 4,432 on 2026-09-02.)
  *
  * Larger than the resident ceiling on purpose — this tier is where the tables,
  * worked examples and derivations are SUPPOSED to live. It is budgeted so that
@@ -71,12 +71,18 @@ const RESIDENT_CEILING_BYTES = 35_500;
  *
  * Raised by 1,500 in issue #2701, which added Guard C — a new mandatory
  * authoring norm, which is the one thing this ceiling is meant to make room
- * for. The raise restores the ~300 bytes of headroom the ceiling had before,
+ * for. The raise restored the ~300 bytes of headroom the ceiling had before,
  * and no more: Guard C's own text was cut from 2,451 bytes to 1,460 first, to
  * sit proportionate to Guard A and Guard B rather than paying for the raise
  * with prose.
+ *
+ * Raised by 350 in issue #1982, which added a `subjectCardId` producer guard
+ * — a new mandatory authoring norm, same justification. The index entry
+ * itself is a 3-line pointer at `docs/agents/gre-guards.md` (the derivation,
+ * unbudgeted); the raise restores only ~130 bytes of headroom, since the
+ * pointer alone already cost most of what little slack the ceiling had left.
  */
-const ON_DEMAND_CEILING_BYTES = 24_500;
+const ON_DEMAND_CEILING_BYTES = 24_850;
 
 function residentFiles(): string[] {
     const out: string[] = [];

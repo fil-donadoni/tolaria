@@ -291,3 +291,64 @@ available. Printing both rules side by side is what caught all three. Tree
 fixes land one directory batch per PR through the normal gate.
 
 Wizards republishes roughly per set at <https://magic.wizards.com/en/rules>.
+
+## Pending-choice wire safety (CR 406.3, issue #1982)
+
+`pendingChoices` crosses the wire to BOTH viewers UNREDACTED —
+`projectPublicState` (`convex/gameProjections.ts`) forwards it via the
+`...state` spread, and `<PendingChoicePrompt>` renders `prompt` verbatim into
+the non-chooser's "Waiting for X — …" banner. **There is no
+projection-level scrub to fall back on.** A blanket one (strip
+`prompt`/`options`/`subjectCardId` for any viewer who isn't the chooser) was
+tried for issue #1982 and reverted: it broke 7 pre-existing, individually
+justified UX/behaviour assertions the catalogue has accumulated since —
+`modalTriggers.test.ts`'s "visible to both" case (CR 603.3c: a modal
+triggered ability's CHOSEN mode is announced publicly; the test covers the
+still-pending offer itself, a UX call this codebase has made, not a rule the
+CR states), `chooseNumber`/`payVariableMana`'s `prompt` (a card-authoring-time
+literal that never varies by hidden runtime state — nothing TO leak), Wan Shi
+Tong's position-choice labels (name nothing hidden), and a cascade hit whose
+`subjectCardId` the opponent is already entitled to (the hit sits face up in
+a public exile pile, CR 406.3's own opening line — hiding the id there would
+have been a NEW correctness bug, an opponent-side regression, not a fix).
+Safety is per-site instead:
+
+- **Wording must not vary by hidden state.** A choice whose branch depends on
+  a face-down/hidden object (Shelldock Isle's Hideaway Cast/Decline offer,
+  `gre/effects/interpreter.ts`'s `OFFER_PROMPT`) uses ONE prompt string and
+  ONE option list for every branch — differing wording is itself the leak
+  (CR 116.1's "play" covers casting, so "Play it or decline." is accurate
+  whichever branch was taken). Reference: `colorless.test.ts`'s
+  `"CR 406.3 — the offer is BYTE-IDENTICAL…"` test.
+- **`subjectCardId` only from a derivation that already gates on
+  visibility** — `SpellContext.getPublicCardIdentity`
+  (`gre/effects/interpreter.ts`), never authored by hand. Two
+  SpellContext-less producers (`gre/madness.ts`, `gre/rebound.ts`) set it
+  unconditionally and are correct in substance (the card was already made
+  public by an earlier step in the same turn); a third site in `gre/state.ts`
+  forwards a caller-supplied value (the generic `requestChoice` plumbing —
+  the CALLER already did the visibility check) or derives it for an
+  as-enters staged choice (`presentedDefId`, always a public zone
+  transition, CR 303.4f).
+- **Guard, mechanical, Guard-B-shaped**:
+  `convex/gre/__tests__/subjectCardIdProducers.test.ts` fails CI the moment
+  an unaudited SITE assigns `subjectCardId` — scans every non-test file under
+  `convex/` (not only `gre/`, since `SpellContext.requestOptionChoice`'s
+  `subjectCardId?` parameter, `cards/types.ts`, means a future `resolve()`
+  body anywhere under `cards/sets/**` could originate one by hand), and pins
+  a per-FILE occurrence COUNT rather than a bare allowlist, so a second,
+  unaudited site inside an already-allowlisted file (`state.ts`,
+  `interpreter.ts`) still reds. Presence only, exactly like Guard B above: it
+  does not re-verify each allowlisted site derives the id correctly (that is
+  each site's own reference test's job), only that a new one can't land
+  unnoticed.
+
+**What this does NOT close.** Issue #1982 also names the PRESENCE channel — a
+hidden LAND raises no prompt at all on the opponent's turn (CR 305.3 silent
+pass), while a hidden nonland raises the Play/Decline offer, so the opponent
+can infer land-ness from whether a prompt exists at all, independent of its
+wording. The issue's own scope defers this half explicitly ("which can then
+be addressed separately — e.g. a decoy offer, or accepting it as an
+out-of-scope tell"); this section is the wording half only. **Issue #1982
+stays open** for the presence channel — do not close it off this guard/docs
+change alone.
