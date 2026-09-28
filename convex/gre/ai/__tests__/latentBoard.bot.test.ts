@@ -391,6 +391,80 @@ describe("bounce, damage and filtered sweeps read the board (issue #4781)", () =
         ).toBe(0);
     });
 
+    it("a bounced card comes back without its counters (CR 400.7)", () => {
+        // What the bounce takes is the permanent's realised loss minus the
+        // card's worth back in hand — and the card in hand is a new object,
+        // so the counters stay behind: they are all taken.
+        const handCard = makeInstance(hibernation.id, {
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const bears = (counters?: Record<string, number>) =>
+            makeInstance(grizzlyBears.id, {
+                controllerId: "p2",
+                ownerId: "p2",
+                ...(counters ? { counters } : {}),
+            });
+        const at = (victim: ReturnType<typeof bears>) => {
+            const state = makeState({
+                players: [
+                    makePlayer("p1", { hand: [handCard] }),
+                    makePlayer("p2", { battlefield: [victim] }),
+                ],
+            });
+            return {
+                latent: evaluateBreakdown(state, "p1").self.hand,
+                realised: permanentRealisedValue(state, victim),
+            };
+        };
+        const vanilla = at(bears());
+        const grown = at(bears({ "+1/+1": 2 }));
+        expect(grown.latent - vanilla.latent).toBeCloseTo(
+            (DEFAULT_EVAL_WEIGHTS.latent.boardRemoval *
+                (grown.realised - vanilla.realised)) /
+                representativeVictimLoss(DEFAULT_EVAL_WEIGHTS),
+            6
+        );
+    });
+
+    it("a bounced card goes to its OWNER's hand, not its controller's (CR 400.3)", () => {
+        // p1 controls one of p2's Bears: bouncing it takes the body from p1
+        // AND hands the card to p2, so it outweighs the surplus of three.
+        const handCard = makeInstance(hibernation.id, {
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const opp = () =>
+            makeInstance(grizzlyBears.id, {
+                controllerId: "p2",
+                ownerId: "p2",
+            });
+        const worth = (ownerOfMine: "p1" | "p2") =>
+            evaluateBreakdown(
+                makeState({
+                    players: [
+                        makePlayer("p1", {
+                            hand: [handCard],
+                            battlefield: [
+                                makeInstance(grizzlyBears.id, {
+                                    controllerId: "p1",
+                                    ownerId: ownerOfMine,
+                                }),
+                            ],
+                        }),
+                        makePlayer("p2", {
+                            battlefield: [opp(), opp(), opp()],
+                        }),
+                    ],
+                }),
+                "p1"
+            ).self.hand;
+        expect(worth("p1")).toBeGreaterThan(0);
+        expect(worth("p2")).toBe(0);
+    });
+
     it("a bounce sweep's colour filter is matched exactly", () => {
         // CR 105.2 — Shivan Dragon is red: Hibernation returns nothing.
         expect(latentAgainst(hibernation.id, [], [shivanDragon.id])).toBe(0);

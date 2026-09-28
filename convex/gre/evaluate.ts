@@ -103,7 +103,7 @@ import {
 } from "./ai/evalWeights";
 import type { LatentLens } from "./ai/grounding";
 import { contextFreeLatentLens } from "./ai/grounding";
-import { makeLatentBoardLens } from "./ai/latentBoard";
+import { asReturnedToHand, makeLatentBoardLens } from "./ai/latentBoard";
 
 /** A won position. Large enough to dominate every reachable material margin so
  *  the bot always prefers lethal, and finite so two winning lines stay
@@ -293,7 +293,12 @@ function latentBoardFor(
             realisedLoss: (perm) =>
                 permanentRealisedValue(state, perm, weights),
             returnedWorth: (perm) =>
-                cardValue(state, perm, undefined, weights.latent),
+                cardValue(
+                    state,
+                    asReturnedToHand(perm),
+                    undefined,
+                    weights.latent
+                ),
         },
         contextFreeLatentLens(weights.latent)
     );

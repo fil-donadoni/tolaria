@@ -90,8 +90,6 @@ export interface LatentLens {
     measured(): boolean;
 }
 
-/** The lens a valuation with no board attached reads: the production weights,
- *  no victim lookup. */
 /** Issue #4781 — what a sweep's body does to each member, as far as the
  *  loss it inflicts goes:
  *   - `leaves` — it leaves the battlefield and nothing comes back (`destroy`,
@@ -106,6 +104,8 @@ export type SweepOutcome =
     | { kind: "lethalDamage"; amount: number }
     | { kind: "returnsToHand" };
 
+/** The lens a valuation with no board attached reads: the production weights,
+ *  no victim lookup. */
 export function contextFreeLatentLens(
     weights: LatentWeights = DEFAULT_EVAL_WEIGHTS.latent
 ): LatentLens {

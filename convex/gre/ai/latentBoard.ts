@@ -42,6 +42,7 @@ import {
 import { creatureValueRaw } from "../creatureBody";
 import { currentLoyalty } from "../loyalty";
 import { effectivePermanentView } from "../permanentView";
+import { clearCardFieldsAt } from "../state/cardFieldLifecycle";
 import { liveSupertypesOf } from "../snow";
 import { getLegalTargets, pendingTargetingSource } from "../rules";
 import type { EvalWeights } from "./evalWeights";
@@ -277,8 +278,9 @@ export function makeLatentBoardLens(
  *  resolution spares, and one that refused them would price a real sweep at
  *  nothing.
  *
- *  Issue #4781 — each member's loss is `lossOf` it, per the sweep's
- *  `SweepOutcome` (`memberLoss`). */
+ *  Issue #4781 — each member's outcome is `lossOf` it, per the sweep's
+ *  `SweepOutcome` (`memberLoss`): what it takes is its controller's loss,
+ *  what it hands back its owner's gain. */
 function sweptNetLoss(
     state: GameState,
     casterId: string,
@@ -313,8 +315,9 @@ function sweptNetLoss(
             ) {
                 continue;
             }
-            const loss = lossOf(perm, view);
-            net += own ? -loss : loss;
+            const { taken, handedBack } = lossOf(perm, view);
+            net += own ? -taken : taken;
+            net += perm.ownerId === casterId ? handedBack : -handedBack;
         }
     }
     return net;
@@ -322,17 +325,49 @@ function sweptNetLoss(
 
 const LEAVES: SweepOutcome = { kind: "leaves" };
 
-/** One member's loss to its controller, given the raw permanent and its
- *  `effectivePermanentView`. */
-type MemberLoss = (perm: CardInstanceState, view: CardInstanceState) => number;
+/** Issue #4781 — `perm` as the card a bounce hands back: a NEW object in
+ *  its owner's hand (CR 400.7), so its type line and abilities go back to
+ *  their bases and every field the Card Field Lifecycle table resets on a
+ *  zone change (counters, damage, choices, ledgers) goes with the old object.
+ *  Priced with `cardValue`, it is what the hand term will read once the
+ *  bounce has resolved. Never written back: a copy. */
+export function asReturnedToHand(perm: CardInstanceState): CardInstanceState {
+    const card: CardInstanceState = {
+        ...perm,
+        zone: "hand",
+        isTapped: false,
+        types: [...(perm.baseTypes ?? perm.types)],
+        subtypes: [...(perm.baseSubtypes ?? perm.subtypes)],
+        staticAbilities: [
+            ...(perm.baseStaticAbilities ?? perm.staticAbilities),
+        ],
+    };
+    clearCardFieldsAt(card, "zone-change");
+    return card;
+}
 
-/** Issue #4781 — the per-member loss each `SweepOutcome` inflicts:
+/** What a sweep does to one member: `taken` is lost by its CONTROLLER,
+ *  `handedBack` is gained by its OWNER (a bounce returns the card to its
+ *  owner's hand, CR 400.3 — not to whoever controlled it). */
+interface MemberOutcome {
+    taken: number;
+    handedBack: number;
+}
+
+/** One member's outcome, given the raw permanent and its
+ *  `effectivePermanentView`. */
+type MemberLoss = (
+    perm: CardInstanceState,
+    view: CardInstanceState
+) => MemberOutcome;
+
+/** Issue #4781 — the per-member outcome each `SweepOutcome` inflicts:
  *   - `leaves`: the whole realised loss (CR 701.8a / 701.13a);
  *   - `lethalDamage`: the realised loss of a member the damage kills
  *     (`diesTo`), nothing for a survivor;
- *   - `returnsToHand`: the realised loss minus the card's worth back in its
- *     owner's hand — the part of the permanent a bounce actually takes. A
- *     token hands nothing back (CR 111.8: it ceases to exist off the
+ *   - `returnsToHand`: the realised loss, and the card's worth back in its
+ *     owner's hand handed back — so what a bounce takes is the difference. A
+ *     token hands nothing back (CR 111.7: it ceases to exist off the
  *     battlefield). Pricing a bounce at the whole realised loss would read
  *     every returned body as destroyed, while `evaluate` counts it again in
  *     the owner's hand: the cast would realise a fraction of what holding the
@@ -344,13 +379,17 @@ function memberLoss(
 ): MemberLoss {
     switch (outcome.kind) {
         case "leaves":
-            return (perm) => realisedLoss(perm);
+            return (perm) => ({ taken: realisedLoss(perm), handedBack: 0 });
         case "lethalDamage":
-            return (perm, view) =>
-                diesTo(view, outcome.amount) ? realisedLoss(perm) : 0;
+            return (perm, view) => ({
+                taken: diesTo(view, outcome.amount) ? realisedLoss(perm) : 0,
+                handedBack: 0,
+            });
         case "returnsToHand":
-            return (perm) =>
-                realisedLoss(perm) - (perm.isToken ? 0 : returnedWorth(perm));
+            return (perm) => ({
+                taken: realisedLoss(perm),
+                handedBack: perm.isToken ? 0 : returnedWorth(perm),
+            });
     }
 }
 

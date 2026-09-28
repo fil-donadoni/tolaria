@@ -165,7 +165,9 @@ function filteredSweepSurplus(def: CardDefinition): string[] {
     for (const { select, effects } of battlefieldForEaches(def)) {
         if (select.controller !== undefined || !removesSomething(effects))
             continue;
-        if (select.filter?.type !== undefined) continue;
+        // `sweptTypes` already poses a type filter and a missing filter.
+        if (select.filter === undefined || select.filter.type !== undefined)
+            continue;
         const filter = sweepPermanentFilter(select.filter);
         if (filter === UNREADABLE_SWEEP_FILTER) continue;
         for (const name of FILTERED_SWEEP_CANDIDATES) {
@@ -188,16 +190,6 @@ function filteredSweepSurplus(def: CardDefinition): string[] {
         }
     }
     return [...names];
-}
-
-/** Does anything under `node` destroy? — an `op: "destroy"` at any depth. */
-function destroysSomething(node: unknown): boolean {
-    if (Array.isArray(node)) return node.some(destroysSomething);
-    if (node === null || typeof node !== "object") return false;
-    const record = node as Record<string, unknown>;
-    return (
-        record.op === "destroy" || Object.values(record).some(destroysSomething)
-    );
 }
 
 /** A `forEach` over the battlefield, as the sweep detectors read it. */
@@ -242,19 +234,20 @@ function selectsCreatures(select: BattlefieldForEach["select"]): boolean {
 }
 
 /**
- * The permanent types the card's SPELL script destroys on every player's
+ * The permanent types the card's SPELL script takes off every player's
  * battlefield — a `forEach` over `set: "permanents"` with no `controller` (an
- * omitted controller selects every player's battlefield) whose body destroys.
+ * omitted controller selects every player's battlefield) whose body removes
+ * ({@link removesSomething}: destroy, exile, or a bounce — issue #4781).
  * Wrath of God destroys creatures, Tranquility enchantments, Armageddon lands,
- * and a sweep with no filter at all destroys them all. Empty when the card
+ * and a sweep with no filter at all removes them all. Empty when the card
  * sweeps nothing.
  *
  * What it does NOT model, each one leaving the symmetric pose:
- *  - a sweep whose body does not destroy (a `+1/+1` to every creature, an
+ *  - a sweep whose body does not remove (a `+1/+1` to every creature, an
  *    animate). A toughness SHRINK is the other kind of sweep a creature can
  *    die to, and {@link shrinksEveryCreature} poses it;
- *  - a filter on anything but `type` (`excludeType`, `subtype`, …): not read,
- *    so no claim is made rather than a wrong one;
+ *  - a filter that names no `type` (`excludeType`, `subtype`, a colour):
+ *    {@link filteredSweepSurplus} poses that one;
  *  - a sweep hosted by a triggered or activated ability.
  *
  * Lives HERE for the same reason as `needsStackTarget`: it decides what the
@@ -264,7 +257,7 @@ function selectsCreatures(select: BattlefieldForEach["select"]): boolean {
 function sweptTypes(def: CardDefinition): ReadonlySet<SweepableType> {
     const swept = new Set<SweepableType>();
     for (const { select, effects } of battlefieldForEaches(def)) {
-        if (select.controller !== undefined || !destroysSomething(effects))
+        if (select.controller !== undefined || !removesSomething(effects))
             continue;
         const named =
             select.filter === undefined
