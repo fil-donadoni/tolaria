@@ -24,14 +24,28 @@
 //   implies. Mana pools empty at the end of every step (CR 106.4). A step
 //   opens with priority on the active player (CR 117.3a), so a non-active
 //   seat holds it only once the active player has passed to it (CR 117.3d):
-//   one pass banked, none when the active player is the one deciding
-//   (CR 117.4). A combat exists only inside the combat phase (CR 506.1). When the turn holder changes, the
-//   position is a later turn, so `turn` advances and the per-turn tallies the
-//   builder already reads as "omitted = nothing yet this turn" are cleared —
-//   the anchor's land drop, spells and damage were THIS turn's, not the next
-//   one's (CR 500.1). Nothing else moves: the board is the same board.
+//   one pass banked, none when the active player is the one deciding. A
+//   combat exists only inside the combat phase (CR 506.1), and only the
+//   turn's own — so it is dropped outside a combat step and whenever the turn
+//   holder changes.
+//
+//   When the turn holder changes, the position is a later turn: the anchor's
+//   turn went through its cleanup step, which removes marked damage
+//   (CR 514.2); `turn` advances when the anchor names one, and the new turn
+//   holder's `turnsTaken` with it; the per-turn tallies — the spec's own, which
+//   the builder reads as "omitted = nothing yet this turn", and each card's
+//   `activations` / `abilityResolutions` — are cleared; and the seat whose
+//   turn ended carries its qualifying-action flag into
+//   `qualifyingActionLastTurn`.
+//
+//   What the prefill does NOT imply, and leaves to the tester's touch-up: the
+//   new turn holder's untap step (its permanents may have been tapped since),
+//   continuous effects and animations that ended with the anchor's turn, and
+//   the stack — carried unchanged, although a step ends only with an empty
+//   stack (CR 500.2), because a trigger may well be waiting in the new one.
 // - `card` adds one named card or removes one copy of it.
-// - `life` / `mana` set the named figure for one seat (CR 119.1 / 106.4).
+// - `life` / `mana` set the named figure for one seat: a life total, a
+//   floating mana pool (CR 106.4).
 // - `stack` adds, removes or replaces one object on the declared stack.
 // - `sequence` appends the earlier move as engine-real setup steps; building
 //   the half runs them, and a step that finds no purchase throws exactly as a
@@ -116,7 +130,44 @@ const PER_TURN_SPEC_KEYS = [
  *  state the verdict builder starts from gives the turn to `me`). */
 const activeOf = (spec: ScenarioSpec): BladeSeat => spec.activePlayer ?? "me";
 
+/** The anchor's position, and nothing else of the verdict. */
+export const positionOf = (verdict: PairPosition): PairPosition => ({
+    spec: verdict.spec,
+    seat: verdict.seat,
+    ...(verdict.setup?.length ? { setup: verdict.setup } : {}),
+    ...(verdict.deckKnowledge?.length
+        ? { deckKnowledge: verdict.deckKnowledge }
+        : {}),
+});
+
 const copy = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
+
+/** The anchor's turn ended: what its cleanup and the next turn's start
+ *  imply (header). */
+function advanceTurn(spec: ScenarioSpec, next: BladeSeat): void {
+    const ended = activeOf(spec);
+    const qualified = spec.qualifyingActionThisTurn?.[ended];
+    if (spec.turn !== undefined) spec.turn += 1;
+    if (spec.turnsTaken?.[next] !== undefined) {
+        spec.turnsTaken = {
+            ...spec.turnsTaken,
+            [next]: spec.turnsTaken[next]! + 1,
+        };
+    }
+    for (const key of PER_TURN_SPEC_KEYS) delete spec[key];
+    if (qualified !== undefined) {
+        spec.qualifyingActionLastTurn = {
+            ...spec.qualifyingActionLastTurn,
+            [ended]: qualified,
+        };
+    }
+    delete spec.combat;
+    for (const card of spec.cards) {
+        delete card.damageMarked;
+        delete card.activations;
+        delete card.abilityResolutions;
+    }
+}
 
 function applyStep(
     spec: ScenarioSpec,
@@ -124,8 +175,7 @@ function applyStep(
     seat: BladeSeat
 ): void {
     if (change.activePlayer !== activeOf(spec)) {
-        if (spec.turn !== undefined) spec.turn += 1;
-        for (const key of PER_TURN_SPEC_KEYS) delete spec[key];
+        advanceTurn(spec, change.activePlayer);
     }
     spec.phase = change.phase;
     spec.activePlayer = change.activePlayer;
@@ -205,14 +255,7 @@ export function deriveRightHalfPosition(
             `a "${discriminant.kind}" Discriminant is realised by a "${discriminant.kind}" edit, not a "${change.kind}" one`
         );
     }
-    const half: PairPosition = copy({
-        spec: anchor.spec,
-        seat: anchor.seat,
-        ...(anchor.setup?.length ? { setup: anchor.setup } : {}),
-        ...(anchor.deckKnowledge?.length
-            ? { deckKnowledge: anchor.deckKnowledge }
-            : {}),
-    });
+    const half = copy(positionOf(anchor));
     const spec = half.spec;
     switch (change.kind) {
         case "step":

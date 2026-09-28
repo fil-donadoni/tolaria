@@ -135,12 +135,14 @@ function derive(
 ) {
     const { anchor, judged } = anchorOn(spec, discriminant, pick);
     const before = structuredClone(anchor);
-    const built = buildRightHalf(anchor, discriminant, change, judged);
+    const position = deriveRightHalfPosition(anchor, discriminant, change);
     // The derivation copies: the anchor is never touched.
     expect(anchor).toEqual(before);
+    const built = buildRightHalf(anchor, discriminant, position, judged);
     return {
         anchor,
         judged,
+        position,
         built,
         anchorBoard: boardOf(buildVerdictState(anchor)),
         halfBoard: "state" in built ? boardOf(built.state) : undefined,
@@ -148,7 +150,7 @@ function derive(
 }
 
 describe("deriving a Minimal Pair's right-hand half, one prefill per Discriminant kind (issue #4795, ADR 0148)", () => {
-    it("`step` moves the decision to the named step with the state that step implies — CR 500.1, 106.4, 117.4", () => {
+    it("`step` moves the decision to the named step with the state that step implies — CR 106.4, 117.3a, 117.3d", () => {
         const { built, anchorBoard, halfBoard } = derive(
             { ...MAIN_PHASE, manaPool: { me: { R: 1 } } },
             conditional("step", "the opponent's end step"),
@@ -257,7 +259,7 @@ describe("deriving a Minimal Pair's right-hand half, one prefill per Discriminan
         ).toThrow(PairDerivationError);
     });
 
-    it("`life` sets the named figure — CR 119.1", () => {
+    it("`life` sets the named figure", () => {
         const { anchorBoard, halfBoard } = derive(
             MAIN_PHASE,
             conditional("life", "the opponent at 3"),
@@ -329,17 +331,44 @@ describe("deriving a Minimal Pair's right-hand half, one prefill per Discriminan
         ).toThrow(PairDerivationError);
     });
 
-    it("`other` is the bare copy", () => {
-        const { anchor, built, anchorBoard, halfBoard } = derive(
+    it("`other` is the bare copy — a prefill to touch up, refused as a pair until it is", () => {
+        const { anchor, judged, position, built } = derive(
             MAIN_PHASE,
             conditional("other", "the opponent is tapped out in spirit"),
             { kind: "other" }
         );
-        expect(halfBoard).toEqual(anchorBoard);
-        expect(built.position).toEqual({
-            spec: anchor.spec,
-            seat: anchor.seat,
-        });
+        expect(position).toEqual({ spec: anchor.spec, seat: anchor.seat });
+        expect("refusal" in built && built.refusal.reason).toBe("no-change");
+
+        // Touched up, it builds — and, not being a `sequence`, owes no trace
+        // check even though the fit may not read what the tester changed.
+        const touched = {
+            ...position,
+            spec: {
+                ...position.spec,
+                cards: position.spec.cards.map((c) =>
+                    c.name === "Hill Giant" ? { ...c, tapped: true } : c
+                ),
+            },
+        };
+        const accepted = buildRightHalf(
+            anchor,
+            conditional("other", "the opponent is tapped out in spirit"),
+            touched,
+            judged
+        );
+        expect(
+            "refusal" in accepted ? accepted.refusal : undefined
+        ).toBeUndefined();
+    });
+
+    it("an edit that leaves the figure where it was is the anchor, and is refused", () => {
+        const { built } = derive(
+            { ...MAIN_PHASE, life: { opp: 7 } },
+            conditional("life", "the opponent at 7"),
+            { kind: "life", seat: "opp", life: 7 }
+        );
+        expect("refusal" in built && built.refusal.reason).toBe("no-change");
     });
 
     it("an edit of another kind does not realise the Discriminant", () => {
@@ -356,7 +385,7 @@ describe("deriving a Minimal Pair's right-hand half, one prefill per Discriminan
 
 describe("`sequence` — the earlier move through real setup (issue #4795, ADR 0148)", () => {
     it("appends the earlier move as setup steps and builds the board it really leaves", () => {
-        const { built, anchorBoard, halfBoard } = derive(
+        const { position, built, anchorBoard, halfBoard } = derive(
             MAIN_PHASE,
             conditional("sequence", "Grizzly Bears already cast"),
             {
@@ -368,7 +397,7 @@ describe("`sequence` — the earlier move through real setup (issue #4795, ADR 0
             }
         );
         expect("refusal" in built ? built.refusal : undefined).toBeUndefined();
-        expect(built.position.setup).toEqual([
+        expect(position.setup).toEqual([
             { kind: "cast", card: "Grizzly Bears" },
             { kind: "pass", seat: "opp" },
         ]);
@@ -421,5 +450,182 @@ describe("`sequence` — the earlier move through real setup (issue #4795, ADR 0
         expect("refusal" in built && built.refusal.detail).toContain(
             "leaves no trace on the board"
         );
+    });
+});
+
+describe("the implied state and the edges of each prefill (issue #4795, review)", () => {
+    it("`step` to the next turn: cleanup removes marked damage, the per-turn tallies clear, the turn count moves — CR 514.2", () => {
+        const { anchor } = anchorOn(MAIN_PHASE, conditional("step", "x"));
+        const spec: ScenarioSpec = {
+            ...MAIN_PHASE,
+            cards: MAIN_PHASE.cards.map((c) =>
+                c.name === "Hill Giant"
+                    ? { ...c, damageMarked: 2, activations: { a: 1 } }
+                    : c
+            ),
+            turnsTaken: { me: 3, opp: 2 },
+            qualifyingActionThisTurn: { me: true },
+            restrictedMana: { me: [{ color: "R", amount: 1 }] },
+        };
+        const half = deriveRightHalfPosition(
+            { ...anchor, spec },
+            conditional("step", "the opponent's end step"),
+            { kind: "step", phase: "END_STEP", activePlayer: "opp" }
+        ).spec;
+        const giant = half.cards.find((c) => c.name === "Hill Giant")!;
+        expect(giant.damageMarked).toBeUndefined();
+        expect(giant.activations).toBeUndefined();
+        expect(half.turnsTaken).toEqual({ me: 3, opp: 3 });
+        expect(half.qualifyingActionThisTurn).toBeUndefined();
+        expect(half.qualifyingActionLastTurn).toEqual({ me: true });
+        expect(half.restrictedMana).toBeUndefined();
+    });
+
+    it("`step` drops a combat outside the combat phase, and the old turn's combat inside the new one's — CR 506.1", () => {
+        const { anchor } = anchorOn(MAIN_PHASE, conditional("step", "x"));
+        const inCombat: ScenarioSpec = {
+            ...MAIN_PHASE,
+            phase: "DECLARE_ATTACKERS",
+            combat: { attackers: ["Grizzly Bears"], confirmed: true },
+        };
+        const step = (phase: DiscriminantChange & { kind: "step" }) =>
+            deriveRightHalfPosition(
+                { ...anchor, spec: inCombat },
+                conditional("step", phase.phase),
+                phase
+            ).spec.combat;
+        expect(
+            step({
+                kind: "step",
+                phase: "DECLARE_BLOCKERS",
+                activePlayer: "me",
+            })
+        ).toEqual(inCombat.combat);
+        expect(
+            step({ kind: "step", phase: "POSTCOMBAT_MAIN", activePlayer: "me" })
+        ).toBeUndefined();
+        expect(
+            step({
+                kind: "step",
+                phase: "DECLARE_BLOCKERS",
+                activePlayer: "opp",
+            })
+        ).toBeUndefined();
+    });
+
+    it("`card` remove narrowed by zone takes the copy in that zone only", () => {
+        const { anchorBoard, halfBoard } = derive(
+            {
+                ...MAIN_PHASE,
+                cards: [
+                    ...MAIN_PHASE.cards,
+                    { name: "Grizzly Bears", owner: "me", zone: "graveyard" },
+                ],
+            },
+            conditional("card", "Grizzly Bears"),
+            {
+                kind: "card",
+                op: "remove",
+                name: "Grizzly Bears",
+                owner: "me",
+                zone: "graveyard",
+            }
+        );
+        expect(anchorBoard.seats.me.graveyard).toEqual(["Grizzly Bears"]);
+        expect(halfBoard).toEqual({
+            ...anchorBoard,
+            seats: {
+                ...anchorBoard.seats,
+                me: { ...anchorBoard.seats.me, graveyard: [] },
+            },
+        });
+    });
+
+    it("`stack` add puts the object on top — CR 405.1", () => {
+        const { anchorBoard, halfBoard } = derive(
+            {
+                ...MAIN_PHASE,
+                stack: [
+                    { kind: "spell", name: "Giant Growth", controller: "opp" },
+                ],
+                priority: "me",
+            },
+            conditional("stack", "Shock"),
+            {
+                kind: "stack",
+                op: "add",
+                item: { kind: "spell", name: "Shock", controller: "opp" },
+            }
+        );
+        expect(halfBoard).toEqual({
+            ...anchorBoard,
+            stack: ["Giant Growth", "Shock"],
+        });
+    });
+
+    it("finds the judged move by its sentence when the anchor's key names another move, or none", () => {
+        const discriminant = conditional("life", "the opponent at 3");
+        const { anchor, judged } = anchorOn(MAIN_PHASE, discriminant);
+        const position = deriveRightHalfPosition(anchor, discriminant, {
+            kind: "life",
+            seat: "opp",
+            life: 3,
+        });
+        const other = anchor.candidates.find(
+            (c) => c.description !== judged.description
+        )!;
+        for (const key of [other.key, "stale"]) {
+            const built = buildRightHalf(anchor, discriminant, position, {
+                ...judged,
+                key,
+            });
+            expect("candidate" in built && built.candidate.description).toBe(
+                judged.description
+            );
+        }
+    });
+
+    it("refuses a judged move the half offers twice under one sentence, once the key no longer names it", () => {
+        const discriminant = conditional("card", "Hill Giant");
+        const { anchor, judged } = anchorOn(MAIN_PHASE, discriminant, (d) =>
+            d.includes("Lightning Bolt → Hill Giant")
+        );
+        const position = deriveRightHalfPosition(anchor, discriminant, {
+            kind: "card",
+            op: "add",
+            // Tapped, so the two Giants are not interchangeable (issue #3593)
+            // and survive as two candidates reading one sentence.
+            card: {
+                name: "Hill Giant",
+                owner: "opp",
+                zone: "battlefield",
+                tapped: true,
+            },
+        });
+        // The anchor's key still names the first Giant: it stands.
+        expect(
+            "candidate" in
+                buildRightHalf(anchor, discriminant, position, judged)
+        ).toBe(true);
+        // A key that names nothing leaves only the sentence, which reads two.
+        const built = buildRightHalf(anchor, discriminant, position, {
+            ...judged,
+            key: "stale",
+        });
+        expect("refusal" in built && built.refusal.reason).toBe("move-missing");
+    });
+
+    it("refuses a half where the anchor's seat owes no decision", () => {
+        const { built } = derive(
+            MAIN_PHASE,
+            conditional("step", "the opponent's end step, their priority"),
+            {
+                kind: "step",
+                phase: "END_STEP",
+                activePlayer: "opp",
+                priority: "opp",
+            }
+        );
+        expect("refusal" in built && built.refusal.reason).toBe("not-deciding");
     });
 });
