@@ -35,6 +35,7 @@ import { findTriggeredAbility } from "../copy";
 import { resolveGrantedActivatedAbility } from "../activatedAbilities";
 import type { GameState, PendingChoice, StackItem } from "../state";
 import { childOpArrays } from "./effectOpChildren";
+import { unscopedBindingName } from "../effects/interpreter";
 
 /** The zone a find lands in — `EffectMoveZone` plus the `cards`-shape's own
  *  `"library-top"` (Mystical Tutor). Kept as the Op's OWN vocabulary rather
@@ -187,10 +188,14 @@ function choiceOpFor(
     ops: readonly EffectOp[],
     choiceId: string
 ): { bind: string } | undefined {
+    // A choice raised inside a `forEach` body carries its iteration scope
+    // (`$picked@0:1` — Show and Tell's per-player pick, issue #4218); the Op
+    // declares the authored name.
+    const authored = unscopedBindingName(choiceId);
     let found: { bind: string } | undefined;
     for (const op of ops) {
         if (op.op !== "choice") continue;
-        if ((op.id ?? op.bind) !== choiceId) continue;
+        if ((op.id ?? op.bind) !== authored) continue;
         // A second match means the script names one choiceId twice — the
         // validator forbids it, so this is unreachable rather than tolerated;
         // fail closed rather than pick the first.

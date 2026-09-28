@@ -141,6 +141,7 @@ import { spendableManaTotal } from "./state";
 // Choice-node spine (PRD #1423, issue #1425).
 import {
     choiceCandidates,
+    isOptionalOwnBattlefieldPut,
     selectOpeningCandidate,
     type ChoiceCandidate,
 } from "./ai/choiceCandidates";
@@ -3518,6 +3519,74 @@ function resolvedMarginDelta(
     return materialMargin(settled, botId, weights) - before;
 }
 
+/** The bot's material margin once `move` is applied and the stack settled, or
+ *  `undefined` when the resolution cannot be simulated. The absolute twin of
+ *  `resolvedMarginDelta`, for a compare whose baseline is itself a settled
+ *  answer rather than the position as it stands. */
+function settledMarginAfter(
+    state: GameState,
+    move: Move,
+    botId: string,
+    weights: EvalWeights
+): number | undefined {
+    const probe = cloneGameState(state);
+    try {
+        applyMoveInSearch(probe, botId, move);
+        return materialMargin(
+            settleStackForBreakdown(probe, botId, weights),
+            botId,
+            weights
+        );
+    } catch {
+        return undefined;
+    }
+}
+
+/** The resolved-payoff credit's CHOICE half (issue #4218, see its call site in
+ *  `selectRootMove`): at an optional own-hand-to-own-battlefield pick whose
+ *  robust answer is the empty one, the outcome-equal pick whose SETTLED margin
+ *  is highest, provided it strictly beats the settled decline. `undefined`
+ *  when the head choice is not that shape, when no pick beats declining, or
+ *  when the decline itself cannot be simulated (fail closed: the pick then
+ *  stays with the ordinary tie-break). */
+function optionalPutPayoff(
+    rootState: GameState,
+    botId: string,
+    decline: Edge,
+    contenders: Edge[],
+    weights: EvalWeights
+): Edge | undefined {
+    const choice = rootState.pendingChoices?.[0];
+    if (!choice || choice.playerId !== botId) return undefined;
+    if (!isOptionalOwnBattlefieldPut(rootState, choice)) return undefined;
+    const baseline = settledMarginAfter(
+        rootState,
+        rootMoveFor(decline, rootState),
+        botId,
+        weights
+    );
+    if (baseline === undefined) return undefined;
+    let best: Edge | undefined;
+    let bestMargin = baseline;
+    for (const edge of contenders) {
+        if (edge === decline) continue;
+        const move = rootMoveFor(edge, rootState);
+        if (
+            move.kind !== "resolution-choice" ||
+            move.choiceId !== choice.choiceId ||
+            move.cardInstanceIds.length === 0
+        ) {
+            continue;
+        }
+        const margin = settledMarginAfter(rootState, move, botId, weights);
+        if (margin !== undefined && margin > bestMargin) {
+            best = edge;
+            bestMargin = margin;
+        }
+    }
+    return best;
+}
+
 /** Total floating mana `playerId` holds: the fungible pool plus every
  *  restricted unit (CR 106.4 / 106.6 — Metamorphosis' "spend only to cast
  *  creature spells" mana lives in `restrictedMana`, not `manaPool`). */
@@ -4538,6 +4607,52 @@ export function selectRootMove(
                 resolvedMarginDelta(rootState, e.move, botId, weights) > 0
         );
         if (payoff) return finish(payoff, "resolved-payoff", payoff !== best);
+    }
+
+    // Resolved-payoff CREDIT, CHOICE half (issue #4218) — the same rule read at
+    // a mid-resolution decision instead of at the announcement. An OPTIONAL
+    // put of a card from the mover's own hand onto its own battlefield (Show
+    // and Tell's pick, Sneak Attack's, an Elvish Piper put) has an empty answer
+    // that plays exactly the part `pass` plays above: the decline. And the
+    // material tie-break loses it the same way. MEASURED on the reported
+    // position rebuilt: the second chooser, facing a Shivan Dragon the caster
+    // just put in, holds a Serra Angel; the settled pick reads −41 against
+    // −89 for declining, yet the two edges tie inside `OUTCOME_EPS` (0.404 vs
+    // 0.407) and the SUBTREE `meanMargin` ranks the decline first (−133 vs
+    // −178) — the rollouts after the put see the Angel traded off in combat,
+    // while the card kept in hand holds its latent worth to the horizon. 5/5
+    // seeds declined at 400 iterations; the caster's own pick declined on 1/5
+    // seeds at 100.
+    //
+    // What differs from the cast half is the baseline. There, `pass` changes
+    // nothing now, so the delta is read against the position as it stands.
+    // Here the decline is itself a resolution step — the spell goes on to the
+    // next chooser and finishes — so each answer is SETTLED and compared with
+    // the settled decline, and whatever the rest of the resolution does
+    // (another player's put, the stack underneath) is on both sides of the
+    // compare. That is also why the `stack.length === 0` gate does not carry
+    // over: this decision is never taken on an empty stack.
+    //
+    // The reach gate is the generator's own (`isOptionalOwnBattlefieldPut`):
+    // the mover's own hand to the mover's own battlefield, read off the
+    // source's Effect Script and fail-closed on an unwalkable one. A pick
+    // whose settled position is WORSE than declining — a clone with nothing to
+    // copy dies on entry — is not credited, and the decline stands.
+    if (
+        rootState &&
+        !!botId &&
+        ruleOn("resolved-payoff") &&
+        best.move.kind === "resolution-choice" &&
+        best.move.cardInstanceIds.length === 0
+    ) {
+        const put = optionalPutPayoff(
+            rootState,
+            botId,
+            best,
+            pool.filter((e) => mean(e) >= bestMean - weights.outcomeEps),
+            weights
+        );
+        if (put) return finish(put, "resolved-payoff", put !== best);
     }
 
     // Free-development, third class (issue #4070): an untargeted sorcery-speed

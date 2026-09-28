@@ -145,7 +145,7 @@ export const ROOT_RULE_ALLOWLIST: Record<
     "resolved-payoff": {
         kind: "rule",
         issue: 3388,
-        why: "the POSITIVE half of self-harm-removal: a self-confined cast whose settled resolution strictly IMPROVES the mover's margin, taken over an outcome-equal pass",
+        why: "the POSITIVE half of self-harm-removal: a self-confined cast whose settled resolution strictly IMPROVES the mover's margin, taken over an outcome-equal pass — and, at an optional own-hand put onto the mover's battlefield, the pick whose settled margin strictly beats the settled decline (issue #4218)",
     },
 };
 

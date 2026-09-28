@@ -955,6 +955,42 @@ function handPickIsSearchable(choice: PendingChoice): boolean {
     );
 }
 
+/** Whether a hand pick moves the chosen card out of the CHOOSER's own hand onto
+ *  the battlefield — a put the chooser gains from (a Show and Tell / Sneak
+ *  Attack / Elvish Piper put), not a cost it pays (a discard, an imprint
+ *  exile). Both halves are needed (issue #3388, PR review finding C1): the
+ *  destination read off the source's Effect Script, and the hand being the
+ *  chooser's own, since a pick out of ANOTHER player's hand moves worth away
+ *  from the opponent rather than onto the chooser's board. Fails closed: a
+ *  `resolve()` card or an unwalkable script answers `false`.
+ *
+ *  One predicate for the generator's sign below and for the root's
+ *  resolved-payoff credit (`selectRootMove`, issue #4218), so the two can
+ *  never disagree about which picks are gains. */
+export function handPickPutsOntoOwnBattlefield(
+    state: GameState,
+    choice: PendingChoice
+): boolean {
+    const ownHand = (choice.zoneOwnerId ?? choice.playerId) === choice.playerId;
+    return ownHand && choiceFindDestination(state, choice) === "battlefield";
+}
+
+/** Whether `choice` is an OPTIONAL own-hand put onto the chooser's battlefield
+ *  — the `choose-hand-card` shape whose empty answer declines a free
+ *  permanent. The searchable gate and the direction gate, read together, so
+ *  the root credit (`selectRootMove`) asks the same question the generator
+ *  answered when it opened the branches. */
+export function isOptionalOwnBattlefieldPut(
+    state: GameState,
+    choice: PendingChoice
+): boolean {
+    return (
+        choice.kind === "choose-hand-card" &&
+        handPickIsSearchable(choice) &&
+        handPickPutsOntoOwnBattlefield(state, choice)
+    );
+}
+
 /** `choose-hand-card` (CR 608.2b), OPTIONAL picks only — issue #1888.
  *
  *  Scoped deliberately to `min === 0`: the "you MAY exile a card" shape, whose
@@ -1020,9 +1056,7 @@ const handPickCandidates: ChoiceCandidateGenerator = (state, choice) => {
     // What matters here is that it must not be swept into the NEW direction on
     // the destination alone: this stays exactly as it was, and
     // `heuristicChoicePrior` keeps it at the flat neutral it has always had.
-    const ownHand = (choice.zoneOwnerId ?? choice.playerId) === choice.playerId;
-    const gained =
-        ownHand && choiceFindDestination(state, choice) === "battlefield";
+    const gained = handPickPutsOntoOwnBattlefield(state, choice);
 
     const out: Omit<ChoiceCandidate, "prior">[] = [
         {
