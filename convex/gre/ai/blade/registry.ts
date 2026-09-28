@@ -3807,7 +3807,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         expect: {
             forbidden: [{ kind: "cast-spell", card: "Containment Priest" }],
         },
-        note: "Issue #2248, the fix itself. Empty board, no attack pending, nothing else to spend mana on: the only choice is cast-now vs hold-for-later, and later is never worse (Containment Priest has no haste, so casting now buys it nothing timing-wise — it cannot attack or use its replacement ability any sooner). Casting now forecloses the mana-open option for free; holding it to the opponent's end step is outcome-equal on material and strictly better on information, so the `isSorcerySpeedTrickDump` shape-3 tie-break (`search.ts`) redirects the outcome-equal cast to `pass`. Guards ONLY the root tie-break (`isSorcerySpeedTrickDump` shape 3): reverting shape 3 alone reds this entry (see PR proof-of-failure), but reverting the rollout-guardrail widening alone, or the own-main hold nudge alone, both leave it GREEN (review round 1 finding) — with nothing else to spend mana on, casting still wins outright once the tie-break itself is gone, so the tie-break is the only piece this position discriminates. The other two shipped pieces (`isDiscouragedRolloutMove`'s flash branch, `isReactiveHold`'s own-main shape) are unit-tested directly in `search.bot.test.ts` instead, where a synthetic RNG and a hand-built prior call can isolate each without a full search absorbing the difference.",
+        note: "Issue #2248; since issue #4757 guarded by `last-window-deferral` (it absorbed `isSorcerySpeedTrickDump` shape 3). Empty board, no haste: casting now buys nothing and forecloses the mana-open option, so the outcome-equal cast waits for the opponent's end step. Red under `BLADE_VARIANT=no-rule:last-window-deferral`; the rollout-guardrail and own-main hold-nudge pieces are unit-tested in `search.bot.test.ts`.",
     },
     {
         label: "flash permanent NEGATIVE CONTROL: casts Containment Priest as the only surviving block",
@@ -3876,6 +3876,118 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
             moves: [{ kind: "cast-spell", card: "Raging Kavu" }],
         },
         note: "Issue #2248 negative control 2 — 'sorcery-speed cast with real reward'. 3 x Craw Wurm already on board is 18 power, short of the opponent's 20 life; Raging Kavu's Flash makes it structurally match `isSorcerySpeedTrickDump` shape 3 (a non-Instant flash permanent, cast by the active player at a main phase) exactly the way the fix entry's Containment Priest does, but Kavu also has HASTE — casting it THIS main phase adds 3 power to THIS combat and crosses lethal (21 into 20), where holding it for the opponent's end step forfeits the attack entirely and pushes the kill a full turn later against an opponent who gets to act in between. That gap is far outside `OUTCOME_EPS`, so the tie-break's own mean-reward gate must not fire: the position proves the fix is a preference among outcome-equal lines, never a rule that redirects a decisively-better cast to `pass`.",
+    },
+    // --- Keep mana open: the last-window deferral (issue #4757, PRD #4754) --
+    // Discriminating pairs: each deferrable action (the perimeter of
+    // `ai/deferral.ts`) is held in the bot's own main phase and taken at the
+    // opponent's end step. The Containment Priest hold above is the flash
+    // body's hold half; its fire half is here. A fetch crack is a standing
+    // spend, owned by `standing-spend-hold` / `last-window-fire`.
+    {
+        label: "keep mana open: holds Impulse in its own main with no threat",
+        spec: {
+            cards: [{ name: "Impulse", owner: "me", zone: "hand" }],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            landCount: 2,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 300 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [{ kind: "cast-spell", card: "Impulse" }],
+        },
+        note: "Issue #4757, `last-window-deferral` HOLD half: Impulse now or at the opponent's end step reaches the same board, so the outcome-equal cast waits (a store timing verdict). Mirror: the entry below.",
+    },
+    {
+        label: "keep mana open: casts Impulse at the opponent's end step",
+        spec: {
+            cards: [{ name: "Impulse", owner: "opp", zone: "hand" }],
+            phase: "END_STEP",
+            turn: 3,
+            landCount: 2,
+            libraryCount: 20,
+        },
+        // `me` is always the ACTIVE player in a `ScenarioSpec`, so the bot
+        // sits in the `opp` seat for this to be the OPPONENT's end step; one
+        // `pass` walks priority to it (CR 513.1).
+        setup: [{ kind: "pass", seat: "me" }],
+        bot: "opp",
+        budget: { iterations: 300 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "cast-spell", card: "Impulse" }],
+        },
+        note: "Issue #4757, `last-window-deferral` FIRE half: at the opponent's end step (CR 513.1) deferring buys nothing, so the outcome-equal pass becomes the cast. Mirror: the entry above.",
+    },
+    {
+        label: "keep mana open: holds Accumulated Knowledge in its own main with no threat",
+        spec: {
+            cards: [
+                { name: "Accumulated Knowledge", owner: "me", zone: "hand" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            landCount: 2,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 300 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [{ kind: "cast-spell", card: "Accumulated Knowledge" }],
+        },
+        note: "Issue #4757, `last-window-deferral` HOLD half: Accumulated Knowledge now or at the opponent's end step reaches the same board, so the outcome-equal cast waits (a store timing verdict). Mirror: the entry below.",
+    },
+    {
+        label: "keep mana open: casts Accumulated Knowledge at the opponent's end step",
+        spec: {
+            cards: [
+                { name: "Accumulated Knowledge", owner: "opp", zone: "hand" },
+            ],
+            phase: "END_STEP",
+            turn: 3,
+            landCount: 2,
+            libraryCount: 20,
+        },
+        // `me` is always the ACTIVE player in a `ScenarioSpec`, so the bot
+        // sits in the `opp` seat for this to be the OPPONENT's end step; one
+        // `pass` walks priority to it (CR 513.1).
+        setup: [{ kind: "pass", seat: "me" }],
+        bot: "opp",
+        budget: { iterations: 300 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "cast-spell", card: "Accumulated Knowledge" }],
+        },
+        note: "Issue #4757, `last-window-deferral` FIRE half: at the opponent's end step (CR 513.1) deferring buys nothing, so the outcome-equal pass becomes the cast. Mirror: the entry above.",
+    },
+    {
+        label: "keep mana open: casts Containment Priest at the opponent's end step",
+        spec: {
+            cards: [{ name: "Containment Priest", owner: "opp", zone: "hand" }],
+            phase: "END_STEP",
+            turn: 3,
+            landCount: 2,
+            libraryCount: 20,
+        },
+        // `me` is always the ACTIVE player in a `ScenarioSpec`, so the bot
+        // sits in the `opp` seat for this to be the OPPONENT's end step; one
+        // `pass` walks priority to it (CR 513.1).
+        setup: [{ kind: "pass", seat: "me" }],
+        bot: "opp",
+        budget: { iterations: 300 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "cast-spell", card: "Containment Priest" }],
+        },
+        note: "Issue #4757: the fire half of the issue-#2248 hold. At the opponent's end step (CR 513.1) the flash body is cast; the search already does so on mean reward (green under the no-rule variant).",
     },
     // --- Removal / response timing (issue #4765, PRD #4754) ----------------
     // Report-only measurements of whether the SEARCH already times

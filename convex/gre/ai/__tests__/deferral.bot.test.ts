@@ -22,6 +22,7 @@ import {
     isLastDeferralWindow,
     isPreAttackGrant,
 } from "../deferral";
+import { waitsUnchanged } from "../../search";
 import { timingPairClassifier } from "../verdicts/evalPairs";
 import type { Move } from "../../moves";
 import type { CardInstanceState, GameState } from "../../state";
@@ -41,6 +42,8 @@ const KAVU = getCardByName("Flametongue Kavu");
 const SPEED = getCardByName("Unnatural Speed").id;
 const GROWTH = getCardByName("Giant Growth").id;
 const WALL = getCardByName("Wall of Stone").id;
+const RITUAL = getCardByName("Dark Ritual").id;
+const HIBERNATION = getCardByName("Hibernation").id;
 
 const FACTORY = getCardByName("Mishra's Factory").id;
 const ORB = getCardByName("Zuran Orb").id;
@@ -436,5 +439,58 @@ describe("timing pairs, both directions (issue #4764)", () => {
         expect(isTiming({ rightIndex: PASS, otherIndex: IMPULSE_CAST })).toBe(
             false
         );
+    });
+});
+
+describe("waitsUnchanged — the root rule's premise: nothing in between it would change (issue #4757)", () => {
+    it("refuses a ritual: its mana empties with the step (CR 106.4 / 500.5)", () => {
+        const state = board({ hand: [card(RITUAL, "ritual")] });
+        expect(waitsUnchanged(state, "p1", cast("ritual"))).toBe(false);
+    });
+
+    it("refuses an untargeted effect that reaches the opponent's side", () => {
+        // Hibernation names no target, so the perimeter's clause 2 cannot see it; its
+        // resolution returns the opponent's green permanent.
+        const reaching = board({
+            hand: [card(HIBERNATION, "hib")],
+            oppBattlefield: [card(BEARS, "theirs", "p2")],
+        });
+        expect(waitsUnchanged(reaching, "p1", cast("hib"))).toBe(false);
+        // With nothing green on either side it moves nothing and waits.
+        const inert = board({ hand: [card(HIBERNATION, "hib")] });
+        expect(waitsUnchanged(inert, "p1", cast("hib"))).toBe(true);
+    });
+
+    it("refuses a change to the mover's own attack before attackers (CR 508.1a)", () => {
+        const state = board({
+            hand: [card(BOLT, "bolt")],
+            battlefield: [card(BEARS, "mine")],
+            phase: "PRECOMBAT_MAIN",
+            activePlayerId: "p1",
+        });
+        const shot = cast("bolt", [{ type: "permanent", id: "mine" }]);
+        expect(waitsUnchanged(state, "p1", shot)).toBe(false);
+        // The declare attackers step before the declaration is confirmed
+        // is still before the attack.
+        expect(
+            waitsUnchanged(
+                {
+                    ...state,
+                    phase: "DECLARE_ATTACKERS",
+                    combat: {
+                        attackerIds: [],
+                        confirmed: false,
+                        blockerAssignments: {},
+                        blockersConfirmed: false,
+                    },
+                },
+                "p1",
+                shot
+            )
+        ).toBe(false);
+        // Past the attack the same shot no longer changes it.
+        expect(
+            waitsUnchanged({ ...state, phase: "POSTCOMBAT_MAIN" }, "p1", shot)
+        ).toBe(true);
     });
 });

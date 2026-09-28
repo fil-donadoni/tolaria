@@ -288,12 +288,15 @@ describe("the violation / contradiction report", () => {
     it("routes TIMING pairs out of the fit over the whole registry corpus (issue #4764)", () => {
         const { verdicts, gaps } = verdictsFromRegistry();
         const report = collectVerdictReport(verdicts, { gaps });
-        // The registry holds the "hold it" direction: pass over a deferrable
-        // action in an earlier window.
+        // The registry holds BOTH directions (issue #4757's discriminating
+        // pairs): pass over a deferrable action in an earlier window, and the
+        // deferrable action over pass at the opponent's end step.
         expect(report.timing.length).toBeGreaterThan(0);
-        for (const pair of report.timing) {
-            expect(pair.right.key).toBe(PASS_KEY);
-        }
+        const holds = report.timing.filter((p) => p.right.key === PASS_KEY);
+        const fires = report.timing.filter((p) => p.right.key !== PASS_KEY);
+        expect(holds.length).toBeGreaterThan(0);
+        expect(fires.length).toBeGreaterThan(0);
+        for (const pair of fires) expect(pair.other.key).toBe(PASS_KEY);
         // Never fitted: not one of them is among the pairs the fit is handed.
         const timing = new Set(report.timing);
         expect(report.pairs.filter((p) => timing.has(p))).toEqual([]);

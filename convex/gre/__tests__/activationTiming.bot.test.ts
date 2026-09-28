@@ -380,7 +380,17 @@ describe("selectRootMove — hold an instant-speed activation (issue #1890)", ()
         // marked on a creature / a player's life), banked the moment it
         // resolves, whenever that is. Without the transience clause this rule
         // swallowed the whole build-a-board class along with the tricks.
-        const ZAP = activation("tim", SORCERER_ZAP);
+        // Aimed at the opponent, as a real ping is: an untargeted Move would
+        // read as own-side and fall into the `last-window-deferral` hold
+        // (issue #4757), a different rule from the one this block tests.
+        const ZAP: Move = {
+            kind: "activate-ability",
+            cardInstanceId: "tim",
+            abilityId: SORCERER_ZAP,
+            targets: [{ type: "player", id: "p2" }],
+            confirmTargets: false,
+            tapPlan: [],
+        };
         const state = botAt("PRECOMBAT_MAIN", [perm(SORCERER, "tim")]);
         const root = rootOf([
             { move: ZAP, meanReward: 0.6635, meanMargin: 330 },
@@ -393,8 +403,17 @@ describe("selectRootMove — hold an instant-speed activation (issue #1890)", ()
 
     it("NO-FIRE: outside the mover's main phase the tie-break is silent", () => {
         // A reactive window is exactly where an activation belongs; the material
-        // tie-break decides it, not the hold rule.
-        const state = botAt("DECLARE_BLOCKERS", [perm(MOTHER, "mom")]);
+        // tie-break decides it, not the hold rule. A declare-blockers step
+        // has attackers (CR 508.1), which also keeps it outside the
+        // `last-window-deferral` perimeter (issue #4757, clause 4).
+        const state = botAt("DECLARE_BLOCKERS", [perm(MOTHER, "mom")], {
+            combat: {
+                attackerIds: ["mom"],
+                confirmed: true,
+                blockerAssignments: {},
+                blockersConfirmed: false,
+            },
+        });
         const root = rootOf([
             { move: ACTIVATE, meanReward: 0.6635, meanMargin: 330 },
             { move: PASS, meanReward: 0.6631, meanMargin: 327 },
