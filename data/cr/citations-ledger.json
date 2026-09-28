@@ -13819,7 +13819,7 @@
         {"id":"406.2","line":"// `requestChoice(zone:\"hand\")` + `moveCardById(..., \"exile\")` (CR 406.2/406.3","sites":1,"status":"baseline"},
         {"id":"406.2","line":"why: \"CR 406.2 / 602.1 — the enumerator counts matching graveyard cards, and the picks enumerator produces the named victims.\",","sites":1,"status":"baseline"},
         {"id":"406.3","line":"## Pending-choice wire safety (CR 406.3)","sites":2,"status":"confirmed","ruleHash":"fc5c555098600d3f"},
-        {"id":"406.3","line":"## Pending-choice wire safety (CR 406.3, issue #1982)","sites":3,"status":"confirmed","ruleHash":"fc5c555098600d3f"},
+        {"id":"406.3","line":"## Pending-choice wire safety (CR 406.3, issue #1982)","sites":1,"status":"confirmed","ruleHash":"fc5c555098600d3f"},
         {"id":"406.3","line":"'field \"faceDown\" requires from: \"hand\" and to: \"exile\" (CR 406.3, issue #3812)'","sites":1,"status":"confirmed","ruleHash":"fc5c555098600d3f"},
         {"id":"406.3","line":"* (CR 406.3 face-down exile), cleared by `turnFaceUp`. Absent on state","sites":1,"status":"baseline"},
         {"id":"406.3","line":"* (CR 708.2), and a CR 406.3 face-down exile card for BOTH viewers, the","sites":1,"status":"baseline"},
