@@ -7107,7 +7107,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
                 { kind: "resolution-choice", card: "Phantasmal Image" },
             ],
         },
-        note: "Issue #4218's negative control. The only legal pick is a clone with nothing on either battlefield to copy: it enters as a 0/0 and the state-based check puts it in the graveyard, so putting it in only throws the card away. The resolved-payoff choice half credits a pick only when its SETTLED margin strictly beats the settled decline, and here it does not, so the decline stands — at 100 and at 400 iterations, before and after the fix. This is what says the rule reads the resolution rather than the shape; it is never a filter that always takes a card.",
+        note: "Issue #4218's negative control. The only legal pick is a clone with nothing on either battlefield to copy: it enters as a 0/0 and the state-based check puts it in the graveyard, so putting it in only throws the card away. The resolved-payoff choice half credits a pick only when its SETTLED margin strictly beats the settled decline, and here it does not, so the decline stands — at 100 and at 400 iterations, before and after the fix. A POSITION GUARD rather than a discriminating blade: the clone's pick loses on reward outright here, so it never reaches the tie the credit reads, and dropping the settled-decline baseline leaves this entry green. The discriminating half of that clause is deterministic — `ai/__tests__/optional-put-payoff.bot.test.ts` builds the exact tie and goes red without the baseline.",
     },
     {
         label: "sacrifice sign: does not cast a creature whose ETB eats its own board",
