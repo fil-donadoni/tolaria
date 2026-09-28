@@ -202,7 +202,14 @@ export function deriveRightHalfPosition(
             `a "${discriminant.kind}" Discriminant is realised by a "${discriminant.kind}" edit, not a "${change.kind}" one`
         );
     }
-    const half = copy(anchor);
+    const half: PairPosition = copy({
+        spec: anchor.spec,
+        seat: anchor.seat,
+        ...(anchor.setup?.length ? { setup: anchor.setup } : {}),
+        ...(anchor.deckKnowledge?.length
+            ? { deckKnowledge: anchor.deckKnowledge }
+            : {}),
+    });
     const spec = half.spec;
     switch (change.kind) {
         case "step":

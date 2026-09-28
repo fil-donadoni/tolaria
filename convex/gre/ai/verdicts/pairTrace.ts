@@ -64,16 +64,18 @@ export type BuiltRightHalf =
 
 /** The half as a verdict, so it rebuilds through `buildVerdictState`. */
 const asVerdict = (anchor: Verdict, position: PairPosition): Verdict => {
-    const { setup: _setup, deckKnowledge: _knowledge, ...rest } = anchor;
-    return {
-        ...rest,
+    const verdict: Verdict = {
+        ...anchor,
         spec: position.spec,
         seat: position.seat,
-        ...(position.setup?.length ? { setup: position.setup } : {}),
-        ...(position.deckKnowledge?.length
-            ? { deckKnowledge: position.deckKnowledge }
-            : {}),
     };
+    delete verdict.setup;
+    delete verdict.deckKnowledge;
+    if (position.setup?.length) verdict.setup = position.setup;
+    if (position.deckKnowledge?.length) {
+        verdict.deckKnowledge = position.deckKnowledge;
+    }
+    return verdict;
 };
 
 function findJudgedMove(
