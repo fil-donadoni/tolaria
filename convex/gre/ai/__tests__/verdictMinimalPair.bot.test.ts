@@ -310,6 +310,17 @@ describe("promotion reads a Minimal Pair as one unit (issue #4793)", () => {
             planPromotion(null, await validate(unattestedStore)).lock.verdictIds
         ).toEqual([]);
 
+        // The mirror: the ANCHOR is unattested, so the half stands alone — and
+        // a half alone teaches "always" as an anchor alone teaches "never".
+        const orphanStore = createMemoryVerdictStore();
+        await stored(orphanStore, a, []);
+        const orphan = await stored(orphanStore, halfOf(a, 2));
+        const orphaned = await validate(orphanStore);
+        expect(planPromotion(null, orphaned).lock.verdictIds).toEqual([]);
+        expect(
+            orphaned.rows.find((r) => r.verdictId === orphan)!.reasons[0]
+        ).toMatch(/not beside it/);
+
         const mismatchStore = createMemoryVerdictStore();
         await stored(mismatchStore, a);
         const half = await stored(
