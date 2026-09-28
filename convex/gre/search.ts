@@ -135,7 +135,12 @@ import { makeRng } from "./rng";
 import { hasCastableInstantHint } from "./heldInteraction";
 import { getEffectiveActivatedAbilities } from "./activatedAbilities";
 import { hasCardSelfFlashPermission } from "../cards/castRestrictions";
-import { isCreature, hasManaAbility, hasInstantSpeed } from "./constants";
+import {
+    isCreature,
+    hasManaAbility,
+    hasInstantSpeed,
+    PERMANENT_TYPES,
+} from "./constants";
 import { tryGetDefinition } from "../cards";
 import { spendableManaTotal } from "./state";
 // Choice-node spine (PRD #1423, issue #1425).
@@ -3781,6 +3786,63 @@ export function reachesOnlyOwnSideThroughChoice(
     return isSelfConfinedFutileMove(state, botId, move);
 }
 
+/** The VANILLA twin of `reachesOnlyOwnSideThroughChoice`, for the shape that
+ *  probe can never reach at all: `isSelfConfinedFutileMove`'s own eligibility
+ *  gate (`isProbeEligibleMove`, `ai/dominance.ts`) refuses every permanent
+ *  spell outright ("board presence is a real delta — never probe a permanent
+ *  spell"), so a permanent with no ETB and no target — the SIMPLEST possible
+ *  case of touching nothing but the mover's own board — has never qualified
+ *  for the `resolved-payoff` credit below (issue #4785).
+ *
+ *  CR 110.4b: a permanent spell resolves (CR 608.3) into a permanent under
+ *  its caster's control and nothing else, UNLESS something else happens as
+ *  part of that resolution — a target, or a triggered ability (most commonly
+ *  an ETB) that can read or touch the opponent's side. With neither, the
+ *  resolution is provably self-confined without a probe at all. A LATER
+ *  activated ability the permanent carries (Sadistic Hypnotist's sacrifice
+ *  outlet) is not part of resolving THIS cast — it is a separate decision
+ *  the tree already prices on its own turn, and the exchange-sacrifice
+ *  exclusions (`isDiscardExchangeSacrifice` and its siblings) keep it out of
+ *  the rollout noise this rule exists to see past.
+ *
+ *  Fails closed like every gate in this file: a triggered ability, a static
+ *  effect (`staticEffects[]`, layer 7c/anthem-shaped — the printed clause need
+ *  not say "you control", Containment Priest's redirect does not) or a
+ *  replacement effect (`replacementEffects[]`, the SAME Containment Priest
+ *  shape) each excludes the card, even one that turns out to touch only the
+ *  mover's own side — and a target excludes it via `move.targets.length > 0`.
+ *  An `activatedAbilities[]` / keyword `staticAbilities[]` entry does NOT
+ *  exclude: neither fires as part of RESOLVING the cast (an activation is a
+ *  separate later decision the tree prices on its own turn; a keyword like
+ *  flying is an intrinsic property `evaluate`'s creature-quality terms already
+ *  read). Per-card-agnostic: the check reads the definition's shape, never a
+ *  card id. */
+function isSelfConfinedVanillaPermanentCast(
+    state: GameState,
+    move: Move,
+    botId: string
+): boolean {
+    if (move.kind !== "cast-spell" || move.targets.length > 0) return false;
+    const player = state.players.find((p) => p.id === botId);
+    const card = player?.hand.find((c) => c.id === move.cardInstanceId);
+    if (!card) return false;
+    if (
+        !card.types.some((t) =>
+            (PERMANENT_TYPES as readonly string[]).includes(t)
+        )
+    ) {
+        return false;
+    }
+    const cardId = (card.card as { id?: string }).id;
+    const def = cardId ? tryGetDefinition(cardId) : undefined;
+    if (!def) return false;
+    return (
+        !def.triggeredAbilities?.length &&
+        !def.staticEffects?.length &&
+        !def.replacementEffects?.length
+    );
+}
+
 /** Memo for the static half of the gate above, keyed by card id: whether ANY
  *  resolution site on the definition raises a resolution-time choice. A pure
  *  function of the catalogue, so it is cached for the process, not per
@@ -4656,7 +4718,12 @@ export function selectRootMove(
             (e) =>
                 e.move.kind === "cast-spell" &&
                 mean(e) >= bestMean - weights.outcomeEps &&
-                reachesOnlyOwnSideThroughChoice(rootState, e.move, botId) &&
+                (reachesOnlyOwnSideThroughChoice(rootState, e.move, botId) ||
+                    isSelfConfinedVanillaPermanentCast(
+                        rootState,
+                        e.move,
+                        botId
+                    )) &&
                 resolvedMarginDelta(rootState, e.move, botId, weights) > 0
         );
         if (payoff) return finish(payoff, "resolved-payoff", payoff !== best);
