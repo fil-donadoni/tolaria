@@ -12,6 +12,7 @@ export * from "./lockedCorpus";
 export * from "./pack";
 export * from "./evalPairs";
 export * from "./report";
+export * from "./searchAgreement";
 export * from "./coverage";
 export * from "./fit";
 export * from "./identity";

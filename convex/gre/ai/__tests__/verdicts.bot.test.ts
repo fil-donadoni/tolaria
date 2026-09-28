@@ -17,6 +17,7 @@ import {
     collectVerdictReport,
     evalPairsOf,
     formatScoreComparison,
+    formatVerdictReport,
     improvesOnIncumbent,
     pasteInstruction,
     scoreBasis,
@@ -275,6 +276,41 @@ describe("the violation / contradiction report", () => {
                 (c) => blind.has(c.a) || blind.has(c.b)
             )
         ).toEqual([]);
+    });
+
+    it("routes TIMING pairs out of the fit over the whole registry corpus (issue #4764)", () => {
+        const { verdicts, gaps } = verdictsFromRegistry();
+        const report = collectVerdictReport(verdicts, { gaps });
+        // The registry holds both directions: "hold it" in an earlier window
+        // and "cast it" at the opponent's end step.
+        expect(report.timing.length).toBeGreaterThan(0);
+        const PASS = JSON.stringify({ kind: "pass" });
+        const direction = (p: (typeof report.timing)[number]) =>
+            p.right.key === PASS ? "hold" : "fire";
+        for (const pair of report.timing) {
+            expect([pair.right.key, pair.other.key]).toContain(PASS);
+        }
+        expect(new Set(report.timing.map(direction))).toEqual(
+            new Set(["hold", "fire"])
+        );
+        // Never fitted: not one of them is among the pairs the fit is handed.
+        const timing = new Set(report.timing);
+        expect(report.pairs.filter((p) => timing.has(p))).toEqual([]);
+        expect(report.rows.reduce((n, r) => n + r.timing, 0)).toBe(
+            report.timing.length
+        );
+        // Never dropped silently: the report names every one of them, under
+        // the before/after contradiction count.
+        const text = formatVerdictReport(report, 0);
+        expect(text).toContain(
+            `TIMING pairs (${report.timing.length}) — checked by the search`
+        );
+        for (const pair of report.timing) {
+            expect(text).toContain(pair.verdictId);
+        }
+        expect(report.contradictionsWithTiming).toBeGreaterThanOrEqual(
+            report.contradictions.length
+        );
     });
 
     it("treats an anti-parallel direction as contradictory whatever its scale", () => {

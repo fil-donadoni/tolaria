@@ -177,63 +177,9 @@ export function evalPairsOf(
         );
     }
 
-    const enumerated = candidateMoves(state, botId);
-    const byKey = new Map<string, Move>();
-    for (const move of enumerated) byKey.set(moveKey(move), move);
-
-    // The interchangeability collapse (issue #3593) means a candidate set no
-    // longer holds every copy of a card: a verdict RECORDED BEFORE IT may name
-    // the copy that was collapsed away, and its `moveKey` then resolves
-    // against nothing. That would report the whole verdict stale and drop
-    // every one of its pairs — judgements that are perfectly good, thrown away
-    // over which of two identical Brushlands the judge happened to click. So a
-    // key that misses is re-read as a MOVE and matched by interchangeability,
-    // which lands on the representative by construction.
-    const collapseKeyOf = makeInterchangeableKeyer(state);
-    const byCollapseKey = new Map<string, Move>();
-    for (const move of enumerated) {
-        const key = collapseKeyOf(move);
-        if (!byCollapseKey.has(key)) byCollapseKey.set(key, move);
-    }
-    const resolveCandidate = (key: string): Move | undefined => {
-        const exact = byKey.get(key);
-        if (exact) return exact;
-        let stored: Move;
-        try {
-            stored = JSON.parse(key) as Move;
-        } catch {
-            return undefined;
-        }
-        // Issue #4441 — a stored key is untrusted JSON, and the cast above does
-        // not make it a `Move`: a kind the union no longer admits would reach
-        // the keyer's exhaustive switch and throw. Refuse it here as the stale
-        // candidate it is; `CLASS_OF_MOVE_KIND` is the exhaustive kind table.
-        if (
-            typeof stored !== "object" ||
-            stored === null ||
-            !Object.prototype.hasOwnProperty.call(
-                CLASS_OF_MOVE_KIND,
-                stored.kind
-            )
-        ) {
-            return undefined;
-        }
-        // Only a key naming cards the rebuilt position still holds can be
-        // matched this way — `makeInterchangeableKeyer` maps an unresolvable
-        // id to itself, so a genuinely stale key stays stale.
-        return byCollapseKey.get(collapseKeyOf(stored));
-    };
-
-    const moves: Move[] = [];
-    for (const candidate of verdict.candidates) {
-        const move = resolveCandidate(candidate.key);
-        if (!move) {
-            return fail(
-                `candidate no longer enumerated on the rebuilt position: ${candidate.description}`
-            );
-        }
-        moves.push(move);
-    }
+    const resolved = resolveVerdictMoves(verdict, state, botId);
+    if ("error" in resolved) return fail(resolved.error);
+    const moves = resolved.moves;
 
     const features = moves.map((move) =>
         candidateFeatures(state, botId, move, weights)
@@ -327,6 +273,76 @@ export function evalPairsOf(
     const pairs = built.filter((p) => !isTiming(p));
     const timing = built.filter(isTiming);
     return { verdict, pairs, timing, features };
+}
+
+/** The verdict's candidates as the moves `state` enumerates for `botId`, in
+ *  the verdict's own order — or why one no longer resolves. Matched BY KEY,
+ *  then by interchangeability (issue #3593, below). Exported for the search
+ *  agreement report (`verdicts:search`, issue #4764), which has to map the
+ *  search's pick onto the SAME candidate a pair names. */
+export function resolveVerdictMoves(
+    verdict: Verdict,
+    state: GameState,
+    botId: string
+): { moves: Move[] } | { error: string } {
+    const enumerated = candidateMoves(state, botId);
+    const byKey = new Map<string, Move>();
+    for (const move of enumerated) byKey.set(moveKey(move), move);
+
+    // The interchangeability collapse (issue #3593) means a candidate set no
+    // longer holds every copy of a card: a verdict RECORDED BEFORE IT may name
+    // the copy that was collapsed away, and its `moveKey` then resolves
+    // against nothing. That would report the whole verdict stale and drop
+    // every one of its pairs — judgements that are perfectly good, thrown away
+    // over which of two identical Brushlands the judge happened to click. So a
+    // key that misses is re-read as a MOVE and matched by interchangeability,
+    // which lands on the representative by construction.
+    const collapseKeyOf = makeInterchangeableKeyer(state);
+    const byCollapseKey = new Map<string, Move>();
+    for (const move of enumerated) {
+        const key = collapseKeyOf(move);
+        if (!byCollapseKey.has(key)) byCollapseKey.set(key, move);
+    }
+    const resolveCandidate = (key: string): Move | undefined => {
+        const exact = byKey.get(key);
+        if (exact) return exact;
+        let stored: Move;
+        try {
+            stored = JSON.parse(key) as Move;
+        } catch {
+            return undefined;
+        }
+        // Issue #4441 — a stored key is untrusted JSON, and the cast above does
+        // not make it a `Move`: a kind the union no longer admits would reach
+        // the keyer's exhaustive switch and throw. Refuse it here as the stale
+        // candidate it is; `CLASS_OF_MOVE_KIND` is the exhaustive kind table.
+        if (
+            typeof stored !== "object" ||
+            stored === null ||
+            !Object.prototype.hasOwnProperty.call(
+                CLASS_OF_MOVE_KIND,
+                stored.kind
+            )
+        ) {
+            return undefined;
+        }
+        // Only a key naming cards the rebuilt position still holds can be
+        // matched this way — `makeInterchangeableKeyer` maps an unresolvable
+        // id to itself, so a genuinely stale key stays stale.
+        return byCollapseKey.get(collapseKeyOf(stored));
+    };
+
+    const moves: Move[] = [];
+    for (const candidate of verdict.candidates) {
+        const move = resolveCandidate(candidate.key);
+        if (!move) {
+            return {
+                error: `candidate no longer enumerated on the rebuilt position: ${candidate.description}`,
+            };
+        }
+        moves.push(move);
+    }
+    return { moves };
 }
 
 /** Is a pair a TIMING judgement (header)? Both directions, on the verdict's
