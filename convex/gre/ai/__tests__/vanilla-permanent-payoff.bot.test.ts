@@ -11,16 +11,22 @@
  *
  * A VANILLA permanent — no target, no ETB, nothing to choose — is the
  * SIMPLEST possible self-confined cast, yet it fell through that gate
- * entirely and was left to the bare tie-break with no rescue (issue #4785).
- * `isSelfConfinedVanillaPermanentCast` closes that gap, reusing the SAME
- * allowlisted `resolved-payoff` mechanism rather than adding a new root rule
- * — but only for NON-creatures: a creature is left to the search, exactly as
- * `isSorcerySpeedPermanentCast`'s free-development class already does (issue
+ * entirely AND through both existing `free-development` classes (ADR 0020
+ * §1 / issue #4070: neither the free-mana-source/land/dork class nor the
+ * ability-permanent class reach a PAID mana rock whose sole ability is a
+ * mana ability, `useStack: false` — `isSorcerySpeedPermanentCast`'s own
+ * `heldByController` filter excludes exactly that ability shape), so it was
+ * left to the bare tie-break with no rescue at all (issue #4785, Fellwar
+ * Stone: {2} artifact, `{T}: add one mana…`, no ETB/target/static/
+ * replacement effect). `isSelfConfinedVanillaPermanentCast` closes that gap,
+ * reusing the SAME allowlisted `resolved-payoff` mechanism rather than
+ * adding a new root rule — but only for NON-creatures: a creature is left to
+ * the search, exactly as the ability-permanent class already does (issue
  * #4070, "a beater held back can carry sequencing value"). The second test
  * below pins that exclusion with the issue's OWN card, Sadistic Hypnotist —
  * a creature whose only ability is a sacrifice outlet, structurally the same
- * shape as Seal of Doom's sacrifice-for-removal outlet below, differing in
- * nothing but `types`.
+ * "self-confined, no ETB, controller-only ability" shape as Fellwar Stone,
+ * differing in nothing but `types`.
  */
 
 import { describe, expect, it } from "vitest";
@@ -37,8 +43,8 @@ import type { GameState } from "../../state";
 import type { RootDecisionMechanism } from "../decisionTelemetry";
 
 describe("resolved-payoff reaches a vanilla permanent cast (issue #4785)", () => {
-    const SEAL = getCardByName("Seal of Doom").id; // {2}{B} enchantment, sac-only outlet, no ETB/target on cast
-    const HYPNOTIST = getCardByName("Sadistic Hypnotist").id; // {3}{B}{B} CREATURE, same sac-outlet shape
+    const STONE = getCardByName("Fellwar Stone").id; // {2} artifact, paid mana rock, no ETB/target on cast
+    const HYPNOTIST = getCardByName("Sadistic Hypnotist").id; // {3}{B}{B} CREATURE, same self-confined shape
 
     /** `cardId` in hand, enough black-and-colourless mana on the battlefield
      *  to cast either fixture (5 Swamps covers both costs), one spare body on
@@ -147,8 +153,8 @@ describe("resolved-payoff reaches a vanilla permanent cast (issue #4785)", () =>
         return { moveKind: picked.kind, mechanism: out.mechanism };
     }
 
-    it("rescues a NON-creature sacrifice-outlet cast (Seal of Doom) via `resolved-payoff`", () => {
-        const { moveKind, mechanism } = pickedMechanism(SEAL);
+    it("rescues a NON-creature vanilla permanent cast (Fellwar Stone) via `resolved-payoff`", () => {
+        const { moveKind, mechanism } = pickedMechanism(STONE);
         expect(moveKind).toBe("cast-spell");
         expect(mechanism).toBe("resolved-payoff");
     });
