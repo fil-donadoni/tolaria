@@ -73,15 +73,21 @@ export function isLastDeferralWindow(state: GameState, pid: string): boolean {
  *     responses are the search's).
  *  4. **No attack declared** (CR 506.1 / 508.1) — a combat trick's window is
  *     combat itself; that is the search's too.
- *  5. **Not a this-turn effect** (issue #4768). A script whose every effect
- *     ends at this turn's cleanup or end of combat (CR 514.2 / 511.3 —
- *     `isTransientOnlyScript`) has no "same action on the same board" at the
- *     opponent's end step: held that long it expires in that same cleanup
- *     having done nothing. Its last USEFUL window is inside this turn's
- *     combat — for a haste grant, before attackers are declared (CR 508.1a /
- *     302.6, {@link isPreAttackGrant}) — so its timing is the search's, and
- *     the root rule that makes the bot wait for the end step must never hold
- *     it.
+ *  5. **Not a pre-attack grant** (issue #4768). A haste grant on the
+ *     mover's own summoning-sick body, in its own turn before attackers are
+ *     declared ({@link isPreAttackGrant}), has no "same action on the same
+ *     board" at the opponent's end step: its last USEFUL window is before the
+ *     declaration (CR 508.1a / 302.6), and held past it the grant expires at
+ *     this turn's cleanup (CR 514.2) having enabled nothing. The root rule
+ *     that makes the bot wait for the end step must never hold it.
+ *
+ *     Deliberately NOT every this-turn effect (`isTransientOnlyScript`):
+ *     measured, excluding them all put the Mother of Runes hold back into the
+ *     Weight Fit — a pass over a protection grant in the mover's own main
+ *     phase IS a timing judgement (the grant is worth the response window it
+ *     is held for), and the committed weights stopped being the fit of the
+ *     committed verdicts. What such an effect is worth at the end step itself
+ *     is the last-window rule's own question (issue #4757).
  *
  * And one exclusion inside clause 1: an activation whose cost sacrifices
  * ANOTHER permanent (`cost.sacrificeFilter` — Zuran Orb's land, Sylvan
@@ -105,7 +111,7 @@ export function isDeferrableAction(
     if (move.kind === "cast-spell") {
         const card = castCardOf(player, move.cardInstanceId);
         if (!card || !hasInstantSpeed(card)) return false;
-        if (expiresThisTurn(castScriptOf(card))) return false;
+        if (isPreAttackGrant(state, pid, move)) return false;
         return reachesOnlyOwnSide(state, pid, move.targets, card);
     }
     if (move.kind === "activate-ability") {
@@ -116,7 +122,7 @@ export function isDeferrableAction(
         const ability = effectiveAbilityOf(source, move.abilityId);
         if (!ability || !isDeferrableStackAbility(ability)) return false;
         if (ability.cost.sacrificeFilter !== undefined) return false;
-        if (expiresThisTurn(ability.effects)) return false;
+        if (isPreAttackGrant(state, pid, move)) return false;
         return reachesOnlyOwnSide(state, pid, move.targets);
     }
     return false;
@@ -203,9 +209,9 @@ function isHasteGrant(op: EffectOp): boolean {
     return op.op === "grantAbility" && op.ability === "haste";
 }
 
-/** Clause 5: the script ends within this turn. An absent script (an
+/** The script ends within this turn (CR 514.2 / 511.3). An absent script (an
  *  imperative `resolve()` card) is unreadable, so it is NOT called transient —
- *  the clause removes only what it can prove. */
+ *  {@link isPreAttackGrant} claims only what it can prove. */
 function expiresThisTurn(script: readonly EffectOp[] | undefined): boolean {
     return script !== undefined && isTransientOnlyScript(script);
 }

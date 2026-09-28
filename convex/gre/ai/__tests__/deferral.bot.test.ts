@@ -274,19 +274,25 @@ describe("no attack declared (CR 508.1)", () => {
     });
 });
 
-describe("a this-turn effect has no end-step window (CR 514.2, issue #4768)", () => {
-    it("refuses a cast whose whole script ends at this turn's cleanup", () => {
-        const state = board({
-            hand: [card(SPEED, "speed"), card(BOLT, "bolt")],
-            battlefield: [card(BEARS, "mine")],
+describe("a pre-attack grant has no end-step window (CR 508.1a, issue #4768)", () => {
+    it("refuses a haste grant on the mover's own sick body before attackers", () => {
+        const sickBody = makeInstance(BEARS, {
+            id: "sick",
+            controllerId: "p1",
+            ownerId: "p1",
+            isSummoningSick: true,
         });
-        const onMine = [{ type: "permanent" as const, id: "mine" }];
-        // Same board, same own-side target, same instant timing: only the
-        // script's duration separates them.
-        expect(isDeferrableAction(state, "p1", cast("bolt", onMine))).toBe(
+        const state = board({
+            hand: [card(SPEED, "speed"), card(GROWTH, "growth")],
+            battlefield: [sickBody],
+        });
+        const onSick = [{ type: "permanent" as const, id: "sick" }];
+        // Same board, same own-side target, same instant timing, both scripts
+        // ending this turn: only the grant's attack window separates them.
+        expect(isDeferrableAction(state, "p1", cast("growth", onSick))).toBe(
             true
         );
-        expect(isDeferrableAction(state, "p1", cast("speed", onMine))).toBe(
+        expect(isDeferrableAction(state, "p1", cast("speed", onSick))).toBe(
             false
         );
     });
