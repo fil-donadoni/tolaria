@@ -207,7 +207,7 @@ export const dodecapod: CardDefinition = {
 // that field's doc (`cards/types.ts`) for the full announce/fold/payment
 // design.
 //
-// hand-tail: "Spend only colored mana on X. No more than one mana of each color may be spent this way." (#4506)
+// hand-tail: "Spend only colored mana on X. No more than one mana of each color may be spent this way." (#4577)
 export const emblazonedGolem: CardDefinition = {
     id: "98527fc6-4f4c-4ded-9e72-49186b7e5bd3", // APC 136
     name: "Emblazoned Golem",

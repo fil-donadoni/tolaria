@@ -452,6 +452,18 @@ describe("hand-tail markers name their claim (issue #4514)", () => {
         expect(verdict.out).toContain("✗ gaps: 1 `hand-tail:` marker(s)");
     });
 
+    it("the remedy offered is only the one that clears the check (issue #4774)", () => {
+        // Closing the claim issue never retires its claim row, and this check
+        // is offline: a render offering "close the claim" sends the author to
+        // a remedy that leaves the tip red (PR #4760, Emblazoned Golem).
+        const text = renderHandTailClaims([
+            { card: "Myr Battlesphere", markerIssue: 4195, claimIssue: 4321 },
+        ]);
+        expect(text).toContain("Re-point the marker to the claim's issue");
+        expect(text).not.toMatch(/\bor close the claim\b/i);
+        expect(text).toContain("Closing the claim issue alone");
+    });
+
     it("a hand-tail card with no hand-tail claim row is no finding", () => {
         const found = handTailClaimMismatches(
             markers(source("Arena of Glory", 4338)),
