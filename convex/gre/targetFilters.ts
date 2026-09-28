@@ -45,7 +45,7 @@
  *  `spellMatchesCreaturePtFilter`, `spellWouldDestroyLandControlledBy`) moved
  *  here from `rules.ts`; `rules.ts` re-exports them for backward
  *  compatibility with existing callers/imports. */
-import { findPermanent } from "./lookup";
+import { combatPartnerIds, findPermanent } from "./lookup";
 import type { CardType, Color, TargetRequirement } from "../cards/types";
 import type {
     CardInstanceState,
@@ -345,7 +345,11 @@ type StructuralKey =
     // dynamically POPULATE `spellTargetsInstanceIds` (the real, registered
     // filter) from the trigger source — never itself checked against a
     // candidate.
-    | "spellTargetsSelfSource";
+    | "spellTargetsSelfSource"
+    // A directive read by `applySourceDirectives` (`rules.ts`) that BINDS the
+    // source's instance id into `combatPartnerOf` (the real, registered
+    // filter) — never itself checked against a candidate.
+    | "combatPartnerOfSource";
 
 /** The forcing function itself: every requirement-declared filter field,
  *  derived by omission rather than a hand-maintained list. `REGISTRY`
@@ -813,6 +817,26 @@ const combatRoleFilterDescriptor = defineFilter<
             );
             return ok ? null : `Target must be ${roles.join(" or ")}`;
         },
+    },
+});
+
+// CR 509.1g — combat-partner filter ("target creature blocking or blocked by
+// {self}", Cromat). `value` is the partnered object's instance id, bound from
+// the `combatPartnerOfSource` directive. The relationship is read live from
+// `combatPartnerIds`, whose assignments outlive the object's leaving the
+// battlefield — the CR 608.2b last-known information of a source that is gone
+// by resolution. The candidate's OWN combat flags gate it too: a partner
+// removed from combat (CR 506.4 — e.g. an attacker that regenerated) stops
+// blocking or being blocked by anything, even where an assignment list still
+// names it.
+const combatPartnerOfDescriptor = defineFilter<string>({
+    lower: (req) => req.combatPartnerOf,
+    checks: {
+        permanent: (card, value, ctx) =>
+            (card.isAttacking || card.isBlocking) &&
+            combatPartnerIds(ctx.state, value).includes(card.id)
+                ? null
+                : "Target must be blocking or blocked by the source",
     },
 });
 
@@ -1351,6 +1375,7 @@ export const PERMANENT_FILTER_KEYS = [
     "colorFilterAny",
     "tappedFilter",
     "combatRoleFilter",
+    "combatPartnerOf",
     "requireAbility",
     "requireAbilityAny",
     "excludeAbility",
@@ -1424,6 +1449,7 @@ export const REGISTRY = {
     colorFilterAny: colorFilterAnyDescriptor as FilterDescriptor<unknown>,
     tappedFilter: tappedFilterDescriptor as FilterDescriptor<unknown>,
     combatRoleFilter: combatRoleFilterDescriptor as FilterDescriptor<unknown>,
+    combatPartnerOf: combatPartnerOfDescriptor as FilterDescriptor<unknown>,
     requireAbility: requireAbilityDescriptor as FilterDescriptor<unknown>,
     requireAbilityAny: requireAbilityAnyDescriptor as FilterDescriptor<unknown>,
     excludeAbility: excludeAbilityDescriptor as FilterDescriptor<unknown>,
@@ -1477,6 +1503,7 @@ export type PermanentFilterValues = Partial<{
     colorFilterAny: ReadonlyArray<Color>;
     tappedFilter: "tapped" | "untapped";
     combatRoleFilter: "attacking" | "blocking" | ("attacking" | "blocking")[];
+    combatPartnerOf: string;
     requireAbility: string;
     requireAbilityAny: ReadonlyArray<string>;
     excludeAbility: string;

@@ -474,7 +474,8 @@ export function useBattlefieldVisualState(
                     allPlayers,
                     activePlayerId,
                     controlContinuity,
-                    emblems
+                    emblems,
+                    combat
                 )
             ) {
                 return false;
@@ -658,7 +659,8 @@ export function useBattlefieldVisualState(
                 allPlayers,
                 activePlayerId,
                 controlContinuity,
-                emblems
+                emblems,
+                combat
             ) &&
             // CR 702.16b / 702.18 / 611 (issue #1120) — a permanent the server
             // would reject must not GLOW as a target either. This is the same

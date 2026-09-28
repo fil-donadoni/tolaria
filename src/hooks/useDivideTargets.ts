@@ -51,6 +51,7 @@ export function useDivideTargets(): DivideTargetItem[] {
         pendingTarget,
         playerProtectionFromEverything,
         emblems,
+        combat,
         engineTurn,
         controlChangedThisTurn,
     } = useGameContext();
@@ -87,7 +88,8 @@ export function useDivideTargets(): DivideTargetItem[] {
                     allPlayers,
                     activePlayerId,
                     controlContinuity,
-                    emblems
+                    emblems,
+                    combat
                 ) &&
                 // CR 601.2c — the same Flagbearer narrowing the board applies,
                 // so the divide picker and the battlefield offer one set.

@@ -7,7 +7,7 @@
 // carrying one ("Conditional abilities need a runtime predicate we don't
 // replicate"), so Giver of Runes / Manifold Key / Reflection of Kiki-Jiki were
 // abilities the search could never take. Routing the flag through the shared
-// `applySelfExclusion` fixes both halves at once, and the invariant this file
+// `applySourceDirectives` fixes both halves at once, and the invariant this file
 // pins is the one that actually matters:
 //
 //   the tuples the bot enumerates are exactly the picks the mutation accepts.

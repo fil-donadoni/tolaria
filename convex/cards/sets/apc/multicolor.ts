@@ -671,3 +671,89 @@ export const lastStand: CardDefinition = {
         },
     ],
 };
+
+// Cromat — {W}{U}{B}{R}{G} Legendary Creature — Illusion 5/5, five two-colour
+// activated abilities.
+// CR 509.1g / 701.8a — "destroy target creature blocking or blocked by
+// Cromat": `combatPartnerOfSource` binds the target filter to this permanent
+// (issue #4320), so the target must be one of its live combat partners; if
+// Cromat has left the battlefield by resolution, its last-known combat
+// relationship still names the partners (CR 608.2b).
+// CR 611.2a — the flying grant and the +1/+1 last until end of turn.
+// CR 701.19a — a regeneration shield on Cromat itself.
+// CR 108.3 — "on top of its owner's library": `moveZone` to `"library"` with
+// no `position` puts it on top of its OWNER's library, as Temporal Spring.
+// hand-tail: {G}{U}: Put {self} on top of its owner's library. (#4320)
+export const cromat: CardDefinition = {
+    id: "7d9e0a23-d2a8-40a6-9076-ed6fb539141b", // APC 94
+    rarity: "rare",
+    name: "Cromat",
+    oracleText:
+        "{W}{B}: Destroy target creature blocking or blocked by Cromat.\n{U}{R}: Cromat gains flying until end of turn.\n{B}{G}: Regenerate Cromat.\n{R}{W}: Cromat gets +1/+1 until end of turn.\n{G}{U}: Put Cromat on top of its owner's library.",
+    manaCost: { W: 1, U: 1, B: 1, R: 1, G: 1 },
+    types: ["Creature"],
+    supertypes: ["Legendary"],
+    subtypes: ["Illusion"],
+    power: 5,
+    toughness: 5,
+    activatedAbilities: [
+        {
+            id: "cromat-destroy-combat-partner",
+            oracleText:
+                "{W}{B}: Destroy target creature blocking or blocked by Cromat.",
+            cost: { mana: { W: 1, B: 1 } },
+            useStack: true,
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                combatPartnerOfSource: true,
+            },
+            effects: [{ op: "destroy", target: { target: 0 } }],
+        },
+        {
+            id: "cromat-flying",
+            oracleText: "{U}{R}: Cromat gains flying until end of turn.",
+            cost: { mana: { U: 1, R: 1 } },
+            useStack: true,
+            effects: [
+                {
+                    op: "grantAbility",
+                    ability: "flying",
+                    target: { ref: "$source" },
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
+        },
+        {
+            id: "cromat-regenerate",
+            oracleText: "{B}{G}: Regenerate Cromat.",
+            cost: { mana: { B: 1, G: 1 } },
+            useStack: true,
+            effects: [{ op: "regenerate", target: { ref: "$source" } }],
+        },
+        {
+            id: "cromat-pump",
+            oracleText: "{R}{W}: Cromat gets +1/+1 until end of turn.",
+            cost: { mana: { R: 1, W: 1 } },
+            useStack: true,
+            effects: [
+                {
+                    op: "pump",
+                    target: { ref: "$source" },
+                    power: 1,
+                    toughness: 1,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
+        },
+        {
+            id: "cromat-top-of-library",
+            oracleText: "{G}{U}: Put Cromat on top of its owner's library.",
+            cost: { mana: { G: 1, U: 1 } },
+            useStack: true,
+            effects: [
+                { op: "moveZone", target: { ref: "$source" }, to: "library" },
+            ],
+        },
+    ],
+};

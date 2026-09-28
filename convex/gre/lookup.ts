@@ -148,3 +148,27 @@ export function findCardInAnyZone(
     }
     return undefined;
 }
+
+/** Last-known combat relationship (CR 603.10) for a creature about to leave
+ *  the battlefield: every creature that, at this instant, is blocking it or is
+ *  blocked by it. `blockerAssignments` maps blockerId → the attackers it
+ *  blocks, so a creature `id`'s partners are (a) blockers whose assignment
+ *  list contains `id` — i.e. creatures blocking `id` when `id` is an attacker —
+ *  plus (b) the assignment list of `id` itself when `id` is a blocker — i.e.
+ *  the attackers `id` is blocking. Abu Ja'far (ARN) reads this at death to
+ *  destroy "all creatures blocking or blocked by it"; the `combatPartnerOf`
+ *  target filter (`targetFilters.ts`, Cromat) reads it live. Returns deduped ids.
+ *  Empty when there is no combat or the creature was not in combat. */
+export function combatPartnerIds(state: GameState, id: string): string[] {
+    const ba = state.combat?.blockerAssignments;
+    if (!ba) return [];
+    const partners = new Set<string>();
+    // (b) `id` is a blocker → the attackers it is blocking are blocked by it.
+    for (const attackerId of ba[id] ?? []) partners.add(attackerId);
+    // (a) some other creature is blocking `id` (i.e. `id` is an attacker).
+    for (const [blockerId, attackerIds] of Object.entries(ba)) {
+        if (attackerIds.includes(id)) partners.add(blockerId);
+    }
+    partners.delete(id);
+    return [...partners];
+}
