@@ -22,3 +22,5 @@ export * from "./minimalPair";
 export * from "./weightsLiteral";
 export * from "./resolution";
 export * from "./testerQuality";
+export * from "./pairDerivation";
+export * from "./pairTrace";
