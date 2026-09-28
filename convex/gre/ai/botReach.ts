@@ -609,11 +609,11 @@ export const AMBUSH_WINDOW = "FLASH_AMBUSH";
 /**
  * CR 702.8a — the window a Flash permanent is posed in when both of the
  * holder's main phases passed it over: the OPPONENT's end step, the holder
- * holding priority with its mana open. The Bot holds a Flash permanent it
- * could cast at sorcery speed for an outcome-equal result (`hold-trick`, ADR
- * 0021, issue #2248) and casts it at instant speed instead, so a sweep that
- * posed only the holder's own main phases read that hold as a refusal
- * (issue #4260).
+ * holding priority with its mana open. The Bot holds an instant-speed card
+ * it could cast earlier for an outcome-equal result (`last-window-deferral`,
+ * issue #4757, which took over the Flash-permanent hold of issue #2248) and
+ * casts it at the opponent's end step instead, so a sweep that posed only the
+ * holder's own main phases read that hold as a refusal (issue #4260).
  */
 export const OPPONENT_END_STEP_WINDOW = "OPPONENT_END_STEP";
 type PoseWindow =
@@ -622,11 +622,15 @@ type PoseWindow =
     | typeof AMBUSH_WINDOW
     | typeof OPPONENT_END_STEP_WINDOW;
 
-/** CR 702.8a — a permanent spell with Flash: castable in a window the holder
- *  does not own, so the opponent's end step is a place the Bot may cast it. */
-function isFlashPermanent(def: CardDefinition): boolean {
+/** CR 117.1a / 702.8a — an instant, or a permanent spell with Flash:
+ *  castable in a window the holder does not own, so the opponent's end step
+ *  is a place the Bot may cast it. Widened from Flash permanents by issue
+ *  #4757: the `last-window-deferral` rule holds EVERY deferrable action — a
+ *  draw instant, an own-side grant — out of the holder's earlier windows for
+ *  an outcome-equal result and takes it at the opponent's end step. */
+function isInstantSpeedCard(def: CardDefinition): boolean {
+    if (def.types.includes("Instant")) return true;
     return (
-        !def.types.includes("Instant") &&
         !def.types.includes("Sorcery") &&
         (def.staticAbilities ?? []).includes("flash")
     );
@@ -1091,7 +1095,7 @@ function playSeat(
         combatTrickPosition(def) === null ? [] : [TRICK_WINDOW];
     const ambush: PoseWindow[] =
         ambushPosition(def) === null ? [] : [AMBUSH_WINDOW];
-    const endStep: PoseWindow[] = isFlashPermanent(def)
+    const endStep: PoseWindow[] = isInstantSpeedCard(def)
         ? [OPPONENT_END_STEP_WINDOW]
         : [];
     for (const window of [...later, ...trick, ...ambush, ...endStep]) {
