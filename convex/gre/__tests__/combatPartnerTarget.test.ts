@@ -153,6 +153,20 @@ describe("Cromat — target creature blocking or blocked by {self} (CR 509.1g, i
         expect(onBattlefield(state, "partner")).toBe(true);
     });
 
+    it("resolution: a Cromat that regenerated left combat, so its former blocker no longer partners it (CR 701.19a / 506.4)", () => {
+        const state = board("attacking");
+        const cromat = getPlayer(state, "p1").battlefield[0];
+        cromat.regenerationShields = 1;
+        // The rider removes Cromat from combat — while the blocker's own
+        // assignment still names it.
+        regenerateOrDestroy(state, "cromat");
+        expect(state.combat?.blockerAssignments.partner).toContain("cromat");
+        resolveActivated(state, cromat, DESTROY, [
+            { type: "permanent", id: "partner" },
+        ]);
+        expect(onBattlefield(state, "partner")).toBe(true);
+    });
+
     it("resolution: Cromat gone from the battlefield still partners by last-known information (CR 608.2b)", () => {
         const state = board("attacking");
         const cromat = getPlayer(state, "p1").battlefield[0];

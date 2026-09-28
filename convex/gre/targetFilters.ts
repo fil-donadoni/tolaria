@@ -825,18 +825,23 @@ const combatRoleFilterDescriptor = defineFilter<
 // the `combatPartnerOfSource` directive. The relationship is read live from
 // `combatPartnerIds`, whose assignments outlive the object's leaving the
 // battlefield — the CR 608.2b last-known information of a source that is gone
-// by resolution. The candidate's OWN combat flags gate it too: a partner
-// removed from combat (CR 506.4 — e.g. an attacker that regenerated) stops
-// blocking or being blocked by anything, even where an assignment list still
-// names it.
+// by resolution. Both sides' OWN combat flags gate it too: a creature removed
+// from combat (CR 506.4 — e.g. one that regenerated) stops blocking or being
+// blocked by anything, even where an assignment list still names it. The
+// source's flags are read only while it is still on the battlefield.
 const combatPartnerOfDescriptor = defineFilter<string>({
     lower: (req) => req.combatPartnerOf,
     checks: {
-        permanent: (card, value, ctx) =>
-            (card.isAttacking || card.isBlocking) &&
-            combatPartnerIds(ctx.state, value).includes(card.id)
+        permanent: (card, value, ctx) => {
+            const source = findPermanent(ctx.state, value);
+            const sourceInCombat =
+                !source || source.isAttacking || source.isBlocking;
+            return sourceInCombat &&
+                (card.isAttacking || card.isBlocking) &&
+                combatPartnerIds(ctx.state, value).includes(card.id)
                 ? null
-                : "Target must be blocking or blocked by the source",
+                : "Target must be blocking or blocked by the source";
+        },
     },
 });
 
