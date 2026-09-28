@@ -52,7 +52,11 @@ import {
     type StoredVerdictPayload,
     type VerdictLock,
 } from "./lockSource";
-import { formatMinimalPairSection, type MinimalPairFitOutcome } from "./fit";
+import {
+    formatMinimalPairSection,
+    minimalPairTally,
+    type MinimalPairFitOutcome,
+} from "./fit";
 import { minimalPairStandings } from "./minimalPair";
 import { encodeVerdictPack } from "./pack";
 import {
@@ -539,22 +543,16 @@ const pairLines = (pair: PromotionReportPair): string[] => [
 export function formatPromotionReport(input: PromotionReportInput): string {
     const { plan } = input;
     const moved = input.movement.filter((m) => m.fitted !== m.committed);
-    const bothPairs = input.minimalPairs.filter(
-        (p) => p.anchorSatisfied && p.halfSatisfied
-    ).length;
-    const onePair = input.minimalPairs.filter(
-        (p) => p.anchorSatisfied !== p.halfSatisfied
-    ).length;
-    const neitherPair = input.minimalPairs.filter(
-        (p) => !p.anchorSatisfied && !p.halfSatisfied
-    ).length;
+    // Shared with `formatMinimalPairSection` (`fit.ts`) so this headline and
+    // the section below it can never disagree about which pair is which.
+    const tally = minimalPairTally(input.minimalPairs);
     const out = [
         `== Verdict promotion (issue #3583, ADR 0128 §7) — review the DELTA`,
         `  lock                   : ${input.lockedBefore} → ${plan.lock.verdictIds.length} verdicts (+${plan.added.length}, −${plan.dropped.length})`,
         `  pack                   : packs/${plan.lock.packHash}.jsonl.gz`,
         `  new Eval Pairs         : ${input.newPairs.length}`,
         `  unsatisfied pairs      : ${input.unsatisfied.length}`,
-        `  minimal pairs          : ${input.minimalPairs.length} (both ${bothPairs} / one ${onePair} / neither ${neitherPair})`,
+        `  minimal pairs          : ${input.minimalPairs.length} (both ${tally.both} / one ${tally.one} / neither ${tally.neither} / not fitted ${tally.notFitted})`,
         `  weights moved          : ${moved.length} of ${input.movement.length}`,
     ];
     out.push(`\n== verdicts added (${plan.added.length})`);
