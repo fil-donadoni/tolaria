@@ -6,7 +6,9 @@
  *   bun run test:blade           → `must` tier, real assertions, BLOCKING
  *   bun run test:blade:stretch   → `stretch` tier, report-only, manual. Every
  *                                   scenario's own verdict is printed, never
- *                                   asserted — with one exception: a
+ *                                   asserted (only that it ran: one result
+ *                                   row per declared seed, issue #4769) —
+ *                                   with one exception: a
  *                                   `beyondBudget` entry's claim ("still fails
  *                                   at its declared budget") IS asserted here,
  *                                   so a bot improvement surfaces as a red
@@ -26,6 +28,7 @@
 import { describe, expect, it } from "vitest";
 import {
     BLADE_SCENARIOS,
+    bladeScenarioSeeds,
     bladeScenariosForTier,
     describeBeyondBudget,
     findBladeScenario,
@@ -264,7 +267,16 @@ export function registerBladeShard(shard: number): void {
                 const result = runBladeScenario(scenario, VARIANT);
                 if (TIER === "stretch") {
                     // Report-only: a stretch entry documents a position the bot is
-                    // not expected to solve yet. Print the verdict, never fail.
+                    // not expected to solve yet. Print the verdict, never fail on
+                    // it — the verdict is the report line, not the test status.
+                    // What IS asserted is that the entry ran to completion: one
+                    // result row per declared seed, in order (issue #4769). Every
+                    // project runs with `requireAssertions`, so without this an
+                    // entry with no `beyondBudget` claim failed whatever its
+                    // verdict, and the tier's exit code carried no information.
+                    expect(result.seeds.map((s) => s.seed)).toEqual(
+                        bladeScenarioSeeds(scenario)
+                    );
                     const verdict = result.ok ? "PASS" : "FAIL";
                     const detail = result.ok
                         ? result.seeds
