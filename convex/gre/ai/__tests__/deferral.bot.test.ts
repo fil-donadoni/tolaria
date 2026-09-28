@@ -14,7 +14,7 @@
 // trigger can target an opposing creature. Unnatural Speed is an instant
 // whose whole script is a haste grant until end of turn, Giant Growth one
 // whose whole script is a pump until end of turn, Wall of Stone a defender
-// (CR 702.3b: it can't attack, haste or not).
+// (CR 702.3b: a creature with defender can't attack).
 import { describe, expect, it } from "vitest";
 import { getCardByName, withTemporaryDefinition } from "../../../cards";
 import {
