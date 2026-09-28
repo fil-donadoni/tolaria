@@ -11,6 +11,8 @@
 // what the search's leaf reads. A test that valued a synthetic `OpValue` would
 // pass on a lens nothing wires up.
 import { describe, expect, it } from "vitest";
+import { withTemporaryDefinition } from "../../../cards/registry";
+import type { CardDefinition } from "../../../cards/types";
 import {
     makeInstance,
     makePlayer,
@@ -259,7 +261,7 @@ function latentAgainst(
 }
 
 describe("a sweep's latent value is the surplus it takes (issue #4773)", () => {
-    // CR 701.8a — a symmetric sweep moves the caster's own members to the
+    // CR 701.8a — a symmetric destroy sweep moves the caster's own members to the
     // graveyard too. Priced at ONE representative victim whatever the board
     // held, Armageddon sat in hand above the land surplus it would take, and
     // casting it a land behind read as a loss at 1 ply.
@@ -292,6 +294,49 @@ describe("a sweep's latent value is the surplus it takes (issue #4773)", () => {
                 [forest.id]
             )
         ).toBe(0);
+    });
+
+    const sweep = (
+        id: string,
+        filter: Record<string, unknown>
+    ): CardDefinition => ({
+        id: `latent-board-test:${id}`,
+        name: `Latent Board ${id}`,
+        rarity: "common",
+        manaCost: { W: 1, generic: 3 },
+        types: ["Sorcery"],
+        effects: [
+            {
+                op: "forEach",
+                select: { set: "permanents", zone: "battlefield", filter },
+                effects: [{ op: "destroy", target: { ref: "$each" } }],
+            },
+        ],
+    });
+
+    it("reads an excludeType filter: everything but lands, net", () => {
+        const nonland = sweep("nonland", { excludeType: "Land" });
+        withTemporaryDefinition(nonland, () => {
+            expect(
+                latentAgainst(nonland.id, [forest.id], [forest.id, forest.id])
+            ).toBe(0);
+            expect(
+                latentAgainst(nonland.id, [], [llanowarElves.id])
+            ).toBeGreaterThan(0);
+        });
+    });
+
+    it("keeps the representative valuation for a filter it cannot match exactly", () => {
+        // A subtype is not read: counting every Forest as a Goblin, or none,
+        // would both be guesses. The board-free price stands on every board.
+        const goblins = sweep("goblins", { subtype: "Goblin" });
+        withTemporaryDefinition(goblins, () => {
+            const empty = latentAgainst(goblins.id, [], []);
+            expect(empty).toBeGreaterThan(0);
+            expect(latentAgainst(goblins.id, [forest.id, forest.id], [])).toBe(
+                empty
+            );
+        });
     });
 
     it("counts only the swept type", () => {

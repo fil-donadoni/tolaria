@@ -285,7 +285,8 @@ function announcedSlot(sel: object): number | undefined {
  *
  *  Exactly `1` — one representative victim, which reproduces every pre-#3398
  *  constant byte-for-byte — in the three cases where the board cannot answer:
- *  a NON-announced selector (a sweeper's `forEach`, a bound ref), no board
+ *  a NON-announced selector (a bound ref; a sweeper's `forEach` $each is
+ *  priced by `sweptForEachValue` instead when the board can answer), no board
  *  attached at all (a context-free valuation: the Bot Drafter's pick
  *  heuristic, the resolution-choice ordering), or a slot whose requirement the
  *  lens cannot read (a modal card's per-mode targets). `0` only when a board

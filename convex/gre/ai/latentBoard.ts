@@ -253,8 +253,8 @@ export function makeLatentBoardLens(
  *  ONE representative victim whatever the board held: Armageddon sat in hand
  *  at a 2/2's worth while the lands it would take were worth far less, and
  *  casting it with the opponent a land ahead read as a loss at 1 ply. The
- *  members are the ones the resolution would take (CR 701.8a moves each to
- *  its owner's graveyard, the caster's own included), priced by the same
+ *  members are the ones the resolution would take, the caster's own included
+ *  (CR 701.8a destroy, CR 701.13a exile), priced by the same
  *  `realisedLoss` the targeted slots read.
  *
  *  Readable means: every player's battlefield or a fixed side of it
@@ -305,7 +305,7 @@ function isReadableSweepFilter(filter: EffectCardFilter | undefined): boolean {
 }
 
 /** `type` (OR within the field) AND NOT `excludeType` — the card-type half of
- *  `EffectCardFilter` (CR 205), over the permanent's current types. */
+ *  `EffectCardFilter` (CR 205.2a), over the permanent's current types. */
 function matchesSweepFilter(
     perm: CardInstanceState,
     filter: EffectCardFilter | undefined

@@ -61,9 +61,9 @@ export interface LatentLens {
     /** Issue #4773 — units of `boardRemoval` a `forEach` over the battlefield
      *  takes off the board NET for the caster: the realised loss of every
      *  member the caster's opponents control, minus every member the caster
-     *  controls, over the representative victim's. A symmetric sweep moves
-     *  the caster's own members to the graveyard too (CR 701.8a), so what it
-     *  is worth in hand is the SURPLUS it takes,
+     *  controls, over the representative victim's. A symmetric sweep takes
+     *  the caster's own members too (CR 701.8a destroy, CR 701.13a exile),
+     *  so what it is worth in hand is the SURPLUS it takes,
      *  never one representative victim. `undefined` when no board is attached
      *  or the selector is not one the lens can read (the valuer then keeps the
      *  representative-count valuation); negative when the caster would lose
