@@ -21,6 +21,8 @@ import { describe, expect, it } from "vitest";
 import { selectRootMove, type Edge, type Node } from "../../search";
 import type { RootDecisionMechanism } from "../decisionTelemetry";
 import { choiceCandidates } from "../choiceCandidates";
+import { choiceFindDestination } from "../searchDestination";
+import { unscopedBindingName } from "../../effects/interpreter";
 import { buildBladeState } from "../blade/build";
 import type { BladeScenario } from "../blade/types";
 import type { GameState } from "../../state";
@@ -110,7 +112,43 @@ function pick(state: GameState): {
     return { names, mechanism: out.mechanism };
 }
 
+describe("a forEach-scoped choice id reads its authored name (issue #4218)", () => {
+    it("strips iteration and mode scopes from a $-name, and nothing else", () => {
+        expect(unscopedBindingName("$picked")).toBe("$picked");
+        expect(unscopedBindingName("$picked@0:1")).toBe("$picked");
+        expect(unscopedBindingName("$x@3:0@1:2")).toBe("$x");
+        expect(unscopedBindingName("$x@mode:1")).toBe("$x");
+        expect(unscopedBindingName("pick@me")).toBe("pick@me");
+    });
+
+    it("finds the destination of a choice raised inside a forEach body", () => {
+        const state = atPick(
+            [
+                { name: "Show and Tell", owner: "me", zone: "hand" },
+                { name: "Shivan Dragon", owner: "me", zone: "hand" },
+                { name: "Serra Angel", owner: "opp", zone: "hand" },
+            ],
+            ["Shivan Dragon"]
+        );
+        const choice = state.pendingChoices![0];
+        expect(choice.choiceId).toContain("@");
+        expect(choiceFindDestination(state, choice)).toBe("battlefield");
+    });
+});
+
 describe("optional own-hand put onto the battlefield (issue #4218)", () => {
+    it("the first chooser reads its own put against declining, before the next chooser answers", () => {
+        const state = atPick([
+            { name: "Show and Tell", owner: "me", zone: "hand" },
+            { name: "Serra Angel", owner: "me", zone: "hand" },
+            { name: "Shivan Dragon", owner: "opp", zone: "hand" },
+        ]);
+        expect(pick(state)).toEqual({
+            names: ["Serra Angel"],
+            mechanism: "resolved-payoff",
+        });
+    });
+
     it("takes the pick whose settled margin beats the settled decline", () => {
         const state = atPick(
             [

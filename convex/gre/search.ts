@@ -3519,36 +3519,77 @@ function resolvedMarginDelta(
     return materialMargin(settled, botId, weights) - before;
 }
 
-/** The bot's material margin once `move` is applied and the stack settled, or
- *  `undefined` when the resolution cannot be simulated. The absolute twin of
- *  `resolvedMarginDelta`, for a compare whose baseline is itself a settled
- *  answer rather than the position as it stands. */
-function settledMarginAfter(
+/** What one answer to the head choice settles to, and WHERE the settle
+ *  stopped. Two readings are comparable only at the same `frontier` (PR review
+ *  finding 1): a completed settle and a bailed one measure different
+ *  quantities — the same reason `bestBranchThroughChoice` skips a bailed
+ *  branch rather than scoring it. */
+type PutReading = { margin: number; frontier: string };
+
+/** Apply `move` (an answer to `choice`) and settle the resolution it resumes,
+ *  bounded to that resolution: `floorDepth` is the resolving item's own stack
+ *  index, so an announcement already underneath it — the opponent's, say — is
+ *  never drained into one side of the compare (the reason the cast half gates
+ *  on an empty stack instead).
+ *
+ *  Two frontiers are readable, everything else is `undefined` (fail closed):
+ *    * `complete` — the resolution and whatever it put on the stack finished;
+ *    * `later-chooser:<id>` — the settle stopped AT ONCE on another player's
+ *      choice raised by the SAME resolution (the next chooser of an "each
+ *      player may put", CR 101.4). A settle hands back its entry snapshot on a
+ *      bail, and that snapshot is exactly the position at the later chooser's
+ *      pick only when the bail came before any settle work: its head is then
+ *      that foreign choice. A snapshot whose head is still the bot's own, or
+ *      that has no head at all, means work was rewound — unreadable. */
+function settledPutReading(
     state: GameState,
     move: Move,
     botId: string,
+    choice: PendingChoice,
     weights: EvalWeights
-): number | undefined {
+): PutReading | undefined {
+    const floor = state.stack.findIndex((s) => s.id === choice.stackItemId);
+    if (floor < 0) return undefined;
     const probe = cloneGameState(state);
+    const report = { complete: false };
+    let settled: GameState;
     try {
         applyMoveInSearch(probe, botId, move);
-        return materialMargin(
-            settleStackForBreakdown(probe, botId, weights),
+        settled = settleStackForBreakdown(
+            probe,
             botId,
-            weights
+            weights,
+            0,
+            undefined,
+            floor,
+            report
         );
     } catch {
         return undefined;
     }
+    const margin = materialMargin(settled, botId, weights);
+    if (report.complete) return { margin, frontier: "complete" };
+    const head = settled.pendingChoices?.[0];
+    if (
+        !head ||
+        head.playerId === botId ||
+        head.stackItemId !== choice.stackItemId ||
+        settled.pendingTarget ||
+        settled.pendingCast ||
+        settled.pendingActivation
+    ) {
+        return undefined;
+    }
+    return { margin, frontier: `later-chooser:${head.choiceId}` };
 }
 
 /** The resolved-payoff credit's CHOICE half (issue #4218, see its call site in
  *  `selectRootMove`): at an optional own-hand-to-own-battlefield pick whose
- *  robust answer is the empty one, the outcome-equal pick whose SETTLED margin
- *  is highest, provided it strictly beats the settled decline. `undefined`
- *  when the head choice is not that shape, when no pick beats declining, or
- *  when the decline itself cannot be simulated (fail closed: the pick then
- *  stays with the ordinary tie-break). */
+ *  robust answer is the empty one, the outcome-equal pick whose settled margin
+ *  is highest, provided it strictly beats the decline read at the SAME
+ *  frontier. `undefined` when the head choice is not that shape, when no pick
+ *  beats declining, or when the decline itself is unreadable (fail closed: the
+ *  pick then stays with the ordinary tie-break). */
 function optionalPutPayoff(
     rootState: GameState,
     botId: string,
@@ -3559,15 +3600,16 @@ function optionalPutPayoff(
     const choice = rootState.pendingChoices?.[0];
     if (!choice || choice.playerId !== botId) return undefined;
     if (!isOptionalOwnBattlefieldPut(rootState, choice)) return undefined;
-    const baseline = settledMarginAfter(
+    const baseline = settledPutReading(
         rootState,
         rootMoveFor(decline, rootState),
         botId,
+        choice,
         weights
     );
-    if (baseline === undefined) return undefined;
+    if (!baseline) return undefined;
     let best: Edge | undefined;
-    let bestMargin = baseline;
+    let bestMargin = baseline.margin;
     for (const edge of contenders) {
         if (edge === decline) continue;
         const move = rootMoveFor(edge, rootState);
@@ -3578,10 +3620,20 @@ function optionalPutPayoff(
         ) {
             continue;
         }
-        const margin = settledMarginAfter(rootState, move, botId, weights);
-        if (margin !== undefined && margin > bestMargin) {
+        const reading = settledPutReading(
+            rootState,
+            move,
+            botId,
+            choice,
+            weights
+        );
+        if (
+            reading &&
+            reading.frontier === baseline.frontier &&
+            reading.margin > bestMargin
+        ) {
             best = edge;
-            bestMargin = margin;
+            bestMargin = reading.margin;
         }
     }
     return best;
@@ -4626,12 +4678,15 @@ export function selectRootMove(
     //
     // What differs from the cast half is the baseline. There, `pass` changes
     // nothing now, so the delta is read against the position as it stands.
-    // Here the decline is itself a resolution step — the spell goes on to the
-    // next chooser and finishes — so each answer is SETTLED and compared with
-    // the settled decline, and whatever the rest of the resolution does
-    // (another player's put, the stack underneath) is on both sides of the
-    // compare. That is also why the `stack.length === 0` gate does not carry
-    // over: this decision is never taken on an empty stack.
+    // Here the decline is itself a resolution step, so each answer is SETTLED
+    // (bounded to the resolving item — never the stack underneath) and
+    // compared with the settled decline, and only at the SAME frontier
+    // (`settledPutReading`): both finished, or both stopped at once on the
+    // next chooser's pick. The second is the caster's case, and it reads the
+    // mover's OWN put before later choosers answer — the opponent's reply,
+    // which may depend on that put, is on neither side. What it measures is
+    // the body entering against the card staying in hand; a reading at any
+    // other frontier fails closed to the ordinary tie-break.
     //
     // The reach gate is the generator's own (`isOptionalOwnBattlefieldPut`):
     // the mover's own hand to the mover's own battlefield, read off the
