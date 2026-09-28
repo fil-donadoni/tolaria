@@ -151,7 +151,7 @@ export const ROOT_RULE_ALLOWLIST: Record<
     "last-window-deferral": {
         kind: "rule",
         issue: 4757,
-        why: "identical-vector proof: a deferrable action (own side, instant timing, empty stack, no attack) taken now and taken at the opponent's end step (CR 513.1) reach the same board, so no weight separates them — it waits for the last window unless it beats pass by more than OUTCOME_EPS, and is taken there when outcome-equal and not an effect that expires this turn",
+        why: "identical-vector proof: a deferrable action taken now or at the opponent's end step reaches the same board, so no weight separates them — it waits for the last window unless it beats pass by more than OUTCOME_EPS",
     },
 };
 

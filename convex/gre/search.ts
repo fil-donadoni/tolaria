@@ -4656,68 +4656,18 @@ export function selectRootMove(
         if (hold) return finish(hold, "hold-trick", hold !== best);
     }
 
-    // Keep mana open, HOLD half (issue #4757, PRD #4754) — a DEFERRABLE action
-    // (`isDeferrableAction`: instant timing, own side only, empty stack, no
-    // attack declared — the perimeter the Verdict lowering shares) taken in any
-    // window EARLIER than the last one (`isLastDeferralWindow`, the opponent's
-    // end step, CR 513.1) waits for it, unless it beats `pass` by more than
-    // `OUTCOME_EPS`. The draw instant cast in the bot's own main phase, the
-    // flash creature cast with nothing to meet, the fetchland cracked with
-    // nothing to cast off it.
-    //
-    // THE IDENTICAL-VECTOR PROOF (ADR 0124 §5), the only admission a new root
-    // rule has. "Act now" and "act at the last window" reach the SAME board
-    // when nothing happens in between: the same card drawn, the same body on
-    // the battlefield, the same land fetched — so the two positions carry one
-    // feature vector under every evaluation term, and no weight can separate
-    // them. What separates them is the information and the options the later
-    // window keeps (mana open for a response, the opponent's play seen first),
-    // which the evaluation does not model and the search, which models neither
-    // bluffing nor what an early action tells the opponent, cannot buy. Measured
-    // on the owner's store when the verdicts were promoted (issue #4761): a
-    // `flexWeight` sweep to 27x ordered 8 more of the 71 "pass" pairs and broke
-    // 11 act-over-pass pairs — the fit cannot do it, by construction, and the
-    // timing verdicts left it (issue #4764).
-    //
-    // The proof's PREMISE is asked of each action, not assumed:
-    // `waitsUnchanged` resolves it and refuses one that changes what lies
-    // between now and the last window — the opponent's side (an untargeted
-    // sweep), the step's mana (a ritual), or, before attackers in the bot's own
-    // turn, its own attack (counters, a hasty token copy). Those are not the
-    // same act later, and the search keeps them.
-    //
-    // Two exclusions, both ownership. A source that sacrifices ITSELF (a
-    // fetchland) is also a standing spend, and `standing-spend-hold` /
-    // `last-window-fire` already own it in every window with the
-    // `firingBeatsHolding` gate this rule does not carry — two owners of one
-    // edge would let rollout noise pick the rule (PR review). And mana already
-    // FLOATING in the bot's pool empties as the step ends (CR 106.4 / 500.5),
-    // so acting now and acting later are not the same act.
-    //
-    // This SUBSUMES the flash-permanent shape of `isSorcerySpeedTrickDump`
-    // (issue #2248, removed there): same argument, now read through the one
-    // perimeter in every earlier window rather than only the active player's
-    // main phase. A flash body whose ETB can reach the opponent, or one cast in
-    // response, is outside the perimeter and left to the search's leaves, as
-    // the perimeter's own header decides.
-    //
-    // Fires only on outcome-equality, so a play with REAL value now (a hasty
-    // body crossing lethal, a needed blocker) out-rewards `pass` and never
-    // reaches here. And never at the last window itself — there the FIRE half
-    // at the end of this function takes over.
-    //
-    // It does NOT return: the held `pass` becomes the pick the rules below
-    // read, exactly as if the search had picked it. `heldFrom` keeps the
-    // search's own pick, so a later rule that takes that very edge back is
-    // recorded as no flip at all (telemetry reads `flipped` to retire rules,
-    // ADR 0124 §5). Two of them credit an
-    // outcome-equal action over `pass` with an argument the deferral does not
-    // make, and each keeps its own: `resolved-payoff`, a self-confined cast
-    // whose SETTLED resolution strictly pays (the owner's cheat-into-play
-    // verdict, cast in its own main), and `last-window-fire`'s pre-attack arm,
-    // a haste grant whose last useful window is before attackers (issue
-    // #4768) — the hold would otherwise swallow it when the robust pick was the
-    // same grant on a body that could already attack.
+    // Keep mana open, HOLD half (issue #4757, PRD #4754): a deferrable
+    // action (`isDeferrableAction`) in a window earlier than the opponent's
+    // end step (CR 513.1) waits for it unless it beats `pass` by more than
+    // `OUTCOME_EPS`. Identical-vector proof (ADR 0124 §5): acting now and at
+    // the last window reach the same board, so no weight separates them
+    // (issue #4757 records the measurement). `waitsUnchanged` checks that
+    // premise per action. Standing spends (a fetchland) stay with
+    // `standing-spend-hold` / `last-window-fire`; floating mana empties with
+    // the step (CR 106.4 / 500.5). Subsumes the #2248 flash-permanent shape.
+    // Does NOT return: `resolved-payoff` and `last-window-fire`'s pre-attack
+    // arm may still credit an action over the held `pass`; `heldFrom` keeps
+    // telemetry's `flipped` honest when one takes the search's pick back.
     if (
         rootState &&
         !!botId &&
@@ -5075,44 +5025,15 @@ export function selectRootMove(
         if (fire) return finish(fire, "last-window-fire", fire !== best);
     }
 
-    // Keep mana open, FIRE half (issue #4757) — the action the hold half above
-    // deferred is taken HERE, or the bot simply never takes it. At the last
-    // window (`isLastDeferralWindow`, the opponent's end step, CR 513.1)
-    // deferring buys no more information, and `pass` is replaced by the best
-    // deferrable action that does not worsen the position. Same
-    // identical-vector argument as the hold, read from the other side: the
-    // `pass` edge's subtree contains the same action one ply later (or in the
-    // bot's own turn), so the two means differ by rollout noise and the
-    // material tie-break cannot choose — `last-window-fire` above makes the
-    // same argument for a sacrifice engine, and this extends it to every
-    // action of the perimeter, casts included.
-    //
-    // "Does not worsen the position" is read three ways, all required:
-    //  - on MEAN REWARD, the outcome band every tie-break shares — the search
-    //    carries the line into the bot's own untap step, where the mana spent
-    //    now comes back. An immediate-position probe (`firingBeatsHolding`)
-    //    would read the lands the action taps as lost (`tappedManaWeight`) and
-    //    refuse every draw instant, which is exactly the verdict this rule
-    //    exists to honour;
-    //  - on the PREMISE: `waitsUnchanged`, as for the hold;
-    //  - on the EFFECT: one whose whole payoff expires this turn
-    //    (`isTransientOnlyAction`, CR 514.2) has nothing left to act on
-    //    between the end step and the cleanup, so spending it is a card or a
-    //    mana thrown away.
-    //
-    // Among several qualifying actions (cards, variants, tap plans) the best
-    // `meanMargin` wins, never the pool's insertion order. Disjoint from
-    // `last-window-fire` per edge: a standing spend — a sacrifice of the
-    // source ITSELF (a fetchland) as much as of another permanent — is that
-    // rule's, gated on `firingBeatsHolding`, and skipped here (PR review).
-    //
-    // ONE activation per ability per turn, the floor `isDeferredEngineActivation`
-    // sets for the same reason: a tie-break redirects one outcome-equal pick,
-    // never runs a repeatable ability ({B}, pay 2 life: draw a card) to
-    // exhaustion one noise-width at a time. A second activation earns itself
-    // on mean reward. Casts carry no such floor: each is a different card.
-    // `stack.length === 0` is the perimeter's own clause 3, asserted at the
-    // guard as the rules above do.
+    // Keep mana open, FIRE half (issue #4757): at the opponent's end step
+    // (CR 513.1) an outcome-equal `pass` becomes the best-`meanMargin`
+    // deferrable action — the `pass` subtree holds the same action one window
+    // later, so the material tie-break reads noise. Refused: standing spends
+    // (`last-window-fire` owns them), effects that expire this turn
+    // (`isTransientOnlyAction`, CR 514.2), a second activation of one ability
+    // this turn (the `isDeferredEngineActivation` floor), and anything
+    // `waitsUnchanged` refuses. No immediate-position probe: it would read the
+    // tapped lands as lost and refuse every draw instant.
     if (
         rootState &&
         !!botId &&

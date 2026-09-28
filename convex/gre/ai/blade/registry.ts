@@ -3807,7 +3807,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         expect: {
             forbidden: [{ kind: "cast-spell", card: "Containment Priest" }],
         },
-        note: "Issue #2248, the fix itself; since issue #4757 guarded by `last-window-deferral`. Empty board, no attack pending, nothing else to spend mana on: the only choice is cast-now vs hold-for-later, and later is never worse (Containment Priest has no haste, so casting now buys it nothing timing-wise — it cannot attack or use its replacement ability any sooner). Casting now forecloses the mana-open option for free; holding it to the opponent's end step is outcome-equal on material and strictly better on information. The root tie-break that redirects the outcome-equal cast to `pass` was `isSorcerySpeedTrickDump` shape 3 (`hold-trick`) until issue #4757 moved it into the `last-window-deferral` hold, which reads the same argument through the one deferral perimeter (`ai/deferral.ts`) in every window earlier than the opponent's end step. MEASURED under `BLADE_VARIANT=no-rule:last-window-deferral`: red — the tie-break is the only piece this position discriminates (review round 1 of issue #2248: reverting the rollout-guardrail widening alone, or the own-main hold nudge alone, both leave it GREEN; those two pieces, `isDiscouragedRolloutMove`'s flash branch and `isReactiveHold`'s own-main shape, are unit-tested directly in `search.bot.test.ts`). Its fire half is the `keep mana open` entry casting it at the opponent's end step.",
+        note: "Issue #2248; since issue #4757 guarded by `last-window-deferral` (it absorbed `isSorcerySpeedTrickDump` shape 3). Empty board, no haste: casting now buys nothing and forecloses the mana-open option, so the outcome-equal cast waits for the opponent's end step. Red under `BLADE_VARIANT=no-rule:last-window-deferral`; the rollout-guardrail and own-main hold-nudge pieces are unit-tested in `search.bot.test.ts`.",
     },
     {
         label: "flash permanent NEGATIVE CONTROL: casts Containment Priest as the only surviving block",
@@ -3881,7 +3881,8 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     // Discriminating pairs: each deferrable action (the perimeter of
     // `ai/deferral.ts`) is held in the bot's own main phase and taken at the
     // opponent's end step. The Containment Priest hold above is the flash
-    // body's hold half; its fire half is here.
+    // body's hold half; its fire half is here. A fetch crack is a standing
+    // spend, owned by `standing-spend-hold` / `last-window-fire`.
     {
         label: "keep mana open: holds Impulse in its own main with no threat",
         spec: {
@@ -3898,7 +3899,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         expect: {
             forbidden: [{ kind: "cast-spell", card: "Impulse" }],
         },
-        note: "Issue #4757, the HOLD half of `last-window-deferral`, distilled from the store's timing verdicts (the owner's pass-over-Impulse verdicts in the bot's own main phase, issue #4761). Empty boards, nothing else to spend mana on: Impulse ({1}{U}, instant) draws the same card now or at the end step, and casting it now taps the mana a response would need. Acting now and acting at the opponent's end step reach the same board, so the two carry one feature vector and the material tie-break decides on rollout noise; the rule redirects the outcome-equal action to `pass`. Its discriminating mirror is the entry below — a blanket 'never act' bias reds that one.",
+        note: "Issue #4757, `last-window-deferral` HOLD half: Impulse now or at the opponent's end step reaches the same board, so the outcome-equal cast waits (a store timing verdict). Mirror: the entry below.",
     },
     {
         label: "keep mana open: casts Impulse at the opponent's end step",
@@ -3920,7 +3921,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         expect: {
             moves: [{ kind: "cast-spell", card: "Impulse" }],
         },
-        note: "Issue #4757, the FIRE half of `last-window-deferral`: the same Impulse as the entry above, now at the opponent's end step (CR 513.1), the last window before the bot's own turn. Deferring further buys no information, the `pass` edge's subtree contains the same action one window later, and the rule replaces the outcome-equal `pass` with it. With the entry above, a discriminating pair: a 'hold everything' bias reds this one, an 'act whenever outcome-equal' bias reds that one.",
+        note: "Issue #4757, `last-window-deferral` FIRE half: at the opponent's end step (CR 513.1) deferring buys nothing, so the outcome-equal pass becomes the cast. Mirror: the entry above.",
     },
     {
         label: "keep mana open: holds Accumulated Knowledge in its own main with no threat",
@@ -3940,7 +3941,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         expect: {
             forbidden: [{ kind: "cast-spell", card: "Accumulated Knowledge" }],
         },
-        note: "Issue #4757, the HOLD half of `last-window-deferral`, distilled from the store's timing verdicts (the owner's pass-over-Accumulated Knowledge verdicts in the bot's own main phase, issue #4761). Empty boards, nothing else to spend mana on: Accumulated Knowledge ({1}{U}, instant) draws the same card now or at the end step. Acting now and acting at the opponent's end step reach the same board, so the two carry one feature vector and the material tie-break decides on rollout noise; the rule redirects the outcome-equal action to `pass`. Its discriminating mirror is the entry below — a blanket 'never act' bias reds that one.",
+        note: "Issue #4757, `last-window-deferral` HOLD half: Accumulated Knowledge now or at the opponent's end step reaches the same board, so the outcome-equal cast waits (a store timing verdict). Mirror: the entry below.",
     },
     {
         label: "keep mana open: casts Accumulated Knowledge at the opponent's end step",
@@ -3964,55 +3965,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         expect: {
             moves: [{ kind: "cast-spell", card: "Accumulated Knowledge" }],
         },
-        note: "Issue #4757, the FIRE half of `last-window-deferral`: the same Accumulated Knowledge as the entry above, now at the opponent's end step (CR 513.1), the last window before the bot's own turn. Deferring further buys no information, the `pass` edge's subtree contains the same action one window later, and the rule replaces the outcome-equal `pass` with it. With the entry above, a discriminating pair: a 'hold everything' bias reds this one, an 'act whenever outcome-equal' bias reds that one.",
-    },
-    {
-        label: "keep mana open: holds Polluted Delta in its own main with no threat",
-        spec: {
-            cards: [
-                { name: "Polluted Delta", owner: "me", zone: "battlefield" },
-                { name: "Island", owner: "me", zone: "library" },
-                { name: "Swamp", owner: "me", zone: "library" },
-            ],
-            phase: "PRECOMBAT_MAIN",
-            turn: 3,
-            landCount: 1,
-            libraryCount: 20,
-        },
-        bot: "me",
-        budget: { iterations: 300 },
-        seeds: [0xb1ade, 1, 2, 3, 4],
-        tier: "must",
-        expect: {
-            forbidden: [{ kind: "activate-ability", card: "Polluted Delta" }],
-        },
-        note: "Issue #4757, the fetch-crack shape of the store's timing verdicts (pass over a crack in the bot's own main, issue #4761). Empty board, nothing in hand to cast off the fetched land: cracking Polluted Delta now or at the opponent's end step fetches the same land (CR 701.23a search) for the same life. A source that sacrifices ITSELF is a standing spend, so this position belongs to `standing-spend-hold` and `last-window-fire` (gated on `firingBeatsHolding`), NOT to `last-window-deferral`, which skips standing spends so one edge has one owner (issue #4757 review). MEASURED under `BLADE_VARIANT=no-rule:last-window-deferral`: GREEN on all 5 seeds. It stays as the pinned behaviour of the fetch shape, and its discriminating mirror is the entry below.",
-    },
-    {
-        label: "keep mana open: cracks Polluted Delta at the opponent's end step",
-        spec: {
-            cards: [
-                { name: "Polluted Delta", owner: "opp", zone: "battlefield" },
-                { name: "Island", owner: "opp", zone: "library" },
-                { name: "Swamp", owner: "opp", zone: "library" },
-            ],
-            phase: "END_STEP",
-            turn: 3,
-            landCount: 1,
-            libraryCount: 20,
-        },
-        // `me` is always the ACTIVE player in a `ScenarioSpec`, so the bot
-        // sits in the `opp` seat for this to be the OPPONENT's end step; one
-        // `pass` walks priority to it (CR 513.1).
-        setup: [{ kind: "pass", seat: "me" }],
-        bot: "opp",
-        budget: { iterations: 300 },
-        seeds: [0xb1ade, 1, 2, 3, 4],
-        tier: "must",
-        expect: {
-            moves: [{ kind: "activate-ability", card: "Polluted Delta" }],
-        },
-        note: "Issue #4757: the same fetch crack as the entry above, now at the opponent's end step (CR 513.1), the last window before the bot's own turn. The crack is a standing spend (the source sacrifices itself), owned by `last-window-fire` / the search rather than `last-window-deferral` (issue #4757 review) — MEASURED green under `BLADE_VARIANT=no-rule:last-window-deferral`. With the entry above, a discriminating pair on the fetch shape: a 'hold everything' bias reds this one, an 'act whenever outcome-equal' bias reds that one.",
+        note: "Issue #4757, `last-window-deferral` FIRE half: at the opponent's end step (CR 513.1) deferring buys nothing, so the outcome-equal pass becomes the cast. Mirror: the entry above.",
     },
     {
         label: "keep mana open: casts Containment Priest at the opponent's end step",
@@ -4034,7 +3987,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         expect: {
             moves: [{ kind: "cast-spell", card: "Containment Priest" }],
         },
-        note: "Issue #4757, the FIRE half of `last-window-deferral`: the same flash body (Containment Priest, {1}{W}, Flash, no ETB) as the issue-#2248 hold entry, now at the opponent's end step (CR 513.1), the last window before the bot's own turn. Deferring further buys no information, the `pass` edge's subtree contains the same action one window later, and the rule replaces the outcome-equal `pass` with it. With that entry, a discriminating pair: a 'hold everything' bias reds this one, an 'act whenever outcome-equal' bias reds that one. MEASURED under `BLADE_VARIANT=no-rule:last-window-deferral`: GREEN on all 5 seeds — the search already casts the body at the end step on mean reward without the rule, so this entry does NOT discriminate it. It stays as the perimeter's flash-body shape pinned against a regression of either half (a hold that leaks past the last window, a fire that stops firing), and the rule's proof lives in the Impulse / Accumulated Knowledge pairs.",
+        note: "Issue #4757: the fire half of the issue-#2248 hold. At the opponent's end step (CR 513.1) the flash body is cast; the search already does so on mean reward (green under the no-rule variant).",
     },
     // --- Removal / response timing (issue #4765, PRD #4754) ----------------
     // Report-only measurements of whether the SEARCH already times
