@@ -2640,7 +2640,6 @@ export const OP_BENEFICENCE: { [K in EffectOp["op"]]?: Beneficence } = {
     suppressDamagePrevention: "neutral",
     restrictActivation: "harmful",
     restrictCasting: "harmful",
-    restrictCombat: "harmful",
     markAssignsNoCombatDamage: "harmful",
     skipNextUntap: "harmful",
     skipNextTurn: "harmful",
@@ -2891,6 +2890,7 @@ export const PARAMETRIZED_BENEFICENCE_OPS: ReadonlySet<string> = new Set([
     "scryReorder",
     "choice",
     "grantAbility",
+    "restrictCombat",
 ]);
 
 /** Sign of one Op for its recipient (issue #1888). Reads the Op's own shape for
@@ -2997,11 +2997,13 @@ export function opBeneficence(
             // CR 508.1c (issue #2002) — "cant-attack-all" has no target and is
             // SYMMETRIC (every creature, both players'), the same shape
             // `suppressDamagePrevention` documents above: no stake for a sign
-            // to attach to. The three PER-OBJECT modes keep the flat table's
-            // "harmful" (a restriction landing on one named creature).
-            return op.restriction === "cant-attack-all"
-                ? "neutral"
-                : (OP_BENEFICENCE[op.op] ?? "neutral");
+            // to attach to. The three PER-OBJECT modes ("cant-attack",
+            // "cant-block", "cant-be-blocked") keep the flat sign this Op
+            // carried in `OP_BENEFICENCE` before this case existed ("harmful",
+            // unchanged) — inline rather than a static row, since a
+            // parametrized Op (this `switch`) and a static row for the SAME Op
+            // would leave the row dead (the switch always wins).
+            return op.restriction === "cant-attack-all" ? "neutral" : "harmful";
         default:
             return OP_BENEFICENCE[op.op] ?? "neutral";
     }
