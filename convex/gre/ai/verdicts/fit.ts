@@ -101,6 +101,8 @@ import {
 } from "./features";
 import type { EvalPair } from "./evalPairs";
 import { contradictoryCouples, type Contradiction } from "./report";
+import { minimalPairStandings } from "./minimalPair";
+import { DISCRIMINANT_KINDS, type Discriminant, type Verdict } from "./types";
 
 /**
  * The separation a pair must reach, in `evaluate` margin points.
@@ -790,5 +792,175 @@ export function formatWeightFitReport(
             `  ${v.pair.verdictId}\n      want  ${v.pair.right.description}\n      over  ${v.pair.other.description}\n      Δ ${v.before.toFixed(1)} → ${v.predicted.toFixed(1)}`
         );
     }
+    return out.join("\n");
+}
+
+// ── MINIMAL PAIR SECTION (ADR 0148, issue #4794) ──────────────────────────
+//
+// A Conditional Verdict is half an argument until its right-hand half exists
+// (`minimalPair.ts`). The fit and its report already read the two halves as
+// independent Eval Pairs — correctly, since each is its own constraint — but
+// a HUMAN reading the report wants the argument, not its two loose pieces:
+// did the fit learn "not now" as a real conditional, or only as "never" (the
+// anchor alone satisfied) or only as "always" (the half alone satisfied)?
+// This section answers that, over whichever set of pairs the caller hands
+// it — the fit's own first-order outcomes, or a re-derived report's pairs at
+// the fitted vector, both of which carry `verdictId` and a `delta`.
+
+/** One complete Minimal Pair, read against the fit as a UNIT: whether EVERY
+ *  Eval Pair each half yielded clears the margin — the same bar a verdict
+ *  row is scored on (`report.ts`'s `VerdictRow.ok`), read per half rather
+ *  than per verdict. */
+export type MinimalPairFitOutcome = {
+    anchorId: string;
+    halfId: string;
+    discriminant: Discriminant;
+    anchorSatisfied: boolean;
+    halfSatisfied: boolean;
+};
+
+/** Every verdict id named in `pairs`, satisfied only when ALL its pairs clear
+ *  `margin`. A verdict absent from `pairs` altogether is not in this map —
+ *  callers of `minimalPairFitOutcomes` read that as unsatisfied, since the
+ *  fit made no promise about a verdict it was never handed. */
+function verdictMarginSatisfaction(
+    pairs: readonly Pick<EvalPair, "verdictId" | "delta">[],
+    margin: number
+): Map<string, boolean> {
+    const out = new Map<string, boolean>();
+    for (const pair of pairs) {
+        const satisfied = pair.delta >= margin;
+        out.set(pair.verdictId, (out.get(pair.verdictId) ?? true) && satisfied);
+    }
+    return out;
+}
+
+/**
+ * Every complete Minimal Pair among `verdicts`, with both halves' outcome
+ * against `pairs` at `margin` (default `FIT_MARGIN`, the same bar the fit
+ * itself uses). `pairs` is deliberately loose (`verdictId` + `delta`) so a
+ * caller can hand it either the fit's first-order `outcomes` (`predicted`
+ * renamed `delta` by the caller) or a re-derived `VerdictReport`'s real
+ * `pairs` — the engine-real number, which is what a promotion's report
+ * prints elsewhere in this module's header (decision 1).
+ */
+export function minimalPairFitOutcomes(
+    verdicts: readonly Verdict[],
+    pairs: readonly Pick<EvalPair, "verdictId" | "delta">[],
+    margin: number = FIT_MARGIN
+): MinimalPairFitOutcome[] {
+    const satisfied = verdictMarginSatisfaction(pairs, margin);
+    const standings = minimalPairStandings(
+        verdicts.map((v) => ({
+            verdictId: v.id,
+            judgement: v,
+            stored: v.source === "store",
+        }))
+    );
+    const out: MinimalPairFitOutcome[] = [];
+    for (const verdict of verdicts) {
+        const standing = standings.get(verdict.id);
+        if (standing?.kind !== "paired" || standing.role !== "anchor") continue;
+        // `minimalPairStandings` reaches "paired"/"anchor" from exactly one
+        // branch, a conditional classification — the throw names the
+        // invariant rather than silently reading a wrong Discriminant.
+        if (verdict.classification?.kind !== "conditional") {
+            throw new Error(
+                `${verdict.id}: a paired anchor with no conditional classification — minimalPairStandings invariant broken`
+            );
+        }
+        const discriminant = verdict.classification.discriminant;
+        for (const halfId of standing.partnerIds) {
+            out.push({
+                anchorId: verdict.id,
+                halfId,
+                discriminant,
+                anchorSatisfied: satisfied.get(verdict.id) ?? false,
+                halfSatisfied: satisfied.get(halfId) ?? false,
+            });
+        }
+    }
+    return out;
+}
+
+/** The Minimal Pair section (ADR 0148, issue #4794): each complete pair read
+ *  as ONE unit — both halves satisfied, one, or neither — instead of two
+ *  loose Eval Pairs. One satisfied means the fit settled the argument on
+ *  "always" or "never": the line names the Discriminant no Evaluation term
+ *  reads. Unsatisfied pairs (one half or neither) are counted by
+ *  Discriminant kind, and `other` phrases are listed verbatim with their
+ *  counts — a recurring phrase names the kind the closed list is missing. A
+ *  pair with NEITHER half satisfied is flagged on its own: the fit bought
+ *  nothing on either side, which is as often a badly written pair as a
+ *  missing term (ADR 0148, PRD #4792 user story 21). */
+export function formatMinimalPairSection(
+    pairs: readonly MinimalPairFitOutcome[]
+): string {
+    const both = pairs.filter((p) => p.anchorSatisfied && p.halfSatisfied);
+    const one = pairs.filter((p) => p.anchorSatisfied !== p.halfSatisfied);
+    const none = pairs.filter((p) => !p.anchorSatisfied && !p.halfSatisfied);
+    const unsatisfied = [...one, ...none];
+
+    const out: string[] = [
+        `== Minimal Pairs (${pairs.length}) — both halves satisfied / one / none (ADR 0148)`,
+        `  both satisfied         : ${both.length}`,
+        `  one satisfied          : ${one.length}`,
+        `  neither satisfied      : ${none.length}`,
+    ];
+
+    if (one.length > 0) {
+        out.push(
+            `\n== Minimal Pairs with ONE half satisfied (${one.length}) — the fit settled "always" or "never"`
+        );
+        for (const p of one) {
+            out.push(
+                `  ${p.anchorId} / ${p.halfId}  (${p.anchorSatisfied ? "half" : "anchor"} unsatisfied)\n` +
+                    `      Discriminant no term reads: ${p.discriminant.kind}: ${p.discriminant.detail}`
+            );
+        }
+    }
+
+    const byKind = new Map<string, number>();
+    for (const p of unsatisfied) {
+        byKind.set(
+            p.discriminant.kind,
+            (byKind.get(p.discriminant.kind) ?? 0) + 1
+        );
+    }
+    out.push(
+        `\n== unsatisfied Minimal Pairs by Discriminant kind (${unsatisfied.length})`
+    );
+    if (unsatisfied.length === 0) out.push("  (none)");
+    for (const kind of DISCRIMINANT_KINDS) {
+        const n = byKind.get(kind) ?? 0;
+        if (n > 0) out.push(`  ${kind.padEnd(10)} ${n}`);
+    }
+
+    const otherPairs = unsatisfied.filter(
+        (p) => p.discriminant.kind === "other"
+    );
+    if (otherPairs.length > 0) {
+        const byDetail = new Map<string, number>();
+        for (const p of otherPairs) {
+            byDetail.set(
+                p.discriminant.detail,
+                (byDetail.get(p.discriminant.detail) ?? 0) + 1
+            );
+        }
+        out.push(`\n== "other" Discriminant phrases, verbatim`);
+        for (const [detail, n] of byDetail) out.push(`  ${n}x  ${detail}`);
+    }
+
+    if (none.length > 0) {
+        out.push(
+            `\n== Minimal Pairs with NEITHER half satisfied (${none.length}) — a look at the board, not a missing term`
+        );
+        for (const p of none) {
+            out.push(
+                `  ${p.anchorId} / ${p.halfId}\n      Discriminant: ${p.discriminant.kind}: ${p.discriminant.detail}`
+            );
+        }
+    }
+
     return out.join("\n");
 }

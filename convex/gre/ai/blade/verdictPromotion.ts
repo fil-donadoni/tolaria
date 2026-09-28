@@ -27,6 +27,7 @@ import {
     formatStoreValidation,
     formatVerdictQuarantine,
     lockedVerdictCorpus,
+    minimalPairFitOutcomes,
     parseVerdictLock,
     planPromotion,
     formatTesterQuality,
@@ -140,6 +141,10 @@ export function runVerdictPromotionStep(
             lockedBefore: current?.verdictIds.length ?? 0,
             newPairs: after.pairs.filter((p) => added.has(p.verdictId)),
             unsatisfied: after.violated,
+            // Read against the RE-DERIVED `after` pairs, the engine-real
+            // number — never the fit's own first-order `outcomes` (`fit.ts`
+            // header, decision 1; `after`'s own comment a few lines up).
+            minimalPairs: minimalPairFitOutcomes(corpus.verdicts, after.pairs),
             movement: FITTABLE_WEIGHT_KEYS.map((key) => ({
                 key,
                 committed: weightValue(DEFAULT_EVAL_WEIGHTS, key),
