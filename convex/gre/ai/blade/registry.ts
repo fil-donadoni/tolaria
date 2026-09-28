@@ -15,14 +15,14 @@
  *                 makes it pass.
  */
 
-import type { BladeScenario, BladeSeat } from "./types";
+import type { BladeScenario, BladeSeat, MoveMatcher } from "./types";
 import type { GameState } from "../../state";
 import type { Move } from "../../moves";
 import { enumerateMoves, enumerateRaisedTargetMoves } from "../../moves";
 import { applyMoveInSearch, isDiscouragedRolloutMove } from "../../search";
 import { raisedPendingTargetOwedBy } from "../../pendingTargetOrigin";
 import { cloneGameState } from "../../clone";
-import { instanceIdsForName, seatPlayerId } from "./matcher";
+import { instanceIdsForName, matchesMove, seatPlayerId } from "./matcher";
 import { materialMargin } from "../../evaluate";
 import { isLand, manaValue } from "../../constants";
 import { DEFAULT_EVAL_WEIGHTS } from "../evalWeights";
@@ -407,6 +407,25 @@ function mayAttackAgain(
             m.kind === "declare-attackers" &&
             m.attackerIds.some((a) => ids.has(a))
     );
+}
+
+/** Issue #4765 — a TIMING measurement written as a `predicate`, never as
+ *  `moves` / `forbidden`. Those two shapes lower to a Verdict, and a Verdict
+ *  enters the weight fit (`weightFit.bot.test.ts`): a report-only entry would
+ *  then move `DEFAULT_EVAL_WEIGHTS`, i.e. change behaviour. PRD #4754 records
+ *  why timing must not reach the fit at all — the fit cannot express it, and
+ *  the first promotion bent unrelated weights (issue #4761). `expected` is the
+ *  same name-based matcher a `moves` entry would carry; `hold` asserts the
+ *  bot chose something OTHER than it (the `forbidden` shape). */
+function timingMeasurement(
+    expected: MoveMatcher,
+    hold = false
+): BladeScenario["expect"] {
+    return {
+        predicate: (move, state) =>
+            move === null ? hold : matchesMove(state, move, expected) !== hold,
+        describe: `${hold ? "does NOT choose" : "chooses"} ${expected.kind} ${expected.card ?? ""}${expected.target ? ` → ${expected.target}` : ""}`,
+    };
 }
 
 /** The exact MIRROR of {@link activationStaysAvailable} — the activation is
@@ -3857,6 +3876,187 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
             moves: [{ kind: "cast-spell", card: "Raging Kavu" }],
         },
         note: "Issue #2248 negative control 2 — 'sorcery-speed cast with real reward'. 3 x Craw Wurm already on board is 18 power, short of the opponent's 20 life; Raging Kavu's Flash makes it structurally match `isSorcerySpeedTrickDump` shape 3 (a non-Instant flash permanent, cast by the active player at a main phase) exactly the way the fix entry's Containment Priest does, but Kavu also has HASTE — casting it THIS main phase adds 3 power to THIS combat and crosses lethal (21 into 20), where holding it for the opponent's end step forfeits the attack entirely and pushes the kill a full turn later against an opponent who gets to act in between. That gap is far outside `OUTCOME_EPS`, so the tie-break's own mean-reward gate must not fire: the position proves the fix is a preference among outcome-equal lines, never a rule that redirects a decisively-better cast to `pass`.",
+    },
+    // --- Removal / response timing (issue #4765, PRD #4754) ----------------
+    // Report-only measurements of whether the SEARCH already times
+    // interaction: removal and combat responses are outside the deferral
+    // perimeter by design (their timing depends on what the opponent does,
+    // so only the search's leaves can price it). One hold position and three
+    // reactive windows, each walked forward through the real engine. Each is
+    // a `timingMeasurement` predicate, so none of them reaches the weight fit.
+    {
+        label: "removal timing: holds Terror in its own main with no immediate threat",
+        spec: {
+            cards: [
+                { name: "Terror", owner: "me", zone: "hand" },
+                { name: "Swamp", owner: "me", zone: "battlefield" },
+                { name: "Swamp", owner: "me", zone: "battlefield" },
+                {
+                    name: "Grizzly Bears",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 300 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "stretch",
+        expect: timingMeasurement({ kind: "cast-spell", card: "Terror" }, true),
+        note: "Issue #4765. Nothing else to spend mana on and the opposing Bears is no threat this turn: Terror (CR 304.1, instant) kills it as well after it attacks, or at the end step, while the untapped mana keeps the answer open against whatever the opponent casts next. Casting it at sorcery speed buys nothing.",
+    },
+    {
+        label: "removal timing: exiles the attacker in the last window before damage",
+        spec: {
+            cards: [
+                {
+                    name: "Craw Wurm",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Ornithopter",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Swords to Plowshares", owner: "opp", zone: "hand" },
+                { name: "Plains", owner: "opp", zone: "battlefield" },
+            ],
+            phase: "DECLARE_ATTACKERS",
+            turn: 5,
+            libraryCount: 20,
+        },
+        // `me` attacks, `opp` declares no block (the Ornithopter could block,
+        // which is what opens the declare-blockers window at all), `me` passes
+        // — the defender's LAST priority window before combat damage: an
+        // unblocked attacker deals its damage to the player (CR 510.1b), so
+        // passing here is taking 6.
+        setup: [
+            { kind: "declare-attackers", cards: ["Craw Wurm"] },
+            { kind: "declare-blockers" },
+            { kind: "pass", seat: "me" },
+        ],
+        bot: "opp",
+        budget: { iterations: 300 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "stretch",
+        expect: timingMeasurement({
+            kind: "cast-spell",
+            card: "Swords to Plowshares",
+            target: "Craw Wurm",
+        }),
+        note: "Issue #4765. The removal belongs HERE, after attackers are declared: the attacker is committed, no later window precedes its damage, and exiling it now saves 6 life on top of the creature. A pass is not a deferral to a later window but a strictly worse line. This is the COMPLEMENT of the Terror hold above, not a timing discrimination on its own: it measures that a held removal is actually fired once the attack gives it a reason, so the hold is never a mute button. The earlier window (`haltForDefenderResponse`) is deliberately not the position: there casting now and casting after blocks are both correct.",
+    },
+    {
+        label: "response timing: bolts the attacker in response to its pump",
+        spec: {
+            cards: [
+                {
+                    name: "Grizzly Bears",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Giant Growth", owner: "me", zone: "hand" },
+                { name: "Forest", owner: "me", zone: "battlefield" },
+                {
+                    name: "Hill Giant",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Lightning Bolt", owner: "opp", zone: "hand" },
+                { name: "Mountain", owner: "opp", zone: "battlefield" },
+            ],
+            phase: "DECLARE_ATTACKERS",
+            turn: 5,
+            libraryCount: 20,
+        },
+        // The Bears attacks into a Hill Giant block, then pumps itself; the
+        // `cast` step passes the caster's window (as the Mother entries do),
+        // so the blocker's controller holds priority with Giant Growth on the
+        // stack.
+        setup: [
+            { kind: "declare-attackers", cards: ["Grizzly Bears"] },
+            {
+                kind: "declare-blockers",
+                blocks: [{ blocker: "Hill Giant", attacker: "Grizzly Bears" }],
+            },
+            {
+                kind: "cast",
+                card: "Giant Growth",
+                by: "me",
+                target: "Grizzly Bears",
+            },
+        ],
+        bot: "opp",
+        budget: { iterations: 300 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "stretch",
+        expect: timingMeasurement({
+            kind: "cast-spell",
+            card: "Lightning Bolt",
+            target: "Grizzly Bears",
+        }),
+        note: "Issue #4765. Bolting the 2/2 in response kills it before the pump resolves, and Giant Growth then has no legal target (CR 608.2b): a two-for-one that also keeps the Hill Giant. Passing lets the pump resolve: even a Bolt afterwards only trades the 5/5 for the Hill Giant, where responding kills it and keeps the Giant.",
+    },
+    {
+        label: "response timing: saves its blocker by pumping it in response to removal",
+        spec: {
+            cards: [
+                {
+                    name: "Grizzly Bears",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Lightning Bolt", owner: "me", zone: "hand" },
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                {
+                    name: "Hill Giant",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Giant Growth", owner: "opp", zone: "hand" },
+                { name: "Forest", owner: "opp", zone: "battlefield" },
+            ],
+            phase: "DECLARE_ATTACKERS",
+            turn: 5,
+            libraryCount: 20,
+        },
+        // The Bears attacks, the Hill Giant blocks, and the attacker Bolts the
+        // blocker; the blocker's controller holds priority with the Bolt on the
+        // stack.
+        setup: [
+            { kind: "declare-attackers", cards: ["Grizzly Bears"] },
+            {
+                kind: "declare-blockers",
+                blocks: [{ blocker: "Hill Giant", attacker: "Grizzly Bears" }],
+            },
+            {
+                kind: "cast",
+                card: "Lightning Bolt",
+                by: "me",
+                target: "Hill Giant",
+            },
+        ],
+        bot: "opp",
+        budget: { iterations: 300 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "stretch",
+        expect: timingMeasurement({
+            kind: "cast-spell",
+            card: "Giant Growth",
+            target: "Hill Giant",
+        }),
+        note: "Issue #4765. Giant Growth in response makes the Hill Giant a 6/6: it survives the Bolt's 3 damage (CR 704.5g) and still kills the attacking Bears. Passing loses the blocker for nothing.",
     },
     {
         // MORPH — the face-down cast (CR 702.37a, issue #2705). Exalted Angel
