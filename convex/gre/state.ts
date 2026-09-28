@@ -20800,17 +20800,21 @@ function xSpendCostKey(colors: readonly Color[] | undefined): string | null {
  *  variable X is returned unchanged. `xSpendColors` is dropped with the X: it
  *  is rules text restricting the CASTER's payment (CR 601.2h), not a symbol
  *  of the mana cost. */
-function withAnnouncedX(cost: ManaCost, chosenX: number | undefined): ManaCost {
+function withAnnouncedX(
+    cost: CardManaCost,
+    chosenX: number | undefined
+): CardManaCost {
     if (typeof cost.X !== "string") return cost;
-    const {
-        X: _variable,
-        xFactor,
-        xSpendColors: _spend,
-        generic,
-        ...rest
-    } = cost;
-    const factor = typeof xFactor === "number" && xFactor > 0 ? xFactor : 1;
-    return { ...rest, X: (chosenX ?? 0) * factor + (generic ?? 0) };
+    const factor =
+        typeof cost.xFactor === "number" && cost.xFactor > 0 ? cost.xFactor : 1;
+    const fixed: CardManaCost = {
+        ...cost,
+        X: (chosenX ?? 0) * factor + (cost.generic ?? 0),
+    };
+    delete fixed.generic;
+    delete fixed.xFactor;
+    delete fixed.xSpendColors;
+    return fixed;
 }
 
 export function normalizeManaCost(
