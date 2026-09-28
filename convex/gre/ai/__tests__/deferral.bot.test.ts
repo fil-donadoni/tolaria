@@ -8,7 +8,8 @@
 // name. Impulse is an untargeted instant, Grizzly Bears a sorcery-speed body,
 // Lightning Bolt a targeted instant, Snapcaster Mage a flash body whose entering
 // trigger targets its own graveyard, Polluted Delta an untargeted stack
-// activation, and a flash Flametongue Kavu (a temporary definition) a flash
+// activation, Mishra's Factory a mana ability (it never uses the stack,
+// CR 605.3b), and a flash Flametongue Kavu (a temporary definition) a flash
 // body whose entering trigger can target an opposing creature.
 import { describe, expect, it } from "vitest";
 import { getCardByName, withTemporaryDefinition } from "../../../cards";
@@ -30,7 +31,10 @@ const SNAPCASTER = getCardByName("Snapcaster Mage").id;
 const DELTA = getCardByName("Polluted Delta").id;
 const KAVU = getCardByName("Flametongue Kavu");
 
+const FACTORY = getCardByName("Mishra's Factory").id;
+
 const DELTA_FETCH = "polluted-delta-fetch";
+const FACTORY_MANA = "mishras-factory-mana";
 
 function card(cardId: string, id: string, owner = "p1"): CardInstanceState {
     return makeInstance(cardId, {
@@ -98,11 +102,16 @@ describe("instant timing (CR 117.1a / 117.1b)", () => {
         expect(isDeferrableAction(state, "p1", cast("bears"))).toBe(false);
     });
 
-    it("admits a stack activation with no timing restriction", () => {
-        const state = board({ battlefield: [card(DELTA, "delta")] });
+    it("admits a stack activation with no timing restriction, refuses a mana ability", () => {
+        const state = board({
+            battlefield: [card(DELTA, "delta"), card(FACTORY, "factory")],
+        });
         expect(
             isDeferrableAction(state, "p1", activate("delta", DELTA_FETCH))
         ).toBe(true);
+        expect(
+            isDeferrableAction(state, "p1", activate("factory", FACTORY_MANA))
+        ).toBe(false);
     });
 
     it("refuses pass and a move kind it cannot read", () => {
