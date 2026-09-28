@@ -11,37 +11,83 @@
  *
  * A VANILLA permanent — no target, no ETB, nothing to choose — is the
  * SIMPLEST possible self-confined cast, yet it fell through that gate
- * entirely and was left to the bare tie-break with no rescue (issue #4785,
- * Sadistic Hypnotist: a +51-point settled margin lost to `pass` on the
- * subtree's rollout noise at issue #4764's refit). `isSelfConfinedVanillaPermanentCast`
- * closes that gap for exactly the no-choice case, reusing the SAME allowlisted
- * `resolved-payoff` mechanism rather than adding a new root rule.
+ * entirely and was left to the bare tie-break with no rescue (issue #4785).
+ * `isSelfConfinedVanillaPermanentCast` closes that gap, reusing the SAME
+ * allowlisted `resolved-payoff` mechanism rather than adding a new root rule
+ * — but only for NON-creatures: a creature is left to the search, exactly as
+ * `isSorcerySpeedPermanentCast`'s free-development class already does (issue
+ * #4070, "a beater held back can carry sequencing value"). The second test
+ * below pins that exclusion with the issue's OWN card, Sadistic Hypnotist —
+ * a creature whose only ability is a sacrifice outlet, structurally the same
+ * shape as Seal of Doom's sacrifice-for-removal outlet below, differing in
+ * nothing but `types`.
  */
 
 import { describe, expect, it } from "vitest";
 import { selectRootMove, type Edge, type Node } from "../../search";
 import { DEFAULT_EVAL_WEIGHTS } from "../evalWeights";
 import { enumerateMoves, type Move } from "../../moves";
-import { buildBladeState } from "../blade/runner";
-import { BLADE_SCENARIOS } from "../blade/registry";
+import { getCardByName } from "../../../cards";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../cards/__tests__/setup";
+import type { GameState } from "../../state";
 import type { RootDecisionMechanism } from "../decisionTelemetry";
 
 describe("resolved-payoff reaches a vanilla permanent cast (issue #4785)", () => {
-    // Sacrifice-for-discard outlet blade entry's own position: Sadistic
-    // Hypnotist in hand (only an `activatedAbilities[]` outlet — no
-    // triggered ability, no static/replacement effect, no target on the
-    // cast itself), five Swamps, a spare body on each side.
-    const scenario = BLADE_SCENARIOS.find(
-        (s) => s.label === "Sacrifice-for-discard outlet: casts the creature"
-    );
-    if (!scenario) throw new Error("blade entry not found — renamed?");
+    const SEAL = getCardByName("Seal of Doom").id; // {2}{B} enchantment, sac-only outlet, no ETB/target on cast
+    const HYPNOTIST = getCardByName("Sadistic Hypnotist").id; // {3}{B}{B} CREATURE, same sac-outlet shape
 
-    function position(): {
-        state: ReturnType<typeof buildBladeState>;
-        botId: string;
-    } {
-        const state = buildBladeState(scenario!);
-        return { state, botId: state.players[0].id };
+    /** `cardId` in hand, enough black-and-colourless mana on the battlefield
+     *  to cast either fixture (5 Swamps covers both costs), one spare body on
+     *  each side so the position is never an empty-board degenerate case. */
+    function position(cardId: string): { state: GameState; botId: string } {
+        const hand = [
+            makeInstance(cardId, {
+                id: "subject",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "hand",
+            }),
+        ];
+        const SWAMP = getCardByName("Swamp").id;
+        const BEARS = getCardByName("Grizzly Bears").id;
+        const battlefield = [
+            ...["s1", "s2", "s3", "s4", "s5"].map((id) =>
+                makeInstance(SWAMP, {
+                    id,
+                    controllerId: "p1",
+                    ownerId: "p1",
+                    zone: "battlefield",
+                })
+            ),
+            makeInstance(BEARS, {
+                id: "my-bear",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "battlefield",
+            }),
+        ];
+        const oppBattlefield = [
+            makeInstance(BEARS, {
+                id: "opp-bear",
+                controllerId: "p2",
+                ownerId: "p2",
+                zone: "battlefield",
+            }),
+        ];
+        const state = makeState({
+            phase: "PRECOMBAT_MAIN",
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            players: [
+                makePlayer("p1", { hand, battlefield }),
+                makePlayer("p2", { battlefield: oppBattlefield }),
+            ],
+        });
+        return { state, botId: "p1" };
     }
 
     /** A hand-built root with exactly two edges, rigged into the noise-pin
@@ -75,12 +121,15 @@ describe("resolved-payoff reaches a vanilla permanent cast (issue #4785)", () =>
         return { children };
     }
 
-    it("rescues the cast via `resolved-payoff` when the bare tie-break would settle on `pass`", () => {
-        const { state, botId } = position();
+    function pickedMechanism(cardId: string): {
+        moveKind: string;
+        mechanism?: RootDecisionMechanism;
+    } {
+        const { state, botId } = position(cardId);
         const moves = enumerateMoves(state, botId);
         const cast = moves.find((m) => m.kind === "cast-spell");
         const pass = moves.find((m) => m.kind === "pass");
-        expect(cast, "the position must offer the Hypnotist cast").toBeTruthy();
+        expect(cast, "the position must offer the cast").toBeTruthy();
         expect(pass, "the position must offer pass").toBeTruthy();
 
         const root = riggedRoot(cast!, pass!, botId);
@@ -95,8 +144,17 @@ describe("resolved-payoff reaches a vanilla permanent cast (issue #4785)", () =>
             undefined,
             out as { mechanism: RootDecisionMechanism }
         );
+        return { moveKind: picked.kind, mechanism: out.mechanism };
+    }
 
-        expect(picked.kind).toBe("cast-spell");
-        expect(out.mechanism).toBe("resolved-payoff");
+    it("rescues a NON-creature sacrifice-outlet cast (Seal of Doom) via `resolved-payoff`", () => {
+        const { moveKind, mechanism } = pickedMechanism(SEAL);
+        expect(moveKind).toBe("cast-spell");
+        expect(mechanism).toBe("resolved-payoff");
+    });
+
+    it("does NOT rescue the structurally-identical CREATURE shape (Sadistic Hypnotist) — left to the search, per issue #4070", () => {
+        const { moveKind } = pickedMechanism(HYPNOTIST);
+        expect(moveKind).toBe("pass");
     });
 });

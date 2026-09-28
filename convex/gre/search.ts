@@ -3798,25 +3798,38 @@ export function reachesOnlyOwnSideThroughChoice(
  *  its caster's control and nothing else, UNLESS something else happens as
  *  part of that resolution — a target, or a triggered ability (most commonly
  *  an ETB) that can read or touch the opponent's side. With neither, the
- *  resolution is provably self-confined without a probe at all. A LATER
- *  activated ability the permanent carries (Sadistic Hypnotist's sacrifice
- *  outlet) is not part of resolving THIS cast — it is a separate decision
- *  the tree already prices on its own turn, and the exchange-sacrifice
- *  exclusions (`isDiscardExchangeSacrifice` and its siblings) keep it out of
- *  the rollout noise this rule exists to see past.
+ *  resolution is provably self-confined without a probe at all.
  *
- *  Fails closed like every gate in this file: a triggered ability, a static
- *  effect (`staticEffects[]`, layer 7c/anthem-shaped — the printed clause need
- *  not say "you control", Containment Priest's redirect does not) or a
- *  replacement effect (`replacementEffects[]`, the SAME Containment Priest
- *  shape) each excludes the card, even one that turns out to touch only the
- *  mover's own side — and a target excludes it via `move.targets.length > 0`.
- *  An `activatedAbilities[]` / keyword `staticAbilities[]` entry does NOT
- *  exclude: neither fires as part of RESOLVING the cast (an activation is a
- *  separate later decision the tree prices on its own turn; a keyword like
- *  flying is an intrinsic property `evaluate`'s creature-quality terms already
- *  read). Per-card-agnostic: the check reads the definition's shape, never a
- *  card id. */
+ *  NOT creatures — deliberately, the same exclusion `isSorcerySpeedPermanentCast`
+ *  already makes for the free-development class below (issue #4070): "a
+ *  beater held back can carry sequencing value" is a claim about COMBAT
+ *  timing a static settled-margin snapshot cannot see, and `resolvedMarginDelta`
+ *  reads positive for almost any creature entering an empty-ish board — so
+ *  admitting creatures here would not add a narrow rescue, it would make
+ *  nearly every creature cast automatic whenever the tie-break ties it with
+ *  `pass`, overriding exactly the judgment #4070's five tests pin (a flash
+ *  permanent's hold-trick value, an opponent-activatable ability's reach, a
+ *  beater's sequencing value). MEASURED: admitting creatures reds all five.
+ *  A creature-shaped instance of this issue (Sadistic Hypnotist, a sacrifice
+ *  outlet with no combat text) is therefore left to the search / the verdict
+ *  corpus + weight fit (ADR 0124 "Verdicts → fit → report"), never a hand
+ *  rule — same reasoning `RootDecisionMechanism`'s freeze already enforces.
+ *
+ *  Fails closed otherwise, like every gate in this file: instant speed (a
+ *  flash permanent's hold-trick value, `hasInstantSpeed` /
+ *  `hasCardSelfFlashPermission`), an ability only an OPPONENT may activate
+ *  (real reach through the resolved permanent, `activatableByOpponentsOnly`),
+ *  a triggered ability, a static effect (`staticEffects[]`, layer
+ *  7c/anthem-shaped — the printed clause need not say "you control",
+ *  Containment Priest's redirect does not) or a replacement effect
+ *  (`replacementEffects[]`, the SAME Containment Priest shape) each excludes
+ *  the card — and a target excludes it via `move.targets.length > 0`. A
+ *  controller-only `activatedAbilities[]` / keyword `staticAbilities[]` entry
+ *  does NOT exclude: neither fires as part of RESOLVING the cast (an
+ *  activation is a separate later decision the tree prices on its own turn;
+ *  a keyword like flying is an intrinsic property `evaluate`'s
+ *  creature-quality terms already read). Per-card-agnostic: the check reads
+ *  the definition's shape, never a card id. */
 function isSelfConfinedVanillaPermanentCast(
     state: GameState,
     move: Move,
@@ -3825,10 +3838,20 @@ function isSelfConfinedVanillaPermanentCast(
     if (move.kind !== "cast-spell" || move.targets.length > 0) return false;
     const player = state.players.find((p) => p.id === botId);
     const card = player?.hand.find((c) => c.id === move.cardInstanceId);
-    if (!card) return false;
+    if (!card || isCreature(card)) return false;
+    if (hasInstantSpeed(card) || hasCardSelfFlashPermission(card)) {
+        return false;
+    }
     if (
         !card.types.some((t) =>
             (PERMANENT_TYPES as readonly string[]).includes(t)
+        )
+    ) {
+        return false;
+    }
+    if (
+        getEffectiveActivatedAbilities(card).some(
+            ({ ability: a }) => a.activatableByOpponentsOnly
         )
     ) {
         return false;
@@ -4714,18 +4737,31 @@ export function selectRootMove(
         ruleOn("resolved-payoff") &&
         best.move.kind === "pass"
     ) {
-        const payoff = pool.find(
-            (e) =>
-                e.move.kind === "cast-spell" &&
-                mean(e) >= bestMean - weights.outcomeEps &&
-                (reachesOnlyOwnSideThroughChoice(rootState, e.move, botId) ||
-                    isSelfConfinedVanillaPermanentCast(
-                        rootState,
-                        e.move,
-                        botId
-                    )) &&
-                resolvedMarginDelta(rootState, e.move, botId, weights) > 0
-        );
+        // Ranked by `meanMargin`, not `pool.find`'s first-match (issue #4785
+        // review finding): a card can announce several outcome-equal
+        // variants (a tap plan, a mode) that ALL qualify for the credit —
+        // Seal of Doom paying with one Mountain vs. the other, the same
+        // shape `free-development` below already ranks rather than takes
+        // first. Without the ranking here, `resolved-payoff` firing FIRST
+        // (deliberately, see ORDER above) would silently override that
+        // ranking with pool-insertion order.
+        let payoff: Edge | undefined;
+        for (const e of pool) {
+            if (e.move.kind !== "cast-spell") continue;
+            if (mean(e) < bestMean - weights.outcomeEps) continue;
+            if (
+                !(
+                    reachesOnlyOwnSideThroughChoice(rootState, e.move, botId) ||
+                    isSelfConfinedVanillaPermanentCast(rootState, e.move, botId)
+                )
+            ) {
+                continue;
+            }
+            if (resolvedMarginDelta(rootState, e.move, botId, weights) <= 0) {
+                continue;
+            }
+            if (!payoff || meanMargin(e) > meanMargin(payoff)) payoff = e;
+        }
         if (payoff) return finish(payoff, "resolved-payoff", payoff !== best);
     }
 
