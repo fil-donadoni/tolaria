@@ -384,8 +384,12 @@ describe("selectRootMove — hold an instant-speed activation (issue #1890)", ()
         // read as own-side and fall into the `last-window-deferral` hold
         // (issue #4757), a different rule from the one this block tests.
         const ZAP: Move = {
-            ...activation("tim", SORCERER_ZAP),
+            kind: "activate-ability",
+            cardInstanceId: "tim",
+            abilityId: SORCERER_ZAP,
             targets: [{ type: "player", id: "p2" }],
+            confirmTargets: false,
+            tapPlan: [],
         };
         const state = botAt("PRECOMBAT_MAIN", [perm(SORCERER, "tim")]);
         const root = rootOf([

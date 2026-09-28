@@ -31,11 +31,23 @@
 
 import { tryGetDefinition } from "../../cards";
 import type { EffectOp, TargetSelection } from "../../cards/types";
+import { cloneGameState } from "../clone";
 import { validateAttackerEligibility } from "../combat";
-import { hasInstantSpeed, isTapLockedBySummoningSickness } from "../constants";
+import {
+    hasInstantSpeed,
+    isCreature,
+    isTapLockedBySummoningSickness,
+} from "../constants";
+import { evaluateBreakdown } from "../evaluate";
+import { getEffectivePower, getEffectiveToughness } from "../layers";
 import type { Move } from "../moves";
 import { getLegalTargets, targetingSourceFromCard } from "../rules";
-import type { CardInstanceState, GameState } from "../state";
+import { applyMoveInSearch, policyProbeState } from "../search";
+import {
+    spendableManaTotal,
+    type CardInstanceState,
+    type GameState,
+} from "../state";
 import {
     effectiveAbilityOf,
     isDeferrableStackAbility,
@@ -61,7 +73,7 @@ export function isLastDeferralWindow(state: GameState, pid: string): boolean {
  * Is `move` a DEFERRABLE action for `pid` — one whose only question is WHEN,
  * because a later window offers the same action on the same board?
  *
- * Five clauses, all required:
+ * Six clauses, all required:
  *
  *  1. **Instant timing.** A cast of a card with instant speed
  *     (`hasInstantSpeed`: an Instant, or Flash — CR 117.1a / 702.8a), or an
@@ -94,6 +106,15 @@ export function isLastDeferralWindow(state: GameState, pid: string): boolean {
  *     is the last-window rule's own question (issue #4757): nothing, and
  *     {@link isTransientOnlyAction} is how it refuses to spend one there.
  *
+ *  6. **Nothing in between it would change** — {@link waitsUnchanged}, a
+ *     resolution probe (issue #4757). Clauses 2-5 read what the action NAMES;
+ *     this one reads what it DOES, and asks after the three things that lie
+ *     between now and the last window: the opponent's side (an untargeted
+ *     effect reaching it — the known limit clause 2 states), the step's mana
+ *     (a ritual's product empties with the step, CR 106.4 / 500.5), and, in
+ *     the mover's own turn before attackers are declared, the mover's own
+ *     attack (CR 508.1a — the general form of clause 5).
+ *
  * And one exclusion inside clause 1: an activation whose cost sacrifices
  * ANOTHER permanent (`cost.sacrificeFilter` — Zuran Orb's land, Sylvan
  * Safekeeper's) is a CONVERSION, and whether a land is worth two life is a
@@ -117,7 +138,8 @@ export function isDeferrableAction(
         const card = castCardOf(player, move.cardInstanceId);
         if (!card || !hasInstantSpeed(card)) return false;
         if (isPreAttackGrant(state, pid, move)) return false;
-        return reachesOnlyOwnSide(state, pid, move.targets, card);
+        if (!reachesOnlyOwnSide(state, pid, move.targets, card)) return false;
+        return waitsUnchanged(state, pid, move);
     }
     if (move.kind === "activate-ability") {
         const source = player.battlefield.find(
@@ -127,9 +149,105 @@ export function isDeferrableAction(
         const ability = effectiveAbilityOf(source, move.abilityId);
         if (!ability || !isDeferrableStackAbility(ability)) return false;
         if (ability.cost.sacrificeFilter !== undefined) return false;
-        return reachesOnlyOwnSide(state, pid, move.targets);
+        if (!reachesOnlyOwnSide(state, pid, move.targets)) return false;
+        return waitsUnchanged(state, pid, move);
     }
     return false;
+}
+
+/**
+ * Clause 6: does `move`, RESOLVED, leave untouched everything that happens
+ * between now and the last window — so that taking it there reaches the same
+ * board, which is the whole identical-vector argument (issue #4757)?
+ *
+ * Read off the resolution through the seams the search itself uses:
+ * `applyMoveInSearch`, then `policyProbeState` — the one-resolution probe the
+ * rollout policy scores, which resolves the action and settles it through a
+ * choice the mover owns when it can. Three readings, each a way the "same
+ * board later" premise fails:
+ *
+ *  - **The opponent's side moved.** Its evaluation terms (the `observed`
+ *    reading `evaluateBreakdown` makes) differ after the resolution: a sweep
+ *    that bounces its permanents with no target named, a mode that re-types
+ *    its lands. What the opponent does in between answers to that board, so
+ *    acting later is not the same act. This is clause 2's KNOWN LIMIT closed.
+ *  - **Mana was made.** The mover's spendable pool is larger after than
+ *    before: a ritual's product empties as the step ends (CR 106.4 / 500.5),
+ *    so its worth is the window it is made in — the `wasted-mana-hold` rule's
+ *    question, never a deferral.
+ *  - **The mover's own attack changed** — in the mover's own turn, before
+ *    attackers are declared (CR 508.1a): its creatures able to attack, or
+ *    their power and toughness, differ after the resolution. Counters on an
+ *    attacker, a hasty token copy, a grant that lets a body attack: their
+ *    last useful window is before the declaration, as clause 5 already says
+ *    of a haste grant, and the end step comes after it.
+ *
+ * FAIL-CLOSED where it can be: an action that cannot be simulated is not
+ * deferrable. KNOWN LIMIT, stated rather than hidden: a resolution the probe
+ * cannot settle through a mover's choice (Impulse's look-and-distribute has
+ * no candidate generator the settle can walk) is read at that choice, so an
+ * Op AFTER it is not seen. Refusing every such action instead would make the
+ * rule dead for the draw instants it exists for; the reach clause 2 reads off
+ * the announced targets still holds for them.
+ */
+function waitsUnchanged(state: GameState, pid: string, move: Move): boolean {
+    const before = sidesAround(state, pid);
+    if (!before) return false;
+    const probe = cloneGameState(state);
+    let settled: GameState;
+    try {
+        applyMoveInSearch(probe, pid, move);
+        settled = policyProbeState(probe, move, undefined, pid);
+    } catch {
+        return false;
+    }
+    const after = sidesAround(settled, pid);
+    if (!after) return false;
+    if (after.opponent !== before.opponent) return false;
+    if (after.pool > before.pool) return false;
+    return !attacksBeforeTheWait(state, pid) || after.roster === before.roster;
+}
+
+/** The three readings {@link waitsUnchanged} compares, as comparable values. */
+function sidesAround(
+    state: GameState,
+    pid: string
+): { opponent: string; pool: number; roster: string } | undefined {
+    const me = state.players.find((p) => p.id === pid);
+    if (!me) return undefined;
+    const defenders = state.players
+        .filter((p) => p.id !== pid)
+        .flatMap((p) => p.battlefield);
+    const roster = me.battlefield
+        .filter(
+            (c) =>
+                isCreature(c) &&
+                validateAttackerEligibility(c, defenders, state).eligible
+        )
+        .map(
+            (c) =>
+                `${c.id}:${getEffectivePower(state, c)}/${getEffectiveToughness(state, c)}`
+        )
+        .sort()
+        .join(",");
+    return {
+        opponent: JSON.stringify(evaluateBreakdown(state, pid).opp),
+        pool: spendableManaTotal(me),
+        roster,
+    };
+}
+
+/** The mover's own turn, before attackers are declared (CR 508.1a): its own
+ *  attack still lies between now and the last window. */
+function attacksBeforeTheWait(state: GameState, pid: string): boolean {
+    if (state.activePlayerId !== pid) return false;
+    if (state.combat) return false;
+    return (
+        state.phase === "UPKEEP" ||
+        state.phase === "DRAW" ||
+        state.phase === "PRECOMBAT_MAIN" ||
+        state.phase === "BEGINNING_OF_COMBAT"
+    );
 }
 
 /**

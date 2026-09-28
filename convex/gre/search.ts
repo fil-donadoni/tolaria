@@ -4683,6 +4683,16 @@ export function selectRootMove(
     // body crossing lethal, a needed blocker) out-rewards `pass` and never
     // reaches here. And never at the last window itself — there the FIRE half
     // at the end of this function takes over.
+    //
+    // It does NOT return: the held `pass` becomes the pick the rules below
+    // read, exactly as if the search had picked it. Two of them credit an
+    // outcome-equal action over `pass` with an argument the deferral does not
+    // make, and each keeps its own: `resolved-payoff`, a self-confined cast
+    // whose SETTLED resolution strictly pays (the owner's cheat-into-play
+    // verdict, cast in its own main), and `last-window-fire`'s pre-attack arm,
+    // a haste grant whose last useful window is before attackers (issue
+    // #4768) — the hold would otherwise swallow it when the robust pick was the
+    // same grant on a body that could already attack.
     if (
         rootState &&
         !!botId &&
@@ -4695,7 +4705,11 @@ export function selectRootMove(
                 e.move.kind === "pass" &&
                 mean(e) >= bestMean - weights.outcomeEps
         );
-        if (hold) return finish(hold, "last-window-deferral", hold !== best);
+        if (hold) {
+            flipped = hold !== best;
+            best = hold;
+            mechanism = "last-window-deferral";
+        }
     }
 
     // Standing-spend HOLD (issue #3319) — the MISSING HALF of the last-window

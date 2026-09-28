@@ -22,6 +22,8 @@ import type { CardInstanceState, GameState } from "../state";
 const IMPULSE = getCardByName("Impulse").id; // {1}{U} instant, lasting draw
 const GIANT_GROWTH = getCardByName("Giant Growth").id; // until-end-of-turn pump
 const GRIZZLY_BEARS = getCardByName("Grizzly Bears").id;
+const ISLAND = getCardByName("Island").id;
+const FOREST = getCardByName("Forest").id;
 
 const PASS: Move = { kind: "pass" };
 
@@ -53,6 +55,14 @@ function library(): CardInstanceState[] {
     );
 }
 
+/** Mana for the cast: the deferral perimeter RESOLVES the action (clause 6,
+ *  `ai/deferral.ts`), and an unpayable cast fails closed. */
+function lands(): CardInstanceState[] {
+    return ["isl0", "isl1", "for0"].map((id) =>
+        card(id.startsWith("isl") ? ISLAND : FOREST, id, "battlefield")
+    );
+}
+
 /** The bot is p1. `activePlayerId` decides whose turn it is. */
 function at(
     phase: GameState["phase"],
@@ -65,7 +75,11 @@ function at(
         activePlayerId,
         priorityPlayerId: "p1",
         players: [
-            makePlayer("p1", { hand, battlefield, library: library() }),
+            makePlayer("p1", {
+                hand,
+                battlefield: [...lands(), ...battlefield],
+                library: library(),
+            }),
             makePlayer("p2", { library: library() }),
         ],
     });
