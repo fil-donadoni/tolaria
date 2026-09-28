@@ -132,7 +132,18 @@ function opsAllTransient(effects: readonly EffectOp[]): boolean {
  *  principle of map #1254), and fail-closed at every step: an ability with an
  *  imperative `resolve()` (no script to read) is never called transient. */
 export function isTransientOnlyAbility(ability: ActivatedAbility): boolean {
-    return ability.effects !== undefined && opsAllTransient(ability.effects);
+    return (
+        ability.effects !== undefined && isTransientOnlyScript(ability.effects)
+    );
+}
+
+/** Whether a whole Effect Script expires this turn (CR 514.2 / 511.3) — the
+ *  script-level reading {@link isTransientOnlyAbility} makes of an activation,
+ *  exposed for a CAST's script too (the deferral perimeter, issue #4768).
+ *  Same fail-closed semantics: an empty or partly-lasting script is not
+ *  transient. */
+export function isTransientOnlyScript(effects: readonly EffectOp[]): boolean {
+    return opsAllTransient(effects);
 }
 
 /** Whether `ability`'s cost gives up a permanent that is STILL DOING ITS JOB

@@ -11,10 +11,17 @@
 // activation, Mishra's Factory a mana ability (it never uses the stack,
 // CR 605.3b), Zuran Orb a conversion (sacrifice a land: gain 2 life), and a
 // flash Flametongue Kavu (a temporary definition) a flash body whose entering
-// trigger can target an opposing creature.
+// trigger can target an opposing creature. Unnatural Speed is an instant
+// whose whole script is a haste grant until end of turn, Giant Growth one
+// whose whole script is a pump until end of turn, Wall of Stone a defender
+// (CR 702.3b: a creature with defender can't attack).
 import { describe, expect, it } from "vitest";
 import { getCardByName, withTemporaryDefinition } from "../../../cards";
-import { isDeferrableAction, isLastDeferralWindow } from "../deferral";
+import {
+    isDeferrableAction,
+    isLastDeferralWindow,
+    isPreAttackGrant,
+} from "../deferral";
 import { timingPairClassifier } from "../verdicts/evalPairs";
 import type { Move } from "../../moves";
 import type { CardInstanceState, GameState } from "../../state";
@@ -31,6 +38,9 @@ const BOLT = getCardByName("Lightning Bolt").id;
 const SNAPCASTER = getCardByName("Snapcaster Mage").id;
 const DELTA = getCardByName("Polluted Delta").id;
 const KAVU = getCardByName("Flametongue Kavu");
+const SPEED = getCardByName("Unnatural Speed").id;
+const GROWTH = getCardByName("Giant Growth").id;
+const WALL = getCardByName("Wall of Stone").id;
 
 const FACTORY = getCardByName("Mishra's Factory").id;
 const ORB = getCardByName("Zuran Orb").id;
@@ -263,6 +273,114 @@ describe("no attack declared (CR 508.1)", () => {
             },
         });
         expect(isDeferrableAction(attacked, "p1", cast("impulse"))).toBe(false);
+    });
+});
+
+describe("a pre-attack grant has no end-step window (CR 508.1a, issue #4768)", () => {
+    it("refuses a haste grant on the mover's own sick body before attackers", () => {
+        const sickBody = makeInstance(BEARS, {
+            id: "sick",
+            controllerId: "p1",
+            ownerId: "p1",
+            isSummoningSick: true,
+        });
+        const state = board({
+            hand: [card(SPEED, "speed"), card(GROWTH, "growth")],
+            battlefield: [sickBody],
+        });
+        const onSick = [{ type: "permanent" as const, id: "sick" }];
+        // Same board, same own-side target, same instant timing, both scripts
+        // ending this turn: only the grant's attack window separates them.
+        expect(isDeferrableAction(state, "p1", cast("growth", onSick))).toBe(
+            true
+        );
+        expect(isDeferrableAction(state, "p1", cast("speed", onSick))).toBe(
+            false
+        );
+    });
+});
+
+describe("a pre-attack grant (CR 508.1a / 302.6, issue #4768)", () => {
+    const sick = (id: string) =>
+        makeInstance(BEARS, {
+            id,
+            controllerId: "p1",
+            ownerId: "p1",
+            isSummoningSick: true,
+        });
+    const onto = (id: string) => cast("speed", [{ type: "permanent", id }]);
+
+    it("is a haste grant on the mover's own sick body before attackers", () => {
+        for (const phase of [
+            "PRECOMBAT_MAIN",
+            "BEGINNING_OF_COMBAT",
+        ] as const) {
+            const state = board({
+                hand: [card(SPEED, "speed")],
+                battlefield: [sick("sick")],
+                phase,
+                activePlayerId: "p1",
+            });
+            expect(isPreAttackGrant(state, "p1", onto("sick"))).toBe(true);
+        }
+    });
+
+    it("refuses a body that could already attack, or cannot attack at all", () => {
+        const tapped = { ...sick("tapped"), isTapped: true };
+        const wall = makeInstance(WALL, {
+            id: "wall",
+            controllerId: "p1",
+            ownerId: "p1",
+            isSummoningSick: true,
+        });
+        const state = board({
+            hand: [card(SPEED, "speed")],
+            battlefield: [card(BEARS, "ready"), tapped, wall],
+            oppBattlefield: [
+                makeInstance(BEARS, {
+                    id: "theirs",
+                    controllerId: "p2",
+                    ownerId: "p2",
+                    isSummoningSick: true,
+                }),
+            ],
+        });
+        expect(isPreAttackGrant(state, "p1", onto("ready"))).toBe(false);
+        expect(isPreAttackGrant(state, "p1", onto("tapped"))).toBe(false);
+        expect(isPreAttackGrant(state, "p1", onto("wall"))).toBe(false);
+        expect(isPreAttackGrant(state, "p1", onto("theirs"))).toBe(false);
+    });
+
+    it("refuses every window past the declaration, and the opponent's turn", () => {
+        const at = (phase: GameState["phase"], active: string) =>
+            isPreAttackGrant(
+                board({
+                    hand: [card(SPEED, "speed")],
+                    battlefield: [sick("sick")],
+                    phase,
+                    activePlayerId: active,
+                }),
+                "p1",
+                onto("sick")
+            );
+        expect(at("DECLARE_ATTACKERS", "p1")).toBe(false);
+        expect(at("POSTCOMBAT_MAIN", "p1")).toBe(false);
+        expect(at("PRECOMBAT_MAIN", "p2")).toBe(false);
+    });
+
+    it("refuses a this-turn script that grants no haste", () => {
+        // A pump expires this turn too; it enables no attack.
+        const state = board({
+            hand: [card(GROWTH, "growth")],
+            battlefield: [sick("sick")],
+        });
+        expect(
+            isPreAttackGrant(
+                state,
+                "p1",
+                cast("growth", [{ type: "permanent", id: "sick" }])
+            )
+        ).toBe(false);
     });
 });
 
