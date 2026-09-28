@@ -65,6 +65,16 @@ export function isLastDeferralWindow(state: GameState, pid: string): boolean {
  *     responses are the search's).
  *  4. **No attack declared** (CR 506.1 / 508.1) — a combat trick's window is
  *     combat itself; that is the search's too.
+ *
+ * And one exclusion inside clause 1: an activation whose cost sacrifices
+ * ANOTHER permanent (`cost.sacrificeFilter` — Zuran Orb's land, Sylvan
+ * Safekeeper's) is a CONVERSION, and whether a land is worth two life is a
+ * question of WHAT, not when. It is the question the last-window FIRE rule
+ * asks the evaluation (`firingBeatsHolding`, issue #2939), so the pairs that
+ * price it must stay in the fit: measured, routing them out moved
+ * `manaWeight` far enough that a land-for-two-life conversion read as paying
+ * and the engine stopped being held. A source that sacrifices ITSELF (a
+ * fetchland, `cost.sacrifice`) converts nothing else and stays in.
  */
 export function isDeferrableAction(
     state: GameState,
@@ -87,6 +97,7 @@ export function isDeferrableAction(
         if (!source) return false;
         const ability = effectiveAbilityOf(source, move.abilityId);
         if (!ability || !isDeferrableStackAbility(ability)) return false;
+        if (ability.cost.sacrificeFilter !== undefined) return false;
         return reachesOnlyOwnSide(state, pid, move.targets);
     }
     return false;
