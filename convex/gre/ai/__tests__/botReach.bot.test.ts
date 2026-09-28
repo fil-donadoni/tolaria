@@ -11,7 +11,11 @@ import type {
     CardType,
     EffectSignedValue,
 } from "../../../cards/types";
-import { decidingPlayer } from "../../search";
+import { applyMoveInSearch, decidingPlayer, policyValue } from "../../search";
+import { cloneGameState } from "../../clone";
+import type { GameState } from "../../state";
+import { DEFAULT_EVAL_WEIGHTS } from "../evalWeights";
+import type { Move } from "../../moves";
 import { enumerateMoves } from "../../moves";
 import { attackEdictPosition, flashAmbushPosition } from "../botReachTarget";
 import {
@@ -477,6 +481,56 @@ describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
             expect(playTwice(getCardByName(name)), name).toEqual({
                 outcome: "played",
             });
+        }
+    });
+
+    // Issue #4773 — the verdict above held for Armageddon only by rollout
+    // noise: at 1 ply `pass` beat the cast by ~50 points, because the sweep
+    // sat in hand at one representative victim's worth while the land surplus
+    // it takes is worth less. The greedy policy is the claim that does not
+    // depend on the budget: with the opponent ahead in the swept type, the
+    // cast reads as a gain for every destroyed kind.
+    it("a destroying sweep with the opponent ahead beats pass at 1 ply", () => {
+        const valueOf = (
+            state: GameState,
+            holderId: string,
+            move: Move
+        ): number => {
+            const probe = cloneGameState(state);
+            applyMoveInSearch(probe, holderId, move);
+            return policyValue(
+                probe,
+                holderId,
+                move,
+                DEFAULT_EVAL_WEIGHTS,
+                holderId
+            );
+        };
+        for (const name of [
+            "Day of Judgment",
+            "Tranquility",
+            "Armageddon",
+        ] as const) {
+            for (const seat of [0, 1] as const) {
+                for (const window of REACH_WINDOWS) {
+                    const { state, holderId, instanceId } = buildBotReachState(
+                        getCardByName(name),
+                        seat,
+                        window
+                    );
+                    const moves = enumerateMoves(state, holderId);
+                    const pass = moves.find((m) => m.kind === "pass")!;
+                    const cast = moves.find(
+                        (m) =>
+                            m.kind === "cast-spell" &&
+                            m.cardInstanceId === instanceId
+                    )!;
+                    expect(
+                        valueOf(state, holderId, cast),
+                        `${name} seat ${seat} ${window}`
+                    ).toBeGreaterThan(valueOf(state, holderId, pass));
+                }
+            }
         }
     });
 

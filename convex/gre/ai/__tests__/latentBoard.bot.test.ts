@@ -11,6 +11,8 @@
 // what the search's leaf reads. A test that valued a synthetic `OpValue` would
 // pass on a lens nothing wires up.
 import { describe, expect, it } from "vitest";
+import { withTemporaryDefinition } from "../../../cards/registry";
+import type { CardDefinition } from "../../../cards/types";
 import {
     makeInstance,
     makePlayer,
@@ -24,7 +26,11 @@ import {
     targetSlotRequirements,
 } from "../latentBoard";
 import { shivanDragon, stoneRain } from "../../../cards/sets/lea/red";
-import { disenchant, swordsToPlowshares } from "../../../cards/sets/lea/white";
+import {
+    armageddon,
+    disenchant,
+    swordsToPlowshares,
+} from "../../../cards/sets/lea/white";
 import { llanowarElves } from "../../../cards/sets/lea/green";
 import { blackLotus, forest } from "../../../cards/sets/lea/colorless";
 import { forceOfVigor } from "../../../cards/sets/mh1/green";
@@ -226,5 +232,122 @@ describe("latent removal value follows the board (issue #3398)", () => {
             ],
         });
         expect(evaluateBreakdown(state, "p1").self.hand).toBe(0);
+    });
+});
+
+/** p1 holds `handCardId` and controls `ownBoard`; p2 controls `oppBoard`. */
+function latentAgainst(
+    handCardId: string,
+    ownBoard: readonly string[],
+    oppBoard: readonly string[]
+): number {
+    const on = (pid: string, ids: readonly string[]) =>
+        ids.map((id) => makeInstance(id, { controllerId: pid, ownerId: pid }));
+    const handCard = makeInstance(handCardId, {
+        controllerId: "p1",
+        ownerId: "p1",
+        zone: "hand",
+    });
+    const state = makeState({
+        players: [
+            makePlayer("p1", {
+                hand: [handCard],
+                battlefield: on("p1", ownBoard),
+            }),
+            makePlayer("p2", { battlefield: on("p2", oppBoard) }),
+        ],
+    });
+    return evaluateBreakdown(state, "p1").self.hand;
+}
+
+describe("a sweep's latent value is the surplus it takes (issue #4773)", () => {
+    // CR 701.8a — a symmetric destroy sweep moves the caster's own members to the
+    // graveyard too. Priced at ONE representative victim whatever the board
+    // held, Armageddon sat in hand above the land surplus it would take, and
+    // casting it a land behind read as a loss at 1 ply.
+    const units = (n: number) =>
+        DEFAULT_EVAL_WEIGHTS.latent.boardRemoval *
+        ((n * LAND_ON_BOARD) / representativeVictimLoss(DEFAULT_EVAL_WEIGHTS));
+
+    it("is the opponent's land surplus, net of the caster's own lands", () => {
+        expect(
+            latentAgainst(
+                armageddon.id,
+                [forest.id],
+                [forest.id, forest.id, forest.id]
+            )
+        ).toBeCloseTo(units(2), 6);
+    });
+
+    it("is ZERO on a symmetric board, and never negative when the caster is ahead", () => {
+        expect(
+            latentAgainst(
+                armageddon.id,
+                [forest.id, forest.id],
+                [forest.id, forest.id]
+            )
+        ).toBe(0);
+        expect(
+            latentAgainst(
+                armageddon.id,
+                [forest.id, forest.id, forest.id],
+                [forest.id]
+            )
+        ).toBe(0);
+    });
+
+    const sweep = (
+        id: string,
+        filter: Record<string, unknown>
+    ): CardDefinition => ({
+        id: `latent-board-test:${id}`,
+        name: `Latent Board ${id}`,
+        rarity: "common",
+        manaCost: { W: 1, generic: 3 },
+        types: ["Sorcery"],
+        effects: [
+            {
+                op: "forEach",
+                select: { set: "permanents", zone: "battlefield", filter },
+                effects: [{ op: "destroy", target: { ref: "$each" } }],
+            },
+        ],
+    });
+
+    it("reads an excludeType filter: everything but lands, net", () => {
+        const nonland = sweep("nonland", { excludeType: "Land" });
+        withTemporaryDefinition(nonland, () => {
+            expect(
+                latentAgainst(nonland.id, [forest.id], [forest.id, forest.id])
+            ).toBe(0);
+            expect(
+                latentAgainst(nonland.id, [], [llanowarElves.id])
+            ).toBeGreaterThan(0);
+        });
+    });
+
+    it("keeps the representative valuation for a filter it cannot match exactly", () => {
+        // A subtype is not read: counting every Forest as a Goblin, or none,
+        // would both be guesses. The board-free price stands on every board.
+        const goblins = sweep("goblins", { subtype: "Goblin" });
+        withTemporaryDefinition(goblins, () => {
+            const empty = latentAgainst(goblins.id, [], []);
+            expect(empty).toBeGreaterThan(0);
+            expect(latentAgainst(goblins.id, [forest.id, forest.id], [])).toBe(
+                empty
+            );
+        });
+    });
+
+    it("counts only the swept type", () => {
+        // A land sweep takes nothing from an opponent whose surplus is a
+        // creature: the Shivan Dragon is not a member.
+        expect(
+            latentAgainst(
+                armageddon.id,
+                [forest.id],
+                [forest.id, shivanDragon.id]
+            )
+        ).toBe(0);
     });
 });

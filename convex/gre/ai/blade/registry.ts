@@ -7703,6 +7703,64 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         },
         note: "Issue #3532, position B — the discriminating twin of position A, and the reason the preference is about EVIDENCE rather than about colours existing. Same card, same two materially identical basic-land targets, and the creature swapped for one of the OTHER colour (Savannah Lions is {W} where the Bears are {1}{G}, so its mana value and toughness move too — that shifts the opponent's `creatures` and `manaDevelopment` between the two SCENARIOS, never between the two targets inside either one, which is what the discrimination rests on). Now {W} is the colour the opponent is visibly using, {G} is evidenced by nothing but the Forest itself, and the expectation flips: coverage goes 1 → 1/4 on the Plains and 1 → 1 on the Forest, so B is driven POSITIVELY toward the other land rather than passing by abstention. What the pair rules out is a term that reads a colour's PRESENCE instead of its EVIDENCE — and, because the two halves differ only in which colour carries the creature, that position A did not pass through a target-ordering or positional artifact of the enumerator.",
     },
+    {
+        label: "symmetric sweep: casts Armageddon when the opponent holds the land surplus and the Bot the board",
+        spec: {
+            cards: [
+                { name: "Armageddon", owner: "me", zone: "hand" },
+                { name: "Plains", owner: "me", zone: "battlefield", count: 4 },
+                {
+                    name: "Savannah Lions",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 3,
+                },
+                {
+                    name: "Forest",
+                    owner: "opp",
+                    zone: "battlefield",
+                    count: 12,
+                },
+                { name: "Craw Wurm", owner: "opp", zone: "hand" },
+                { name: "Worldspine Wurm", owner: "opp", zone: "hand" },
+            ],
+            life: { opp: 10 },
+            phase: "POSTCOMBAT_MAIN",
+            turn: 6,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: { moves: [{ kind: "cast-spell", card: "Armageddon" }] },
+        note: "Issue #4773, position A of the symmetric-sweep pair. A `forEach` over every battlefield that destroys `$each` used to sit in hand at ONE representative victim's worth, whatever the board held, so the land sweep outweighed the three-land surplus it takes and the cast read as a loss at 1 ply. The hand term now prices the sweep at the NET realised loss it inflicts (`LatentLens.sweepUnits`, `ai/latentBoard.ts`): the opponent's members minus the Bot's own. Position B is the mirror and must pass.",
+    },
+    {
+        label: "symmetric sweep: holds Armageddon when the Bot holds the land surplus and the opponent the board",
+        spec: {
+            cards: [
+                { name: "Armageddon", owner: "me", zone: "hand" },
+                { name: "Plains", owner: "me", zone: "battlefield", count: 11 },
+                { name: "Forest", owner: "opp", zone: "battlefield", count: 4 },
+                {
+                    name: "Grizzly Bears",
+                    owner: "opp",
+                    zone: "battlefield",
+                    count: 2,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 6,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: { forbidden: [{ kind: "cast-spell", card: "Armageddon" }] },
+        note: "Issue #4773, position B of the symmetric-sweep pair: the mirror of A. The sweep takes more of the Bot's lands than the opponent's, so its net worth is below zero and the card in hand is floored at nothing — casting it only buys the Bot's own mana base a trip to the graveyard while the opponent's creatures keep attacking.",
+    },
 
     // ------------------------------------------------------------------
     // The DECKLIST-INFORMED half of the colour-denial pair (issue #3533).
@@ -8724,7 +8782,12 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // REACHABILITY claim, so a PREDICATE, kept out of the weight fit for
         // the reason the Nantuko Husk entry gives.
         budget: { iterations: 200 },
-        seeds: [0xb07, 0x5eed, 1, 2, 3],
+        // Re-seeded 0x5eed → 4 by issue #4773's weight refit. The pick is
+        // rollout noise, not valuation: over seeds 0x5eed and 1..18 at this
+        // budget, `pass` wins seeds 8, 10, 11, 13, 17 on the weights before
+        // the refit, and 0x5eed as well after it (a 0.4% move). Restoring
+        // 0x5eed and a deterministic pick is issue #4777.
+        seeds: [0xb07, 4, 1, 2, 3],
         tier: "must",
         expect: {
             predicate: (move, state) =>

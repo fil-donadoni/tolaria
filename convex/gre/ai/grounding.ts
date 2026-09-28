@@ -58,7 +58,18 @@ export interface LatentLens {
      *  empty board is worth nothing, which is the case the old fixed constant
      *  got most wrong. */
     victimUnits(slot: number): number | undefined;
-    /** True once `victimUnits` has ANSWERED at least one slot off a REAL
+    /** Issue #4773 — units of `boardRemoval` a `forEach` over the battlefield
+     *  takes off the board NET for the caster: the realised loss of every
+     *  member the caster's opponents control, minus every member the caster
+     *  controls, over the representative victim's. A symmetric sweep takes
+     *  the caster's own members too (CR 701.8a destroy, CR 701.13a exile),
+     *  so what it is worth in hand is the SURPLUS it takes,
+     *  never one representative victim. `undefined` when no board is attached
+     *  or the selector is not one the lens can read (the valuer then keeps the
+     *  representative-count valuation); negative when the caster would lose
+     *  more than the opponents. */
+    sweepUnits(select: EffectForEachSelector): number | undefined;
+    /** True once `victimUnits` or `sweepUnits` has ANSWERED at least one slot off a REAL
      *  board — i.e. this script's board-affecting worth is MEASURED, not
      *  assumed from a representative victim.
      *
@@ -77,7 +88,12 @@ export interface LatentLens {
 export function contextFreeLatentLens(
     weights: LatentWeights = DEFAULT_EVAL_WEIGHTS.latent
 ): LatentLens {
-    return { weights, victimUnits: () => undefined, measured: () => false };
+    return {
+        weights,
+        victimUnits: () => undefined,
+        sweepUnits: () => undefined,
+        measured: () => false,
+    };
 }
 
 /** Price one unit of `feature` under `ctx`'s latent lens — the single read
