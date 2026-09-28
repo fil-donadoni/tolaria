@@ -24,7 +24,11 @@ import {
     targetSlotRequirements,
 } from "../latentBoard";
 import { shivanDragon, stoneRain } from "../../../cards/sets/lea/red";
-import { disenchant, swordsToPlowshares } from "../../../cards/sets/lea/white";
+import {
+    armageddon,
+    disenchant,
+    swordsToPlowshares,
+} from "../../../cards/sets/lea/white";
 import { llanowarElves } from "../../../cards/sets/lea/green";
 import { blackLotus, forest } from "../../../cards/sets/lea/colorless";
 import { forceOfVigor } from "../../../cards/sets/mh1/green";
@@ -226,5 +230,79 @@ describe("latent removal value follows the board (issue #3398)", () => {
             ],
         });
         expect(evaluateBreakdown(state, "p1").self.hand).toBe(0);
+    });
+});
+
+/** p1 holds `handCardId` and controls `ownBoard`; p2 controls `oppBoard`. */
+function latentAgainst(
+    handCardId: string,
+    ownBoard: readonly string[],
+    oppBoard: readonly string[]
+): number {
+    const on = (pid: string, ids: readonly string[]) =>
+        ids.map((id) => makeInstance(id, { controllerId: pid, ownerId: pid }));
+    const handCard = makeInstance(handCardId, {
+        controllerId: "p1",
+        ownerId: "p1",
+        zone: "hand",
+    });
+    const state = makeState({
+        players: [
+            makePlayer("p1", {
+                hand: [handCard],
+                battlefield: on("p1", ownBoard),
+            }),
+            makePlayer("p2", { battlefield: on("p2", oppBoard) }),
+        ],
+    });
+    return evaluateBreakdown(state, "p1").self.hand;
+}
+
+describe("a sweep's latent value is the surplus it takes (issue #4773)", () => {
+    // CR 701.8a — a symmetric sweep moves the caster's own members to the
+    // graveyard too. Priced at ONE representative victim whatever the board
+    // held, Armageddon sat in hand above the land surplus it would take, and
+    // casting it a land behind read as a loss at 1 ply.
+    const units = (n: number) =>
+        DEFAULT_EVAL_WEIGHTS.latent.boardRemoval *
+        ((n * LAND_ON_BOARD) / representativeVictimLoss(DEFAULT_EVAL_WEIGHTS));
+
+    it("is the opponent's land surplus, net of the caster's own lands", () => {
+        expect(
+            latentAgainst(
+                armageddon.id,
+                [forest.id],
+                [forest.id, forest.id, forest.id]
+            )
+        ).toBeCloseTo(units(2), 6);
+    });
+
+    it("is ZERO on a symmetric board, and never negative when the caster is ahead", () => {
+        expect(
+            latentAgainst(
+                armageddon.id,
+                [forest.id, forest.id],
+                [forest.id, forest.id]
+            )
+        ).toBe(0);
+        expect(
+            latentAgainst(
+                armageddon.id,
+                [forest.id, forest.id, forest.id],
+                [forest.id]
+            )
+        ).toBe(0);
+    });
+
+    it("counts only the swept type", () => {
+        // A land sweep takes nothing from an opponent whose surplus is a
+        // creature: the Shivan Dragon is not a member.
+        expect(
+            latentAgainst(
+                armageddon.id,
+                [forest.id],
+                [forest.id, shivanDragon.id]
+            )
+        ).toBe(0);
     });
 });
