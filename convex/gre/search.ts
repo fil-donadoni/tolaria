@@ -165,7 +165,7 @@ import {
     isTransientOnlyAbility,
     spendsStandingPermanent,
 } from "./ai/abilityTiming";
-import { isLastDeferralWindow } from "./ai/deferral";
+import { isLastDeferralWindow, isPreAttackGrant } from "./ai/deferral";
 import { abilityBenefitIsConfinedToSource } from "./ai/sourceConfinedBenefit";
 import { abilityIsDiscardExchange } from "./ai/discardExchange";
 import { abilityIsDrainExchange } from "./ai/drainExchange";
@@ -4777,20 +4777,39 @@ export function selectRootMove(
     // Sylvan Safekeeper class (#2422/#2938) this rule exists to refuse. A
     // response window is not this rule's business anyway; the HOLD rule above
     // makes the same exclusion for the same reason.
+    //
+    // The PRE-ATTACK window (issue #4768) is the same rule for an action whose
+    // last useful window comes EARLIER than the opponent's end step: a haste
+    // grant on the bot's own summoning-sick body (`isPreAttackGrant`, CR
+    // 508.1a / 302.6). Its windows are the bot's own precombat main and
+    // beginning of combat, one window for this action — casting in either
+    // reaches the same board at the declaration (CR 508.1, no priority before
+    // it) — and past them it buys nothing. The identical-vector argument is the
+    // one above: the `pass` edge's subtree contains the same grant one window
+    // later, so `meanMargin` measures rollout noise — MEASURED on the blade
+    // `must` entry "boon on own creature: casts the haste grant" (seeds 0..19
+    // at 200 iterations), the material tie-break picked `pass` on seeds 1, 13
+    // and 14 although the grant out-meant it on all three. No
+    // `firingBeatsHolding` gate: the immediate position cannot see the grant
+    // (an until-end-of-turn keyword moves no permanent material) — its whole
+    // worth is the attack, which only the search's mean reward prices, and the
+    // outcome-equal gate below already requires that.
 
     if (
         rootState &&
         !!botId &&
         rootState.stack.length === 0 &&
         ruleOn("last-window-fire") &&
-        best.move.kind === "pass" &&
-        isLastDeferralWindow(rootState, botId)
+        best.move.kind === "pass"
     ) {
+        const atEndStep = isLastDeferralWindow(rootState, botId);
         const fire = pool.find(
             (e) =>
                 mean(e) >= bestMean - weights.outcomeEps &&
-                isDeferredEngineActivation(rootState, botId, e.move) &&
-                firingBeatsHolding(rootState, botId, e.move, weights)
+                ((atEndStep &&
+                    isDeferredEngineActivation(rootState, botId, e.move) &&
+                    firingBeatsHolding(rootState, botId, e.move, weights)) ||
+                    isPreAttackGrant(rootState, botId, e.move))
         );
         if (fire) return finish(fire, "last-window-fire", fire !== best);
     }

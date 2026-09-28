@@ -11,10 +11,15 @@
 // activation, Mishra's Factory a mana ability (it never uses the stack,
 // CR 605.3b), Zuran Orb a conversion (sacrifice a land: gain 2 life), and a
 // flash Flametongue Kavu (a temporary definition) a flash body whose entering
-// trigger can target an opposing creature.
+// trigger can target an opposing creature. Unnatural Speed is an instant
+// whose whole script is a haste grant until end of turn.
 import { describe, expect, it } from "vitest";
 import { getCardByName, withTemporaryDefinition } from "../../../cards";
-import { isDeferrableAction, isLastDeferralWindow } from "../deferral";
+import {
+    isDeferrableAction,
+    isLastDeferralWindow,
+    isPreAttackGrant,
+} from "../deferral";
 import { timingPairClassifier } from "../verdicts/evalPairs";
 import type { Move } from "../../moves";
 import type { CardInstanceState, GameState } from "../../state";
@@ -31,6 +36,7 @@ const BOLT = getCardByName("Lightning Bolt").id;
 const SNAPCASTER = getCardByName("Snapcaster Mage").id;
 const DELTA = getCardByName("Polluted Delta").id;
 const KAVU = getCardByName("Flametongue Kavu");
+const SPEED = getCardByName("Unnatural Speed").id;
 
 const FACTORY = getCardByName("Mishra's Factory").id;
 const ORB = getCardByName("Zuran Orb").id;
@@ -263,6 +269,100 @@ describe("no attack declared (CR 508.1)", () => {
             },
         });
         expect(isDeferrableAction(attacked, "p1", cast("impulse"))).toBe(false);
+    });
+});
+
+describe("a this-turn effect has no end-step window (CR 514.2, issue #4768)", () => {
+    it("refuses a cast whose whole script ends at this turn's cleanup", () => {
+        const state = board({
+            hand: [card(SPEED, "speed"), card(BOLT, "bolt")],
+            battlefield: [card(BEARS, "mine")],
+        });
+        const onMine = [{ type: "permanent" as const, id: "mine" }];
+        // Same board, same own-side target, same instant timing: only the
+        // script's duration separates them.
+        expect(isDeferrableAction(state, "p1", cast("bolt", onMine))).toBe(
+            true
+        );
+        expect(isDeferrableAction(state, "p1", cast("speed", onMine))).toBe(
+            false
+        );
+    });
+});
+
+describe("a pre-attack grant (CR 508.1a / 302.6, issue #4768)", () => {
+    const sick = (id: string) =>
+        makeInstance(BEARS, {
+            id,
+            controllerId: "p1",
+            ownerId: "p1",
+            isSummoningSick: true,
+        });
+    const onto = (id: string) => cast("speed", [{ type: "permanent", id }]);
+
+    it("is a haste grant on the mover's own sick body before attackers", () => {
+        for (const phase of [
+            "PRECOMBAT_MAIN",
+            "BEGINNING_OF_COMBAT",
+        ] as const) {
+            const state = board({
+                hand: [card(SPEED, "speed")],
+                battlefield: [sick("sick")],
+                phase,
+                activePlayerId: "p1",
+            });
+            expect(isPreAttackGrant(state, "p1", onto("sick"))).toBe(true);
+        }
+    });
+
+    it("refuses a body that could already attack, or cannot attack at all", () => {
+        const tapped = { ...sick("tapped"), isTapped: true };
+        const state = board({
+            hand: [card(SPEED, "speed")],
+            battlefield: [card(BEARS, "ready"), tapped],
+            oppBattlefield: [
+                makeInstance(BEARS, {
+                    id: "theirs",
+                    controllerId: "p2",
+                    ownerId: "p2",
+                    isSummoningSick: true,
+                }),
+            ],
+        });
+        expect(isPreAttackGrant(state, "p1", onto("ready"))).toBe(false);
+        expect(isPreAttackGrant(state, "p1", onto("tapped"))).toBe(false);
+        expect(isPreAttackGrant(state, "p1", onto("theirs"))).toBe(false);
+    });
+
+    it("refuses every window past the declaration, and the opponent's turn", () => {
+        const at = (phase: GameState["phase"], active: string) =>
+            isPreAttackGrant(
+                board({
+                    hand: [card(SPEED, "speed")],
+                    battlefield: [sick("sick")],
+                    phase,
+                    activePlayerId: active,
+                }),
+                "p1",
+                onto("sick")
+            );
+        expect(at("DECLARE_ATTACKERS", "p1")).toBe(false);
+        expect(at("POSTCOMBAT_MAIN", "p1")).toBe(false);
+        expect(at("PRECOMBAT_MAIN", "p2")).toBe(false);
+    });
+
+    it("refuses a script that grants no haste", () => {
+        const state = board({
+            hand: [card(BOLT, "bolt")],
+            battlefield: [sick("sick")],
+        });
+        expect(
+            isPreAttackGrant(
+                state,
+                "p1",
+                cast("bolt", [{ type: "permanent", id: "sick" }])
+            )
+        ).toBe(false);
     });
 });
 

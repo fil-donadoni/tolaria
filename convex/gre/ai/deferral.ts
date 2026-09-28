@@ -25,12 +25,20 @@
 // might reach — answers `false`.
 
 import { tryGetDefinition } from "../../cards";
-import type { TargetSelection } from "../../cards/types";
-import { hasInstantSpeed } from "../constants";
+import type { EffectOp, TargetSelection } from "../../cards/types";
+import {
+    hasInstantSpeed,
+    isCreature,
+    isTapLockedBySummoningSickness,
+} from "../constants";
 import type { Move } from "../moves";
 import { getLegalTargets, targetingSourceFromCard } from "../rules";
 import type { CardInstanceState, GameState } from "../state";
-import { effectiveAbilityOf, isDeferrableStackAbility } from "./abilityTiming";
+import {
+    effectiveAbilityOf,
+    isDeferrableStackAbility,
+    isTransientOnlyScript,
+} from "./abilityTiming";
 
 /** Whether `pid` is at the LAST priority window of this turn cycle in which
  *  deferring still costs nothing — the opponent's end step (CR 513.1, issue
@@ -50,7 +58,7 @@ export function isLastDeferralWindow(state: GameState, pid: string): boolean {
  * Is `move` a DEFERRABLE action for `pid` — one whose only question is WHEN,
  * because a later window offers the same action on the same board?
  *
- * Four clauses, all required:
+ * Five clauses, all required:
  *
  *  1. **Instant timing.** A cast of a card with instant speed
  *     (`hasInstantSpeed`: an Instant, or Flash — CR 117.1a / 702.8a), or an
@@ -65,6 +73,15 @@ export function isLastDeferralWindow(state: GameState, pid: string): boolean {
  *     responses are the search's).
  *  4. **No attack declared** (CR 506.1 / 508.1) — a combat trick's window is
  *     combat itself; that is the search's too.
+ *  5. **Not a this-turn effect** (issue #4768). A script whose every effect
+ *     ends at this turn's cleanup or end of combat (CR 514.2 / 511.3 —
+ *     `isTransientOnlyScript`) has no "same action on the same board" at the
+ *     opponent's end step: held that long it expires in that same cleanup
+ *     having done nothing. Its last USEFUL window is inside this turn's
+ *     combat — for a haste grant, before attackers are declared (CR 508.1a /
+ *     302.6, {@link isPreAttackGrant}) — so its timing is the search's, and
+ *     the root rule that makes the bot wait for the end step must never hold
+ *     it.
  *
  * And one exclusion inside clause 1: an activation whose cost sacrifices
  * ANOTHER permanent (`cost.sacrificeFilter` — Zuran Orb's land, Sylvan
@@ -88,6 +105,7 @@ export function isDeferrableAction(
     if (move.kind === "cast-spell") {
         const card = castCardOf(player, move.cardInstanceId);
         if (!card || !hasInstantSpeed(card)) return false;
+        if (expiresThisTurn(castScriptOf(card))) return false;
         return reachesOnlyOwnSide(state, pid, move.targets, card);
     }
     if (move.kind === "activate-ability") {
@@ -98,9 +116,106 @@ export function isDeferrableAction(
         const ability = effectiveAbilityOf(source, move.abilityId);
         if (!ability || !isDeferrableStackAbility(ability)) return false;
         if (ability.cost.sacrificeFilter !== undefined) return false;
+        if (expiresThisTurn(ability.effects)) return false;
         return reachesOnlyOwnSide(state, pid, move.targets);
     }
     return false;
+}
+
+/**
+ * Is `move` a PRE-ATTACK GRANT for `pid` — an own-side haste grant whose whole
+ * worth is the attack it enables THIS turn, taken in the last windows before
+ * that attack is declared (issue #4768)?
+ *
+ * The timing, printed rather than recalled: attackers are declared as the
+ * first act of the declare attackers step, a turn-based action with no
+ * priority before it (CR 508.1), and each attacker "must either have haste or
+ * have been controlled by the active player continuously since the turn
+ * began" (CR 508.1a, 302.6, 702.10b). The grant lasts "until end of turn"
+ * (CR 514.2). So the grant's useful windows are the active player's own
+ * precombat main phase and beginning of combat step (CR 507.2 gives priority
+ * there) — and they are ONE window for this action: nothing but priority
+ * passes lies between them, so casting in either reaches the same board at the
+ * declaration. Past it the grant buys nothing (the {T}-ability half of
+ * CR 302.6 is left to the search: this predicate answers only for a body
+ * that could not otherwise attack).
+ *
+ * All required, every doubt answering `false`:
+ *
+ *  - own turn, precombat main or beginning of combat, empty stack, no attack
+ *    declared;
+ *  - an instant-speed cast or a deferrable activation (the
+ *    {@link isDeferrableAction} clause-1 reading) whose script expires this
+ *    turn AND grants haste at its top level;
+ *  - at least one announced target, and every one of them a creature `pid`
+ *    controls that is untapped and summoning-sick without haste
+ *    (`isTapLockedBySummoningSickness`, the engine's one reading of CR 302.6)
+ *    — a grant on a body that could already attack enables nothing.
+ */
+export function isPreAttackGrant(
+    state: GameState,
+    pid: string,
+    move: Move
+): boolean {
+    if (state.activePlayerId !== pid) return false;
+    if (
+        state.phase !== "PRECOMBAT_MAIN" &&
+        state.phase !== "BEGINNING_OF_COMBAT"
+    ) {
+        return false;
+    }
+    if (state.stack.length > 0) return false;
+    if ((state.combat?.attackerIds.length ?? 0) > 0) return false;
+    const player = state.players.find((p) => p.id === pid);
+    if (!player) return false;
+    let script: readonly EffectOp[] | undefined;
+    if (move.kind === "cast-spell") {
+        const card = castCardOf(player, move.cardInstanceId);
+        if (!card || !hasInstantSpeed(card)) return false;
+        script = castScriptOf(card);
+    } else if (move.kind === "activate-ability") {
+        const source = player.battlefield.find(
+            (c) => c.id === move.cardInstanceId
+        );
+        if (!source) return false;
+        const ability = effectiveAbilityOf(source, move.abilityId);
+        if (!ability || !isDeferrableStackAbility(ability)) return false;
+        script = ability.effects;
+    } else {
+        return false;
+    }
+    if (!script || !expiresThisTurn(script)) return false;
+    if (!script.some(isHasteGrant)) return false;
+    if (move.targets.length === 0) return false;
+    return move.targets.every((t) => {
+        if (t.type !== "permanent") return false;
+        const body = player.battlefield.find((c) => c.id === t.id);
+        return (
+            !!body &&
+            isCreature(body) &&
+            !body.isTapped &&
+            isTapLockedBySummoningSickness(body)
+        );
+    });
+}
+
+function isHasteGrant(op: EffectOp): boolean {
+    return op.op === "grantAbility" && op.ability === "haste";
+}
+
+/** Clause 5: the script ends within this turn. An absent script (an
+ *  imperative `resolve()` card) is unreadable, so it is NOT called transient —
+ *  the clause removes only what it can prove. */
+function expiresThisTurn(script: readonly EffectOp[] | undefined): boolean {
+    return script !== undefined && isTransientOnlyScript(script);
+}
+
+/** The Effect Script a cast resolves — its definition's `effects`. */
+function castScriptOf(
+    card: CardInstanceState
+): readonly EffectOp[] | undefined {
+    const cardId = (card.card as { id?: string } | undefined)?.id;
+    return cardId ? tryGetDefinition(cardId)?.effects : undefined;
 }
 
 /** The card a cast names, from any zone a cast may come from (hand, and the
