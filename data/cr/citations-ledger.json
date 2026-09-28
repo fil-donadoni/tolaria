@@ -79,6 +79,7 @@
         {"id":"101.4","line":"* mid-resolution (CR 608.2, 101.4). Mirrors `CardDefinition.resolveSteps`:","sites":1,"status":"baseline"},
         {"id":"101.4","line":"* order, CR 101.4 — Sneak Attack's, an Elvish Piper put), the empty answer is","sites":1,"status":"confirmed","ruleHash":"4edac0771bb61980"},
         {"id":"101.4","line":"* player choices (CR 608.2, 101.4). Suspension leaves the item on the stack","sites":1,"status":"baseline"},
+        {"id":"101.4","line":"* player may put\", CR 101.4). A settle hands back its entry snapshot on a","sites":1,"status":"confirmed","ruleHash":"4edac0771bb61980"},
         {"id":"101.4","line":"* players set this yields APNAP-ordered decisions (CR 101.4). By default","sites":1,"status":"baseline"},
         {"id":"101.4","line":"* set `simultaneous` when the Oracle line needs CR 101.4's \"then the","sites":1,"status":"baseline"},
         {"id":"101.4","line":"/** Active-player-then-non-active-player order (CR 101.4). In 2-player","sites":1,"status":"baseline"},
