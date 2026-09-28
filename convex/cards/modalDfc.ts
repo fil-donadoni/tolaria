@@ -38,7 +38,7 @@ import type {
 } from "./types";
 import { PERMANENT_TYPES } from "./types";
 import { resolveTokenStaticEffects } from "./tokenStaticEffects";
-import { twinDefinitionId } from "./twinId";
+import { parentIdOfTwin, twinDefinitionId } from "./twinId";
 
 /** The twin-id suffix a modal back face is registered under. One word, in the
  *  shared twin namespace (`cards/twinId.ts`) that an inset spell's
@@ -122,6 +122,22 @@ export function isModalDoubleFaced(def: CardDefinition | undefined): boolean {
  *  inverse. */
 export function modalBackFaceDefinitionId(parentId: string): string {
     return twinDefinitionId(parentId, MODAL_BACK_FACE_SUFFIX);
+}
+
+/** The inverse of {@link modalBackFaceDefinitionId}: the FRONT face's id when
+ *  `cardId` is a modal back face's twin id, `undefined` for any other id — an
+ *  ordinary card, an inset spell's `#adventure` or a split half's `#left`.
+ *
+ *  Keyed on the suffix alone, like `splitSideOfDefinitionId`: the twin
+ *  namespace is shared, the vocabulary is not, and only this module mints
+ *  `#back`. It is what lets a name → card resolver tell the one twin that IS
+ *  placeable (CR 712.8f — a modal permanent can be on the battlefield with its
+ *  back face up) from the ones that are not (CR 715.4 / 709.4). */
+export function modalBackFaceParentId(cardId: string): string | undefined {
+    const parent = parentIdOfTwin(cardId);
+    return parent !== undefined && cardId === modalBackFaceDefinitionId(parent)
+        ? parent
+        : undefined;
 }
 
 /** CR 712.8f — the twin `CardDefinition` for `parent`'s modal back face, or
