@@ -7,7 +7,9 @@
 // position, prefilled so a tester only confirms or touches up. It is PURE and
 // imports only types, so the browser (the quiz's prefill) can call it without
 // dragging the blade harness into the client bundle — the build and the trace
-// check live in the sibling `pairTrace.ts`.
+// check live in the sibling `pairTrace.ts`. Neither is re-exported from
+// `index.ts`: importers name the module, so the Convex function bundle —
+// which reaches `index.ts` — carries neither (ADR 0113 § 2).
 //
 // WHY THE EDIT IS A SECOND ARGUMENT. A Discriminant is `{ kind, detail }`, and
 // `detail` is the judge's prose ("the opponent's end step", "Swords to
