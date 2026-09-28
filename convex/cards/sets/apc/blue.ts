@@ -193,7 +193,7 @@ export const jadedResponse: CardDefinition = {
 //
 // CR 118.12 — "[A player] may [do something]. If [that player] does, [effect]"
 // makes the payment a cost paid on resolution; the `mayPay` Op's boolean bind
-// is the "if a player does" check. CR 109.5 / 102.1 — "any other player" is
+// is the "if a player does" check. CR 102.2 — "any other player" is
 // `{ opponentOf: { ref: "$event.caster" } }`, the caster's complement, which
 // this engine's two-seat scope (ADR 0010) collapses to one player: the
 // opponent when either seat casts, Ice Cave's controller included.
@@ -206,7 +206,7 @@ export const jadedResponse: CardDefinition = {
 // the event, as Decree of Silence does (`scg/blue.ts`).
 // hand-tail: Whenever a player casts a spell, any other player may pay that spell's mana cost. If a player does, counter the spell. (#4335)
 export const iceCave: CardDefinition = {
-    id: "4bba59e6-8f80-51f9-84e5-35c04e304cfc", // APC 24
+    id: "fc2877c2-4426-4c07-92a2-8ba5107d5e7e", // APC 24
     name: "Ice Cave",
     rarity: "rare",
     oracleText:

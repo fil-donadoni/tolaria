@@ -514,11 +514,11 @@ describe("Jaded Response — counter if it shares a colour with a creature you c
 //   * CR 202.1a — the price is the spell's printed cost, coloured pips kept;
 //   * CR 107.3a — an {X} on the stack costs its ANNOUNCED value, not 0;
 //   * CR 107.4e — a hybrid pip stays payable with either colour;
-//   * CR 109.5 — "any other player" is the CASTER's complement, so Ice Cave's
+//   * CR 102.2 — "any other player" is the CASTER's complement, so Ice Cave's
 //     own controller is the one who is NOT asked when they cast;
 //   * CR 118.12 — only a paid cost counters; a decline leaves the spell.
 describe("Ice Cave (pay that spell's mana cost to counter it)", () => {
-    const ICE_CAVE = getDefinition("4bba59e6-8f80-51f9-84e5-35c04e304cfc");
+    const ICE_CAVE = getDefinition("fc2877c2-4426-4c07-92a2-8ba5107d5e7e");
     const SPELL_ID = "test-apc-ice-cave-spell";
 
     function spellDef(manaCost: CardDefinition["manaCost"]): CardDefinition {
@@ -626,7 +626,7 @@ describe("Ice Cave (pay that spell's mana cost to counter it)", () => {
         });
     });
 
-    it("asks Ice Cave's OPPONENT when Ice Cave's own controller casts (CR 109.5)", () => {
+    it("asks Ice Cave's OPPONENT when Ice Cave's own controller casts (CR 102.2)", () => {
         withTemporaryDefinition(spellDef({ U: 1 }), () => {
             const { state } = castUnderIceCave("p1");
             expect(state.pendingChoices?.[0]?.playerId).toBe("p2");

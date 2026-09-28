@@ -2667,7 +2667,9 @@ export type DynamicMayPayManaCost = {
            *  `{ ref: "$picked" }` — Flash's "you may put a creature card from
            *  your hand onto the battlefield... pay ITS mana cost"). Same
            *  position/family as `moveZone`'s `cards` field; the ordered ref
-           *  pass enforces it. */
+           *  pass enforces it. OR a stack-object `$event` ref (issue #4335 —
+           *  `{ ref: "$event.spell" }`, Ice Cave's "pay THAT SPELL's mana
+           *  cost"), read off the spell on the stack with its announced X. */
           manaCostOf: EffectRef;
           mana?: never;
       }

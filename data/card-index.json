@@ -25240,6 +25240,14 @@
         "firstPrintSet": "ice"
     },
     {
+        "name": "Ice Cave",
+        "scryfallId": "fc2877c2-4426-4c07-92a2-8ba5107d5e7e",
+        "oracleId": "c532ecd2-feeb-41f5-bda0-b05e86f86a45",
+        "firstSet": "apc",
+        "firstPrintId": "fc2877c2-4426-4c07-92a2-8ba5107d5e7e",
+        "firstPrintSet": "apc"
+    },
+    {
         "name": "Ice Floe",
         "scryfallId": "85ce04fb-e687-41e0-ae9a-16a51df5d943",
         "oracleId": "cfaaead2-09e8-47cb-9e39-8570b8d8de86",
