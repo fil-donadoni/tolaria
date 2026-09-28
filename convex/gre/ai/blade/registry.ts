@@ -8845,7 +8845,8 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         // SACRIFICE-FOR-DRAIN reachability (CR 701.21a, CR 119.3, issue #4277).
-        // The sweep's own position for a creature whose only ability is
+        // The sweep's own board, moved to the postcombat main (below), for a
+        // creature whose only ability is
         // "Sacrifice this creature: Target player loses 1 life and you gain 1
         // life": Death Cultist in hand, five Swamps, a spare body on each side.
         //
@@ -8855,6 +8856,17 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // cast, and those subtrees dragged the cast edge's mean margin under
         // `pass`'s. Fixed by class, not by card: `isDrainExchangeSacrifice`
         // (`search.ts`).
+        //
+        // POSTCOMBAT, not the sweep's precombat main (issue #4777). There
+        // `pass` is not "don't cast": the rollout casts a one-mana creature in
+        // the postcombat main, both edges reach the same leaf, and the root
+        // pick was rollout noise (`pass` on seeds 8, 10, 11, 13 of 1..18) — no
+        // weight can separate two identical leaves, and holding a creature
+        // with no combat role for the second main is sound play. Here `pass`
+        // forgoes the deploy for the turn, and the cast wins on the search's mean
+        // reward at every seed of 0x5eed, 0xb07 and 1..18.
+        // The precombat pick stays covered by the sweep itself
+        // (`botReach.bot.test.ts`), which asks "ever played?", not "cast now?".
         label: "Sacrifice-for-drain outlet: casts the creature",
         spec: {
             cards: [
@@ -8873,21 +8885,16 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
                 { name: "Castle", owner: "opp", zone: "battlefield" },
                 { name: "Grizzly Bears", owner: "opp", zone: "graveyard" },
             ],
-            phase: "PRECOMBAT_MAIN",
+            phase: "POSTCOMBAT_MAIN",
             turn: 3,
             libraryCount: 20,
         },
         bot: "me",
-        // The Bot-play sweep's own position at four times its budget — a
+        // The Bot-play sweep's board at four times its budget — a
         // REACHABILITY claim, so a PREDICATE, kept out of the weight fit for
         // the reason the Nantuko Husk entry gives.
         budget: { iterations: 200 },
-        // Re-seeded 0x5eed → 4 by issue #4773's weight refit. The pick is
-        // rollout noise, not valuation: over seeds 0x5eed and 1..18 at this
-        // budget, `pass` wins seeds 8, 10, 11, 13, 17 on the weights before
-        // the refit, and 0x5eed as well after it (a 0.4% move). Restoring
-        // 0x5eed and a deterministic pick is issue #4777.
-        seeds: [0xb07, 4, 1, 2, 3],
+        seeds: [0xb07, 0x5eed, 1, 2, 3],
         tier: "must",
         expect: {
             predicate: (move, state) =>
