@@ -20,8 +20,12 @@
 // `search-library` choices, and EVERY one of them is consumed by exactly one
 // `moveZone` — 23 to the battlefield (Nature's Lore), 19 to hand (Demonic
 // Tutor), 4 to exile (Jester's Cap), 4 to `library-top` (Mystical Tutor), 1 to
-// the graveyard (Entomb). No `forEach` indirection, no second consumer. So the
-// direct read is not a narrow special case; it is the shape.
+// the graveyard (Entomb). No second consumer. So the direct read is not a
+// narrow special case; it is the shape. A `choice` inside a `forEach` body
+// (Show and Tell's per-player hand pick, Winds of Abandon's per-controller
+// search) raises an ITERATION-SCOPED id (`$picked@0:1`) and is matched on its
+// authored name (`unscopedBindingName`, issue #4218) — before that it read no
+// destination at all.
 //
 // IT FAILS CLOSED, NEVER TO A GUESS. An imperative `resolve()` search (Path to
 // Exile, the Transmute search), a script the walk cannot follow, or a binding
@@ -35,6 +39,7 @@ import { findTriggeredAbility } from "../copy";
 import { resolveGrantedActivatedAbility } from "../activatedAbilities";
 import type { GameState, PendingChoice, StackItem } from "../state";
 import { childOpArrays } from "./effectOpChildren";
+import { unscopedBindingName } from "../effects/interpreter";
 
 /** The zone a find lands in — `EffectMoveZone` plus the `cards`-shape's own
  *  `"library-top"` (Mystical Tutor). Kept as the Op's OWN vocabulary rather
@@ -187,17 +192,24 @@ function choiceOpFor(
     ops: readonly EffectOp[],
     choiceId: string
 ): { bind: string } | undefined {
-    let found: { bind: string } | undefined;
+    // A choice raised inside a `forEach` body carries its iteration scope
+    // (`$picked@0:1` — Show and Tell's per-player pick, issue #4218); the Op
+    // declares the authored name.
+    const authored = unscopedBindingName(choiceId);
+    let found: { op: EffectOp; bind: string } | undefined;
     for (const op of ops) {
         if (op.op !== "choice") continue;
-        if ((op.id ?? op.bind) !== choiceId) continue;
-        // A second match means the script names one choiceId twice — the
-        // validator forbids it, so this is unreachable rather than tolerated;
-        // fail closed rather than pick the first.
+        if ((op.id ?? op.bind) !== authored) continue;
+        // The SAME Op seen twice is one choice: `chosenModeEffects` flattens a
+        // mode announced twice twice (PR review finding 5).
+        if (found?.op === op) continue;
+        // Two DIFFERENT Ops under one authored id is reachable — `if` branches
+        // may each bind the same name, two modes may reuse one — and the live
+        // id cannot say which ran. Fail closed rather than pick the first.
         if (found) return undefined;
-        found = { bind: op.bind };
+        found = { op, bind: op.bind };
     }
-    return found;
+    return found && { bind: found.bind };
 }
 
 /** The zone the `moveZone` Ops consuming `bind` send the picks to, when they

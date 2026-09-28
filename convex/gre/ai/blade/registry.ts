@@ -7009,6 +7009,106 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         expect: { moves: [{ kind: "cast-spell", card: "Flash" }] },
         note: 'Issue #3388. The position a real game produced — three consecutive turns holding Flash + Worldspine Wurm with the mana up, passing every time. PAIRED WITH "cheat into play: casts for a body that pays on the way out", which is the same shape on a body whose hand worth its payoff can actually beat.',
     },
+    // Issue #4218 — the OPTIONAL own-hand put onto the battlefield (Show and
+    // Tell's per-player pick; Sneak Attack's and an Elvish Piper put ride the
+    // same gate). Two things were wrong, and each entry below is red without
+    // either:
+    //   * the pick was priced as a COST: `choiceFindDestination` matched the
+    //     live choice id against the `choice` Op's authored one, and a choice
+    //     inside a `forEach` body carries its iteration scope (`$picked@0:1`),
+    //     so the destination read `undefined` and the #3388 sign flip never
+    //     reached a symmetric put;
+    //   * the decline won the material tie-break: pick and decline tie inside
+    //     `OUTCOME_EPS`, and the SUBTREE `meanMargin` prefers keeping the card
+    //     in hand at its latent worth over a body the rollouts trade off.
+    //     `resolved-payoff`'s choice half reads the SETTLED margins instead.
+    {
+        label: "free put: the caster puts a permanent in off its own Show and Tell",
+        spec: {
+            cards: [
+                { name: "Show and Tell", owner: "me", zone: "hand" },
+                { name: "Brightglass Gearhulk", owner: "me", zone: "hand" },
+                { name: "Subtlety", owner: "me", zone: "hand" },
+                { name: "Figure of Destiny", owner: "me", zone: "hand" },
+                { name: "Phantasmal Image", owner: "me", zone: "hand" },
+                { name: "Vaultborn Tyrant", owner: "opp", zone: "hand" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 14,
+            landCount: 6,
+            libraryCount: 20,
+        },
+        setup: [
+            { kind: "cast", card: "Show and Tell" },
+            { kind: "resolve-top" },
+        ],
+        bot: "me",
+        budget: { iterations: 100 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [
+                { kind: "resolution-choice", card: "Brightglass Gearhulk" },
+                { kind: "resolution-choice", card: "Subtlety" },
+                { kind: "resolution-choice", card: "Figure of Destiny" },
+            ],
+        },
+        note: 'Issue #4218, the reported shape: the Bot casts Show and Tell and is the first chooser (APNAP, CR 101.4), holding the four permanents of the reported hand. Phantasmal Image is left out of the accepted answers on purpose — with nothing on either battlefield to copy it enters as a 0/0 and dies, and its settled margin reads below declining. The budget is the LOW one on purpose: the live Bot searches on a wall clock on the player\'s machine, and 100 iterations is where the reported decline reproduced. DISCRIMINATING: 1/5 seeds declined at 100 before the fix (seed 4), 5/5 pick after. PAIRED WITH "free put: the second chooser still puts its creature in after the opponent\'s bigger one" and the negative control "free put NEGATIVE CONTROL: declines a pick that dies on entry".',
+    },
+    {
+        label: "free put: the second chooser still puts its creature in after the opponent's bigger one",
+        spec: {
+            cards: [
+                { name: "Show and Tell", owner: "me", zone: "hand" },
+                { name: "Shivan Dragon", owner: "me", zone: "hand" },
+                { name: "Serra Angel", owner: "opp", zone: "hand" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 3,
+            libraryCount: 20,
+        },
+        setup: [
+            { kind: "cast", card: "Show and Tell" },
+            { kind: "resolve-top" },
+            { kind: "choose", cards: ["Shivan Dragon"] },
+        ],
+        bot: "opp",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "resolution-choice", card: "Serra Angel" }],
+        },
+        note: "Issue #4218, the triage's second shape. The caster has just put a Shivan Dragon in; the Bot, second chooser, holds a Serra Angel it cannot cast on three lands. The settled pick reads −41 on material margin against −89 for declining, yet the edges tie inside `OUTCOME_EPS` (0.404 vs 0.407) and the subtree `meanMargin` ranked the decline first (−133 vs −178): after the put the rollouts see the Angel outclassed and traded off, while the card kept in hand holds its latent worth to the horizon. DISCRIMINATING: 5/5 seeds declined at 400 (and at 1500) before the fix, 5/5 pick after — and the same position with the caster declining picked the Angel 5/5 before the fix too, which is what says the opponent's put was the trigger.",
+    },
+    {
+        label: "free put NEGATIVE CONTROL: declines a pick that dies on entry",
+        spec: {
+            cards: [
+                { name: "Show and Tell", owner: "me", zone: "hand" },
+                { name: "Phantasmal Image", owner: "me", zone: "hand" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 3,
+            libraryCount: 20,
+        },
+        setup: [
+            { kind: "cast", card: "Show and Tell" },
+            { kind: "resolve-top" },
+        ],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [
+                { kind: "resolution-choice", card: "Phantasmal Image" },
+            ],
+        },
+        note: "Issue #4218's negative control. The only legal pick is a clone with nothing on either battlefield to copy: it enters as a 0/0 and the state-based check puts it in the graveyard, so putting it in only throws the card away. The resolved-payoff choice half credits a pick only when its SETTLED margin strictly beats the settled decline, and here it does not, so the decline stands — at 100 and at 400 iterations, before and after the fix. A POSITION GUARD rather than a discriminating blade: the clone's pick loses on reward outright here, so it never reaches the tie the credit reads, and dropping the settled-decline baseline leaves this entry green. The discriminating half of that clause is deterministic — `ai/__tests__/optional-put-payoff.bot.test.ts` builds the exact tie and goes red without the baseline.",
+    },
     {
         label: "sacrifice sign: does not cast a creature whose ETB eats its own board",
         spec: {

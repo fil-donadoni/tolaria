@@ -7054,6 +7054,22 @@ function scopeBindingName(
     return `${name}@${pos}:${iteration}`;
 }
 
+/** The inverse of {@link scopeBindingName}: the AUTHORED name a (possibly
+ *  iteration- or mode-scoped) binding or choice id was written under. Only a
+ *  `$`-name is ever scoped (`scopedContext`'s `scope`), nested scopes only
+ *  append further `@<pos>:<iteration>` segments, and `@` is illegal in an
+ *  authored `$`-name, so everything before its first `@` is the name the script
+ *  declares. A non-`$` id (an author-supplied `op.id`, which may legally hold
+ *  an `@`) passes through untouched, exactly as `scope` passes it through. Issue #4218 — a reader matching a live
+ *  `PendingChoice.choiceId` back to its `choice` Op (`choiceFindDestination`)
+ *  compared the scoped id against the Op's authored one, so no `choice`
+ *  inside a `forEach` body was ever found. */
+export function unscopedBindingName(name: string): string {
+    if (!name.startsWith("$")) return name;
+    const at = name.indexOf("@");
+    return at < 0 ? name : name.slice(0, at);
+}
+
 /** Wraps a SpellContext so every `$`-binding written or read by a forEach
  *  BODY Op is transparently iteration-scoped: `noteChoice` / `requestChoice`
  *  write under the scoped name, and `recallChoice` reads the scoped name
