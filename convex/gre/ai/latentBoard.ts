@@ -35,7 +35,14 @@ import type {
     TargetRequirement,
 } from "../../cards/types";
 import type { CardInstanceState, GameState } from "../state";
+import {
+    matchesPermanentFilter,
+    type PermanentFilter,
+} from "../../cards/filters";
 import { creatureValueRaw } from "../creatureBody";
+import { currentLoyalty } from "../loyalty";
+import { effectivePermanentView } from "../permanentView";
+import { liveSupertypesOf } from "../snow";
 import { getLegalTargets, pendingTargetingSource } from "../rules";
 import type { EvalWeights } from "./evalWeights";
 import type { LatentLens } from "./grounding";
@@ -235,8 +242,14 @@ export function makeLatentBoardLens(
             if (units !== undefined) measured = true;
             return units;
         },
-        sweepUnits(select) {
-            const net = sweptNetLoss(state, casterId, select, realisedLoss);
+        sweepUnits(select, lethalDamage) {
+            const net = sweptNetLoss(
+                state,
+                casterId,
+                select,
+                realisedLoss,
+                lethalDamage
+            );
             if (net === undefined) return undefined;
             measured = true;
             return net / denominator;
@@ -258,20 +271,29 @@ export function makeLatentBoardLens(
  *  `realisedLoss` the targeted slots read.
  *
  *  Readable means: every player's battlefield or a fixed side of it
- *  (`controller` / `opponent`), and a filter this lens can match EXACTLY —
- *  `type` / `excludeType` only. Any other filter field (a subtype chosen
- *  mid-resolution, a mana-value bound, a colour) answers `undefined` rather
- *  than guess: a matcher that skipped the field would count members the
+ *  (`controller` / `opponent`), and a filter this lens can match EXACTLY
+ *  (`sweepPermanentFilter`). Any other filter field (a subtype chosen
+ *  mid-resolution, a mana-value bound) answers `undefined` rather than
+ *  guess: a matcher that skipped the field would count members the
  *  resolution spares, and one that refused them would price a real sweep at
- *  nothing. */
+ *  nothing.
+ *
+ *  Issue #4781 — `lethalDamage`, when given, keeps only the members that
+ *  much damage would take off the board: a creature whose remaining
+ *  toughness it meets (CR 120.3e marks it, CR 704.5g destroys it), a
+ *  planeswalker whose loyalty it meets (CR 120.3c removes the counters,
+ *  CR 704.5i puts it into the graveyard). A damage sweep's survivors are no
+ *  loss to anyone. */
 function sweptNetLoss(
     state: GameState,
     casterId: string,
     select: EffectForEachSelector,
-    realisedLoss: RealisedLoss
+    realisedLoss: RealisedLoss,
+    lethalDamage: number | undefined
 ): number | undefined {
     if (select.set !== "permanents") return undefined;
-    if (!isReadableSweepFilter(select.filter)) return undefined;
+    const filter = sweepPermanentFilter(select.filter);
+    if (filter === UNREADABLE_SWEEP_FILTER) return undefined;
     const controller = select.controller;
     if (
         controller !== undefined &&
@@ -286,38 +308,117 @@ function sweptNetLoss(
         if (controller === "controller" && !own) continue;
         if (controller === "opponent" && own) continue;
         for (const perm of player.battlefield) {
-            if (!matchesSweepFilter(perm, select.filter)) continue;
+            // The same live view the resolution's `getBattlefieldIds` matches
+            // against (layer-5 colours, layer-7 toughness, live supertypes).
+            const view = effectivePermanentView(state, perm);
+            if (
+                filter !== undefined &&
+                !matchesPermanentFilter(view, filter, {
+                    supertypesOf: liveSupertypesOf,
+                })
+            ) {
+                continue;
+            }
+            if (lethalDamage !== undefined && !diesTo(view, lethalDamage)) {
+                continue;
+            }
             net += own ? -realisedLoss(perm) : realisedLoss(perm);
         }
     }
     return net;
 }
 
-/** The two filter fields `matchesSweepFilter` reads exactly. */
+/** True when `damage` dealt to `view` (an `effectivePermanentView`) takes it
+ *  off the battlefield by state-based action: CR 704.5g for a creature (the
+ *  damage already marked counts, CR 120.3e), CR 704.5i for a planeswalker
+ *  (CR 120.3c). Any other permanent is not removed by damage. */
+function diesTo(view: CardInstanceState, damage: number): boolean {
+    if (damage <= 0) return false;
+    if (view.types.includes("Creature")) {
+        const toughness = view.toughness ?? 0;
+        return toughness - (view.damageMarked ?? 0) <= damage;
+    }
+    if (view.types.includes("Planeswalker")) {
+        return currentLoyalty(view) <= damage;
+    }
+    return false;
+}
+
+/** The answer `sweepPermanentFilter` gives for a filter it cannot match
+ *  exactly — distinct from `undefined`, which is "no filter, every
+ *  permanent". */
+const UNREADABLE_SWEEP_FILTER = "unreadable-sweep-filter" as const;
+
+/** The `EffectCardFilter` fields `sweepPermanentFilter` maps onto
+ *  `PermanentFilter` 1:1, each a LITERAL the resolution's
+ *  `toPermanentFilter` (`effects/interpreter.ts`) propagates unchanged and
+ *  `effectivePermanentView` supplies every input of. A field outside this
+ *  set — a dynamic `{ ref }`, a mana-value bound, a name read off the
+ *  registry, `any`, `excludeSource` — makes the whole filter unreadable. */
 const READABLE_SWEEP_FILTER_KEYS: ReadonlySet<string> = new Set([
     "type",
     "excludeType",
+    "subtype",
+    "supertype",
+    "excludeSupertype",
+    "color",
+    "colorCountAtLeast",
+    "isToken",
+    "hasAbility",
+    "excludeAbility",
+    "tapped",
+    "isAttacking",
+    "enteredThisTurn",
+    "controlledSinceTurnStart",
 ]);
 
-function isReadableSweepFilter(filter: EffectCardFilter | undefined): boolean {
-    if (filter === undefined) return true;
-    return Object.keys(filter).every((k) => READABLE_SWEEP_FILTER_KEYS.has(k));
+/** Issue #4781 — the `PermanentFilter` a sweep's `EffectCardFilter` resolves
+ *  to before a single resolution-time choice is made, or
+ *  `UNREADABLE_SWEEP_FILTER` when it names anything that is not a literal
+ *  this lens can match exactly: subtypes (CR 205.3), colours (CR 105.2) and
+ *  supertypes (CR 205.4a) alongside the card types (CR 205.2a) the #4773 read
+ *  began with. A subtype or colour given as a `{ ref }` / sacrificed-colours
+ *  read is chosen at resolution and stays unreadable. */
+function sweepPermanentFilter(
+    filter: EffectCardFilter | undefined
+): PermanentFilter | undefined | typeof UNREADABLE_SWEEP_FILTER {
+    if (filter === undefined) return undefined;
+    if (!Object.keys(filter).every((k) => READABLE_SWEEP_FILTER_KEYS.has(k))) {
+        return UNREADABLE_SWEEP_FILTER;
+    }
+    const { subtype, color } = filter;
+    if (subtype !== undefined && !isLiteralList(subtype)) {
+        return UNREADABLE_SWEEP_FILTER;
+    }
+    if (color !== undefined && !isLiteralList(color)) {
+        return UNREADABLE_SWEEP_FILTER;
+    }
+    return {
+        types: filter.type,
+        excludeTypes: filter.excludeType,
+        subtypes: subtype,
+        supertypes: filter.supertype,
+        excludeSupertypes: filter.excludeSupertype,
+        colors: color,
+        colorCountAtLeast: filter.colorCountAtLeast,
+        isToken: filter.isToken,
+        requireAbility: filter.hasAbility,
+        excludeAbility: filter.excludeAbility,
+        tapped: filter.tapped,
+        isAttacking: filter.isAttacking,
+        enteredThisTurn: filter.enteredThisTurn,
+        controlledSinceTurnStart: filter.controlledSinceTurnStart,
+    };
 }
 
-/** `type` (OR within the field) AND NOT `excludeType` — the card-type half of
- *  `EffectCardFilter` (CR 205.2a), over the permanent's current types. */
-function matchesSweepFilter(
-    perm: CardInstanceState,
-    filter: EffectCardFilter | undefined
-): boolean {
-    if (filter === undefined) return true;
-    const types = filter.type === undefined ? [] : [filter.type].flat();
-    if (types.length > 0 && !types.some((t) => perm.types.includes(t))) {
-        return false;
-    }
-    const excluded =
-        filter.excludeType === undefined ? [] : [filter.excludeType].flat();
-    return !excluded.some((t) => perm.types.includes(t));
+/** A string literal or a list of them — never a dynamic object read. */
+function isLiteralList<T extends string>(
+    value: T | readonly T[] | object
+): value is T | T[] {
+    return (
+        typeof value === "string" ||
+        (Array.isArray(value) && value.every((v) => typeof v === "string"))
+    );
 }
 
 /** True when `requirement` could ever name a battlefield permanent — a

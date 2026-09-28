@@ -67,8 +67,15 @@ export interface LatentLens {
      *  never one representative victim. `undefined` when no board is attached
      *  or the selector is not one the lens can read (the valuer then keeps the
      *  representative-count valuation); negative when the caster would lose
-     *  more than the opponents. */
-    sweepUnits(select: EffectForEachSelector): number | undefined;
+     *  more than the opponents.
+     *
+     *  Issue #4781 — `lethalDamage` narrows the members to those that much
+     *  damage takes off the board (a damage sweep: CR 704.5g / 704.5i), so a
+     *  sweep's survivors count for no one. */
+    sweepUnits(
+        select: EffectForEachSelector,
+        lethalDamage?: number
+    ): number | undefined;
     /** True once `victimUnits` or `sweepUnits` has ANSWERED at least one slot off a REAL
      *  board — i.e. this script's board-affecting worth is MEASURED, not
      *  assumed from a representative victim.

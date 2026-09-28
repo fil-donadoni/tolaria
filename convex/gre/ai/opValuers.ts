@@ -314,32 +314,83 @@ function victimUnitsFor(sel: object, ctx: GroundingContext): number {
  *  price by the board's net surplus. */
 const SWEEP_REMOVAL_OPS: ReadonlySet<string> = new Set(["destroy", "exile"]);
 
+/** True when `sel` is the `forEach` iteration variable itself. */
+function isEachRef(sel: unknown): boolean {
+    return (
+        typeof sel === "object" &&
+        sel !== null &&
+        "ref" in sel &&
+        sel.ref === "$each"
+    );
+}
+
+/** One `forEach` body Op that takes `$each` off the battlefield and whose
+ *  valuer prices it at `victimUnitsFor` one victim: `destroy` / `exile`
+ *  (issue #4773), and — issue #4781 — a `moveZone` of `$each` to any zone
+ *  but the battlefield (a bounce to hand, a tuck, CR 400.7: a new object
+ *  either way), whose `moveZonePoints` reads victim units exactly as the
+ *  removal verbs do. */
+function removesEach(e: EffectOp): boolean {
+    if (SWEEP_REMOVAL_OPS.has(e.op)) {
+        return "target" in e && isEachRef(e.target);
+    }
+    return (
+        e.op === "moveZone" &&
+        "to" in e &&
+        e.to !== "battlefield" &&
+        "target" in e &&
+        isEachRef(e.target)
+    );
+}
+
 /** Issue #4773 — a `forEach` over the battlefield whose body only removes
  *  `$each`, priced by what it takes off THIS board (`LatentLens.sweepUnits`):
  *  the body is valued ONCE with `$each` as the representative victim and
  *  scaled by the net units, so the completeness of each verb (`destroy` vs
- *  `exile`) carries over unchanged. `undefined` when the body does anything
- *  else or the lens cannot read the selector — the caller keeps the
- *  representative-count valuation. */
+ *  `exile` vs a bounce's tempo) carries over unchanged.
+ *
+ *  Issue #4781 — a body that is one `dealDamage` to `$each` is a removal
+ *  sweep of the members that damage kills: the lens counts only those
+ *  (`sweepUnits`' `lethalDamage`), and each is priced as the `destroy` it
+ *  amounts to (CR 704.5g moves a lethally-damaged creature to the graveyard,
+ *  CR 701.8a's destination). The representative price for damage to an
+ *  object, one `damage` unit per point, knows nothing about which bodies
+ *  survive — the surplus a Pyroclasm takes is who dies, not how much it
+ *  deals.
+ *
+ *  `undefined` when the body does anything else or the lens cannot read the
+ *  selector — the caller keeps the representative-count valuation. */
 function sweptForEachValue(
     op: Extract<EffectOp, { op: "forEach" }>,
     ctx: GroundingContext,
     scope: ScriptScope
 ): OpValue | undefined {
-    const removesEachOnly = op.effects.every(
-        (e) =>
-            SWEEP_REMOVAL_OPS.has(e.op) &&
-            "target" in e &&
-            typeof e.target === "object" &&
-            e.target !== null &&
-            "ref" in e.target &&
-            e.target.ref === "$each"
-    );
-    if (!removesEachOnly) return undefined;
-    const units = ctx.latent.sweepUnits(op.select);
-    if (units === undefined) return undefined;
-    const per = valueEffectScript(op.effects, ctx, scope);
-    return { points: per.points * units, tags: per.tags };
+    if (op.effects.length > 0 && op.effects.every(removesEach)) {
+        const units = ctx.latent.sweepUnits(op.select);
+        if (units === undefined) return undefined;
+        const per = valueEffectScript(op.effects, ctx, scope);
+        return { points: per.points * units, tags: per.tags };
+    }
+    const [only] = op.effects;
+    if (
+        op.effects.length === 1 &&
+        only.op === "dealDamage" &&
+        isEachRef(only.to)
+    ) {
+        const { amount } = ctx.value(only.amount);
+        const units = ctx.latent.sweepUnits(op.select, amount);
+        if (units === undefined) return undefined;
+        return {
+            points: pricedFraction(
+                ctx,
+                "boardRemoval",
+                REMOVAL_COMPLETENESS.destroy,
+                units
+            ),
+            tags: ["boardRemoval", "board-scaling"],
+        };
+    }
+    return undefined;
 }
 
 /** issue #1964 — true for a BARE ref selector (`{ ref: string }`) that
