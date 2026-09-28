@@ -12,8 +12,9 @@
 //     the Weight Fit, which reads a position's terms and never its window, can
 //     only answer it by bending material weights. Such a pair yields no Eval
 //     Pair; the report lists it as checked by the search instead.
-//   * the root rule of issue #4757 (not built yet) — the same perimeter
-//     decides which actions wait for the last window at the root.
+//   * the `last-window-deferral` root rule (issue #4757, `search.ts`) — the
+//     same perimeter decides which actions wait for the last window at the
+//     root, and which one it spends there.
 //
 // A third reader asks only the pre-attack clause: `selectRootMove`'s
 // `last-window-fire` rule fires a {@link isPreAttackGrant} in ITS last window
@@ -38,6 +39,7 @@ import type { CardInstanceState, GameState } from "../state";
 import {
     effectiveAbilityOf,
     isDeferrableStackAbility,
+    isTransientOnlyAbility,
     isTransientOnlyScript,
 } from "./abilityTiming";
 
@@ -80,7 +82,7 @@ export function isLastDeferralWindow(state: GameState, pid: string): boolean {
  *     board" at the opponent's end step: its last USEFUL window is before the
  *     declaration (CR 508.1a / 302.6), and held past it the grant expires at
  *     this turn's cleanup (CR 514.2) having enabled nothing. The root rule
- *     of issue #4757, which will make the bot wait for the end step, must
+ *     of issue #4757 (`last-window-deferral`), which makes the bot wait for the end step, must
  *     never hold it.
  *
  *     Deliberately NOT every this-turn effect (`isTransientOnlyScript`):
@@ -89,7 +91,8 @@ export function isLastDeferralWindow(state: GameState, pid: string): boolean {
  *     phase IS a timing judgement (the grant is worth the response window it
  *     is held for), and the committed weights stopped being the fit of the
  *     committed verdicts. What such an effect is worth at the end step itself
- *     is the last-window rule's own question (issue #4757).
+ *     is the last-window rule's own question (issue #4757): nothing, and
+ *     {@link isTransientOnlyAction} is how it refuses to spend one there.
  *
  * And one exclusion inside clause 1: an activation whose cost sacrifices
  * ANOTHER permanent (`cost.sacrificeFilter` — Zuran Orb's land, Sylvan
@@ -200,6 +203,49 @@ export function isPreAttackGrant(
         };
         return validateAttackerEligibility(hasty, defenders, state).eligible;
     });
+}
+
+/**
+ * Does `move`'s whole effect EXPIRE THIS TURN (CR 514.2 / 511.3) — a pump, a
+ * protection grant, any until-end-of-turn script?
+ *
+ * The question the last-window half of issue #4757 asks before it spends a
+ * deferrable action at the opponent's end step (CR 513.1): nothing happens
+ * between that window and the cleanup step, so an effect that ends there buys
+ * nothing, and "the action does not worsen the position" is false for it — it
+ * spends a card or a mana for an effect with nothing left to act on. The same
+ * action in an EARLIER window is the hold half's business, which waits for
+ * the last window with it like with any other deferrable action.
+ *
+ * Proven-transient only: a cast whose card carries no readable script (an
+ * imperative `resolve()`, a permanent spell) and an activation with none are
+ * NOT transient — the reading `isTransientOnlyAbility` already makes. The
+ * direction is chosen by the hold half: an action the hold defers and the
+ * fire refuses is never taken at all, so the refusal claims only what it can
+ * prove.
+ */
+export function isTransientOnlyAction(
+    state: GameState,
+    pid: string,
+    move: Move
+): boolean {
+    const player = state.players.find((p) => p.id === pid);
+    if (!player) return false;
+    if (move.kind === "cast-spell") {
+        const card = castCardOf(player, move.cardInstanceId);
+        const script = card ? castScriptOf(card) : undefined;
+        return !!script && script.length > 0 && isTransientOnlyScript(script);
+    }
+    if (move.kind === "activate-ability") {
+        const source = player.battlefield.find(
+            (c) => c.id === move.cardInstanceId
+        );
+        const ability = source
+            ? effectiveAbilityOf(source, move.abilityId)
+            : undefined;
+        return !!ability && isTransientOnlyAbility(ability);
+    }
+    return false;
 }
 
 function isHasteGrant(op: EffectOp): boolean {

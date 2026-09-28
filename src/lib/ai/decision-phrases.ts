@@ -66,6 +66,8 @@ export const MECHANISM_SENTENCES: Record<RootDecisionMechanism, string> = {
         "Spending it now would leave the position no better, so it kept the permanent.",
     "resolved-payoff":
         "Once it resolves, its own side of the board is better off — so it cast it.",
+    "last-window-deferral":
+        "Doing it now or at the opponent's end step comes to the same board, so it kept its mana open for the last window.",
 };
 
 /** Whether the pick came from the SEARCH itself rather than from a named

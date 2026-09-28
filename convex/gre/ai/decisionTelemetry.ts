@@ -47,6 +47,7 @@ export const ROOT_DECISION_MECHANISMS = [
     "last-window-fire",
     "standing-spend-hold",
     "resolved-payoff",
+    "last-window-deferral",
 ] as const;
 
 export type RootDecisionMechanism = (typeof ROOT_DECISION_MECHANISMS)[number];
@@ -146,6 +147,11 @@ export const ROOT_RULE_ALLOWLIST: Record<
         kind: "rule",
         issue: 3388,
         why: "the POSITIVE half of self-harm-removal: a self-confined cast whose settled resolution strictly IMPROVES the mover's margin, taken over an outcome-equal pass — and, at an optional own-hand put onto the mover's battlefield, the pick whose settled margin strictly beats the settled decline (issue #4218)",
+    },
+    "last-window-deferral": {
+        kind: "rule",
+        issue: 4757,
+        why: "identical-vector proof: a deferrable action (own side, instant timing, empty stack, no attack) taken now and taken at the opponent's end step (CR 513.1) reach the same board, so no weight separates them — it waits for the last window unless it beats pass by more than OUTCOME_EPS, and is taken there when outcome-equal and not an effect that expires this turn",
     },
 };
 

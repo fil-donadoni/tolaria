@@ -165,7 +165,12 @@ import {
     isTransientOnlyAbility,
     spendsStandingPermanent,
 } from "./ai/abilityTiming";
-import { isLastDeferralWindow, isPreAttackGrant } from "./ai/deferral";
+import {
+    isDeferrableAction,
+    isLastDeferralWindow,
+    isPreAttackGrant,
+    isTransientOnlyAction,
+} from "./ai/deferral";
 import { abilityBenefitIsConfinedToSource } from "./ai/sourceConfinedBenefit";
 import { abilityIsDiscardExchange } from "./ai/discardExchange";
 import { abilityIsDrainExchange } from "./ai/drainExchange";
@@ -4644,6 +4649,55 @@ export function selectRootMove(
         if (hold) return finish(hold, "hold-trick", hold !== best);
     }
 
+    // Keep mana open, HOLD half (issue #4757, PRD #4754) — a DEFERRABLE action
+    // (`isDeferrableAction`: instant timing, own side only, empty stack, no
+    // attack declared — the perimeter the Verdict lowering shares) taken in any
+    // window EARLIER than the last one (`isLastDeferralWindow`, the opponent's
+    // end step, CR 513.1) waits for it, unless it beats `pass` by more than
+    // `OUTCOME_EPS`. The draw instant cast in the bot's own main phase, the
+    // flash creature cast with nothing to meet, the fetchland cracked with
+    // nothing to cast off it.
+    //
+    // THE IDENTICAL-VECTOR PROOF (ADR 0124 §5), the only admission a new root
+    // rule has. "Act now" and "act at the last window" reach the SAME board
+    // when nothing happens in between: the same card drawn, the same body on
+    // the battlefield, the same land fetched — so the two positions carry one
+    // feature vector under every evaluation term, and no weight can separate
+    // them. What separates them is the information and the options the later
+    // window keeps (mana open for a response, the opponent's play seen first),
+    // which the evaluation does not model and the search, which models neither
+    // bluffing nor what an early action tells the opponent, cannot buy. Measured
+    // on the owner's store when the verdicts were promoted (issue #4761): a
+    // `flexWeight` sweep to 27x ordered 8 more of the 71 "pass" pairs and broke
+    // 11 act-over-pass pairs — the fit cannot do it, by construction, and the
+    // timing verdicts left it (issue #4764).
+    //
+    // This SUBSUMES the flash-permanent shape of `isSorcerySpeedTrickDump`
+    // (issue #2248, removed there): same argument, now read through the one
+    // perimeter in every earlier window rather than only the active player's
+    // main phase. A flash body whose ETB can reach the opponent, or one cast in
+    // response, is outside the perimeter and left to the search's leaves, as
+    // the perimeter's own header decides.
+    //
+    // Fires only on outcome-equality, so a play with REAL value now (a hasty
+    // body crossing lethal, a needed blocker) out-rewards `pass` and never
+    // reaches here. And never at the last window itself — there the FIRE half
+    // at the end of this function takes over.
+    if (
+        rootState &&
+        !!botId &&
+        ruleOn("last-window-deferral") &&
+        !isLastDeferralWindow(rootState, botId) &&
+        isDeferrableAction(rootState, botId, best.move)
+    ) {
+        const hold = pool.find(
+            (e) =>
+                e.move.kind === "pass" &&
+                mean(e) >= bestMean - weights.outcomeEps
+        );
+        if (hold) return finish(hold, "last-window-deferral", hold !== best);
+    }
+
     // Standing-spend HOLD (issue #3319) — the MISSING HALF of the last-window
     // FIRE rule directly below, and the reason the issue-#3192 fix held in the
     // bot's own main phase and not in a real game.
@@ -4978,6 +5032,54 @@ export function selectRootMove(
         }
         if (fire) return finish(fire, "last-window-fire", fire !== best);
     }
+
+    // Keep mana open, FIRE half (issue #4757) — the action the hold half above
+    // deferred is taken HERE, or the bot simply never takes it. At the last
+    // window (`isLastDeferralWindow`, the opponent's end step, CR 513.1)
+    // deferring buys no more information, and `pass` is replaced by the best
+    // deferrable action that does not worsen the position. Same
+    // identical-vector argument as the hold, read from the other side: the
+    // `pass` edge's subtree contains the same action one ply later (or in the
+    // bot's own turn), so the two means differ by rollout noise and the
+    // material tie-break cannot choose — `last-window-fire` above makes the
+    // same argument for a sacrifice engine, and this extends it to every
+    // action of the perimeter, casts included.
+    //
+    // "Does not worsen the position" is read two ways, both required:
+    //  - on MEAN REWARD, the outcome band every tie-break shares — the search
+    //    carries the line into the bot's own untap step, where the mana spent
+    //    now comes back. An immediate-position probe (`firingBeatsHolding`)
+    //    would read the lands the action taps as lost (`tappedManaWeight`) and
+    //    refuse every draw instant, which is exactly the verdict this rule
+    //    exists to honour;
+    //  - on the EFFECT: one whose whole payoff expires this turn
+    //    (`isTransientOnlyAction`, CR 514.2) has nothing left to act on
+    //    between the end step and the cleanup, so spending it is a card or a
+    //    mana thrown away.
+    //
+    // Among several qualifying actions (cards, variants, tap plans) the best
+    // `meanMargin` wins, never the pool's insertion order. Disjoint from
+    // `last-window-fire` per edge: that rule converts a sacrifice of ANOTHER
+    // permanent, which the perimeter keeps out (`cost.sacrificeFilter`).
+    // `stack.length === 0` is the perimeter's own clause 3, asserted at the
+    // guard as the rules above do.
+    if (
+        rootState &&
+        !!botId &&
+        rootState.stack.length === 0 &&
+        ruleOn("last-window-deferral") &&
+        best.move.kind === "pass" &&
+        isLastDeferralWindow(rootState, botId)
+    ) {
+        let act: Edge | undefined;
+        for (const e of pool) {
+            if (mean(e) < bestMean - weights.outcomeEps) continue;
+            if (!isDeferrableAction(rootState, botId, e.move)) continue;
+            if (isTransientOnlyAction(rootState, botId, e.move)) continue;
+            if (!act || meanMargin(e) > meanMargin(act)) act = e;
+        }
+        if (act) return finish(act, "last-window-deferral", act !== best);
+    }
     return finish(best, mechanism, flipped);
 }
 
@@ -5041,19 +5143,10 @@ export function selectRootMove(
  *     more information); if a blade position ever shows it costing the bot a
  *     real play, the narrowing goes here.
  *
- *  3. **A FLASH PERMANENT dumped at sorcery speed** (issue #2248) — a
- *     `cast-spell` of a non-Instant card carrying the Flash keyword, cast by
- *     the active player at a main phase, with NO `aiCombatHint.pump` gate.
- *     Case 1's pump gate scopes it to trades whose entire worth is the
- *     window — a permanent's body is not invisible to `evaluateCreature` the
- *     way an until-end-of-turn buff is, so that narrowing doesn't apply here.
- *     What DOES carry over is the option itself: casting at sorcery speed
- *     forecloses the mana-open option (waiting to act on more information —
- *     the opponent's end step) for no reason, the same option a held instant
- *     protects. A flash permanent with REAL value now (a needed blocker, a
- *     lethal-relevant body, an ETB that must resolve before an opponent's
- *     known action) wins on mean reward and never reaches this branch — the
- *     tie-break only fires within `OUTCOME_EPS` of the best move.
+ *  A third shape, the FLASH PERMANENT dumped at sorcery speed (issue #2248),
+ *  lived here until issue #4757 moved it into the `last-window-deferral` hold,
+ *  which reads the same option argument through the one deferral perimeter
+ *  (`ai/deferral.ts`) in every window earlier than the opponent's end step.
  *
  *  Pure. */
 function isSorcerySpeedTrickDump(state: GameState, move: Move): boolean {
@@ -5069,13 +5162,10 @@ function isSorcerySpeedTrickDump(state: GameState, move: Move): boolean {
         if (!atSorcerySpeed) return false;
         const card = player.hand.find((c) => c.id === move.cardInstanceId);
         if (!card) return false;
-        if (card.types.includes("Instant")) {
-            const cardId = (card.card as { id?: string } | undefined)?.id;
-            const def = cardId ? tryGetDefinition(cardId) : undefined;
-            return !!def?.aiCombatHint?.pump;
-        }
-        // Shape 3 — flash permanent, no pump gate (see header).
-        return card.staticAbilities.includes("flash");
+        if (!card.types.includes("Instant")) return false;
+        const cardId = (card.card as { id?: string } | undefined)?.id;
+        const def = cardId ? tryGetDefinition(cardId) : undefined;
+        return !!def?.aiCombatHint?.pump;
     }
     if (move.kind === "activate-ability") {
         if (!isSorceryTimingFor(state, player.id)) return false;
