@@ -647,8 +647,20 @@ The four **Test Positions** that define _done_ for the credible-opponent effort:
 _Avoid_: Acceptance test, milestone scenario
 
 **Minimal Pair**:
-Two **Test Positions** identical except for one card, asserting opposite answers. Neither proves anything alone — only the pair distinguishes a **Brain** that reads the consequence from one that always, or never, makes the play.
-_Avoid_: Discriminating Pair (the former name), A/B test, control pair
+Two **Verdicts** on positions identical except for one **Discriminant**, asserting opposite answers about the same move: wrong in one, right in the other. Neither proves anything alone — only the pair distinguishes a **Brain** that reads the consequence from one that always, or never, makes the play. The pair is the whole argument a judgement makes: "not this move" says what to avoid, the pair says why. The right-hand half is always written by copying the wrong-hand half's position and changing only its **Discriminant**, never linked from an unrelated position: two boards that differ in ten things explain nothing.
+_Avoid_: Discriminating Pair (the former name), A/B test, control pair, counter-verdict
+
+**Discriminant**:
+The single factor that separates the two positions of a **Minimal Pair**, and so the reason the same move is wrong in one and right in the other: a card present or absent, the step or phase the decision is taken in, a life total, the mana available, what is on the **Stack**, or another move already made — the land played after the draw spell, not before. A move already made separates the pair only when it leaves a trace on the board; one that leaves none cannot be told apart by the **Evaluation**, and the pair is refused. Named by the judge, never inferred from the difference between the two boards, because one factor may move several fields. Named from a closed list of kinds, so unsatisfied pairs can be counted by what they lack, plus an _other_ kind carrying the judge's words: a phrase that recurs under _other_ is the kind the list is missing. Exactly one per pair — a judge who needs to change two things is writing two pairs.
+_Avoid_: Variable, delta, condition, cause
+
+**Conditional Verdict**:
+A **Verdict** saying a move is wrong NOW, not wrong ever: the same move becomes right once its **Discriminant** changes — the instant held in one's own main phase that is right at the opponent's end step. The judge states which kind of wrong they mean; the other kind, an **Absolute Verdict**, owes nothing more. A conditional verdict whose right-hand half is not yet written is incomplete: it stays in the **Verdict Store** and out of the **Verdict Lock**, because a fit that reads only "not now" learns "never", and it cannot be admitted to the _must_ tier. Anyone may write the missing half, not only the judge who gave the first: each half carries its own **Attestations**, and a half others disagree with is a **Contested Position** like any other.
+_Avoid_: Timing verdict (timing is one Discriminant among several), soft verdict, partial verdict
+
+**Absolute Verdict**:
+A **Verdict** saying a move is wrong in this position whatever else changed around it — aiming Stone Rain at one's own land. No **Discriminant** exists for it, so it owes no **Minimal Pair**.
+_Avoid_: Hard verdict, unconditional forbidden
 
 **Scenario Spec**:
 The vocabulary a position is written in: cards by NAME and seat, never by instance id, which every rebuild reassigns. Describes a board **and its Stack**, whose objects are named rather than derived by replaying the moves that put them there. What a **Verdict**, a **Test Position** and a preset scenario all carry, so one position means the same thing to the quiz, the suite and the Debug panel.
@@ -683,7 +695,7 @@ The committed list naming exactly which **Verdicts** a **Weight Fit** was run ov
 _Avoid_: Manifest, index, allowlist, approved list
 
 **Promotion**:
-The one step that widens the **Verdict Lock**: every **Verdict** in the **Verdict Store** that still loads and rebuilds, carries an **Attestation** from someone who gave it, and is not part of a **Contested Position** enters the lock, and the **Weight Fit** is re-run in the same change so the committed weights move with it. Reviewed as its delta — which judgements came in, which pairs the fit cannot satisfy, how far each weight moved, whether the must tier still passes — never row by row, because a review that does not scale is skipped.
+The one step that widens the **Verdict Lock**: every **Verdict** in the **Verdict Store** that still loads and rebuilds, carries an **Attestation** from someone who gave it, is not part of a **Contested Position**, and is not a **Conditional Verdict** still missing its **Minimal Pair** enters the lock, and the **Weight Fit** is re-run in the same change so the committed weights move with it. Reviewed as its delta — which judgements came in, which pairs the fit cannot satisfy, how far each weight moved, whether the must tier still passes — never row by row, because a review that does not scale is skipped.
 _Avoid_: Import, sync, publish, approval
 
 **Contested Position**:
@@ -714,11 +726,11 @@ Two positions ordered by a **Verdict** — the board after the right move agains
 _Avoid_: Eval test, weight test, position test
 
 **Weight Fit**:
-The deterministic procedure that turns the accumulated **Verdicts** into the **Evaluation**'s weights: every **Eval Pair** is a constraint the weights should satisfy by a fixed margin, the fit moves the weights as little as possible from where they are to satisfy as many as it can, and reports the pairs it could not — those name a missing term, never a bad player. Same verdicts, same weights, to the bit; no self-play, no **Ladder**.
+The deterministic procedure that turns the accumulated **Verdicts** into the **Evaluation**'s weights: every **Eval Pair** is a constraint the weights should satisfy by a fixed margin, the fit moves the weights as little as possible from where they are to satisfy as many as it can, and reports the pairs it could not — those name a missing term, never a bad player. A **Minimal Pair** is reported as one unit: when the fit satisfies one half and not the other, it has settled on "always" or "never", and the report names the **Discriminant** no term of the **Evaluation** reads. Same verdicts, same weights, to the bit; no self-play, no **Ladder**.
 _Avoid_: Training, machine learning, tuning run, calibration
 
 **Held-out Agreement**:
-How often the **Brain** answers the way a player did on **Verdicts** it was never tuned against. The **Verdicts** are divided once, by their own content, into a side the **Weight Fit** may read and a side it never sees; agreement is counted only on the unseen side, because agreement on judgements the weights were fitted to is inflated by memorisation and says nothing about a position nobody has judged yet. Counted two ways: _eval agreement_ — the share of unseen **Eval Pairs** the **Evaluation** alone orders as the player did — and _pick agreement_ — the share of unseen **Verdicts** where the whole **Brain**, search included, chooses the player's move. Pick agreement is the **Brain**'s strength number, the one that is meant to climb; the gap between the two says what the search adds to, or takes from, the **Evaluation** beneath it.
+How often the **Brain** answers the way a player did on **Verdicts** it was never tuned against. The **Verdicts** are divided once, by their own content, into a side the **Weight Fit** may read and a side it never sees; the two halves of a **Minimal Pair** always fall on the same side, since either half alone is half an argument; agreement is counted only on the unseen side, because agreement on judgements the weights were fitted to is inflated by memorisation and says nothing about a position nobody has judged yet. Counted two ways: _eval agreement_ — the share of unseen **Eval Pairs** the **Evaluation** alone orders as the player did — and _pick agreement_ — the share of unseen **Verdicts** where the whole **Brain**, search included, chooses the player's move. Pick agreement is the **Brain**'s strength number, the one that is meant to climb; the gap between the two says what the search adds to, or takes from, the **Evaluation** beneath it.
 _Avoid_: Accuracy, test score, validation score, win rate
 
 **Beyond Budget**:
