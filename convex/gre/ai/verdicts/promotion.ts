@@ -52,6 +52,11 @@ import {
     type StoredVerdictPayload,
     type VerdictLock,
 } from "./lockSource";
+import {
+    formatMinimalPairSection,
+    minimalPairTally,
+    type MinimalPairFitOutcome,
+} from "./fit";
 import { minimalPairStandings } from "./minimalPair";
 import { encodeVerdictPack } from "./pack";
 import {
@@ -517,6 +522,11 @@ export type PromotionReportInput = {
     /** Every pair still unsatisfied at the fitted weights — never dropped
      *  (ADR 0124 §3). */
     unsatisfied: PromotionReportPair[];
+    /** Every complete Minimal Pair in the promoted corpus, read as ONE unit
+     *  against the fitted weights (ADR 0148, issue #4794) — beside
+     *  `formatStoreValidation`'s `incomplete-pair` count of the ones this
+     *  promotion left out entirely. */
+    minimalPairs: MinimalPairFitOutcome[];
     /** Every fittable weight: the committed value and the fitted one. */
     movement: { key: string; committed: number; fitted: number }[];
 };
@@ -533,12 +543,16 @@ const pairLines = (pair: PromotionReportPair): string[] => [
 export function formatPromotionReport(input: PromotionReportInput): string {
     const { plan } = input;
     const moved = input.movement.filter((m) => m.fitted !== m.committed);
+    // Shared with `formatMinimalPairSection` (`fit.ts`) so this headline and
+    // the section below it can never disagree about which pair is which.
+    const tally = minimalPairTally(input.minimalPairs);
     const out = [
         `== Verdict promotion (issue #3583, ADR 0128 §7) — review the DELTA`,
         `  lock                   : ${input.lockedBefore} → ${plan.lock.verdictIds.length} verdicts (+${plan.added.length}, −${plan.dropped.length})`,
         `  pack                   : packs/${plan.lock.packHash}.jsonl.gz`,
         `  new Eval Pairs         : ${input.newPairs.length}`,
         `  unsatisfied pairs      : ${input.unsatisfied.length}`,
+        `  minimal pairs          : ${input.minimalPairs.length} (both ${tally.both} / one ${tally.one} / neither ${tally.neither} / not fitted ${tally.notFitted})`,
         `  weights moved          : ${moved.length} of ${input.movement.length}`,
     ];
     out.push(`\n== verdicts added (${plan.added.length})`);
@@ -556,6 +570,7 @@ export function formatPromotionReport(input: PromotionReportInput): string {
         `\n== pairs the fit could not satisfy (${input.unsatisfied.length}) — kept, never dropped: each names a missing term, a wrong verdict, or a residual no weight reaches`
     );
     for (const pair of input.unsatisfied) out.push(...pairLines(pair));
+    out.push(`\n${formatMinimalPairSection(input.minimalPairs)}`);
     out.push(`\n== weight movement, committed DEFAULT_EVAL_WEIGHTS → fitted`);
     if (moved.length === 0) out.push("  (nothing moved)");
     for (const m of moved) {

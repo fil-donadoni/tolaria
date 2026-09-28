@@ -100,7 +100,13 @@ import {
     type FittableWeightKey,
 } from "./features";
 import type { EvalPair } from "./evalPairs";
-import { contradictoryCouples, type Contradiction } from "./report";
+import {
+    contradictoryCouples,
+    SATISFIED_EPS,
+    type Contradiction,
+} from "./report";
+import { minimalPairStandings } from "./minimalPair";
+import { DISCRIMINANT_KINDS, type Discriminant, type Verdict } from "./types";
 
 /**
  * The separation a pair must reach, in `evaluate` margin points.
@@ -790,5 +796,255 @@ export function formatWeightFitReport(
             `  ${v.pair.verdictId}\n      want  ${v.pair.right.description}\n      over  ${v.pair.other.description}\n      Δ ${v.before.toFixed(1)} → ${v.predicted.toFixed(1)}`
         );
     }
+    return out.join("\n");
+}
+
+// ── MINIMAL PAIR SECTION (ADR 0148, issue #4794) ──────────────────────────
+//
+// A Conditional Verdict is half an argument until its right-hand half exists
+// (`minimalPair.ts`). The fit and its report already read the two halves as
+// independent Eval Pairs — correctly, since each is its own constraint — but
+// a HUMAN reading the report wants the argument, not its two loose pieces:
+// did the fit learn "not now" as a real conditional, or only as "never" (the
+// anchor alone satisfied) or only as "always" (the half alone satisfied)?
+//
+// THE BAR IS THE REPORT'S ORDERING BAR, NOT THE FIT'S MARGIN. `pairs` is
+// meant to be a re-derived `VerdictReport`'s real `pairs` — engine-real
+// deltas, exactly what `violated`/`satisfied` there are scored on
+// (`SATISFIED_EPS`, strictly positive). Scoring the SAME numbers against
+// `FIT_MARGIN` instead would read a pair the promotion's own headline calls
+// "satisfied" as a Minimal Pair failure, contradicting the report two lines
+// above it. `FIT_MARGIN` is a target for the FIT to reach, not the bar a
+// human reads a decided position on.
+//
+// A HALF ABSENT FROM `pairs` IS NOT UNSATISFIED — it is `"not-fitted"`. The
+// clearest case is a TIMING pair (`evalPairs.ts`, issue #4764): the fit never
+// scores "pass" against a deferrable action at all, so BOTH halves of a
+// step-Discriminant pair built on that shape are absent from `pairs` by
+// construction — which is exactly ADR 0148's own worked example, the instant
+// in main phase against the instant at the opponent's end step. Reading that
+// absence as "unsatisfied" would flag it "NEITHER half satisfied — a look at
+// the board" for a pair the fit was never asked about; the search checks it
+// instead (`formatTimingSection`). A rebuild error is the other source of
+// absence, and deserves the same reading: the fit said nothing, not "no".
+
+/** A half's reading against whichever pairs the caller handed in.
+ *  `not-fitted` — the half yielded NO pair in that set at all (a timing pair,
+ *  a rebuild error, or simply a verdict the caller never fitted) — is kept
+ *  apart from `unsatisfied` on purpose: see the header. */
+export type MinimalPairHalfOutcome = "satisfied" | "unsatisfied" | "not-fitted";
+
+/** One complete Minimal Pair, read against the fit as a UNIT. */
+export type MinimalPairFitOutcome = {
+    anchorId: string;
+    halfId: string;
+    discriminant: Discriminant;
+    anchor: MinimalPairHalfOutcome;
+    half: MinimalPairHalfOutcome;
+};
+
+/** Every verdict id named in `pairs`, `"satisfied"` only when EVERY pair it
+ *  yielded clears `SATISFIED_EPS` — the same AND `VerdictRow.ok` applies,
+ *  read per verdict rather than per row. A verdict absent from `pairs`
+ *  altogether has no entry here; `minimalPairFitOutcomes` reads that as
+ *  `"not-fitted"` rather than defaulting it either way. */
+function verdictOutcomes(
+    pairs: readonly Pick<EvalPair, "verdictId" | "delta">[]
+): Map<string, MinimalPairHalfOutcome> {
+    const out = new Map<string, MinimalPairHalfOutcome>();
+    for (const pair of pairs) {
+        const ok = pair.delta > SATISFIED_EPS;
+        const prev = out.get(pair.verdictId);
+        out.set(
+            pair.verdictId,
+            prev === "unsatisfied" || !ok ? "unsatisfied" : "satisfied"
+        );
+    }
+    return out;
+}
+
+/**
+ * Every complete Minimal Pair among `verdicts`, with both halves' outcome
+ * against `pairs` (a re-derived `VerdictReport`'s real `pairs`, or any set
+ * carrying `verdictId` + `delta` on the SAME ordering bar). `verdicts` is
+ * used only to find the pairs and read their Discriminant — it need not be
+ * the exact set `pairs` was built from.
+ */
+export function minimalPairFitOutcomes(
+    verdicts: readonly Verdict[],
+    pairs: readonly Pick<EvalPair, "verdictId" | "delta">[]
+): MinimalPairFitOutcome[] {
+    const outcomeOf = verdictOutcomes(pairs);
+    const standings = minimalPairStandings(
+        verdicts.map((v) => ({
+            verdictId: v.id,
+            judgement: v,
+            stored: v.source === "store",
+        }))
+    );
+    const out: MinimalPairFitOutcome[] = [];
+    for (const verdict of verdicts) {
+        const standing = standings.get(verdict.id);
+        if (standing?.kind !== "paired" || standing.role !== "anchor") continue;
+        // `minimalPairStandings` reaches "paired"/"anchor" from exactly one
+        // branch, a conditional classification — the throw names the
+        // invariant rather than silently reading a wrong Discriminant.
+        if (verdict.classification?.kind !== "conditional") {
+            throw new Error(
+                `${verdict.id}: a paired anchor with no conditional classification — minimalPairStandings invariant broken`
+            );
+        }
+        const discriminant = verdict.classification.discriminant;
+        for (const halfId of standing.partnerIds) {
+            out.push({
+                anchorId: verdict.id,
+                halfId,
+                discriminant,
+                anchor: outcomeOf.get(verdict.id) ?? "not-fitted",
+                half: outcomeOf.get(halfId) ?? "not-fitted",
+            });
+        }
+    }
+    return out;
+}
+
+/** How one Minimal Pair reads, over the three shapes a report cares about —
+ *  `"not-fitted"` first, so a pair with one satisfied half and one the fit
+ *  never saw is never miscounted as "one satisfied". */
+function pairShapeOf(
+    p: MinimalPairFitOutcome
+): "both" | "one" | "neither" | "not-fitted" {
+    if (p.anchor === "not-fitted" || p.half === "not-fitted") {
+        return "not-fitted";
+    }
+    if (p.anchor === "satisfied" && p.half === "satisfied") return "both";
+    if (p.anchor === "satisfied" || p.half === "satisfied") return "one";
+    return "neither";
+}
+
+export type MinimalPairTally = {
+    both: number;
+    one: number;
+    neither: number;
+    notFitted: number;
+};
+
+/** The headline counts alone — shared by `formatMinimalPairSection` and the
+ *  Promotion report's own summary line, so the two can never disagree about
+ *  which pair is which (issue #4794 review). */
+export function minimalPairTally(
+    pairs: readonly MinimalPairFitOutcome[]
+): MinimalPairTally {
+    const tally: MinimalPairTally = {
+        both: 0,
+        one: 0,
+        neither: 0,
+        notFitted: 0,
+    };
+    for (const p of pairs) {
+        const shape = pairShapeOf(p);
+        if (shape === "both") tally.both++;
+        else if (shape === "one") tally.one++;
+        else if (shape === "neither") tally.neither++;
+        else tally.notFitted++;
+    }
+    return tally;
+}
+
+/** The Minimal Pair section (ADR 0148, issue #4794): each complete pair read
+ *  as ONE unit — both halves satisfied, one, neither, or not fitted at all —
+ *  instead of two loose Eval Pairs. One satisfied means the fit settled the
+ *  argument on "always" or "never": the line names the Discriminant no
+ *  Evaluation term reads. Unsatisfied pairs (one half or neither, EXCLUDING
+ *  the not-fitted ones — the fit never weighed in on those) are counted by
+ *  Discriminant kind, and `other` phrases are listed verbatim with their
+ *  counts — a recurring phrase names the kind the closed list is missing. A
+ *  pair with NEITHER half satisfied is flagged on its own: the fit bought
+ *  nothing on either side, which is as often a badly written pair as a
+ *  missing term (ADR 0148, PRD #4792 user story 21). */
+export function formatMinimalPairSection(
+    pairs: readonly MinimalPairFitOutcome[]
+): string {
+    const tally = minimalPairTally(pairs);
+    const one = pairs.filter((p) => pairShapeOf(p) === "one");
+    const none = pairs.filter((p) => pairShapeOf(p) === "neither");
+    const notFitted = pairs.filter((p) => pairShapeOf(p) === "not-fitted");
+    const unsatisfied = [...one, ...none];
+
+    const out: string[] = [
+        `== Minimal Pairs (${pairs.length}) — both halves satisfied / one / neither / not fitted (ADR 0148)`,
+        `  both satisfied         : ${tally.both}`,
+        `  one satisfied          : ${tally.one}`,
+        `  neither satisfied      : ${tally.neither}`,
+        `  not fitted             : ${tally.notFitted} (a timing pair or a rebuild error — checked by the search, not the fit)`,
+    ];
+
+    if (one.length > 0) {
+        out.push(
+            `\n== Minimal Pairs with ONE half satisfied (${one.length}) — the fit settled "always" or "never"`
+        );
+        for (const p of one) {
+            const unsatisfiedSide =
+                p.anchor === "satisfied" ? "half" : "anchor";
+            out.push(
+                `  ${p.anchorId} / ${p.halfId}  (${unsatisfiedSide} unsatisfied)\n` +
+                    `      Discriminant no term reads: ${p.discriminant.kind}: ${p.discriminant.detail}`
+            );
+        }
+    }
+
+    const byKind = new Map<string, number>();
+    for (const p of unsatisfied) {
+        byKind.set(
+            p.discriminant.kind,
+            (byKind.get(p.discriminant.kind) ?? 0) + 1
+        );
+    }
+    out.push(
+        `\n== unsatisfied Minimal Pairs by Discriminant kind (${unsatisfied.length})`
+    );
+    if (unsatisfied.length === 0) out.push("  (none)");
+    for (const kind of DISCRIMINANT_KINDS) {
+        const n = byKind.get(kind) ?? 0;
+        if (n > 0) out.push(`  ${kind.padEnd(10)} ${n}`);
+    }
+
+    const otherPairs = unsatisfied.filter(
+        (p) => p.discriminant.kind === "other"
+    );
+    if (otherPairs.length > 0) {
+        const byDetail = new Map<string, number>();
+        for (const p of otherPairs) {
+            byDetail.set(
+                p.discriminant.detail,
+                (byDetail.get(p.discriminant.detail) ?? 0) + 1
+            );
+        }
+        out.push(`\n== "other" Discriminant phrases, verbatim`);
+        for (const [detail, n] of byDetail) out.push(`  ${n}x  ${detail}`);
+    }
+
+    if (none.length > 0) {
+        out.push(
+            `\n== Minimal Pairs with NEITHER half satisfied (${none.length}) — a look at the board, not a missing term`
+        );
+        for (const p of none) {
+            out.push(
+                `  ${p.anchorId} / ${p.halfId}\n      Discriminant: ${p.discriminant.kind}: ${p.discriminant.detail}`
+            );
+        }
+    }
+
+    if (notFitted.length > 0) {
+        out.push(
+            `\n== Minimal Pairs NOT FITTED (${notFitted.length}) — a timing pair or a rebuild error; the search checks these, never the fit`
+        );
+        for (const p of notFitted) {
+            out.push(
+                `  ${p.anchorId} / ${p.halfId}  (anchor ${p.anchor}, half ${p.half})\n      Discriminant: ${p.discriminant.kind}: ${p.discriminant.detail}`
+            );
+        }
+    }
+
     return out.join("\n");
 }
