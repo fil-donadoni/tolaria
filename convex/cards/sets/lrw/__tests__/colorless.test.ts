@@ -12,7 +12,13 @@
 // permission has no stated duration, so it exists ONLY while the ability
 // resolves — playable immediately and ONLY immediately, ignoring card-type
 // timing (a creature on the OPPONENT's turn, the card's whole point), with the
-// land branch stayed narrow by CR 305.2a / 305.3 / 305.2b.
+// land branch staying narrowly LEGAL only under CR 305.2a / 305.3 / 305.2b.
+// The Play/Decline OFFER itself, though, is a DECOY (issue #1982): it raises
+// whenever the linked card is a land, whether or not playing it is legal
+// right now, because gating the offer's presence on that legality is what let
+// a hidden land's turn-dependent silence tell the opponent it wasn't a
+// nonland — a second CR 406.3 leak past the wording one `OFFER_PROMPT`
+// already closes.
 
 import { describe, it, expect } from "vitest";
 import {
@@ -488,19 +494,31 @@ describe("Shelldock Isle — linked play ability (CR 607 / 608.2g / 305)", () =>
         expect(state.players[0].landsPlayedThisTurn).toBe(1);
     });
 
-    it("CR 305.3 — a hidden LAND is NOT offered on the opponent's turn, and the resolution completes cleanly", () => {
-        // The asymmetry the fix must preserve: a creature flashes in on the
-        // opponent's turn, a LAND does not ("ignore any part of an effect" that
-        // says to play a land when it isn't your turn).
+    it("CR 305.3 / 406.3 (issue #1982) — a hidden LAND still raises the DECOY offer on the opponent's turn, but 'cast' fails silently", () => {
+        // The presence-channel leak this pins shut: the offer used to be
+        // gated on FULL legality (getChosenLandPlayable), so a hidden land on
+        // the opponent's turn raised no prompt at all while a hidden nonland
+        // (turn-independent, CR 608.2g) always did — the opponent could read
+        // land-ness off whether an offer appeared. The offer must now be
+        // symmetric: raised whenever the linked card IS a land, whether or
+        // not playing it is legal right now.
         const { state, isle } = setup(6, 15, ISLAND_ID);
         const hidden = hideOne(state, isle);
         passTurnToOpponent(state);
 
-        expect(() =>
-            resolveActivated(state, isle, PLAY_ABILITY_ID)
-        ).not.toThrow();
+        resolveActivated(state, isle, PLAY_ABILITY_ID);
+        const offer = state.pendingChoices![0];
+        expect(offer.kind).toBe("option-pick");
+        expect(offer.options?.map((o) => o.id)).toEqual(["cast", "decline"]);
+
+        // Picking "cast" on the decoy must NOT actually play the land — the
+        // CR 305.3 gate is re-checked AFTER the decision, never skipped.
+        submitChoice(state, ["cast"]);
         expect(state.pendingChoices).toBeUndefined();
         expect(state.stack).toHaveLength(0);
+        expect(state.players[0].battlefield.some((c) => c.id === hidden)).toBe(
+            false
+        );
         // The land stayed exiled, face down, with no lingering permission.
         const card = state.players[0].exile.find((c) => c.id === hidden)!;
         expect(card).toBeDefined();
@@ -509,17 +527,51 @@ describe("Shelldock Isle — linked play ability (CR 607 / 608.2g / 305)", () =>
         expect(state.players[0].landsPlayedThisTurn ?? 0).toBe(0);
     });
 
-    it("CR 305.2b — a hidden LAND is NOT offered once the land drop is spent, and the resolution completes cleanly", () => {
+    it("CR 406.3 (issue #1982) — the decoy offer is BYTE-IDENTICAL to the nonland offer on the opponent's projection, even on the opponent's own turn", () => {
+        // Driven THROUGH the reducer from the ACTIVE player's viewpoint (p2,
+        // the non-chooser here) — a hand-built view would mask exactly the
+        // presence asymmetry this test exists to catch.
+        const offerAsSeenByActiveOpponent = (topCardId?: string) => {
+            const { state, isle } = setup(6, 15, topCardId);
+            hideOne(state, isle);
+            passTurnToOpponent(state);
+            resolveActivated(state, isle, PLAY_ABILITY_ID);
+            const offer = projectPublicState(state, 1, "p2")
+                .pendingChoices?.[0];
+            return {
+                kind: offer?.kind,
+                prompt: offer?.prompt,
+                options: offer?.options,
+                subjectCardId: offer?.subjectCardId,
+            };
+        };
+
+        const nonland = offerAsSeenByActiveOpponent(); // Grizzly Bears
+        const land = offerAsSeenByActiveOpponent(ISLAND_ID); // Island
+        expect(land.kind).toBe("option-pick");
+        expect(land).toEqual(nonland);
+    });
+
+    it("CR 305.2b (issue #1982) — the decoy offer still raises once the land drop is spent, but 'cast' fails silently", () => {
+        // Same presence-symmetry reasoning as the CR 305.3 case above: the
+        // land drop count is per-player state the offer's presence must not
+        // leak through either, since the universal decoy raises it whenever
+        // the linked card is a land, deferring EVERY legality check
+        // (turn, drop, CR 614 lock) to after the decision.
         const { state, isle } = setup(6, 15, ISLAND_ID);
         const hidden = hideOne(state, isle);
         state.players[0].landsPlayedThisTurn = 1;
 
-        expect(() =>
-            resolveActivated(state, isle, PLAY_ABILITY_ID)
-        ).not.toThrow();
+        resolveActivated(state, isle, PLAY_ABILITY_ID);
+        expect(state.pendingChoices![0].kind).toBe("option-pick");
+
+        submitChoice(state, ["cast"]);
         expect(state.pendingChoices).toBeUndefined();
         expect(state.stack).toHaveLength(0);
         expect(state.players[0].exile.some((c) => c.id === hidden)).toBe(true);
+        expect(state.players[0].battlefield.some((c) => c.id === hidden)).toBe(
+            false
+        );
         expect(state.players[0].landsPlayedThisTurn).toBe(1);
     });
 

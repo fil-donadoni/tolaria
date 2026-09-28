@@ -7802,35 +7802,70 @@ function runCastDuringResolution(
     // set only by a grant whose Oracle text says "play" (Hideaway); without
     // it a land silently passes, which is the official Malcolm land ruling
     // and stays the default for every "cast" grant. A land+other-type card
-    // can only be played as a land (CR 305.9), so this branch wins first.
-    if (
-        op.includesLand &&
-        ctx.getChosenLandPlayable(playerId, cardInstanceId, sourceZone)
-    ) {
-        // "you may PLAY the exiled card" — the same resolve-time
-        // `option-pick` as the cast branch, byte-identical in prompt and
-        // options (see `OFFER_PROMPT`). The text deliberately does NOT name
-        // the card: a hideaway card is FACE DOWN (CR 406.3, visible only to
-        // its controller) and `pendingChoices` crosses the wire unredacted to
-        // BOTH viewers, so naming it in the prompt would leak the hidden
-        // identity. The `subjectCardId` the shared `offer` may carry is safe
-        // for the one reason it is DERIVED (issue #3413):
-        // `getPublicCardIdentity` returns nothing for a face-down card, so
-        // this branch pins nothing when the card is hidden and pins a public
-        // graveyard land's id when it is not. Computed once, before the
-        // branch, and spread into both call sites — so it cannot differ
-        // between them either.
-        const landDecision = ctx.requestOptionChoice({
+    // can only be played as a land (CR 305.9), so the land dispatch below
+    // wins first once accepted.
+    //
+    // CR 406.3 (issue #1982) — an `includesLand` grant raises ONE offer
+    // whenever the linked card exists, full stop: NEITHER `getChosenLandPlayable`
+    // (land legality — CR 305.3 turn, 305.2b drop, CR 614 lock) NOR
+    // `getChosenCardCastable` (nonland castability — CR 601.3a) gates the
+    // offer itself anymore for this shape. Gating on ANY legality check is
+    // itself the leak once the wording is byte-identical (`OFFER_PROMPT`):
+    // presence must not tell the opponent "land" from "nonland", or
+    // "castable" from "prohibited right now". Every legality question is
+    // deferred to AFTER the decision, dispatched by type below. A grant
+    // WITHOUT `includesLand` (Malcolm, Chandra) keeps the pre-existing
+    // behaviour — its source card is never hidden (CR607-linked exile is
+    // Hideaway's alone), so gating its offer on castability leaks nothing.
+    let decision: string | undefined;
+    if (op.includesLand) {
+        decision = ctx.requestOptionChoice({
             playerId,
             choiceId: "cdr:decide",
             ...offer,
         });
-        if (landDecision === undefined) return "suspend"; // enqueued — wait
-        if (landDecision !== "cast") {
-            // Declined — the land stays in its source zone (still face down
-            // if it was), nothing enters, and no later-in-turn window is
-            // stamped: the CR 608.2g permission dies with this resolution.
-            finish(false, "decline");
+        if (decision === undefined) return "suspend"; // enqueued — wait
+    } else {
+        // Silent pass (CR 608.2b / the Malcolm land ruling): the card is no
+        // longer in the source zone, or it's a land a "cast"-only grant
+        // can't reach. No prompt is offered at all; the ability finishes
+        // silently and the resolution completes cleanly.
+        if (!ctx.getChosenCardCastable(playerId, cardInstanceId, sourceZone)) {
+            finish(false, "pass");
+            return;
+        }
+        // "you may cast" — a Cast / Decline `option-pick`, a resolve-time
+        // choice routed to the caster (CR 608.2g: NOT priority, the
+        // opponent cannot act here). Reuses the existing suspend/resume
+        // seam.
+        decision = ctx.requestOptionChoice({
+            playerId,
+            choiceId: "cdr:decide",
+            ...offer,
+        });
+        if (decision === undefined) return "suspend"; // enqueued — wait
+    }
+    if (decision !== "cast") {
+        // Declined — the card stays in its source zone (still face down if
+        // it was), nothing enters/is cast, and no later-in-turn window is
+        // stamped: the CR 608.2g permission dies with this resolution.
+        finish(false, "decline");
+        return;
+    }
+
+    if (
+        op.includesLand &&
+        ctx.getChosenCardIsLand(playerId, cardInstanceId, sourceZone)
+    ) {
+        // The decoy's other half: "cast"/"play" was picked, but the land may
+        // still be UNPLAYABLE right now (CR 305.3 wrong turn, CR 305.2b drop
+        // spent, CR 614 lock) — legality was never checked before the offer,
+        // only the type. `playLandForPlayer` is deliberately TIMING-AGNOSTIC
+        // (it has to be, for Word of Command's controlled play), so an
+        // illegal-turn pick is caught HERE, not inside it, or the land would
+        // actually enter on the opponent's turn.
+        if (!ctx.getChosenLandPlayable(playerId, cardInstanceId, sourceZone)) {
+            finish(false, "pass");
             return;
         }
         // CR 305.2a — the land enters through the canonical play-land
@@ -7842,33 +7877,18 @@ function runCastDuringResolution(
         return;
     }
 
-    // Silent pass (CR 608.2b / the Malcolm land ruling): the card is no
-    // longer in the source zone (empty source), or it is a land the grant
-    // can't reach — either a "cast"-only grant (no `includesLand`) or a
-    // "play" grant whose CR 305 legality failed (opponent's turn per CR
-    // 305.3, land drop already spent per CR 305.2b, a CR 614 land-play
-    // lock). No prompt is offered at all — the ability finishes silently
-    // and the resolution completes cleanly.
-    if (!ctx.getChosenCardCastable(playerId, cardInstanceId, sourceZone)) {
+    // The nonland twin of the land recheck above, ONLY reachable for an
+    // `includesLand` grant (the `!op.includesLand` path already checked
+    // castability before ever offering, so this is always true there).
+    // "Cast" was picked on a card that may itself be uncastable right now
+    // (CR 601.3a — its own condition, a "can't cast" lock) — deferred the
+    // same way the land branch defers CR 305, so presence never told the
+    // two apart.
+    if (
+        op.includesLand &&
+        !ctx.getChosenCardCastable(playerId, cardInstanceId, sourceZone)
+    ) {
         finish(false, "pass");
-        return;
-    }
-
-    // "you may cast" — a Cast / Decline `option-pick` (Play / Decline for a
-    // grant that can also reach a land, identical to the land branch above
-    // so the branch taken stays hidden — CR 406.3), a resolve-time choice
-    // routed to the caster (CR 608.2g: NOT priority, the opponent cannot act
-    // here). Reuses the existing suspend/resume seam.
-    const decision = ctx.requestOptionChoice({
-        playerId,
-        choiceId: "cdr:decide",
-        ...offer,
-    });
-    if (decision === undefined) return "suspend"; // enqueued — wait
-    if (decision !== "cast") {
-        // Declined — the card stays in its source zone, nothing is cast,
-        // and (unlike `grantCastFrom*`) no later-in-turn window is stamped.
-        finish(false, "decline");
         return;
     }
 

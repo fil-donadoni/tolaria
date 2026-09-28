@@ -26089,34 +26089,63 @@ describe("Effect Script Op: castDuringResolution — LAND branch, play during re
         expect(state.players[0].landsPlayedThisTurn ?? 0).toBe(0);
     });
 
-    it("CR 305.3 — passes silently (NO prompt) when it isn't the player's turn, and the resolution completes cleanly", () => {
+    it("CR 305.3 / 406.3 (issue #1982) — the DECOY offer still raises when it isn't the player's turn, but accepting fails silently", () => {
+        // The presence-channel fix: the offer used to be gated on FULL
+        // legality (`getChosenLandPlayable`), so a hidden land's offer
+        // disappeared exactly when it wasn't the caster's turn while a
+        // hidden nonland's never does — the offer's mere PRESENCE leaked
+        // the type. It must now raise whenever the linked card IS a land,
+        // and only re-check legality AFTER the decision.
         const { state, landId } = stateWithLand({
             activePlayerId: "p2",
             priorityPlayerId: "p2",
         });
-        expect(() =>
-            runToOffer(state, landScript("test-op-cdr-land-opp-turn"))
-        ).not.toThrow();
-        // "Ignore any part of an effect that instructs a player to [play a land
-        // when it isn't their turn]" — no dead prompt, no error.
+        runToOffer(state, landScript("test-op-cdr-land-opp-turn"));
+        const offer = state.pendingChoices![0];
+        expect(offer.kind).toBe("option-pick");
+
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: offer.stackItemId,
+            step: offer.step,
+            choiceId: offer.choiceId,
+            cardInstanceIds: ["cast"],
+        });
+        // "Ignore any part of an effect that instructs a player to [play a
+        // land when it isn't their turn]" — the decoy's accept still fails,
+        // no dead prompt left behind, no error.
         expect(state.pendingChoices).toBeUndefined();
         expect(state.stack).toHaveLength(0);
         expect(state.players[0].graveyard.some((c) => c.id === landId)).toBe(
             true
         );
+        expect(state.players[0].battlefield.some((c) => c.id === landId)).toBe(
+            false
+        );
         expect(state.players[0].landsPlayedThisTurn ?? 0).toBe(0);
     });
 
-    it("CR 305.2b — passes silently (NO prompt) once the land drop is already spent", () => {
+    it("CR 305.2b (issue #1982) — the DECOY offer still raises once the land drop is already spent, but accepting fails silently", () => {
         const { state, landId } = stateWithLand();
         state.players[0].landsPlayedThisTurn = 1;
-        expect(() =>
-            runToOffer(state, landScript("test-op-cdr-land-drop-spent"))
-        ).not.toThrow();
+        runToOffer(state, landScript("test-op-cdr-land-drop-spent"));
+        const offer = state.pendingChoices![0];
+        expect(offer.kind).toBe("option-pick");
+
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: offer.stackItemId,
+            step: offer.step,
+            choiceId: offer.choiceId,
+            cardInstanceIds: ["cast"],
+        });
         expect(state.pendingChoices).toBeUndefined();
         expect(state.stack).toHaveLength(0);
         expect(state.players[0].graveyard.some((c) => c.id === landId)).toBe(
             true
+        );
+        expect(state.players[0].battlefield.some((c) => c.id === landId)).toBe(
+            false
         );
         expect(state.players[0].landsPlayedThisTurn).toBe(1);
     });
@@ -26164,6 +26193,60 @@ describe("Effect Script Op: castDuringResolution — LAND branch, play during re
         });
         expect(state.stack.some((s) => s.id === "cdrLandBear")).toBe(true);
         expect(state.players[0].landsPlayedThisTurn ?? 0).toBe(0);
+    });
+
+    it("CR 601.3a / 406.3 (issue #1982) — a NONLAND whose own cast condition is unmet ALSO gets the decoy offer, parity with the land branch", () => {
+        // The residual leak an `opus` review caught on the first cut of this
+        // fix: gating the land branch's offer on `getChosenCardIsLand` alone
+        // while the nonland branch stayed gated on `getChosenCardCastable`
+        // BEFORE offering meant "no offer" still told the opponent SOMETHING
+        // in one case — a hidden land always got the decoy, but a hidden
+        // nonland forbidden to cast right now (Blizzard's own condition,
+        // "only if you control a snow land") still passed silently. Both must
+        // behave identically: the offer appears either way, and only the
+        // ACCEPT outcome differs by legality.
+        const bliz = makeInstance(blizzard.id, {
+            id: "cdrBlizNoSnow",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [makePlayer("p1", { hand: [bliz] }), makePlayer("p2")],
+        });
+        pushSpell(state, landScript("test-op-cdr-forbidden-nonland"), "p1");
+        resolveTopOfStack(state);
+        const discardHead = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: discardHead.stackItemId,
+            step: discardHead.step,
+            choiceId: discardHead.choiceId,
+            cardInstanceIds: ["cdrBlizNoSnow"],
+        });
+
+        // Byte-identical to the land branch's offer, even though Blizzard
+        // cannot legally be cast right now (no snow land controlled).
+        const offer = state.pendingChoices![0];
+        expect(offer.kind).toBe("option-pick");
+        expect(offer.options).toEqual([
+            { id: "cast", label: "Play" },
+            { id: "decline", label: "Decline" },
+        ]);
+
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: offer.stackItemId,
+            step: offer.step,
+            choiceId: offer.choiceId,
+            cardInstanceIds: ["cast"],
+        });
+        // The decoy's accept fails silently — CR 601.3a still forbids it.
+        expect(state.pendingChoices).toBeUndefined();
+        expect(state.stack).toHaveLength(0);
+        expect(
+            state.players[0].graveyard.some((c) => c.id === "cdrBlizNoSnow")
+        ).toBe(true);
     });
 });
 

@@ -193,16 +193,29 @@ describe("Bot dispatch — CR 608.2g play-during-resolution offer (issue #1961)"
         expect(state.players[1].landsPlayedThisTurn ?? 0).toBe(played ? 1 : 0);
     });
 
-    it("LAND branch on the OPPONENT's turn: no prompt is raised at all, so there is nothing to stall on (CR 305.3)", () => {
+    it("LAND branch on the OPPONENT's turn: the bot still answers the DECOY offer and never stalls, but the land never enters (CR 305.3, issue #1982)", async () => {
+        // The presence-channel fix: the offer no longer disappears just
+        // because it isn't the bot's turn — it raises the same searchable
+        // `option-pick` the CAST branch always did, so the bot's existing
+        // dispatch path (the same one every other case in this file proves)
+        // has to reach it here too rather than finding nothing to stall on.
         const { state, isle } = setup(island.id, "p1");
         hideTopCard(state, isle);
-        expect(() =>
-            pushAndResolve(state, isle, { abilityId: PLAY_ABILITY_ID })
-        ).not.toThrow();
+        pushAndResolve(state, isle, { abilityId: PLAY_ABILITY_ID });
+
+        expect(state.pendingChoices![0].kind).toBe("option-pick");
+        await driveBot(state);
         expect(state.pendingChoices).toBeUndefined();
         expect(state.stack).toHaveLength(0);
+        // Whichever way the search answered, CR 305.3 forbids the land from
+        // actually entering on the opponent's turn — the decoy's accept is a
+        // silent no-op, never a real play.
+        expect(
+            state.players[1].battlefield.some((c) => c.id === "bot-hidden")
+        ).toBe(false);
         expect(state.players[1].exile.some((c) => c.id === "bot-hidden")).toBe(
             true
         );
+        expect(state.players[1].landsPlayedThisTurn ?? 0).toBe(0);
     });
 });

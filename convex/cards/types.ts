@@ -7390,6 +7390,21 @@ export interface SpellContext {
         cardInstanceId: string,
         sourceZone: "hand" | "graveyard" | "exile"
     ) => boolean;
+    /** CR 406.3 (issue #1982) — true iff `cardInstanceId` is in `playerId`'s
+     *  `sourceZone` and IS a land, with NO legality check at all (turn, land
+     *  drop, CR 614 lock — that is {@link getChosenLandPlayable}'s job).
+     *  Split out so `runCastDuringResolution` can raise the SAME Play/Decline
+     *  offer whether or not playing the land is legal right now: gating the
+     *  offer itself on CR 305.3 turn legality is what let a hidden LAND raise
+     *  no offer at all on the opponent's turn while a hidden nonland (turn-
+     *  independent, CR 608.2g) always did — the offer's mere PRESENCE told
+     *  the opponent the face-down card's type, a second channel past the
+     *  wording one `OFFER_PROMPT` already closes (issue #1961). */
+    getChosenCardIsLand: (
+        playerId: string,
+        cardInstanceId: string,
+        sourceZone: "hand" | "graveyard" | "exile"
+    ) => boolean;
     /** CR 608.2 — the resolving spell exiles itself as the last thing it does
      *  ("Exile <this spell>", e.g. Recall). Flags the stack item so
      *  `finalizeSpellResolution` routes the card to exile instead of the

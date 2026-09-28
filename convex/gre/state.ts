@@ -17618,6 +17618,13 @@ export function buildSpellContext(
             // passes) AND be a castable, nonland card. Lands are PLAYED, not
             // cast (the official Malcolm land ruling), so a discarded land
             // reports false and the cast-during-resolution Op passes silently.
+            //
+            // Two call sites, two different TIMINGS (issue #1982): a
+            // `!includesLand` grant (Malcolm, Chandra — never CR607-hidden)
+            // still checks this BEFORE offering, so a false means no prompt
+            // at all. An `includesLand` grant (Hideaway) checks this AFTER
+            // the offer was already accepted — the presence-channel fix — so
+            // a false there means the accept silently fails instead.
             const owner = getPlayer(state, playerId);
             const found = owner[sourceZone].find(
                 (c) => c.id === cardInstanceId
@@ -17629,11 +17636,10 @@ export function buildSpellContext(
             if ((def.types ?? []).includes("Land")) return false;
             // CR 601.3a — and the cast must not be FORBIDDEN. The commit path
             // (`castChosenSpell`) enforces the same shared gate authoritatively;
-            // asking it HERE too is what keeps the Op's contract ("a false here
-            // means no prompt is offered at all") honest, instead of offering a
-            // Cast/Decline for a spell the rules forbid casting. One shared
-            // function, two call sites — the announce/enforce split
-            // `getLegalActions` and the cast mutation already use.
+            // asking it HERE too is what keeps the Op's contract honest instead
+            // of letting a forbidden cast through. One shared function, two
+            // call sites — the announce/enforce split `getLegalActions` and
+            // the cast mutation already use.
             return castProhibitionReason(playerId, found, state) === undefined;
         },
         getChosenLandPlayable(playerId, cardInstanceId, sourceZone) {
@@ -17642,10 +17648,12 @@ export function buildSpellContext(
             // whose Oracle text says "play" (Hideaway). Playing a land is a
             // SPECIAL ACTION, not casting, and — unlike the CR 608.2g cast
             // branch, which ignores card-type timing entirely — it stays
-            // narrowly gated by CR 305. Every false here makes the caller pass
-            // SILENTLY ("ignore any part of an effect that instructs a player
-            // to do so", CR 305.3): no dead prompt, no error, resolution
-            // completes.
+            // narrowly gated by CR 305. Called only AFTER the Play/Decline
+            // offer was already accepted (issue #1982 — the offer's presence
+            // no longer depends on this): every false here means the accept
+            // fails SILENTLY ("ignore any part of an effect that instructs a
+            // player to do so", CR 305.3) — no dead prompt left behind, no
+            // error, resolution completes.
             const owner = getPlayer(state, playerId);
             const found = owner[sourceZone].find(
                 (c) => c.id === cardInstanceId
@@ -17666,6 +17674,23 @@ export function buildSpellContext(
             // only while a drop remains (plus any extra-drop grants).
             const maxDrops = LAND_DROPS_PER_TURN + getExtraLandDrops(owner);
             return (owner.landsPlayedThisTurn ?? 0) < maxDrops;
+        },
+        getChosenCardIsLand(playerId, cardInstanceId, sourceZone) {
+            // CR 406.3 (issue #1982) — the type check alone, with NONE of
+            // `getChosenLandPlayable`'s CR 305/614 legality gates. Exists so
+            // the caller can raise the SAME offer regardless of legality: a
+            // land's presence-of-offer must not depend on `playerId`'s turn,
+            // or the opponent reads land-ness off whether an offer appeared
+            // at all (the presence channel `OFFER_PROMPT`'s byte-identical
+            // wording does not close).
+            const owner = getPlayer(state, playerId);
+            const found = owner[sourceZone].find(
+                (c) => c.id === cardInstanceId
+            );
+            if (!found) return false;
+            const cardId = (found.card as { id?: string }).id;
+            const def = cardId ? tryGetDefinition(cardId) : undefined;
+            return !!def && (def.types ?? []).includes("Land");
         },
         getCardModes(casterId, cardInstanceId) {
             // CR 700.2 / 108.1 — the modes of a chosen card, read from the
