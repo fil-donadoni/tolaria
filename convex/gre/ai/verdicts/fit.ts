@@ -213,10 +213,32 @@ const FIT_BANDS: readonly {
         //    exactly, so a fit landing on a 5.75 ceiling reds the suite on the
         //    sign of a float error; `bandViolations`' rounding slack would put
         //    it over outright. 4 × 5.7 = 22.8 leaves the strict bound real.
+        //  - CEILING 1.5 since issue #4761, BELOW that bound and binding for a
+        //    second reason: the difference is what TAPPING a renewable source
+        //    costs, and it must stay under what SPENDING a finite source's
+        //    charge costs (`finiteManaUseWeight`, 4 in the prior — a charge
+        //    never comes back, a tap does at the next untap step, CR 502.3 /
+        //    118.3). The comparison is not one tap against one charge: a
+        //    finite source is priced ONLY by its charges (`manaSourceTermFor`
+        //    skips it), and one charge of a depletion land yields TWO mana, so
+        //    it stands in for TWO renewable taps. Measured on the blade board
+        //    ("depletion land: pays the two-drop with the basics"): the
+        //    basics' world trails the charge's world by exactly
+        //    `2·gap − finiteManaUseWeight` at 1-ply (−2.0 at gap 3, −3.8 at
+        //    gap 3.9). The first promotion of the owner's verdicts took the gap
+        //    to 5.7, then 3.9, and the Bot paid its two-drop with the charge
+        //    on every seed. So the ceiling is `(4 − 1) / 2`: the charge must
+        //    outprice two taps by the same one margin point the FLOOR above
+        //    demands of any distinction the evaluation draws. The relation
+        //    spans THREE weights, which a band cannot state, so the ceiling
+        //    reads `finiteManaUseWeight`'s prior and `evalWeights.bot.test.ts`
+        //    asserts the relation itself on the committed vector: a fit that
+        //    moves the charge below 4 reds there instead of shipping the
+        //    inversion.
         a: "manaWeight",
         b: "tappedManaWeight",
         min: 1,
-        max: 5.7,
+        max: 1.5,
     },
 ];
 

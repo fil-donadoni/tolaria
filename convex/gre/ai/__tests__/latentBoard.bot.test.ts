@@ -172,7 +172,7 @@ describe("latent removal value follows the board (issue #3398)", () => {
         // The whole symptom of issue #3322: the spell leaving the hand must
         // cost less than the board loss it inflicts, or the search passes.
         const value = latentInHand(stoneRain.id, [forest.id]);
-        expect(value).toBeLessThan(17);
+        expect(value).toBeLessThan(LAND_ON_BOARD);
     });
 
     it("values Swords to Plowshares against Shivan Dragon above Llanowar Elves", () => {

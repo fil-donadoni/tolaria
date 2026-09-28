@@ -299,14 +299,23 @@ export const FIT_BASE_EVAL_WEIGHTS: Readonly<EvalWeights> = Object.freeze({
     graveyardReachCap: 2,
     permanentWeight: 5,
     manaWeight: 12,
-    tappedManaWeight: 9,
+    // 10.5 since issue #4761 (was 9): the prior must sit inside the fit's own
+    // `manaWeight − tappedManaWeight` band (`FIT_BANDS`, ceiling 1.5), which is
+    // the window `finiteManaUseWeight` below documents — twice this premium
+    // plus one margin point must stay under one charge. At 9 the prior's own
+    // premium was 3, so it priced a depletion land's charge BELOW the two
+    // renewable taps it replaces, every fit started from that inversion, and
+    // the first verdict promotion, pushing the premium up, kept it.
+    tappedManaWeight: 10.5,
     // 4 (issue #3530), bounded on BOTH sides, because the `finiteManaUses`
     // term REPLACES `manaWeight` for the source it prices rather than topping
     // it up:
     //  - ABOVE twice the usable-now premium (`manaWeight − tappedManaWeight`),
     //    or paying a two-mana cost with one charge beats tapping two renewable
-    //    sources and the whole issue is unfixed. The fitted vector compresses
-    //    that premium to ~1, so the binding number is small;
+    //    sources and the whole issue is unfixed. Since issue #4761 the fit
+    //    band caps that premium at 1.5 and the prior sits on it, so twice it
+    //    plus one margin point is exactly 4 (`evalWeights.bot.test.ts`
+    //    asserts the relation on the committed vector);
     //  - and TWICE it must stay UNDER `manaWeight`, or a two-use land is worth
     //    more than a Forest that unlaps every turn forever — measured at the
     //    additive shape this replaced: a full Woodlot scored 61.0 against a
@@ -390,29 +399,29 @@ export const FIT_BASE_EVAL_WEIGHTS: Readonly<EvalWeights> = Object.freeze({
 export const DEFAULT_EVAL_WEIGHTS: Readonly<EvalWeights> = Object.freeze({
     ...FIT_BASE_EVAL_WEIGHTS,
     lifeWeight: 8,
-    permanentWeight: 5.063609,
-    manaWeight: 11.163416,
-    tappedManaWeight: 10.163416,
-    finiteManaUseWeight: 4.016767,
-    manaDevWeight: 9.673652,
-    colorCoverageWeight: 27.911368,
-    flexWeight: 5.526595,
+    permanentWeight: 5.801887,
+    manaWeight: 13.44091,
+    tappedManaWeight: 11.94091,
+    finiteManaUseWeight: 4.006348,
+    manaDevWeight: 12.816712,
+    colorCoverageWeight: 24.977729,
+    flexWeight: 6.742302,
     deckingWeight: 1.5,
-    graveyardEngineWeight: 66.14143,
-    graveyardReachFraction: 0.197704,
+    graveyardEngineWeight: 62.600487,
+    graveyardReachFraction: 0.169155,
     latent: Object.freeze({
-        damage: 20.963615,
-        cardAdvantage: 38.456783,
-        lifeSwing: 7.692878,
-        boardRemoval: 111.187544,
-        ramp: 11.350484,
+        damage: 22.116141,
+        cardAdvantage: 44.13274,
+        lifeSwing: 7.785505,
+        boardRemoval: 155.498887,
+        ramp: 11.698895,
         evasion: 40,
-        tempo: 55,
-        disruption: 93.792577,
+        tempo: 51.336325,
+        disruption: 114.88628,
         recursion: 140,
-        tokens: 0.495468,
-        pump: 8.638099,
-        protection: 56.821585,
+        tokens: 0.61654,
+        pump: 9.332494,
+        protection: 58.791296,
     }),
 });
 

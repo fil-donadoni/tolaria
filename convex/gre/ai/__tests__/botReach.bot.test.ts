@@ -19,6 +19,7 @@ import type { Move } from "../../moves";
 import { enumerateMoves } from "../../moves";
 import { attackEdictPosition, flashAmbushPosition } from "../botReachTarget";
 import {
+    BOT_REACH_BUDGET,
     OPPONENT_END_STEP_WINDOW,
     REACH_WINDOWS,
     botReachSpec,
@@ -1199,7 +1200,19 @@ describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
     // `never-chosen`. The position gives the holder a tapped body to untap
     // (CR 701.26b), and the Bot then casts it.
     it("played — an untap spell aimed at a tapped permanent of its own", () => {
-        expect(playBotReachSeats(getCardByName("Burst of Energy"))).toEqual([
+        // 200 iterations, not the sweep's 48: on issue #4761's promotion
+        // refit the second-built seat stopped casting it at 48 × [0xb07,
+        // 0x5eed] while it still casts at 48 × seeds 1..6 and at 200 × the
+        // same two — the seat-asymmetric search noise of
+        // docs/findings/3830-bot-reach-seat-asymmetric-search-noise.md, not a
+        // valuation change (the aggregate verdict stays `played`). Follow-up:
+        // issue #4804.
+        expect(
+            playBotReachSeats(getCardByName("Burst of Energy"), {
+                ...BOT_REACH_BUDGET,
+                iterations: 200,
+            })
+        ).toEqual([
             { holderId: "p1", verdict: { outcome: "played" } },
             { holderId: "p2", verdict: { outcome: "played" } },
         ]);
