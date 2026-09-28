@@ -22,11 +22,11 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { getAllRawCards } from "../convex/cards/catalogue";
+import { buildBotFindingsPayload } from "./lib/bot-findings-seed";
 import {
-    buildBotFindingsPayload,
     handWrittenPrintIds,
     type CardIndexEntry,
-} from "./lib/bot-findings-seed";
+} from "./lib/hand-written-catalogue";
 import { convexRunErrorMessage } from "./lib/convex-run-error";
 import { FINDINGS_PATH, parseFindings } from "./lib/oracle-bot-reach";
 import { POOL_PROJECTION_SOURCE } from "./lib/oracle-lockfile";

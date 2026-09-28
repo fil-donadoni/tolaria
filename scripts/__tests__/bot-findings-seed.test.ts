@@ -2,10 +2,8 @@
 // rows become findings, one class per Bot Gap key with the filer's prose and
 // claimed issue, and the measured-vs-total numbers the page states.
 import { describe, expect, it } from "vitest";
-import {
-    buildBotFindingsPayload,
-    handWrittenPrintIds,
-} from "../lib/bot-findings-seed";
+import { buildBotFindingsPayload } from "../lib/bot-findings-seed";
+import { handWrittenPrintIds } from "../lib/hand-written-catalogue";
 import { botCauseText } from "../lib/gap-kinds";
 import type { FindingsArtifact } from "../lib/oracle-bot-reach";
 

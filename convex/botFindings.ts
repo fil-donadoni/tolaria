@@ -12,6 +12,7 @@ import { internalMutation, query } from "./_generated/server";
 import { assertIsAdmin } from "./auth";
 import {
     SWEEP_SOURCE,
+    classKeysKeptByPlayed,
     findingClassValidator,
     measuredFindingValidator,
     measurementValidator,
@@ -140,10 +141,13 @@ export const seed = internalMutation({
         let inserted = 0;
         let patched = 0;
         let deactivated = 0;
-        for (const write of planFindingWrites(
-            stored.map((row) => ({ id: row._id, oracleId: row.oracleId })),
-            payload
-        )) {
+        const existing = stored.map((row) => ({
+            id: row._id,
+            oracleId: row.oracleId,
+            active: row.active,
+            ...(row.gap === undefined ? {} : { gap: row.gap }),
+        }));
+        for (const write of planFindingWrites(existing, payload)) {
             if (write.kind === "insert") {
                 await ctx.db.insert("botFindings", {
                     ...write.fields,
@@ -161,7 +165,8 @@ export const seed = internalMutation({
         const classes = await ctx.db.query("botFindingClasses").collect();
         for (const write of planClassWrites(
             classes.map((row) => ({ id: row._id, key: row.key })),
-            payload.classes
+            payload.classes,
+            classKeysKeptByPlayed(existing, payload)
         )) {
             if (write.kind === "insert")
                 await ctx.db.insert("botFindingClasses", write.fields);

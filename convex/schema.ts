@@ -1163,7 +1163,7 @@ export default defineSchema({
     botFindingClasses: defineTable({
         ...findingClassValidator.fields,
         active: v.boolean(),
-    }).index("by_key", ["key"]),
+    }),
     // The measurement the rows above came from — ONE row, replaced by every
     // seed: the header's sha / bot hash / moment, and the measured-vs-total
     // numbers the page states so its count is never read as "every Bot

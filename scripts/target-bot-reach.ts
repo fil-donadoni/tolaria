@@ -40,7 +40,7 @@ import { dirname, join } from "node:path";
 import {
     handWrittenPrintIds,
     type CardIndexEntry,
-} from "./lib/bot-findings-seed";
+} from "./lib/hand-written-catalogue";
 import type { CardDefinition } from "../convex/cards/types";
 import type {
     BotReachOutcome,

@@ -34,7 +34,7 @@ export default function BotFindingsAdminPanel() {
                 subtitle={
                     !loaded
                         ? "Loading…"
-                        : `${findings.length} cards the Bot does not play`
+                        : `${findings.filter((f) => f.outcome !== "played").length} cards the Bot does not play`
                 }
             />
             <PanelBody className="flex flex-col gap-3">
@@ -44,7 +44,7 @@ export default function BotFindingsAdminPanel() {
                         className="text-sm text-text-muted"
                     >
                         {measurement === null
-                            ? "No measurement seeded on this deployment — run `bun run seed:bot-findings`."
+                            ? "No measurement seeded on this deployment — run bun run seed:bot-findings."
                             : `${measurementSummary(measurement)} Measured ${measurement.measuredAt} at ${measurement.sha.slice(0, 9)}.`}
                     </p>
                 )}

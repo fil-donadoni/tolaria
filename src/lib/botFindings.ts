@@ -33,7 +33,10 @@ export function measurementSummary(m: BotFindingMeasurement): string {
 }
 
 /** Who owes the fix, in words (`BotReachBlame`). */
-export const BLAME_LABEL: Record<"bot" | "harness", string> = {
+export const BLAME_LABEL: Record<
+    NonNullable<BotFindingRow["blame"]>,
+    string
+> = {
     bot: "Bot owes a fix",
     harness: "Sweep harness owes a better position",
 };

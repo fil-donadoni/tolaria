@@ -253,6 +253,51 @@ describe("botFindings.seed — measured fields rewritten, human fields untouched
             stub.writes.filter((w) => w.table === "botFindingMeasurements")
         ).toEqual([]);
     });
+
+    it("keeps the class a now-played finding names, even when no other card carries it", async () => {
+        const stub = makeMutationCtx(null, [
+            storedFinding("f-1", "o-a"),
+            {
+                _id: "c-1",
+                __table: "botFindingClasses",
+                ...CLASS,
+                active: true,
+            },
+        ]);
+        await runMutation(seed, stub.ctx, {
+            payload: {
+                measurement: measurement("new"),
+                findings: [],
+                played: ["o-a"],
+                classes: [],
+            },
+        });
+        expect(stub.doc("f-1")).toMatchObject({
+            outcome: "played",
+            gap: NEVER,
+        });
+        expect(stub.doc("c-1").active).toBe(true);
+    });
+
+    it("writes nothing to a row already deactivated, and does not count it again", async () => {
+        const stub = makeMutationCtx(null, [
+            storedFinding("f-1", "o-gone", { active: false }),
+        ]);
+        const result = await runMutation<unknown, { deactivated: number }>(
+            seed,
+            stub.ctx,
+            {
+                payload: {
+                    measurement: measurement("new"),
+                    findings: [],
+                    played: [],
+                    classes: [],
+                },
+            }
+        );
+        expect(result.deactivated).toBe(0);
+        expect(stub.writes.filter((w) => w.id === "f-1")).toEqual([]);
+    });
 });
 
 describe("botFindings reads are admin-gated", () => {

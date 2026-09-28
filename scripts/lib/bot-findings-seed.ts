@@ -24,45 +24,14 @@ import type {
 } from "../../convex/botFindingsCore";
 import { botCauseOf, botCauseText } from "./gap-kinds";
 import type { FindingsArtifact } from "./oracle-bot-reach";
+import type { CardIndexEntry } from "./hand-written-catalogue";
 import type { ClaimRow } from "./targets";
-
-/** A `data/card-index.json` row, as far as the seed reads it. */
-export interface CardIndexEntry {
-    readonly oracleId?: string;
-    readonly firstPrintId?: string;
-    readonly source?: string;
-}
-
-/**
- * The hand-written catalogue, by oracle id → the print id its definition is
- * registered under: a card-index row the compiler did not produce, joined to
- * a registered definition through its first print. The join
- * `target-bot-reach.ts` measures with — one copy, so "hand-written" means the
- * same card set on the page and in the sweep.
- */
-export function handWrittenPrintIds(
-    index: readonly CardIndexEntry[],
-    registeredPrintIds: Iterable<string>
-): Map<string, string> {
-    const oracleIdByPrintId = new Map<string, string>();
-    for (const e of index) {
-        if (e.source === "compiled" || !e.oracleId || !e.firstPrintId) continue;
-        oracleIdByPrintId.set(e.firstPrintId, e.oracleId);
-    }
-    const handWritten = new Map<string, string>();
-    for (const printId of registeredPrintIds) {
-        const oracleId = oracleIdByPrintId.get(printId);
-        if (oracleId !== undefined && !handWritten.has(oracleId))
-            handWritten.set(oracleId, printId);
-    }
-    return handWritten;
-}
 
 export interface SeedInputs {
     readonly artifact: FindingsArtifact;
     readonly claims: readonly ClaimRow[];
     readonly cardIndex: readonly CardIndexEntry[];
-    /** {@link handWrittenPrintIds}' keys. */
+    /** `handWrittenPrintIds`' keys (`hand-written-catalogue.ts`). */
     readonly handWritten: ReadonlySet<string>;
 }
 

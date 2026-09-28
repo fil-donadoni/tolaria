@@ -8,9 +8,9 @@
 // MEASURED fields belong to the committed artifact
 // (`data/bot-reach-findings.json`) and are rewritten by every seed. HUMAN
 // fields (note, reproducers, linked issue, snooze) are never touched by a
-// seed: {@link measuredFindingPatch} builds a patch out of
-// {@link MEASURED_FINDING_FIELDS} and nothing else, so a human field cannot
-// ride along by accident. No mutation writes a measured field except the seed.
+// seed: every write's type is {@link MeasuredFindingFields} (or a part of
+// it), pinned to {@link MEASURED_FINDING_FIELDS}, so a human field in a seed
+// write reds `tsc` instead of riding along by accident. No mutation writes a measured field except the seed.
 import { v, type Infer } from "convex/values";
 
 /** A finding produced by the Bot-play sweep. Human-reported findings (issue
@@ -120,6 +120,8 @@ export type MeasuredFindingField = (typeof MEASURED_FINDING_FIELDS)[number];
 export interface ExistingFinding {
     readonly id: string;
     readonly oracleId: string;
+    readonly active: boolean;
+    readonly gap?: string;
 }
 
 export interface ExistingClass {
@@ -206,7 +208,8 @@ export function measuredFindingPatch(
  *
  * - a measured non-`played` card → its row's measured fields rewritten, or a
  *   new row;
- * - a stored card the sweep now sees PLAYED → outcome and stamps only. Its
+ * - a stored card the sweep now sees PLAYED → outcome and stamps only (and
+ *   active again, if it had left the Targets and came back played). Its
  *   class stays: "played" alone proves nothing, and the class it was blocked
  *   by is what a later slice checks for a green `must` blade entry before the
  *   row may read `resolved` (ADR 0141 § 3);
@@ -237,23 +240,56 @@ export function planFindingWrites(
     const played = new Set(payload.played);
     for (const row of existing) {
         if (seen.has(row.oracleId)) continue;
-        writes.push({
-            kind: "patch",
-            id: row.id,
-            fields: played.has(row.oracleId)
-                ? { outcome: "played" as const, ...stamps(m), active: true }
-                : { active: false },
-        });
+        if (played.has(row.oracleId))
+            writes.push({
+                kind: "patch",
+                id: row.id,
+                fields: { outcome: "played", ...stamps(m), active: true },
+            });
+        // Already inactive: nothing to write, and nothing to count as a drop
+        // of THIS seed.
+        else if (row.active)
+            writes.push({
+                kind: "patch",
+                id: row.id,
+                fields: { active: false },
+            });
     }
     return writes;
 }
 
+/**
+ * The class keys a stored finding the sweep now PLAYS still points at. The
+ * payload's classes are built from non-`played` rows only, so without this a
+ * class whose last card now plays would be deactivated while the row keeps
+ * naming it — and the row is exactly the one whose `played-unproven` /
+ * `resolved` state needs its class (ADR 0141 § 3).
+ */
+export function classKeysKeptByPlayed(
+    existing: readonly ExistingFinding[],
+    payload: SeedPayload
+): Set<string> {
+    const measured = new Set(payload.findings.map((f) => f.oracleId));
+    const played = new Set(payload.played);
+    const kept = new Set<string>();
+    for (const row of existing)
+        if (
+            row.gap !== undefined &&
+            !measured.has(row.oracleId) &&
+            played.has(row.oracleId)
+        )
+            kept.add(row.gap);
+    return kept;
+}
+
 /** One seed's writes to `botFindingClasses`: every class the artifact carries
- *  upserted whole (all its fields are measured), every stored class it no
- *  longer carries deactivated. */
+ *  upserted whole (all its fields are measured); a stored class it no longer
+ *  carries deactivated — unless a played finding still names it
+ *  ({@link classKeysKeptByPlayed}), which leaves its last measurement standing. */
 export function planClassWrites(
     existing: readonly ExistingClass[],
-    classes: readonly FindingClass[]
+    classes: readonly FindingClass[],
+    keptByPlayed: ReadonlySet<string> = new Set()
 ): ClassWrite[] {
     const stored = new Map(existing.map((row) => [row.key, row.id]));
     const writes: ClassWrite[] = [];
@@ -274,7 +310,7 @@ export function planClassWrites(
         );
     }
     for (const row of existing) {
-        if (!seen.has(row.key))
+        if (!seen.has(row.key) && !keptByPlayed.has(row.key))
             writes.push({
                 kind: "patch",
                 id: row.id,
