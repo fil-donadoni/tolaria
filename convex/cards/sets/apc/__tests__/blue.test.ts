@@ -39,6 +39,7 @@ import {
     applyNameCardSubmit,
 } from "../../../../gre/pendingChoiceSubmit";
 import { collectTriggers } from "../../../../gre/triggers";
+import { turnFaceDown } from "../../../../gre/faceDown";
 import {
     activateAbility,
     confirmTargets,
@@ -536,7 +537,11 @@ describe("Ice Cave (pay that spell's mana cost to counter it)", () => {
      *  collected off the real SPELL_CAST event and resolved up to its prompt. */
     function castUnderIceCave(
         caster: "p1" | "p2",
-        opts: { chosenX?: number; pool?: Record<string, number> } = {}
+        opts: {
+            chosenX?: number;
+            pool?: Record<string, number>;
+            faceDown?: boolean;
+        } = {}
     ) {
         const cave = makeInstance(ICE_CAVE.id, {
             id: "cave",
@@ -573,6 +578,9 @@ describe("Ice Cave (pay that spell's mana cost to counter it)", () => {
             targets: [],
             ...(opts.chosenX !== undefined ? { chosenX: opts.chosenX } : {}),
         };
+        // CR 708.4 — a face-down cast is turned face down BEFORE it reaches
+        // the stack, through the same primitive `castCommit` calls.
+        if (opts.faceDown) turnFaceDown(state, spell, "morph");
         state.stack.push(spell);
         const triggers = collectTriggers(state, [
             {
@@ -623,6 +631,7 @@ describe("Ice Cave (pay that spell's mana cost to counter it)", () => {
             applyMayPaySubmit(state, { playerId: payer, accept: false });
             expect(state.stack.map((s) => s.id)).toEqual(["spell"]);
             expect(state.players[1].graveyard).toHaveLength(0);
+            expect(state.players[0].manaPool).toMatchObject({ R: 1, C: 2 });
         });
     });
 
@@ -683,8 +692,34 @@ describe("Ice Cave (pay that spell's mana cost to counter it)", () => {
                 },
             ]);
             state.stack.push(...triggers);
-            expect(resolveTopOfStack(state)).not.toBeNull();
+            resolveTopOfStack(state);
             expect(state.pendingChoices ?? []).toHaveLength(0);
+            // The trigger resolved and left; nothing was countered.
+            expect(state.stack).toHaveLength(0);
+            expect(state.players[1].graveyard).toHaveLength(0);
+        });
+    });
+
+    it("pays a printed {0} with nothing, and counters (CR 202.1a)", () => {
+        withTemporaryDefinition(spellDef({}), () => {
+            const { state, payer } = castUnderIceCave("p2");
+            expect(state.pendingChoices?.[0]?.cost).toEqual({ mana: {} });
+            applyMayPaySubmit(state, { playerId: payer, accept: true });
+            expect(state.stack).toHaveLength(0);
+            expect(state.players[1].graveyard.map((c) => c.id)).toEqual([
+                "spell",
+            ]);
+        });
+    });
+
+    it("asks nothing for a spell cast face down — it has no mana cost (CR 702.37c / 118.6)", () => {
+        withTemporaryDefinition(spellDef({ U: 1 }), () => {
+            const { state } = castUnderIceCave("p2", {
+                faceDown: true,
+                pool: { U: 1 },
+            });
+            expect(state.pendingChoices ?? []).toHaveLength(0);
+            expect(state.stack.map((s) => s.id)).toEqual(["spell"]);
         });
     });
 });

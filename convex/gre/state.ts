@@ -14114,6 +14114,10 @@ export function buildSpellContext(
             if (target.type === "spell") {
                 const stackItem = state.stack.find((s) => s.id === target.id);
                 if (!stackItem) return undefined;
+                // CR 702.37c / 708.4 — a spell cast face down has NO mana cost
+                // (an unpayable one, CR 118.6), not the face-down sentinel's
+                // `{}`, which this engine also uses for a printed {0}.
+                if (stackItem.faceDown) return undefined;
                 const cardId = (stackItem.card as { id?: string }).id;
                 const def = cardId ? tryGetDefinition(cardId) : undefined;
                 return def?.manaCost

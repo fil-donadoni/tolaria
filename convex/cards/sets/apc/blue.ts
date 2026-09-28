@@ -195,14 +195,15 @@ export const jadedResponse: CardDefinition = {
 // makes the payment a cost paid on resolution; the `mayPay` Op's boolean bind
 // is the "if a player does" check. CR 102.2 — "any other player" is
 // `{ opponentOf: { ref: "$event.caster" } }`, the caster's complement, which
-// this engine's two-seat scope (ADR 0010) collapses to one player: the
+// this engine's two-seat scope collapses to one player: the
 // opponent when either seat casts, Ice Cave's controller included.
 //
 // CR 202.1a — "that spell's mana cost" is `manaCostOf: { ref: "$event.spell" }`,
 // read off the spell ON THE STACK (issue #4335): colored pips must be matched
 // (the reminder text), and CR 107.3a prices an {X} at its announced value. A
-// spell with no mana cost has an unpayable one (CR 118.6): the Op skips and
-// nothing is countered. CR 701.6a — the counter names the same spell through
+// spell with no mana cost — one cast face down (CR 702.37c) — has an
+// unpayable one (CR 118.6): the Op skips and nothing is countered; a printed
+// {0} is paid with nothing. CR 701.6a — the counter names the same spell through
 // the event, as Decree of Silence does (`scg/blue.ts`).
 // hand-tail: Whenever a player casts a spell, any other player may pay that spell's mana cost. If a player does, counter the spell. (#4335)
 export const iceCave: CardDefinition = {
