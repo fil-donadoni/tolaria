@@ -333,6 +333,20 @@ export function asEntersNameFilter(
     return owed?.kind === "name" ? owed.filter : undefined;
 }
 
+/** CR 709.4a / 712.19 — `true` when `name` is ONE name of `def`, never a
+ *  combined spelling. `tryGetCardByName` resolves two lookup-only keys a player
+ *  may not choose: a split card's `left // right` (to the parent, whose own
+ *  name is that combination) and a modal double-faced card's `front // back`
+ *  (to the front face, issue #4767) — "either face … but not both". The
+ *  second key would pass `hasName(def, def.name)` alone, so the SUBMITTED
+ *  string is compared too. */
+function namesOneFace(def: CardDefinition, name: string): boolean {
+    return (
+        name.toLowerCase() === def.name.toLowerCase() &&
+        isChooseableName(def, def.name)
+    );
+}
+
 /** CR 201.3 / 614.1c — is `name` a LEGAL answer to this `name-card` head?
  *
  *  THE single authority on that question: {@link applyNameCardSubmit} rejects
@@ -358,7 +372,7 @@ export function isLegalNamedCard(
 ): boolean {
     const def = tryGetCardByName(name.trim());
     if (!def) return false;
-    if (!isChooseableName(def, def.name)) return false;
+    if (!namesOneFace(def, name.trim())) return false;
     if (violatesNameRestriction(head, def)) return false;
     const filter = asEntersNameFilter(state, head);
     return (
@@ -409,9 +423,9 @@ export function applyNameCardSubmit(
     // the client's candidate list (`getChooseableCardNames`) agree; a server
     // that accepted a name the button never offered is the asymmetry PR #3302
     // review finding 4 closed for Adventure, in the other direction.
-    if (!isChooseableName(def, canonical)) {
+    if (!namesOneFace(def, name)) {
         throw new Error(
-            "Choose one of the card's two names, not both (CR 709.4a)"
+            "Choose one of the card's two names, not both (CR 709.4a / 712.19)"
         );
     }
     // CR 201.4a (issue #1085 / #2713) — "a card name with certain

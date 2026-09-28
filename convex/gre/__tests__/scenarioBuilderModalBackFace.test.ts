@@ -30,7 +30,8 @@ import {
 import { applyPlayLand, finalizeLandEntry } from "../playLand";
 import { getManaTapOptionsDetailed, hasManaAbility } from "../constants";
 import { collectUnresolvedCardNames } from "../../debugScenarioSpec";
-import type { CardInstanceState, GameState } from "../state";
+import type { CardInstanceState, GameState, PendingChoice } from "../state";
+import { isLegalNamedCard } from "../pendingChoiceSubmit";
 import type { ScenarioSpec } from "../../debugScenarioSpec";
 
 const SINK_INTO_STUPOR = "5358b87a-1a29-426d-b165-40c97da2c14d";
@@ -143,9 +144,75 @@ describe("scenario spec — a modal double-faced card back face up (issue #4767,
         expect(card?.transformed).toBeUndefined();
     });
 
+    it("seeds basic lands for the face actually placed (CR 712.8a / 202.2)", () => {
+        const state = buildStateFromScenario(makeState(), {
+            cards: [{ name: "Soporific Springs", owner: "me", zone: "hand" }],
+            landCount: 1,
+        });
+        // The instant in hand is blue ({1}{U}{U}); the colourless land face
+        // would have fallen back to Plains.
+        const basic = battlefieldOf(state)[0];
+        expect(tryGetDefinition((basic?.card as { id: string }).id)?.name).toBe(
+            "Island"
+        );
+    });
+
     it("still refuses an Adventure's inset spell with the CR 715.4 message", () => {
         expect(() => place("Stomp")).toThrow(/Adventure.*CR 715\.4/);
         expect(() => place("Soporific Springs")).not.toThrow();
+    });
+
+    it("names a split card's half for what it is, never an Adventure (CR 709.4)", () => {
+        expect(() => place("Stand")).toThrow(/split card.*CR 709\.4/);
+        expect(() => place("Stand")).not.toThrow(/Adventure/);
+    });
+
+    it("still reports a back-face stamp whose transformedFrom is not its own front face", () => {
+        const live = livePlayedBackFace();
+        battlefieldOf(live)[0].transformedFrom = "some-other-card";
+        const { dropped } = specFromState(live, { mySeatId: "p1" });
+        expect(
+            dropped.some(
+                (d) =>
+                    d.startsWith("Soporific Springs (me)") &&
+                    d.includes("transformedFrom")
+            )
+        ).toBe(true);
+    });
+
+    it("refuses a back face as a stack spell — no live cast path produces one (CR 712.8f)", () => {
+        expect(() =>
+            buildStateFromScenario(makeState(), {
+                cards: [],
+                stack: [
+                    {
+                        kind: "spell",
+                        name: "Soporific Springs",
+                        controller: "me",
+                    },
+                ],
+            })
+        ).toThrow(/modal back face/);
+    });
+
+    it("a name choice accepts either face but not the combined name (CR 712.19)", () => {
+        const head = {
+            kind: "name-card",
+            playerId: "p1",
+            stackItemId: "s1",
+            step: 0,
+            choiceId: "c1",
+        } as unknown as PendingChoice;
+        const empty = {} as Pick<GameState, "stagedEntries">;
+        expect(isLegalNamedCard(empty, head, "Sink into Stupor")).toBe(true);
+        expect(isLegalNamedCard(empty, head, "Soporific Springs")).toBe(true);
+        expect(
+            isLegalNamedCard(
+                empty,
+                head,
+                "Sink into Stupor // Soporific Springs"
+            )
+        ).toBe(false);
     });
 
     it("the save-path validators accept the back-face and the full name", () => {
@@ -177,9 +244,13 @@ describe("scenario spec — a modal double-faced card back face up (issue #4767,
                 failures.push(`${front.name}: no back twin`);
                 continue;
             }
-            // A back name another card's printed name shadows is not this
-            // card's to claim (first-write-wins, `catalogue.ts`).
-            if (tryGetCardByName(back.name)?.id !== back.id) continue;
+            // A back name another card's printed name shadows (first write
+            // wins, `catalogue.ts`) could not be placed back face up at all
+            // under this representation — fail loudly, never skip.
+            if (tryGetCardByName(back.name)?.id !== back.id) {
+                failures.push(`${back.name}: shadowed by another card's name`);
+                continue;
+            }
             try {
                 const placed = battlefieldOf(place(back.name))[0];
                 if (

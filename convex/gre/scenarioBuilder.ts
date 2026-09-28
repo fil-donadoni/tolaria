@@ -711,7 +711,13 @@ export function buildStateFromScenario(
             }
             continue;
         }
-        const def = getCardByName(entry.name);
+        // The card as PLACED in its zone (CR 712.8a): a back-face name in hand
+        // seeds lands for the front face that is actually there to cast.
+        const { def: placed, backFaceUp } = placedCard(
+            entry.name,
+            entry.zone ?? "battlefield"
+        );
+        const def = backFaceUp ? getCardByName(entry.name) : placed;
         for (const c of getCardColors(def)) colorsPresent.add(c);
     }
     const basicLandCycle = basicLandsForColors(colorsPresent);
@@ -2182,6 +2188,17 @@ function seedDeclaredStack(
             );
         }
         const def = getCardByName(entry.name);
+        // CR 712.8f (issue #4767) — a modal back face is a spell on the stack
+        // only if it was CAST as that face, and the engine has no such cast
+        // path (every shipped back face is a land, played by CR 712.12). A
+        // stack item built from the twin would carry no `transformedFrom` and
+        // no cost — an object no live game produces — so it is refused until
+        // that path exists, and routed through the same stamp when it does.
+        if (modalBackFaceParentId(def.id)) {
+            throw new Error(
+                `buildStateFromScenario: stack index ${index} names the modal back face "${entry.name}" — the engine has no cast path for a back face, so a spec cannot put one on the stack.`
+            );
+        }
         // A FRESH instance, deliberately: the card is on the stack, in no
         // player's zone, and `cards` is not searched for it. A same-named entry
         // in `cards` is therefore a SECOND object — the opponent holding a
@@ -3173,7 +3190,14 @@ function modalBackFaceRebuildKeys(
     zone: LowerableZone
 ): ReadonlySet<string> | undefined {
     if (zone !== "battlefield" || card.transformed !== true) return undefined;
-    const presented = (card.card as { id?: string }).id ?? "";
+    // The id `entryIdentity` lowered the entry's NAME from — under a face-down
+    // mask (`faceDownOf`) or a copy (`copiedFrom`) that is the stamped twin,
+    // not the presented sentinel / copy source.
+    const presented =
+        card.faceDownOf ??
+        card.copiedFrom ??
+        (card.card as { id?: string }).id ??
+        "";
     const frontId = modalBackFaceParentId(presented);
     if (!frontId || card.transformedFrom !== frontId) return undefined;
     return new Set(["transformed", "transformedFrom"]);
