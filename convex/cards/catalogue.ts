@@ -169,8 +169,16 @@ import {
 import { excludeHandWritten } from "./compiledCatalogue";
 import { insetSpellDefinitionId } from "./insetSpell";
 import { chooseableNamesOf } from "./cardNames";
-import { isModalDoubleFaced, modalBackFaceDefinitionId } from "./modalDfc";
-import { SPLIT_HALF_SIDES, splitHalfDefinitionId } from "./splitCard";
+import {
+    isModalDoubleFaced,
+    modalBackFaceDefinitionId,
+    modalBackFaceParentId,
+} from "./modalDfc";
+import {
+    SPLIT_HALF_SIDES,
+    SPLIT_NAME_SEPARATOR,
+    splitHalfDefinitionId,
+} from "./splitCard";
 import { isTwinDefinitionId } from "./twinId";
 // The pool as a BUNDLED module. On the SERVER this is
 // `data/oracle-compiled-pool.json`; in a CLIENT build `vite.config.ts`
@@ -413,9 +421,10 @@ const nameRegistry = new Map<string, CardDefinition>(
     allCards.map((card) => [card.name.toLowerCase(), card])
 );
 
-/** Every `[nameKey, twinDefinition]` pair a card contributes to the name
+/** Every `[nameKey, definition]` pair a card contributes to the name
  *  registry BESIDE its own printed name — an inset spell's alternative name
- *  (CR 715.5 / 722.5) and a split card's two half names (CR 709.4a).
+ *  (CR 715.5 / 722.5), a split card's two half names (CR 709.4a), and a modal
+ *  double-faced card's back-face name plus its full `front // back` name.
  *
  *  The twin is looked up rather than rebuilt: `preloadDefinitions` registered
  *  it, so a name resolves to the SAME object every other def-derived reader
@@ -447,7 +456,17 @@ function twinNameEntries(
     // names the LAND face, not the instant that carries it.
     if (isModalDoubleFaced(card)) {
         const twin = tryGetDefinition(modalBackFaceDefinitionId(card.id));
-        if (twin) entries.push([twin.name.toLowerCase(), twin]);
+        if (twin) {
+            entries.push([twin.name.toLowerCase(), twin]);
+            // The printed "front // back" spelling (Scryfall's, and so a deck
+            // list's or a Bot Finding's) names the CARD, not a face: CR 712.8a
+            // gives it its front face's characteristics everywhere a list is
+            // read from, so the key resolves to `card` itself (issue #4767).
+            entries.push([
+                `${card.name}${SPLIT_NAME_SEPARATOR}${twin.name}`.toLowerCase(),
+                card,
+            ]);
+        }
     }
     return entries;
 }
@@ -600,6 +619,13 @@ export const getAllCardNames = (): string[] =>
 /** CR 715.4 / 715.2c — `tryGetCardByName` restricted to names that can be
  *  PLACED as a card: a printed catalogue card, never an inset spell's twin.
  *
+ *  One twin IS a card in a zone: a modal double-faced card's back face, which
+ *  a permanent can show on the battlefield (CR 712.8f). Its name resolves to
+ *  the CARD that carries it — the front face's definition, which is what the
+ *  card is in every other zone (CR 712.8a) and what a deck, a cube or a banlist
+ *  row naming either face means. A caller that places it back face up asks the
+ *  bare lookup which face was named (the scenario builder, issue #4767).
+ *
  *  The exact complement of {@link getChooseableCardNames}. An Adventure exists
  *  only while its card is on the stack as one ("in every zone except the stack
  *  … an adventurer card has only its normal characteristics"), so any consumer
@@ -616,7 +642,10 @@ export const tryGetPlaceableCardByName = (
     name: string
 ): CardDefinition | null => {
     const def = tryGetCardByName(name);
-    return def && !isTwinDefinitionId(def.id) ? def : null;
+    if (!def) return null;
+    if (!isTwinDefinitionId(def.id)) return def;
+    const frontId = modalBackFaceParentId(def.id);
+    return frontId ? (tryGetDefinition(frontId) ?? null) : null;
 };
 
 /** CR 715.5 / 722.5 — every card name a player may CHOOSE when an effect says

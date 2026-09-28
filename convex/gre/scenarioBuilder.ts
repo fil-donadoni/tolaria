@@ -21,29 +21,82 @@ import {
     tryGetCardByName,
     tryGetDefinition,
 } from "../cards";
-import { isInsetSpellDefinitionId } from "../cards/insetSpell";
+import { INSET_SPELL_KINDS, insetSpellDefinitionId } from "../cards/insetSpell";
+import { splitSideOfDefinitionId } from "../cards/splitCard";
+import { isTwinDefinitionId, parentIdOfTwin } from "../cards/twinId";
+import { modalBackFaceParentId } from "../cards/modalDfc";
+import { stampModalBackFaceForPlay } from "./transform";
 
-/** CR 715.4 — the name→card resolution EVERY builder in this module uses, with
- *  the one thing a scenario may never name: an inset spell.
+/** CR 715.4 / 709.4 / 712.8f — the name→card resolution EVERY builder in this
+ *  module uses, with the one thing a scenario may never name: a HALF of a card
+ *  that is not a card in any zone.
  *
  *  "In every zone except the stack, and while on the stack not as an Adventure,
  *  an adventurer card has only its normal characteristics." A scenario places
  *  cards into hands, battlefields, graveyards, libraries and exile — never onto
  *  the stack as an Adventure — so an entry naming "Petty Theft" would seed an
  *  Instant that is not a card in any zone the rules admit, with no card-index
- *  row and no path back to its front face. The validators
- *  (`debugScenarios.ts`, `debugScenarioGenerator.ts`) reject it first with a
- *  readable message; this is the backstop that makes the builder itself
- *  fail closed, because a spec can also arrive from a seeded backlog file that
- *  never passed through them (PR #3302 review finding 5). */
+ *  row and no path back to its front face. A split card's half is the same
+ *  case (CR 709.4 — its characteristics are the two halves combined in every
+ *  zone but the stack). The validators (`debugScenarios.ts`,
+ *  `debugScenarioGenerator.ts`) reject both first with a readable message;
+ *  this is the backstop that makes the builder itself fail closed, because a
+ *  spec can also arrive from a seeded backlog file that never passed through
+ *  them (PR #3302 review finding 5).
+ *
+ *  A modal double-faced card's BACK face is the one twin that passes, and it
+ *  resolves to the twin itself: that is the identity a back-face-up permanent
+ *  PRESENTS (CR 712.8f), which every by-definition-id match in this module
+ *  (`attachedTo`, combat) compares against. {@link placedCard} is what turns
+ *  it back into the card that gets placed (issue #4767). */
 function getCardByName(name: string) {
     const def = getCatalogueCardByName(name);
-    if (isInsetSpellDefinitionId(def.id)) {
-        throw new Error(
-            `"${name}" is an Adventure, not a card that can be placed in a zone (CR 715.4)`
-        );
+    if (isTwinDefinitionId(def.id) && !modalBackFaceParentId(def.id)) {
+        throw new Error(unplaceableTwinMessage(name, def.id));
     }
     return def;
+}
+
+/** The refusal {@link getCardByName} throws, naming the half for what it IS —
+ *  it only says "Adventure" when the name is one (issue #4767: the old message
+ *  called every twin an Adventure, a modal back face included). */
+function unplaceableTwinMessage(name: string, twinId: string): string {
+    const parentId = parentIdOfTwin(twinId) ?? twinId;
+    const parent = tryGetDefinition(parentId);
+    const parentName = parent?.name ?? parentId;
+    const inset = parent?.insetSpell;
+    if (inset && insetSpellDefinitionId(parentId, inset.kind) === twinId) {
+        return `"${name}" is the ${INSET_SPELL_KINDS[inset.kind].insetLabel} of "${parentName}", not a card that can be placed in a zone (CR 715.4 / 722.4) — name "${parentName}"`;
+    }
+    if (splitSideOfDefinitionId(twinId)) {
+        return `"${name}" is one half of the split card "${parentName}", not a card that can be placed in a zone (CR 709.4) — name "${parentName}"`;
+    }
+    return `"${name}" names a part of "${parentName}", not a card that can be placed in a zone — name "${parentName}"`;
+}
+
+/** CR 712.8a / 712.8f (issue #4767) — the CARD an entry naming `name` places
+ *  in `zone`, and whether it is placed with its back face up.
+ *
+ *  Naming a modal double-faced card's back face places the card that carries
+ *  it: on the battlefield back face up, exactly as the live land play leaves
+ *  it (`stampModalBackFaceForPlay`); in every other zone as its front face,
+ *  since "while a double-faced card is outside the game or in a zone other
+ *  than the battlefield or stack, it has only the characteristics of its front
+ *  face." Any other name places what it names, front face up. */
+function placedCard(
+    name: string,
+    zone: "hand" | "battlefield" | "library" | "graveyard" | "exile"
+): { def: ReturnType<typeof getCardByName>; backFaceUp: boolean } {
+    const named = getCardByName(name);
+    const frontId = modalBackFaceParentId(named.id);
+    if (!frontId) return { def: named, backFaceUp: false };
+    const front = tryGetDefinition(frontId);
+    if (!front) {
+        throw new Error(
+            `"${name}" is a modal back face whose front face "${frontId}" is not in the registry.`
+        );
+    }
+    return { def: front, backFaceUp: zone === "battlefield" };
 }
 import { ensureLayer6Base, INDEFINITE_SOURCE_ID, syncLayer6 } from "./layer6";
 import { basicLandsForColors, getCardColors } from "../cards/colors";
@@ -616,8 +669,8 @@ export function buildStateFromScenario(
         zone: "hand" | "battlefield" | "library" | "graveyard" | "exile",
         opts?: { tapped?: boolean }
     ) {
-        const def = getCardByName(cardName);
-        return {
+        const { def, backFaceUp } = placedCard(cardName, zone);
+        const instance = {
             id: allocInstanceId(state),
             card: { id: def.id },
             types: def.types,
@@ -631,6 +684,15 @@ export function buildStateFromScenario(
             isTapped: opts?.tapped ?? false,
             isSummoningSick: false,
         };
+        // CR 712.8f (issue #4767) — back face up through the live land play's
+        // OWN stamp, so the placed permanent carries the same presented id
+        // and `transformed` / `transformedFrom` bookkeeping the engine reads
+        // on departure (CR 712.8a). Stamped before the push, as that
+        // function requires.
+        if (backFaceUp) {
+            stampModalBackFaceForPlay(state, instance as CardInstanceState);
+        }
+        return instance;
     }
 
     // Base lands seeded by `landCount`/`libraryCount` match the COLORS of
@@ -1028,7 +1090,8 @@ export function buildStateFromScenario(
     // runs through `selectCompanion`/the sideboard.
     if (spec.companion) {
         const companionOwner = spec.companion.owner === "opp" ? p2 : p1;
-        const def = getCardByName(spec.companion.name);
+        // CR 712.8a — outside the game a double-faced card is its front face.
+        const { def } = placedCard(spec.companion.name, "exile");
         companionOwner.companion = {
             instance: {
                 id: allocInstanceId(state),
@@ -3090,9 +3153,39 @@ function lowerCard(
         card,
         label,
         dropped,
-        animationRebuildKeys(card, entry.animated)
+        unionKeys(
+            animationRebuildKeys(card, entry.animated),
+            modalBackFaceRebuildKeys(card, zone)
+        )
     );
     return entry;
+}
+
+/** CR 712.8f (issue #4767) — the keys a BACK-FACE-UP modal permanent may treat
+ *  as rebuild behaviour. Its entry names the back face (`presentedName`), and
+ *  the builder re-stamps that face through `stampModalBackFaceForPlay`, which
+ *  writes exactly these two markers — so they are carried, not dropped. Only
+ *  when the pair is the one that stamp would write: a `transformedFrom` that
+ *  is not this twin's own front face is some other transform, and stays
+ *  reported. */
+function modalBackFaceRebuildKeys(
+    card: CardInstanceState,
+    zone: LowerableZone
+): ReadonlySet<string> | undefined {
+    if (zone !== "battlefield" || card.transformed !== true) return undefined;
+    const presented = (card.card as { id?: string }).id ?? "";
+    const frontId = modalBackFaceParentId(presented);
+    if (!frontId || card.transformedFrom !== frontId) return undefined;
+    return new Set(["transformed", "transformedFrom"]);
+}
+
+function unionKeys(
+    a: ReadonlySet<string> | undefined,
+    b: ReadonlySet<string> | undefined
+): ReadonlySet<string> | undefined {
+    if (!a) return b;
+    if (!b) return a;
+    return new Set([...a, ...b]);
 }
 
 /** CR 208.2 / 613.1e / 105.3 (issue #3459) — the keys THIS CARD may treat as
