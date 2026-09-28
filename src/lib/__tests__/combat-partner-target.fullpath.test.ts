@@ -105,7 +105,7 @@ describe("Cromat — combat-partner target, GRE → game.ts → wire → UI (iss
             targetType: "permanent",
             targetId: "partner",
         });
-        expect(state.stack.at(-1)?.targets).toEqual([
+        expect(state.stack[state.stack.length - 1]?.targets).toEqual([
             { type: "permanent", id: "partner" },
         ]);
     });

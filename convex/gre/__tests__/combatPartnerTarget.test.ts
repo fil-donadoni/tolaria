@@ -103,7 +103,7 @@ describe("Cromat — target creature blocking or blocked by {self} (CR 509.1g, i
                 targetType: "permanent",
                 targetId: "partner",
             });
-            expect(state.stack.at(-1)?.targets).toEqual([
+            expect(state.stack[state.stack.length - 1]?.targets).toEqual([
                 { type: "permanent", id: "partner" },
             ]);
             resolveTopOfStack(state);
