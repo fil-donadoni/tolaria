@@ -12,7 +12,8 @@
 // CR 605.3b), Zuran Orb a conversion (sacrifice a land: gain 2 life), and a
 // flash Flametongue Kavu (a temporary definition) a flash body whose entering
 // trigger can target an opposing creature. Unnatural Speed is an instant
-// whose whole script is a haste grant until end of turn.
+// whose whole script is a haste grant until end of turn, Giant Growth one
+// whose whole script is a pump until end of turn.
 import { describe, expect, it } from "vitest";
 import { getCardByName, withTemporaryDefinition } from "../../../cards";
 import {
@@ -37,6 +38,7 @@ const SNAPCASTER = getCardByName("Snapcaster Mage").id;
 const DELTA = getCardByName("Polluted Delta").id;
 const KAVU = getCardByName("Flametongue Kavu");
 const SPEED = getCardByName("Unnatural Speed").id;
+const GROWTH = getCardByName("Giant Growth").id;
 
 const FACTORY = getCardByName("Mishra's Factory").id;
 const ORB = getCardByName("Zuran Orb").id;
@@ -351,16 +353,17 @@ describe("a pre-attack grant (CR 508.1a / 302.6, issue #4768)", () => {
         expect(at("PRECOMBAT_MAIN", "p2")).toBe(false);
     });
 
-    it("refuses a script that grants no haste", () => {
+    it("refuses a this-turn script that grants no haste", () => {
+        // A pump expires this turn too; it enables no attack.
         const state = board({
-            hand: [card(BOLT, "bolt")],
+            hand: [card(GROWTH, "growth")],
             battlefield: [sick("sick")],
         });
         expect(
             isPreAttackGrant(
                 state,
                 "p1",
-                cast("bolt", [{ type: "permanent", id: "sick" }])
+                cast("growth", [{ type: "permanent", id: "sick" }])
             )
         ).toBe(false);
     });
