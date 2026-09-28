@@ -10428,6 +10428,14 @@
         "source": "compiled"
     },
     {
+        "name": "Cromat",
+        "scryfallId": "7d9e0a23-d2a8-40a6-9076-ed6fb539141b",
+        "oracleId": "376601b6-fe51-4e2d-8ec6-98f965d649a3",
+        "firstSet": "apc",
+        "firstPrintId": "7d9e0a23-d2a8-40a6-9076-ed6fb539141b",
+        "firstPrintSet": "apc"
+    },
+    {
         "name": "Crooked Custodian",
         "scryfallId": "723d6f60-3e8a-4c58-8b3c-9ba59a01c867",
         "oracleId": "9c39bc53-52d3-4610-920e-5607a625b01f",
