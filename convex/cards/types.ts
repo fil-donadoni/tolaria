@@ -751,6 +751,15 @@ export interface TargetRequirement {
      *  "target attacking or blocking creature" (D'Avenant Archer). Ignored for
      *  player / spell / graveyard targets. */
     combatRoleFilter?: "attacking" | "blocking" | ("attacking" | "blocking")[];
+    /** Restricts legal permanent targets to the COMBAT PARTNERS of one
+     *  object: creatures blocking it or blocked by it (CR 509.1g — a blocker
+     *  is blocking the attackers chosen for it). The value is that object's
+     *  instance id, never authored by hand — `combatPartnerOfSource` (below)
+     *  binds it to the ability's own source. Checked live against
+     *  `combatPartnerIds` (`gre/state.ts`) plus the candidate's own combat
+     *  flags, so a partner removed from combat (CR 506.4) stops qualifying.
+     *  Ignored for player / spell / graveyard targets. */
+    combatPartnerOf?: string;
     /** Excludes permanents whose `types` include any of these (CR 205).
      *  Used by Terror ("target nonartifact, nonblack creature"). Single
      *  string is shorthand for one type. */
@@ -992,7 +1001,7 @@ export interface TargetRequirement {
      *  so "exile ANOTHER target permanent" / "up to one OTHER target creature"
      *  cannot pick the source permanent itself. Author-time
      *  `excludeInstanceIds` are preserved and merged. One shared helper,
-     *  `applySelfExclusion` (`gre/rules.ts`), performs the merge everywhere.
+     *  `applySourceDirectives` (`gre/rules.ts`), performs the merge everywhere.
      *
      *  Honoured on BOTH ability kinds, each reading the source id it has:
      *  a TRIGGERED ability's `StackItem.triggerSourceId`, via
@@ -1010,6 +1019,14 @@ export interface TargetRequirement {
      *  BACK FACE's JSON-encoded definition id, and `enumerateAbilityMoves`
      *  skips any ability that carries one, hiding it from the bot entirely. */
     excludeSource?: boolean;
+    /** "target creature blocking or blocked by {self}" (Cromat, issue #4320).
+     *  A directive, not a filter (the `excludeSource` shape): the source's own
+     *  instance id is bound into `combatPartnerOf` — the registered filter —
+     *  by the same shared helper that performs the self-exclude
+     *  (`applySourceDirectives`, `gre/rules.ts`), so announcement, the bot's
+     *  enumerator and the CR 608.2b resolution re-check all read one bound
+     *  requirement. Honoured on the same ability kinds `excludeSource` is. */
+    combatPartnerOfSource?: boolean;
     /** "ANOTHER target" across target GROUPS (CR 115.3, issue #3236). The
      *  same object may be chosen once for each instance of the word "target"
      *  (CR 115.3) — so two groups describing overlapping objects would accept

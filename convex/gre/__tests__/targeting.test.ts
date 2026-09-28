@@ -2902,6 +2902,8 @@ describe("getLegalTargets: the OFFERED set honours EVERY PERMANENT_FILTER_KEYS e
         colorFilterAny: { req: { colorFilterAny: ["U", "W"] } },
         tappedFilter: { req: { tappedFilter: "tapped" } },
         combatRoleFilter: { req: { combatRoleFilter: "attacking" } },
+        // No combat at all — SUBJECT is nobody's combat partner.
+        combatPartnerOf: { req: { combatPartnerOf: "sibling" } },
         requireAbility: { req: { requireAbility: "flying" } },
         requireAbilityAny: { req: { requireAbilityAny: ["flying", "haste"] } },
         excludeAbility: { req: { excludeAbility: "trample" } },

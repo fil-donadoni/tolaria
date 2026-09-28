@@ -3711,11 +3711,14 @@ function triggerTargetMinMax(
  *  `raiseTriggerTargetSelection` so the mode-legality question is answered by
  *  the SAME code that later announces the targets — a mode offered here must
  *  never turn out to have no legal target one step later. */
-/** Reflexive self-EXCLUDE for a requirement whose source is known by instance
- *  id — "ANOTHER target nonlegendary creature you control" (Reflection of
- *  Kiki-Jiki, issue #2399). Merges `sourceInstanceId` into the requirement's
- *  `excludeInstanceIds` when `excludeSource` is set, preserving any author-time
- *  entries; returns the requirement untouched otherwise.
+/** The source-relative directives of a requirement whose source is known by
+ *  instance id, bound into the registered filters they name. Reflexive
+ *  self-EXCLUDE — "ANOTHER target nonlegendary creature you control"
+ *  (Reflection of Kiki-Jiki, issue #2399): merges `sourceInstanceId` into the
+ *  requirement's `excludeInstanceIds` when `excludeSource` is set, preserving
+ *  any author-time entries. Combat partner — `combatPartnerOfSource` binds
+ *  `combatPartnerOf` to the source (issue #4320). Returns the requirement
+ *  untouched when neither directive is set.
  *
  *  `excludeInstanceIds` — not a new mechanism — is deliberate: it is the field
  *  `getLegalTargets`, the pending-target carrier `applyOneTargetSelection`
@@ -3728,18 +3731,28 @@ function triggerTargetMinMax(
  *  (`backFaceAsTokenSpec`), so a closure does not survive a client-side decode,
  *  and `enumerateAbilityMoves` skips any ability carrying one, which would make
  *  the ability invisible to the bot. */
-export function applySelfExclusion(
+export function applySourceDirectives(
     req: TargetRequirement,
     sourceInstanceId: string
 ): TargetRequirement {
-    if (!req.excludeSource) return req;
-    return {
-        ...req,
-        excludeInstanceIds: [
-            ...(req.excludeInstanceIds ?? []),
-            sourceInstanceId,
-        ],
-    };
+    let out = req;
+    if (req.excludeSource) {
+        out = {
+            ...out,
+            excludeInstanceIds: [
+                ...(req.excludeInstanceIds ?? []),
+                sourceInstanceId,
+            ],
+        };
+    }
+    // CR 509.1g — "target creature blocking or blocked by {self}" (Cromat,
+    // issue #4320): bind the source's id into the registered
+    // `combatPartnerOf` filter, the same one-merge-reaches-every-consumer
+    // shape as the self-exclude above.
+    if (req.combatPartnerOfSource) {
+        out = { ...out, combatPartnerOf: sourceInstanceId };
+    }
+    return out;
 }
 
 /** CR 612.6 (colour-word text change) + the reflexive self-exclude above,
@@ -3761,7 +3774,7 @@ export function effectiveRequirementForSource(
     source: TextChangeCarrier,
     sourceInstanceId: string
 ): TargetRequirement {
-    return applySelfExclusion(
+    return applySourceDirectives(
         req.colorFilter !== undefined
             ? {
                   ...req,
@@ -3798,7 +3811,10 @@ function triggerTargetLegality(
     // cannot pick its own source permanent. Merge the source id into any
     // author-time `excludeInstanceIds` (CR 603.3d).
     if (item.triggerSourceId) {
-        effectiveReq = applySelfExclusion(effectiveReq, item.triggerSourceId);
+        effectiveReq = applySourceDirectives(
+            effectiveReq,
+            item.triggerSourceId
+        );
     }
 
     // A triggered ability's source characteristics come from the on-stack

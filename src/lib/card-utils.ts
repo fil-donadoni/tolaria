@@ -1411,7 +1411,12 @@ export function matchesPermanentTargetFilters(
      *  `GameState.turn`), never the board's display counter: `enteredOnTurn`
      *  is stamped from the global turn number. */
     turnState: ControlContinuityView | undefined,
-    emblems?: ReadonlyArray<EmblemInstance>
+    emblems?: ReadonlyArray<EmblemInstance>,
+    /** CR 509.1g (issue #4320) — the projected combat's block assignments,
+     *  which `PendingTarget.combatPartnerOf` ("target creature blocking or
+     *  blocked by {self}", Cromat) is evaluated against. Absent → no creature
+     *  is anybody's combat partner, so that filter fails CLOSED. */
+    combat?: { blockerAssignments: Record<string, string[]> }
 ): boolean {
     // CR 601.2c — a permanent already chosen under THIS SAME requirement is
     // never a legal SECOND pick (Magma Burst's kicked "another target", Dust
@@ -1453,6 +1458,8 @@ export function matchesPermanentTargetFilters(
         // `powerFilter`/`toughnessFilter` check over-filters relative to the
         // server.
         emblems,
+        // CR 509.1g (issue #4320) — read by the `combatPartnerOf` filter.
+        combat,
         // CR 302.6 / 400.7 (issue #1824) — the two facts
         // `controlledSinceTurnStart` is evaluated against (Norritt, Arcum's
         // Whistle). Spread rather than assigned so an absent `turnState`

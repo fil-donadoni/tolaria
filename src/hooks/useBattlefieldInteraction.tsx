@@ -617,7 +617,8 @@ export function useBattlefieldInteraction(player: Player) {
                 allPlayers,
                 activePlayerId,
                 controlContinuity,
-                emblems
+                emblems,
+                combat
             ) &&
             // CR 702.18 / 611 — don't fire selectTarget for a shrouded /
             // "can't be the target" permanent; the server would reject it

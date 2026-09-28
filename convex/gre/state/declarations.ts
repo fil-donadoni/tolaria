@@ -3567,6 +3567,10 @@ export type PendingTarget = {
      *  509.1, "target attacking/blocking creature"). Propagated from
      *  TargetRequirement.combatRoleFilter. */
     combatRoleFilter?: "attacking" | "blocking" | ("attacking" | "blocking")[];
+    /** If set, restricts to creatures blocking or blocked by this instance
+     *  (CR 509.1g, Cromat). Propagated from TargetRequirement.combatPartnerOf,
+     *  itself bound from `combatPartnerOfSource` to the ability's source. */
+    combatPartnerOf?: string;
     /** If set, restricts to permanents that HAVE this keyword ability (CR 702,
      *  "target creature with flying"). Propagated from
      *  TargetRequirement.requireAbility. */

@@ -104,7 +104,7 @@ import {
     flashSurchargeOf,
     flashSurchargeRequired,
     foldFlashSurchargeCost,
-    applySelfExclusion,
+    applySourceDirectives,
 } from "./rules";
 import { castPermissionAltCosts } from "./castPermissions";
 // issue #2283 — the origin classification that decides whether a live
@@ -4620,7 +4620,7 @@ function enumerateAbilityMoves(
         // ability whose only other legal target is itself must yield NO move
         // here, not a move the server then rejects.
         const selfExcluded = (req: TargetRequirement | undefined) =>
-            req ? applySelfExclusion(req, perm.id) : req;
+            req ? applySourceDirectives(req, perm.id) : req;
         // CR 601.2c via CR 602.2b (issue #2361) — an activated ability may
         // declare ADDITIONAL independent target groups beyond its primary
         // requirement (Oko, Thief of Crowns' −5, whose two groups differ in
