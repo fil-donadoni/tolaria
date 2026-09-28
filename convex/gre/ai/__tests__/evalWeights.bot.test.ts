@@ -39,16 +39,25 @@ describe("DEFAULT_EVAL_WEIGHTS (issue #2683)", () => {
         expect(DEFAULT_EVAL_WEIGHTS.tappedManaWeight).toBeGreaterThan(0);
     });
 
-    it("TAPPING a renewable source costs less than SPENDING a finite source's charge (issue #4761)", () => {
+    it("SPENDING a finite source's charge outprices the renewable taps it stands in for (issue #4761)", () => {
         // CR 502.3 / 118.3 — a tap comes back at the next untap step, a charge
-        // never does. The relation spans three weights, which no fit band can
-        // state, so it is asserted here on the committed vector: the first
-        // verdict promotion inverted it (5.7 against 4.006) and the Bot paid a
-        // two-drop with its depletion land's charge instead of its basics.
+        // never does. A finite source is priced only by its charges (the
+        // `mana` term skips it), and one depletion-land charge yields two
+        // mana, so it replaces TWO renewable taps: the charge must cost more
+        // than two taps, by at least the one margin point the fit band's
+        // floor uses. The relation spans three weights, which no fit band
+        // can state, so it is asserted here on the committed vector: the
+        // first verdict promotion inverted it (2 × 3.9 against 4.007) and
+        // the Bot paid a two-drop with its depletion land's charge instead of
+        // its basics on every seed.
         const tapCost =
             DEFAULT_EVAL_WEIGHTS.manaWeight -
             DEFAULT_EVAL_WEIGHTS.tappedManaWeight;
-        expect(tapCost).toBeLessThan(DEFAULT_EVAL_WEIGHTS.finiteManaUseWeight);
+        const renewableTapsPerCharge = 2;
+        expect(
+            DEFAULT_EVAL_WEIGHTS.finiteManaUseWeight -
+                renewableTapsPerCharge * tapCost
+        ).toBeGreaterThanOrEqual(1 - 1e-6);
     });
 
     it("is frozen — a mutation attempt is a no-op / throws in strict mode", () => {

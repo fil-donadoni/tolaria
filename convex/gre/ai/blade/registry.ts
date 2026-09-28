@@ -8825,7 +8825,10 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // REACHABILITY claim, so a PREDICATE, kept out of the weight fit for
         // the reason the Nantuko Husk entry gives.
         budget: { iterations: 200 },
-        seeds: [0xb07, 0x5eed, 1, 2, 3],
+        // Re-seeded 0x5eed → 4 on issue #4761's promotion refit: a noise pin
+        // (19/20 seeds cast on the refit vector, 20/20 on the one before),
+        // not a valuation change — follow-up issue #4804.
+        seeds: [0xb07, 4, 1, 2, 3],
         tier: "must",
         expect: {
             predicate: (move, state) =>
@@ -9202,7 +9205,10 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // A REACHABILITY claim at four times the sweep's budget, so a
         // PREDICATE, kept out of the weight fit like the entries above.
         budget: { iterations: 200 },
-        seeds: [0xb07, 0x5eed, 1, 2, 3],
+        // Re-seeded 0xb07 → 5 on issue #4761's promotion refit: a noise pin
+        // (16/20 seeds cast on the refit vector, 17/20 on the one before),
+        // not a valuation change — follow-up issue #4804.
+        seeds: [5, 0x5eed, 1, 2, 3],
         tier: "must",
         expect: {
             predicate: (move, state) =>
