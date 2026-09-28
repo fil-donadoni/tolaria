@@ -45,7 +45,7 @@ import { effectivePermanentView } from "../permanentView";
 import { liveSupertypesOf } from "../snow";
 import { getLegalTargets, pendingTargetingSource } from "../rules";
 import type { EvalWeights } from "./evalWeights";
-import type { LatentLens } from "./grounding";
+import type { LatentLens, SweepOutcome } from "./grounding";
 
 /** The REPRESENTATIVE victim's body: a vanilla 2/2 for two. Not a new tuning
  *  constant — it is the body `DESTROY_VALUE = 160` was hand-tuned against
@@ -168,6 +168,9 @@ export interface LatentBoardInputs {
     def: CardDefinition;
     weights: EvalWeights;
     realisedLoss: RealisedLoss;
+    /** Issue #4781 — the worth `evaluate`'s hand term gives the permanent's
+     *  card back in its owner's hand: what a bounce hands back. */
+    returnedWorth: RealisedLoss;
 }
 
 /** A lens that prices a card in hand against THIS board (issue #3398).
@@ -190,7 +193,8 @@ export function makeLatentBoardLens(
     inputs: LatentBoardInputs,
     base: LatentLens
 ): LatentLens {
-    const { state, casterId, card, def, weights, realisedLoss } = inputs;
+    const { state, casterId, card, def, weights, realisedLoss, returnedWorth } =
+        inputs;
     // A cast-time modal card declares its targets PER MODE (CR 700.2d), and
     // which mode will be chosen is not a fact this valuation has. Fall back
     // to the representative victim for every slot rather than pricing the
@@ -242,14 +246,9 @@ export function makeLatentBoardLens(
             if (units !== undefined) measured = true;
             return units;
         },
-        sweepUnits(select, lethalDamage) {
-            const net = sweptNetLoss(
-                state,
-                casterId,
-                select,
-                realisedLoss,
-                lethalDamage
-            );
+        sweepUnits(select, outcome = LEAVES) {
+            const lossOf = memberLoss(outcome, realisedLoss, returnedWorth);
+            const net = sweptNetLoss(state, casterId, select, lossOf);
             if (net === undefined) return undefined;
             measured = true;
             return net / denominator;
@@ -278,18 +277,13 @@ export function makeLatentBoardLens(
  *  resolution spares, and one that refused them would price a real sweep at
  *  nothing.
  *
- *  Issue #4781 — `lethalDamage`, when given, keeps only the members that
- *  much damage would take off the board: a creature whose remaining
- *  toughness it meets (CR 120.3e marks it, CR 704.5g destroys it), a
- *  planeswalker whose loyalty it meets (CR 120.3c removes the counters,
- *  CR 704.5i puts it into the graveyard). A damage sweep's survivors are no
- *  loss to anyone. */
+ *  Issue #4781 — each member's loss is `lossOf` it, per the sweep's
+ *  `SweepOutcome` (`memberLoss`). */
 function sweptNetLoss(
     state: GameState,
     casterId: string,
     select: EffectForEachSelector,
-    realisedLoss: RealisedLoss,
-    lethalDamage: number | undefined
+    lossOf: MemberLoss
 ): number | undefined {
     if (select.set !== "permanents") return undefined;
     const filter = sweepPermanentFilter(select.filter);
@@ -319,13 +313,45 @@ function sweptNetLoss(
             ) {
                 continue;
             }
-            if (lethalDamage !== undefined && !diesTo(view, lethalDamage)) {
-                continue;
-            }
-            net += own ? -realisedLoss(perm) : realisedLoss(perm);
+            const loss = lossOf(perm, view);
+            net += own ? -loss : loss;
         }
     }
     return net;
+}
+
+const LEAVES: SweepOutcome = { kind: "leaves" };
+
+/** One member's loss to its controller, given the raw permanent and its
+ *  `effectivePermanentView`. */
+type MemberLoss = (perm: CardInstanceState, view: CardInstanceState) => number;
+
+/** Issue #4781 — the per-member loss each `SweepOutcome` inflicts:
+ *   - `leaves`: the whole realised loss (CR 701.8a / 701.13a);
+ *   - `lethalDamage`: the realised loss of a member the damage kills
+ *     (`diesTo`), nothing for a survivor;
+ *   - `returnsToHand`: the realised loss minus the card's worth back in its
+ *     owner's hand — the part of the permanent a bounce actually takes. A
+ *     token hands nothing back (CR 111.8: it ceases to exist off the
+ *     battlefield). Pricing a bounce at the whole realised loss would read
+ *     every returned body as destroyed, while `evaluate` counts it again in
+ *     the owner's hand: the cast would realise a fraction of what holding the
+ *     card was worth. */
+function memberLoss(
+    outcome: SweepOutcome,
+    realisedLoss: RealisedLoss,
+    returnedWorth: RealisedLoss
+): MemberLoss {
+    switch (outcome.kind) {
+        case "leaves":
+            return (perm) => realisedLoss(perm);
+        case "lethalDamage":
+            return (perm, view) =>
+                diesTo(view, outcome.amount) ? realisedLoss(perm) : 0;
+        case "returnsToHand":
+            return (perm) =>
+                realisedLoss(perm) - (perm.isToken ? 0 : returnedWorth(perm));
+    }
 }
 
 /** True when `damage` dealt to `view` (an `effectivePermanentView`) takes it
@@ -347,7 +373,7 @@ function diesTo(view: CardInstanceState, damage: number): boolean {
 /** The answer `sweepPermanentFilter` gives for a filter it cannot match
  *  exactly — distinct from `undefined`, which is "no filter, every
  *  permanent". */
-const UNREADABLE_SWEEP_FILTER = "unreadable-sweep-filter" as const;
+export const UNREADABLE_SWEEP_FILTER = "unreadable-sweep-filter" as const;
 
 /** The `EffectCardFilter` fields `sweepPermanentFilter` maps onto
  *  `PermanentFilter` 1:1, each a LITERAL the resolution's
@@ -379,7 +405,7 @@ const READABLE_SWEEP_FILTER_KEYS: ReadonlySet<string> = new Set([
  *  supertypes (CR 205.4a) alongside the card types (CR 205.2a) the #4773 read
  *  began with. A subtype or colour given as a `{ ref }` / sacrificed-colours
  *  read is chosen at resolution and stays unreadable. */
-function sweepPermanentFilter(
+export function sweepPermanentFilter(
     filter: EffectCardFilter | undefined
 ): PermanentFilter | undefined | typeof UNREADABLE_SWEEP_FILTER {
     if (filter === undefined) return undefined;

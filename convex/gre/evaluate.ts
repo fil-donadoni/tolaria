@@ -292,6 +292,8 @@ function latentBoardFor(
             weights,
             realisedLoss: (perm) =>
                 permanentRealisedValue(state, perm, weights),
+            returnedWorth: (perm) =>
+                cardValue(state, perm, undefined, weights.latent),
         },
         contextFreeLatentLens(weights.latent)
     );

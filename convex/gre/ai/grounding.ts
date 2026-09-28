@@ -69,12 +69,12 @@ export interface LatentLens {
      *  representative-count valuation); negative when the caster would lose
      *  more than the opponents.
      *
-     *  Issue #4781 — `lethalDamage` narrows the members to those that much
-     *  damage takes off the board (a damage sweep: CR 704.5g / 704.5i), so a
-     *  sweep's survivors count for no one. */
+     *  Issue #4781 — `outcome` names what the sweep does to each member
+     *  (`SweepOutcome`); omitted, every member leaves the battlefield for
+     *  good. */
     sweepUnits(
         select: EffectForEachSelector,
-        lethalDamage?: number
+        outcome?: SweepOutcome
     ): number | undefined;
     /** True once `victimUnits` or `sweepUnits` has ANSWERED at least one slot off a REAL
      *  board — i.e. this script's board-affecting worth is MEASURED, not
@@ -92,6 +92,20 @@ export interface LatentLens {
 
 /** The lens a valuation with no board attached reads: the production weights,
  *  no victim lookup. */
+/** Issue #4781 — what a sweep's body does to each member, as far as the
+ *  loss it inflicts goes:
+ *   - `leaves` — it leaves the battlefield and nothing comes back (`destroy`,
+ *     `exile`): the member's whole realised loss;
+ *   - `lethalDamage` — `amount` damage is dealt to it: only a member that
+ *     damage kills is a loss (CR 704.5g / 704.5i), a survivor is none;
+ *   - `returnsToHand` — it is returned to its owner's hand: the realised loss
+ *     NET of the card's worth back in that hand, since a bounced card is
+ *     recast (a token ceases to exist, CR 111.8, and loses it all). */
+export type SweepOutcome =
+    | { kind: "leaves" }
+    | { kind: "lethalDamage"; amount: number }
+    | { kind: "returnsToHand" };
+
 export function contextFreeLatentLens(
     weights: LatentWeights = DEFAULT_EVAL_WEIGHTS.latent
 ): LatentLens {
