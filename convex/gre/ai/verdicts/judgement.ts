@@ -3,9 +3,10 @@
 // The Verdict Lock's reader in `lockSource.ts` (ADR 0128 §2) turns untrusted
 // JSON into a Verdict. A Verdict Store object carries no author or date —
 // those live in its attestations (ADR 0128 §4) — only what IS the judgement:
-// `spec`, `setup`, `seat`, `deckKnowledge`, `candidates`, `answer`. That part
-// is parsed here. It was shared with the `data/verdicts/**` file reader until
-// issue #3584 retired the git corpus, which is why it has a module of its own.
+// `spec`, `setup`, `seat`, `deckKnowledge`, `candidates`, `answer`, and the
+// ADR 0148 `classification` / `pairOf` when present. That part is parsed
+// here. It was shared with the `data/verdicts/**` file reader until issue
+// #3584 retired the git corpus, which is why it has a module of its own.
 //
 // `spec` and `setup` are carried through UNVALIDATED beyond "is an object" /
 // "is an array": the scenario vocabulary and `BladeSetupStep` both grow, and a
@@ -17,8 +18,16 @@
 // Every rejection throws `<where>: <why>` — `where` is a file path or a
 // verdict id, whichever names the thing a human has to go and look at.
 
-import type { VerdictJudgement } from "./identity";
-import type { Verdict, VerdictAnswer, VerdictCandidate } from "./types";
+import { VERDICT_HASH_PATTERN, type VerdictJudgement } from "./identity";
+import {
+    DISCRIMINANT_KINDS,
+    type Discriminant,
+    type MinimalPairLink,
+    type Verdict,
+    type VerdictAnswer,
+    type VerdictCandidate,
+    type VerdictClassification,
+} from "./types";
 
 function bad(where: string, why: string): never {
     throw new Error(`${where}: ${why}`);
@@ -132,6 +141,77 @@ function parseDeckKnowledge(
     });
 }
 
+function parseDiscriminant(
+    where: string,
+    raw: unknown,
+    field: string
+): Discriminant {
+    const row = raw as Record<string, unknown>;
+    if (
+        !isJsonObject(raw) ||
+        !(DISCRIMINANT_KINDS as readonly unknown[]).includes(row.kind)
+    ) {
+        bad(
+            where,
+            `"${field}.kind" must be one of ${DISCRIMINANT_KINDS.join(", ")}`
+        );
+    }
+    // The detail IS the reason: a Discriminant with no words names no factor,
+    // and under `other` it is the only thing the report can count.
+    if (typeof row.detail !== "string" || row.detail.trim() === "") {
+        bad(where, `"${field}.detail" must name the factor`);
+    }
+    return {
+        kind: row.kind as Discriminant["kind"],
+        detail: row.detail as string,
+    };
+}
+
+function parseClassification(
+    where: string,
+    raw: unknown
+): VerdictClassification {
+    const row = raw as Record<string, unknown>;
+    if (isJsonObject(raw) && row.kind === "absolute") {
+        // An Absolute Verdict has no Discriminant by definition (ADR 0148):
+        // one carrying a reason is a Conditional Verdict mislabelled.
+        if (row.discriminant !== undefined) {
+            bad(where, `an absolute "classification" names no Discriminant`);
+        }
+        return { kind: "absolute" };
+    }
+    if (isJsonObject(raw) && row.kind === "conditional") {
+        return {
+            kind: "conditional",
+            discriminant: parseDiscriminant(
+                where,
+                row.discriminant,
+                "classification.discriminant"
+            ),
+        };
+    }
+    bad(where, `"classification.kind" must be "absolute" or "conditional"`);
+}
+
+function parsePairLink(where: string, raw: unknown): MinimalPairLink {
+    const row = raw as Record<string, unknown>;
+    if (
+        !isJsonObject(raw) ||
+        typeof row.anchorId !== "string" ||
+        !VERDICT_HASH_PATTERN.test(row.anchorId)
+    ) {
+        bad(where, `"pairOf.anchorId" must be a verdict id`);
+    }
+    return {
+        anchorId: row.anchorId as string,
+        discriminant: parseDiscriminant(
+            where,
+            row.discriminant,
+            "pairOf.discriminant"
+        ),
+    };
+}
+
 /** Is `raw` a JSON object (not `null`, not an array)? */
 export function isJsonObject(raw: unknown): raw is Record<string, unknown> {
     return typeof raw === "object" && raw !== null && !Array.isArray(raw);
@@ -165,6 +245,30 @@ export function parseVerdictJudgement(
             : parseDeckKnowledge(where, raw.deckKnowledge);
     const candidates = parseCandidates(where, raw.candidates);
     const answer = parseAnswer(where, raw.answer, candidates.length);
+    // ADR 0148. A record with neither field is UNCLASSIFIED — every record
+    // written before the classification existed — and is read as it was
+    // written: the upcast is a reading (`minimalPair.ts`), never a rewrite,
+    // since a rewrite would change the judgement and so its name.
+    const classification =
+        raw.classification === undefined
+            ? undefined
+            : parseClassification(where, raw.classification);
+    const pairOf =
+        raw.pairOf === undefined ? undefined : parsePairLink(where, raw.pairOf);
+    if (pairOf !== undefined) {
+        // A right-hand half is classified by its link: it is the "right" of
+        // the anchor's "wrong now", so it names a right move and carries no
+        // classification of its own.
+        if (classification !== undefined) {
+            bad(
+                where,
+                `a Minimal Pair's right-hand half carries no "classification"`
+            );
+        }
+        if (answer.kind !== "right") {
+            bad(where, `a Minimal Pair's right-hand half must answer "right"`);
+        }
+    }
     return {
         spec: raw.spec as Verdict["spec"],
         ...(raw.setup === undefined
@@ -174,5 +278,7 @@ export function parseVerdictJudgement(
         ...(deckKnowledge === undefined ? {} : { deckKnowledge }),
         candidates,
         answer,
+        ...(classification === undefined ? {} : { classification }),
+        ...(pairOf === undefined ? {} : { pairOf }),
     };
 }

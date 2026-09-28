@@ -3,11 +3,21 @@
 //
 // THE VERDICT ID is the name a judgement takes in the Verdict Store:
 // `v1-<sha256>` over the canonical encoding of the JUDGEMENT — the position
-// (`spec`, `setup`, `seat`, `deckKnowledge`), the `candidates`, and the
-// `answer`. Two deployments recording the same judgement produce one object,
-// and verifying an object is re-hashing it. THE POSITION KEY is the same hash
-// minus `answer`: two judgements about the same decision share it, which is
-// how a contradiction becomes detectable at all.
+// (`spec`, `setup`, `seat`, `deckKnowledge`), the `candidates`, the
+// `answer`, and — when present — the `classification` and the Minimal Pair
+// link `pairOf` (ADR 0148, issue #4793). Two deployments recording the same
+// judgement produce one object, and verifying an object is re-hashing it. THE
+// POSITION KEY is the same hash minus `answer`, `classification` and
+// `pairOf`: two judgements about the same decision share it, which is how a
+// contradiction becomes detectable at all.
+//
+// WHY CLASSIFICATION IS JUDGEMENT. "Wrong always" and "wrong now" about the
+// same move are two claims, and a changed Discriminant is a changed reason:
+// each is its own verdict id. Both are optional and an absent key encodes as
+// nothing, so every id computed before they existed is unchanged — still
+// `v1-`, no rename. They stay out of the position key on purpose: two judges
+// who rule the same move out, one "always" and one "now", disagree about the
+// position, and quarantine must see that as a Contested Position.
 //
 // WHAT IS NOT HASHED, and why each is provenance rather than judgement:
 // `id` (it is what this module computes), `author`, `note`, `createdAt`,
@@ -70,7 +80,14 @@ export const VERDICT_HASH_PATTERN = new RegExp(
 /** The fields of a Verdict that ARE the judgement. A full `Verdict` fits. */
 export type VerdictJudgement = Pick<
     Verdict,
-    "spec" | "setup" | "seat" | "deckKnowledge" | "candidates" | "answer"
+    | "spec"
+    | "setup"
+    | "seat"
+    | "deckKnowledge"
+    | "candidates"
+    | "answer"
+    | "classification"
+    | "pairOf"
 >;
 
 /**
@@ -167,17 +184,23 @@ function named(encoding: string): string {
     return `${VERDICT_CANONICALISATION}-${sha256Hex(encoding)}`;
 }
 
-/** The content-addressed verdict id: position, candidates AND answer. */
+/** The content-addressed verdict id: position, candidates AND answer, plus
+ *  the classification and Minimal Pair link when present. */
 export function verdictIdOf(verdict: VerdictJudgement): string {
     return named(
         canonicalJson({
             ...positionOf(verdict),
             answer: answerOf(verdict.answer),
+            ...(verdict.classification === undefined
+                ? {}
+                : { classification: verdict.classification }),
+            ...(verdict.pairOf === undefined ? {} : { pairOf: verdict.pairOf }),
         })
     );
 }
 
-/** The position key: the verdict id's encoding minus `answer`. Two judgements
+/** The position key: the verdict id's encoding minus `answer`,
+ *  `classification` and `pairOf`. Two judgements
  *  about the same decision share it (ADR 0128 §6). */
 export function positionKeyOf(verdict: VerdictJudgement): string {
     return named(canonicalJson(positionOf(verdict)));

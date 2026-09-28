@@ -63,6 +63,8 @@ import {
     type FittableWeightKey,
 } from "./features";
 import { evalPairsOf, type EvalPair } from "./evalPairs";
+import { verdictIdOf } from "./identity";
+import { minimalPairStandings } from "./minimalPair";
 import type { Verdict, VerdictGap } from "./types";
 
 /** How much of a gap counts as "ordered correctly". Strictly positive: a tie
@@ -133,6 +135,11 @@ export type VerdictReport = {
     /** Verdicts whose position could not be rebuilt or whose candidates no
      *  longer enumerate. */
     errors: { verdictId: string; error: string }[];
+    /** Conditional Verdicts without their Minimal Pair, and right-hand halves
+     *  without their anchor (ADR 0148, `minimalPair.ts`): they yield NO Eval
+     *  Pairs and no row — half an argument is never fitted — and are listed
+     *  here so the corpus still says what it held. */
+    incomplete: { verdictId: string; why: string }[];
 };
 
 /** Canonical key of a basis delta's DIRECTION, for anti-parallel matching.
@@ -211,8 +218,26 @@ export function collectVerdictReport(
     const pairs: EvalPair[] = [];
     const timing: EvalPair[] = [];
     const errors: VerdictReport["errors"] = [];
+    const incomplete: VerdictReport["incomplete"] = [];
 
-    for (const verdict of verdicts) {
+    // The Minimal Pair filter (ADR 0148), over the corpus as handed in. Only
+    // a verdict read from the store is upcast: a registry one is code, and an
+    // authored one says exactly what its author wrote.
+    const ids = verdicts.map(verdictIdOf);
+    const standings = minimalPairStandings(
+        verdicts.map((verdict, i) => ({
+            verdictId: ids[i],
+            judgement: verdict,
+            stored: verdict.source === "store",
+        }))
+    );
+
+    for (const [i, verdict] of verdicts.entries()) {
+        const standing = standings.get(ids[i]);
+        if (standing?.kind === "incomplete") {
+            incomplete.push({ verdictId: verdict.id, why: standing.why });
+            continue;
+        }
         const out = evalPairsOf(verdict, weights);
         const violated = out.pairs.filter((p) => p.delta <= SATISFIED_EPS);
         const row: VerdictRow = {
@@ -251,6 +276,7 @@ export function collectVerdictReport(
         blind,
         gaps: options.gaps ?? [],
         errors,
+        incomplete,
     };
 }
 
@@ -295,6 +321,9 @@ export function formatVerdictReport(
         `  pairs satisfied        : ${report.satisfied.length}/${report.pairs.length} (${pct(report.satisfied.length, report.pairs.length)})`
     );
     out.push(`  pairs violated         : ${report.violated.length}`);
+    out.push(
+        `  incomplete pairs       : ${report.incomplete.length} (Conditional Verdicts without their Minimal Pair — not fitted, ADR 0148)`
+    );
     out.push(
         `  contradictory pairs    : ${report.contradictions.length} (${report.contradictionsWithTiming} with the timing pairs in the fit)`
     );

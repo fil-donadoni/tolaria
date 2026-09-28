@@ -146,6 +146,43 @@ export type VerdictAnswer =
     | { kind: "right"; rightIndexes: number[] }
     | { kind: "forbidden"; forbiddenIndexes: number[] };
 
+/** The kinds a Discriminant is named from (ADR 0148, `CONTEXT.md`
+ *  § Discriminant): a closed list, so unsatisfied pairs can be counted by what
+ *  they lack, plus `other`, whose `detail` is the judge's own words — a phrase
+ *  that recurs under `other` is the kind this list is missing. */
+export const DISCRIMINANT_KINDS = [
+    "card",
+    "step",
+    "life",
+    "mana",
+    "stack",
+    "sequence",
+    "other",
+] as const;
+
+export type DiscriminantKind = (typeof DISCRIMINANT_KINDS)[number];
+
+/** The single factor separating a Minimal Pair's two positions — the WHY of a
+ *  Conditional Verdict. Named by the judge, never inferred from the two
+ *  boards. `detail` names the concrete factor: a card name, a step, the
+ *  judge's words for `other`. */
+export type Discriminant = { kind: DiscriminantKind; detail: string };
+
+/** Which wrong the judge means (ADR 0148). `absolute`: wrong whatever else
+ *  changes — owes nothing more. `conditional`: wrong NOW — owes the
+ *  right-hand half of a Minimal Pair, and stays out of the Verdict Lock and
+ *  the fit until that half exists (`minimalPair.ts`). A Verdict with no
+ *  classification is UNCLASSIFIED: every record written before ADR 0148. */
+export type VerdictClassification =
+    | { kind: "absolute" }
+    | { kind: "conditional"; discriminant: Discriminant };
+
+/** The right-hand half's link to its anchor: the anchor's verdict id
+ *  (`identity.ts`) plus the Discriminant that separates the two positions.
+ *  The anchor never points at its half — a half may be written later, by
+ *  anyone (ADR 0148). */
+export type MinimalPairLink = { anchorId: string; discriminant: Discriminant };
+
 /** A judged decision: the position, the candidates, and the answer. */
 export type Verdict = {
     /** Stable, unique id. `registry:<blade label>` for a derived one. */
@@ -171,6 +208,15 @@ export type Verdict = {
     candidates: VerdictCandidate[];
     /** The judgement. */
     answer: VerdictAnswer;
+    /** Which wrong the judge meant (ADR 0148). Absent on a right-hand half,
+     *  which is classified by its link, and on every record written before
+     *  the classification existed. Part of the judgement, so of the verdict
+     *  id. */
+    classification?: VerdictClassification;
+    /** Set on a Minimal Pair's right-hand half only: the anchor it completes.
+     *  Its answer is `right`, naming the move the anchor ruled out. Part of
+     *  the judgement, so of the verdict id. */
+    pairOf?: MinimalPairLink;
     /** The Bot's OWN pick at the time, by candidate index, when it is known.
      *  A registry verdict does not know it (deriving it would mean running the
      *  search for every entry, which is the blade suite's job, not this one's). */

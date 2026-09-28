@@ -128,6 +128,13 @@ function judgementPayload(verdict: VerdictJudgement): VerdictJudgement {
             : {}),
         candidates: verdict.candidates,
         answer: verdict.answer,
+        // ADR 0148 (issue #4793): part of the judgement and of its id, so of
+        // its bytes. Absent on every object written before them, which keeps
+        // those objects' bytes — and names — exactly as they were.
+        ...(verdict.classification === undefined
+            ? {}
+            : { classification: verdict.classification }),
+        ...(verdict.pairOf === undefined ? {} : { pairOf: verdict.pairOf }),
     };
 }
 
