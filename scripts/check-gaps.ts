@@ -347,9 +347,10 @@ export function renderHandTailClaims(
                 `  - ${m.card}: marker names #${m.markerIssue}, claim is #${m.claimIssue}`
         ),
         "",
-        "  Re-point the marker to the claim's issue (or close the claim with the",
-        "  PR that wrote the card): the marker names the claim, the writing PR",
-        "  closes it (issue #4514).",
+        "  Re-point the marker to the claim's issue: the marker names the claim,",
+        "  the writing PR closes it (issue #4514). Closing the claim issue alone",
+        "  does NOT clear this — the claim row outlives it, and this check is",
+        "  offline (issue #4774).",
     ].join("\n");
 }
 
