@@ -391,6 +391,11 @@
     },
     {
         "file": "convex/gre/ai/__tests__/evalWeights.bot.test.ts",
+        "test": "DEFAULT_EVAL_WEIGHTS (issue #2683) > SPENDING a finite source's charge outprices the renewable taps it stands in for (issue #4761)",
+        "reason": "Ordering invariant across three weights no fit band can state: finiteManaUseWeight exceeds two taps (manaWeight - tappedManaWeight) by at least one margin point."
+    },
+    {
+        "file": "convex/gre/ai/__tests__/evalWeights.bot.test.ts",
         "test": "DEFAULT_EVAL_WEIGHTS (issue #2683) > is frozen — a mutation attempt is a no-op / throws in strict mode",
         "reason": "Invariant check that exported weight objects (incl. nested latent) are frozen."
     },
