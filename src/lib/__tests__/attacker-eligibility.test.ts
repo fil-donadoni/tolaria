@@ -156,6 +156,22 @@ describe("isEligibleAttacker (CR 508.1a)", () => {
             true
         );
     });
+
+    it("rejects EVERY creature when the GAME-scoped cantAttackThisTurn flag is set (CR 508.1c / 611.2c, issue #2002 — Orim's Chant kicked)", () => {
+        // A creature that would otherwise be perfectly eligible (untapped, no
+        // per-object restriction, no board-scanned prohibition) still can't
+        // attack once the global flag is up — exactly the UI-wiring gap
+        // issue #2002 closed on the server side; this is the client mirror.
+        expect(isEligibleAttacker(creature(), opp.battlefield, all, true)).toBe(
+            false
+        );
+    });
+
+    it("still admits a ready creature when cantAttackThisTurn is absent/false", () => {
+        expect(
+            isEligibleAttacker(creature(), opp.battlefield, all, false)
+        ).toBe(true);
+    });
 });
 
 describe("eligibleAttackerIds", () => {
@@ -166,5 +182,12 @@ describe("eligibleAttackerIds", () => {
         const me = player("me", [ready, tapped, nonCreature]);
         const opp = player("opp", []);
         expect(eligibleAttackerIds(me, opp, [me, opp])).toEqual(["ready"]);
+    });
+
+    it("returns an empty set for everyone when cantAttackThisTurn is set (issue #2002)", () => {
+        const ready = creature({ id: "ready" });
+        const me = player("me", [ready]);
+        const opp = player("opp", []);
+        expect(eligibleAttackerIds(me, opp, [me, opp], true)).toEqual([]);
     });
 });

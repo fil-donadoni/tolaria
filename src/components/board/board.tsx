@@ -414,6 +414,7 @@ export default function Board({
                 controlChangedThisTurn: state.controlChangedThisTurn,
                 playerProtectionFromEverything:
                     state.playerProtectionFromEverything,
+                cantAttackThisTurn: state.cantAttackThisTurn,
                 gameOver,
                 allPlayers,
                 emblems: state.emblems,

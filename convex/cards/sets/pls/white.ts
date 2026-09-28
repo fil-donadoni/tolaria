@@ -554,7 +554,7 @@ export const marchOfSouls: CardDefinition = {
 // you cast this spell.)\nTarget player can't cast spells this turn. If this
 // spell was kicked, creatures can't attack this turn." (CR 702.33 Kicker, CR
 // 601.3a a per-player "can't cast spells" turn restriction via
-// `restrictCasting`, CR 508.1a "can't attack" via `restrictCombat`'s
+// `restrictCasting`, CR 508.1c / 611.2c "can't attack" via `restrictCombat`'s
 // GAME-scoped `"cant-attack-all"` mode, issue #2002 — the whole board, EVERY
 // creature including one that enters the battlefield LATER this same turn,
 // before attackers are declared.)

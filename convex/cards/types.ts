@@ -6114,7 +6114,7 @@ export interface SpellContext {
      *  Cleared at CLEANUP. Used by Fight or Flight's unchosen pile. No-op if
      *  target is not a permanent on the battlefield. */
     setCantAttackThisTurn: (target: TargetSelection) => void;
-    /** Marks EVERY creature as unable to attack this turn (CR 508.1a, issue
+    /** Marks EVERY creature as unable to attack this turn (CR 508.1c, issue
      *  #2002 — Orim's Chant's kicked mode: "creatures can't attack this
      *  turn"). The GAME-scoped sibling of `setCantAttackThisTurn`: unlike a
      *  `forEach` sweep setting the per-instance flag on each currently-
@@ -18600,7 +18600,7 @@ export type EffectOp =
           restriction: "cant-attack" | "cant-block" | "cant-be-blocked";
           target: EffectObjectSelector;
       }
-    /** CR 508.1a (issue #2002) — Orim's Chant's kicked mode: "creatures can't
+    /** CR 508.1c (issue #2002) — Orim's Chant's kicked mode: "creatures can't
      *  attack this turn", EVERY creature rather than one target. A thin
      *  declarative skin over `SpellContext.setAllCreaturesCantAttackThisTurn`,
      *  the GAME-scoped sibling of `restrictCombat` above — no `target` field,

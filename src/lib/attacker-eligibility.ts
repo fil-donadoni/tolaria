@@ -17,13 +17,19 @@ import { isCreature } from "~/lib/card-utils";
  *
  *  `opponentBattlefield` is the DEFENDING player's battlefield (feeds card-level
  *  attack restrictions); `allPlayers` feeds the board-scanned global
- *  prohibition (Moat, Akron Legionnaire). */
+ *  prohibition (Moat, Akron Legionnaire); `cantAttackThisTurn` is the
+ *  GAME-scoped CR 508.1c / 611.2c flag (issue #2002 — Orim's Chant's kicked
+ *  mode), forwarded from `GameContext` — checked here alongside the
+ *  per-object gates so a creature that entered the battlefield AFTER the
+ *  spell resolved reads as ineligible too, exactly like the server. */
 export function isEligibleAttacker(
     card: CardInstance,
     opponentBattlefield: CardInstance[],
-    allPlayers: Player[]
+    allPlayers: Player[],
+    cantAttackThisTurn?: boolean
 ): boolean {
     if (!isCreature(card)) return false;
+    if (cantAttackThisTurn) return false;
     // CR 702.3b — a creature with defender can't attack.
     if (card.staticAbilities?.includes("defender")) return false;
     if (card.isTapped) return false;
@@ -76,9 +82,17 @@ export function isEligibleAttacker(
 export function eligibleAttackerIds(
     activePlayer: Player,
     opponent: Player,
-    allPlayers: Player[]
+    allPlayers: Player[],
+    cantAttackThisTurn?: boolean
 ): string[] {
     return activePlayer.battlefield
-        .filter((c) => isEligibleAttacker(c, opponent.battlefield, allPlayers))
+        .filter((c) =>
+            isEligibleAttacker(
+                c,
+                opponent.battlefield,
+                allPlayers,
+                cantAttackThisTurn
+            )
+        )
         .map((c) => c.id);
 }

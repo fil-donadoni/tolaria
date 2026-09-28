@@ -15629,7 +15629,7 @@ export function buildSpellContext(
         },
 
         setAllCreaturesCantAttackThisTurn(): void {
-            // CR 508.1a (issue #2002) — the GAME-scoped sibling of
+            // CR 508.1c (issue #2002) — the GAME-scoped sibling of
             // `setCantAttackThisTurn`: covers every creature, including one
             // that enters the battlefield LATER this turn, before attackers
             // are declared. Read by `validateAttackerEligibility`; cleared at

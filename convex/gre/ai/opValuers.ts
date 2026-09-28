@@ -2019,7 +2019,7 @@ const replaceManaProductionColor: Valuer<
 });
 
 const restrictCombat: Valuer<"restrictCombat"> = (op, ctx) => {
-    // "cant-attack-all" (CR 508.1a, issue #2002 — Orim's Chant's kicked mode)
+    // "cant-attack-all" (CR 508.1c, issue #2002 — Orim's Chant's kicked mode)
     // is the GAME-scoped mode: EVERY creature (both players') can't attack,
     // no `target` to read. Mechanically a Fog by another door — no combat
     // damage happens this turn — so it is priced on the SAME scale as
@@ -2994,7 +2994,7 @@ export function opBeneficence(
             // CHOOSER's slot, backwards. No shipped card does.
             return op.chooser ? "harmful" : "beneficial";
         case "restrictCombat":
-            // CR 508.1a (issue #2002) — "cant-attack-all" has no target and is
+            // CR 508.1c (issue #2002) — "cant-attack-all" has no target and is
             // SYMMETRIC (every creature, both players'), the same shape
             // `suppressDamagePrevention` documents above: no stake for a sign
             // to attach to. The three PER-OBJECT modes keep the flat table's

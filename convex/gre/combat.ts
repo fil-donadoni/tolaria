@@ -401,7 +401,7 @@ export function validateAttackerEligibility(
             reason: "This creature can't attack this turn",
         };
     }
-    // CR 508.1a (issue #2002) — the GAME-scoped twin of the per-instance flag
+    // CR 508.1c / 611.2c (issue #2002) — the GAME-scoped twin of the per-instance flag
     // above: covers EVERY creature, including one that entered the
     // battlefield after the effect resolved (Orim's Chant's kicked mode).
     // `state` is optional (same degrade-gracefully contract as

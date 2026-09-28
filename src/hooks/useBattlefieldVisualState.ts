@@ -104,6 +104,7 @@ export function useBattlefieldVisualState(
         engineTurn,
         controlChangedThisTurn,
         continuousEffects,
+        cantAttackThisTurn,
     } = useGameContext();
     // The two wire fields a "…controlled since the beginning of the turn"
     // choice filter needs (`@convex/gre/controlContinuity`). Passed to every
@@ -529,7 +530,8 @@ export function useBattlefieldVisualState(
             return isEligibleAttacker(
                 card,
                 defender?.battlefield ?? [],
-                allPlayers
+                allPlayers,
+                cantAttackThisTurn
             );
         }
 

@@ -110,6 +110,16 @@ type GameContext = {
      *  as a click-to-target candidate (the server rejects it anyway; the gate
      *  keeps the Arena-style UX honest, exactly like the shroud gate). */
     playerProtectionFromEverything?: string[];
+    /** CR 508.1c / 611.2c (issue #2002) — EVERY creature can't attack this
+     *  turn, forwarded from the wire `GameState.cantAttackThisTurn` (Orim's
+     *  Chant's kicked mode). GAME-scoped, unlike the per-instance
+     *  `CardInstanceState.cantAttackThisTurn` (not currently on the wire —
+     *  see issue tracker for that separate gap): read by
+     *  `isEligibleAttacker`/`eligibleAttackerIds` so the board grays out every
+     *  creature, including one that entered the battlefield after the spell
+     *  resolved, instead of letting the player click an attack the server
+     *  will reject. */
+    cantAttackThisTurn?: boolean;
     gameOver?: GameOver;
     allPlayers: Player[];
     /** CR 114 (issue #1221) — command-zone emblems, forwarded from the wire

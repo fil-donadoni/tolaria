@@ -3003,7 +3003,7 @@ const TURN_SCOPED_GLOBAL_FLAGS = [
     // requirement applies "during each declare attackers step in that turn",
     // so this must survive END_OF_COMBAT.
     "allCreaturesMustAttack",
-    // CR 508.1a / 514.2 (issue #2002) — the GAME-scoped "creatures can't
+    // CR 508.1c / 514.2 (issue #2002) — the GAME-scoped "creatures can't
     // attack this turn" restriction (Orim's Chant's kicked mode). Read by
     // `validateAttackerEligibility` at every declare attackers step of the
     // turn, so — like `allCreaturesMustAttack` above — it must survive
