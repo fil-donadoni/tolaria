@@ -72,8 +72,8 @@ describe.runIf(RUN)("verdicts through the search (runner)", () => {
     it("searches every committed verdict and prints the agreement", async () => {
         const iterations = Number(ENV.BLADE_VERDICT_SEARCH_ITERATIONS ?? 400);
         const label = ENV.BLADE_VERDICT_SEARCH_LABEL;
-        const byId = new Map(
-            BLADE_SCENARIOS.map((s) => [`registry:${s.label}`, s] as const)
+        const byId = new Map<string, (typeof BLADE_SCENARIOS)[number]>(
+            BLADE_SCENARIOS.map((s) => [`registry:${s.label}`, s])
         );
         const budgetOf = (id: string): VerdictSearchBudget => {
             const entry = byId.get(id);
