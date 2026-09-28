@@ -2019,6 +2019,21 @@ const replaceManaProductionColor: Valuer<
 });
 
 const restrictCombat: Valuer<"restrictCombat"> = (op, ctx) => {
+    // "cant-attack-all" (CR 508.1a, issue #2002 — Orim's Chant's kicked mode)
+    // is the GAME-scoped mode: EVERY creature (both players') can't attack,
+    // no `target` to read. Mechanically a Fog by another door — no combat
+    // damage happens this turn — so it is priced on the SAME scale as
+    // `preventDamage`'s "all-combat" mode rather than a bespoke constant.
+    if (op.restriction === "cant-attack-all") {
+        return {
+            points: pricedFraction(
+                ctx,
+                "protection",
+                PROTECTION_COMPLETENESS.flatPrevent
+            ),
+            tags: ["protection"],
+        };
+    }
     // "cant-be-blocked" (CR 509.1b) is the evasion side — an offensive buff to
     // YOUR creature (it connects), not disruption of an opponent's board. Value
     // and tag it like a keyword-evasion grant, not soft removal.
@@ -2978,6 +2993,15 @@ export function opBeneficence(
             // future card announcing its `chooser` would get the sign on the
             // CHOOSER's slot, backwards. No shipped card does.
             return op.chooser ? "harmful" : "beneficial";
+        case "restrictCombat":
+            // CR 508.1a (issue #2002) — "cant-attack-all" has no target and is
+            // SYMMETRIC (every creature, both players'), the same shape
+            // `suppressDamagePrevention` documents above: no stake for a sign
+            // to attach to. The three PER-OBJECT modes keep the flat table's
+            // "harmful" (a restriction landing on one named creature).
+            return op.restriction === "cant-attack-all"
+                ? "neutral"
+                : (OP_BENEFICENCE[op.op] ?? "neutral");
         default:
             return OP_BENEFICENCE[op.op] ?? "neutral";
     }

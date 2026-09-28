@@ -554,21 +554,10 @@ export const marchOfSouls: CardDefinition = {
 // you cast this spell.)\nTarget player can't cast spells this turn. If this
 // spell was kicked, creatures can't attack this turn." (CR 702.33 Kicker, CR
 // 601.3a a per-player "can't cast spells" turn restriction via
-// `restrictCasting`, CR 508.1a "can't attack" via `restrictCombat`.)
-//
-// DIVERGENCE (tracked-by: #2002): the kicked clause is "creatures can't
-// attack this turn" — EVERY creature, including one that enters the
-// battlefield LATER this same turn, before attackers are declared. The
-// engine has no turn-scoped GLOBAL "can't attack" flag (only a PER-INSTANCE
-// one, `restrictCombat`/`setCantAttackThisTurn`) — the same gap
-// `drk/colorless.ts`'s Festival stub documents (that card stays fully
-// deferred; its own tracking ref, the closed whole-slice issue #411, no
-// longer points anywhere useful, hence the fresh issue). This ships the
-// forEach-over-CURRENTLY-existing-creatures approximation, which is CR-exact
-// for every board state that doesn't flash a creature in between this
-// spell's resolution and the declare-attackers step later the same turn —
-// the overwhelming majority of games — and narrower than the full CR 508.1a
-// scope only in that one edge case.
+// `restrictCasting`, CR 508.1a "can't attack" via `restrictCombat`'s
+// GAME-scoped `"cant-attack-all"` mode, issue #2002 — the whole board, EVERY
+// creature including one that enters the battlefield LATER this same turn,
+// before attackers are declared.)
 export const orimsChant: CardDefinition = {
     id: "055afa78-b969-498f-a3ad-c792426e5ee6", // PLS 11
     name: "Orim's Chant",
@@ -588,23 +577,7 @@ export const orimsChant: CardDefinition = {
                 op: "ge",
                 right: 1,
             },
-            then: [
-                {
-                    op: "forEach",
-                    select: {
-                        set: "permanents",
-                        zone: "battlefield",
-                        filter: { type: "Creature" },
-                    },
-                    effects: [
-                        {
-                            op: "restrictCombat",
-                            restriction: "cant-attack",
-                            target: { ref: "$each" },
-                        },
-                    ],
-                },
-            ],
+            then: [{ op: "restrictCombat", restriction: "cant-attack-all" }],
         },
     ],
 };

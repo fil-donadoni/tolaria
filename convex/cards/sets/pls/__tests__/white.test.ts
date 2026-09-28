@@ -1224,6 +1224,7 @@ describe("Orim's Chant (Kicker {W}; target player can't cast spells this turn; i
             (c) => c.id === "bear"
         )!;
         expect(bearAfter.cantAttackThisTurn).not.toBe(true);
+        expect(state.cantAttackThisTurn).not.toBe(true);
     });
 
     it("kicked ALSO makes every creature currently in play (both players') unable to attack this turn", () => {
@@ -1248,18 +1249,55 @@ describe("Orim's Chant (Kicker {W}; target player can't cast spells this turn; i
         ]);
         item.kickerPayments = { kicker: 1 };
         resolveTopOfStack(state);
+        // issue #2002 — the GAME-scoped flag, not a per-instance sweep.
+        expect(state.cantAttackThisTurn).toBe(true);
         const myBearAfter = state.players[0].battlefield.find(
             (c) => c.id === "myBear"
         )!;
         const oppBearAfter = state.players[1].battlefield.find(
             (c) => c.id === "oppBear"
         )!;
-        expect(myBearAfter.cantAttackThisTurn).toBe(true);
-        expect(oppBearAfter.cantAttackThisTurn).toBe(true);
+        expect(
+            validateAttackerEligibility(myBearAfter, undefined, state)
+        ).toEqual({
+            eligible: false,
+            reason: "Creatures can't attack this turn",
+        });
+        expect(
+            validateAttackerEligibility(oppBearAfter, undefined, state)
+        ).toEqual({
+            eligible: false,
+            reason: "Creatures can't attack this turn",
+        });
         // The base "can't cast spells" clause still applies when kicked too.
         expect(state.cannotCastSpellsThisTurn).toEqual([
             { playerId: "p2", cardTypes: undefined },
         ]);
+    });
+
+    it("kicked also stops a creature that enters the battlefield LATER the same turn, before attackers are declared (issue #2002)", () => {
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        const item = pushSpell(state, orimsChant.id, "p1", [
+            { type: "player", id: "p2" },
+        ]);
+        item.kickerPayments = { kicker: 1 };
+        resolveTopOfStack(state);
+        expect(state.cantAttackThisTurn).toBe(true);
+        // A creature that shows up AFTER the spell resolves — exactly the case
+        // a `forEach`-over-the-existing-battlefield sweep would miss.
+        const lateBear = makeInstance(crawWurm.id, {
+            id: "lateBear",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        expect(validateAttackerEligibility(lateBear, undefined, state)).toEqual(
+            {
+                eligible: false,
+                reason: "Creatures can't attack this turn",
+            }
+        );
     });
 });
 

@@ -6644,6 +6644,13 @@ export const OP_EXECUTORS: {
     // (ADR 0045). Skipped when the referenced permanent is gone (CR 608.2b —
     // the effect does as much as it can).
     restrictCombat(ctx, op) {
+        // CR 508.1a (issue #2002) — the GAME-scoped "cant-attack-all" mode has
+        // no target: it sets the global flag directly, covering creatures
+        // that enter the battlefield later this same turn.
+        if (op.restriction === "cant-attack-all") {
+            ctx.setAllCreaturesCantAttackThisTurn();
+            return;
+        }
         const target = resolveObjectRef(ctx, op.target);
         if (!target) return;
         if (op.restriction === "cant-attack") {

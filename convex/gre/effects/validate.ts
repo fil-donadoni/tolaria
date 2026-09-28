@@ -6167,15 +6167,27 @@ const OP_SCHEMAS: OpSchemaTable = {
     // CR 508.1a / 509.1a / 509.1b — a turn-scoped combat restriction grant.
     // `target` is an object selector (announced slot, `$source`, or a forEach
     // `$each`). `"cant-be-blocked"` is the CR 509.1b evasion side (Teleport,
-    // Trailblazer …), routing to `setCantBeBlockedThisTurn`.
+    // Trailblazer …), routing to `setCantBeBlockedThisTurn`. `"cant-attack-all"`
+    // (issue #2002 — Orim's Chant kicked) is the one GAME-scoped mode and
+    // carries no `target` at all.
     restrictCombat: {
         required: {
             restriction: (v) =>
                 v === "cant-attack" ||
                 v === "cant-block" ||
-                v === "cant-be-blocked",
+                v === "cant-be-blocked" ||
+                v === "cant-attack-all",
+        },
+        optional: {
             target: isObjectSelector,
         },
+        check: (entry) =>
+            entry.restriction !== "cant-attack-all" &&
+            entry.target === undefined
+                ? [
+                      '"target" is required unless "restriction" is "cant-attack-all"',
+                  ]
+                : [],
     },
     // CR 508.1c (issue #1283) — Island Sanctuary's player-scoped "can't be
     // attacked except by flying/islandwalk" protection. `player` is the
