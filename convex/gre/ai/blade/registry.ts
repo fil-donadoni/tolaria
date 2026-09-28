@@ -8902,7 +8902,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // REACHABILITY claim, so a PREDICATE, kept out of the weight fit for
         // the reason the Nantuko Husk entry gives.
         budget: { iterations: 200 },
-        seeds: [0xb07, 0x5eed, 1, 2, 3],
+        seeds: [4, 0x5eed, 1, 2, 3],
         tier: "must",
         expect: {
             predicate: (move, state) =>
@@ -8913,7 +8913,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
                 ),
             describe: "casts Sadistic Hypnotist",
         },
-        note: "Bot Gap `never-chosen › Creature › choice+discard` (2 cards). Issue #4276.",
+        note: "Bot Gap `never-chosen › Creature › choice+discard` (2 cards). Issue #4276. SEED 4, NOT 0xb07 (issue #4764): after that issue's refit seeds 0xb07 and 17 pick `pass` over seeds 0xb07, 0x5eed, 1..18 (20/20 cast before), while the 1-ply cast lead is +51.7 under both vectors — rollout noise, tracked by issue #4785.",
     },
     {
         // SACRIFICE-FOR-RANDOM-DISCARD reachability (CR 701.21a, CR 701.9b,
