@@ -25191,7 +25191,7 @@
         {"id":"605.3b","line":"// CR 605.3b — a mana ability doesn't go on the stack. Safe to emit","sites":1,"status":"baseline"},
         {"id":"605.3b","line":"// CR 605.3b — a mana ability never uses the stack: its mana is","sites":1,"status":"confirmed","ruleHash":"07ca77acc153aa35"},
         {"id":"605.3b","line":"// CR 605.3b — the mana ability resolved immediately: {C} in the pool,","sites":1,"status":"baseline"},
-        {"id":"605.3b","line":"// CR 605.3b), and a flash Flametongue Kavu (a temporary definition) a flash","sites":1,"status":"confirmed","ruleHash":"07ca77acc153aa35"},
+        {"id":"605.3b","line":"// CR 605.3b), Zuran Orb a conversion (sacrifice a land: gain 2 life), and a","sites":1,"status":"confirmed","ruleHash":"07ca77acc153aa35"},
         {"id":"605.3b","line":"// CR 605.3b: mana abilities require priority (outside payment).","sites":1,"status":"baseline"},
         {"id":"605.3b","line":"// CR 608.2g / 605.3b — mana abilities during the player's own may-pay","sites":1,"status":"baseline"},
         {"id":"605.3b","line":"// MANA ability, so it never uses the stack (CR 605.3b) and is activatable","sites":1,"status":"confirmed","ruleHash":"07ca77acc153aa35"},

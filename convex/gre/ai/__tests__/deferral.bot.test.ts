@@ -9,8 +9,9 @@
 // Lightning Bolt a targeted instant, Snapcaster Mage a flash body whose entering
 // trigger targets its own graveyard, Polluted Delta an untargeted stack
 // activation, Mishra's Factory a mana ability (it never uses the stack,
-// CR 605.3b), and a flash Flametongue Kavu (a temporary definition) a flash
-// body whose entering trigger can target an opposing creature.
+// CR 605.3b), Zuran Orb a conversion (sacrifice a land: gain 2 life), and a
+// flash Flametongue Kavu (a temporary definition) a flash body whose entering
+// trigger can target an opposing creature.
 import { describe, expect, it } from "vitest";
 import { getCardByName, withTemporaryDefinition } from "../../../cards";
 import { isDeferrableAction, isLastDeferralWindow } from "../deferral";
@@ -32,9 +33,12 @@ const DELTA = getCardByName("Polluted Delta").id;
 const KAVU = getCardByName("Flametongue Kavu");
 
 const FACTORY = getCardByName("Mishra's Factory").id;
+const ORB = getCardByName("Zuran Orb").id;
+const ISLAND = getCardByName("Island").id;
 
 const DELTA_FETCH = "polluted-delta-fetch";
 const FACTORY_MANA = "mishras-factory-mana";
+const ORB_GAIN = "zuran-orb-ability";
 
 function card(cardId: string, id: string, owner = "p1"): CardInstanceState {
     return makeInstance(cardId, {
@@ -186,6 +190,24 @@ describe("own side only", () => {
             });
             expect(isDeferrableAction(alone, "p1", cast("kavu"))).toBe(true);
         });
+    });
+});
+
+describe("a conversion of another permanent stays the evaluation's (issue #2939)", () => {
+    it("refuses an activation whose cost sacrifices another permanent, admits a self-sacrifice", () => {
+        const state = board({
+            battlefield: [
+                card(ORB, "orb"),
+                card(DELTA, "delta"),
+                card(ISLAND, "island"),
+            ],
+        });
+        expect(isDeferrableAction(state, "p1", activate("orb", ORB_GAIN))).toBe(
+            false
+        );
+        expect(
+            isDeferrableAction(state, "p1", activate("delta", DELTA_FETCH))
+        ).toBe(true);
     });
 });
 
