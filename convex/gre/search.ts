@@ -3781,6 +3781,141 @@ export function reachesOnlyOwnSideThroughChoice(
     return isSelfConfinedFutileMove(state, botId, move);
 }
 
+/** Exhaustive as of this writing (issue #4785 review): every engine seam that
+ *  hardcodes behaviour off a specific `CardDefinition.id` rather than reading
+ *  a declared field — `grep -rn '_ID = "[0-9a-f]\{8\}-' convex/gre/*.ts
+ *  convex/gre/ai/*.ts convex/gre/effects/*.ts`. Three are companions
+ *  (`companion.ts`, creatures, already excluded below); Arboria
+ *  (`combat.ts`) carries the `"World"` supertype, already excluded below;
+ *  Freyalise's Winds (`phases.ts`) carries `triggeredAbilities`, already
+ *  excluded below. Only Ghostly Flame (`replacements.ts`) has NO declared
+ *  field a static read could ever catch — "black and/or red sources of
+ *  damage are colourless" is consulted by card id at every damage site, with
+ *  no `staticEffects[]` row at all — so it is denied here BY id, the one
+ *  shape this predicate cannot see through field-reading alone. A future
+ *  engine seam added the same way must add its id to this set; nothing
+ *  currently enforces that by construction, which is exactly why the set is
+ *  kept this small and this explicit rather than trusted to stay hidden. */
+const HIDDEN_REACH_DENYLIST: ReadonlySet<string> = new Set([
+    "6314344b-6493-4142-9c76-da9b90b8d3e1", // Ghostly Flame (ICE)
+]);
+
+/** The VANILLA twin of `reachesOnlyOwnSideThroughChoice`, for the shape that
+ *  probe can never reach at all: `isSelfConfinedFutileMove`'s own eligibility
+ *  gate (`isProbeEligibleMove`, `ai/dominance.ts`) refuses every permanent
+ *  spell outright ("board presence is a real delta — never probe a permanent
+ *  spell"), so a permanent with no ETB and no target — the SIMPLEST possible
+ *  case of touching nothing but the mover's own board — has never qualified
+ *  for the `resolved-payoff` credit below (issue #4785).
+ *
+ *  CR 110.4b: a permanent spell resolves (CR 608.3a: no target, so it enters
+ *  the battlefield under its caster's control) touching nothing but the
+ *  caster's own board and mana pool, UNLESS something else happens as part
+ *  of that resolution — a target, a triggered ability (most commonly an
+ *  ETB), a copy-choice (excluded via `copySourceFilter`), or one of the
+ *  other continuous-effect fields below that can read or touch the
+ *  opponent's side. With none of those, the resolution is provably
+ *  self-confined without a probe at all.
+ *
+ *  Artifact/Enchantment ONLY — a Planeswalker's loyalty abilities and a
+ *  Battle's chosen defending player (CR 310) are the opponent's option to
+ *  interact with by construction, and this predicate has no per-type case
+ *  for either.
+ *
+ *  NOT creatures — deliberately, the same exclusion `isSorcerySpeedPermanentCast`
+ *  already makes for the free-development class below (issue #4070): "a
+ *  beater held back can carry sequencing value" is a claim about COMBAT
+ *  timing a static settled-margin snapshot cannot see, and `resolvedMarginDelta`
+ *  reads positive for almost any creature entering an empty-ish board — so
+ *  admitting creatures here would not add a narrow rescue, it would make
+ *  nearly every creature cast automatic whenever the tie-break ties it with
+ *  `pass`, overriding exactly the judgment #4070's five tests pin (a flash
+ *  permanent's hold-trick value, an opponent-activatable ability's reach, a
+ *  beater's sequencing value). MEASURED: admitting creatures reds all five.
+ *  A creature-shaped instance of this issue (Sadistic Hypnotist, a sacrifice
+ *  outlet with no combat text) is therefore left to the search / the verdict
+ *  corpus + weight fit (ADR 0124 "Verdicts → fit → report"), never a hand
+ *  rule — same reasoning `RootDecisionMechanism`'s freeze already enforces.
+ *
+ *  Fails closed otherwise, like every gate in this file: instant speed (a
+ *  flash permanent's hold-trick value, `hasInstantSpeed` /
+ *  `hasCardSelfFlashPermission`), leaving a castable instant stranded by
+ *  tapping out (the SAME `hasCastableInstant` before/after probe
+ *  `isSorcerySpeedPermanentCast` already runs, below), an ability only an
+ *  OPPONENT may activate (real reach through the resolved permanent,
+ *  `activatableByOpponentsOnly`), a triggered ability, a static effect
+ *  (`staticEffects[]`, layer 7c/anthem-shaped — the printed clause need not
+ *  say "you control", Containment Priest's redirect does not), a
+ *  replacement effect (`replacementEffects[]`, the SAME Containment Priest
+ *  shape), a draw replacement or hand/library reveal (`drawReplacement` /
+ *  `revealsHand` / `revealsLibraryTop` / `looksAtLibraryTop` — each is a
+ *  continuous rules-modifying effect with no `staticEffects[]` row of its
+ *  own, Zur's Weirding / Narset's shape), a copy-choice (`copySourceFilter`
+ *  — Copy Artifact reads the opponent's own board to answer it) or the
+ *  `"World"` supertype (CR 704.5k: the world rule buries every OTHER World
+ *  permanent, the opponent's included, as a side effect of this one
+ *  resolving) each excludes the card — and a target excludes it via
+ *  `move.targets.length > 0`. A controller-only `activatedAbilities[]` /
+ *  keyword `staticAbilities[]` entry does NOT exclude: neither fires as part
+ *  of RESOLVING the cast (an activation is a separate later decision the
+ *  tree prices on its own turn; a keyword like flying is an intrinsic
+ *  property `evaluate`'s creature-quality terms already read). Per-card-
+ *  agnostic beyond the one denylisted id above: the check reads the
+ *  definition's shape, never a card id for anything it CAN see by shape. */
+function isSelfConfinedVanillaPermanentCast(
+    state: GameState,
+    move: Move,
+    botId: string
+): boolean {
+    if (move.kind !== "cast-spell" || move.targets.length > 0) return false;
+    const player = state.players.find((p) => p.id === botId);
+    const card = player?.hand.find((c) => c.id === move.cardInstanceId);
+    if (!card || isCreature(card)) return false;
+    if (hasInstantSpeed(card) || hasCardSelfFlashPermission(card)) {
+        return false;
+    }
+    // Artifact/Enchantment ONLY (never Planeswalker, Battle, Land — a target-
+    // less land cast doesn't reach this rule at all, `play-land` is a
+    // different `Move.kind`).
+    if (!card.types.every((t) => t === "Artifact" || t === "Enchantment")) {
+        return false;
+    }
+    if (
+        getEffectiveActivatedAbilities(card).some(
+            ({ ability: a }) => a.activatableByOpponentsOnly
+        )
+    ) {
+        return false;
+    }
+    const cardId = (card.card as { id?: string }).id;
+    if (!cardId || HIDDEN_REACH_DENYLIST.has(cardId)) return false;
+    const def = tryGetDefinition(cardId);
+    if (!def) return false;
+    if (
+        def.triggeredAbilities?.length ||
+        def.staticEffects?.length ||
+        def.replacementEffects?.length ||
+        def.drawReplacement ||
+        def.revealsHand ||
+        def.revealsLibraryTop ||
+        def.looksAtLibraryTop ||
+        def.copySourceFilter ||
+        def.supertypes?.includes("World")
+    ) {
+        return false;
+    }
+    // The SAME mana-holding probe `isSorcerySpeedPermanentCast` runs below:
+    // never strand a castable instant by tapping out to deploy this instead.
+    if (!hasCastableInstant(state, botId)) return true;
+    const probe = cloneGameState(state);
+    try {
+        applyMoveInSearch(probe, botId, move);
+    } catch {
+        return false;
+    }
+    return hasCastableInstant(probe, botId);
+}
+
 /** Memo for the static half of the gate above, keyed by card id: whether ANY
  *  resolution site on the definition raises a resolution-time choice. A pure
  *  function of the catalogue, so it is cached for the process, not per
@@ -4652,13 +4787,32 @@ export function selectRootMove(
         ruleOn("resolved-payoff") &&
         best.move.kind === "pass"
     ) {
-        const payoff = pool.find(
-            (e) =>
-                e.move.kind === "cast-spell" &&
-                mean(e) >= bestMean - weights.outcomeEps &&
-                reachesOnlyOwnSideThroughChoice(rootState, e.move, botId) &&
-                resolvedMarginDelta(rootState, e.move, botId, weights) > 0
-        );
+        // Ranked by `meanMargin`, not `pool.find`'s first-match (issue #4785
+        // review finding): a card can announce several outcome-equal
+        // variants (a tap plan, a mode) that ALL qualify for the credit — the
+        // same shape `free-development`'s own `VARIANT` test below covers
+        // (`search.bot.test.ts`, two tap plans for the same Seal of Doom
+        // cast), which ranks by `meanMargin` rather than taking the pool's
+        // first entry. Without the ranking here, `resolved-payoff` firing
+        // FIRST (deliberately, see ORDER above) would silently override that
+        // ranking with pool-insertion order.
+        let payoff: Edge | undefined;
+        for (const e of pool) {
+            if (e.move.kind !== "cast-spell") continue;
+            if (mean(e) < bestMean - weights.outcomeEps) continue;
+            if (
+                !(
+                    reachesOnlyOwnSideThroughChoice(rootState, e.move, botId) ||
+                    isSelfConfinedVanillaPermanentCast(rootState, e.move, botId)
+                )
+            ) {
+                continue;
+            }
+            if (resolvedMarginDelta(rootState, e.move, botId, weights) <= 0) {
+                continue;
+            }
+            if (!payoff || meanMargin(e) > meanMargin(payoff)) payoff = e;
+        }
         if (payoff) return finish(payoff, "resolved-payoff", payoff !== best);
     }
 
