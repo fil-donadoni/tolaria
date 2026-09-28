@@ -19,6 +19,13 @@ import { poolArrangementEntryValidator } from "./limited/eventTypes";
 // pull in) and imported by both the storage site below and `userDecks.ts`'s
 // mutation args.
 import { storedDeckColumnLayoutValidator } from "./deckLayoutStorage";
+import {
+    compileSourceValidator,
+    findingBlameValidator,
+    findingClassValidator,
+    findingOutcomeValidator,
+    measurementValidator,
+} from "./botFindingsCore";
 
 // Typed, immutable deck Format (PRD #509, ADR 0036). `userDecks` and
 // `presetDecks` store one of these literals — a non-conforming string is
@@ -1116,6 +1123,52 @@ export default defineSchema({
         // `(scope, cardId)` is this table's natural primary key, mirroring
         // `cardRatings`'s `by_scope_and_card`.
         .index("by_scope_card", ["scope", "cardId"]),
+    // Bot Findings (ADR 0141, PRD #4174, issue #4176): every card the play
+    // Bot is known to struggle with, seeded from `data/bot-reach-findings.json`
+    // by `bun run seed:bot-findings` (`botFindings.seed`, the ONLY writer of a
+    // measured field). Field ownership is `convex/botFindingsCore.ts`'s:
+    // measured fields are rewritten by every seed, human fields never are.
+    // Admin-gated on read (`botFindings.ts`).
+    botFindings: defineTable({
+        oracleId: v.string(),
+        // `sweep` for a measured finding; a human report (issue #4182) takes
+        // its own source, so the two never overwrite each other on one card.
+        source: v.string(),
+        // ── measured (the artifact's) ──
+        name: v.string(),
+        printId: v.optional(v.string()),
+        targets: v.array(v.string()),
+        outcome: findingOutcomeValidator,
+        cause: v.optional(v.string()),
+        form: v.optional(v.string()),
+        gap: v.optional(v.string()),
+        blame: v.optional(findingBlameValidator),
+        compileSource: v.optional(compileSourceValidator),
+        sha: v.string(),
+        botHash: v.string(),
+        measuredAt: v.string(),
+        // `false` once a newer artifact no longer carries the card: the row
+        // (and its human fields) is kept, never silently dropped.
+        active: v.boolean(),
+        // ── human (never touched by a seed) ──
+        note: v.optional(v.string()),
+        reproducers: v.optional(v.array(v.string())),
+        linkedIssue: v.optional(v.number()),
+        snoozedAt: v.optional(v.number()),
+        snoozeReason: v.optional(v.string()),
+    }).index("by_source_oracle", ["source", "oracleId"]),
+    // One row per Bot Gap class, keyed by its Bot Gap key — every field is
+    // measured (artifact + the committed `gaps:sync` claims), so a seed
+    // upserts it whole; a class the artifact drops is deactivated.
+    botFindingClasses: defineTable({
+        ...findingClassValidator.fields,
+        active: v.boolean(),
+    }),
+    // The measurement the rows above came from — ONE row, replaced by every
+    // seed: the header's sha / bot hash / moment, and the measured-vs-total
+    // numbers the page states so its count is never read as "every Bot
+    // problem" (ADR 0141, Consequences).
+    botFindingMeasurements: defineTable(measurementValidator),
     // Bug reports filed from the in-app button. The GitHub issue is the WORK
     // ITEM; this row is the EVIDENCE, and the two are split on exactly one
     // line: the tracker repo is PUBLIC, so anything that identifies the

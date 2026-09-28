@@ -52,6 +52,12 @@ export const ADMIN_NAV: readonly AdminNavEntry[] = [
             "Positions testers judged differently, rebuilt on the board and resolved — and any single verdict, judged cold.",
     },
     {
+        to: "/admin/bot-findings",
+        label: "Bot Findings",
+        description:
+            "Every card the play Bot is measured not to play: the Bot Gap class blocking it, what that class means, and who owes the fix.",
+    },
+    {
         to: "/admin/bug-reports",
         label: "Bug Reports",
         description:

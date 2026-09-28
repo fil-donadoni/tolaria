@@ -236,6 +236,11 @@ export const SHELL_ROUTE_RULES: readonly ShellRouteRule[] = [
         why: "Admin page — verdict review, reached and left through the admin nav.",
     },
     {
+        pattern: "/admin/bot-findings",
+        mode: "browse",
+        why: "Admin page — Bot Findings, reached and left through the admin nav.",
+    },
+    {
         pattern: "/admin/bug-reports",
         mode: "browse",
         why: "Admin page — bug-report evidence, reached and left through the admin nav.",
