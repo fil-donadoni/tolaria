@@ -611,7 +611,7 @@ describe("OP_VALUERS — charter valuers (PRD #1423, issue #1426)", () => {
                 to: "hand",
             };
             const v = valueOp(op, cf);
-            expect(v.points).toBe(55);
+            expect(v.points).toBe(LATENT.tempo);
             expect(v.tags).toEqual(
                 expect.arrayContaining(["tempo", "targeted"])
             );
@@ -630,7 +630,7 @@ describe("OP_VALUERS — charter valuers (PRD #1423, issue #1426)", () => {
                 to: "hand",
             };
             const v = valueOp(op, cf);
-            expect(v.points).toBe(-55);
+            expect(v.points).toBe(-LATENT.tempo);
             expect(v.tags).toContain("self-cost");
             expect(v.tags).not.toContain("targeted");
         });
@@ -652,7 +652,7 @@ describe("OP_VALUERS — charter valuers (PRD #1423, issue #1426)", () => {
                 ],
             };
             const v = valueOp(op, cf);
-            expect(v.points).toBe(-55);
+            expect(v.points).toBe(-LATENT.tempo);
             expect(v.tags).toContain("self-cost");
         });
 
@@ -666,7 +666,7 @@ describe("OP_VALUERS — charter valuers (PRD #1423, issue #1426)", () => {
                 to: "hand",
             };
             const v = valueOp(op, cf);
-            expect(v.points).toBe(55);
+            expect(v.points).toBe(LATENT.tempo);
             expect(v.tags).not.toContain("self-cost");
         });
 

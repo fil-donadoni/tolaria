@@ -8,6 +8,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { BLADE_SCENARIOS } from "../blade/registry";
 import { seatPlayerId } from "../blade/matcher";
 import { moveKey } from "../../search";
+import { committedVerdictCorpus } from "./committedVerdictCorpus.fixture";
 import {
     DEFAULT_EVAL_WEIGHTS,
     FIT_BASE_EVAL_WEIGHTS,
@@ -405,18 +406,21 @@ describe("the violation / contradiction report", () => {
 });
 
 describe("the incumbent is defended on the ORDERING, not the loss (issue #3406)", () => {
-    /** The registry corpus scored at two vectors. `DEFAULT_EVAL_WEIGHTS` IS
-     *  the fit of exactly these verdicts (the lockfile guard in
-     *  `weightFit.bot.test.ts`), so it has to beat the prior it was fitted
-     *  from — on the ordering a human reads, which is the point: the fit's own
-     *  loss carries a margin and will trade an ordered pair for separation
-     *  elsewhere. Derived ONCE: rebuilding every position costs ~0.7s and only
-     *  the first case reads the corpus rather than a tuple off it. */
+    /** The COMMITTED corpus — the registry's verdicts plus the Verdict
+     *  Lock's (issue #4761: since the first promotion the registry alone is
+     *  no longer what the vector was fitted from) — scored at two vectors.
+     *  `DEFAULT_EVAL_WEIGHTS` IS the fit of exactly these verdicts (the
+     *  lockfile guard in `weightFit.bot.test.ts`), so it has to beat the prior
+     *  it was fitted from — on the ordering a human reads, which is the point:
+     *  the fit's own loss carries a margin and will trade an ordered pair for
+     *  separation elsewhere. Derived ONCE: rebuilding every position is the
+     *  expensive part and only the first case reads the corpus rather than a
+     *  tuple off it. */
     let committed: ReportScore;
     let prior: ReportScore;
 
-    beforeAll(() => {
-        const { verdicts, gaps } = verdictsFromRegistry();
+    beforeAll(async () => {
+        const { verdicts, gaps } = await committedVerdictCorpus();
         const at = (weights: EvalWeights) =>
             scoreVerdictReport(
                 collectVerdictReport(verdicts, { gaps, weights })
