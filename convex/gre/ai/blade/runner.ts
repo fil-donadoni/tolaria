@@ -362,7 +362,8 @@ export function describeBeyondBudget(b: BeyondBudget): string {
     return `beyond budget [${b.cause}] — ${passes}; ${b.note}`;
 }
 
-function seedsFor(scenario: BladeScenario): number[] {
+/** The seeds an entry runs at — its declared list, or the default seed. */
+export function bladeScenarioSeeds(scenario: BladeScenario): number[] {
     const seeds = scenario.seeds ?? [DEFAULT_BLADE_SEED];
     if (seeds.length === 0) {
         throw new Error(
@@ -466,7 +467,7 @@ function runBladeScenarioInner(
     pick: BladePick
 ): BladeResult {
     const seeds: BladeSeedResult[] = [];
-    for (const seed of seedsFor(scenario)) {
+    for (const seed of bladeScenarioSeeds(scenario)) {
         // A fresh state per seed: `searchWithTrace` never mutates the root
         // state, but rebuilding keeps each seed's run provably independent.
         const state = buildBladeState(scenario);
