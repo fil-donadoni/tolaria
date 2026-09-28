@@ -28,7 +28,12 @@
 //
 // CARD-AGNOSTIC (ADR 0102): nothing here reads a card name. It reads target
 // requirements, board contents and the fitted weights.
-import type { CardDefinition, TargetRequirement } from "../../cards/types";
+import type {
+    CardDefinition,
+    EffectCardFilter,
+    EffectForEachSelector,
+    TargetRequirement,
+} from "../../cards/types";
 import type { CardInstanceState, GameState } from "../state";
 import { creatureValueRaw } from "../creatureBody";
 import { getLegalTargets, pendingTargetingSource } from "../rules";
@@ -184,7 +189,6 @@ export function makeLatentBoardLens(
     // to the representative victim for every slot rather than pricing the
     // spell by a requirement it may never use.
     const slots = def.modes?.length ? [] : targetSlotRequirements(def);
-    if (slots.length === 0) return base;
     // A slot index past the authored list belongs to the trailing open-ended
     // group when there is one; otherwise it is genuinely unknown.
     const openEnded = openEndedSlotRequirement(def);
@@ -225,13 +229,95 @@ export function makeLatentBoardLens(
     return {
         weights: base.weights,
         victimUnits(slot) {
+            if (slots.length === 0) return base.victimUnits(slot);
             if (!memo.has(slot)) memo.set(slot, compute(slot));
             const units = memo.get(slot);
             if (units !== undefined) measured = true;
             return units;
         },
+        sweepUnits(select) {
+            const net = sweptNetLoss(state, casterId, select, realisedLoss);
+            if (net === undefined) return undefined;
+            measured = true;
+            return net / denominator;
+        },
         measured: () => measured,
     };
+}
+
+/** Issue #4773 — the realised loss a `forEach` over the battlefield takes
+ *  from the caster's opponents MINUS what it takes from the caster, or
+ *  `undefined` when the selector is not one this lens can read.
+ *
+ *  Until this read, a sweep's `$each` was no announced slot, so it priced at
+ *  ONE representative victim whatever the board held: Armageddon sat in hand
+ *  at a 2/2's worth while the lands it would take were worth far less, and
+ *  casting it with the opponent a land ahead read as a loss at 1 ply. The
+ *  members are the ones the resolution would take (CR 701.8a moves each to
+ *  its owner's graveyard, the caster's own included), priced by the same
+ *  `realisedLoss` the targeted slots read.
+ *
+ *  Readable means: every player's battlefield or a fixed side of it
+ *  (`controller` / `opponent`), and a filter this lens can match EXACTLY —
+ *  `type` / `excludeType` only. Any other filter field (a subtype chosen
+ *  mid-resolution, a mana-value bound, a colour) answers `undefined` rather
+ *  than guess: a matcher that skipped the field would count members the
+ *  resolution spares, and one that refused them would price a real sweep at
+ *  nothing. */
+function sweptNetLoss(
+    state: GameState,
+    casterId: string,
+    select: EffectForEachSelector,
+    realisedLoss: RealisedLoss
+): number | undefined {
+    if (select.set !== "permanents") return undefined;
+    if (!isReadableSweepFilter(select.filter)) return undefined;
+    const controller = select.controller;
+    if (
+        controller !== undefined &&
+        controller !== "controller" &&
+        controller !== "opponent"
+    ) {
+        return undefined;
+    }
+    let net = 0;
+    for (const player of state.players) {
+        const own = player.id === casterId;
+        if (controller === "controller" && !own) continue;
+        if (controller === "opponent" && own) continue;
+        for (const perm of player.battlefield) {
+            if (!matchesSweepFilter(perm, select.filter)) continue;
+            net += own ? -realisedLoss(perm) : realisedLoss(perm);
+        }
+    }
+    return net;
+}
+
+/** The two filter fields `matchesSweepFilter` reads exactly. */
+const READABLE_SWEEP_FILTER_KEYS: ReadonlySet<string> = new Set([
+    "type",
+    "excludeType",
+]);
+
+function isReadableSweepFilter(filter: EffectCardFilter | undefined): boolean {
+    if (filter === undefined) return true;
+    return Object.keys(filter).every((k) => READABLE_SWEEP_FILTER_KEYS.has(k));
+}
+
+/** `type` (OR within the field) AND NOT `excludeType` — the card-type half of
+ *  `EffectCardFilter` (CR 205), over the permanent's current types. */
+function matchesSweepFilter(
+    perm: CardInstanceState,
+    filter: EffectCardFilter | undefined
+): boolean {
+    if (filter === undefined) return true;
+    const types = filter.type === undefined ? [] : [filter.type].flat();
+    if (types.length > 0 && !types.some((t) => perm.types.includes(t))) {
+        return false;
+    }
+    const excluded =
+        filter.excludeType === undefined ? [] : [filter.excludeType].flat();
+    return !excluded.some((t) => perm.types.includes(t));
 }
 
 /** True when `requirement` could ever name a battlefield permanent — a
