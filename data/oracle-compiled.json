@@ -5,7 +5,7 @@
         "compilerHash": "sha256:2045efc9f98efabee764bd6d04cd3754bcdc2c7b1103d76fbfdfdc19161f4bac",
         "registryHash": "sha256:87242dbb534aaf92d4f3fae3dd4d8d40b41b6fe3218d38f2dfdf88143cfbc19f",
         "botHash": "sha256:2251acbfc48ff37d6951dcad82e7a4a9660e33228ac11119010f39638ca48da3",
-        "poolHash": "sha256:7060dbd5a46bbc2e722065243f7b2ac118f01056d3b4335735480c17daf2b1c3",
+        "poolHash": "sha256:98f7b2c13d56d4759ad333113a3f88e40da658fbeda794d90bc45378ebfddcde",
         "corpus": {
             "source": "https://api.scryfall.com/bulk-data/oracle-cards",
             "downloadUri": "https://data.scryfall.io/oracle-cards/oracle-cards-20260830090156.jsonl.gz",
@@ -26,7 +26,7 @@
             "ready": 1342,
             "quarantine": 69,
             "unparsed": 3964,
-            "pool": 1323
+            "pool": 1324
         },
         "pauper": {
             "total": 10793,
@@ -47,21 +47,21 @@
             "ready": 4697,
             "quarantine": 355,
             "unparsed": 26620,
-            "pool": 2028
+            "pool": 2029
         },
         "vintage": {
             "total": 31690,
             "ready": 4699,
             "quarantine": 356,
             "unparsed": 26635,
-            "pool": 2048
+            "pool": 2049
         },
         "commander": {
             "total": 31830,
             "ready": 4700,
             "quarantine": 355,
             "unparsed": 26775,
-            "pool": 2061
+            "pool": 2062
         }
     },
     "fragments": [

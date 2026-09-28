@@ -1993,13 +1993,21 @@ function resolveExiledWithSource(
  *  own X-counts-as-0 convention for a permanent target (CR 202.3 — the chosen
  *  X isn't preserved on the resulting permanent). Used by a `mayPay` Op's
  *  dynamically-derived cost leg (issue #1150, Flash — "pay its mana cost
- *  reduced by {2}"). */
+ *  reduced by {2}").
+ *
+ *  CR 107.4e — a hybrid pip passes through as a hybrid pip: the may-pay mana
+ *  leg is normalized by `normalizeManaCost`, which already owes the composite
+ *  key, so "pay that spell's mana cost" on a {B/G} spell is payable with
+ *  either colour. CR 107.4f — a Phyrexian pip is folded into one mana of its
+ *  colour: DEVIATION, the 2-life alternative is not offered, because the
+ *  may-pay payment path has no per-pip mana-or-life split (tracked-by: #4776). */
 function reduceGenericMana(cost: ManaCost, amount: number): ManaCost {
     const result: ManaCost = {};
     for (const color of ["W", "U", "B", "R", "G", "C"] as const) {
-        const v = cost[color];
+        const v = (cost[color] ?? 0) + (cost.phyrexian?.[color] ?? 0);
         if (v) result[color] = v;
     }
+    if (cost.hybrid?.length) result.hybrid = cost.hybrid.map((p) => [...p]);
     const generic =
         (typeof cost.X === "number" ? cost.X : 0) + (cost.generic ?? 0);
     const reduced = Math.max(0, generic - amount);
@@ -2066,6 +2074,17 @@ function resolveMayPayCost(
         if (amount === undefined) return MAY_PAY_COST_UNRESOLVABLE;
         // LITERAL base (Draco's {10}) — nothing to look up.
         if (cost.mana) return { mana: reduceGenericMana(cost.mana, amount) };
+        // CR 202.1a — "pay THAT SPELL's mana cost": a `SPELL_CAST` trigger's
+        // `$event.spell` names the spell on the stack. Presence on the stack
+        // is the recheck (`getManaCost` misses a spell that left it), and a
+        // spell with no mana cost is CR 118.6's unpayable cost — both skip the
+        // Op, so the `if` on its unwritten binding reads false.
+        if (isEventRef(cost.manaCostOf.ref)) {
+            const spell = resolveStackObjectRef(ctx, cost.manaCostOf);
+            const onStack = spell ? ctx.getManaCost(spell) : undefined;
+            if (!onStack) return MAY_PAY_COST_UNRESOLVABLE;
+            return { mana: reduceGenericMana(onStack, amount) };
+        }
         const ids = resolvePicks(ctx, cost.manaCostOf);
         const id = ids?.[0];
         if (!id || ctx.getOwnerId(id) === undefined) {

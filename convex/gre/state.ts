@@ -14114,9 +14114,15 @@ export function buildSpellContext(
             if (target.type === "spell") {
                 const stackItem = state.stack.find((s) => s.id === target.id);
                 if (!stackItem) return undefined;
+                // CR 702.37c / 708.4 — a spell cast face down has NO mana cost
+                // (an unpayable one, CR 118.6), not the face-down sentinel's
+                // `{}`, which this engine also uses for a printed {0}.
+                if (stackItem.faceDown) return undefined;
                 const cardId = (stackItem.card as { id?: string }).id;
                 const def = cardId ? tryGetDefinition(cardId) : undefined;
-                return def?.manaCost;
+                return def?.manaCost
+                    ? withAnnouncedX(def.manaCost, stackItem.chosenX)
+                    : undefined;
             }
             if (target.type === "graveyard-card") {
                 const owner = target.playerId;
@@ -20788,6 +20794,31 @@ function xSpendCostKey(colors: readonly Color[] | undefined): string | null {
     throw new Error(
         `xSpendColors supports one or two colours, got ${colors.join(",")}`
     );
+}
+
+/** CR 107.3a — "While a spell is on the stack, any X in its mana cost ...
+ *  equals the announced value." Returns the printed cost with a variable `{X}`
+ *  replaced by the fixed generic it now stands for (`chosenX` × `xFactor`,
+ *  plus any fixed `generic`), so a reader of a SPELL's mana cost ("pay that
+ *  spell's mana cost") prices the X that was announced, not 0. A cost with no
+ *  variable X is returned unchanged. `xSpendColors` is dropped with the X: it
+ *  is rules text restricting the CASTER's payment (CR 601.2h), not a symbol
+ *  of the mana cost. */
+function withAnnouncedX(
+    cost: CardManaCost,
+    chosenX: number | undefined
+): CardManaCost {
+    if (typeof cost.X !== "string") return cost;
+    const factor =
+        typeof cost.xFactor === "number" && cost.xFactor > 0 ? cost.xFactor : 1;
+    const fixed: CardManaCost = {
+        ...cost,
+        X: (chosenX ?? 0) * factor + (cost.generic ?? 0),
+    };
+    delete fixed.generic;
+    delete fixed.xFactor;
+    delete fixed.xSpendColors;
+    return fixed;
 }
 
 export function normalizeManaCost(

@@ -4,6 +4,7 @@
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 import type { CardDefinition } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
+import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
 
 // Whirlpool Warrior. Its ETB half is the same clause Whirlpool Rider and Drake
 // ship COMPILED; only the activated half sits below the hand-tail floor, and a
@@ -184,5 +185,63 @@ export const jadedResponse: CardDefinition = {
                 },
             ],
         },
+    ],
+};
+
+// Ice Cave — {3}{U}{U} Enchantment. "Whenever a player casts a spell, any other
+// player may pay that spell's mana cost. If a player does, counter the spell."
+//
+// CR 118.12 — "[A player] may [do something]. If [that player] does, [effect]"
+// makes the payment a cost paid on resolution; the `mayPay` Op's boolean bind
+// is the "if a player does" check. CR 102.2 — "any other player" is
+// `{ opponentOf: { ref: "$event.caster" } }`, the caster's complement, which
+// this engine's two-seat scope collapses to one player: the
+// opponent when either seat casts, Ice Cave's controller included.
+//
+// CR 202.1a — "that spell's mana cost" is `manaCostOf: { ref: "$event.spell" }`,
+// read off the spell ON THE STACK (issue #4335): colored pips must be matched
+// (the reminder text), and CR 107.3a prices an {X} at its announced value. A
+// spell with no mana cost — one cast face down (CR 702.37c) — has an
+// unpayable one (CR 118.6): the Op skips and nothing is countered; a printed
+// {0} is paid with nothing. CR 701.6a — the counter names the same spell through
+// the event, as Decree of Silence does (`scg/blue.ts`).
+// hand-tail: Whenever a player casts a spell, any other player may pay that spell's mana cost. If a player does, counter the spell. (#4335)
+export const iceCave: CardDefinition = {
+    id: "fc2877c2-4426-4c07-92a2-8ba5107d5e7e", // APC 24
+    name: "Ice Cave",
+    rarity: "rare",
+    oracleText:
+        "Whenever a player casts a spell, any other player may pay that spell's mana cost. If a player does, counter the spell. (Mana cost includes color.)",
+    manaCost: { X: 3, U: 2 },
+    types: ["Enchantment"],
+    triggeredAbilities: [
+        spellCastTrigger({
+            id: "ice-cave-pay-to-counter",
+            oracleText:
+                "Whenever a player casts a spell, any other player may pay that spell's mana cost. If a player does, counter the spell.",
+            scope: "any",
+            effects: [
+                {
+                    op: "mayPay",
+                    player: { opponentOf: { ref: "$event.caster" } },
+                    cost: {
+                        manaCostOf: { ref: "$event.spell" },
+                        reducedBy: 0,
+                    },
+                    prompt: "Pay that spell's mana cost to counter it?",
+                    bind: "$paid",
+                },
+                {
+                    op: "if",
+                    predicate: { binding: "$paid" },
+                    then: [
+                        {
+                            op: "counter",
+                            target: { ref: "$event.spell" },
+                        },
+                    ],
+                },
+            ],
+        }),
     ],
 };

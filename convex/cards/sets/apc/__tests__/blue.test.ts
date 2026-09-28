@@ -34,7 +34,12 @@ import {
     type GameState,
 } from "../../../../gre/state";
 import { finalizeCleanup } from "../../../../gre/phases";
-import { applyNameCardSubmit } from "../../../../gre/pendingChoiceSubmit";
+import {
+    applyMayPaySubmit,
+    applyNameCardSubmit,
+} from "../../../../gre/pendingChoiceSubmit";
+import { collectTriggers } from "../../../../gre/triggers";
+import { turnFaceDown } from "../../../../gre/faceDown";
 import {
     activateAbility,
     confirmTargets,
@@ -497,5 +502,224 @@ describe("Jaded Response — counter if it shares a colour with a creature you c
         });
         expect(state.stack.find((s) => s.id === boltId)).toBeUndefined();
         expect(state.players[1].graveyard.map((c) => c.id)).toEqual([boltId]);
+    });
+});
+
+// Ice Cave — "Whenever a player casts a spell, any other player may pay that
+// spell's mana cost. If a player does, counter the spell." A HAND-TAIL card
+// (issue #4335) and the FIRST `mayPay` whose `manaCostOf` names a spell ON THE
+// STACK (`$event.spell`) rather than a picked permanent, so this is that
+// construct's permanent test. Every claim below is read off the REAL payment
+// primitive (`applyMayPaySubmit`, the one `submitMayPay` and the Bot drive):
+//
+//   * CR 202.1a — the price is the spell's printed cost, coloured pips kept;
+//   * CR 107.3a — an {X} on the stack costs its ANNOUNCED value, not 0;
+//   * CR 107.4e — a hybrid pip stays payable with either colour;
+//   * CR 102.2 — "any other player" is the CASTER's complement, so Ice Cave's
+//     own controller is the one who is NOT asked when they cast;
+//   * CR 118.12 — only a paid cost counters; a decline leaves the spell.
+describe("Ice Cave (pay that spell's mana cost to counter it)", () => {
+    const ICE_CAVE = getDefinition("fc2877c2-4426-4c07-92a2-8ba5107d5e7e");
+    const SPELL_ID = "test-apc-ice-cave-spell";
+
+    function spellDef(manaCost: CardDefinition["manaCost"]): CardDefinition {
+        return {
+            id: SPELL_ID,
+            name: "Ice Cave Probe",
+            rarity: "common",
+            manaCost,
+            types: ["Sorcery"],
+            effects: [],
+        };
+    }
+
+    /** p1 controls Ice Cave; `caster` has a spell on the stack; the trigger is
+     *  collected off the real SPELL_CAST event and resolved up to its prompt. */
+    function castUnderIceCave(
+        caster: "p1" | "p2",
+        opts: {
+            chosenX?: number;
+            pool?: Record<string, number>;
+            faceDown?: boolean;
+        } = {}
+    ) {
+        const cave = makeInstance(ICE_CAVE.id, {
+            id: "cave",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const empty = { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 };
+        const payer = caster === "p1" ? "p2" : "p1";
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [cave],
+                    manaPool: {
+                        ...empty,
+                        ...(payer === "p1" ? opts.pool : {}),
+                    },
+                }),
+                makePlayer("p2", {
+                    manaPool: {
+                        ...empty,
+                        ...(payer === "p2" ? opts.pool : {}),
+                    },
+                }),
+            ],
+        });
+        const spell = {
+            ...makeInstance(SPELL_ID, {
+                id: "spell",
+                controllerId: caster,
+                ownerId: caster,
+                zone: "hand",
+            }),
+            castById: caster,
+            targets: [],
+            ...(opts.chosenX !== undefined ? { chosenX: opts.chosenX } : {}),
+        };
+        // CR 708.4 — a face-down cast is turned face down BEFORE it reaches
+        // the stack, through the same primitive `castCommit` calls.
+        if (opts.faceDown) turnFaceDown(state, spell, "morph");
+        state.stack.push(spell);
+        const triggers = collectTriggers(state, [
+            {
+                type: "SPELL_CAST",
+                casterId: caster,
+                spellInstanceId: "spell",
+                spellCardId: SPELL_ID,
+                spellTypes: ["Sorcery"],
+                spellSubtypes: [],
+                spellColors: [],
+            },
+        ]);
+        expect(triggers).toHaveLength(1);
+        state.stack.push(...triggers);
+        resolveTopOfStack(state);
+        return { state, payer };
+    }
+
+    it("offers the OTHER player the spell's printed cost, and paying counters it (CR 202.1a / 701.6a)", () => {
+        withTemporaryDefinition(spellDef({ X: 2, R: 1 }), () => {
+            const { state, payer } = castUnderIceCave("p2", {
+                pool: { R: 1, C: 2 },
+            });
+            const head = state.pendingChoices?.[0];
+            expect(head?.kind).toBe("may-pay");
+            expect(head?.playerId).toBe(payer);
+            expect(head?.cost).toEqual({ mana: { R: 1, generic: 2 } });
+            // SURFACE — the payer's prompt reaches the client with its price.
+            const projected = projectPublicState(state, 1, payer);
+            expect(projected.pendingChoices?.[0]?.cost).toEqual({
+                mana: { R: 1, generic: 2 },
+            });
+
+            applyMayPaySubmit(state, { playerId: payer, accept: true });
+            expect(state.stack.map((s) => s.id)).toEqual([]);
+            expect(state.players[1].graveyard.map((c) => c.id)).toEqual([
+                "spell",
+            ]);
+            expect(state.players[0].manaPool).toMatchObject({ R: 0, C: 0 });
+        });
+    });
+
+    it("leaves the spell on the stack when the other player declines (CR 118.12)", () => {
+        withTemporaryDefinition(spellDef({ X: 2, R: 1 }), () => {
+            const { state, payer } = castUnderIceCave("p2", {
+                pool: { R: 1, C: 2 },
+            });
+            applyMayPaySubmit(state, { playerId: payer, accept: false });
+            expect(state.stack.map((s) => s.id)).toEqual(["spell"]);
+            expect(state.players[1].graveyard).toHaveLength(0);
+            expect(state.players[0].manaPool).toMatchObject({ R: 1, C: 2 });
+        });
+    });
+
+    it("asks Ice Cave's OPPONENT when Ice Cave's own controller casts (CR 102.2)", () => {
+        withTemporaryDefinition(spellDef({ U: 1 }), () => {
+            const { state } = castUnderIceCave("p1");
+            expect(state.pendingChoices?.[0]?.playerId).toBe("p2");
+        });
+    });
+
+    it("prices an {X} spell at its announced X (CR 107.3a)", () => {
+        withTemporaryDefinition(spellDef({ X: "X", R: 1 }), () => {
+            const { state } = castUnderIceCave("p2", { chosenX: 3 });
+            expect(state.pendingChoices?.[0]?.cost).toEqual({
+                mana: { R: 1, generic: 3 },
+            });
+        });
+    });
+
+    it("keeps a hybrid pip payable with either colour (CR 107.4e)", () => {
+        withTemporaryDefinition(
+            spellDef({ X: 1, hybrid: [["B", "G"]] }),
+            () => {
+                const { state, payer } = castUnderIceCave("p2", {
+                    pool: { G: 1, C: 1 },
+                });
+                expect(state.pendingChoices?.[0]?.cost).toEqual({
+                    mana: { generic: 1, hybrid: [["B", "G"]] },
+                });
+                applyMayPaySubmit(state, { playerId: payer, accept: true });
+                expect(state.stack).toHaveLength(0);
+            }
+        );
+    });
+
+    it("asks nothing when the spell has already left the stack", () => {
+        withTemporaryDefinition(spellDef({ U: 1 }), () => {
+            const cave = makeInstance(ICE_CAVE.id, {
+                id: "cave",
+                controllerId: "p1",
+                ownerId: "p1",
+            });
+            const state = makeState({
+                players: [
+                    makePlayer("p1", { battlefield: [cave] }),
+                    makePlayer("p2"),
+                ],
+            });
+            const triggers = collectTriggers(state, [
+                {
+                    type: "SPELL_CAST",
+                    casterId: "p2",
+                    spellInstanceId: "gone",
+                    spellCardId: SPELL_ID,
+                    spellTypes: ["Sorcery"],
+                    spellSubtypes: [],
+                    spellColors: [],
+                },
+            ]);
+            state.stack.push(...triggers);
+            resolveTopOfStack(state);
+            expect(state.pendingChoices ?? []).toHaveLength(0);
+            // The trigger resolved and left; nothing was countered.
+            expect(state.stack).toHaveLength(0);
+            expect(state.players[1].graveyard).toHaveLength(0);
+        });
+    });
+
+    it("pays a printed {0} with nothing, and counters (CR 202.1a)", () => {
+        withTemporaryDefinition(spellDef({}), () => {
+            const { state, payer } = castUnderIceCave("p2");
+            expect(state.pendingChoices?.[0]?.cost).toEqual({ mana: {} });
+            applyMayPaySubmit(state, { playerId: payer, accept: true });
+            expect(state.stack).toHaveLength(0);
+            expect(state.players[1].graveyard.map((c) => c.id)).toEqual([
+                "spell",
+            ]);
+        });
+    });
+
+    it("asks nothing for a spell cast face down — it has no mana cost (CR 702.37c / 118.6)", () => {
+        withTemporaryDefinition(spellDef({ U: 1 }), () => {
+            const { state } = castUnderIceCave("p2", {
+                faceDown: true,
+                pool: { U: 1 },
+            });
+            expect(state.pendingChoices ?? []).toHaveLength(0);
+            expect(state.stack.map((s) => s.id)).toEqual(["spell"]);
+        });
     });
 });
