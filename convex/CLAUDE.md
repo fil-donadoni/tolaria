@@ -251,6 +251,38 @@ simply never shows up in a game against the Bot.
 
 Procedure, checklist and the failure gallery: `docs/guides/bot-reachability.md`.
 
+## Pending-choice wire safety (CR 406.3, issue #1982)
+
+`pendingChoices` crosses the wire to BOTH viewers UNREDACTED —
+`projectPublicState` (`convex/gameProjections.ts`) forwards it via the
+`...state` spread, and `<PendingChoicePrompt>` renders `prompt` verbatim into
+the non-chooser's "Waiting for X — …" banner. There is no projection-level
+scrub to fall back on (one was tried for issue #1982 and reverted: it broke
+CR-correct, individually-tested behaviour — a modal triggered ability's mode
+is PUBLICLY ANNOUNCED per CR 603.3c, `chooseNumber`/`payVariableMana`'s
+`prompt` is a card-authoring-time literal that can never vary by hidden
+state, and stripping `subjectCardId` blanket hid a legitimately public
+cascade hit). **Every prompt/option author is the enforcement point:**
+
+- **Wording must not vary by hidden state.** A choice whose branch depends on
+  a face-down/hidden object (Shelldock Isle's Hideaway Cast/Decline offer,
+  `gre/effects/interpreter.ts`'s `OFFER_PROMPT`) uses ONE prompt string and
+  ONE option list for every branch — differing wording is itself the leak
+  (CR 116.1's "play" covers casting, so "Play it or decline." is accurate
+  whichever branch was taken). Reference: `colorless.test.ts`'s
+  `"CR 406.3 — the offer is BYTE-IDENTICAL…"` test.
+- **`subjectCardId` only from a derivation that already gates on
+  visibility** — `SpellContext.getPublicCardIdentity`
+  (`gre/effects/interpreter.ts`), never authored by hand. Two
+  SpellContext-less producers (`gre/madness.ts`, `gre/rebound.ts`) set it
+  unconditionally and are correct in substance (the card was already made
+  public by an earlier step in the same turn); a fourth in `gre/state.ts`
+  forwards a caller-supplied value / derives it for an as-enters staged
+  choice (`presentedDefId`, always a public zone transition). **Guard,
+  mechanical, Guard-B-shaped**: `subjectCardIdProducers.test.ts` fails CI on
+  a FIFTH file assigning `subjectCardId` outside this allowlist — extend it
+  deliberately, never silently.
+
 ## Exhaustive target-type matching
 
 Code switching on `TargetRequirement.type` MUST use an exhaustive helper or
