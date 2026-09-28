@@ -17,10 +17,12 @@
 import { describe, expect, it } from "vitest";
 import {
     ATTESTATION_OBJECT_PREFIX,
+    RESOLUTION_OBJECT_PREFIX,
     VERDICT_OBJECT_PREFIX,
     decodeVerdictObject,
     encodeVerdictObject,
     putAttestation,
+    putResolution,
     putVerdict,
 } from "../../../verdictStore";
 import {
@@ -28,6 +30,7 @@ import {
     type MemoryVerdictStore,
 } from "../../../verdictStoreMemory";
 import {
+    censusByClass,
     collectVerdictReport,
     evalPairsOf,
     formatStoreValidation,
@@ -163,6 +166,16 @@ describe("store parsing and the upcast (issue #4793)", () => {
             /detail/,
         ],
         [
+            "a Discriminant padded with whitespace",
+            {
+                classification: {
+                    kind: "conditional",
+                    discriminant: { kind: "card", detail: "Terror " },
+                },
+            },
+            /whitespace/,
+        ],
+        [
             "an absolute verdict with a reason",
             { classification: { kind: "absolute", discriminant: END_STEP } },
             /names no Discriminant/,
@@ -252,7 +265,9 @@ async function validate(store: MemoryVerdictStore) {
     return validateStoreObjects(
         await listing(store, VERDICT_OBJECT_PREFIX),
         await listing(store, ATTESTATION_OBJECT_PREFIX),
-        () => null
+        () => null,
+        [],
+        await listing(store, RESOLUTION_OBJECT_PREFIX)
     );
 }
 
@@ -335,6 +350,33 @@ describe("promotion reads a Minimal Pair as one unit (issue #4793)", () => {
     });
 });
 
+describe("reclassifying an old forbidden goes through a resolution (issue #4793)", () => {
+    it("holds the position contested until an admin accepts the classified record", async () => {
+        const store = createMemoryVerdictStore();
+        const a = conditional(1);
+        const old = await stored(store, forbidCast(1));
+        const anchor = await stored(store, a, ["prod-a:bob"]);
+        const half = await stored(store, halfOf(a, 2));
+        // Two answers to one decision: quarantined, and the half with them.
+        expect(
+            planPromotion(null, await validate(store)).lock.verdictIds
+        ).toEqual([]);
+
+        await putResolution(store, {
+            positionKey: positionKeyOf(a),
+            acceptedVerdictId: anchor,
+            rejected: [{ verdictId: old, reason: "reclassified: wrong now" }],
+            author: "prod-a:admin",
+            createdAt: 1,
+        });
+        expect(
+            [
+                ...planPromotion(null, await validate(store)).lock.verdictIds,
+            ].sort()
+        ).toEqual([anchor, half].sort());
+    });
+});
+
 describe("Eval Pair derivation skips an incomplete Conditional Verdict (issue #4793)", () => {
     // A real registry position whose forbidden answer yields pairs today.
     const real = verdictsFromRegistry().verdicts.find(
@@ -351,6 +393,12 @@ describe("Eval Pair derivation skips an incomplete Conditional Verdict (issue #4
             classification: { kind: "conditional", discriminant: END_STEP },
         };
         const report = collectVerdictReport([now]);
+        // Out of the fit, so out of the coverage census: counted, it would
+        // read as a covered class with no pairs.
+        expect(censusByClass(report, [now]).totals.verdicts).toBe(0);
+        expect(
+            censusByClass(collectVerdictReport([real]), [real]).totals.verdicts
+        ).toBe(1);
         expect(report.pairs).toEqual([]);
         expect(report.rows).toEqual([]);
         expect(report.incomplete).toEqual([

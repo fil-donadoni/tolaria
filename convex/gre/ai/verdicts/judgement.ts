@@ -161,6 +161,13 @@ function parseDiscriminant(
     if (typeof row.detail !== "string" || row.detail.trim() === "") {
         bad(where, `"${field}.detail" must name the factor`);
     }
+    // The detail is hashed and compared verbatim (`minimalPair.ts`), so a
+    // stray space would make one reason two verdict ids and leave a half
+    // unable to complete its anchor. Refused, never trimmed: trimming would
+    // store a judgement other than the one hashed by whoever wrote it.
+    if (row.detail !== row.detail.trim()) {
+        bad(where, `"${field}.detail" has leading or trailing whitespace`);
+    }
     return {
         kind: row.kind as Discriminant["kind"],
         detail: row.detail as string,

@@ -20,7 +20,11 @@
 // right move, so it is exactly the half-argument the ADR keeps out of the
 // fit, and it names no Discriminant, so no half can ever complete it — it
 // waits until a judge reclassifies it, which is a new judgement and a new
-// verdict id. The rule is the store's (PRD #4792, user story 37): a blade
+// verdict id AT THE SAME POSITION KEY. Both stay attested, so quarantine sees
+// two answers to one decision and holds both out until an admin resolves the
+// position (accepting the classified one): deciding that two records are
+// compatible is a resolution, and resolutions are a human's (ADR 0128 §6,
+// `quarantine.ts`). The rule is the store's (PRD #4792, user story 37): a blade
 // registry verdict is code, and is classified by its own tickets (issue
 // #4796, issue #4797), so `stored` is the caller's to say per member.
 //
