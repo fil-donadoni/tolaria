@@ -121,6 +121,7 @@ function boardOf(state: GameState) {
         turn: state.turn,
         active: seatOf(state.activePlayerId),
         priority: seatOf(state.priorityPlayerId),
+        passCount: state.passCount,
         stack: state.stack.map(nameOf),
     };
 }
@@ -149,7 +150,7 @@ function derive(
 describe("deriving a Minimal Pair's right-hand half, one prefill per Discriminant kind (issue #4795, ADR 0148)", () => {
     it("`step` moves the decision to the named step with the state that step implies — CR 500.1, 106.4, 117.4", () => {
         const { built, anchorBoard, halfBoard } = derive(
-            { ...MAIN_PHASE, manaPool: { me: { R: 1 } }, passCount: 1 },
+            { ...MAIN_PHASE, manaPool: { me: { R: 1 } } },
             conditional("step", "the opponent's end step"),
             { kind: "step", phase: "END_STEP", activePlayer: "opp" }
         );
@@ -163,12 +164,29 @@ describe("deriving a Minimal Pair's right-hand half, one prefill per Discriminan
             // floating mana were THIS turn's, not the next one's.
             turn: anchorBoard.turn + 1,
             active: "opp",
-            // The half is the same decision, so the same seat owes it.
+            // The half is the same decision, so the same seat owes it — and
+            // it holds priority in the opponent's step only because the
+            // opponent passed it over (CR 117.3a/117.3d).
             priority: "me",
+            passCount: 1,
             seats: {
                 ...anchorBoard.seats,
                 me: { ...anchorBoard.seats.me, manaPool: {}, landsPlayed: 0 },
             },
+        });
+    });
+
+    it("`step` within the decider's own turn keeps the turn and banks no pass — CR 117.3a", () => {
+        const { anchorBoard, halfBoard } = derive(
+            { ...MAIN_PHASE, passCount: 1, priority: "me" },
+            conditional("step", "my own end step"),
+            { kind: "step", phase: "END_STEP", activePlayer: "me" }
+        );
+        expect(anchorBoard.passCount).toBe(1);
+        expect(halfBoard).toEqual({
+            ...anchorBoard,
+            phase: "END_STEP",
+            passCount: 0,
         });
     });
 

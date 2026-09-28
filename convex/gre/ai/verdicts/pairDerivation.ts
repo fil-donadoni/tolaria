@@ -21,9 +21,11 @@
 // - `step` moves the decision to another step: `phase`, the turn holder and the
 //   priority holder (the anchor's deciding seat by default — the half is the
 //   same decision, so the same seat owes it), plus the state a step boundary
-//   implies. Mana pools empty at the end of every step (CR 106.4), a priority
-//   round opens with no passes banked (CR 117.3a/117.4), and a combat exists
-//   only inside the combat phase (CR 506.1). When the turn holder changes, the
+//   implies. Mana pools empty at the end of every step (CR 106.4). A step
+//   opens with priority on the active player (CR 117.3a), so a non-active
+//   seat holds it only once the active player has passed to it (CR 117.3d):
+//   one pass banked, none when the active player is the one deciding
+//   (CR 117.4). A combat exists only inside the combat phase (CR 506.1). When the turn holder changes, the
 //   position is a later turn, so `turn` advances and the per-turn tallies the
 //   builder already reads as "omitted = nothing yet this turn" are cleared —
 //   the anchor's land drop, spells and damage were THIS turn's, not the next
@@ -128,7 +130,8 @@ function applyStep(
     spec.phase = change.phase;
     spec.activePlayer = change.activePlayer;
     spec.priority = change.priority ?? seat;
-    delete spec.passCount;
+    if (spec.priority === change.activePlayer) delete spec.passCount;
+    else spec.passCount = 1;
     delete spec.manaPool;
     delete spec.restrictedMana;
     if (!COMBAT_STEPS.has(change.phase)) delete spec.combat;
