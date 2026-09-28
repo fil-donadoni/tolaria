@@ -18,6 +18,7 @@ export * from "./fit";
 export * from "./identity";
 export * from "./quarantine";
 export * from "./promotion";
+export * from "./minimalPair";
 export * from "./weightsLiteral";
 export * from "./resolution";
 export * from "./testerQuality";

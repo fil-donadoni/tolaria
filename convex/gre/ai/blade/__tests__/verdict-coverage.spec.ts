@@ -46,6 +46,7 @@ describe("coverage census formatting (issue #3588)", () => {
                 blind: [],
                 gaps: [],
                 errors: [],
+                incomplete: [],
             },
             [
                 {

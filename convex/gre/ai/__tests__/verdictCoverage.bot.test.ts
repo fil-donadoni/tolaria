@@ -84,6 +84,7 @@ const report = (over: Partial<VerdictReport> = {}): VerdictReport => ({
     blind: [],
     gaps: [],
     errors: [],
+    incomplete: [],
     ...over,
 });
 

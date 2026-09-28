@@ -237,8 +237,13 @@ export function censusByClass(
     };
 
     const staleIds = new Set(report.errors.map((e) => e.verdictId));
+    // An incomplete Conditional Verdict is out of the fit (ADR 0148), so it
+    // covers nothing: counted here it would read as a covered class with no
+    // pairs and no reason. The report lists it (`report.incomplete`).
+    const incompleteIds = new Set(report.incomplete.map((e) => e.verdictId));
 
     for (const verdict of verdicts) {
+        if (incompleteIds.has(verdict.id)) continue;
         const cls = verdictDecisionClass(verdict) ?? "unclassified";
         const target = row(cls);
         target.verdicts += 1;

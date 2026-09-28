@@ -5,7 +5,10 @@
 // object is promotable when it is INTEGRAL — its name is its content, the
 // loader accepts it, its position rebuilds and still offers its candidates —
 // and UNCONFLICTED: at least one explicit attestation, and no other explicit
-// judgement at its position key. Everything else stays in the store, and
+// judgement at its position key — and, for a Conditional Verdict, PAIRED: the
+// right-hand half of its Minimal Pair is promotable beside it, and the two
+// enter together or not at all (ADR 0148, `minimalPair.ts`). Everything else
+// stays in the store, and
 // `verdicts:validate` says, per object, exactly which of those it failed.
 // Nothing here is a judgement about whether a verdict is RIGHT: that is the
 // fit report's to surface (ADR 0124 §3), and a human's to read.
@@ -49,6 +52,7 @@ import {
     type StoredVerdictPayload,
     type VerdictLock,
 } from "./lockSource";
+import { minimalPairStandings } from "./minimalPair";
 import { encodeVerdictPack } from "./pack";
 import {
     quarantineContestedPositions,
@@ -111,7 +115,8 @@ export type VerdictObjectStatus =
     | "implicit-only"
     | "contested"
     | "rejected"
-    | "in-registry";
+    | "in-registry"
+    | "incomplete-pair";
 
 /** One verdict object's classification. `reasons` is empty exactly when the
  *  object is promotable. */
@@ -301,7 +306,7 @@ export function validateStoreObjects(
         const key = positionKeyOf(entry);
         registryByKey.set(key, [...(registryByKey.get(key) ?? []), entry.id]);
     }
-    const promotable: typeof quarantine.promotable = [];
+    const eligible: typeof quarantine.promotable = [];
     for (const v of quarantine.promotable) {
         const same = registryById.get(v.verdictId);
         const rivals = registryByKey.get(v.positionKey);
@@ -317,6 +322,26 @@ export function validateStoreObjects(
                     `contested — position ${v.positionKey} is judged differently by ${rivals.join(", ")}; the blade registry is code, so resolve it there (ADR 0128 §6)`,
                 ])
             );
+        } else {
+            eligible.push(v);
+        }
+    }
+    // The Minimal Pair filter (ADR 0148), last: over what is otherwise
+    // promotable, so a half that is unattested, contested or already in the
+    // registry is ABSENT here and leaves its anchor incomplete — "a contested
+    // half keeps both out" is this set, not a second rule.
+    const standings = minimalPairStandings(
+        eligible.map((v) => ({
+            verdictId: v.verdictId,
+            judgement: v.judgement,
+            stored: true,
+        }))
+    );
+    const promotable: typeof quarantine.promotable = [];
+    for (const v of eligible) {
+        const standing = standings.get(v.verdictId);
+        if (standing?.kind === "incomplete") {
+            rows.push(row(v.verdictId, "incomplete-pair", [standing.why]));
         } else {
             promotable.push(v);
             rows.push(row(v.verdictId, "promotable", []));
@@ -449,6 +474,7 @@ export function formatStoreValidation(validation: StoreValidation): string {
         `  contested            : ${count("contested")}`,
         `  rejected             : ${count("rejected")}`,
         `  in-registry          : ${count("in-registry")}`,
+        `  incomplete-pair      : ${count("incomplete-pair")}`,
         `attestation problems   : ${validation.attestationProblems.length}`,
         `resolution problems    : ${validation.resolutionProblems.length}`,
     ];
