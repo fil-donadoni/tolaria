@@ -5359,6 +5359,10 @@ export function waitReadingOf(
  *  attack still lies between now and the last window. */
 function attacksBeforeTheWait(state: GameState, pid: string): boolean {
     if (state.activePlayerId !== pid) return false;
+    // `combat` is set AT the declare attackers step, before the declaration
+    // is confirmed: that window (a manland animated to attack) is still
+    // before the attack (verdicts:search, issue #4757).
+    if (state.phase === "DECLARE_ATTACKERS") return !state.combat?.confirmed;
     if (state.combat) return false;
     return (
         state.phase === "UPKEEP" ||

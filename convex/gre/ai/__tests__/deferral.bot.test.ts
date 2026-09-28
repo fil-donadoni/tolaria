@@ -470,6 +470,24 @@ describe("waitsUnchanged — the root rule's premise: nothing in between it woul
         });
         const shot = cast("bolt", [{ type: "permanent", id: "mine" }]);
         expect(waitsUnchanged(state, "p1", shot)).toBe(false);
+        // The declare attackers step before the declaration is confirmed
+        // is still before the attack.
+        expect(
+            waitsUnchanged(
+                {
+                    ...state,
+                    phase: "DECLARE_ATTACKERS",
+                    combat: {
+                        attackerIds: [],
+                        confirmed: false,
+                        blockerAssignments: {},
+                        blockersConfirmed: false,
+                    },
+                },
+                "p1",
+                shot
+            )
+        ).toBe(false);
         // Past the attack the same shot no longer changes it.
         expect(
             waitsUnchanged({ ...state, phase: "POSTCOMBAT_MAIN" }, "p1", shot)
