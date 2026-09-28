@@ -87,6 +87,7 @@ export function useControllerActions(): ControllerState {
         allPlayers,
         emblems,
         continuousEffects,
+        cantAttackThisTurn,
     } = useGameContext();
 
     const cancelCast = useMutation(api.game.cancelCast);
@@ -179,9 +180,20 @@ export function useControllerActions(): ControllerState {
     const eligibleIds = useMemo(
         () =>
             isSelectingAttackers && viewerPlayer && opponent
-                ? eligibleAttackerIds(viewerPlayer, opponent, allPlayers)
+                ? eligibleAttackerIds(
+                      viewerPlayer,
+                      opponent,
+                      allPlayers,
+                      cantAttackThisTurn
+                  )
                 : [],
-        [isSelectingAttackers, viewerPlayer, opponent, allPlayers]
+        [
+            isSelectingAttackers,
+            viewerPlayer,
+            opponent,
+            allPlayers,
+            cantAttackThisTurn,
+        ]
     );
     const defenderHasPlaneswalker =
         opponent?.battlefield.some((c) => isPlaneswalker(c)) ?? false;

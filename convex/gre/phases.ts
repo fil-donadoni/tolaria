@@ -3003,6 +3003,12 @@ const TURN_SCOPED_GLOBAL_FLAGS = [
     // requirement applies "during each declare attackers step in that turn",
     // so this must survive END_OF_COMBAT.
     "allCreaturesMustAttack",
+    // CR 508.1c / 514.2 (issue #2002) — the GAME-scoped "creatures can't
+    // attack this turn" restriction (Orim's Chant's kicked mode). Read by
+    // `validateAttackerEligibility` at every declare attackers step of the
+    // turn, so — like `allCreaturesMustAttack` above — it must survive
+    // END_OF_COMBAT and still apply to a second combat phase (CR 500.8).
+    "cantAttackThisTurn",
     // CR 608.2 / 603.3 / 514.2 (issue #1189) — the per-source per-turn
     // ability-resolution tally (Omnath, Locus of Creation; Scythecat Cub),
     // incremented once per RESOLUTION (608.2) of a triggered ability (603.3).

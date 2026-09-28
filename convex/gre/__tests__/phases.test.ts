@@ -3231,6 +3231,7 @@ describe("CR 514.2 — turn-scoped global flags clear at CLEANUP, not END_OF_COM
             [{ subtype: "Mountain", color: "R", mode: "additional" }],
         ],
         ["allCreaturesMustAttack", "p2"],
+        ["cantAttackThisTurn", true],
         ["abilityResolutionCounts", { "src:ability": 1 }],
         ["skipDrawStepThisTurn", ["p1"]],
     ];

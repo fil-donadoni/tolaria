@@ -6114,6 +6114,15 @@ export interface SpellContext {
      *  Cleared at CLEANUP. Used by Fight or Flight's unchosen pile. No-op if
      *  target is not a permanent on the battlefield. */
     setCantAttackThisTurn: (target: TargetSelection) => void;
+    /** Marks EVERY creature as unable to attack this turn (CR 508.1c, issue
+     *  #2002 — Orim's Chant's kicked mode: "creatures can't attack this
+     *  turn"). The GAME-scoped sibling of `setCantAttackThisTurn`: unlike a
+     *  `forEach` sweep setting the per-instance flag on each currently-
+     *  existing creature, this also covers a creature that enters the
+     *  battlefield LATER this turn, before attackers are declared. Sets
+     *  `GameState.cantAttackThisTurn`, read by `validateAttackerEligibility`
+     *  alongside the per-instance flag. Cleared at CLEANUP. */
+    setAllCreaturesCantAttackThisTurn: () => void;
     /** Marks a target permanent (an attacker) as unable to be blocked this
      *  turn (CR 509.1b). Read on the attacker side by combat block-validation;
      *  cleared at CLEANUP (CR 514.2). No-op if target is not a permanent on the
@@ -18590,6 +18599,20 @@ export type EffectOp =
           op: "restrictCombat";
           restriction: "cant-attack" | "cant-block" | "cant-be-blocked";
           target: EffectObjectSelector;
+      }
+    /** CR 508.1c (issue #2002) — Orim's Chant's kicked mode: "creatures can't
+     *  attack this turn", EVERY creature rather than one target. A thin
+     *  declarative skin over `SpellContext.setAllCreaturesCantAttackThisTurn`,
+     *  the GAME-scoped sibling of `restrictCombat` above — no `target` field,
+     *  because `EffectObjectSelector` only ever resolves to ONE object
+     *  (`resolveObjectRef`), so a genuinely global restriction (one that also
+     *  covers a creature entering the battlefield LATER this turn) cannot be
+     *  expressed as a per-object `restrictCombat` invocation at all. Kept as a
+     *  `restriction` value on the same `restrictCombat` Op rather than a new
+     *  Op name (ADR 0045 primitive reuse — "generalize, don't add"). */
+    | {
+          op: "restrictCombat";
+          restriction: "cant-attack-all";
       }
     /** CR 508.1c (issue #1283) — Island Sanctuary's player-scoped "until your
      *  next turn, you can't be attacked except by creatures with flying

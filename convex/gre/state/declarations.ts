@@ -4866,6 +4866,25 @@ export type GameState = {
      *  `getRequiredAttackerIds` alongside the per-creature
      *  `mustAttackThisTurn`. Cleared at CLEANUP (issue #1864). */
     allCreaturesMustAttack?: string;
+    /** Turn-scoped GLOBAL "creatures can't attack this turn" restriction (CR
+     *  508.1c, issue #2002 — Orim's Chant's kicked mode: "creatures can't
+     *  attack this turn"). The per-instance `CardInstanceState.cantAttackThisTurn`
+     *  flag (`setCantAttackThisTurn`/`restrictCombat`) can only be swept onto
+     *  creatures that exist AT THE TIME the effect resolves — a creature that
+     *  enters the battlefield LATER this same turn, before attackers are
+     *  declared, slips through a `forEach` sweep over the current battlefield.
+     *  This flag has no such gap, and CR 611.2c is why: an effect that
+     *  "modifies the rules of the game" (as opposed to a characteristic of
+     *  specific objects) applies to objects that weren't affected when the
+     *  continuous effect began, its own worked example being "permanents that
+     *  become creatures later in the turn". Checked in
+     *  `validateAttackerEligibility` ALONGSIDE the per-instance one, it covers
+     *  every creature no matter when it entered. Set by
+     *  `SpellContext.setAllCreaturesCantAttackThisTurn`, the GAME-scoped
+     *  sibling of `setCantAttackThisTurn` — the same relationship
+     *  `preventAllCombatDamageThisTurn` bears to a per-source damage shield.
+     *  Cleared at CLEANUP (CR 514.2), same boundary as `allCreaturesMustAttack`. */
+    cantAttackThisTurn?: boolean;
     /** CR 608.2 / 603.3 (issue #1189) — per-source, per-turn tally of how many
      *  times a triggered ability has RESOLVED this turn, keyed by
      *  `${triggerSourceId}:${triggeredAbilityId}` (a triggered ability firing
