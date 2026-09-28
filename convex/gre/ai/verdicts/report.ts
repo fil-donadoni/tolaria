@@ -48,6 +48,13 @@
 // Blind pairs are held OUT of the contradiction scan for an arithmetic reason
 // as well: the zero vector is its own negation, so N of them read as N² false
 // disagreements (measured: 492 before the split, 53 after).
+//
+// A FIFTH answer is not the evaluation's at all: the TIMING pairs
+// (`evalPairs.ts` header, issue #4764) — "pass" against a deferrable action,
+// which the fit cannot order because the two reach the same board. They are
+// listed in their own section, checked by the search (`verdicts:search`), and
+// the contradiction count is printed both with and without them so the
+// classification's effect on the corpus is read, not assumed.
 
 import { DEFAULT_EVAL_WEIGHTS, type EvalWeights } from "../evalWeights";
 import {
@@ -71,6 +78,8 @@ export type VerdictRow = {
     candidates: number;
     pairs: number;
     violated: number;
+    /** Timing pairs the verdict yielded — never fitted, never in `pairs`. */
+    timing: number;
     ok: boolean;
     error?: string;
 };
@@ -106,6 +115,13 @@ export type VerdictReport = {
     satisfied: EvalPair[];
     violated: EvalPair[];
     contradictions: Contradiction[];
+    /** TIMING pairs (issue #4764): "pass" against a deferrable action, in the
+     *  window where the judgement is about WHEN. Never fitted — the search
+     *  checks them (`verdicts:search`). */
+    timing: EvalPair[];
+    /** The contradictory-pair count had the timing pairs stayed in the fit —
+     *  the BEFORE of the classification, beside `contradictions.length`. */
+    contradictionsWithTiming: number;
     /** Pairs the evaluation cannot separate at all — same fittable basis, same
      *  term breakdown, same policy value. A missing evaluation term (ADR 0124
      *  §3) and the identical-feature-vector proof §5 asks for. Always a subset
@@ -193,6 +209,7 @@ export function collectVerdictReport(
     const weights = options.weights ?? DEFAULT_EVAL_WEIGHTS;
     const rows: VerdictRow[] = [];
     const pairs: EvalPair[] = [];
+    const timing: EvalPair[] = [];
     const errors: VerdictReport["errors"] = [];
 
     for (const verdict of verdicts) {
@@ -204,11 +221,13 @@ export function collectVerdictReport(
             candidates: verdict.candidates.length,
             pairs: out.pairs.length,
             violated: violated.length,
+            timing: out.timing.length,
             ok: out.error === undefined && violated.length === 0,
             ...(out.error ? { error: out.error } : {}),
         };
         if (out.error) errors.push({ verdictId: verdict.id, error: out.error });
         pairs.push(...out.pairs);
+        timing.push(...out.timing);
         rows.push(row);
         options.onRow?.(row);
     }
@@ -226,6 +245,9 @@ export function collectVerdictReport(
         satisfied,
         violated,
         contradictions,
+        timing,
+        contradictionsWithTiming: contradictoryCouples([...pairs, ...timing])
+            .length,
         blind,
         gaps: options.gaps ?? [],
         errors,
@@ -273,7 +295,12 @@ export function formatVerdictReport(
         `  pairs satisfied        : ${report.satisfied.length}/${report.pairs.length} (${pct(report.satisfied.length, report.pairs.length)})`
     );
     out.push(`  pairs violated         : ${report.violated.length}`);
-    out.push(`  contradictory pairs    : ${report.contradictions.length}`);
+    out.push(
+        `  contradictory pairs    : ${report.contradictions.length} (${report.contradictionsWithTiming} with the timing pairs in the fit)`
+    );
+    out.push(
+        `  timing pairs           : ${report.timing.length} (checked by the search, never fitted)`
+    );
     out.push(
         `  blind pairs            : ${report.blind.length} (identical feature vectors — a missing term)`
     );
@@ -326,6 +353,8 @@ export function formatVerdictReport(
         }
     }
 
+    out.push(`\n${formatTimingSection(report)}`);
+
     if (report.blind.length > 0) {
         out.push(
             `\n== BLIND pairs (${report.blind.length}) — the evaluation cannot separate the two candidates at all`
@@ -357,6 +386,28 @@ export function formatVerdictReport(
             for (const gap of gaps)
                 out.push(`      [${gap.tier}] ${gap.label} — ${gap.detail}`);
         }
+    }
+    return out.join("\n");
+}
+
+/** The timing section (issue #4764): every pair the lowering classified as a
+ *  judgement about WHEN, one line per pair, so a verdict leaving the fit is
+ *  always named, headed by the contradictory-pair count before and after the
+ *  classification. Shared by the report and the promotion, so both print the
+ *  same section. */
+export function formatTimingSection(
+    report: Pick<
+        VerdictReport,
+        "timing" | "contradictions" | "contradictionsWithTiming"
+    >
+): string {
+    const out = [
+        `== TIMING pairs (${report.timing.length}) — checked by the search, never fitted; contradictory pairs ${report.contradictionsWithTiming} → ${report.contradictions.length}`,
+    ];
+    for (const pair of report.timing) {
+        out.push(
+            `  ${pair.verdictId}\n      want  ${pair.right.description}\n      over  ${pair.other.description}`
+        );
     }
     return out.join("\n");
 }

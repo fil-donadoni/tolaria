@@ -6,6 +6,8 @@
 // rather than the bridge's (PRD #3397 testing decisions).
 import { beforeAll, describe, expect, it } from "vitest";
 import { BLADE_SCENARIOS } from "../blade/registry";
+import { seatPlayerId } from "../blade/matcher";
+import { moveKey } from "../../search";
 import {
     DEFAULT_EVAL_WEIGHTS,
     FIT_BASE_EVAL_WEIGHTS,
@@ -17,6 +19,9 @@ import {
     collectVerdictReport,
     evalPairsOf,
     formatScoreComparison,
+    formatVerdictReport,
+    buildVerdictState,
+    candidateMoves,
     improvesOnIncumbent,
     pasteInstruction,
     scoreBasis,
@@ -27,6 +32,8 @@ import {
     type ReportScore,
     type Verdict,
 } from "../verdicts";
+
+const PASS_KEY = JSON.stringify({ kind: "pass" });
 
 const STONE_RAIN_LABEL =
     "board-aware removal: casts Stone Rain on a land when there is nothing better to do";
@@ -275,6 +282,84 @@ describe("the violation / contradiction report", () => {
                 (c) => blind.has(c.a) || blind.has(c.b)
             )
         ).toEqual([]);
+    });
+
+    it("routes TIMING pairs out of the fit over the whole registry corpus (issue #4764)", () => {
+        const { verdicts, gaps } = verdictsFromRegistry();
+        const report = collectVerdictReport(verdicts, { gaps });
+        // The registry holds the "hold it" direction: pass over a deferrable
+        // action in an earlier window.
+        expect(report.timing.length).toBeGreaterThan(0);
+        for (const pair of report.timing) {
+            expect(pair.right.key).toBe(PASS_KEY);
+        }
+        // Never fitted: not one of them is among the pairs the fit is handed.
+        const timing = new Set(report.timing);
+        expect(report.pairs.filter((p) => timing.has(p))).toEqual([]);
+        expect(report.rows.reduce((n, r) => n + r.timing, 0)).toBe(
+            report.timing.length
+        );
+        // Never dropped silently: the report names every one of them, under
+        // the before/after contradiction count.
+        const text = formatVerdictReport(report, 0);
+        expect(text).toContain(
+            `TIMING pairs (${report.timing.length}) — checked by the search`
+        );
+        for (const pair of report.timing) {
+            expect(text).toContain(pair.verdictId);
+        }
+        expect(report.contradictionsWithTiming).toBeGreaterThanOrEqual(
+            report.contradictions.length
+        );
+    });
+
+    it("routes the OTHER direction out too: acting over pass at the opponent's end step (issue #4764)", () => {
+        // The registry's Mother of Runes hold, moved to the last window. The
+        // candidates are re-derived from the rebuilt position, exactly as the
+        // lowering keys them, and the judge now names the activation.
+        const hold = verdictsFromRegistry().verdicts.find(
+            (v) =>
+                v.id ===
+                "registry:activation timing: holds Mother of Runes at sorcery speed"
+        );
+        expect(hold).toBeDefined();
+        const spec = {
+            ...hold!.spec,
+            phase: "END_STEP",
+            activePlayer: "opp" as const,
+            priority: "me" as const,
+        };
+        const probe = { ...hold!, spec };
+        const state = buildVerdictState(probe);
+        const moves = candidateMoves(state, seatPlayerId(state, "me"));
+        const pass = moves.find((m) => m.kind === "pass");
+        const activate = moves.find(
+            (m) =>
+                m.kind === "activate-ability" &&
+                m.targets.some((t) => t.type === "permanent")
+        );
+        expect(pass && activate).toBeTruthy();
+        const fire: Verdict = {
+            ...probe,
+            id: "authored:fires-at-the-last-window",
+            candidates: [pass!, activate!].map((m) => ({
+                key: moveKey(m),
+                description: m.kind,
+            })),
+            answer: { kind: "right", rightIndexes: [1] },
+            source: "authored",
+        };
+        const out = evalPairsOf(fire);
+        expect(out.error).toBeUndefined();
+        expect(out.pairs).toEqual([]);
+        expect(out.timing.map((p) => [p.rightIndex, p.otherIndex])).toEqual([
+            [1, 0],
+        ]);
+        // The same judgement one window earlier is a WHAT: it stays fitted.
+        const early = evalPairsOf({ ...fire, spec: hold!.spec });
+        expect(early.error).toBeUndefined();
+        expect(early.timing).toEqual([]);
+        expect(early.pairs).toHaveLength(1);
     });
 
     it("treats an anti-parallel direction as contradictory whatever its scale", () => {

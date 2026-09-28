@@ -57,6 +57,7 @@ describe("verdict report formatting (issue #3400)", () => {
                 candidates: 3,
                 pairs: 2,
                 violated: 1,
+                timing: 0,
                 ok: false,
             })
         ).toContain("1/2 pairs");

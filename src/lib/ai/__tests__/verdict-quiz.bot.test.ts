@@ -436,7 +436,11 @@ describe("buildVerdictQuiz — a judgement the fit can still read (issue #3405)"
         );
         const pairs = evalPairsOf(verdictOf(quiz, quiz.botPickIndex));
         expect(pairs.error).toBeUndefined();
-        expect(pairs.pairs.length).toBe(quiz.candidates.length - 1);
+        // A pass over a deferrable action on the opponent's turn is a TIMING
+        // pair (issue #4764): still a constraint, never fitted.
+        expect(pairs.pairs.length + pairs.timing.length).toBe(
+            quiz.candidates.length - 1
+        );
     });
 
     it("judges a BLOCKING decision, attackers already declared (CR 509.1, issue #3458)", () => {

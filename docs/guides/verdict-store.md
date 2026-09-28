@@ -324,6 +324,33 @@ Re-running with nothing new is a no-op and rewrites nothing.
 `verdictsPack:writePack` ships with a release: a [promotion](#g-promotion)
 never pushes code to the deployment.
 
+## Timing verdicts and the search
+
+Some verdicts say WHEN to act, not what: "pass" over a draw instant in your own
+main phase, or "cast it" at the opponent's end step. Acting now or later
+reaches the same board, so the fit cannot learn them (issue #4764). A pair
+between "pass" and a deferrable action is left out of the fit when:
+
+- the window is an earlier one and the judge picked "pass", or
+- the window is the opponent's end step and the judge picked the action.
+
+A deferrable action has instant timing, names only its controller's own
+objects, is taken with an empty stack, and comes before any attack is
+declared (`convex/gre/ai/deferral.ts`). The fit report and the
+[promotion](#g-promotion) report list these pairs under `TIMING pairs`, with
+the contradictory-pair count before and after they left the fit.
+
+`bun run verdicts:search` checks them — and every other verdict — against
+the real search. It is read-only, needs no [key](#g-key), and runs the
+registry and the committed lock. A registry verdict runs at its blade entry's
+budget and seeds; a locked verdict runs at 400 iterations on five seeds. It
+prints how often the search agreed with the judge: overall, for the timing
+class, per decision class and per verdict. It is a report, never a gate.
+
+Options: `BLADE_VERDICT_SEARCH_LABEL=<text>` keeps only verdict ids containing
+it; `BLADE_VERDICT_SEARCH_ITERATIONS=<n>` changes the locked verdicts'
+budget; `BLADE_VERDICT_SEARCH_OUT=<path>.json` writes the rows and the text.
+
 ## Per-tester quality
 
 `bun run verdicts:testers` prints four numbers per person (issue #3585, ADR

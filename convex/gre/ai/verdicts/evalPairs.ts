@@ -28,6 +28,20 @@
 // produces, and a refit re-derives it. Documented rather than hidden, because
 // a fit consuming these must know that the forbidden constraints move under it
 // while the `right` ones do not.
+//
+// TIMING PAIRS (issue #4764). A pair whose two sides are "pass" and a
+// DEFERRABLE action (`ai/deferral.ts`) states WHEN to act, not what: "pass"
+// over a draw instant in the mover's own main phase and "cast it" at the
+// opponent's end step are one rule — keep mana open, act in the last window —
+// and acting now or later reaches the same board when nothing happens in
+// between. The fit reads a position's terms, never its window, so it can only
+// answer such a pair by bending material weights (measured on the first
+// promotion's corpus, issue #4761: three blade `must` entries reddened through
+// `colorCoverageWeight`, `manaWeight` and `latent.pump`). So both directions —
+// pass over a deferrable action in an EARLIER window, a deferrable action over
+// pass in the LAST window (`isLastDeferralWindow`) — are built exactly like
+// any pair and routed to `timing` instead of `pairs`: never fitted, never
+// dropped silently, and checked by the search (`verdicts:search`).
 
 import { cloneGameState } from "../../clone";
 import type { EvalTerms } from "../../evaluate";
@@ -40,6 +54,7 @@ import {
     policyProbeState,
 } from "../../search";
 import { DEFAULT_EVAL_WEIGHTS, type EvalWeights } from "../evalWeights";
+import { isDeferrableAction, isLastDeferralWindow } from "../deferral";
 import { makeInterchangeableKeyer } from "../interchangeable";
 import { seatPlayerId } from "../blade/matcher";
 import {
@@ -86,6 +101,9 @@ export type EvalPair = {
 export type VerdictPairs = {
     verdict: Verdict;
     pairs: EvalPair[];
+    /** The TIMING pairs (issue #4764, header): built like `pairs`, never
+     *  fitted. Empty when the verdict yielded an error. */
+    timing: EvalPair[];
     /** One per candidate, in the verdict's own candidate order. Empty when
      *  the verdict could not be evaluated. */
     features: FeatureVector[];
@@ -136,6 +154,7 @@ export function evalPairsOf(
     const fail = (error: string): VerdictPairs => ({
         verdict,
         pairs: [],
+        timing: [],
         features: [],
         error,
     });
@@ -158,63 +177,9 @@ export function evalPairsOf(
         );
     }
 
-    const enumerated = candidateMoves(state, botId);
-    const byKey = new Map<string, Move>();
-    for (const move of enumerated) byKey.set(moveKey(move), move);
-
-    // The interchangeability collapse (issue #3593) means a candidate set no
-    // longer holds every copy of a card: a verdict RECORDED BEFORE IT may name
-    // the copy that was collapsed away, and its `moveKey` then resolves
-    // against nothing. That would report the whole verdict stale and drop
-    // every one of its pairs — judgements that are perfectly good, thrown away
-    // over which of two identical Brushlands the judge happened to click. So a
-    // key that misses is re-read as a MOVE and matched by interchangeability,
-    // which lands on the representative by construction.
-    const collapseKeyOf = makeInterchangeableKeyer(state);
-    const byCollapseKey = new Map<string, Move>();
-    for (const move of enumerated) {
-        const key = collapseKeyOf(move);
-        if (!byCollapseKey.has(key)) byCollapseKey.set(key, move);
-    }
-    const resolveCandidate = (key: string): Move | undefined => {
-        const exact = byKey.get(key);
-        if (exact) return exact;
-        let stored: Move;
-        try {
-            stored = JSON.parse(key) as Move;
-        } catch {
-            return undefined;
-        }
-        // Issue #4441 — a stored key is untrusted JSON, and the cast above does
-        // not make it a `Move`: a kind the union no longer admits would reach
-        // the keyer's exhaustive switch and throw. Refuse it here as the stale
-        // candidate it is; `CLASS_OF_MOVE_KIND` is the exhaustive kind table.
-        if (
-            typeof stored !== "object" ||
-            stored === null ||
-            !Object.prototype.hasOwnProperty.call(
-                CLASS_OF_MOVE_KIND,
-                stored.kind
-            )
-        ) {
-            return undefined;
-        }
-        // Only a key naming cards the rebuilt position still holds can be
-        // matched this way — `makeInterchangeableKeyer` maps an unresolvable
-        // id to itself, so a genuinely stale key stays stale.
-        return byCollapseKey.get(collapseKeyOf(stored));
-    };
-
-    const moves: Move[] = [];
-    for (const candidate of verdict.candidates) {
-        const move = resolveCandidate(candidate.key);
-        if (!move) {
-            return fail(
-                `candidate no longer enumerated on the rebuilt position: ${candidate.description}`
-            );
-        }
-        moves.push(move);
-    }
+    const resolved = resolveVerdictMoves(verdict, state, botId);
+    if ("error" in resolved) return fail(resolved.error);
+    const moves = resolved.moves;
 
     const features = moves.map((move) =>
         candidateFeatures(state, botId, move, weights)
@@ -296,13 +261,105 @@ export function evalPairsOf(
     // orders FEWER verdicts than the committed one"). The double-counting is a
     // census question, not this slice's.
     const rightKey = moveKey(moves[best]);
-    const pairs = disallowed
+    const built = disallowed
         .filter((i) => moveKey(moves[i]) !== rightKey)
         .map((i) => pairOf(verdict.answer.kind, best, i));
-    if (pairs.length === 0) {
+    if (built.length === 0) {
         return fail(
             "every disallowed candidate is interchangeable with the allowed one — no constraint to express"
         );
     }
-    return { verdict, pairs, features };
+    const isTiming = timingPairClassifier(state, botId, moves);
+    const pairs = built.filter((p) => !isTiming(p));
+    const timing = built.filter(isTiming);
+    return { verdict, pairs, timing, features };
+}
+
+/** The verdict's candidates as the moves `state` enumerates for `botId`, in
+ *  the verdict's own order — or why one no longer resolves. Matched BY KEY,
+ *  then by interchangeability (issue #3593, below). Exported for the search
+ *  agreement report (`verdicts:search`, issue #4764), which has to map the
+ *  search's pick onto the SAME candidate a pair names. */
+export function resolveVerdictMoves(
+    verdict: Verdict,
+    state: GameState,
+    botId: string
+): { moves: Move[] } | { error: string } {
+    const enumerated = candidateMoves(state, botId);
+    const byKey = new Map<string, Move>();
+    for (const move of enumerated) byKey.set(moveKey(move), move);
+
+    // The interchangeability collapse (issue #3593) means a candidate set no
+    // longer holds every copy of a card: a verdict RECORDED BEFORE IT may name
+    // the copy that was collapsed away, and its `moveKey` then resolves
+    // against nothing. That would report the whole verdict stale and drop
+    // every one of its pairs — judgements that are perfectly good, thrown away
+    // over which of two identical Brushlands the judge happened to click. So a
+    // key that misses is re-read as a MOVE and matched by interchangeability,
+    // which lands on the representative by construction.
+    const collapseKeyOf = makeInterchangeableKeyer(state);
+    const byCollapseKey = new Map<string, Move>();
+    for (const move of enumerated) {
+        const key = collapseKeyOf(move);
+        if (!byCollapseKey.has(key)) byCollapseKey.set(key, move);
+    }
+    const resolveCandidate = (key: string): Move | undefined => {
+        const exact = byKey.get(key);
+        if (exact) return exact;
+        let stored: Move;
+        try {
+            stored = JSON.parse(key) as Move;
+        } catch {
+            return undefined;
+        }
+        // Issue #4441 — a stored key is untrusted JSON, and the cast above does
+        // not make it a `Move`: a kind the union no longer admits would reach
+        // the keyer's exhaustive switch and throw. Refuse it here as the stale
+        // candidate it is; `CLASS_OF_MOVE_KIND` is the exhaustive kind table.
+        if (
+            typeof stored !== "object" ||
+            stored === null ||
+            !Object.prototype.hasOwnProperty.call(
+                CLASS_OF_MOVE_KIND,
+                stored.kind
+            )
+        ) {
+            return undefined;
+        }
+        // Only a key naming cards the rebuilt position still holds can be
+        // matched this way — `makeInterchangeableKeyer` maps an unresolvable
+        // id to itself, so a genuinely stale key stays stale.
+        return byCollapseKey.get(collapseKeyOf(stored));
+    };
+
+    const moves: Move[] = [];
+    for (const candidate of verdict.candidates) {
+        const move = resolveCandidate(candidate.key);
+        if (!move) {
+            return {
+                error: `candidate no longer enumerated on the rebuilt position: ${candidate.description}`,
+            };
+        }
+        moves.push(move);
+    }
+    return { moves };
+}
+
+/** Is a pair a TIMING judgement (header)? Both directions, on the verdict's
+ *  own rebuilt position: "pass" over a deferrable action in a window that is
+ *  not the last, or a deferrable action over "pass" in the last one. Any other
+ *  shape — two actions, or "pass" against an action outside the perimeter —
+ *  is a question of WHAT, and stays in the fit. */
+export function timingPairClassifier(
+    state: GameState,
+    botId: string,
+    moves: readonly Move[]
+): (pair: Pick<EvalPair, "rightIndex" | "otherIndex">) => boolean {
+    const last = isLastDeferralWindow(state, botId);
+    const deferrable = moves.map((m) => isDeferrableAction(state, botId, m));
+    const isPass = moves.map((m) => m.kind === "pass");
+    return ({ rightIndex, otherIndex }) =>
+        last
+            ? deferrable[rightIndex] && isPass[otherIndex]
+            : isPass[rightIndex] && deferrable[otherIndex];
 }

@@ -79,6 +79,8 @@ const report = (over: Partial<VerdictReport> = {}): VerdictReport => ({
     satisfied: [],
     violated: [],
     contradictions: [],
+    timing: [],
+    contradictionsWithTiming: 0,
     blind: [],
     gaps: [],
     errors: [],

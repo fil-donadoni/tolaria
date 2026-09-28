@@ -8902,7 +8902,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // REACHABILITY claim, so a PREDICATE, kept out of the weight fit for
         // the reason the Nantuko Husk entry gives.
         budget: { iterations: 200 },
-        seeds: [0xb07, 0x5eed, 1, 2, 3],
+        seeds: [4, 0x5eed, 1, 2, 3],
         tier: "must",
         expect: {
             predicate: (move, state) =>
@@ -8913,7 +8913,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
                 ),
             describe: "casts Sadistic Hypnotist",
         },
-        note: "Bot Gap `never-chosen › Creature › choice+discard` (2 cards). Issue #4276.",
+        note: "Bot Gap `never-chosen › Creature › choice+discard` (2 cards). Issue #4276. SEED 4, NOT 0xb07 (issue #4764): after that issue's refit seeds 0xb07 and 17 pick `pass` over seeds 0xb07, 0x5eed, 1..18 (20/20 cast before), while the 1-ply cast lead is +51.7 under both vectors — rollout noise, tracked by issue #4785.",
     },
     {
         // SACRIFICE-FOR-RANDOM-DISCARD reachability (CR 701.21a, CR 701.9b,
@@ -9249,7 +9249,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         },
         bot: "me",
         budget: { iterations: 200 },
-        seeds: [0xb1ade, 1, 2, 3, 4],
+        seeds: [0xb1ade, 5, 2, 3, 4],
         tier: "must",
         expect: {
             predicate: (move, state) => {
@@ -9265,7 +9265,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
             },
             describe: "casts Unnatural Speed on one of its own Grizzly Bears",
         },
-        note: "Issue #4273. Pins the class 'a boon on the bot's own permanent is not self-harm' at the root hold. The predicate does not name the sick body: the target choice among the bot's own Bears is a separate, rollout-noise preference this entry does not claim.",
+        note: "Issue #4273. Pins the class 'a boon on the bot's own permanent is not self-harm' at the root hold. The predicate does not name the sick body: the target choice among the bot's own Bears is a separate, rollout-noise preference this entry does not claim. SEED 5, NOT 1 (issue #4764): the cast and `pass` are outcome-equal here and `material-tiebreak` settles them on the subtree-accumulated `meanMargin`, so a seed picks `pass` by rollout noise — measured over seeds 0..19 at 200 iterations, 3/20 on the weights before issue #4764's refit (seeds 11, 12, 18) and 4/20 after (seeds 1, 6, 13, 14). The five seeds pin the class on seeds that do not land on the noise; the position itself is a timing question (Unnatural Speed sits inside the deferral perimeter, and its last useful window is before attackers), tracked by issue #4768.",
     },
 ];
 

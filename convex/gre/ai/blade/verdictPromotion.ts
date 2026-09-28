@@ -20,6 +20,7 @@ import { DEFAULT_EVAL_WEIGHTS, FIT_BASE_EVAL_WEIGHTS } from "../evalWeights";
 import {
     FITTABLE_WEIGHT_KEYS,
     collectVerdictReport,
+    formatTimingSection,
     evalPairsOf,
     fitWeights,
     formatPromotionReport,
@@ -145,6 +146,8 @@ export function runVerdictPromotionStep(
                 fitted: weightValue(result.weights, key),
             })),
         }),
+        "",
+        formatTimingSection(after),
     ].join("\n");
 
     return {
