@@ -135,12 +135,7 @@ import { makeRng } from "./rng";
 import { hasCastableInstantHint } from "./heldInteraction";
 import { getEffectiveActivatedAbilities } from "./activatedAbilities";
 import { hasCardSelfFlashPermission } from "../cards/castRestrictions";
-import {
-    isCreature,
-    hasManaAbility,
-    hasInstantSpeed,
-    PERMANENT_TYPES,
-} from "./constants";
+import { isCreature, hasManaAbility, hasInstantSpeed } from "./constants";
 import { tryGetDefinition } from "../cards";
 import { spendableManaTotal } from "./state";
 // Choice-node spine (PRD #1423, issue #1425).
