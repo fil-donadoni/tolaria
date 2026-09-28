@@ -1,7 +1,8 @@
 ---
 title: Bounce, damage and subtype-filtered sweeps still sit in hand at one representative victim
 discoveredBy: 4773
-status: draft
+status: triaged
+issue: 4781
 confidence: medium
 ---
 

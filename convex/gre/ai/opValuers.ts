@@ -41,7 +41,7 @@ import type {
 import { creatureValueRaw } from "../creatureBody";
 import type { Feature, OpValue, ValueTag } from "./featureBasis";
 import { ZERO_OP_VALUE } from "./featureBasis";
-import type { GroundingContext } from "./grounding";
+import type { GroundingContext, SweepOutcome } from "./grounding";
 import { contextFreeGrounding } from "./grounding";
 
 type OpOf<K extends EffectOp["op"]> = Extract<EffectOp, { op: K }>;
@@ -314,32 +314,99 @@ function victimUnitsFor(sel: object, ctx: GroundingContext): number {
  *  price by the board's net surplus. */
 const SWEEP_REMOVAL_OPS: ReadonlySet<string> = new Set(["destroy", "exile"]);
 
+/** True when `sel` is the `forEach` iteration variable itself. */
+function isEachRef(sel: unknown): boolean {
+    return (
+        typeof sel === "object" &&
+        sel !== null &&
+        "ref" in sel &&
+        sel.ref === "$each"
+    );
+}
+
 /** Issue #4773 — a `forEach` over the battlefield whose body only removes
  *  `$each`, priced by what it takes off THIS board (`LatentLens.sweepUnits`):
  *  the body is valued ONCE with `$each` as the representative victim and
  *  scaled by the net units, so the completeness of each verb (`destroy` vs
- *  `exile`) carries over unchanged. `undefined` when the body does anything
- *  else or the lens cannot read the selector — the caller keeps the
- *  representative-count valuation. */
+ *  `exile`) carries over unchanged.
+ *
+ *  Issue #4781 — two more bodies of ONE Op on `$each`, each a removal of
+ *  what the member loses, priced as the `destroy` it amounts to:
+ *   - `dealDamage`: the members that damage kills (CR 704.5g moves a
+ *     lethally-damaged creature to the graveyard, CR 701.8a's destination).
+ *     The representative price for damage to an object — one `damage` unit
+ *     per point — knows nothing about who survives, and the surplus a
+ *     damage sweep takes is who dies, not how much it deals;
+ *   - `moveZone` to hand: what each member loses NET of its card coming back
+ *     to its owner's hand (`SweepOutcome` `returnsToHand`). The `tempo` unit
+ *     prices ONE representative bounce and would count the returned card as
+ *     gone; measured against `evaluate`, three bounced 2/2s realise a
+ *     fraction of it, and the fit could not reach it by `tempo` alone.
+ *
+ *  `undefined` when the body does anything else or the lens cannot read the
+ *  selector — the caller keeps the representative-count valuation. */
 function sweptForEachValue(
     op: Extract<EffectOp, { op: "forEach" }>,
     ctx: GroundingContext,
     scope: ScriptScope
 ): OpValue | undefined {
-    const removesEachOnly = op.effects.every(
-        (e) =>
-            SWEEP_REMOVAL_OPS.has(e.op) &&
-            "target" in e &&
-            typeof e.target === "object" &&
-            e.target !== null &&
-            "ref" in e.target &&
-            e.target.ref === "$each"
-    );
-    if (!removesEachOnly) return undefined;
-    const units = ctx.latent.sweepUnits(op.select);
+    const removesEachOnly =
+        op.effects.length > 0 &&
+        op.effects.every(
+            (e) =>
+                SWEEP_REMOVAL_OPS.has(e.op) &&
+                "target" in e &&
+                isEachRef(e.target)
+        );
+    if (removesEachOnly) {
+        const units = ctx.latent.sweepUnits(op.select);
+        if (units === undefined) return undefined;
+        const per = valueEffectScript(op.effects, ctx, scope);
+        return { points: per.points * units, tags: per.tags };
+    }
+    const outcome = singleOpSweepOutcome(op.effects, ctx);
+    if (outcome === undefined) return undefined;
+    const units = ctx.latent.sweepUnits(op.select, outcome.outcome);
     if (units === undefined) return undefined;
-    const per = valueEffectScript(op.effects, ctx, scope);
-    return { points: per.points * units, tags: per.tags };
+    return {
+        points: pricedFraction(
+            ctx,
+            "boardRemoval",
+            REMOVAL_COMPLETENESS.destroy,
+            units
+        ),
+        tags: [outcome.tag, "board-scaling"],
+    };
+}
+
+/** The `SweepOutcome` of a one-Op `forEach` body on `$each` that
+ *  `sweptForEachValue` prices as removal, with the tag its valuer carries —
+ *  or `undefined` for any other body. */
+function singleOpSweepOutcome(
+    effects: readonly EffectOp[],
+    ctx: GroundingContext
+): { outcome: SweepOutcome; tag: ValueTag } | undefined {
+    if (effects.length !== 1) return undefined;
+    const [only] = effects;
+    if (only.op === "dealDamage" && isEachRef(only.to)) {
+        return {
+            outcome: {
+                kind: "lethalDamage",
+                amount: ctx.value(only.amount).amount,
+            },
+            tag: "boardRemoval",
+        };
+    }
+    if (
+        only.op === "moveZone" &&
+        "to" in only &&
+        only.to === "hand" &&
+        "target" in only &&
+        isEachRef(only.target)
+    ) {
+        return { outcome: { kind: "returnsToHand" }, tag: "tempo" };
+    }
+    return undefined;
 }
 
 /** issue #1964 — true for a BARE ref selector (`{ ref: string }`) that

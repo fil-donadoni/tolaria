@@ -473,10 +473,16 @@ describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
         // of the opponent's), so the generated position gives the opponent a
         // surplus of whatever the card destroys: creatures, enchantments,
         // lands.
+        // Issue #4781 — one card per family the hand term now reads off the
+        // board: a colour-filtered bounce, a damage sweep, a subtype-filtered
+        // destroy.
         for (const name of [
             "Day of Judgment",
             "Tranquility",
             "Armageddon",
+            "Hibernation",
+            "Pyroclasm",
+            "Flashfires",
         ] as const) {
             expect(playTwice(getCardByName(name)), name).toEqual({
                 outcome: "played",
@@ -506,10 +512,16 @@ describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
                 holderId
             );
         };
+        // Issue #4781 — one card per family the hand term now reads off the
+        // board: a colour-filtered bounce, a damage sweep, a subtype-filtered
+        // destroy.
         for (const name of [
             "Day of Judgment",
             "Tranquility",
             "Armageddon",
+            "Hibernation",
+            "Pyroclasm",
+            "Flashfires",
         ] as const) {
             for (const seat of [0, 1] as const) {
                 for (const window of REACH_WINDOWS) {
@@ -917,8 +929,8 @@ describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
     it("no claim is made where the sweep does not destroy what the pose would hand over", () => {
         // Each of these selects every player's battlefield or looks like a
         // sweep, and each must keep the SYMMETRIC pose: a buff or a shrink is
-        // not a loss for the opponent, a filter on anything but `type` is not
-        // read, and `controller` scopes the sweep to one side.
+        // not a loss for the opponent, a filter no filler matches (Goblins)
+        // poses nothing, and `controller` scopes the sweep to one side.
         const symmetric: CardDefinition[] = [
             getCardByName("Grizzly Bears"),
             forEachPump("buff-all", {}, 2, 0), // +2/+0 to every creature
@@ -932,9 +944,6 @@ describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
             ),
             forEachDestroy("subtype-only", {
                 filter: { subtype: "Goblin" },
-            }),
-            forEachDestroy("excludes-land", {
-                filter: { excludeType: "Land" },
             }),
             forEachDestroy("own-only", {
                 controller: "controller",
@@ -955,6 +964,36 @@ describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
                     expect(ahead(def, seat, "Land"), def.name).toBeLessThan(0);
                 }
             });
+    });
+
+    // Issue #4781 — a removing sweep whose filter names no card type was
+    // posed level, so nothing it took was the opponent's surplus and its
+    // 1-ply cast read as a loss. The pose now matches the filter against the
+    // fillers and basics through the latent lens' own mapping.
+    it("a sweep filtered on anything but type is posed against what the filter matches", () => {
+        const nonland = forEachDestroy("excludes-land", {
+            filter: { excludeType: "Land" },
+        });
+        const plains = forEachDestroy("plains-only", {
+            filter: { subtype: "Plains" },
+        });
+        withTemporaryDefinition(nonland, () => {
+            for (const seat of [0, 1] as const) {
+                for (const kind of [
+                    "Creature",
+                    "Artifact",
+                    "Enchantment",
+                ] as const)
+                    expect(ahead(nonland, seat, kind), kind).toBeGreaterThan(0);
+                expect(ahead(nonland, seat, "Land")).toBeLessThan(0);
+            }
+        });
+        withTemporaryDefinition(plains, () => {
+            for (const seat of [0, 1] as const) {
+                expect(ahead(plains, seat, "Land")).toBeGreaterThan(0);
+                expect(ahead(plains, seat, "Creature")).toBe(0);
+            }
+        });
     });
 
     it("a sweep with no filter destroys every type, so every type is posed", () => {

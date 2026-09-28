@@ -35,10 +35,18 @@ import type {
     TargetRequirement,
 } from "../../cards/types";
 import type { CardInstanceState, GameState } from "../state";
+import {
+    matchesPermanentFilter,
+    type PermanentFilter,
+} from "../../cards/filters";
 import { creatureValueRaw } from "../creatureBody";
+import { currentLoyalty } from "../loyalty";
+import { effectivePermanentView } from "../permanentView";
+import { clearCardFieldsAt } from "../state/cardFieldLifecycle";
+import { liveSupertypesOf } from "../snow";
 import { getLegalTargets, pendingTargetingSource } from "../rules";
 import type { EvalWeights } from "./evalWeights";
-import type { LatentLens } from "./grounding";
+import type { LatentLens, SweepOutcome } from "./grounding";
 
 /** The REPRESENTATIVE victim's body: a vanilla 2/2 for two. Not a new tuning
  *  constant — it is the body `DESTROY_VALUE = 160` was hand-tuned against
@@ -161,6 +169,9 @@ export interface LatentBoardInputs {
     def: CardDefinition;
     weights: EvalWeights;
     realisedLoss: RealisedLoss;
+    /** Issue #4781 — the worth `evaluate`'s hand term gives the permanent's
+     *  card back in its owner's hand: what a bounce hands back. */
+    returnedWorth: RealisedLoss;
 }
 
 /** A lens that prices a card in hand against THIS board (issue #3398).
@@ -183,7 +194,8 @@ export function makeLatentBoardLens(
     inputs: LatentBoardInputs,
     base: LatentLens
 ): LatentLens {
-    const { state, casterId, card, def, weights, realisedLoss } = inputs;
+    const { state, casterId, card, def, weights, realisedLoss, returnedWorth } =
+        inputs;
     // A cast-time modal card declares its targets PER MODE (CR 700.2d), and
     // which mode will be chosen is not a fact this valuation has. Fall back
     // to the representative victim for every slot rather than pricing the
@@ -235,8 +247,9 @@ export function makeLatentBoardLens(
             if (units !== undefined) measured = true;
             return units;
         },
-        sweepUnits(select) {
-            const net = sweptNetLoss(state, casterId, select, realisedLoss);
+        sweepUnits(select, outcome = LEAVES) {
+            const lossOf = memberLoss(outcome, realisedLoss, returnedWorth);
+            const net = sweptNetLoss(state, casterId, select, lossOf);
             if (net === undefined) return undefined;
             measured = true;
             return net / denominator;
@@ -258,20 +271,25 @@ export function makeLatentBoardLens(
  *  `realisedLoss` the targeted slots read.
  *
  *  Readable means: every player's battlefield or a fixed side of it
- *  (`controller` / `opponent`), and a filter this lens can match EXACTLY —
- *  `type` / `excludeType` only. Any other filter field (a subtype chosen
- *  mid-resolution, a mana-value bound, a colour) answers `undefined` rather
- *  than guess: a matcher that skipped the field would count members the
+ *  (`controller` / `opponent`), and a filter this lens can match EXACTLY
+ *  (`sweepPermanentFilter`). Any other filter field (a subtype chosen
+ *  mid-resolution, a mana-value bound) answers `undefined` rather than
+ *  guess: a matcher that skipped the field would count members the
  *  resolution spares, and one that refused them would price a real sweep at
- *  nothing. */
+ *  nothing.
+ *
+ *  Issue #4781 — each member's outcome is `lossOf` it, per the sweep's
+ *  `SweepOutcome` (`memberLoss`): what it takes is its controller's loss,
+ *  what it hands back its owner's gain. */
 function sweptNetLoss(
     state: GameState,
     casterId: string,
     select: EffectForEachSelector,
-    realisedLoss: RealisedLoss
+    lossOf: MemberLoss
 ): number | undefined {
     if (select.set !== "permanents") return undefined;
-    if (!isReadableSweepFilter(select.filter)) return undefined;
+    const filter = sweepPermanentFilter(select.filter);
+    if (filter === UNREADABLE_SWEEP_FILTER) return undefined;
     const controller = select.controller;
     if (
         controller !== undefined &&
@@ -286,38 +304,186 @@ function sweptNetLoss(
         if (controller === "controller" && !own) continue;
         if (controller === "opponent" && own) continue;
         for (const perm of player.battlefield) {
-            if (!matchesSweepFilter(perm, select.filter)) continue;
-            net += own ? -realisedLoss(perm) : realisedLoss(perm);
+            // The same live view the resolution's `getBattlefieldIds` matches
+            // against (layer-5 colours, layer-7 toughness, live supertypes).
+            const view = effectivePermanentView(state, perm);
+            if (
+                filter !== undefined &&
+                !matchesPermanentFilter(view, filter, {
+                    supertypesOf: liveSupertypesOf,
+                })
+            ) {
+                continue;
+            }
+            const { taken, handedBack } = lossOf(perm, view);
+            net += own ? -taken : taken;
+            net += perm.ownerId === casterId ? handedBack : -handedBack;
         }
     }
     return net;
 }
 
-/** The two filter fields `matchesSweepFilter` reads exactly. */
+const LEAVES: SweepOutcome = { kind: "leaves" };
+
+/** Issue #4781 — `perm` as the card a bounce hands back: a NEW object in
+ *  its owner's hand (CR 400.7), so its type line and abilities go back to
+ *  their bases and every field the Card Field Lifecycle table resets on a
+ *  zone change (counters, damage, choices, ledgers) goes with the old object.
+ *  Priced with `cardValue`, it is what the hand term will read once the
+ *  bounce has resolved. Never written back: a copy. */
+export function asReturnedToHand(perm: CardInstanceState): CardInstanceState {
+    const card: CardInstanceState = {
+        ...perm,
+        zone: "hand",
+        isTapped: false,
+        types: [...(perm.baseTypes ?? perm.types)],
+        subtypes: [...(perm.baseSubtypes ?? perm.subtypes)],
+        staticAbilities: [
+            ...(perm.baseStaticAbilities ?? perm.staticAbilities),
+        ],
+    };
+    clearCardFieldsAt(card, "zone-change");
+    return card;
+}
+
+/** What a sweep does to one member: `taken` is lost by its CONTROLLER,
+ *  `handedBack` is gained by its OWNER (a bounce returns the card to its
+ *  owner's hand, CR 400.3 — not to whoever controlled it). */
+interface MemberOutcome {
+    taken: number;
+    handedBack: number;
+}
+
+/** One member's outcome, given the raw permanent and its
+ *  `effectivePermanentView`. */
+type MemberLoss = (
+    perm: CardInstanceState,
+    view: CardInstanceState
+) => MemberOutcome;
+
+/** Issue #4781 — the per-member outcome each `SweepOutcome` inflicts:
+ *   - `leaves`: the whole realised loss (CR 701.8a / 701.13a);
+ *   - `lethalDamage`: the realised loss of a member the damage kills
+ *     (`diesTo`), nothing for a survivor;
+ *   - `returnsToHand`: the realised loss, and the card's worth back in its
+ *     owner's hand handed back — so what a bounce takes is the difference. A
+ *     token hands nothing back (CR 111.7: it ceases to exist off the
+ *     battlefield). Pricing a bounce at the whole realised loss would read
+ *     every returned body as destroyed, while `evaluate` counts it again in
+ *     the owner's hand: the cast would realise a fraction of what holding the
+ *     card was worth. */
+function memberLoss(
+    outcome: SweepOutcome,
+    realisedLoss: RealisedLoss,
+    returnedWorth: RealisedLoss
+): MemberLoss {
+    switch (outcome.kind) {
+        case "leaves":
+            return (perm) => ({ taken: realisedLoss(perm), handedBack: 0 });
+        case "lethalDamage":
+            return (perm, view) => ({
+                taken: diesTo(view, outcome.amount) ? realisedLoss(perm) : 0,
+                handedBack: 0,
+            });
+        case "returnsToHand":
+            return (perm) => ({
+                taken: realisedLoss(perm),
+                handedBack: perm.isToken ? 0 : returnedWorth(perm),
+            });
+    }
+}
+
+/** True when `damage` dealt to `view` (an `effectivePermanentView`) takes it
+ *  off the battlefield by state-based action: CR 704.5g for a creature (the
+ *  damage already marked counts, CR 120.3e), CR 704.5i for a planeswalker
+ *  (CR 120.3c). Any other permanent is not removed by damage. */
+function diesTo(view: CardInstanceState, damage: number): boolean {
+    if (damage <= 0) return false;
+    if (view.types.includes("Creature")) {
+        const toughness = view.toughness ?? 0;
+        return toughness - (view.damageMarked ?? 0) <= damage;
+    }
+    if (view.types.includes("Planeswalker")) {
+        return currentLoyalty(view) <= damage;
+    }
+    return false;
+}
+
+/** The answer `sweepPermanentFilter` gives for a filter it cannot match
+ *  exactly — distinct from `undefined`, which is "no filter, every
+ *  permanent". */
+export const UNREADABLE_SWEEP_FILTER = "unreadable-sweep-filter" as const;
+
+/** The `EffectCardFilter` fields `sweepPermanentFilter` maps onto
+ *  `PermanentFilter` 1:1, each a LITERAL the resolution's
+ *  `toPermanentFilter` (`effects/interpreter.ts`) propagates unchanged and
+ *  `effectivePermanentView` supplies every input of. A field outside this
+ *  set — a dynamic `{ ref }`, a mana-value bound, a name read off the
+ *  registry, `any`, `excludeSource` — makes the whole filter unreadable. */
 const READABLE_SWEEP_FILTER_KEYS: ReadonlySet<string> = new Set([
     "type",
     "excludeType",
+    "subtype",
+    "supertype",
+    "excludeSupertype",
+    "color",
+    "colorCountAtLeast",
+    "isToken",
+    "hasAbility",
+    "excludeAbility",
+    "tapped",
+    "isAttacking",
+    "enteredThisTurn",
+    "controlledSinceTurnStart",
 ]);
 
-function isReadableSweepFilter(filter: EffectCardFilter | undefined): boolean {
-    if (filter === undefined) return true;
-    return Object.keys(filter).every((k) => READABLE_SWEEP_FILTER_KEYS.has(k));
+/** Issue #4781 — the `PermanentFilter` a sweep's `EffectCardFilter` resolves
+ *  to before a single resolution-time choice is made, or
+ *  `UNREADABLE_SWEEP_FILTER` when it names anything that is not a literal
+ *  this lens can match exactly: subtypes (CR 205.3), colours (CR 105.2) and
+ *  supertypes (CR 205.4a) alongside the card types (CR 205.2a) the #4773 read
+ *  began with. A subtype or colour given as a `{ ref }` / sacrificed-colours
+ *  read is chosen at resolution and stays unreadable. */
+export function sweepPermanentFilter(
+    filter: EffectCardFilter | undefined
+): PermanentFilter | undefined | typeof UNREADABLE_SWEEP_FILTER {
+    if (filter === undefined) return undefined;
+    if (!Object.keys(filter).every((k) => READABLE_SWEEP_FILTER_KEYS.has(k))) {
+        return UNREADABLE_SWEEP_FILTER;
+    }
+    const { subtype, color } = filter;
+    if (subtype !== undefined && !isLiteralList(subtype)) {
+        return UNREADABLE_SWEEP_FILTER;
+    }
+    if (color !== undefined && !isLiteralList(color)) {
+        return UNREADABLE_SWEEP_FILTER;
+    }
+    return {
+        types: filter.type,
+        excludeTypes: filter.excludeType,
+        subtypes: subtype,
+        supertypes: filter.supertype,
+        excludeSupertypes: filter.excludeSupertype,
+        colors: color,
+        colorCountAtLeast: filter.colorCountAtLeast,
+        isToken: filter.isToken,
+        requireAbility: filter.hasAbility,
+        excludeAbility: filter.excludeAbility,
+        tapped: filter.tapped,
+        isAttacking: filter.isAttacking,
+        enteredThisTurn: filter.enteredThisTurn,
+        controlledSinceTurnStart: filter.controlledSinceTurnStart,
+    };
 }
 
-/** `type` (OR within the field) AND NOT `excludeType` — the card-type half of
- *  `EffectCardFilter` (CR 205.2a), over the permanent's current types. */
-function matchesSweepFilter(
-    perm: CardInstanceState,
-    filter: EffectCardFilter | undefined
-): boolean {
-    if (filter === undefined) return true;
-    const types = filter.type === undefined ? [] : [filter.type].flat();
-    if (types.length > 0 && !types.some((t) => perm.types.includes(t))) {
-        return false;
-    }
-    const excluded =
-        filter.excludeType === undefined ? [] : [filter.excludeType].flat();
-    return !excluded.some((t) => perm.types.includes(t));
+/** A string literal or a list of them — never a dynamic object read. */
+function isLiteralList<T extends string>(
+    value: T | readonly T[] | object
+): value is T | T[] {
+    return (
+        typeof value === "string" ||
+        (Array.isArray(value) && value.every((v) => typeof v === "string"))
+    );
 }
 
 /** True when `requirement` could ever name a battlefield permanent — a

@@ -31,8 +31,15 @@ import {
     disenchant,
     swordsToPlowshares,
 } from "../../../cards/sets/lea/white";
-import { llanowarElves } from "../../../cards/sets/lea/green";
-import { blackLotus, forest } from "../../../cards/sets/lea/colorless";
+import {
+    crawWurm,
+    grizzlyBears,
+    llanowarElves,
+} from "../../../cards/sets/lea/green";
+import { blackLotus, forest, plains } from "../../../cards/sets/lea/colorless";
+import { flashfires } from "../../../cards/sets/lea/red";
+import { pyroclasm } from "../../../cards/sets/ice/red";
+import { hibernation } from "../../../cards/sets/usg/blue";
 import { forceOfVigor } from "../../../cards/sets/mh1/green";
 
 /** A two-player state where `p1` holds exactly `handCardId` and `p2`'s
@@ -327,15 +334,18 @@ describe("a sweep's latent value is the surplus it takes (issue #4773)", () => {
     });
 
     it("keeps the representative valuation for a filter it cannot match exactly", () => {
-        // A subtype is not read: counting every Forest as a Goblin, or none,
+        // A mana-value bound is not read: counting every creature, or none,
         // would both be guesses. The board-free price stands on every board.
-        const goblins = sweep("goblins", { subtype: "Goblin" });
-        withTemporaryDefinition(goblins, () => {
-            const empty = latentAgainst(goblins.id, [], []);
+        const cheap = sweep("cheap", {
+            type: "Creature",
+            manaValueAtMost: 3,
+        });
+        withTemporaryDefinition(cheap, () => {
+            const empty = latentAgainst(cheap.id, [], []);
             expect(empty).toBeGreaterThan(0);
-            expect(latentAgainst(goblins.id, [forest.id, forest.id], [])).toBe(
-                empty
-            );
+            expect(
+                latentAgainst(cheap.id, [grizzlyBears.id, grizzlyBears.id], [])
+            ).toBe(empty);
         });
     });
 
@@ -349,5 +359,180 @@ describe("a sweep's latent value is the surplus it takes (issue #4773)", () => {
                 [forest.id, shivanDragon.id]
             )
         ).toBe(0);
+    });
+});
+
+describe("bounce, damage and filtered sweeps read the board (issue #4781)", () => {
+    // Each family used to sit in hand at ONE representative victim whatever
+    // the board held. Every assertion is the `hand` term the leaf reads.
+
+    it("a bounce sweep is worth the opponent's surplus in what it returns", () => {
+        // Hibernation: "Return all green permanents to their owners' hands."
+        const ahead = latentAgainst(
+            hibernation.id,
+            [grizzlyBears.id],
+            [grizzlyBears.id, grizzlyBears.id]
+        );
+        expect(ahead).toBeGreaterThan(0);
+        // The surplus, not the gross count: one Bears net either way.
+        expect(ahead).toBeCloseTo(
+            latentAgainst(hibernation.id, [], [grizzlyBears.id]),
+            6
+        );
+        expect(
+            latentAgainst(hibernation.id, [grizzlyBears.id], [grizzlyBears.id])
+        ).toBe(0);
+        expect(
+            latentAgainst(
+                hibernation.id,
+                [grizzlyBears.id, grizzlyBears.id],
+                []
+            )
+        ).toBe(0);
+    });
+
+    it("a bounced card comes back without its counters (CR 400.7)", () => {
+        // What the bounce takes is the permanent's realised loss minus the
+        // card's worth back in hand — and the card in hand is a new object,
+        // so the counters stay behind: they are all taken.
+        const handCard = makeInstance(hibernation.id, {
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const bears = (counters?: Record<string, number>) =>
+            makeInstance(grizzlyBears.id, {
+                controllerId: "p2",
+                ownerId: "p2",
+                ...(counters ? { counters } : {}),
+            });
+        const at = (victim: ReturnType<typeof bears>) => {
+            const state = makeState({
+                players: [
+                    makePlayer("p1", { hand: [handCard] }),
+                    makePlayer("p2", { battlefield: [victim] }),
+                ],
+            });
+            return {
+                latent: evaluateBreakdown(state, "p1").self.hand,
+                realised: permanentRealisedValue(state, victim),
+            };
+        };
+        const vanilla = at(bears());
+        const grown = at(bears({ "+1/+1": 2 }));
+        expect(grown.latent - vanilla.latent).toBeCloseTo(
+            (DEFAULT_EVAL_WEIGHTS.latent.boardRemoval *
+                (grown.realised - vanilla.realised)) /
+                representativeVictimLoss(DEFAULT_EVAL_WEIGHTS),
+            6
+        );
+    });
+
+    it("a bounced card goes to its OWNER's hand, not its controller's (CR 400.3)", () => {
+        // p1 controls one of p2's Bears: bouncing it takes the body from p1
+        // AND hands the card to p2, so it outweighs the surplus of three.
+        const handCard = makeInstance(hibernation.id, {
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const opp = () =>
+            makeInstance(grizzlyBears.id, {
+                controllerId: "p2",
+                ownerId: "p2",
+            });
+        const worth = (ownerOfMine: "p1" | "p2") =>
+            evaluateBreakdown(
+                makeState({
+                    players: [
+                        makePlayer("p1", {
+                            hand: [handCard],
+                            battlefield: [
+                                makeInstance(grizzlyBears.id, {
+                                    controllerId: "p1",
+                                    ownerId: ownerOfMine,
+                                }),
+                            ],
+                        }),
+                        makePlayer("p2", {
+                            battlefield: [opp(), opp(), opp()],
+                        }),
+                    ],
+                }),
+                "p1"
+            ).self.hand;
+        expect(worth("p1")).toBeGreaterThan(0);
+        expect(worth("p2")).toBe(0);
+    });
+
+    it("a bounce sweep's colour filter is matched exactly", () => {
+        // CR 105.2 — Shivan Dragon is red: Hibernation returns nothing.
+        expect(latentAgainst(hibernation.id, [], [shivanDragon.id])).toBe(0);
+    });
+
+    it("a damage sweep is worth the opponent's surplus in what it kills", () => {
+        // Pyroclasm: 2 damage to each creature. CR 704.5g — the 2/2 and the
+        // 1/1 die, the 6/4 survives and is no loss to anyone.
+        const kills = latentAgainst(
+            pyroclasm.id,
+            [],
+            [grizzlyBears.id, llanowarElves.id]
+        );
+        expect(kills).toBeGreaterThan(0);
+        expect(
+            latentAgainst(
+                pyroclasm.id,
+                [],
+                [grizzlyBears.id, llanowarElves.id, crawWurm.id]
+            )
+        ).toBeCloseTo(kills, 6);
+        expect(latentAgainst(pyroclasm.id, [], [crawWurm.id])).toBe(0);
+        expect(
+            latentAgainst(pyroclasm.id, [grizzlyBears.id], [grizzlyBears.id])
+        ).toBe(0);
+        expect(
+            latentAgainst(
+                pyroclasm.id,
+                [grizzlyBears.id, llanowarElves.id],
+                [crawWurm.id]
+            )
+        ).toBe(0);
+    });
+
+    it("a damage sweep counts the damage already marked (CR 120.3e)", () => {
+        const handCard = makeInstance(pyroclasm.id, {
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const wurm = (damageMarked: number) =>
+            makeInstance(crawWurm.id, {
+                controllerId: "p2",
+                ownerId: "p2",
+                damageMarked,
+            });
+        const worth = (damageMarked: number) =>
+            evaluateBreakdown(
+                makeState({
+                    players: [
+                        makePlayer("p1", { hand: [handCard] }),
+                        makePlayer("p2", { battlefield: [wurm(damageMarked)] }),
+                    ],
+                }),
+                "p1"
+            ).self.hand;
+        expect(worth(1)).toBe(0);
+        expect(worth(2)).toBeGreaterThan(0);
+    });
+
+    it("a subtype-filtered destroy sweep reads the board (CR 205.3)", () => {
+        // Flashfires: "Destroy all Plains."
+        expect(
+            latentAgainst(flashfires.id, [plains.id], [plains.id, plains.id])
+        ).toBeGreaterThan(0);
+        expect(latentAgainst(flashfires.id, [], [forest.id, forest.id])).toBe(
+            0
+        );
+        expect(latentAgainst(flashfires.id, [plains.id], [plains.id])).toBe(0);
     });
 });

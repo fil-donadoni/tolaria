@@ -55,6 +55,9 @@ import {
     getColorsFromCost,
 } from "../../cards/colors";
 import type { CardDefinition, EffectForEachSelector } from "../../cards/types";
+import { tryGetCardByName } from "../../cards";
+import { matchesPermanentFilter } from "../../cards/filters";
+import { sweepPermanentFilter, UNREADABLE_SWEEP_FILTER } from "./latentBoard";
 import { castShape } from "./botReachForm";
 import {
     attackEdictPosition,
@@ -113,14 +116,80 @@ const SWEEPABLE_TYPES = [
 ] as const;
 type SweepableType = (typeof SWEEPABLE_TYPES)[number];
 
-/** Does anything under `node` destroy? — an `op: "destroy"` at any depth. */
-function destroysSomething(node: unknown): boolean {
-    if (Array.isArray(node)) return node.some(destroysSomething);
+/** Does anything under `node` take a permanent off the battlefield? — a
+ *  `destroy` / `exile`, or a `moveZone` to any zone but the battlefield (a
+ *  bounce or a tuck), at any depth. Issue #4781: the latent hand term reads
+ *  every one of these sweeps off the board, so the position poses them all. */
+function removesSomething(node: unknown): boolean {
+    if (Array.isArray(node)) return node.some(removesSomething);
     if (node === null || typeof node !== "object") return false;
     const record = node as Record<string, unknown>;
     return (
-        record.op === "destroy" || Object.values(record).some(destroysSomething)
+        record.op === "destroy" ||
+        record.op === "exile" ||
+        (record.op === "moveZone" &&
+            typeof record.to === "string" &&
+            record.to !== "battlefield") ||
+        Object.values(record).some(removesSomething)
     );
+}
+
+/** The fillers and basics a sweep whose filter names no card type can be
+ *  posed against — the candidates {@link filteredSweepSurplus} matches. */
+const FILTERED_SWEEP_CANDIDATES = [
+    "Grizzly Bears",
+    "Ornithopter",
+    "Castle",
+    "Plains",
+    "Island",
+    "Swamp",
+    "Mountain",
+    "Forest",
+] as const;
+
+/**
+ * Issue #4781 — the opponent's surplus for a removing sweep whose filter names
+ * NO card type (Flashfires' "all Plains", Hibernation's "all green
+ * permanents", an unfiltered bounce): {@link sweptTypes} reads `type` only, so
+ * such a sweep was posed on a level board and nothing in it was the
+ * opponent's surplus. Every candidate the filter matches — through
+ * `sweepPermanentFilter`, the SAME literal mapping the latent hand term reads
+ * the board with — is a name the opponent gets a surplus of. A filter that
+ * mapping cannot read poses nothing, as before.
+ *
+ * Lives HERE for the same reason as `sweptTypes`: it decides what the
+ * position CONTAINS.
+ */
+function filteredSweepSurplus(def: CardDefinition): string[] {
+    const names = new Set<string>();
+    for (const { select, effects } of battlefieldForEaches(def)) {
+        if (select.controller !== undefined || !removesSomething(effects))
+            continue;
+        // `sweptTypes` already poses a type filter and a missing filter.
+        if (select.filter === undefined || select.filter.type !== undefined)
+            continue;
+        const filter = sweepPermanentFilter(select.filter);
+        if (filter === UNREADABLE_SWEEP_FILTER) continue;
+        for (const name of FILTERED_SWEEP_CANDIDATES) {
+            const candidate = tryGetCardByName(name);
+            if (!candidate) continue;
+            const matches =
+                filter === undefined ||
+                matchesPermanentFilter(
+                    {
+                        id: candidate.id,
+                        types: candidate.types,
+                        subtypes: candidate.subtypes ?? [],
+                        supertypes: candidate.supertypes ?? [],
+                        colors: getCardColors(candidate),
+                        staticAbilities: candidate.staticAbilities ?? [],
+                    },
+                    filter
+                );
+            if (matches) names.add(name);
+        }
+    }
+    return [...names];
 }
 
 /** A `forEach` over the battlefield, as the sweep detectors read it. */
@@ -165,19 +234,20 @@ function selectsCreatures(select: BattlefieldForEach["select"]): boolean {
 }
 
 /**
- * The permanent types the card's SPELL script destroys on every player's
+ * The permanent types the card's SPELL script takes off every player's
  * battlefield — a `forEach` over `set: "permanents"` with no `controller` (an
- * omitted controller selects every player's battlefield) whose body destroys.
+ * omitted controller selects every player's battlefield) whose body removes
+ * ({@link removesSomething}: destroy, exile, or a bounce — issue #4781).
  * Wrath of God destroys creatures, Tranquility enchantments, Armageddon lands,
- * and a sweep with no filter at all destroys them all. Empty when the card
+ * and a sweep with no filter at all removes them all. Empty when the card
  * sweeps nothing.
  *
  * What it does NOT model, each one leaving the symmetric pose:
- *  - a sweep whose body does not destroy (a `+1/+1` to every creature, an
+ *  - a sweep whose body does not remove (a `+1/+1` to every creature, an
  *    animate). A toughness SHRINK is the other kind of sweep a creature can
  *    die to, and {@link shrinksEveryCreature} poses it;
- *  - a filter on anything but `type` (`excludeType`, `subtype`, …): not read,
- *    so no claim is made rather than a wrong one;
+ *  - a filter that names no `type` (`excludeType`, `subtype`, a colour):
+ *    {@link filteredSweepSurplus} poses that one;
  *  - a sweep hosted by a triggered or activated ability.
  *
  * Lives HERE for the same reason as `needsStackTarget`: it decides what the
@@ -187,7 +257,7 @@ function selectsCreatures(select: BattlefieldForEach["select"]): boolean {
 function sweptTypes(def: CardDefinition): ReadonlySet<SweepableType> {
     const swept = new Set<SweepableType>();
     for (const { select, effects } of battlefieldForEaches(def)) {
-        if (select.controller !== undefined || !destroysSomething(effects))
+        if (select.controller !== undefined || !removesSomething(effects))
             continue;
         const named =
             select.filter === undefined
@@ -767,6 +837,17 @@ export function botReachSpec(
                 count: SWEEP_SURPLUS,
             });
         }
+    }
+    for (const name of filteredSweepSurplus(def)) {
+        // A land candidate is posed like a land sweep: the holder's own lands
+        // may match too, so the opponent's exceed them by the surplus.
+        const land = tryGetCardByName(name)?.types.includes("Land") ?? false;
+        cards.push({
+            name,
+            owner: "opp",
+            zone: "battlefield",
+            count: land ? landCount + SWEEP_SURPLUS : SWEEP_SURPLUS,
+        });
     }
     if (drawsForController(def))
         cards.push({
