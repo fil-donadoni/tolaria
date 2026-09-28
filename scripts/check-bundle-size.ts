@@ -62,9 +62,9 @@ interface Budget {
 const BUDGETS: Budget[] = [
     // measured 440,553 B (issue #3053)
     { prefix: "card-catalogue-", gzipBudgetBytes: 490_000 },
-    // measured 610,101 B (issue #3053); RE-ANCHORED to 675,412 B at issue #3230
-    // and again to 689,547 B at issue #3808 — both times ORDINARY CODE GROWTH
-    // and not the accident this row guards.
+    // measured 610,101 B (issue #3053); RE-ANCHORED to 675,412 B at issue #3230,
+    // to 689,547 B at issue #3808 and to 703,501 B at issue #4781 — every time
+    // ORDINARY CODE GROWTH and not the accident this row guards.
     //
     // #3230: `origin/staging` 674,181 B (599 B under the old 675,000 ceiling)
     // and the branch 675,412 B — two card definitions plus two replacement
@@ -80,11 +80,17 @@ const BUDGETS: Budget[] = [
     // `card-catalogue` moved by 400 B over the same diff, and pool re-entry is
     // +99 KB, which would red both rows by two orders of magnitude.
     //
+    // #4781: the same measurement again — `origin/staging` **702,887 B** (113 B
+    // under the 703,000 ceiling) and the branch **703,501 B**. The 614 B are
+    // the Brain's hand term reading bounce, damage and subtype/colour-filtered
+    // sweeps off the board (`ai/latentBoard.ts`, `ai/opValuers.ts`); the
+    // `card-catalogue` row did not move, so the pool is not back.
+    //
     // Headroom stays ~2% rather than the ~10% the card-catalogue row carries:
     // pool RE-ENTRY reds this row from any of these numbers, and a tight
     // margin is what makes the next re-anchor a decision somebody takes on
     // purpose rather than a ceiling that quietly absorbs a regression.
-    { prefix: "brain.worker-", gzipBudgetBytes: 703_000 },
+    { prefix: "brain.worker-", gzipBudgetBytes: 717_500 },
 ];
 
 function findChunk(prefix: string): string | null {
