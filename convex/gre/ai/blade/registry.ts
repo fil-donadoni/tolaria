@@ -9471,7 +9471,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         expect: {
             forbidden: [{ kind: "cast-spell", card: "Skyclave Apparition" }],
         },
-        note: "TODO",
+        note: 'Issue #4758 \u2014 the discriminating half. Skyclave Apparition\'s ETB ("exile up to one target nonland, nontoken permanent you don\'t control with mana value 4 or less") is an ETB Ability: spent on entering, latent in hand, never realized on the battlefield. With nothing to exile the trigger goes on the stack targetless (CR 603.3c "up to") and does nothing, so casting it trades the potential for a vanilla 2/2. Measured at authoring time on all five seeds: `cast-spell` before the change (the realized reading still counted the spent ETB), `pass` after. Proof of failure: putting the ETB back on the realized face, or discounting the latent ETB like a standing ability (0.5), turns this entry red.',
     },
     {
         label: "ETB Ability realized: casts Skyclave Apparition into a permanent worth exiling",
@@ -9497,7 +9497,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         expect: {
             moves: [{ kind: "cast-spell", card: "Skyclave Apparition" }],
         },
-        note: "TODO",
+        note: "Issue #4758 \u2014 the passivity guard for the entry above: with an opposing Hill Giant to exile, casting realizes more than the potential it spends, so the Bot casts. Green before and after the change; what keeps it green after is the policy probe settling the ETB's own target announcement (CR 603.3d) \u2014 without it the probe scores the cast as a bare body.",
     },
     {
         label: "ETB Ability spent: holds Flametongue Kavu when its ETB can only hit its own side",
@@ -9523,7 +9523,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         expect: {
             forbidden: [{ kind: "cast-spell", card: "Flametongue Kavu" }],
         },
-        note: "TODO",
+        note: 'Issue #4758 \u2014 a POSITION GUARD, not a discriminating entry. Flametongue Kavu\'s "deals 4 damage to target creature" is mandatory (CR 603.3c: a trigger is removed only when NO target is legal), so with no opposing creature it must hit its own Grizzly Bears or itself. The search already held here before the change (measured: `pass` on all five seeds); the entry keeps the spent-ETB accounting from teaching the Bot to throw a creature away. The discriminating hold is the Skyclave Apparition entry.',
     },
     {
         label: "ETB Ability realized: casts Flametongue Kavu into an opposing creature worth killing",
@@ -9549,7 +9549,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         expect: {
             moves: [{ kind: "cast-spell", card: "Flametongue Kavu" }],
         },
-        note: "TODO",
+        note: "Issue #4758 \u2014 the passivity guard for Flametongue Kavu: a Serra Angel to kill is worth more than the potential spent, so the Bot casts. Green before and after the change.",
     },
 ];
 
