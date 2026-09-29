@@ -5,11 +5,14 @@ import {
     type BotFindingClassRow,
     type BotFindingRow as FindingRow,
 } from "@/lib/botFindings";
+import BotFindingTrace from "./bot-finding-trace";
 
 /**
  * One card the play Bot struggles with (ADR 0141, issue #4176): its first
  * print, its name, the Bot Gap class it is blocked by, that class's prose —
  * the filer's own words, carried on the class row — and who owes the fix.
+ * A `never-chosen` card also carries the search decision that refused it
+ * (issue #4179).
  */
 export default function BotFindingRow({
     finding,
@@ -71,6 +74,9 @@ export default function BotFindingRow({
                             )
                         )}
                     </p>
+                )}
+                {finding.trace !== undefined && (
+                    <BotFindingTrace trace={finding.trace} />
                 )}
             </div>
         </article>

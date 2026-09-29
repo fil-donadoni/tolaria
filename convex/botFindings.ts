@@ -60,6 +60,7 @@ export const listFindings = query({
                 ...(row.compileSource === undefined
                     ? {}
                     : { compileSource: row.compileSource }),
+                ...(row.trace === undefined ? {} : { trace: row.trace }),
                 ...(row.note === undefined ? {} : { note: row.note }),
                 ...(row.reproducers === undefined
                     ? {}

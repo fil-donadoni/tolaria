@@ -44,7 +44,12 @@ import { applyMoveForSearch } from "../applyMove";
 import { cloneGameState } from "../clone";
 import { buildBladeBaseState } from "./blade/baseState";
 import { buildStateFromScenario } from "../scenarioBuilder";
-import { applyMoveInSearch, decidingPlayer, searchWithTrace } from "../search";
+import {
+    applyMoveInSearch,
+    decidingPlayer,
+    enumerateRootMoves,
+    searchWithTrace,
+} from "../search";
 import { enumerateMoves, type Move } from "../moves";
 import { getLegalActions } from "../rules";
 import { allocInstanceId, type GameState } from "../state";
@@ -59,6 +64,11 @@ import { tryGetCardByName } from "../../cards";
 import { matchesPermanentFilter } from "../../cards/filters";
 import { sweepPermanentFilter, UNREADABLE_SWEEP_FILTER } from "./latentBoard";
 import { castShape } from "./botReachForm";
+import {
+    projectBotReachTrace,
+    usesCard,
+    type BotReachTrace,
+} from "./botReachTrace";
 import {
     attackEdictPosition,
     combatTrickPosition,
@@ -568,6 +578,14 @@ export interface BotReachVerdict {
      * when `outcome === "played"`.
      */
     readonly form?: string;
+    /**
+     * The search's own reasons for a `never-chosen` refusal (issue #4179): a
+     * bounded projection of the `DecisionTrace` of the decision that passed
+     * the card over — see {@link BotReachTrace}. Carried only when
+     * `cause === "never-chosen"`: every other cause is decided before, or
+     * without, a search that passed the card over.
+     */
+    readonly trace?: BotReachTrace;
 }
 
 export interface BotReachBudget {
@@ -920,11 +938,6 @@ export function botReachSpec(
     };
 }
 
-/** Does `move` use the card instance `instanceId`? */
-function usesCard(move: Move, instanceId: string): boolean {
-    return "cardInstanceId" in move && move.cardInstanceId === instanceId;
-}
-
 /** Is the card still in flight — on the stack, or a choice still pending? */
 function unsettled(state: GameState, instanceId: string): boolean {
     if ((state.pendingChoices?.length ?? 0) > 0) return true;
@@ -991,7 +1004,12 @@ export function buildBotReachState(
 
 export type SeatVerdict =
     | { outcome: "played" }
-    | { outcome: "ignored" | "frozen"; cause: BotReachCause; form: string };
+    | {
+          outcome: "ignored" | "frozen";
+          cause: BotReachCause;
+          form: string;
+          trace?: BotReachTrace;
+      };
 
 /**
  * Follow the chosen move through: every decision the position owes afterwards
@@ -1141,6 +1159,38 @@ export function classifyNoMove(
           };
 }
 
+/**
+ * What root enumeration did to the card's moves before the search could weigh
+ * them — read through {@link enumerateRootMoves}, the search's own root list,
+ * on the same state. Pure, so asking costs the search nothing. Evidence for
+ * the finding's trace only (issue #4179); never an input to the verdict.
+ *
+ * `undefined` whenever ANY of the card's moves survived: a card can lose one
+ * target to a collapse or one mode to dominance and still be weighed through
+ * the others, and then what the search did is the answer. Only a card with no
+ * surviving move was dropped before the search — `pruned` when dominance
+ * dropped at least one of them (the stronger claim: proved a no-op), else
+ * `collapsed`.
+ */
+function rootMoveFate(
+    state: GameState,
+    holderId: string,
+    instanceId: string
+): "pruned" | "collapsed" | undefined {
+    let pruned = false;
+    let collapsed = false;
+    const kept = enumerateRootMoves(state, holderId, {
+        onPruned: (m) => {
+            if (usesCard(m, instanceId)) pruned = true;
+        },
+        onCollapsed: (m) => {
+            if (usesCard(m, instanceId)) collapsed = true;
+        },
+    });
+    if (kept.some((m) => usesCard(m, instanceId))) return undefined;
+    return pruned ? "pruned" : collapsed ? "collapsed" : undefined;
+}
+
 function playFrom(
     def: CardDefinition,
     state: GameState,
@@ -1166,14 +1216,26 @@ function playFrom(
     // of PR #4057, finding 1). The first non-played follow-through is
     // remembered and only reported if no seed ever settles.
     let stalled: SeatVerdict | null = null;
+    // The FIRST seed's refusal, kept as the finding's evidence (issue #4179).
+    // `searchWithTrace` builds the trace after choosing, so reading it costs
+    // no draw from the search RNG and changes no verdict.
+    let refusal: BotReachTrace | undefined;
     for (const seed of budget.seeds) {
-        const move = searchWithTrace(
+        const { move, trace } = searchWithTrace(
             state,
             holderId,
             { iterations: budget.iterations },
             seed
-        ).move;
-        if (move === null || !usesCard(move, instanceId)) continue;
+        );
+        if (move === null || !usesCard(move, instanceId)) {
+            refusal ??= projectBotReachTrace(
+                trace,
+                move,
+                instanceId,
+                rootMoveFate(state, holderId, instanceId)
+            );
+            continue;
+        }
         const followed = followThrough(
             state,
             holderId,
@@ -1190,6 +1252,7 @@ function playFrom(
         outcome: "ignored",
         cause: "never-chosen",
         form: castShape(def),
+        ...(refusal === undefined ? {} : { trace: refusal }),
     };
 }
 

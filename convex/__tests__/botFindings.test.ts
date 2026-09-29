@@ -144,6 +144,68 @@ describe("botFindings.seed — measured fields rewritten, human fields untouched
         expect(stub.doc("f-1")).toMatchObject(HUMAN);
     });
 
+    // Issue #4179 — the refusal's decision trace is a MEASURED field: the
+    // seed writes it, the page's read returns it, and a newer measurement
+    // without one clears it (a card now refused for another reason must not
+    // keep the old decision as its evidence).
+    it("writes, serves and clears the decision trace as a measured field", async () => {
+        const trace = {
+            cardMove: "weighed" as const,
+            search: {
+                mechanism: "mean-reward",
+                iterations: 48,
+                weighed: 2,
+                candidates: [
+                    {
+                        role: "chosen" as const,
+                        label: "Pass",
+                        visits: 40,
+                        meanReward: 0.5,
+                        total: 10,
+                        terms: { life: [20, 20] },
+                    },
+                ],
+            },
+        };
+        const finding = {
+            oracleId: "o-a",
+            name: "Alpha",
+            targets: ["cube"],
+            outcome: "ignored" as const,
+            cause: "never-chosen",
+        };
+        const stub = makeMutationCtx("u-admin", [
+            ADMIN,
+            storedFinding("f-1", "o-a"),
+        ]);
+        await runMutation(seed, stub.ctx, {
+            payload: {
+                measurement: measurement("new"),
+                findings: [{ ...finding, trace }],
+                played: [],
+                classes: [],
+            },
+        });
+        expect(stub.doc("f-1").trace).toEqual(trace);
+        const served = await runMutation<unknown, Row[]>(
+            listFindings,
+            stub.ctx,
+            {}
+        );
+        expect(served[0]!.trace).toEqual(trace);
+
+        await runMutation(seed, stub.ctx, {
+            payload: {
+                measurement: measurement("newer"),
+                findings: [finding],
+                played: [],
+                classes: [],
+            },
+        });
+        expect(stub.doc("f-1").trace).toBeUndefined();
+        expect(stub.doc("f-1")).toMatchObject(HUMAN);
+    });
+
     it("records a stored card the sweep now plays, keeping its class and its human fields", async () => {
         const stub = makeMutationCtx(null, [storedFinding("f-1", "o-a")]);
         await runMutation(seed, stub.ctx, {

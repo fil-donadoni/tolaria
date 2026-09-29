@@ -20,6 +20,7 @@ import { poolArrangementEntryValidator } from "./limited/eventTypes";
 // mutation args.
 import { storedDeckColumnLayoutValidator } from "./deckLayoutStorage";
 import {
+    botReachTraceValidator,
     compileSourceValidator,
     findingBlameValidator,
     findingClassValidator,
@@ -1144,6 +1145,8 @@ export default defineSchema({
         gap: v.optional(v.string()),
         blame: v.optional(findingBlameValidator),
         compileSource: v.optional(compileSourceValidator),
+        // Why the search passed the card over (issue #4179) — bounded.
+        trace: v.optional(botReachTraceValidator),
         sha: v.string(),
         botHash: v.string(),
         measuredAt: v.string(),

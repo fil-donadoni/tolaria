@@ -36,6 +36,7 @@ import type {
     BotReachOutcome,
     BotReachVerdict,
 } from "../../convex/gre/ai/botReach";
+import type { BotReachTrace } from "../../convex/gre/ai/botReachTrace";
 import type { CompiledDefinition } from "../../convex/oracle/types";
 import {
     indentBlock,
@@ -395,6 +396,10 @@ export interface MeasuredVerdict extends MeasuredDefinition {
     /** The verdict's own form, NOT the derived one — the cast-shape override
      *  is re-applied from the definition on every build. */
     readonly form?: string;
+    /** The search's reasons for a `never-chosen` refusal (issue #4179) —
+     *  bounded by `botReachTrace.ts`, measured with the verdict and reused
+     *  with it, so it travels in the artifact like every measured field. */
+    readonly trace?: BotReachTrace;
 }
 
 export interface FindingRow extends MeasuredVerdict {
@@ -533,11 +538,16 @@ function reusableVerdict(
     } else if (row.cause === undefined || !BOT_REACH_CAUSES.has(row.cause)) {
         return undefined;
     }
+    // A `never-chosen` play always records its refusal's trace (issue #4179),
+    // so a row without one was written by another tree: replay it.
+    const traced = row.cause === "never-chosen";
+    if (traced && typeof row.trace?.cardMove !== "string") return undefined;
     return {
         ...definition,
         outcome: row.outcome,
         ...(row.cause !== undefined ? { cause: row.cause } : {}),
         ...(row.form !== undefined ? { form: row.form } : {}),
+        ...(traced ? { trace: row.trace } : {}),
     };
 }
 
@@ -628,6 +638,7 @@ export function findingRow(
         ...(gap !== undefined ? { gap } : {}),
         ...(blame !== undefined ? { blame } : {}),
         ...(verdict.defHash !== undefined ? { defHash: verdict.defHash } : {}),
+        ...(verdict.trace !== undefined ? { trace: verdict.trace } : {}),
     };
 }
 

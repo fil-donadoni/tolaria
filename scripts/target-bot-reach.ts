@@ -250,6 +250,7 @@ async function main(): Promise<void> {
             outcome: verdict.outcome,
             ...(verdict.cause !== undefined ? { cause: verdict.cause } : {}),
             ...(verdict.form !== undefined ? { form: verdict.form } : {}),
+            ...(verdict.trace !== undefined ? { trace: verdict.trace } : {}),
         };
     };
 

@@ -6782,6 +6782,7 @@
         {"id":"119.3","line":"/** CR 119.3 / 510.1 — \"whenever this creature deals combat damage to a player\". */","sites":1,"status":"baseline"},
         {"id":"119.3","line":"/** CR 119.3 — `player` gains `amount` life. */","sites":1,"status":"baseline"},
         {"id":"119.3","line":"/** CR 119.3 — `player` loses `amount` life (not damage — no","sites":1,"status":"baseline"},
+        {"id":"119.3","line":"/** CR 119.3 — a spell whose only effect is that its caster loses life: it","sites":1,"status":"confirmed","ruleHash":"9a5ff675580c9251"},
         {"id":"119.3","line":"/** CR 120.3a / 119.3 / 700.4 / 508.1a (issue #3453) — what has already","sites":1,"status":"baseline"},
         {"id":"119.3","line":"/** CR 120.3a / 119.3 / 700.4 / 508.1a (issue #3453, PRD #3397) — what","sites":1,"status":"baseline"},
         {"id":"119.3","line":"/** Cumulative life GAINED by each player this turn (CR 119.3 tally, issue","sites":1,"status":"baseline"},

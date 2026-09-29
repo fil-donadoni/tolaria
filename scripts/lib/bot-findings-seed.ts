@@ -68,6 +68,7 @@ export function buildBotFindingsPayload(inputs: SeedInputs): SeedPayload {
             ...(row.gap === undefined ? {} : { gap: row.gap }),
             ...(row.blame === undefined ? {} : { blame: row.blame }),
             ...(row.source === undefined ? {} : { compileSource: row.source }),
+            ...(row.trace === undefined ? {} : { trace: row.trace }),
         };
         findings.push(finding);
         if (finding.gap !== undefined) {
