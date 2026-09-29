@@ -8,8 +8,7 @@
  * 0136 §6), and `bun run health` runs it by hand. It runs the FULL offline gate
  * (`HEALTH_SCRIPTS` in `lib/health-step.ts`: `check:all`, the derived Op census
  * `check:gaps`, the Coverage Invariant `check:targets`, the test-suite
- * hygiene census `check:test-hygiene`, all three test suites, and the blade
- * robustness audit `blade:robustness`) against the
+ * hygiene census `check:test-hygiene`, and all three test suites) against the
  * merged tip, in a throwaway worktree, and leaves a durable verdict in
  * `.claude/telemetry/health/`:
  *
@@ -44,7 +43,9 @@
  * A batch whose diff touched the Bot's globs (`lib/bot-globs.ts`) also
  * re-measures the Bot Findings page (`lib/health-bot-refresh.ts`, ADR 0141 § 5,
  * issue #4181) AFTER the gates pass: `bot:reach`, then `seed:bot-findings`.
- * Those two steps NEVER fail the batch — a stale page is marked stale, not a
+ * Such a batch also owes `BOT_HEALTH_SCRIPTS` first — the blade robustness
+ * audit, issue #4875 — which red it like any gate.
+ * The two refresh steps NEVER fail the batch — a stale page is marked stale, not a
  * red tip — and neither `land` nor `check:pr` runs them.
  *
  * Zero imports beyond node builtins, `lib/branches.ts`, `lib/health-step.ts`
@@ -61,6 +62,7 @@ import {
 import {
     healthGateEnv,
     runHealthStep,
+    BOT_HEALTH_SCRIPTS,
     HEALTH_SCRIPTS,
     type HealthStep,
 } from "./lib/health-step";
@@ -245,16 +247,18 @@ async function main(): Promise<void> {
     // so the block a queued `land` waits for is one block, not three.
     const env = healthGateEnv(process.env, { keepHold: underLock });
 
+    const refreshBot = batchTouchesBot(batchChangedFiles(root, tip));
+    // A Bot batch also owes the Bot-only gates (issue #4875), after the rest.
     const scripts = HEALTH_SCRIPTS;
-    const steps: HealthStep[] = scripts.map((name, i) => ({
+    const gates = refreshBot ? [...scripts, ...BOT_HEALTH_SCRIPTS] : scripts;
+    const steps: HealthStep[] = gates.map((name, i) => ({
         ordinal: i + 1,
-        total: scripts.length,
+        total: gates.length,
         name,
         cmd: "bun",
         args: ["run", name],
     }));
 
-    const refreshBot = batchTouchesBot(batchChangedFiles(root, tip));
     const refreshSteps = refreshBot ? botRefreshSteps(steps.length) : [];
     if (refreshBot) {
         // The gates' own "[n/total]" lines must already count the refresh.

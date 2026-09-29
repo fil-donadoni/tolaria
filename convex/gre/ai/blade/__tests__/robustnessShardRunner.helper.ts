@@ -34,6 +34,10 @@ const ENV: Record<string, string | undefined> =
 
 const ENABLED = ENV.BLADE_ROBUSTNESS === "1";
 
+/** One entry is ~31 searches at its own budget; the 2000-iteration entries
+ *  measured past the config's 120 s on a loaded machine (issue #4875). */
+const ENTRY_TIMEOUT_MS = 900_000;
+
 /** Register shard `shard` (0-based) of the robustness audit. */
 export function registerRobustnessShard(shard: number): void {
     const title = `blade robustness audit — shard ${shard + 1}/${BLADE_SHARDS}`;
@@ -58,7 +62,7 @@ export function registerRobustnessShard(shard: number): void {
         }
 
         for (const scenario of bladeShardSlice(must, shard)) {
-            it(scenario.label, () => {
+            it(scenario.label, { timeout: ENTRY_TIMEOUT_MS }, () => {
                 const row = auditBladeScenario(scenario, vectors);
                 console.log(`[blade:robustness] ${formatRobustnessRow(row)}`);
                 const findings = compareRobustness(

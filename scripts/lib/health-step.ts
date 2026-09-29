@@ -74,13 +74,6 @@ export const DEFAULT_LIVENESS_MS = 60_000;
  * DRIFT, and that is the error a reader must see, not a census computed off a
  * stale file.
  *
- * `blade:robustness` (issue #4875) runs LAST: the blade `must` tier re-run
- * over a wide seed list and jittered weight vectors, redding on an entry that
- * passes by seed noise and is not in its shrink-only baseline. Minutes of
- * search per batch — a health cost by the same rule, never `check:pr` /
- * `check:lane` / `land` — and after `test`, so a `must` entry that is plainly
- * red reports as the suite's failure first.
- *
  * Exported so `check-gaps.test.ts` can assert the membership rather than
  * re-derive it from a regex over `health-main.ts` (which carries the gate's
  * zero-import constraint and cannot be imported by a test — it runs `main()`
@@ -93,8 +86,22 @@ export const HEALTH_SCRIPTS: readonly string[] = [
     "check:targets",
     "check:test-hygiene",
     "test",
-    "blade:robustness",
 ];
+
+/**
+ * Gates a batch owes ONLY when its diff touched the Bot's globs
+ * (`batchTouchesBot`, the decision the Bot Findings refresh already makes) —
+ * run after `HEALTH_SCRIPTS`, and red like any of them, unlike the refresh.
+ *
+ * `blade:robustness` (issue #4875): the blade `must` tier re-run over a wide
+ * seed list and jittered weight vectors, redding on an entry that passes by
+ * seed noise and is not in its shrink-only baseline. ~15 min of search on a
+ * loaded machine, so a health cost by the issue-#4490 rule (never `check:pr` /
+ * `check:lane` / `land`), and only for a batch that can have moved it: a pin
+ * appears when the search, the evaluator, the weights or the registry change —
+ * every one of them under the Bot's globs.
+ */
+export const BOT_HEALTH_SCRIPTS: readonly string[] = ["blade:robustness"];
 
 /**
  * The environment every health step runs under. The health gate must queue on

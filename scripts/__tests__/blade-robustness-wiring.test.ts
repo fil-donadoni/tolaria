@@ -1,13 +1,13 @@
 /**
- * The blade robustness audit's wiring (issue #4875): a `health` step and
- * nothing else — never `check:pr`, `check:lane` or `land`. Minutes of search
+ * The blade robustness audit's wiring (issue #4875): a `health` gate for a
+ * batch that touched the Bot's globs, and nothing else — never `check:pr`, `check:lane` or `land`. Minutes of search
  * per run is a batch cost (issue #4490: a new guard goes on `health`, never on
  * a PR-phase gate).
  */
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { HEALTH_SCRIPTS } from "../lib/health-step";
+import { BOT_HEALTH_SCRIPTS, HEALTH_SCRIPTS } from "../lib/health-step";
 
 const ROOT = join(__dirname, "..", "..");
 const pkg = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8")) as {
@@ -22,10 +22,15 @@ describe("blade:robustness wiring (issue #4875)", () => {
         expect(body).toContain("robustness.shard");
     });
 
-    it("is a health step, after the test suites", () => {
-        expect(HEALTH_SCRIPTS).toContain("blade:robustness");
-        expect(HEALTH_SCRIPTS.indexOf("blade:robustness")).toBeGreaterThan(
-            HEALTH_SCRIPTS.indexOf("test")
+    it("is a Bot-batch health gate, not an every-batch one", () => {
+        expect(BOT_HEALTH_SCRIPTS).toContain("blade:robustness");
+        expect(HEALTH_SCRIPTS).not.toContain("blade:robustness");
+    });
+
+    it("health-main runs the Bot gates after the rest, only on a Bot batch", () => {
+        const src = readFileSync(join(ROOT, "scripts/health-main.ts"), "utf8");
+        expect(src).toContain(
+            "const gates = refreshBot ? [...scripts, ...BOT_HEALTH_SCRIPTS] : scripts;"
         );
     });
 
