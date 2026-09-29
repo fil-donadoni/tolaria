@@ -2,10 +2,16 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import {
-    CONVEX_BUNDLE_BUDGET_BYTES,
+    CONVEX_BUNDLE_BOUNDS,
+    CONVEX_BUNDLE_HARD_BOUND_UNZIPPED_BYTES,
+    CONVEX_BUNDLE_HARD_BOUND_ZIPPED_BYTES,
+    CONVEX_BUNDLE_WARNING_BYTES,
     CONVEX_CODE_SIZE_LIMIT_BYTES,
+    CONVEX_MAX_UNZIPPED_PACKAGES_SIZE,
     CONVEX_MAX_USER_MODULES,
+    CONVEX_MAX_ZIPPED_PACKAGES_SIZE,
     CONVEX_USER_MODULE_BUDGET,
+    assessConvexBundle,
     measureConvexBundle,
 } from "../lib/convex-bundle-size";
 
@@ -19,8 +25,12 @@ import {
  * Convex function bundle limit" — "is unverified and must be measured before
  * the corpus grows into it".
  *
- * Measured (issue #3051, 2026-09-05): the ceiling is 32 MiB of code size per
- * deployment, source maps included, and this repo already sits at 86% of it.
+ * Measured (issue #3051, 2026-09-05): Convex documents 32 MiB of code size per
+ * deployment, source maps included, and this repo sat at 86% of it. ADR 0113
+ * Amendment III (2026-09-20) found that number NOT enforced — the backend's
+ * `PackageSize::verify_size` refuses at 90 MB zipped / 230 MB unzipped — so
+ * 30 MiB is a WARNING here and the failure is a hard bound at 75% of the
+ * enforced ceilings (issue #4810).
  * The mirror of `scripts/__tests__/oracle-pool-size.test.ts` for the server
  * side, and it lives in the `node` project so every lane runs it: the engine
  * lane through `node[all]`, the skin lane through `node[src,scripts]`,
@@ -46,19 +56,19 @@ const measure = () =>
     (measured ??= measureConvexBundle(resolve(REPO_ROOT, "convex")));
 
 describe("Convex function bundle size budget (issue #3051, ADR 0113 § 2)", () => {
-    it(`is at most ${(CONVEX_BUNDLE_BUDGET_BYTES / 1024 / 1024).toFixed(0)} MiB — past this, stop bundling the compiled pool server-side, don't raise the number`, async () => {
+    it(`stays under the hard bound — ${CONVEX_BUNDLE_HARD_BOUND_UNZIPPED_BYTES} B unzipped, ${CONVEX_BUNDLE_HARD_BOUND_ZIPPED_BYTES} B zipped (75% of Convex's ENFORCED ceilings, ADR 0113 Amendment III); 30 MiB only warns`, async () => {
         const m = await measure();
         console.log(
             `convex function bundle: ${(m.totalBytes / 1024 / 1024).toFixed(2)} MiB ` +
                 `(source ${m.sourceBytes} B + source maps ${m.sourceMapBytes} B), ` +
-                `budget ${(CONVEX_BUNDLE_BUDGET_BYTES / 1024 / 1024).toFixed(0)} MiB, ` +
-                `Convex ceiling ${(CONVEX_CODE_SIZE_LIMIT_BYTES / 1024 / 1024).toFixed(0)} MiB`
+                `~${m.zippedBytes} B zipped; warning ` +
+                `${(CONVEX_BUNDLE_WARNING_BYTES / 1024 / 1024).toFixed(0)} MiB, documented ` +
+                `${(CONVEX_CODE_SIZE_LIMIT_BYTES / 1024 / 1024).toFixed(0)} MiB, hard bound ` +
+                `${CONVEX_BUNDLE_HARD_BOUND_UNZIPPED_BYTES} B`
         );
-        expect(m.totalBytes).toBeLessThanOrEqual(CONVEX_BUNDLE_BUDGET_BYTES);
-        // The budget is worthless if it ever creeps past what Convex accepts.
-        expect(CONVEX_BUNDLE_BUDGET_BYTES).toBeLessThan(
-            CONVEX_CODE_SIZE_LIMIT_BYTES
-        );
+        const { warnings, failures } = assessConvexBundle(m);
+        for (const w of warnings) console.warn(`WARN ${w}`);
+        expect(failures).toEqual([]);
     }, 120_000);
 
     it(`keeps files under convex/ within ${CONVEX_USER_MODULE_BUDGET} user modules (Convex MAX_USER_MODULES ${CONVEX_MAX_USER_MODULES})`, async () => {
@@ -80,6 +90,74 @@ describe("Convex function bundle size budget (issue #3051, ADR 0113 § 2)", () =
         expect(m.sourceMapBytes).toBeGreaterThan(0);
         expect(m.totalBytes).toBe(m.sourceBytes + m.sourceMapBytes);
     }, 120_000);
+});
+
+describe("Convex bundle verdict: warning vs hard bound (issue #4810, ADR 0113 Amendment III)", () => {
+    const base = { totalBytes: 1_000, zippedBytes: 100, userModules: 10 };
+
+    it("keeps the lines ordered: warning < documented < hard bound < enforced", () => {
+        expect(CONVEX_BUNDLE_WARNING_BYTES).toBeLessThan(
+            CONVEX_CODE_SIZE_LIMIT_BYTES
+        );
+        expect(CONVEX_CODE_SIZE_LIMIT_BYTES).toBeLessThan(
+            CONVEX_BUNDLE_HARD_BOUND_UNZIPPED_BYTES
+        );
+        expect(CONVEX_BUNDLE_HARD_BOUND_UNZIPPED_BYTES).toBeLessThan(
+            CONVEX_MAX_UNZIPPED_PACKAGES_SIZE
+        );
+        expect(CONVEX_BUNDLE_HARD_BOUND_ZIPPED_BYTES).toBeLessThan(
+            CONVEX_MAX_ZIPPED_PACKAGES_SIZE
+        );
+    });
+
+    it("between the 30 MiB warning and the hard bound: a WARN naming total, warning and enforced ceiling — no failure", () => {
+        const total = CONVEX_BUNDLE_WARNING_BYTES + 31_000;
+        const { warnings, failures } = assessConvexBundle({
+            ...base,
+            totalBytes: total,
+        });
+        expect(failures).toEqual([]);
+        expect(warnings).toHaveLength(1);
+        expect(warnings[0]).toContain(total.toLocaleString("en-US"));
+        expect(warnings[0]).toContain(
+            CONVEX_BUNDLE_WARNING_BYTES.toLocaleString("en-US")
+        );
+        expect(warnings[0]).toContain("MAX_UNZIPPED_PACKAGES_SIZE");
+    });
+
+    it("under the warning: neither warns nor fails", () => {
+        expect(assessConvexBundle(base)).toEqual({
+            warnings: [],
+            failures: [],
+        });
+    });
+
+    it("above the unzipped hard bound: fails naming MAX_UNZIPPED_PACKAGES_SIZE", () => {
+        const { failures } = assessConvexBundle({
+            ...base,
+            totalBytes: CONVEX_BUNDLE_HARD_BOUND_UNZIPPED_BYTES + 1,
+        });
+        expect(failures).toHaveLength(1);
+        expect(failures[0]).toContain("MAX_UNZIPPED_PACKAGES_SIZE");
+    });
+
+    it("above the zipped hard bound: fails naming MAX_ZIPPED_PACKAGES_SIZE", () => {
+        const { failures } = assessConvexBundle({
+            ...base,
+            zippedBytes: CONVEX_BUNDLE_HARD_BOUND_ZIPPED_BYTES + 1,
+        });
+        expect(failures).toHaveLength(1);
+        expect(failures[0]).toContain("MAX_ZIPPED_PACKAGES_SIZE");
+    });
+
+    it("above the user-module budget: fails naming MAX_USER_MODULES", () => {
+        const { failures } = assessConvexBundle({
+            ...base,
+            userModules: CONVEX_BUNDLE_BOUNDS.userModuleBudget + 1,
+        });
+        expect(failures).toHaveLength(1);
+        expect(failures[0]).toContain("MAX_USER_MODULES");
+    });
 });
 
 describe("Convex bundle guard wiring (issue #3051)", () => {
