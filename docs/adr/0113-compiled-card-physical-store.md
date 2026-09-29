@@ -642,7 +642,7 @@ Starter plan's pay-as-you-go overage once operations are counted.
 ## Amendment IV (2026-09-29) — the bound is the heap of one call; every definition is built on demand
 
 Measurements, method and caveats: `docs/research/convex-server-scale-2026-09-29.md`.
-PRD: issue #**PRD**.
+PRD: issue #4849.
 
 ### What binds first is RAM per call, not bundle bytes
 
