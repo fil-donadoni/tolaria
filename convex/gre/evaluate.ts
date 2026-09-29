@@ -1197,7 +1197,14 @@ function playableExileCards(
     player: PlayerState
 ): CardInstanceState[] {
     return state.players.flatMap((owner) =>
-        owner.exile.filter((c) => exileCastPermission(c, player.id, state.turn))
+        owner.exile.filter(
+            (c) =>
+                exileCastPermission(c, player.id, state.turn) &&
+                // A land is PLAYED, never cast (CR 305.9): a cast-only grant
+                // on one is unusable, so it counts only under a play grant —
+                // the same test `resolvePlayLandSourceZone` makes.
+                (!isLand(c) || c.castableFromExileIncludesLand === true)
+        )
     );
 }
 

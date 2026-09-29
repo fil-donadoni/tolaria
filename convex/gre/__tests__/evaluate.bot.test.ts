@@ -1769,4 +1769,39 @@ describe("exiled cards with an open play permission (issue #4755)", () => {
             evaluate(makeState({ turn: 3 }), "p1")
         );
     });
+    it("a land under a cast-only grant is unusable and does not count; under a play grant it does (CR 305.9)", () => {
+        const withLand = (grant: Partial<CardInstanceState>) => {
+            const state = makeState({
+                turn: 3,
+                players: [
+                    makePlayer("p1", {
+                        exile: [
+                            makeInstance(MOUNTAIN, {
+                                id: "ex-land",
+                                zone: "exile",
+                                controllerId: "p2",
+                                ownerId: "p2",
+                                ...grant,
+                            }),
+                        ],
+                    }),
+                    makePlayer("p2"),
+                ],
+            });
+            return state;
+        };
+        const gone = evaluate(makeState({ turn: 3 }), "p1");
+        expect(evaluate(withLand({ castableFromExileBy: "p1" }), "p1")).toBe(
+            gone
+        );
+        expect(
+            evaluate(
+                withLand({
+                    castableFromExileBy: "p1",
+                    castableFromExileIncludesLand: true,
+                }),
+                "p1"
+            )
+        ).toBeGreaterThan(gone);
+    });
 });
