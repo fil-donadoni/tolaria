@@ -59,6 +59,7 @@ import {
     computedGapKeys,
     inScopeBotGapKeys,
     rankedCardIds,
+    rankedTargetIds,
 } from "./lib/gap-kinds";
 import { matchingClusterIssues, signatureMatches } from "./lib/gap-issues";
 import { opGapKey } from "./lib/grammar-gaps";
@@ -629,10 +630,12 @@ function main(): void {
         ? parseFindings(readFileSync(findingsPath, "utf8"))
         : null;
     const botMerge = mergeBotVerdicts(findings, lock.cards, botHash(root));
+    const registry = readTargetRegistry(root);
     const inScope = inScopeBotGapKeys(
         lock.cards,
-        rankedCardIds(readTargetRegistry(root), resolveContext(root, lock)),
-        botMerge.merged
+        rankedCardIds(registry, resolveContext(root, lock)),
+        botMerge.merged,
+        rankedTargetIds(registry)
     );
     const claims = parseClaimRows(allowlist, ALLOWLIST_PATH);
     const unclaimed = unclaimedBotGaps(inScope, claims);

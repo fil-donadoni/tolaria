@@ -146,6 +146,7 @@ import {
     orphanCardActions,
     prioritySlices,
     enforcedCardIds,
+    rankedTargetIds,
     type ComputedGapKeys,
     floorlessCardIds,
     rankedCardIds,
@@ -712,6 +713,7 @@ export function buildAllFilings(
         floorless: floorlessCardIds(registry, ctx),
         handTail: new Set(markerIssues.keys()),
         botFindings,
+        rankedTargets: rankedTargetIds(registry),
         openCardIssues,
         ...gapIndex(lock),
     };
@@ -735,6 +737,18 @@ export function buildAllFilings(
             index
         );
     const nameOf = new Map(lock.cards.map((c) => [c.oracleId, c.name]));
+    // Findings-only cards (hand-written, no lockfile row) reach their Bot Gap
+    // and lend its band exactly like a lockfile card (issue #4180).
+    const lockIds = new Set(lock.cards.map((c) => c.oracleId));
+    for (const [oracleId, verdict] of botFindings ?? []) {
+        if (lockIds.has(oracleId) || verdict.outcome === "played") continue;
+        if (verdict.gap === undefined) continue;
+        nameOf.set(oracleId, verdict.name ?? oracleId);
+        const id = claimId("bot", verdict.gap);
+        const set = reached.get(id) ?? new Set<string>();
+        set.add(oracleId);
+        reached.set(id, set);
+    }
     const setFiles = readSetFileMatches(root);
     const filings = withPartitionBands(
         [

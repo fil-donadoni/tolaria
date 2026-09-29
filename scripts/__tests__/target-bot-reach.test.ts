@@ -668,4 +668,54 @@ describe("mergeBotVerdicts — the report over the lockfile (issue #4406)", () =
         expect(fresh.stale).toEqual([]);
         expect(fresh.merged.get("o-1")!.outcome).toBe("ignored");
     });
+    it("a hand-written card the lockfile has no row for is merged, carrying its name and Targets (issue #4180)", () => {
+        const findings = buildFindings(
+            header(),
+            ["t"],
+            [
+                row({
+                    oracleId: "h-1",
+                    name: "Hand Only",
+                    source: "hand-written",
+                    targets: ["t"],
+                    outcome: "ignored",
+                }),
+            ]
+        );
+        const { merged, stale } = mergeBotVerdicts(findings, [], BOT_HASH);
+        expect(stale).toEqual([]);
+        expect(merged.get("h-1")).toEqual({
+            outcome: "ignored",
+            gap: "never-chosen › instant › draw",
+            name: "Hand Only",
+            targets: ["t"],
+        });
+    });
+
+    it("a findings-only row is stale under a moved Bot hash, and a findings-only `compiled` row is always stale", () => {
+        const hand = row({
+            oracleId: "h-1",
+            source: "hand-written",
+            outcome: "ignored",
+        });
+        const compiled = row({
+            oracleId: "c-1",
+            source: "compiled",
+            outcome: "ignored",
+        });
+        const moved = mergeBotVerdicts(
+            buildFindings(header(), ["t"], [hand]),
+            [],
+            "sha256:other"
+        );
+        expect([...moved.merged.keys()]).toEqual([]);
+        expect(moved.stale).toEqual(["h-1"]);
+        const orphan = mergeBotVerdicts(
+            buildFindings(header(), ["t"], [compiled]),
+            [],
+            BOT_HASH
+        );
+        expect([...orphan.merged.keys()]).toEqual([]);
+        expect(orphan.stale).toEqual(["c-1"]);
+    });
 });
