@@ -4287,6 +4287,39 @@ export const SURFACES: readonly Surface[] = [
         },
     },
     {
+        id: "admin-bot-findings-classes",
+        entries: [
+            "src/routes/admin/admin-layout.route.tsx",
+            "src/routes/admin/admin-bot-findings.route.tsx",
+        ],
+        label: "Bot Findings — Classes tab (/admin/bot-findings)",
+        // The second tab (issue #4177): the Classes panel and its filter bar,
+        // which the Cards-tab surface above never renders. Promised without a
+        // class row for the same reason — the lane seeds no findings.
+        asserts: [
+            {
+                label: "classes panel",
+                locator: { role: "heading", name: "Classes" },
+                check: "visible",
+            },
+            {
+                label: "class filters",
+                locator: { selector: "[data-bot-findings-class-filters]" },
+                check: "visible",
+            },
+        ],
+        async walk(page, ctx) {
+            await goto(page, ctx, "/admin/bot-findings");
+            if (!(await visible(page, "h1:has-text('Bot Findings')", 10_000))) {
+                throw new Unreachable(
+                    "/admin/bot-findings did not render the page heading — is this account still an admin?"
+                );
+            }
+            await page.getByRole("tab", { name: "Classes" }).click();
+            await settle(page);
+        },
+    },
+    {
         id: "draft-lab",
         entries: [
             "src/routes/admin/admin-layout.route.tsx",

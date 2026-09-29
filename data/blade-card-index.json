@@ -1,0 +1,482 @@
+{
+    "Accumulated Knowledge": [
+        {
+            "label": "keep mana open: casts Accumulated Knowledge at the opponent's end step",
+            "tier": "must",
+            "needsSetup": true
+        }
+    ],
+    "Aladdin's Ring": [
+        {
+            "label": "cast-invariance: casts an affordable creature off a base its curve already justifies (issue #2928)",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
+    "Armageddon": [
+        {
+            "label": "symmetric sweep: casts Armageddon when the opponent holds the land surplus and the Bot the board",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
+    "Barbarian Ring": [
+        {
+            "label": "activation restriction: sacrifices Barbarian Ring at threshold for lethal",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
+    "Basking Rootwalla": [
+        {
+            "label": "madness-cast-when-affordable",
+            "tier": "must",
+            "needsSetup": true
+        }
+    ],
+    "Blue Elemental Blast": [
+        {
+            "label": "charter: picks the modal mode that survives a lethal red spell",
+            "tier": "must",
+            "needsSetup": true
+        }
+    ],
+    "Brain Freeze": [
+        {
+            "label": "decking: casts the storm kill that recurs its own Black Lotus",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
+    "Brightglass Gearhulk": [
+        {
+            "label": "free put: the caster puts a permanent in off its own Show and Tell",
+            "tier": "must",
+            "needsSetup": true
+        }
+    ],
+    "Broadside Bombardiers": [
+        {
+            "label": "boast: eats its Grizzly Bears to boast for lethal after attacking",
+            "tier": "must",
+            "needsSetup": true
+        }
+    ],
+    "Containment Priest": [
+        {
+            "label": "flash permanent NEGATIVE CONTROL: casts Containment Priest as the only surviving block",
+            "tier": "must",
+            "needsSetup": true
+        },
+        {
+            "label": "keep mana open: casts Containment Priest at the opponent's end step",
+            "tier": "must",
+            "needsSetup": true
+        }
+    ],
+    "Damnation": [
+        {
+            "label": "dominance NEGATIVE CONTROL: still casts Damnation into a real board",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
+    "Dark Ritual": [
+        {
+            "label": "wasted mana NEGATIVE CONTROL: casts Dark Ritual when it turns on a Craw Wurm",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
+    "Deceiver Exarch": [
+        {
+            "label": "combo: activates Splinter Twin on enchanted Deceiver Exarch",
+            "tier": "stretch",
+            "needsSetup": false
+        }
+    ],
+    "Exalted Angel": [
+        {
+            "label": "morph: casts Exalted Angel face down for {3} on three lands",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
+    "Fallen Shinobi": [
+        {
+            "label": "ninjutsu: swaps its unblocked attacker for Fallen Shinobi",
+            "tier": "must",
+            "needsSetup": true
+        }
+    ],
+    "Figure of Destiny": [
+        {
+            "label": "free put: the caster puts a permanent in off its own Show and Tell",
+            "tier": "must",
+            "needsSetup": true
+        }
+    ],
+    "Firebolt": [
+        {
+            "label": "graveyard-cast: flashes back Firebolt from the graveyard for lethal",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
+    "Flash": [
+        {
+            "label": "cheat into play: casts for a body that pays on the way out",
+            "tier": "must",
+            "needsSetup": false
+        },
+        {
+            "label": "cheat into play: the reported Worldspine Wurm position",
+            "tier": "stretch",
+            "needsSetup": false
+        }
+    ],
+    "Forest": [
+        {
+            "label": "positive-control: plays its only land on an empty board",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
+    "Grapeshot": [
+        {
+            "label": "storm: Grapeshot is lethal because the search counts the spell cast before it",
+            "tier": "must",
+            "needsSetup": true
+        }
+    ],
+    "Grizzly Bears": [
+        {
+            "label": "battle cry: swings for exactly-lethal only the pump provides",
+            "tier": "must",
+            "needsSetup": false
+        },
+        {
+            "label": "cast permission: casts a creature for free under Aluren with no lands",
+            "tier": "must",
+            "needsSetup": false
+        },
+        {
+            "label": "charter: chump-blocks to survive lethal (block or die)",
+            "tier": "must",
+            "needsSetup": true
+        },
+        {
+            "label": "combo: activates Splinter Twin on granted Grizzly Bears (#2469)",
+            "tier": "must",
+            "needsSetup": false
+        },
+        {
+            "label": "depletion land: pays the two-drop with the basics, sparing the land's charge",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
+    "Hibernation": [
+        {
+            "label": "bounce sweep: casts Hibernation when the opponent holds the green surplus",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
+    "Hill Giant": [
+        {
+            "label": "informed opponent: DOES attack when the deck cannot hold the trick",
+            "tier": "must",
+            "needsSetup": false
+        },
+        {
+            "label": "stretch: attacks with a lone 3/3 into an empty board",
+            "tier": "stretch",
+            "needsSetup": false
+        }
+    ],
+    "Impulse": [
+        {
+            "label": "keep mana open: casts Impulse at the opponent's end step",
+            "tier": "must",
+            "needsSetup": true
+        }
+    ],
+    "Incinerate": [
+        {
+            "label": "burst mana: kills with a two-mana spell off a single Black Lotus",
+            "tier": "must",
+            "needsSetup": false
+        },
+        {
+            "label": "zero-output mana source: casts its removal instead of tapping a 0-counter Everflowing Chalice",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
+    "Iron-Shield Elf": [
+        {
+            "label": "activation payoff: Iron-Shield Elf saves itself from removal on the stack",
+            "tier": "must",
+            "needsSetup": true
+        },
+        {
+            "label": "defensive grant NEGATIVE CONTROL: buys indestructible against a lethal block",
+            "tier": "must",
+            "needsSetup": true
+        }
+    ],
+    "Ironroot Treefolk": [
+        {
+            "label": "blind defender: blocks anyway — the trick is in hand, but nothing lawfully says so",
+            "tier": "must",
+            "needsSetup": true
+        },
+        {
+            "label": "informed defender: DOES block when the attacker's deck cannot hold the trick",
+            "tier": "must",
+            "needsSetup": true
+        },
+        {
+            "label": "informed defender: DOES block when the attacker's open land cannot PAY for the trick",
+            "tier": "must",
+            "needsSetup": true
+        }
+    ],
+    "Lightning Bolt": [
+        {
+            "label": "escape: reaches for a Lightning Bolt Underworld Breach made escapable",
+            "tier": "must",
+            "needsSetup": false
+        },
+        {
+            "label": "stretch: Chrome Mox imprints a card rather than nothing",
+            "tier": "stretch",
+            "needsSetup": true
+        },
+        {
+            "label": "sunglasses of urza: spends white mana as red for exact lethal (CR 609.4b)",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
+    "Liliana of the Veil": [
+        {
+            "label": "loyalty: activates Liliana's −2 to eat the opponent's only creature",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
+    "Lingering Souls": [
+        {
+            "label": "entomb: buries the self-reachable card, not the bigger body",
+            "tier": "must",
+            "needsSetup": true
+        }
+    ],
+    "Mother of Runes": [
+        {
+            "label": "activation payoff: Mother of Runes protects itself against removal on the stack",
+            "tier": "must",
+            "needsSetup": true
+        }
+    ],
+    "Phyrexian Dreadnought": [
+        {
+            "label": "discriminating pair: casts Phyrexian Dreadnought WITH an out (Stifle)",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
+    "Polluted Delta": [
+        {
+            "label": "charter: cracks its fetchland for the only answer to a trigger on the stack",
+            "tier": "must",
+            "needsSetup": true
+        }
+    ],
+    "Prodigal Sorcerer": [
+        {
+            "label": "activation payoff: Prodigal Sorcerer zaps in response to removal aimed at it",
+            "tier": "must",
+            "needsSetup": true
+        }
+    ],
+    "Pyroclasm": [
+        {
+            "label": "damage sweep: casts Pyroclasm when the opponent holds the bodies it kills and the Bot a survivor",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
+    "Raging Kavu": [
+        {
+            "label": "flash permanent NEGATIVE CONTROL: still casts hasty Raging Kavu for lethal this turn",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
+    "Raven Familiar": [
+        {
+            "label": "cast permission: casts Raven Familiar for free under Aluren with no lands",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
+    "Replenish": [
+        {
+            "label": "replenish: casts the mass return with three enchantments in the graveyard",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
+    "Robber of the Rich": [
+        {
+            "label": "known top: plays the creature instead when the known top is a blank",
+            "tier": "must",
+            "needsSetup": true
+        }
+    ],
+    "Sandstorm Salvager": [
+        {
+            "label": "dominance NEGATIVE CONTROL: activates the Salvager once a token exists",
+            "tier": "must",
+            "needsSetup": true
+        }
+    ],
+    "Sanguine Evangelist": [
+        {
+            "label": "battle cry: swings for exactly-lethal only the pump provides",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
+    "Seal of Doom": [
+        {
+            "label": "sorcery-speed permanent: deploys a Seal with the mana open and nothing else to do",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
+    "Sengir Vampire": [
+        {
+            "label": "entomb: buries the reanimation target, not one of eight lands",
+            "tier": "must",
+            "needsSetup": true
+        }
+    ],
+    "Serra Angel": [
+        {
+            "label": "free put: the second chooser still puts its creature in after the opponent's bigger one",
+            "tier": "must",
+            "needsSetup": true
+        }
+    ],
+    "Sheoldred's Edict": [
+        {
+            "label": "sacrifice sign NEGATIVE CONTROL: still casts a genuine edict",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
+    "Splinter Twin": [
+        {
+            "label": "combo: casts Splinter Twin on Deceiver Exarch with both pieces assembled",
+            "tier": "stretch",
+            "needsSetup": false
+        }
+    ],
+    "Stifle": [
+        {
+            "label": "charter: Stifles its own Phyrexian Dreadnought trigger",
+            "tier": "must",
+            "needsSetup": true
+        }
+    ],
+    "Stone Rain": [
+        {
+            "label": "board-aware removal: casts Stone Rain on a land when there is nothing better to do",
+            "tier": "must",
+            "needsSetup": false
+        },
+        {
+            "label": "colour denial: destroys the only source of a colour the opponent is visibly using",
+            "tier": "must",
+            "needsSetup": false
+        },
+        {
+            "label": "informed colour denial: the decklist, not the board, picks which land dies",
+            "tier": "stretch",
+            "needsSetup": false
+        },
+        {
+            "label": "informed colour denial: the same board demands the OTHER land on the mirrored decklist",
+            "tier": "stretch",
+            "needsSetup": false
+        }
+    ],
+    "Subtlety": [
+        {
+            "label": "free put: the caster puts a permanent in off its own Show and Tell",
+            "tier": "must",
+            "needsSetup": true
+        }
+    ],
+    "Swamp": [
+        {
+            "label": "charter: fetches the land that makes its removal castable",
+            "tier": "must",
+            "needsSetup": true
+        }
+    ],
+    "Sylvan Safekeeper": [
+        {
+            "label": "activation payoff: cracks Sylvan Safekeeper against removal on the stack",
+            "tier": "must",
+            "needsSetup": true
+        }
+    ],
+    "Teferi's Response": [
+        {
+            "label": "reachability: counters an opponent's land-targeting activation with Teferi's Response",
+            "tier": "stretch",
+            "needsSetup": true
+        }
+    ],
+    "Thought Scour": [
+        {
+            "label": "known top: digs with a cantrip because it knows the Bolt is there",
+            "tier": "must",
+            "needsSetup": true
+        }
+    ],
+    "Walking Ballista": [
+        {
+            "label": "activation payoff: shoots its own last counter at a face on 1",
+            "tier": "must",
+            "needsSetup": false
+        },
+        {
+            "label": "activation payoff: shoots its own last counter at the opponent's end step for lethal",
+            "tier": "must",
+            "needsSetup": true
+        },
+        {
+            "label": "activation payoff: shoots its own last counter when the block has already doomed it",
+            "tier": "must",
+            "needsSetup": true
+        }
+    ],
+    "Zuran Orb": [
+        {
+            "label": "activation timing: converts a sacrifice engine at the opponent's end step",
+            "tier": "must",
+            "needsSetup": true
+        },
+        {
+            "label": "discriminating pair: activates Zuran Orb when Titania pays the land off (issue #2686)",
+            "tier": "must",
+            "needsSetup": true
+        }
+    ]
+}
