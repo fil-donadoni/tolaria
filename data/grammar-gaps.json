@@ -376,6 +376,11 @@
         },
         {
             "kind": "bot",
+            "key": "never-chosen › Creature [first strike] › lookDistribute",
+            "issue": 4889
+        },
+        {
+            "kind": "bot",
             "key": "never-chosen › Creature [flash,haste] › (no Ops)",
             "issue": 4281
         },
@@ -403,6 +408,16 @@
             "kind": "bot",
             "key": "never-chosen › Creature [flash] › destroy",
             "issue": 4073
+        },
+        {
+            "kind": "bot",
+            "key": "never-chosen › Creature [flying] › destroy",
+            "issue": 4887
+        },
+        {
+            "kind": "bot",
+            "key": "never-chosen › Creature [flying] › destroy+forEach+if",
+            "issue": 4890
         },
         {
             "kind": "bot",
@@ -456,6 +471,11 @@
         },
         {
             "kind": "bot",
+            "key": "never-chosen › Creature › destroy",
+            "issue": 4885
+        },
+        {
+            "kind": "bot",
             "key": "never-chosen › Creature › destroy+forEach+if",
             "issue": 4284
         },
@@ -476,6 +496,11 @@
         },
         {
             "kind": "bot",
+            "key": "never-chosen › Creature › draw+libraryLook+moveZone",
+            "issue": 4891
+        },
+        {
+            "kind": "bot",
             "key": "never-chosen › Creature › draw+pump",
             "issue": 4287
         },
@@ -483,6 +508,11 @@
             "kind": "bot",
             "key": "never-chosen › Creature › gainLife+loseLife",
             "issue": 4277
+        },
+        {
+            "kind": "bot",
+            "key": "never-chosen › Creature › grantAbility+lookDistribute",
+            "issue": 4892
         },
         {
             "kind": "bot",
@@ -736,8 +766,18 @@
         },
         {
             "kind": "bot",
+            "key": "position-unmodelled › Creature",
+            "issue": 4888
+        },
+        {
+            "kind": "bot",
             "key": "position-unmodelled › Creature [convoke,delve,trample]",
             "issue": 4845
+        },
+        {
+            "kind": "bot",
+            "key": "position-unmodelled › Creature [flash]",
+            "issue": 4886
         },
         {
             "kind": "bot",
