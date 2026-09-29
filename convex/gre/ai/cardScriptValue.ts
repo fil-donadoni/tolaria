@@ -55,9 +55,11 @@ function effectiveScript(site: {
     return undefined;
 }
 
-/** Ability scripts are conditional and often one-shot (an ETB, a tap ability),
- *  and the creature body already counts the permanent — so their script value
- *  is discounted before being added to the body (never doubled with it). */
+/** Standing ability scripts are conditional (a tap ability still has to be
+ *  paid for and used), and the creature body already counts the permanent —
+ *  so their LATENT script value is discounted before being added to the body
+ *  (never doubled with it). An ETB Ability is not: casting the card fires it
+ *  (issue #4758, `dslLatentAbilityScriptOpValue`). */
 const ABILITY_SCRIPT_DISCOUNT = 0.5;
 
 /** True when any part of `value` reads a BINDING (`{ ref: "$x" }`) at all — a
@@ -434,18 +436,22 @@ export function dslAbilityScriptOpValue(
     return abilityScriptOpValue(def, ctx, self, "realized");
 }
 
-/** Which Card Value face an ability reading is for (issue #4758). An **ETB
+/** Which of a card's abilities a reading covers (issue #4758). An **ETB
  *  Ability** (`TriggeredAbility.etbAbility`, CR 603.6a) is spent the moment
- *  its permanent enters: it belongs to the `latent` face (hand, library,
- *  graveyard, playable exile) and never to the `realized` one — on the
- *  battlefield, what it did is already in the state it left behind. */
-type AbilityFace = "latent" | "realized";
+ *  its permanent enters: it belongs to the latent face (hand, library,
+ *  graveyard, playable exile) and never to the realized one — on the
+ *  battlefield, what it did is already in the state it left behind.
+ *
+ *  `"realized"` reads every ability EXCEPT the ETB Abilities (plus the
+ *  delayed-trigger templates); `"etb"` reads the ETB Abilities alone. The
+ *  latent reader sums the two at different discounts. */
+type AbilitySelection = "realized" | "etb";
 
 function abilityScriptOpValue(
     def: CardDefinition,
     ctx: GroundingContext,
     self: PermanentView | undefined,
-    face: AbilityFace
+    selection: AbilitySelection
 ): OpValue | undefined {
     let acc: OpValue | undefined;
     const abilities: {
@@ -466,7 +472,7 @@ function abilityScriptOpValue(
         // realized worth. Only an explicit `true` counts as spent: an
         // unclassified trigger stays realized (fail-closed, the census in
         // `etbAbilityCensus.bot.test.ts` keeps the catalogue classified).
-        if (face === "realized" && ability.etbAbility === true) continue;
+        if ((ability.etbAbility === true) !== (selection === "etb")) continue;
         // CR 603.6e / 602.5b / issue #1964 (review round 1) — a GRAVEYARD-
         // sourced ability's `$source` denotes a GRAVEYARD card, not a
         // battlefield permanent, on EITHER ability shape: a `TriggeredAbility`
@@ -519,6 +525,7 @@ function abilityScriptOpValue(
     // Un-gated and un-discounted, matching the inline `delayedTrigger` Op's
     // own valuer; the latent (in-hand) reader below discounts the merged total
     // exactly as it discounts an ability script.
+    if (selection === "etb") return acc;
     const templates = delayedTriggerTemplateOpValue(def, ctx);
     if (templates) acc = acc ? mergeOpValue(acc, templates) : templates;
     return acc;
@@ -547,19 +554,28 @@ export function dslRealizedAbilityScriptValue(
  *  (in-hand) sibling of `dslAbilityScriptOpValue`: points scaled by
  *  `ABILITY_SCRIPT_DISCOUNT` (tags are a membership fact, not a magnitude —
  *  discounting them makes no sense), and the card's ETB Abilities INCLUDED
- *  (issue #4758): in hand they are still potential, priced context-free at
- *  their Representative Victim times the Latent Weight, whatever the board. `undefined` when the card has no
+ *  at full value (issue #4758): in hand they are still potential, priced
+ *  context-free at their Representative Victim times the Latent Weight,
+ *  whatever the board, and casting the card is all it takes to fire them. `undefined` when the card has no
  *  ability scripts (same convention as the realized reader). */
 export function dslLatentAbilityScriptOpValue(
     def: CardDefinition,
     ctx: GroundingContext = contextFreeGrounding()
 ): OpValue | undefined {
-    const whole = abilityScriptOpValue(def, ctx, undefined, "latent");
-    if (!whole) return undefined;
-    return {
-        points: whole.points * ABILITY_SCRIPT_DISCOUNT,
-        tags: whole.tags,
+    const standing = abilityScriptOpValue(def, ctx, undefined, "realized");
+    const etb = abilityScriptOpValue(def, ctx, undefined, "etb");
+    const discounted = standing && {
+        points: standing.points * ABILITY_SCRIPT_DISCOUNT,
+        tags: standing.tags,
     };
+    // Issue #4758 — an ETB Ability is NOT discounted: casting the card fires
+    // it, with no further cost or condition to meet (a gate still weighs it
+    // through `gateWeight`), whereas a standing ability still has to be paid
+    // for and used. Discounting it the same way priced the potential a
+    // player holds the card for below what the body gains by entering, so
+    // no ETB could ever be worth waiting for.
+    if (!discounted) return etb;
+    return etb ? mergeOpValue(discounted, etb) : discounted;
 }
 
 /** The DSL ability-script value of a card's activated + triggered abilities
