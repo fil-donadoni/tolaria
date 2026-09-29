@@ -26,14 +26,6 @@ export const ROBUSTNESS_BASELINE: readonly RobustnessBaselineRow[] = [
         issue: 4877,
     },
     {
-        label: "Sacrifice-for-removal outlet: casts the creature",
-        issue: 4877,
-    },
-    {
-        label: "Sacrifice-for-draw outlet: casts the creature",
-        issue: 4877,
-    },
-    {
         label: "Discard sorcery with a sacrifice cost: casts it into a full hand",
         issue: 4877,
     },
