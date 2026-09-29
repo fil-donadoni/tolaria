@@ -11,13 +11,25 @@
 // seed: every write's type is {@link MeasuredFindingFields} (or a part of
 // it), pinned to {@link MEASURED_FINDING_FIELDS}, so a human field in a seed
 // write reds `tsc` instead of riding along by accident. No mutation writes a measured field except the seed.
-import { v, type Infer } from "convex/values";
+import { ConvexError, v, type Infer } from "convex/values";
 import type { BotReachTrace } from "./gre/ai/botReachTrace";
 
 /** A finding produced by the Bot-play sweep. Human-reported findings (issue
  *  #4182) take another source, so the two never overwrite each other on one
  *  card (ADR 0141 § 1: the key is `(oracleId, source)`). */
 export const SWEEP_SOURCE = "sweep";
+
+/** A finding a human noticed — the owner, a tester, a user's bug report
+ *  (issue #4182, ADR 0141 § 7). Its own source, so a report never overwrites
+ *  the measured row on the same card; `planFindingWrites` reads the sweep
+ *  source only, so no seed can reach it either. */
+export const HUMAN_SOURCE = "human";
+
+/** Stamps a human row carries where a measured row carries the sweep's: there
+ *  is no measurement behind it. `botHash` is empty, and
+ *  `isStaleFinding` never judges a non-sweep row — a report is not "measured
+ *  under an older Bot". */
+export const HUMAN_STAMP = "human-report";
 
 /** Which definition the measured card shipped with — `ShippedSource` in
  *  `scripts/lib/oracle-bot-reach.ts`, restated: that module drags the engine. */
@@ -476,4 +488,77 @@ export function planClassWrites(
             });
     }
     return writes;
+}
+
+// ── Human findings: reproducer gate and snooze (issue #4182, ADR 0141 § 7/10) ─
+
+/** A finding as the gate reads it: where it came from and what reproduces it. */
+export interface GateableFinding {
+    readonly source: string;
+    readonly reproducers?: readonly string[];
+}
+
+/** Does the finding carry at least one Reproducer label? */
+export function hasReproducer(finding: GateableFinding): boolean {
+    return (finding.reproducers ?? []).length > 0;
+}
+
+/** ADR 0141 § 7: a non-sweep finding is admissible only with a Reproducer.
+ *  Without one it waits in triage — visible, outside every count, with no
+ *  copy button. A sweep row is measured, so it is admitted by construction. */
+export function isTriage(finding: GateableFinding): boolean {
+    return finding.source !== SWEEP_SOURCE && !hasReproducer(finding);
+}
+
+/** Snoozed = deliberately out of scope: leaves the counts, keeps the record. */
+export function isSnoozed(finding: { readonly snoozedAt?: number }): boolean {
+    return finding.snoozedAt !== undefined;
+}
+
+/** Does the row count toward the page's numbers? Neither triage nor snoozed. */
+export function countsTowardTotals(
+    finding: GateableFinding & { readonly snoozedAt?: number }
+): boolean {
+    return !isTriage(finding) && !isSnoozed(finding);
+}
+
+/** A note is a pointer, not a document — the linked issue carries the rest. */
+export const MAX_NOTE_LENGTH = 2000;
+
+/** Trim a note and refuse one past {@link MAX_NOTE_LENGTH}; `""` clears it. */
+export function checkedNote(note: string): string {
+    const trimmed = note.trim();
+    if (trimmed.length > MAX_NOTE_LENGTH)
+        throw new ConvexError(
+            `A note is at most ${MAX_NOTE_LENGTH} characters`
+        );
+    return trimmed;
+}
+
+/** Trim and validate a Reproducer label list: no blanks, no duplicates. */
+export function normalizeReproducers(labels: readonly string[]): string[] {
+    const seen = new Set<string>();
+    for (const raw of labels) {
+        const label = raw.trim();
+        if (label !== "") seen.add(label);
+    }
+    return [...seen];
+}
+
+/** The labels a Reproducer may name that resolve to nothing — a Reproducer is
+ *  a blade entry or a saved scenario "named by its label", and a label that
+ *  rebuilds no position is an anecdote in disguise. */
+export function unknownReproducers(
+    labels: readonly string[],
+    knownLabels: ReadonlySet<string>
+): string[] {
+    return labels.filter((label) => !knownLabels.has(label));
+}
+
+/** Snooze needs a reason (ADR 0141 § 10) — a snooze nobody can explain is a
+ *  deletion. Returns the trimmed reason; throws on a blank one. */
+export function requireSnoozeReason(reason: string): string {
+    const trimmed = reason.trim();
+    if (trimmed === "") throw new ConvexError("A snooze needs a reason");
+    return trimmed;
 }

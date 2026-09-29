@@ -19,8 +19,14 @@ const ACTIONS: FindingLaunchActions = {
     onLaunch,
 };
 
+const mutationCalls: { name: string; args: unknown }[] = [];
+
 vi.mock("convex/react", () => ({
     useQuery: (query: { _name: string }) => answers[query._name],
+    useMutation: (mutation: { _name: string }) => (args: unknown) => {
+        mutationCalls.push({ name: mutation._name, args });
+        return Promise.resolve(null);
+    },
 }));
 
 vi.mock("@convex/_generated/api", () => {
@@ -440,5 +446,147 @@ describe("BotFindingsCardsPanel — copy and launch (issue #4178)", () => {
         const text = (writeText.mock.calls[0] as unknown as [string])[0];
         expect(text.startsWith("/next-issue 4400\n")).toBe(true);
         expect(text).toContain("Mystic Denial");
+    });
+});
+
+// ── Human findings: triage, reproducer gate, snooze (issue #4182) ──────────
+
+const HUMAN_BASE = {
+    source: "human",
+    targets: [],
+    outcome: "ignored",
+    botHash: "",
+    measuredAt: "2026-09-29T10:00:00.000Z",
+    status: "open",
+};
+const TRIAGE = {
+    ...HUMAN_BASE,
+    _id: "h-triage",
+    oracleId: "o-triage",
+    name: "Triage Card",
+    note: "the Bot never casts it",
+};
+const ADMITTED = {
+    ...HUMAN_BASE,
+    _id: "h-admitted",
+    oracleId: "o-admitted",
+    name: "Admitted Card",
+    reproducers: ["saved: stuck board"],
+};
+const SNOOZED = {
+    _id: "f-snoozed",
+    oracleId: "o-snoozed",
+    source: "sweep",
+    name: "Snoozed Card",
+    targets: ["vintage-cube"],
+    outcome: "ignored",
+    cause: "never-chosen",
+    gap: NEVER,
+    blame: "bot",
+    botHash: "sha256:25ee",
+    measuredAt: "2026-09-23T13:17:56.829Z",
+    snoozedAt: 1,
+    snoozeReason: "Un-card, deliberately out of scope",
+    status: "open",
+};
+
+const row = (id: string) =>
+    document.querySelector(`[data-bot-finding-row="${id}"]`);
+
+describe("BotFindingsCardsPanel — human findings (issue #4182)", () => {
+    beforeEach(() => {
+        answers.listFindings = [...FINDINGS, TRIAGE, ADMITTED, SNOOZED];
+        mutationCalls.length = 0;
+    });
+
+    it("renders a report without a reproducer in triage: uncounted and with no copy button", () => {
+        render(<BotFindingsCardsPanel actions={ACTIONS} />);
+        const triage = document.querySelector("[data-bot-findings-triage]")!;
+        const triageRow = within(triage as HTMLElement);
+        expect(triageRow.getByText("Triage Card")).toBeTruthy();
+        expect(triage.textContent).toContain("Triage (1)");
+        expect(triage.querySelector("[data-bot-finding-copy]")).toBeNull();
+        // Outside the main list, and outside the header count: the two sweep
+        // rows plus the admitted report, never triage or the snoozed one.
+        expect(
+            document.querySelectorAll(
+                "[data-bot-findings-triage] [data-bot-finding-row]"
+            )
+        ).toHaveLength(1);
+        expect(screen.getByText("3 cards the Bot does not play")).toBeTruthy();
+    });
+
+    it("gives a report with a reproducer the normal list and the copy affordance", () => {
+        render(<BotFindingsCardsPanel actions={ACTIONS} />);
+        const admitted = row("o-admitted")!;
+        expect(admitted.closest("[data-bot-findings-triage]")).toBeNull();
+        expect(admitted.querySelector("[data-bot-finding-copy]")).toBeTruthy();
+        expect(admitted.textContent).toContain("saved: stuck board");
+        // The measured rows keep theirs too.
+        expect(
+            row("o-grist")!.querySelector("[data-bot-finding-copy]")
+        ).toBeTruthy();
+    });
+
+    it("hides a snoozed row from the default list and the counts, and reaches it by filter", () => {
+        render(<BotFindingsCardsPanel actions={ACTIONS} />);
+        expect(row("o-snoozed")).toBeNull();
+        fireEvent.click(screen.getByRole("radio", { name: "Snoozed" }));
+        const snoozed = row("o-snoozed")!;
+        expect(snoozed).toBeTruthy();
+        expect(snoozed.textContent).toContain(
+            "Snoozed — Un-card, deliberately out of scope"
+        );
+        expect(row("o-grist")).toBeNull();
+        expect(screen.getByText("3 cards the Bot does not play")).toBeTruthy();
+    });
+
+    it("keeps Snooze off until a reason is typed, then sends it", () => {
+        render(<BotFindingsCardsPanel actions={ACTIONS} />);
+        const scope = within(row("o-grist") as HTMLElement);
+        const button = scope.getByRole("button", { name: "Snooze" });
+        expect((button as HTMLButtonElement).disabled).toBe(true);
+        fireEvent.change(scope.getByLabelText("Snooze reason"), {
+            target: { value: "  " },
+        });
+        expect((button as HTMLButtonElement).disabled).toBe(true);
+        fireEvent.change(scope.getByLabelText("Snooze reason"), {
+            target: { value: "out of scope" },
+        });
+        expect((button as HTMLButtonElement).disabled).toBe(false);
+        fireEvent.click(button);
+        expect(mutationCalls).toEqual([
+            {
+                name: "snoozeFinding",
+                args: { id: "f-1", reason: "out of scope" },
+            },
+        ]);
+    });
+
+    it("saves a note and a linked issue, showing them on the row", () => {
+        answers.listFindings = [
+            { ...FINDINGS[0], note: "seen in the cube", linkedIssue: 4300 },
+        ];
+        render(<BotFindingsCardsPanel actions={ACTIONS} />);
+        const grist = row("o-grist")!;
+        expect(grist.textContent).toContain("seen in the cube");
+        expect(grist.textContent).toContain("Linked: issue #4300");
+        const scope = within(grist as HTMLElement);
+        fireEvent.change(scope.getByLabelText("Linked issue number"), {
+            target: { value: "4301" },
+        });
+        fireEvent.click(
+            scope.getByRole("button", { name: "Save note and issue" })
+        );
+        expect(mutationCalls).toEqual([
+            {
+                name: "annotateFinding",
+                args: {
+                    id: "f-1",
+                    note: "seen in the cube",
+                    linkedIssue: 4301,
+                },
+            },
+        ]);
     });
 });

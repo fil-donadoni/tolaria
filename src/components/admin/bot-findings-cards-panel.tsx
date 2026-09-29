@@ -5,14 +5,19 @@ import { Panel, PanelHeader, PanelBody } from "@/components/ui/panel";
 import { Banner } from "@/components/ui/banner";
 import SegmentedControl from "@/components/ui/segmented-control";
 import {
+    countedFindings,
     distinctSorted,
     filterByStaleness,
+    filterByVisibility,
     isStaleFinding,
     matchesFindingFilters,
     measurementSummary,
     stalenessSummary,
     EMPTY_FINDING_FILTERS,
     STALENESS_FILTERS,
+    triageFindings,
+    VISIBILITY_FILTERS,
+    type FindingVisibility,
     type StalenessFilter,
 } from "@/lib/botFindings";
 import {
@@ -20,6 +25,7 @@ import {
     type FindingStatus,
 } from "@convex/gre/ai/botFindingState";
 import type { FindingLaunchActions } from "@/lib/ai/bot-finding-launch";
+import BotFindingReportForm from "./bot-finding-report-form";
 import BotFindingRow from "./bot-finding-row";
 import BotFindingsFilterSelect from "./bot-findings-filter-select";
 
@@ -41,6 +47,11 @@ const STATUS_OPTIONS = (
  * measured under an older Bot hash. Those rows carry a stale flag and can be
  * filtered to; the filter narrows the list, staleness never removes a row.
  *
+ * Human reports (issue #4182) sit beside the measured rows under their own
+ * source. A report without a Reproducer waits in the triage bucket below —
+ * visible, outside every count, no copy button; a snoozed row leaves the
+ * counts and the default list but stays reachable by the visibility filter.
+ *
  * Every query is `assertIsAdmin`-gated server-side; the route gate is cosmetic.
  */
 export default function BotFindingsCardsPanel({
@@ -58,17 +69,26 @@ export default function BotFindingsCardsPanel({
     const classByKey = new Map((classes ?? []).map((c) => [c.key, c]));
     const [filters, setFilters] = useState(EMPTY_FINDING_FILTERS);
     const [staleness, setStaleness] = useState<StalenessFilter>("all");
+    const [visibility, setVisibility] = useState<FindingVisibility>("active");
 
     const allTargets = [
         ...new Set((findings ?? []).flatMap((f) => f.targets)),
     ].sort();
     const causes = distinctSorted(findings ?? [], (f) => f.cause);
+    const counted = countedFindings(findings ?? []);
+    const triage = triageFindings(findings ?? []);
     const filtered = (
-        loaded ? filterByStaleness(findings, staleness, measurement) : []
+        loaded
+            ? filterByStaleness(
+                  filterByVisibility(findings, visibility),
+                  staleness,
+                  measurement
+              )
+            : []
     ).filter((f) => matchesFindingFilters(f, filters));
     const staleNote =
         loaded && measurement !== null
-            ? stalenessSummary(findings, measurement)
+            ? stalenessSummary(counted, measurement)
             : null;
 
     return (
@@ -78,7 +98,7 @@ export default function BotFindingsCardsPanel({
                 subtitle={
                     !loaded
                         ? "Loading…"
-                        : `${findings.filter((f) => f.outcome !== "played").length} cards the Bot does not play`
+                        : `${counted.filter((f) => f.outcome !== "played").length} cards the Bot does not play`
                 }
             />
             <PanelBody className="flex flex-col gap-3">
@@ -96,6 +116,24 @@ export default function BotFindingsCardsPanel({
                     <Banner tone="danger" data-bot-findings-stale-banner="">
                         {staleNote}
                     </Banner>
+                )}
+                {loaded && (
+                    <details data-bot-findings-report-toggle="">
+                        <summary className="cursor-pointer text-sm text-text-muted">
+                            Report a finding a human noticed
+                        </summary>
+                        <div className="mt-2">
+                            <BotFindingReportForm />
+                        </div>
+                    </details>
+                )}
+                {loaded && findings.length > 0 && (
+                    <SegmentedControl
+                        ariaLabel="Filter by snooze"
+                        options={VISIBILITY_FILTERS}
+                        value={visibility}
+                        onChange={setVisibility}
+                    />
                 )}
                 {loaded && measurement !== null && findings.length > 0 && (
                     <SegmentedControl
@@ -203,6 +241,32 @@ export default function BotFindingsCardsPanel({
                             }
                         />
                     ))
+                )}
+                {loaded && triage.length > 0 && (
+                    <section
+                        data-bot-findings-triage=""
+                        aria-label="Triage"
+                        className="flex flex-col gap-3"
+                    >
+                        <h3 className="text-sm font-semibold text-text">
+                            Triage ({triage.length})
+                        </h3>
+                        <p className="text-xs text-text-muted">
+                            Human reports without a reproducer. They are outside
+                            every count until a blade entry or saved scenario
+                            rebuilds the position.
+                        </p>
+                        {triage.map((finding) => (
+                            <BotFindingRow
+                                key={finding._id}
+                                finding={finding}
+                                stale={false}
+                                cls={undefined}
+                                measurement={measurement}
+                                actions={actions}
+                            />
+                        ))}
+                    </section>
                 )}
             </PanelBody>
         </Panel>
