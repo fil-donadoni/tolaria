@@ -154,13 +154,11 @@ import {
     type KindInputs,
 } from "./lib/gap-kinds";
 import { LOCKFILE_PATH } from "./check-gaps";
+import { botHash, FINDINGS_PATH, parseFindings } from "./lib/oracle-bot-reach";
 import {
-    botHash,
-    FINDINGS_PATH,
-    mergeBotVerdicts,
-    parseFindings,
-    type BotGapVerdict,
-} from "./lib/oracle-bot-reach";
+    mergeAllBotVerdicts,
+    type BotFindingVerdict,
+} from "./lib/bot-findings-merge";
 import { parseLockfile } from "./lib/oracle-lockfile";
 import {
     claimId,
@@ -682,7 +680,7 @@ export function buildAllFilings(
     ctx: ReturnType<typeof resolveContext>,
     /** The Bot Reach Findings report merged over the lockfile (issue #4406) —
      *  absent exactly when `data/bot-reach-findings.json` is missing. */
-    botFindings?: ReadonlyMap<string, BotGapVerdict>,
+    botFindings?: ReadonlyMap<string, BotFindingVerdict>,
     /** Oracle id → the open issue naming the card in its `## Cards` section
      *  (issue #4515) — what a card-keyed claim adopts instead of filing. */
     openCardIssues?: ReadonlyMap<string, readonly number[]>
@@ -1078,10 +1076,10 @@ export function closeClaims(
 export function trustedBotFindings(
     findings: unknown | null,
     botMerge: {
-        readonly merged: ReadonlyMap<string, BotGapVerdict>;
+        readonly merged: ReadonlyMap<string, BotFindingVerdict>;
         readonly stale: readonly string[];
     }
-): ReadonlyMap<string, BotGapVerdict> | null {
+): ReadonlyMap<string, BotFindingVerdict> | null {
     return findings !== null && botMerge.stale.length === 0
         ? botMerge.merged
         : null;
@@ -1154,7 +1152,7 @@ function main(): void {
     // catches up the next time `oracle:compile` REPLAYS a card, so it can
     // lag behind the Bot's actual source for arbitrarily long between full
     // compiler runs (`mergeBotVerdicts`'s own doc).
-    const botMerge = mergeBotVerdicts(findings, lock.cards, botHash(root));
+    const botMerge = mergeAllBotVerdicts(findings, lock.cards, botHash(root));
     if (botMerge.stale.length > 0) {
         const nameOf = new Map([
             ...(findings?.findings ?? []).map(

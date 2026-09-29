@@ -31,7 +31,7 @@ import {
     type GapFiling,
 } from "./gap-issues";
 import { gapOf } from "./grammar-gaps";
-import type { BotGapVerdict } from "./oracle-bot-reach";
+import type { BotFindingVerdict } from "./bot-findings-merge";
 import type { CardRow, Lockfile } from "./oracle-lockfile";
 import {
     claimId,
@@ -223,7 +223,7 @@ export interface KindInputs {
      * reads the committed one; a test that does not care about hand-written
      * Bot Gaps omits it and falls back to the lockfile's own `botReach`).
      */
-    readonly botFindings?: ReadonlyMap<string, BotGapVerdict>;
+    readonly botFindings?: ReadonlyMap<string, BotFindingVerdict>;
     /**
      * {@link rankedTargetIds} — what ranks a findings-only Bot card, which no
      * slice's `ids` holds (issue #4180). Absent: the priority slices' ids.
@@ -762,8 +762,8 @@ export function botCauseOf(key: string): string {
  */
 function mergedBotVerdict(
     row: CardRow,
-    findings?: ReadonlyMap<string, BotGapVerdict>
-): BotGapVerdict | undefined {
+    findings?: ReadonlyMap<string, BotFindingVerdict>
+): BotFindingVerdict | undefined {
     const found = findings?.get(row.oracleId);
     if (found !== undefined) return found;
     return row.botReach === undefined
@@ -775,7 +775,7 @@ function mergedBotVerdict(
 interface BotVerdictRow {
     readonly oracleId: string;
     readonly name: string;
-    readonly verdict: BotGapVerdict;
+    readonly verdict: BotFindingVerdict;
 }
 
 /**
@@ -786,7 +786,7 @@ interface BotVerdictRow {
  */
 function botVerdictRows(
     cards: readonly CardRow[],
-    findings?: ReadonlyMap<string, BotGapVerdict>
+    findings?: ReadonlyMap<string, BotFindingVerdict>
 ): BotVerdictRow[] {
     const rows: BotVerdictRow[] = [];
     const seen = new Set<string>();
@@ -809,7 +809,7 @@ function botVerdictRows(
  */
 function botCardRanked(
     oracleId: string,
-    verdict: BotGapVerdict,
+    verdict: BotFindingVerdict,
     ranked: ReadonlySet<string>,
     rankedTargets: ReadonlySet<string>
 ): boolean {
@@ -829,7 +829,7 @@ function botCardRanked(
 export function inScopeBotGapKeys(
     cards: readonly CardRow[],
     ranked: ReadonlySet<string>,
-    findings?: ReadonlyMap<string, BotGapVerdict>,
+    findings?: ReadonlyMap<string, BotFindingVerdict>,
     rankedTargets: ReadonlySet<string> = new Set()
 ): string[] {
     const keys = new Set<string>();
@@ -968,7 +968,7 @@ export interface ComputedGapKeys {
  */
 export function computedGapKeys(
     lock: Pick<Lockfile, "cards" | "fragments">,
-    botFindings: ReadonlyMap<string, BotGapVerdict> | null
+    botFindings: ReadonlyMap<string, BotFindingVerdict> | null
 ): ComputedGapKeys {
     const byKind = {
         mechanic: new Set<string>(),

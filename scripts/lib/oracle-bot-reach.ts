@@ -708,14 +708,6 @@ export function parseFindings(text: string): FindingsArtifact {
 export interface BotGapVerdict {
     readonly outcome: BotReachOutcome;
     readonly gap?: string;
-    /** Set only on a card the lockfile has no row for (a findings-only,
-     *  hand-written card): the filer has no lockfile row to read its name
-     *  from. */
-    readonly name?: string;
-    /** Set with {@link BotGapVerdict.name}: the Targets the report measured
-     *  the card under — the only Target attribution such a card has, since
-     *  no Target resolves it through the lockfile. */
-    readonly targets?: readonly string[];
 }
 
 /**
@@ -782,29 +774,6 @@ export function mergeBotVerdicts(
         if (used === undefined && row.botReach !== undefined)
             used = { outcome: row.botReach, gap: row.botGap };
         if (used !== undefined) merged.set(row.oracleId, used);
-    }
-    // A card the report measured and the lockfile has no row for — a
-    // hand-written definition with no compiled shadow — is a second input, not
-    // noise: its Bot Gap class exists nowhere else. Only a `hand-written` row
-    // counts: a `compiled` row with no lockfile row is an orphan of a card
-    // that left the corpus, so it is ignored — never stale, or one orphan
-    // would hold every `bot` claim open until `bot:reach` rewrote the report.
-    const lockIds = new Set(lockCards.map((row) => row.oracleId));
-    for (const report of findings?.findings ?? []) {
-        if (
-            lockIds.has(report.oracleId) ||
-            report.outcome === "unplayable" ||
-            report.source !== "hand-written"
-        )
-            continue;
-        if (globallyStale) stale.push(report.oracleId);
-        else
-            merged.set(report.oracleId, {
-                outcome: report.outcome,
-                gap: report.gap,
-                name: report.name,
-                targets: report.targets,
-            });
     }
     return { merged, stale: stale.sort() };
 }

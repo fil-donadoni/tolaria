@@ -22,6 +22,7 @@ import {
     type FindingsHeader,
     type MeasuredVerdict,
 } from "../lib/oracle-bot-reach";
+import { mergeAllBotVerdicts } from "../lib/bot-findings-merge";
 import type { CardRow } from "../lib/oracle-lockfile";
 import { aggregate, type CardMeasure } from "../target-bot-reach";
 
@@ -682,7 +683,7 @@ describe("mergeBotVerdicts — the report over the lockfile (issue #4406)", () =
                 }),
             ]
         );
-        const { merged, stale } = mergeBotVerdicts(findings, [], BOT_HASH);
+        const { merged, stale } = mergeAllBotVerdicts(findings, [], BOT_HASH);
         expect(stale).toEqual([]);
         expect(merged.get("h-1")).toEqual({
             outcome: "ignored",
@@ -703,14 +704,14 @@ describe("mergeBotVerdicts — the report over the lockfile (issue #4406)", () =
             source: "compiled",
             outcome: "ignored",
         });
-        const moved = mergeBotVerdicts(
+        const moved = mergeAllBotVerdicts(
             buildFindings(header(), ["t"], [hand]),
             [],
             "sha256:other"
         );
         expect([...moved.merged.keys()]).toEqual([]);
         expect(moved.stale).toEqual(["h-1"]);
-        const orphan = mergeBotVerdicts(
+        const orphan = mergeAllBotVerdicts(
             buildFindings(header(), ["t"], [compiled]),
             [],
             BOT_HASH
