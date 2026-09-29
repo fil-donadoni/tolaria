@@ -22,13 +22,10 @@ describe("blade:robustness wiring (issue #4875)", () => {
         expect(body).toContain("robustness.shard");
     });
 
-    it("is a Bot-batch health gate, not an every-batch one", () => {
-        expect(BOT_HEALTH_SCRIPTS).toContain("blade:robustness");
-        expect(HEALTH_SCRIPTS).not.toContain("blade:robustness");
-    });
-
     it("health-main runs the Bot gates after the rest, only on a Bot batch", () => {
         const src = readFileSync(join(ROOT, "scripts/health-main.ts"), "utf8");
+        expect(BOT_HEALTH_SCRIPTS).toContain("blade:robustness");
+        expect(HEALTH_SCRIPTS).not.toContain("blade:robustness");
         expect(src).toContain(
             "const gates = refreshBot ? [...scripts, ...BOT_HEALTH_SCRIPTS] : scripts;"
         );

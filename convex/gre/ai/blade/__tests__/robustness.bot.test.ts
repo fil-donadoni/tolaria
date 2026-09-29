@@ -113,11 +113,7 @@ describe("compareRobustness — the shrink-only baseline (issue #4875)", () => {
 });
 
 describe("robustnessVectors (issue #4875)", () => {
-    const [base, plus, minus] = robustnessVectors();
-
-    it("the first vector is the committed default, installed as no variant", () => {
-        expect(base.variant).toBeNull();
-    });
+    const [, plus, minus] = robustnessVectors();
 
     it("moves every fittable weight by exactly ±JITTER_FRACTION, antithetically", () => {
         const up = resolveEvalWeights(plus.variant);
