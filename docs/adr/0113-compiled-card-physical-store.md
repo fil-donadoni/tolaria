@@ -7,7 +7,9 @@ PRD's "loaded lazily by id" contract line and the interim shape of ADR 0108 /
 issue #2702). Amended by ADR 0140: Card Prints are not part of the resident
 corpus — they live in a Convex table. Amendment III (2026-09-20): the 32 MiB
 ceiling is documented but not enforced, and the server corpus stays resident,
-packed.
+packed. Amendment IV (2026-09-29): the binding bound is the heap of one
+call (64 MiB); every definition is built on demand from resident data, on the
+server and in the client, behind a generated Definition Index.
 
 ## Context
 
@@ -636,6 +638,71 @@ Starter plan's pay-as-you-go overage once operations are counted.
   GRE's own growth is unprojected.
 - Block size was not tuned; 16 rows beat 64 (24 ms against 67 ms locally) for
   +0.2 MB.
+
+## Amendment IV (2026-09-29) — the bound is the heap of one call; every definition is built on demand
+
+Measurements, method and caveats: `docs/research/convex-server-scale-2026-09-29.md`.
+PRD: issue #**PRD**.
+
+### What binds first is RAM per call, not bundle bytes
+
+Convex documents **64 MiB of RAM** per query or mutation (Convex runtime) and
+1 s of user code. Amendment III showed there is no module cache between calls,
+so a call re-materialises everything its module evaluates at load. Measured as
+a V8 heap delta in Node (a proxy; calibrated on cloud by the PRD):
+
+| `convex/game.ts`, one call                   | heap     |
+| -------------------------------------------- | -------- |
+| engine only                                  | 11.6 MiB |
+| + hand-written sets (2,091 cards)            | 25.7 MiB |
+| + compiled pool literal (4,335 rows) = today | ~41 MiB  |
+| compiled pool literal at 35,000 rows         | ~137 MiB |
+
+The literal pool hits the wall near 9,000 rows, long before any bundle limit.
+Amendment III chose the packed corpus for latency; it is also what keeps the
+engine inside the RAM of one call. And the packed pool alone is not enough:
+engine + hand-written sets + packed corpus is ~31 MiB at 35k, at the edge of
+the budget below.
+
+### Decision
+
+1. **The invariant: what a call costs grows with the cards of the game, never
+   with the catalogue.** It holds on the server and in the client, main thread
+   and Bot worker alike.
+2. **Budget, checked on `health`** (never on `check:pr` or `land`): one call to
+   `game.ts` ≤ **32 MiB** of heap, measured against a SYNTHETIC catalogue at
+   the target scale (35k cards, 80k printings), so a change that does not
+   scale fails before the catalogue grows into it; modules that read no card
+   definition ≤ **4 MiB**. The ratio between the Node measurement and the
+   Convex isolate is set by a cloud probe before the check is armed.
+3. **Every definition is built on demand, from resident data.** Compiled rows
+   stay packed (Amendment III); hand-written definitions become
+   `defineCard(() => ({ … }))`, evaluated once on first request and memoised
+   (identity is stable). The catalogue's load-time indexes move into a
+   generated **Definition Index** (id, name, set, where the definition lives)
+   that is the only thing built eagerly. `getDefinition` stays synchronous:
+   the data is already in memory, only its decoding is deferred. This is not
+   the "lazy-by-id" § 1 rejected: there is no "not yet arrived" state.
+4. **The client follows the same source**, superseding § 3's whole-corpus
+   hydration: the packed corpus is downloaded as today's immutable asset, and
+   definitions are decoded on demand, in the main thread and in the Bot worker.
+   Whole-catalogue features (deck-builder search, name lists, Draft Lab) read
+   the Definition Index, not the definitions.
+5. **Card Prints leave the code first** (ADR 0140, issue #4121): the print
+   alias is the eager coupling that breaks on-demand definitions, and set
+   files that hold only definitions are what the codemod transforms.
+6. **Functions that read no definition live in modules that import no
+   engine.** The wake-up tick, the active-game lookup and the lobby queries
+   leave `game.ts`; debug tooling (the blade corpus) leaves the game graph.
+7. **Not done: moving the pure engine out of the entry points.** 380 of 452
+   entry points are engine modules; removing them saves 2.3 MiB of bundle and
+   nothing per call. Re-open triggers are in the research file.
+
+### Exit ladder, one more row
+
+| trigger                                                           | move                                                         |
+| ----------------------------------------------------------------- | ------------------------------------------------------------ |
+| `game.ts` over its heap budget with every definition built lazily | the GRE as its own long-lived service (Amendment III, row 2) |
 
 ## Open, deliberately not decided here
 
