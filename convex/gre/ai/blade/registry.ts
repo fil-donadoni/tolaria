@@ -9450,6 +9450,107 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         },
         note: "Issue #4273. Pins the class 'a boon on the bot's own permanent is not self-harm' at the root hold. The predicate does not name the sick body: the target choice among the bot's own Bears is a separate, rollout-noise preference this entry does not claim. The cast and `pass` are outcome-equal here, so the pick is the pre-attack arm of `last-window-fire` (issue #4768): a haste grant on a summoning-sick body has its last useful window before attackers are declared (CR 508.1a), not at the opponent's end step.",
     },
+    // Issue #4758 (PRD #4754) — an ETB Ability is spent on entering: latent
+    // (hand, library, graveyard, playable exile), never realized. Two
+    // discriminating halves on a creature whose ETB can find NOTHING and whose
+    // body then survives as a vanilla, plus the Flametongue Kavu positions the
+    // issue names, which the mandatory target keeps honest on its own.
+    {
+        label: "ETB Ability spent: holds Skyclave Apparition while its ETB has nothing to exile",
+        spec: {
+            cards: [{ name: "Skyclave Apparition", owner: "me", zone: "hand" }],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 4,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [{ kind: "cast-spell", card: "Skyclave Apparition" }],
+        },
+        note: "TODO",
+    },
+    {
+        label: "ETB Ability realized: casts Skyclave Apparition into a permanent worth exiling",
+        spec: {
+            cards: [
+                { name: "Skyclave Apparition", owner: "me", zone: "hand" },
+                {
+                    name: "Hill Giant",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 4,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "cast-spell", card: "Skyclave Apparition" }],
+        },
+        note: "TODO",
+    },
+    {
+        label: "ETB Ability spent: holds Flametongue Kavu when its ETB can only hit its own side",
+        spec: {
+            cards: [
+                { name: "Flametongue Kavu", owner: "me", zone: "hand" },
+                {
+                    name: "Grizzly Bears",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 4,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [{ kind: "cast-spell", card: "Flametongue Kavu" }],
+        },
+        note: "TODO",
+    },
+    {
+        label: "ETB Ability realized: casts Flametongue Kavu into an opposing creature worth killing",
+        spec: {
+            cards: [
+                { name: "Flametongue Kavu", owner: "me", zone: "hand" },
+                {
+                    name: "Serra Angel",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 4,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "cast-spell", card: "Flametongue Kavu" }],
+        },
+        note: "TODO",
+    },
 ];
 
 /** "The bot answered the ENGINE-RAISED target selection with a submission the
