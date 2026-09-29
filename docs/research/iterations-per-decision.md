@@ -203,3 +203,37 @@ dev` listening on some port — this measurement used `--port 5199`.
    file.
 3. `bun <path-to-script>.mjs` from inside a worktree that has `playwright` in
    `node_modules` (a `worktree:init`'d checkout already does).
+
+## Re-measure of the live `medium` budget — issue #4458 (2026-09-29)
+
+Commit `8e8654a77` (branch `feat/issue-4458`). Live `medium`
+(`{ iterations: 400, timeMs: 1500 }`, seed `0xb1ade`) through
+`searchWithTrace` on the first 60 blade `must` positions, in-process (vitest,
+no browser). Counter side of the story: `search.perf.test.ts`.
+
+**This is NOT an idle measurement.** The box (8 cores) never dropped below
+load 3 in a 9-minute wait; every run below is at load 11–21
+(`uptime` at run start: `load averages: 11.71 21.20 27.26` and
+`18.72 21.05 26.73`). Wall clock here is inflated by contention, so the
+verdict leans on the load-robust figure (CPU time of an uncapped run).
+
+| Run                                          | Load1     | Stopped by `time` | Median | p90     |
+| -------------------------------------------- | --------- | ----------------- | ------ | ------- |
+| Live `medium`, wall clock                    | 11.4–13.3 | 8 / 60            | 653 ms | 1504 ms |
+| Live `medium`, wall clock (second run)       | 15.1–20.8 | 4 / 60            | –      | –       |
+| Same, `timeMs` uncapped: CPU time (user+sys) | 15.1–20.8 | 0 (n/a)           | 658 ms | 1210 ms |
+
+Other stops on the first run: 32 by `iterations` (400 reached), 16 `settled`,
+4 with no trace (single forced move). Of the 8 time-cut decisions the search
+still completed 160–396 of 400 iterations (median ≈ 260).
+
+CPU time of an uncapped decision exceeds 1500 ms in **3 / 60** positions
+(max 2892 ms) — a floor of what the clock cuts even on an uncontended core.
+Time stops swing 4 → 8 with load, the counter side does not.
+
+**Verdict: yes, the clock cuts `medium` decisions — on a minority.** At least
+~5 % of the sampled positions (3 / 60) cannot finish 400 iterations in 1500 ms
+even by CPU time, and up to ~13 % (8 / 60) are cut under load 12; the
+remaining ~87 % finish or settle well inside the cap (median 653 ms). The
+iteration count, not the clock, is the binding budget for the typical decision.
+An honest idle figure (load < 3) is still owed: re-run when the box is quiet.
