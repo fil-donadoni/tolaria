@@ -15,7 +15,7 @@
     ],
     "Armageddon": [
         {
-            "label": "symmetric sweep: casts Armageddon when the opponent holds the land surplus and the Bot the board",
+            "label": "recoverable sweep: casts Armageddon when the Bot keeps its mana in rocks and the opponent has only lands",
             "tier": "must",
             "needsSetup": false
         }

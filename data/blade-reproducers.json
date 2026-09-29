@@ -918,6 +918,45 @@
     "protection colour choice: negative control — the lethal threat's colour wins over evidence share": null,
     "protection colour choice: Thornscape Master picks the opponent's shown colour (shared seam)": null,
     "reachability: counters an opponent's land-targeting activation with Teferi's Response": null,
+    "recoverable sweep: casts Armageddon when the Bot keeps its mana in rocks and the opponent has only lands": {
+        "cards": [
+            {
+                "name": "Armageddon",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Plains",
+                "owner": "me",
+                "zone": "battlefield",
+                "count": 2
+            },
+            {
+                "name": "Sol Ring",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Mind Stone",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Fellwar Stone",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Forest",
+                "owner": "opp",
+                "zone": "battlefield",
+                "count": 6
+            }
+        ],
+        "phase": "POSTCOMBAT_MAIN",
+        "turn": 6,
+        "libraryCount": 20
+    },
     "replenish: casts the mass return with three enchantments in the graveyard": {
         "cards": [
             {
@@ -1065,49 +1104,6 @@
         "life": {
             "opp": 3
         }
-    },
-    "symmetric sweep: casts Armageddon when the opponent holds the land surplus and the Bot the board": {
-        "cards": [
-            {
-                "name": "Armageddon",
-                "owner": "me",
-                "zone": "hand"
-            },
-            {
-                "name": "Plains",
-                "owner": "me",
-                "zone": "battlefield",
-                "count": 4
-            },
-            {
-                "name": "Savannah Lions",
-                "owner": "me",
-                "zone": "battlefield",
-                "count": 3
-            },
-            {
-                "name": "Forest",
-                "owner": "opp",
-                "zone": "battlefield",
-                "count": 12
-            },
-            {
-                "name": "Craw Wurm",
-                "owner": "opp",
-                "zone": "hand"
-            },
-            {
-                "name": "Worldspine Wurm",
-                "owner": "opp",
-                "zone": "hand"
-            }
-        ],
-        "life": {
-            "opp": 10
-        },
-        "phase": "POSTCOMBAT_MAIN",
-        "turn": 6,
-        "libraryCount": 20
     },
     "wasted mana NEGATIVE CONTROL: casts Dark Ritual when it turns on a Craw Wurm": {
         "cards": [
