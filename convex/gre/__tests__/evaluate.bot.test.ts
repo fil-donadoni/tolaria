@@ -1681,3 +1681,92 @@ describe("declaredBlockDelta — a double block that kills nothing (issue #2436,
         expect(double).toBeLessThan(single);
     });
 });
+
+// Issue #4755 — an exiled card its player may still PLAY is latent material,
+// priced like a hand card (CR 715.3d: an Adventure resolves into exile and its
+// owner may cast the creature half from there; CR 400.7 for a cross-player
+// grant). Read only through `exileCastPermission`.
+describe("exiled cards with an open play permission (issue #4755)", () => {
+    const BORROWER = getCardByName("Brazen Borrower").id;
+
+    function withExiledBorrower(
+        grant: Partial<CardInstanceState>,
+        exileOwner: "p1" | "p2" = "p1"
+    ): GameState {
+        const borrower = makeInstance(BORROWER, {
+            id: "ex-borrower",
+            controllerId: exileOwner,
+            ownerId: exileOwner,
+            zone: "exile",
+            ...grant,
+        });
+        return makeState({
+            turn: 3,
+            players: [
+                makePlayer("p1", {
+                    exile: exileOwner === "p1" ? [borrower] : [],
+                }),
+                makePlayer("p2", {
+                    exile: exileOwner === "p2" ? [borrower] : [],
+                }),
+            ],
+        });
+    }
+
+    it("Eval Pair: an Adventure on its owner's exile outscores the same board with the card gone", () => {
+        const onAdventure = withExiledBorrower({ castableFromExileBy: "p1" });
+        const gone = makeState({ turn: 3 });
+        expect(evaluate(onAdventure, "p1")).toBeGreaterThan(
+            evaluate(gone, "p1")
+        );
+    });
+
+    it("counts through the hand term of the breakdown (no new EvalTerms key)", () => {
+        const onAdventure = withExiledBorrower({ castableFromExileBy: "p1" });
+        const gone = makeState({ turn: 3 });
+        expect(evaluateBreakdown(onAdventure, "p1").self.hand).toBeGreaterThan(
+            evaluateBreakdown(gone, "p1").self.hand
+        );
+    });
+
+    it("a card exiled with no play permission stays worth nothing", () => {
+        const dead = withExiledBorrower({});
+        expect(evaluate(dead, "p1")).toBe(
+            evaluate(makeState({ turn: 3 }), "p1")
+        );
+    });
+
+    it("a grant stamped but not yet open (warp lower bound) does not count", () => {
+        const notYet = withExiledBorrower({
+            castableFromExileBy: "p1",
+            castableFromExileFromTurn: 4,
+        });
+        expect(evaluate(notYet, "p1")).toBe(
+            evaluate(makeState({ turn: 3 }), "p1")
+        );
+        const open = withExiledBorrower({
+            castableFromExileBy: "p1",
+            castableFromExileFromTurn: 3,
+        });
+        expect(evaluate(open, "p1")).toBeGreaterThan(
+            evaluate(makeState({ turn: 3 }), "p1")
+        );
+    });
+
+    it("a grant held by the OTHER player does not count for this player", () => {
+        const theirs = withExiledBorrower({ castableFromExileBy: "p2" });
+        expect(evaluate(theirs, "p1")).toBeLessThan(
+            evaluate(withExiledBorrower({ castableFromExileBy: "p1" }), "p1")
+        );
+        expect(evaluate(theirs, "p1")).toBeLessThanOrEqual(
+            evaluate(makeState({ turn: 3 }), "p1")
+        );
+    });
+
+    it("a cross-player grant (card in the opponent's exile) counts for the grantee", () => {
+        const crossed = withExiledBorrower({ castableFromExileBy: "p1" }, "p2");
+        expect(evaluate(crossed, "p1")).toBeGreaterThan(
+            evaluate(makeState({ turn: 3 }), "p1")
+        );
+    });
+});
