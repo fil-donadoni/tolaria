@@ -1344,7 +1344,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         },
         bot: "me",
         budget: { iterations: 400 },
-        seeds: [0xb1ade, 1, 2],
+        seeds: [0xb1ade, 2, 3], // seed 1 → 3 (issue #4758 refit): noise-pinned, issue #4882
         // ADR 0070 §2 — measured, not guessed: `cast Phyrexian Dreadnought` on
         // all three seeds at 400, 800, 1600 and 3200 (monotone, no
         // converge-away). Once beyond budget with cause `horizon` (it needed
