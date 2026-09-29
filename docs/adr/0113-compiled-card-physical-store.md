@@ -598,7 +598,13 @@ the worst one.
    the whole corpus (§ 3), or reads a precomputed compact index. One generator
    still writes both renderings, and the byte-equality guard of § 2 stands.
 4. **`check:convex-bundle` stays at 30 MiB as a warning distance to the
-   documented number**, not as the edge of a refusal.
+   documented number**, not as the edge of a refusal. Crossing it prints a
+   `WARN` line (the receipt, and so every `health` log through `check:all`)
+   and leaves the lane green. The failure is a hard bound at 75% of each
+   ENFORCED ceiling — 172,500,000 B against `MAX_UNZIPPED_PACKAGES_SIZE`,
+   67,500,000 B against `MAX_ZIPPED_PACKAGES_SIZE` (per-file deflate
+   estimate) — decided in one place, `assessConvexBundle` in
+   `scripts/lib/convex-bundle-size.ts` (issue #4810).
 5. **Latency budget: 100 ms of added CPU per mutation attributable to the
    catalogue, measured on cloud** against an empty mutation in the same run.
    A local number does not count: cloud CPU measured ~2x slower than the dev

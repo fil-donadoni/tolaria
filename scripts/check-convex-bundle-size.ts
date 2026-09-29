@@ -1,7 +1,9 @@
 #!/usr/bin/env bun
 /**
- * `bun run check:convex-bundle` — size budget on the CONVEX function bundle,
- * the server-side half of ADR 0113 § 2 (issue #3051).
+ * `bun run check:convex-bundle` — size receipt on the CONVEX function bundle,
+ * the server-side half of ADR 0113 § 2 (issue #3051): a WARNING at 30 MiB, a
+ * FAILURE only near a ceiling Convex enforces (ADR 0113 Amendment III, issue
+ * #4810).
  *
  * `scripts/check-bundle-size.ts` guards the CLIENT chunks the compiled pool
  * lands in. Nothing guarded the server side, because ADR 0113 § 2 asserted
@@ -10,8 +12,7 @@
  * limit, "is unverified and must be measured before the corpus grows into
  * it".
  *
- * It is now measured, and it is NOT far away. Convex's ceiling is
- * **32 MiB of code size, per deployment**:
+ * Convex DOCUMENTS **32 MiB of code size, per deployment**:
  *
  *   "The total size of your bundled function code in your `convex/` folder is
  *    limited to 32MiB (~33.55MB)."
@@ -20,8 +21,15 @@
  *      "Code size | 32 MiB | ... | Per deployment.")
  *
  * At issue #3051's measurement (2026-09-05) this repo pushed 28,926,718 B —
- * **86.2% of the ceiling**, with 4,627,714 B to spare. So the budget below is
- * not theatre: the next few hundred compiled cards spend it.
+ * 86.2% of that number. ADR 0113 Amendment III (2026-09-20) then tested it on
+ * cloud: 36/40/60 MiB pushes were accepted, and the one refusal came from the
+ * backend's `PackageSize::verify_size` — `MAX_ZIPPED_PACKAGES_SIZE`
+ * 90,000,000 B / `MAX_UNZIPPED_PACKAGES_SIZE` 230,000,000 B. So the 32 MiB is
+ * a documented contract Convex may start enforcing, and 30 MiB is the WARNING
+ * distance to it (printed here, and in every `health` log through
+ * `check:all`); the exit code turns on the hard bounds, 75% of each enforced
+ * ceiling. The verdict itself is `assessConvexBundle` in the lib, shared with
+ * the lane test.
  *
  * The receipt prints the per-row headroom because that is the number ADR 0113
  * actually turns on. Marginal cost of one compiled-pool row, re-measured at
@@ -31,16 +39,21 @@
  * once into the `"use node"` graph esbuild bundles separately; #3444 cut the
  * second copy and the doubling with it.
  *
- * Crossing the budget is the signal to stop bundling the pool server-side, not
- * to raise the number. See ADR 0113 § Amendment.
+ * A WARN line is the signal to ask what is IN the bundle, not to move the
+ * number (ADR 0113 Amendments II and III).
  */
 import { join, dirname } from "node:path";
 import {
-    CONVEX_BUNDLE_BUDGET_BYTES,
+    CONVEX_BUNDLE_HARD_BOUND_UNZIPPED_BYTES,
+    CONVEX_BUNDLE_HARD_BOUND_ZIPPED_BYTES,
+    CONVEX_BUNDLE_WARNING_BYTES,
     CONVEX_CODE_SIZE_LIMIT_BYTES,
+    CONVEX_MAX_UNZIPPED_PACKAGES_SIZE,
     CONVEX_MAX_USER_MODULES,
+    CONVEX_MAX_ZIPPED_PACKAGES_SIZE,
     CONVEX_USER_MODULE_BUDGET,
     MEASURED_BYTES_PER_POOL_ROW,
+    assessConvexBundle,
     compiledPoolRows,
     measureConvexBundle,
 } from "./lib/convex-bundle-size";
@@ -58,25 +71,32 @@ function mib(n: number): string {
 async function main(): Promise<void> {
     const m = await measureConvexBundle(join(ROOT, "convex"));
     const rows = compiledPoolRows(ROOT);
-    const toLimit = CONVEX_CODE_SIZE_LIMIT_BYTES - m.totalBytes;
-    const toBudget = CONVEX_BUNDLE_BUDGET_BYTES - m.totalBytes;
+    const toDocumented = CONVEX_CODE_SIZE_LIMIT_BYTES - m.totalBytes;
+    const toHard = CONVEX_BUNDLE_HARD_BOUND_UNZIPPED_BYTES - m.totalBytes;
 
     console.log(
         `[check:convex-bundle] source ${fmt(m.sourceBytes)} B + source maps ` +
-            `${fmt(m.sourceMapBytes)} B = ${fmt(m.totalBytes)} B (${mib(m.totalBytes)})`
+            `${fmt(m.sourceMapBytes)} B = ${fmt(m.totalBytes)} B (${mib(m.totalBytes)}), ` +
+            `~${fmt(m.zippedBytes)} B zipped`
     );
     console.log(
-        `[check:convex-bundle] budget ${fmt(CONVEX_BUNDLE_BUDGET_BYTES)} B ` +
-            `(${mib(CONVEX_BUNDLE_BUDGET_BYTES)}) — Convex ceiling ` +
+        `[check:convex-bundle] warning ${fmt(CONVEX_BUNDLE_WARNING_BYTES)} B ` +
+            `(${mib(CONVEX_BUNDLE_WARNING_BYTES)}) — Convex documented ` +
             `${fmt(CONVEX_CODE_SIZE_LIMIT_BYTES)} B (${mib(CONVEX_CODE_SIZE_LIMIT_BYTES)}), ` +
-            `${(100 * (m.totalBytes / CONVEX_CODE_SIZE_LIMIT_BYTES)).toFixed(1)}% used`
+            `${(100 * (m.totalBytes / CONVEX_CODE_SIZE_LIMIT_BYTES)).toFixed(1)}% used, not enforced`
     );
     console.log(
-        `[check:convex-bundle] headroom ${fmt(toLimit)} B to the ceiling, ` +
-            `${fmt(toBudget)} B to the budget — at the measured ` +
+        `[check:convex-bundle] hard bound ${fmt(CONVEX_BUNDLE_HARD_BOUND_UNZIPPED_BYTES)} B ` +
+            `unzipped / ${fmt(CONVEX_BUNDLE_HARD_BOUND_ZIPPED_BYTES)} B zipped — Convex ` +
+            `enforced MAX_UNZIPPED_PACKAGES_SIZE ${fmt(CONVEX_MAX_UNZIPPED_PACKAGES_SIZE)} B / ` +
+            `MAX_ZIPPED_PACKAGES_SIZE ${fmt(CONVEX_MAX_ZIPPED_PACKAGES_SIZE)} B`
+    );
+    console.log(
+        `[check:convex-bundle] headroom ${fmt(toDocumented)} B to the documented 32 MiB, ` +
+            `${fmt(toHard)} B to the hard bound — at the measured ` +
             `${fmt(MEASURED_BYTES_PER_POOL_ROW)} B per compiled-pool row, ` +
-            `${fmt(Math.floor(toLimit / MEASURED_BYTES_PER_POOL_ROW))} rows and ` +
-            `${fmt(Math.floor(toBudget / MEASURED_BYTES_PER_POOL_ROW))} rows ` +
+            `${fmt(Math.floor(toDocumented / MEASURED_BYTES_PER_POOL_ROW))} rows and ` +
+            `${fmt(Math.floor(toHard / MEASURED_BYTES_PER_POOL_ROW))} rows ` +
             `(pool is ${fmt(rows)} rows today)`
     );
     console.log(
@@ -85,26 +105,11 @@ async function main(): Promise<void> {
             `${fmt(CONVEX_MAX_USER_MODULES)}), emitted modules ${fmt(m.emittedModules)}`
     );
 
-    const failures: string[] = [];
-    if (m.totalBytes > CONVEX_BUNDLE_BUDGET_BYTES) {
-        failures.push(
-            `Convex function bundle is ${fmt(m.totalBytes)} B > budget ` +
-                `${fmt(CONVEX_BUNDLE_BUDGET_BYTES)} B, against a hard Convex ceiling of ` +
-                `${fmt(CONVEX_CODE_SIZE_LIMIT_BYTES)} B. Do NOT raise the number: ` +
-                `ADR 0113 § Amendment names this as the signal to stop bundling the ` +
-                `compiled pool into the Convex module graph.`
-        );
-    }
-    if (m.userModules > CONVEX_USER_MODULE_BUDGET) {
-        failures.push(
-            `${fmt(m.userModules)} files under convex/ become user modules > budget ` +
-                `${fmt(CONVEX_USER_MODULE_BUDGET)}, against Convex's MAX_USER_MODULES ` +
-                `${fmt(CONVEX_MAX_USER_MODULES)} ("Too many function files ... in \\"convex/\\"").`
-        );
-    }
+    const { warnings, failures } = assessConvexBundle(m);
+    for (const w of warnings) console.log(`[check:convex-bundle] WARN ${w}`);
 
     if (failures.length > 0) {
-        console.error("\n[check:convex-bundle] budget exceeded:\n");
+        console.error("\n[check:convex-bundle] hard bound exceeded:\n");
         for (const f of failures) console.error(`  - ${f}`);
         process.exit(1);
     }

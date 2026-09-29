@@ -62,6 +62,7 @@
  * margin is ~313x that residue, so the residue can never be what decides a red.
  */
 import esbuild from "esbuild";
+import { deflateRawSync } from "node:zlib";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative, sep, parse } from "node:path";
 
@@ -92,8 +93,19 @@ export interface ConvexBundleMeasurement {
     sourceBytes: number;
     /** Bytes of emitted source maps — Convex counts these too. */
     sourceMapBytes: number;
-    /** `sourceBytes + sourceMapBytes` — what the 32 MiB ceiling applies to. */
+    /**
+     * `sourceBytes + sourceMapBytes` — the unzipped package size, the axis of
+     * both the documented 32 MiB and the enforced `MAX_UNZIPPED_PACKAGES_SIZE`.
+     */
     totalBytes: number;
+    /**
+     * Sum of each emitted file deflated on its own (zlib default level) — an
+     * estimate of the zip Convex checks against `MAX_ZIPPED_PACKAGES_SIZE`.
+     * Per-file deflate is what a zip archive does, so the estimate is off only
+     * by headers and the compression level Convex's CLI picks; the 25% margin
+     * of {@link CONVEX_HARD_BOUND_FRACTION} dwarfs both.
+     */
+    zippedBytes: number;
     /**
      * Files under `convex/` that become user modules. Convex caps these at
      * `MAX_USER_MODULES` (default 4096, `crates/common/src/knobs.rs`);
@@ -105,24 +117,72 @@ export interface ConvexBundleMeasurement {
     emittedModules: number;
 }
 
-/** Convex's documented ceiling: 32 MiB "code size", per deployment. */
+/**
+ * Convex's DOCUMENTED ceiling: 32 MiB "code size", per deployment. Not
+ * enforced today (ADR 0113 Amendment III): cloud dev accepted 36 and 60 MiB
+ * pushes, cloud prod 40 MiB. Convex may start enforcing it, so it stays the
+ * number the warning distance is measured to.
+ */
 export const CONVEX_CODE_SIZE_LIMIT_BYTES = 32 * 1024 * 1024;
+
+/**
+ * `MAX_UNZIPPED_PACKAGES_SIZE` in the open-source backend
+ * (`crates/model/src/source_packages/types.rs`, `PackageSize::verify_size`):
+ * the ENFORCED ceiling on the pushed package, source maps included — the axis
+ * {@link ConvexBundleMeasurement.totalBytes} measures. ADR 0113 Amendment III.
+ */
+export const CONVEX_MAX_UNZIPPED_PACKAGES_SIZE = 230_000_000;
+
+/**
+ * `MAX_ZIPPED_PACKAGES_SIZE`, same function: the ENFORCED ceiling on the
+ * zipped package. The one refusal Amendment III observed tripped this one
+ * ("Total module size exceeded the zipped maximum (101.37 MiB > maximum size
+ * 85.83 MiB)"), on an incompressible module; code compresses well, so for
+ * this repo the unzipped bound binds first. Both are asserted.
+ */
+export const CONVEX_MAX_ZIPPED_PACKAGES_SIZE = 90_000_000;
+
+/**
+ * The hard bound is this fraction of each ENFORCED ceiling — the same 75% the
+ * user-module budget keeps against `MAX_USER_MODULES`. The quarter left over
+ * is the room a red gate needs to be actionable rather than an outage: a push
+ * Convex already refuses cannot be fixed by a smaller next commit, and the
+ * exits Amendment III records (self-hosted knobs, the GRE as its own service)
+ * are not a one-PR move.
+ */
+export const CONVEX_HARD_BOUND_FRACTION = 0.75;
+
+/** Unzipped hard bound: a failure, in every lane (ADR 0113 Amendment III). */
+export const CONVEX_BUNDLE_HARD_BOUND_UNZIPPED_BYTES = Math.floor(
+    CONVEX_MAX_UNZIPPED_PACKAGES_SIZE * CONVEX_HARD_BOUND_FRACTION
+);
+
+/** Zipped hard bound: a failure, in every lane (ADR 0113 Amendment III). */
+export const CONVEX_BUNDLE_HARD_BOUND_ZIPPED_BYTES = Math.floor(
+    CONVEX_MAX_ZIPPED_PACKAGES_SIZE * CONVEX_HARD_BOUND_FRACTION
+);
 
 /** `MAX_USER_MODULES` default in the open-source backend's knobs. */
 export const CONVEX_MAX_USER_MODULES = 4096;
 
 /**
- * 30 MiB, against Convex's hard 32 MiB. The 2 MiB gap is the room a red gate
- * needs to be actionable rather than an outage: a deploy that is already
- * refused cannot be fixed by a smaller next commit. At the measured
- * 1,013 B/row (below) it is ~2,000 rows of warning distance, and the 2 MB
- * budget on `data/oracle-compiled-pool.json`
- * (`scripts/__tests__/oracle-pool-size.test.ts`) fires far sooner than that —
- * this guard is the backstop for everything else that grows the server
- * bundle, not only the pool.
+ * 30 MiB: a WARNING distance to Convex's documented 32 MiB, never a failure
+ * (ADR 0113 Amendment III point 4: "`check:convex-bundle` stays at 30 MiB as
+ * a warning distance to the documented number, not as the edge of a
+ * refusal"). Crossing it prints a WARN line in the `check:convex-bundle`
+ * receipt — and so in every `health` log, which runs it inside `check:all` —
+ * and in the lane's test output; the lane stays green. What fails is
+ * {@link CONVEX_BUNDLE_HARD_BOUND_UNZIPPED_BYTES} /
+ * {@link CONVEX_BUNDLE_HARD_BOUND_ZIPPED_BYTES}, a margin below the ceilings
+ * Convex actually enforces.
  *
- * Crossing it is the signal to stop bundling the compiled pool server-side,
- * not to raise the number. See ADR 0113 § Amendment.
+ * WHY IT WAS A WALL, AND WHY IT IS NOT. Amendments I and II (issue #3051,
+ * issue #3444) read the 32 MiB as a hard ceiling — "there is no 32 MiB budget
+ * to move to" — so this number was a failure, 2 MiB short of an outage. Nobody
+ * had watched Convex cloud refuse a push; Amendment III did, and the enforced
+ * limit is 90 MB zipped / 230 MB unzipped. The wall reading is withdrawn; the
+ * number stays as the distance to what Convex documents and may one day
+ * enforce, at which point the exit ladder in Amendment III applies.
  *
  * IT WAS RAISED TO 31 MiB ONCE, and put back here (issue #1268 raised it,
  * issue #3444 restored it). The round trip is recorded rather than tidied
@@ -136,17 +196,15 @@ export const CONVEX_MAX_USER_MODULES = 4096;
  * `convex/debugScenarioGenerator.ts` is a `"use node"` action, whose esbuild
  * graph is separate, and it imported the card registry for two name lookups
  * — so the compiled pool was bundled TWICE. Cutting that one import gave
- * back 7,200,356 B and dropped the push to 23.25 MiB, which is 6.75 MiB of
- * warning distance again. There is nothing left to unblock.
+ * back 7,200,356 B and dropped the push to 23.25 MiB.
  *
- * What the pair says for the NEXT crossing: a budget at 96% of a hard ceiling
- * is a symptom, and the first move is to ask what is IN the bundle, not what
- * the number should be. Raise it only to buy time to answer that, and put it
- * back when you have. There is no 32 MiB budget to move to — the remaining
- * margin is the whole distance between a red gate and a refused deploy — and
- * the answer the pool itself will eventually force is ADR 0113's store.
+ * What the pair still says, now that crossing the line WARNS instead of
+ * failing: a bundle near the documented number is a symptom, and the first
+ * move on seeing the WARN line is to ask what is IN the bundle, not to move
+ * the number. (Issue #4810's measurement: ~10 MiB of today's ~30 is
+ * code-splitting glue from set and test files being Convex entry points.)
  */
-export const CONVEX_BUNDLE_BUDGET_BYTES = 30 * 1024 * 1024;
+export const CONVEX_BUNDLE_WARNING_BYTES = 30 * 1024 * 1024;
 
 /**
  * `MAX_USER_MODULES` counts files under `convex/`, excluding `_deps/**`
@@ -230,9 +288,15 @@ async function build(
     entryPoints: string[],
     platform: "browser" | "node",
     chunksFolder: string
-): Promise<{ source: number; map: number; files: number; inputs: string[] }> {
+): Promise<{
+    source: number;
+    map: number;
+    zipped: number;
+    files: number;
+    inputs: string[];
+}> {
     if (entryPoints.length === 0)
-        return { source: 0, map: 0, files: 0, inputs: [] };
+        return { source: 0, map: 0, zipped: 0, files: 0, inputs: [] };
     const result = await esbuild.build({
         entryPoints,
         bundle: true,
@@ -261,8 +325,10 @@ async function build(
     });
     let source = 0;
     let map = 0;
+    let zipped = 0;
     let files = 0;
     for (const file of result.outputFiles ?? []) {
+        zipped += deflateRawSync(file.contents).length;
         if (file.path.endsWith(".map")) map += file.contents.length;
         else {
             source += file.contents.length;
@@ -272,6 +338,7 @@ async function build(
     return {
         source,
         map,
+        zipped,
         files,
         inputs: Object.keys(result.metafile?.inputs ?? {}),
     };
@@ -366,9 +433,82 @@ export async function measureConvexBundle(
         sourceBytes,
         sourceMapBytes,
         totalBytes: sourceBytes + sourceMapBytes,
+        zippedBytes: parts.reduce((n, p) => n + p.zipped, 0),
         userModules: entryPoints.length + extras.length,
         emittedModules: parts.reduce((n, p) => n + p.files, 0),
     };
+}
+
+/** The thresholds {@link assessConvexBundle} reads — overridable so its tests
+ *  can place a synthetic measurement on either side of each line. */
+export interface ConvexBundleBounds {
+    warningBytes: number;
+    hardUnzippedBytes: number;
+    hardZippedBytes: number;
+    userModuleBudget: number;
+}
+
+export const CONVEX_BUNDLE_BOUNDS: ConvexBundleBounds = {
+    warningBytes: CONVEX_BUNDLE_WARNING_BYTES,
+    hardUnzippedBytes: CONVEX_BUNDLE_HARD_BOUND_UNZIPPED_BYTES,
+    hardZippedBytes: CONVEX_BUNDLE_HARD_BOUND_ZIPPED_BYTES,
+    userModuleBudget: CONVEX_USER_MODULE_BUDGET,
+};
+
+/**
+ * Splits a measurement into what ADR 0113 Amendment III says it is:
+ * `warnings` (past the 30 MiB distance to the documented 32 MiB — printed,
+ * never failing) and `failures` (past a hard bound below a ceiling Convex
+ * ENFORCES, or past the user-module budget). The one place the verdict is
+ * decided: `check:convex-bundle` and the lane test both read it, so the
+ * receipt and the gate cannot disagree on which line is the wall.
+ */
+export function assessConvexBundle(
+    m: Pick<
+        ConvexBundleMeasurement,
+        "totalBytes" | "zippedBytes" | "userModules"
+    >,
+    bounds: ConvexBundleBounds = CONVEX_BUNDLE_BOUNDS
+): { warnings: string[]; failures: string[] } {
+    const fmt = (n: number) => n.toLocaleString("en-US");
+    const warnings: string[] = [];
+    const failures: string[] = [];
+    if (m.totalBytes > bounds.hardUnzippedBytes) {
+        failures.push(
+            `Convex function bundle is ${fmt(m.totalBytes)} B unzipped > hard bound ` +
+                `${fmt(bounds.hardUnzippedBytes)} B (${CONVEX_HARD_BOUND_FRACTION * 100}% of ` +
+                `Convex MAX_UNZIPPED_PACKAGES_SIZE ${fmt(CONVEX_MAX_UNZIPPED_PACKAGES_SIZE)} B, ` +
+                `the enforced ceiling — ADR 0113 Amendment III). Ask what is IN the bundle ` +
+                `before moving the number; the exits are Amendment III's ladder.`
+        );
+    }
+    if (m.zippedBytes > bounds.hardZippedBytes) {
+        failures.push(
+            `Convex function bundle is ~${fmt(m.zippedBytes)} B zipped > hard bound ` +
+                `${fmt(bounds.hardZippedBytes)} B (${CONVEX_HARD_BOUND_FRACTION * 100}% of ` +
+                `Convex MAX_ZIPPED_PACKAGES_SIZE ${fmt(CONVEX_MAX_ZIPPED_PACKAGES_SIZE)} B, ` +
+                `the enforced ceiling — ADR 0113 Amendment III).`
+        );
+    }
+    if (m.totalBytes > bounds.warningBytes) {
+        warnings.push(
+            `Convex function bundle is ${fmt(m.totalBytes)} B > the ` +
+                `${fmt(bounds.warningBytes)} B warning distance to Convex's DOCUMENTED ` +
+                `${fmt(CONVEX_CODE_SIZE_LIMIT_BYTES)} B (32 MiB, not enforced today); the ` +
+                `enforced ceiling is MAX_UNZIPPED_PACKAGES_SIZE ` +
+                `${fmt(CONVEX_MAX_UNZIPPED_PACKAGES_SIZE)} B / MAX_ZIPPED_PACKAGES_SIZE ` +
+                `${fmt(CONVEX_MAX_ZIPPED_PACKAGES_SIZE)} B (ADR 0113 Amendment III point 4). ` +
+                `Not a failure — ask what is IN the bundle.`
+        );
+    }
+    if (m.userModules > bounds.userModuleBudget) {
+        failures.push(
+            `${fmt(m.userModules)} files under convex/ become user modules > budget ` +
+                `${fmt(bounds.userModuleBudget)}, against Convex's MAX_USER_MODULES ` +
+                `${fmt(CONVEX_MAX_USER_MODULES)} ("Too many function files ... in \\"convex/\\"").`
+        );
+    }
+    return { warnings, failures };
 }
 
 /**
