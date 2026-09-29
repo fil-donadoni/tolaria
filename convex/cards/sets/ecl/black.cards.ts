@@ -156,7 +156,7 @@ export const moonshadow: CardDefinition = {
 // real, player-choice activation cost — the exact "discard N cards, chooser:
 // the activating player" shape the #684 stub note said didn't exist yet. A
 // match-all filter (`{}`) is the same "discard a card" idiom Arc Mage
-// (nem/red.ts) already uses. `Tap it` is the ability's SECOND effect (not an
+// (nem/red.cards.ts) already uses. `Tap it` is the ability's SECOND effect (not an
 // activation cost — the ability itself isn't `{T}:`-gated, so it stays
 // activatable while already tapped, and taps itself as a resolved effect via
 // `tapUntap`), composed after the `grantAbility` indestructible grant — both
@@ -200,7 +200,7 @@ export const ironShieldElf: CardDefinition = {
 // of one of them. This ability triggers only once each turn."
 //
 // ETB surveil 2 (CR 701.25): the `scryReorder` Op with `destination:
-// "graveyard"`, the same shape as Master of Death (mh2/multicolor.ts).
+// "graveyard"`, the same shape as Master of Death (mh2/multicolor.cards.ts).
 //
 // The second ability is a raw `TriggeredAbility` rather than `enteredTrigger`
 // — that factory exposes neither `oncePerEventBatch` nor `maxTriggersPerTurn`.
@@ -293,7 +293,7 @@ function twilightDivinerGraveyardCopy(): TriggeredAbility {
         // aiEffects (PRD #1423, issue #1519) — a bare `resolve()` body is
         // invisible to the bot's Effect Script value model. The real body
         // copies an unknowable entering creature, so a representative 2/2
-        // stands in — the SAME convention Sin (`fin/multicolor.ts`) and
+        // stands in — the SAME convention Sin (`fin/multicolor.cards.ts`) and
         // `createTokenCopy`'s own valuer use.
         aiEffects: [
             {

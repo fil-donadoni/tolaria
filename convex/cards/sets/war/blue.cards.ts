@@ -10,7 +10,7 @@ import type { CardDefinition } from "../../types";
 // starting loyalty 5 (CR 306.5b). Two clauses (issue #1266):
 //   • STATIC — "Each opponent can't draw more than one card each turn." This
 //     is the SAME CR 614 draw-replacement as Leovold, Emissary of Trest
-//     (cn2/multicolor.ts, ADR 0061): an opponent's SECOND-and-later draw each
+//     (cn2/multicolor.cards.ts, ADR 0061): an opponent's SECOND-and-later draw each
 //     turn (`drawIndexThisTurn >= 1`) is prevented — no card, no draw-from-
 //     empty loss. Their first draw (incl. the turn-based draw-step draw) is
 //     unaffected. Reused verbatim.

@@ -289,7 +289,7 @@ describe("canRefundManaTap keys on the producing ability's own bucket (issue #17
     it("Mishra's Workshop — its bucket is empty but the FUNGIBLE pool happens to hold {C}{C}{C} → NO refund (that mana is not its to give back)", () => {
         // Reachable: the Workshop is tapped BY AN EFFECT, not tapped for mana
         // — an opponent's Icy Manipulator ("{1}, {T}: Tap target artifact,
-        // creature, or land", `lea/colorless.ts`) — so it produced nothing and
+        // creature, or land", `lea/colorless.cards.ts`) — so it produced nothing and
         // `manaCommitted` stays unset. Meanwhile its controller taps Basalt
         // Monolith for three fungible {C}.
         //

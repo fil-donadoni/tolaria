@@ -9,7 +9,7 @@ import type { CardDefinition } from "../../types";
 // it into its owner's graveyard." (CR 701.6a counter-unless-pay, CR 117.3a
 // may-pay, and the new `destination` parameter on `SpellContext.counter` —
 // issue #683's "exile it instead" redirect clause.) Same mayPay + if(not
-// $paid) + counter shape as Force Spike (leg/blue.ts), with a `destination`
+// $paid) + counter shape as Force Spike (leg/blue.cards.ts), with a `destination`
 // override on the consequence.
 export const noMoreLies: CardDefinition = {
     id: "1e0c695d-62f9-4805-9e2f-7032e8464136",

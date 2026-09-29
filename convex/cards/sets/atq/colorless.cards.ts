@@ -324,7 +324,7 @@ export const candelabraOfTawnos: CardDefinition = {
             // Migrated resolve()→effects[] (ADR 0045): untaps every one of the
             // VARIABLE (X) announced land targets via the `forEach { set:
             // "targets" }` selector (issue #1083's X-multi-target closer —
-            // Distorting Wake, inv/blue.ts) + `tapUntap` on each `$each`
+            // Distorting Wake, inv/blue.cards.ts) + `tapUntap` on each `$each`
             // member (CR 701.20b). A 0-X activation announces no targets, so
             // the forEach body simply never runs.
             effects: [
@@ -365,7 +365,7 @@ export const urzasChalice: CardDefinition = {
             filter: { types: "Artifact" },
             // Migrated resolve()→effects[] (ADR 0045): mayPay {1} (CR 117.3a)
             // then gainLife 1 gated on the $paid outcome — same mayPay + if
-            // shape as Fasting (drk/white.ts), riding the same Pending Choice
+            // shape as Fasting (drk/white.cards.ts), riding the same Pending Choice
             // pipeline `requestMayPay` used.
             effects: [
                 {
@@ -1782,7 +1782,7 @@ export const urzasMiter: CardDefinition = {
             condition: (event) => event.cause !== "sacrifice",
             // Migrated resolve()→effects[] (ADR 0045, closes tracked-by
             // #1280): the mayPay + if + draw shape (mirrors Force Spike,
-            // `leg/blue.ts`) now rides `leftTrigger`'s `effects` site, added
+            // `leg/blue.cards.ts`) now rides `leftTrigger`'s `effects` site, added
             // alongside this migration.
             effects: [
                 {

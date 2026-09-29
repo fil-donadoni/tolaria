@@ -3,7 +3,7 @@
 // Death-Greeter's Champion composes ONLY already-exercised constructs:
 // `dashTrigger` (proven by the synthetic probe in
 // `convex/gre/__tests__/dash.test.ts`) and `backupTrigger` (proven by
-// Consuming Aetherborn, `mom/black.ts`). This file pins the CARD — the
+// Consuming Aetherborn, `mom/black.cards.ts`). This file pins the CARD — the
 // definition + both triggers wired together — not the underlying machinery.
 
 import { describe, it, expect } from "vitest";

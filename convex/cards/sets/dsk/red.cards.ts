@@ -48,7 +48,7 @@ function hasDelirium(controllerId: string, state?: TriggerStateView): boolean {
 // time, immediately before the permanent hits the battlefield. Any non-cast
 // entry (reanimation, blink, exile-and-return — e.g. Aang's Iceberg
 // sacrificing itself and returning this card) never re-ran it. Rebuilt as an
-// `enteredTrigger` (idiom: Aang's Iceberg, tla/white.ts) so the discard-then-
+// `enteredTrigger` (idiom: Aang's Iceberg, tla/white.cards.ts) so the discard-then-
 // draw fires off the generic PERMANENT_ENTERED event on every entry path.
 //
 // The attack trigger (issue #2885) is three already-shipped pieces plus the

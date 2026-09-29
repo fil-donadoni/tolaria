@@ -29,7 +29,7 @@ non-mana leg as free.
 
 **Evidence.** `enumerateCastMoves` (`convex/gre/moves.ts:1200`) is called from
 more than one zone — notably the library-top branch for Bolas's Citadel
-(`moves.ts:2568`, shipped, `war/black.ts`), which passes
+(`moves.ts:2568`, shipped, `war/black.cards.ts`), which passes
 `lifeInsteadOfMana` and enumerates Kicker variants exactly like the hand
 branch (`enumerateKickerVariants` doesn't care which zone `card` came from).
 A kicked Bog Down or Magma Burst cast off the top of the library under
@@ -80,7 +80,7 @@ per black mana symbol" (CR 118.8) owes NOTHING under that permission.
 
 **Evidence.** Same trigger as the primary finding above: a permanent-leg
 Kicker card reached via Citadel's library-top branch
-(`moves.ts:2568`/`war/black.ts`), this time under Drought too. The mutation
+(`moves.ts:2568`/`war/black.cards.ts`), this time under Drought too. The mutation
 side (`assertKickerAnnouncementLegal` → `getStaticAdditionalSacrifices` fed
 `castRawManaCost`'s `{}`) sees zero black pips and therefore no board-wide
 sacrifice requirement — no collision, the kicked cast is legal. The

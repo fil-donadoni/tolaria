@@ -142,7 +142,7 @@ export const malevolentRumble: CardDefinition = {
 //     the CR 704.5m Aura SBA). No per-card code.
 //  2. "Enchanted creature gets +1/+1" is the ordinary Aura `pt-buff`
 //     `staticEffect` keyed on `attachedTo` (CR 613 layer 7c) — the SAME shape
-//     Unstable Mutation (`arn/blue.ts`) uses. It needs no bestow-awareness at
+//     Unstable Mutation (`arn/blue.cards.ts`) uses. It needs no bestow-awareness at
 //     all: `attachedTo` is only ever set on this permanent by a bestowed cast,
 //     so the buff switches itself off the instant CR 702.103f reverts it.
 //  3. The landfall half is the shared `landfallTrigger` factory (CR 603.6a /

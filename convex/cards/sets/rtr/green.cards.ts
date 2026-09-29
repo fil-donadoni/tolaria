@@ -22,8 +22,8 @@ const WORLDSPINE_WURM_ID = "543d55cb-3a6b-4620-af25-10ae74ed32c4";
 // Ops — per-Op regime, ADR 0046, no hand-written test required):
 //
 // 1. "Dies" (CR 603.2, battlefield → graveyard only) — the standard
-//    self-referential dies-trigger shape (Haywire Mite bro/colorless.ts,
-//    Riptide Crab bro/colorless.ts, Torsten dmc/multicolor.ts): a plain
+//    self-referential dies-trigger shape (Haywire Mite bro/colorless.cards.ts,
+//    Riptide Crab bro/colorless.cards.ts, Torsten dmc/multicolor.cards.ts): a plain
 //    `event: "CREATURE_DIED"` entry (no `zone` — the default battlefield
 //    scan, matched via `self.id === event.creatureInstanceId`), body =
 //    `createToken` ×3.
@@ -45,7 +45,7 @@ const WORLDSPINE_WURM_ID = "543d55cb-3a6b-4620-af25-10ae74ed32c4";
 //    instead of three near-duplicates. This covers battlefield, hand, and
 //    library origins — CR 701.17 mill is implemented
 //    (mechanicsRegistry.ts `mill` — status "implemented"), so CARD_MILLED is
-//    included, unlike the older Moonshadow precedent (ecl/black.ts) which
+//    included, unlike the older Moonshadow precedent (ecl/black.cards.ts) which
 //    predates mill shipping. A spell countered on the stack going straight
 //    to the graveyard is covered too: `sendStackItemToGraveyard` emits
 //    CARD_PUT_INTO_GRAVEYARD with `fromZone: "stack"`.
@@ -55,7 +55,7 @@ const WORLDSPINE_WURM_ID = "543d55cb-3a6b-4620-af25-10ae74ed32c4";
 // explicitly documented as a no-op "for an ability" — mechanicsRegistry.ts —
 // so it CANNOT be used from a triggered ability's effects): `moveZone`
 // (graveyard-card → library, `bind`-snapshotting the OWNER — issue #1106,
-// the Recoil precedent, inv/multicolor.ts, since the oracle text says
+// the Recoil precedent, inv/multicolor.cards.ts, since the oracle text says
 // "owner's" and NOT "your" library, and a creature that died under a
 // non-owner's control per CR 400.7/108.4 still goes to its OWNER's pile) +
 // `libraryLook`(shuffle) on that snapshotted owner — moving a card to a

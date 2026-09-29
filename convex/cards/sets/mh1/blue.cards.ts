@@ -118,12 +118,12 @@ export const forceOfNegation: CardDefinition = {
 //      NOT "the Op doesn't exist yet": `createToken` exists and is used
 //      everywhere; a CDA specifically cannot be expressed as JSON.
 //      `TokenSpec.staticEffectKeys` + `SpellContext.createToken` is the
-//      shipped mechanism (`ncc/colorless.ts`, `mh2/colorless.ts` precedent).
+//      shipped mechanism (`ncc/colorless.cards.ts`, `mh2/colorless.cards.ts` precedent).
 //
 //   2. "Tap an untapped artifact you control: Add {U}." (CR 605.1a mana
 //      ability, `useStack: false` per CR 605.3a.) `cost.tapOtherFilter`
-//      (existing shape — Hand of Justice `fem/white.ts`, Vodalian War Machine
-//      `fem/blue.ts`) filtered to untapped artifacts, `count: 1`; Urza has NO
+//      (existing shape — Hand of Justice `fem/white.cards.ts`, Vodalian War Machine
+//      `fem/blue.cards.ts`) filtered to untapped artifacts, `count: 1`; Urza has NO
 //      `cost.tap` of its own, so activating this ability never taps Urza —
 //      only the chosen artifact. `manaProduced: { U: 1 }` is the standard
 //      mana-ability output declaration. This is the FIRST catalogue ability
@@ -159,18 +159,18 @@ export const forceOfNegation: CardDefinition = {
 //      standalone "activate and float the mana with no spend plan" Move was
 //      added — the bot only ever taps this ability as part of paying a
 //      cost, which is the ordinary use of a mana ability (CR 605.1a) and not
-//      a residual gap. Shape shared with Farrelite Priest (`fem/white.ts`).
+//      a residual gap. Shape shared with Farrelite Priest (`fem/white.cards.ts`).
 //
 //   3. "{5}: Shuffle your library, then exile the top card. Until end of
 //      turn, you may play that card without paying its mana cost." (CR
 //      601.3 / 608.2g impulse-play idiom, CR 701.24 shuffle.) Composes
 //      shipped `SpellContext` primitives exactly like Elkin Bottle
-//      (`ice/colorless.ts`) plus a leading shuffle: `shuffleLibrary` →
+//      (`ice/colorless.cards.ts`) plus a leading shuffle: `shuffleLibrary` →
 //      `peekLibraryTop` → `moveCardById(..., "exile")` (CR 406.3 — FACE UP,
 //      examinable by both players, issue #3001) → `grantCastFromExile` with
 //      `"this-turn"` +
 //      `withoutPayingManaCost: true` (Dauthi Voidwalker's own
-//      `withoutPayingManaCost` precedent, `mh2/black.ts`).
+//      `withoutPayingManaCost` precedent, `mh2/black.cards.ts`).
 //
 //      DSL-first exception (ADR 0045), PROTOCOL-LIKE, recorded justification
 //      — identical to Elkin Bottle's: "exile the (unconditional) top card of
@@ -309,7 +309,7 @@ export const urzaLordHighArtificer: CardDefinition = {
             // precedent for standing in for a "look at N, keep 1" impulse
             // upside (`CARD_SELECTION_VALUE`, `gre/ai/opValuers.ts`) —
             // Ragavan, Nimble Pilferer's own exile-and-may-cast clause uses
-            // the identical shadow (`mh2/red.ts`), even though the real
+            // the identical shadow (`mh2/red.cards.ts`), even though the real
             // effect casts from exile without paying mana cost rather than
             // drawing to hand; the shuffle itself carries no separate
             // valuation (a shuffle of a fair library is value-neutral).

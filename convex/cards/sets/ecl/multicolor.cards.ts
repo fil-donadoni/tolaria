@@ -145,7 +145,7 @@ export const vibrance: CardDefinition = {
 // Avatar with base power and toughness 7/8 and protection from each of your
 // opponents."
 //
-// The EVE-era Figure of Destiny (eve/multicolor.ts) is the reference shape;
+// The EVE-era Figure of Destiny (eve/multicolor.cards.ts) is the reference shape;
 // see its comment for the staged-respec design. This card differs in one
 // instructive way: its type line genuinely REPLACES rather than accumulating
 // (Scout → Soldier → Avatar, each dropping the previous), which is why the
@@ -278,8 +278,8 @@ export const figureOfFable: CardDefinition = {
 };
 
 // The canonical Thoughtseize/Duress template (`reveal` + `choice
-// (choose-hand-card)` with `zoneOwnerId`, lrw/black.ts), identical to Grief's
-// (mh2/black.ts). "Target opponent" is a REAL target announced as the trigger
+// (choose-hand-card)` with `zoneOwnerId`, lrw/black.cards.ts), identical to Grief's
+// (mh2/black.cards.ts). "Target opponent" is a REAL target announced as the trigger
 // goes on the stack (CR 603.3d) — the body reads the announced slot
 // (`{ target: 0 }`), never a relative `EffectPlayerRef`, because only a
 // declared `targetRequirement` reaches the single player-target legality gate —
@@ -378,7 +378,7 @@ export const deceit: CardDefinition = {
 // controls. When this creature enters, if {U}{U} was spent to cast it, draw
 // two cards, then discard a card. Evoke {G/U}{G/U}"
 //
-// HOME FILE (issue #1927): this card lived in `ecl/colorless.ts` only because
+// HOME FILE (issue #1927): this card lived in `ecl/colorless.cards.ts` only because
 // the worklist importer's `parseManaCost` used to DROP hybrid `{G/U}` symbols
 // (fixed by #1742/#1771), leaving it with an apparently colourless cost. With
 // the pips declarable its colour identity is genuinely G/U (CR 202.2), so it

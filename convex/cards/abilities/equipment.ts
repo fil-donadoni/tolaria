@@ -20,12 +20,12 @@ import { enteredTrigger } from "./triggers/enteredTrigger";
  *  targets a creature its controller controls and is activatable **only as a
  *  sorcery**. The body is the generic `attach` Op (CR 701.3), the single
  *  attachment primitive ADR 0065 settled on; `Equip` is just its shell, the
- *  same way Reconfigure (Lion Sash, `neo/white.ts`) is.
+ *  same way Reconfigure (Lion Sash, `neo/white.cards.ts`) is.
  *
  *  Extracted on the rule of two (see `feedback_extract_after_second`): the
- *  identical literal was already inline on Bonesplitter (`mrd/colorless.ts`),
- *  Skullclamp (`dst/colorless.ts`), Cori-Steel Cutter (`tdm/red.ts`) and
- *  Glimmer Lens (`otj/colorless.ts`) before the Living Weapon cards (#1340)
+ *  identical literal was already inline on Bonesplitter (`mrd/colorless.cards.ts`),
+ *  Skullclamp (`dst/colorless.cards.ts`), Cori-Steel Cutter (`tdm/red.cards.ts`) and
+ *  Glimmer Lens (`otj/colorless.cards.ts`) before the Living Weapon cards (#1340)
  *  and Umezawa's Jitte (#1341) added four more. */
 export function equipAbility(args: {
     /** Ability id — conventionally `<card-slug>-equip`. */
@@ -63,7 +63,7 @@ export function equipAbility(args: {
  *  announced-target form for an object that didn't exist when the ability
  *  was put on the stack, CR 601.2b) and the generic `attach` Op reads it
  *  back — the exact `createToken`→`attach` chain Cori-Steel Cutter
- *  (`tdm/red.ts`) already exercises, minus the "you may" leg (the attach is
+ *  (`tdm/red.cards.ts`) already exercises, minus the "you may" leg (the attach is
  *  forced, and costs no Equip mana).
  *
  *  On the far side: when the Equipment later detaches (host gone, or the

@@ -18,11 +18,11 @@ import { attacksTrigger } from "../../abilities/triggers/attacksTrigger";
 // reusing already-shipped Ops:
 //   - ETB surveil 2 (CR 701.25): the `scryReorder` Op with `destination:
 //     "graveyard"` and `count: 2`, the same shape as the MKM surveil-land
-//     cycle (mkm/colorless.ts) and Consider (mid/blue.ts).
+//     cycle (mkm/colorless.cards.ts) and Consider (mid/blue.cards.ts).
 //   - Graveyard-zone upkeep recursion (CR 113.6m — an ability whose effect
 //     moves the card out of a zone functions only in that zone, so the
 //     triggered ability opts into the graveyard scan via `zone: "graveyard"`;
-//     Squee, Goblin Nabob's shape in mmq/red.ts): `mayPay(cost: { life: 1 })`
+//     Squee, Goblin Nabob's shape in mmq/red.cards.ts): `mayPay(cost: { life: 1 })`
 //     gates the `moveZone` graveyard → hand self-return on the "if you do"
 //     clause. The "if this card is in your graveyard" intervening-if is a
 //     declared `interveningIf` (CR 603.4) — see the note on the ability.
@@ -72,7 +72,7 @@ export const masterOfDeath: CardDefinition = {
             // only a declared predicate reaches the second, so without this a
             // response that exiles the card off the graveyard still charged the
             // life for a no-op self-return. Shared with Pyre Zombie
-            // (`inv/multicolor.ts`), the other card on this Oracle sentence.
+            // (`inv/multicolor.cards.ts`), the other card on this Oracle sentence.
             interveningIf: (_event, self, state) =>
                 cardIsInOwnerGraveyard(state, self),
             effects: [
@@ -242,10 +242,10 @@ export const gristTheHungerTide: CardDefinition = {
             // "When you do" is a CR 603.12 reflexive triggered ability: a
             // SEPARATE stack object whose target is announced only after the
             // sacrifice happened (distinct from "if you do", which stays in the
-            // same resolution). The Minsc & Boo shape (`clb/multicolor.ts`),
+            // same resolution). The Minsc & Boo shape (`clb/multicolor.cards.ts`),
             // here with an OPTIONAL `count: { min: 0, max: 1 }` because Grist
             // says "you MAY sacrifice" (the Gut, True Soul Zealot shape,
-            // `clb/red.ts`).
+            // `clb/red.cards.ts`).
             effects: [
                 {
                     op: "choice",
@@ -309,7 +309,7 @@ export const gristTheHungerTide: CardDefinition = {
 // card from a graveyard."
 //
 // P/T (CR 604.3 characteristic-defining ability, CR 305.6 basic land types):
-// the Nightmare convention (`lea/black.ts`) — a printed 0/0 base plus a
+// the Nightmare convention (`lea/black.cards.ts`) — a printed 0/0 base plus a
 // self-scoped `pt-cda` whose `compute` IS the whole stat line, through the
 // shared `countDomain` helper every other Domain site reads. A CDA functions
 // in all zones (CR 604.3), and the layer pipeline is what the public-state
@@ -325,7 +325,7 @@ export const gristTheHungerTide: CardDefinition = {
 // is legal with zero targets — so the announcement is a real two-way prompt
 // every combat. `attacksTrigger` grew a `modes` passthrough for this card, the
 // same {@link AbilityMode} list `enteredTrigger` already forwards for a modal
-// ETB (Deceiver Exarch, `nph/blue.ts`): a modal trigger differs only in WHICH
+// ETB (Deceiver Exarch, `nph/blue.cards.ts`): a modal trigger differs only in WHICH
 // event puts it on the stack.
 export const territorialKavu: CardDefinition = {
     id: "2605df98-0b02-4aab-bc36-01e93c693743",
@@ -366,7 +366,7 @@ export const territorialKavu: CardDefinition = {
                     // binding iterates nothing. The draw therefore happens
                     // exactly when a card was actually discarded, which IS the
                     // clause (the Fable of the Mirror-Breaker shape,
-                    // `neo/red.ts`). The draw runs AFTER the discard in written
+                    // `neo/red.cards.ts`). The draw runs AFTER the discard in written
                     // order, so the discarded card cannot be drawn back.
                     effects: [
                         {
@@ -399,7 +399,7 @@ export const territorialKavu: CardDefinition = {
                     // "up to one target": `{ min: 0, max: 1 }` lets the
                     // controller announce zero targets without the mode
                     // becoming illegal (the Wrenn and Six +1 shape,
-                    // `mh1/multicolor.ts`). `type: "card"` + `zone: "graveyard"`
+                    // `mh1/multicolor.cards.ts`). `type: "card"` + `zone: "graveyard"`
                     // with no `controller` is "a graveyard" — either player's
                     // (the field defaults to "any").
                     targetRequirement: {

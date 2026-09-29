@@ -15,7 +15,7 @@ import { equipAbility, jobSelect } from "../../abilities/equipment";
 // turn, put a +1/+1 counter on this creature.'\nDiana — Equip {2}".
 // "Diana —" is pure flavour text (the Final Fantasy character naming the
 // Equip line), no rules meaning — the `Cori-Steel Cutter` "Flurry —"
-// ability-word precedent (`tdm/red.ts`), just without even an ability-word
+// ability-word precedent (`tdm/red.cards.ts`), just without even an ability-word
 // registry row: it is card-specific flavour, not a shared vocabulary term.
 //
 //  - Job select (CR 702.182a) is the shared `jobSelect()` self-ETB trigger
@@ -27,11 +27,11 @@ import { equipAbility, jobSelect } from "../../abilities/equipment";
 //  - The quoted granted ability is a TRIGGERED ability (CR 611.2a/613.1f)
 //    living on `triggeredGrantTemplates[]`, pushed onto the host by a
 //    `triggered-grant` static — the exact Kaldra Compleat
-//    (`mh2/colorless.ts`) convention. `self` inside the template is the
+//    (`mh2/colorless.cards.ts`) convention. `self` inside the template is the
 //    RECIPIENT (the equipped creature), so `self.controllerId` reads "you"
 //    and `$source` in `effects` resolves to the equipped creature itself.
 //    ONE Oracle sentence spans TWO engine events (CR 603.2 — the Sin Spira
-//    `fin/multicolor.ts` array-event shape): casting a noncreature spell
+//    `fin/multicolor.cards.ts` array-event shape): casting a noncreature spell
 //    (the `Third Path Iconoclast` / `Vivi Ornitier` noncreature-filter
 //    convention) OR drawing the third card of the turn
 //    (`nthDrawThisTurn`-equivalent condition inlined against

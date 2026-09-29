@@ -14,7 +14,7 @@ import { AURA_AFFECTS_HOST } from "../../types";
 // this one." (CR 500.7, Vintage Cube FREE tranche, issue #686.) DSL-first
 // (ADR 0045): the `extraTurn` Op (mechanicsRegistry.ts) is a thin declarative
 // skin over `SpellContext.takeExtraTurn` — the SAME primitive Time Walk's
-// pre-DSL `resolve()` closure already calls (lea/blue.ts) — added as part of
+// pre-DSL `resolve()` closure already calls (lea/blue.cards.ts) — added as part of
 // this card (no new engine capability, only the Op wrapper the primitive-reuse
 // mandate calls for). `targetRequirement` is a single player (CR 601.2c);
 // the announced slot feeds the Op's `player: { target: 0 }`.
@@ -41,13 +41,13 @@ export const counterspellTmp: CardPrint = {
 // Shimmering Wings — {U} Enchantment — Aura, enchant creature. "Enchanted
 // creature has flying. {U}: Return this Aura to its owner's hand." (CR 702.9
 // continuous keyword grant via `keyword-grant` + `AURA_AFFECTS_HOST`, and the
-// shipped self-bounce activated-ability template — ice/black.ts Leshrac's
+// shipped self-bounce activated-ability template — ice/black.cards.ts Leshrac's
 // Sigil: "{cost}: Return this enchantment to its owner's hand".)
 //
 // Home set = earliest paper printing (ADR 0041) = Tempest; it was first
 // implemented against the INV reprint, which filed it under the
 // wrong home set and rendered the wrong art. That printing now rides along
-// as a `CardPrint` in `inv/blue.ts`.
+// as a `CardPrint` in `inv/blue.cards.ts`.
 export const shimmeringWings: CardDefinition = {
     id: "a6a8dc46-04c7-479a-90c1-b55e6c67e0e3", // TMP 87
     name: "Shimmering Wings",

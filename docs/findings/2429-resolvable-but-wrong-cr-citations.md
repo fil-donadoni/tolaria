@@ -55,7 +55,7 @@ The tell that this is a real shift rather than coincidence: the SAME repo cites
 Three smaller, unrelated instances of the same class:
 
 - **`702.14b` used for Fear** (5 sites, `convex/cards/sets/inv/multicolor.cards.ts:655`,
-  `pls/black.ts:763`, …). `702.14b` is "Landwalk is an evasion ability"; Fear is
+  `pls/black.cards.ts:763`, …). `702.14b` is "Landwalk is an evasion ability"; Fear is
   **`702.36`**.
 - **`702.35c` used for Madness's discard→exile replacement** (14 sites,
   `convex/gre/madness.ts:73`, `convex/gre/serialize.ts:433`,
@@ -70,12 +70,12 @@ Three smaller, unrelated instances of the same class:
   #2452 round-3 review.
     - **`707.10b` used for "you may choose new targets for the copy"** —
       **36 sites**, `convex/game.ts` (×3+), `convex/cards/types.ts:4042`,
-      `convex/gre/state.ts:3034`, `lea/red.ts` and its tests, …
+      `convex/gre/state.ts:3034`, `lea/red.cards.ts` and its tests, …
       Printed, `707.10b` is "A copy of an ability has the same **source** as the
       original ability"; the retarget permission is **`707.10c`** ("Some effects
       copy a spell or ability and state that its controller may choose new
       targets for the copy"). 12 other files already cite `707.10c` correctly,
-      so the repo contradicts itself. Related: `lea/red.ts:414` cites
+      so the repo contradicts itself. Related: `lea/red.cards.ts:414` cites
       `707.10c` for a "color-change to red" — `707.10c` is the retarget rule,
       and Fork's colour-change is Fork's own text, not a CR subrule at all.
     - **`707.12` used for "copy a spell"** (26 sites,

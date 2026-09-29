@@ -20,8 +20,8 @@ import { damageDealtTrigger } from "../../abilities/triggers/damageDealtTrigger"
 // `evoke` / `dash` are sibling fields rather than keyword strings.
 //
 // resolve() justification (ADR 0045 DSL-first, precedent-twin): the lifegain
-// clause is the EXACT El-Hajjâj / Horned Cheetah shape (`arn/black.ts`,
-// `inv/multicolor.ts`) — a `damageDealtTrigger` scoped to `"self"` whose
+// clause is the EXACT El-Hajjâj / Horned Cheetah shape (`arn/black.cards.ts`,
+// `inv/multicolor.cards.ts`) — a `damageDealtTrigger` scoped to `"self"` whose
 // imperative body is `ctx.gainLife(ctx.controller, event.amount)`. The same
 // documented gap applies: `event.amount` has no `EffectValue` grammar member
 // / `$event` field row, so the trigger cannot be written as an Effect Script.

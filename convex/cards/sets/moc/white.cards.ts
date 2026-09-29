@@ -20,8 +20,8 @@ import { backupTrigger } from "../../abilities/triggers/backupTrigger";
 //
 // DSL-first (ADR 0045):
 //   - Backup 1: `backupTrigger(1, ["flying"], ["guardian-scalelord-attack"])`
-//     — the SAME factory Consuming Aetherborn (mom/black.ts) and
-//     Death-Greeter's Champion (moc/red.ts) already prove, granting the card's
+//     — the SAME factory Consuming Aetherborn (mom/black.cards.ts) and
+//     Death-Greeter's Champion (moc/red.cards.ts) already prove, granting the card's
 //     own printed abilities to a non-self target: here BOTH the keyword and
 //     (issue #1665) the attack trigger printed below the Backup line.
 //   - The attack trigger: a `zone: "graveyard"` `targetRequirement` (CR
@@ -47,8 +47,8 @@ import { backupTrigger } from "../../abilities/triggers/backupTrigger";
 // clickability (`.claude/rules/gre-development.md` § Frontend wiring
 // analysis): `src/lib/graveyard-targets.ts`'s `matchesGraveyardTarget` never
 // checked `PendingTarget.mvFilter` at all, so EVERY existing mvFilter-
-// restricted graveyard target (Sevinne's Reclamation `c19/white.ts`,
-// sos/multicolor.ts, ulg/black.ts) silently offered every graveyard card as
+// restricted graveyard target (Sevinne's Reclamation `c19/white.cards.ts`,
+// sos/multicolor.cards.ts, ulg/black.cards.ts) silently offered every graveyard card as
 // clickable regardless of mana value, relying solely on the server's
 // `selectTarget` rejection after the fact. Fixed catalogue-wide (not just
 // for this card) in the same change.

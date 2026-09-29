@@ -5,7 +5,7 @@
 // No shipped card in the current catalogue prints exactly "sacrifice this
 // unless you discard a card" (verified against MTGJSON DRK.json — the set
 // the issue's target-file list points at has zero matches; Oath of Lim-Dûl,
-// ice/black.ts, is the closest shipped precedent but its punisher clause is
+// ice/black.cards.ts, is the closest shipped precedent but its punisher clause is
 // LIFE_LOST-triggered, not an upkeep trigger, and its own test never
 // exercises the discard branch). Rather than fabricate a fake entry inside a
 // real MTGJSON-backed set file (which would break the "every card in
@@ -137,7 +137,7 @@ describe("upkeepDiscardOrElseTrigger (CR 603.6a + 117.3a + 701.8, #1129)", () =>
             zone: "hand",
         });
         // CR 701.9 witness: Necropotence's own "whenever you discard a card,
-        // exile it from your graveyard" trigger (ice/black.ts,
+        // exile it from your graveyard" trigger (ice/black.cards.ts,
         // `necropotence-discard-exile`, event: "CARD_DISCARDED"). `resolveTop
         // OfStack` flushes `state.pendingEvents` synchronously as part of the
         // same call that runs the discard (`processPendingActionTriggers`),

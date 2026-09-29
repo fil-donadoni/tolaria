@@ -82,7 +82,7 @@ export const wallOfVapor: CardDefinition = {
 //     - Relic Bind — modal tap-trigger on an opponent's artifact. NOT blocked:
 //       modal triggered abilities with per-mode targets ship as
 //       `TriggeredAbility.modes`, announced onto the stack (#2464, consumer
-//       Deceiver Exarch in nph/blue.ts), and the host-tap trigger is
+//       Deceiver Exarch in nph/blue.cards.ts), and the host-tap trigger is
 //       `PermanentScope: "host"` (Seizures). Owned by #2124.
 //     - Time Elemental — attacks/blocks → end-of-combat self-sacrifice + 5
 //       damage (doable), plus "{2}{U}{U}, {T}: Return target permanent THAT
@@ -621,7 +621,7 @@ export const flashFlood: CardDefinition = {
             },
             // Migrated resolve()→effects[] (ADR 0045, #795): return the
             // announced target to its owner's hand (CR 400.7). Same
-            // moveZone shape as Boomerang (`leg/blue.ts`).
+            // moveZone shape as Boomerang (`leg/blue.cards.ts`).
             effects: [{ op: "moveZone", target: { target: 0 }, to: "hand" }],
         },
     ],
@@ -648,7 +648,7 @@ export const seaKingsBlessing: CardDefinition = {
     // "until end of turn" (CR 611.1) — issue #2103: the pre-migration
     // `setColorOverride` call and this port both omitted it, making the
     // colour change permanent instead of reverting at cleanup (CR 514.2).
-    // Same duration shape as Touch of Darkness (`leg/black.ts`) and Part
+    // Same duration shape as Touch of Darkness (`leg/black.cards.ts`) and Part
     // Water (above).
     effects: [
         {
@@ -687,7 +687,7 @@ export const partWater: CardDefinition = {
     // gap this card was blocked on. Grants islandwalk to every announced
     // target creature (CR 601.2c "X target creatures") until end of turn
     // (CR 611.1), same grantAbility shape as Dwarven Warriors
-    // (`lea/red.ts`).
+    // (`lea/red.cards.ts`).
     effects: [
         {
             op: "forEach",

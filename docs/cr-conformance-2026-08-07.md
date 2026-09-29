@@ -112,9 +112,9 @@ each time its trigger event occurs"), and `a`–`c` are exactly the letters the
 merge left in place. The table below is a **sample**, not a census: `603.2b` is
 cited in 13 non-test files (also `convex/cards/abilities/ward.ts`,
 `convex/cards/mechanicsRegistry.ts`, `convex/cards/types.ts`,
-`convex/gre/rules.ts`, `convex/gre/state.ts`, `cn2/multicolor.ts`,
-`m12/blue.ts`, `mh3/multicolor.ts`, `pls/blue.ts`, `pls/multicolor.ts`,
-`wth/green.ts`). The verdict does not rest on the sample — it rests on the
+`convex/gre/rules.ts`, `convex/gre/state.ts`, `cn2/multicolor.cards.ts`,
+`m12/blue.cards.ts`, `mh3/multicolor.cards.ts`, `pls/blue.cards.ts`, `pls/multicolor.cards.ts`,
+`wth/green.cards.ts`). The verdict does not rest on the sample — it rests on the
 `d`–`h` grep being empty:
 
 | Cited                                                                                                                                                             | Site                                                                                                                                                                                                           |
@@ -148,8 +148,8 @@ hit**, a **commented-out stub**: Ancient Cornucopia,
 The looser sweep `"only once each turn"` is **not** discriminating: it returns
 29 non-test hits in `convex/cards/`, and every one of them is CR 602.5's
 _activated_-ability restriction ("Activate … only once each turn" —
-`drk/green.ts:28`, `fin/multicolor.ts:46`, `fem/black.ts:197`,
-`atq/black.ts:162`, `ice/red.ts:1316`, `lea/green.ts:560`, …) plus the
+`drk/green.cards.ts:28`, `fin/multicolor.cards.ts:46`, `fem/black.cards.ts:197`,
+`atq/black.cards.ts:162`, `ice/red.cards.ts:1316`, `lea/green.cards.ts:560`, …) plus the
 `oncePerTurn` doc comment at `convex/cards/types.ts:1304`. Zero of them are
 603.2h.
 
@@ -189,8 +189,8 @@ What is absent is the **predicate**: the engine has no notion of "were all of
 this ability's conditions met during period P". A sweep of shipped oracle text
 for `all of (those|these)` / `if all` / `each of those` returns only
 single-`event` abilities where the phrase refers to a set of chosen objects
-(`convex/cards/sets/drk/colorless.cards.ts:877`, `ice/black.ts:633`,
-`ice/white.ts:1075`, `leg/green.ts:80`, `:567`), not to trigger conditions.
+(`convex/cards/sets/drk/colorless.cards.ts:877`, `ice/black.cards.ts:633`,
+`ice/white.cards.ts:1075`, `leg/green.cards.ts:80`, `:567`), not to trigger conditions.
 
 Shipping such a card requires a per-turn (or per-period) record of _which_
 conditions have fired, independent of whether the ability itself triggered —
@@ -1258,8 +1258,8 @@ audit edits the same comment.
 | `convex/gre/phases.ts:3054`, `:3060`, `:3116`; `convex/gre/state.ts:1507`, `:2381`; `convex/gre/types.ts:256`; `convex/cards/types.ts:2969`; `convex/cards/sets/atq/colorless.cards.ts:1383` | `500.4`                    | `500.5` (`703.4q`) | Mana emptying moved from 500.4 to 500.5. New 500.4 is about effects expiring as a step _begins_ — a different rule.                        |
 | `convex/gre/phases.ts:1898` (UNTAP entry tick)                                                                                                                                               | `502.1`                    | `500.4`            | 502.1 is the phasing turn-based action. The entry-expiry rule is new 500.4.                                                                |
 | `convex/gre/phases.ts:1908` (UPKEEP entry tick)                                                                                                                                              | `500.2`                    | `500.4`            | 500.2 is "a phase or step in which players receive priority ends when…". The entry-expiry rule is new 500.4.                               |
-| **20 sites, enumerated below the table** (`convex/gre/state.ts` ×8, `convex/cards/entersWith.ts` ×3, `fem/blue.ts` ×2, and seven singletons)                                                 | `121.6`                    | `122.6` / `122.6a` | 121.6 is _"Some effects replace card draws."_ The enters-with-counters rule is 122.6.                                                      |
-| **6 sites, enumerated below the table** (`ncc/colorless.ts` ×3, `arn/colorless.ts` ×2, `dka/red.ts`)                                                                                         | `121.6`                    | `121.1`            | A second, distinct misuse of the same id: these cite it for a plain card draw. 121.1 is the draw rule; 121.6 is the _replacement_ subrule. |
+| **20 sites, enumerated below the table** (`convex/gre/state.ts` ×8, `convex/cards/entersWith.ts` ×3, `fem/blue.cards.ts` ×2, and seven singletons)                                           | `121.6`                    | `122.6` / `122.6a` | 121.6 is _"Some effects replace card draws."_ The enters-with-counters rule is 122.6.                                                      |
+| **6 sites, enumerated below the table** (`ncc/colorless.cards.ts` ×3, `arn/colorless.cards.ts` ×2, `dka/red.cards.ts`)                                                                       | `121.6`                    | `121.1`            | A second, distinct misuse of the same id: these cite it for a plain card draw. 121.1 is the draw rule; 121.6 is the _replacement_ subrule. |
 | `convex/cards/mechanicsRegistry.ts:2447` (earthbend row's `cr` field)                                                                                                                        | _"not a CR 701/702 entry"_ | `701.66`           | Earthbend now has a rule number. (The row also needs the §H.1 behaviour fix — coordinate.)                                                 |
 
 **The `121.6` sites in full.** `grep -rn '121\.6' convex src` (excluding

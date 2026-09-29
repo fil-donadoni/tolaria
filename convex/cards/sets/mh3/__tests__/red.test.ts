@@ -2,7 +2,7 @@
 // Galvanic Discharge exercises the Energy resource (CR 122.1, issue #697):
 // "you get {E}{E}{E}, then you may pay any amount of {E}" driving the damage
 // dealt. resolve()/resolveSteps card (variable resource payment — see the
-// justification in mh3/red.ts), so it carries a full per-card GRE + wire test.
+// justification in mh3/red.cards.ts), so it carries a full per-card GRE + wire test.
 
 import { describe, it, expect } from "vitest";
 import {

@@ -5,7 +5,7 @@ import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 // Dark Confidant — {1}{B} Creature, Vintage Cube residue (issue #1302, parent
 // PRD #620). Home set = earliest paper printing (ADR 0041) = Ravnica: City of
 // Guilds; it was first implemented against the FIN reprint (wrong home set,
-// wrong art), which now rides along as a `CardPrint` in `fin/black.ts`.
+// wrong art), which now rides along as a `CardPrint` in `fin/black.cards.ts`.
 //
 // "At the beginning of your upkeep, reveal the top card of your library and put
 // that card into your hand. You lose life equal to its mana value."

@@ -14,7 +14,7 @@ import type { CardDefinition } from "../../types";
 // engine plumbing needed — unlike Vivi Ornitier (FIN), whose OWN mana
 // ability additionally needs a runtime {U}/{R} colour-split CHOICE on a
 // NON-tap activation, a separate, not-yet-built activation pathway (tracked
-// by a follow-up issue, see `fin/multicolor.ts`).
+// by a follow-up issue, see `fin/multicolor.cards.ts`).
 export const viridianJoiner: CardDefinition = {
     id: "b50679df-bf82-4bb2-9fe3-8ebd7a9decde",
     name: "Viridian Joiner",

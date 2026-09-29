@@ -5,7 +5,7 @@
 // gates on a bundle still being held, so it never fires with nothing exiled.
 //
 // Extracted from Banishing Light's inline `banishingLightHoldsSomething`
-// (jou/white.ts) on its second reuse — the Parallax Wave / Parallax Tide cycle
+// (jou/white.cards.ts) on its second reuse — the Parallax Wave / Parallax Tide cycle
 // (NEM), which exile via a repeatable activated ability rather than an ETB and
 // so may hold several bundles at once under the same `sourceId`.
 

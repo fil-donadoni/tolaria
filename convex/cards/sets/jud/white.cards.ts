@@ -8,7 +8,7 @@ import { upkeepDiscardOrElseTrigger } from "../../abilities/upkeepDiscardOrElse"
 // enchantment target. Flashback is the engine capability
 // (convex/gre/flashback.ts); the `flashback` field carries the alternative
 // (off-colour green) cost so the ray can be cast twice, once from hand and
-// once from the graveyard. Mirrors ody/red.ts Firebolt's flashback shape.
+// once from the graveyard. Mirrors ody/red.cards.ts Firebolt's flashback shape.
 export const rayOfRevelation: CardDefinition = {
     id: "6d762c8c-6172-4dc0-8fcc-d0f6dd8ca013",
     rarity: "common",
@@ -27,12 +27,12 @@ export const rayOfRevelation: CardDefinition = {
 //   1. "At the beginning of your upkeep, sacrifice this enchantment unless
 //      you discard a card." — CR 603.6a beginning-of-upkeep trigger + CR
 //      117.3a "unless you pay [cost]" + CR 701.9 discard, via the shared
-//      `upkeepDiscardOrElseTrigger` factory (issue #1129, ice/black.ts's
+//      `upkeepDiscardOrElseTrigger` factory (issue #1129, ice/black.cards.ts's
 //      Oath of Lim-Dûl discard branch generalized). `onDecline` sacrifices
 //      the source (CR 701.21), mirroring the factory's own fixture test.
 //   2. "Skip your draw step." — CR 504 / 614 draw-step skip via
 //      `drawStepReplacement: true` (Necropotence / Island Sanctuary
-//      precedent, ice/black.ts). The skip is unconditional (no "may"), so
+//      precedent, ice/black.cards.ts). The skip is unconditional (no "may"), so
 //      the flag alone suffices.
 //   3. "You have shroud." — CR 702.18 shroud applied to a PLAYER via CR
 //      115.4, the player-scoped `player-guard` StaticEffect (issue #1128).
@@ -42,7 +42,7 @@ export const rayOfRevelation: CardDefinition = {
 //   4. "Prevent all damage that would be dealt to you." — CR 614/615, an
 //      unconditional damage-consuming `replacementEffects[]` entry scoped to
 //      the controller (Divine Presence / Energy Storm precedent,
-//      inv/white.ts, ice/white.ts): `appliesTo` filters the event to a
+//      inv/white.cards.ts, ice/white.cards.ts): `appliesTo` filters the event to a
 //      player-target matching `self.controllerId`; `replace` consumes it
 //      (CR 615 — the damage is never dealt).
 export const solitaryConfinement: CardDefinition = {

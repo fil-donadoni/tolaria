@@ -207,7 +207,7 @@ export const arcumsWeathervane: CardDefinition = {
 //
 // The attack-requirement seam shipped (`setMustAttackThisTurn` +
 // `hasAttackedThisTurn` + `next-end-step` delayed destroy — the Nettling Imp
-// pattern, lea/black.ts). The DEFERRED (tracked-by: #2785) note above is stale: those primitives
+// pattern, lea/black.cards.ts). The DEFERRED (tracked-by: #2785) note above is stale: those primitives
 // now exist. The activation window "before attackers are declared" is
 // `activationPhaseRestriction` (all steps up to BEGINNING_OF_COMBAT). The
 // target uses the `controller: "active"` filter (CR 102.1) — the creature the
@@ -346,7 +346,7 @@ export const barbedSextant: CardDefinition = {
 // CR 613 layer 7c buff; CR 603.7b delayed triggered ability for the sacrifice).
 //
 // NOT DSL-migratable (ADR 0045): the pump half composes cleanly (`pump` Op +
-// inline `delayedTrigger` Op, the Kjeldoran Elite Guard shape, ice/white.ts —
+// inline `delayedTrigger` Op, the Kjeldoran Elite Guard shape, ice/white.cards.ts —
 // tried and verified against the interpreter). Blocked on the TEST, not the
 // Op vocabulary: the pre-existing per-card test
 // (`describe("Celestial Sword …")`, `ice/__tests__/colorless.test.ts`)
@@ -658,7 +658,7 @@ export const goblinLyre: CardDefinition = {
 // the matched color and ids differ.
 //
 // NOT DSL-migratable (ADR 0045): the mayPay+if shape composes cleanly (the
-// Force Spike counter/punisher pattern, `leg/blue.ts`) — tried and verified
+// Force Spike counter/punisher pattern, `leg/blue.cards.ts`) — tried and verified
 // against the interpreter. Blocked on a genuine grammar gap: `mayPay` has no
 // way to be gated behind "was the optional (up to one) announced target slot
 // actually filled" — there is no `EffectPredicate` variant testing whether a
@@ -837,7 +837,7 @@ export const iceCauldron: CardDefinition = {
 // It was originally duplicated here as a second `CardDefinition`, which both
 // broke the one-definition-per-card rule and claimed ICE as its home set; the
 // card's earliest paper printing is Alpha (ADR 0041), so the mechanics live in
-// `lea/colorless.ts` and ICE declares only this printing.
+// `lea/colorless.cards.ts` and ICE declares only this printing.
 export const icyManipulatorIce: CardPrint = {
     printId: "1eda936f-7691-4440-9b83-eb0c6035b109",
     definitionId: "29dc1596-a2e7-4d60-9f99-89babaef8a06", // icyManipulator (LEA)
@@ -1571,7 +1571,7 @@ export const timeBomb: CardDefinition = {
             cost: { mana: { X: 1 }, tap: true, sacrifice: true },
             useStack: true,
             // Migrated resolve()→effects[] (ADR 0045, PRD #795, the Powder Keg
-            // shape — uds/colorless.ts): the sacrifice is a COST, so by
+            // shape — uds/colorless.cards.ts): the sacrifice is a COST, so by
             // resolution the source is off the battlefield; `{ counters: {
             // of: { ref: "$source" }, type: "time" } }` reads the pre-
             // sacrifice count as last-known information (CR 608.2g) via the

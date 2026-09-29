@@ -94,7 +94,7 @@ describe("isStubContext — commented-out card stubs are check-stub-coverage.ts'
 });
 
 describe("scanRepoMarkers — resolves tracked-by: independent of Guard B's MARKER word (issue #2560 fixup round 1, finding 1)", () => {
-    it("finds a per-card bullet paragraph with no marker word — the actual shape of most inv/white.ts stubs", () => {
+    it("finds a per-card bullet paragraph with no marker word — the actual shape of most inv/white.cards.ts stubs", () => {
         const sources = [
             {
                 file: "convex/cards/sets/inv/white.cards.ts",
@@ -250,7 +250,7 @@ describe("scanRepoMarkers — resolves tracked-by: independent of Guard B's MARK
         expect(scanRepoMarkers(sources)).toEqual([]);
     });
 
-    describe("tracked-by: colon syntax inside stub context is now admitted (issue #1841 item 3) — the stub-context blind spot that hid clb/red.ts's rotten `tracked-by: #925` from every default `markers:lint` run", () => {
+    describe("tracked-by: colon syntax inside stub context is now admitted (issue #1841 item 3) — the stub-context blind spot that hid clb/red.cards.ts's rotten `tracked-by: #925` from every default `markers:lint` run", () => {
         it("a bare `tracked-by: #NNN` comment inside a commented-out stub's own comment run is caught, unlike a TODO(issue #NNN) note in the same context", () => {
             const sources = [
                 {
@@ -288,7 +288,7 @@ describe("scanRepoMarkers — resolves tracked-by: independent of Guard B's MARK
             expect(hits[0].issueNumbers).toEqual([1339]);
         });
 
-        it("end-to-end: a tracked-by: colon ref inside stub context naming a CLOSED issue is caught rotten by findRottenMarkers — this is the exact clb/red.ts shape (a stub, `tracked-by: #925`, #925 closed) that a `markers:lint` run at HEAD-before-this-fix reported clean", () => {
+        it("end-to-end: a tracked-by: colon ref inside stub context naming a CLOSED issue is caught rotten by findRottenMarkers — this is the exact clb/red.cards.ts shape (a stub, `tracked-by: #925`, #925 closed) that a `markers:lint` run at HEAD-before-this-fix reported clean", () => {
             const sources = [
                 {
                     file: "convex/cards/sets/clb/red.cards.ts",
@@ -311,7 +311,7 @@ describe("scanRepoMarkers — resolves tracked-by: independent of Guard B's MARK
     });
 
     describe("TODO(issue #NNN) syntax — the second live-ref shape resolved (issue #1841)", () => {
-        it("resolves a `TODO(issue #NNN)` ref outside stub context, same as `tracked-by:` — the exact shape that hid dsk/red.ts's and mh3/colorless.ts's stale #691 refs from markers:lint before this fix", () => {
+        it("resolves a `TODO(issue #NNN)` ref outside stub context, same as `tracked-by:` — the exact shape that hid dsk/red.cards.ts's and mh3/colorless.cards.ts's stale #691 refs from markers:lint before this fix", () => {
             const sources = [
                 {
                     file: "convex/cards/sets/dsk/red.cards.ts",
@@ -378,7 +378,7 @@ describe("scanRepoMarkers — resolves tracked-by: independent of Guard B's MARK
     describe("real-repo census (issue #1841) — pins the exact split so a future widening cannot quietly swallow the stub majority", () => {
         const TODO_ISSUE_LINE = /\/\/.*TODO\(\s*issue\s*#\d+/i;
 
-        it("every `TODO(issue #NNN)` comment left in tracked, non-test source sits in stub context — none reach scanRepoMarkers as a live ref, because the three that used to (dsk/red.ts x2, mh3/colorless.ts) were converted to canonical `tracked-by:` by this issue's own fix. Asserts the PROPERTY (every raw hit is stub context), not a whole-repo count: a future commented-out card stub added or removed elsewhere in the catalogue shifts the count without touching this guard's actual concern, and a fixed number would red the gate for unrelated work", () => {
+        it("every `TODO(issue #NNN)` comment left in tracked, non-test source sits in stub context — none reach scanRepoMarkers as a live ref, because the three that used to (dsk/red.cards.ts x2, mh3/colorless.cards.ts) were converted to canonical `tracked-by:` by this issue's own fix. Asserts the PROPERTY (every raw hit is stub context), not a whole-repo count: a future commented-out card stub added or removed elsewhere in the catalogue shifts the count without touching this guard's actual concern, and a fixed number would red the gate for unrelated work", () => {
             const sources = readSources();
             let rawHits = 0;
             for (const { file, text } of sources) {
@@ -400,9 +400,9 @@ describe("scanRepoMarkers — resolves tracked-by: independent of Guard B's MARK
             expect(liveHitsUsingThisSyntax).toEqual([]);
         });
 
-        it("dsk/red.ts and mh3/colorless.ts no longer name the closed #691 anywhere — of the three successor slices only #2766 (Shifting Woodland's delirium copy) is still open and still marked; #2761 (Silence — freed) and #2494 (Fear of Missing Out's delirium attack trigger, shipped by #2885) both had their markers DELETED outright rather than re-pointed, per Guard B's own rule that a marker is deleted, never left to rot, once its blocker is gone", () => {
+        it("dsk/red.cards.ts and mh3/colorless.cards.ts no longer name the closed #691 anywhere — of the three successor slices only #2766 (Shifting Woodland's delirium copy) is still open and still marked; #2761 (Silence — freed) and #2494 (Fear of Missing Out's delirium attack trigger, shipped by #2885) both had their markers DELETED outright rather than re-pointed, per Guard B's own rule that a marker is deleted, never left to rot, once its blocker is gone", () => {
             const hits = scanRepoMarkers(readSources()).filter((m) =>
-                /dsk\/red\.ts|mh3\/colorless\.ts/.test(m.file)
+                /dsk\/red\.cards\.ts|mh3\/colorless\.cards\.ts/.test(m.file)
             );
             expect(hits.length).toBeGreaterThanOrEqual(1);
             for (const h of hits) {
@@ -415,12 +415,12 @@ describe("scanRepoMarkers — resolves tracked-by: independent of Guard B's MARK
             }
             const allNumbers = new Set(hits.flatMap((h) => h.issueNumbers));
             // #2885 shipped Fear of Missing Out's delirium attack trigger, so
-            // dsk/red.ts's `tracked-by: #2494` paragraph is GONE, not
+            // dsk/red.cards.ts's `tracked-by: #2494` paragraph is GONE, not
             // re-pointed — the same delete-don't-rot rule #2761 followed. A
             // lingering hit here would mean the stub outlived its blocker.
             expect(allNumbers.has(2494)).toBe(false);
-            // #2761 shipped (Silence moved to `m10/white.ts`) — its marker
-            // paragraph in dsk/red.ts is GONE, not re-pointed, so it must NOT
+            // #2761 shipped (Silence moved to `m10/white.cards.ts`) — its marker
+            // paragraph in dsk/red.cards.ts is GONE, not re-pointed, so it must NOT
             // still show up here; a lingering hit would mean the delete
             // failed or a duplicate marker was left behind.
             expect(allNumbers.has(2761)).toBe(false);
@@ -430,7 +430,7 @@ describe("scanRepoMarkers — resolves tracked-by: independent of Guard B's MARK
 });
 
 describe("end-to-end: TODO(issue #NNN) reds the sweep exactly like tracked-by: (issue #1841)", () => {
-    it("a TODO(issue #NNN) marker OUTSIDE stub context naming a CLOSED issue is now caught rotten — the exact gap #1841 closes (dsk/red.ts and mh3/colorless.ts named the closed #691 this way and markers:lint reported clean)", () => {
+    it("a TODO(issue #NNN) marker OUTSIDE stub context naming a CLOSED issue is now caught rotten — the exact gap #1841 closes (dsk/red.cards.ts and mh3/colorless.cards.ts named the closed #691 this way and markers:lint reported clean)", () => {
         const sources = [
             {
                 file: "convex/cards/sets/dsk/red.cards.ts",

@@ -65,7 +65,7 @@ export const cloudOfFaeries: CardDefinition = {
 // into your hand and the rest on the bottom of your library in any order."
 // Echo (CR 702.30a) is the `echo` keyword string (it arms `echoPending` on entry)
 // plus the shared `echoTrigger` upkeep pay-or-sacrifice template, Goblin Patrol's
-// shape (usg/red.ts). The ETB is Impulse's `lookDistribute` (vis/blue.ts) one
+// shape (usg/red.cards.ts). The ETB is Impulse's `lookDistribute` (vis/blue.cards.ts) one
 // card shallower: look 3, keep 1 to hand, bottom the rest (CR 401.4).
 // compiler-gap: "Echo {2}{U}" (#2693)
 // compiler-gap: "When this creature enters, look at the top three cards of your library. Put one of them into your hand and the rest on the bottom of your library in any order." (#2693)
@@ -111,11 +111,11 @@ export const ravenFamiliar: CardDefinition = {
 // grows by 2 before the discard pick, so the fixed `count: 2` on the
 // following `choose-hand-card` choice never over-asks), then a `choice(
 // choose-hand-card)` + `discard` looter pair (the shipped Vodalian Merchant
-// template, inv/blue.ts), then a `choice(choose-permanents, zone:
+// template, inv/blue.cards.ts), then a `choice(choose-permanents, zone:
 // "battlefield", filter: { type: "Land" }, allControllers: true)` picks up to
 // three lands — ANY player's, since the Oracle prints no "you control"
 // (CR 109.2), the same reading Time Spiral's "untap up to six lands" takes
-// (usg/blue.ts) — and a `forEach { set: "bound" }`
+// (usg/blue.cards.ts) — and a `forEach { set: "bound" }`
 // over that PICKS binding untaps each pick (`tapUntap`, CR 701.26). Was
 // `resolveSteps` until issue #1284 widened `forEach { set: "bound" }`'s
 // validator to accept a `choice` Op's picks binding directly (previously

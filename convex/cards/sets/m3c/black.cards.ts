@@ -21,7 +21,7 @@ import { EFFECT_AFFECTS_SELF } from "../../types";
 //
 // P/T HALF (CR 604.3 / 613.4c CDA, layer 7a): a `pt-cda` static effect whose
 // `compute` counts DISTINCT card types among cards in ALL graveyards —
-// generalizes the already-shipped Nethergoyf pattern (mh3/black.ts, "your
+// generalizes the already-shipped Nethergoyf pattern (mh3/black.cards.ts, "your
 // graveyard" only) to every player's graveyard, the one delta the oracle
 // text asks for.
 //
@@ -62,7 +62,7 @@ export const barrowgoyf: CardDefinition = {
             // CR 604.3 — power = distinct card types among cards in ALL
             // graveyards; toughness = that + 1 (Tarmogoyf-style CDA, layer
             // 7a). Generalizes Nethergoyf's controller-only compute
-            // (mh3/black.ts) to every player's graveyard.
+            // (mh3/black.cards.ts) to every player's graveyard.
             kind: "pt-cda",
             applies: EFFECT_AFFECTS_SELF,
             compute: (_source, state) => {

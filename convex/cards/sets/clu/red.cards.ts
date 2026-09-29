@@ -21,7 +21,7 @@ import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 // and shroud (CR 702.18) — each applied to a player via CR 115.4.
 //
 // PROTOCOL (recurring impulse-draw — no Op skin, precedent: Elkin Bottle /
-// Ice Cauldron, ice/colorless.ts): the upkeep trigger composes
+// Ice Cauldron, ice/colorless.cards.ts): the upkeep trigger composes
 // `peekLibraryTop` + `exileFaceDown` + `grantCastFromExile(..., "this-turn")`.
 // The "this turn" window (CR 514.2 / 608.2g) is now first-class: the grant is
 // stamped with the current turn and revoked at that turn's CLEANUP step, so the

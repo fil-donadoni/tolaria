@@ -49,7 +49,7 @@ export const traumaticCritique: CardDefinition = {
 // `targetRequirement` can't flex per chosen mode, and the DSL `optionChoice`
 // Op runs on a SINGLE already-announced target set. Uses the legacy `modes`
 // mechanism instead (CR 700.2c per-mode target/resolve), the same
-// established escape used by Healing Salve (lea/white.ts) for this exact
+// established escape used by Healing Salve (lea/white.cards.ts) for this exact
 // cross-mode-target gap.
 export const witherbloomCharm: CardDefinition = {
     id: "254437f7-7a8a-4b11-9cea-e8e7ea23c59e",
@@ -166,7 +166,7 @@ export const silverquillCharm: CardDefinition = {
             oracleText: "Each opponent loses 3 life and you gain 3 life.",
             // Migrated resolve()→effects[] (ADR 0045): 2-player engine (CLAUDE.md
             // "3+ player multiplayer" out of scope), so `"opponent"` IS "each
-            // opponent" — same idiom as mh2/black.ts.
+            // opponent" — same idiom as mh2/black.cards.ts.
             effects: [
                 { op: "loseLife", player: "opponent", amount: 3 },
                 { op: "gainLife", player: "controller", amount: 3 },
@@ -185,8 +185,8 @@ export const silverquillCharm: CardDefinition = {
 // (CR 700.2c per-mode target/resolve), the same established escape used by
 // Witherbloom Charm/Silverquill Charm above for this exact cross-mode-target
 // gap (issue #683 adds mode 1's counter-unless-pay shape and mode 3's
-// `setBasePT` set, both already-shipped primitives — Force Spike (leg/blue.ts)
-// and Halfdane (leg/multicolor.ts) respectively).
+// `setBasePT` set, both already-shipped primitives — Force Spike (leg/blue.cards.ts)
+// and Halfdane (leg/multicolor.cards.ts) respectively).
 export const quandrixCharm: CardDefinition = {
     id: "318486e0-f255-40f5-8150-dc272eec9d7d",
     rarity: "uncommon",
@@ -203,7 +203,7 @@ export const quandrixCharm: CardDefinition = {
             targetRequirement: { type: "spell", count: 1 },
             // Migrated resolve()→effects[] (ADR 0045): counter-unless-pay,
             // the same mayPay + if(!$paid) + counter shape as Force Spike
-            // (leg/blue.ts).
+            // (leg/blue.cards.ts).
             effects: [
                 {
                     op: "mayPay",
@@ -262,10 +262,10 @@ export const quandrixCharm: CardDefinition = {
 // that stub predated `EffectCardFilter.isToken` (issue #920 itself shipped
 // the field it cited as missing) — mode 1's "nontoken artifact" filter is
 // exactly `{ type: "Artifact", isToken: false }`, the Sheoldred's Edict precedent
-// (`one/black.ts`). Mode 2's mv-capped graveyard reanimation mirrors Sevinne's
-// Reclamation's `targetRequirement` (`c19/white.ts`) plus the Reanimate
-// `moveZone` reanimation body (`tmp/black.ts`). Mode 3 is a `forEach`-driven
-// mass `pump` + `grantAbility` (Sandstorm Salvager precedent, `big/green.ts`).
+// (`one/black.cards.ts`). Mode 2's mv-capped graveyard reanimation mirrors Sevinne's
+// Reclamation's `targetRequirement` (`c19/white.cards.ts`) plus the Reanimate
+// `moveZone` reanimation body (`tmp/black.cards.ts`). Mode 3 is a `forEach`-driven
+// mass `pump` + `grantAbility` (Sandstorm Salvager precedent, `big/green.cards.ts`).
 // All three modes compose from already-shipped Ops — no new Op or construct
 // needed.
 export const loreholdCharm: CardDefinition = {
@@ -360,7 +360,7 @@ export const loreholdCharm: CardDefinition = {
 // FREED 2026-08-25 (#1841 audit, shipped by #2761): the old wording claimed
 // `EffectCardFilter.manaValueAtMost` is a FIXED literal ceiling with no
 // dynamic (chosen-X) form — WRONG, the field is `number | EffectXValue`
-// (Green Sun's Zenith, `mbs/green.ts`). That correction is right but its
+// (Green Sun's Zenith, `mbs/green.cards.ts`). That correction is right but its
 // PRECEDENT does not transfer as written: Green Sun's Zenith's
 // `manaValueAtMost: { X: true }` is a LIBRARY-SEARCH filter, read by
 // `matchesCardFilter`. The battlefield-scoped filter every `forEach { set:
@@ -374,7 +374,7 @@ export const loreholdCharm: CardDefinition = {
 // The CR-correct, already-shipped composition that actually reaches the
 // battlefield case: `forEach { set: "permanents", filter: { type:
 // ["Artifact", "Creature"] } }` (the Rout/Wrath-of-God mass-sweep shape,
-// `inv/white.ts`) wrapping an `if { manaValue: { of: $each } } le X` gate (the
+// `inv/white.cards.ts`) wrapping an `if { manaValue: { of: $each } } le X` gate (the
 // Overload shape, `inv/red.ts`, CR 202.3) around `destroy`. Still no new Op or
 // construct — `forEach`, `if`, `manaValue`, and `destroy` are each already
 // exercised catalogue-wide; only the COMPOSITION is corrected here.
@@ -421,12 +421,12 @@ export const viciousRivalry: CardDefinition = {
 // Mode 1 — "Surveil 2, then draw a card" (CR 701.25 Surveil, CR 121.1 draw).
 // Surveil is the `destination: "graveyard"` variant of `scryReorder` (look at
 // the top N, put any number into the graveyard and the rest back on top in
-// any order); Consider (`mid/blue.ts`) is the shipped 1-card precedent, this
+// any order); Consider (`mid/blue.cards.ts`) is the shipped 1-card precedent, this
 // is the same Op at `count: 2`. Surveil resolves first, then the draw.
 //
 // Mode 2 — "deals 1 damage to each of one or two targets" (CR 601.2c). The
 // variable target count is `TargetRequirement.count`'s object form,
-// `{ min: 1, max: 2 }` (Arc Mage, `nem/red.ts`, announces the same shape);
+// `{ min: 1, max: 2 }` (Arc Mage, `nem/red.cards.ts`, announces the same shape);
 // the CR already forbids naming the same object twice in one target list, so
 // "one or two targets" is two DIFFERENT objects when two are chosen.
 // Deliberately NOT a `dealDamageDividedAsChosen` (Arc Mage's divided 2): this

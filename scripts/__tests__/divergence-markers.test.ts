@@ -30,7 +30,7 @@ describe("scanText — issueNumbers extraction (issue #2560)", () => {
     });
 
     it("ignores a bare #NNN with no tracked-by: prefix — Guard B accepts it as PRESENCE, liveness does not resolve it (too overloaded: completion citations, provenance, sibling refs)", () => {
-        // Measured case: atq/colorless.ts — "tracked-by: #2064; supersedes
+        // Measured case: atq/colorless.cards.ts — "tracked-by: #2064; supersedes
         // the closed #277". #2064 is the live ref; #277 is deliberately
         // documented history, not this marker's own disposition.
         const text =
@@ -38,7 +38,7 @@ describe("scanText — issueNumbers extraction (issue #2560)", () => {
             "export const foo = 1;";
         expect(scanText("f.ts", text)[0].issueNumbers).toEqual([2064]);
 
-        // Measured case: ice/white.ts — "Sacred Boon — ACTIVE (#734)" cites
+        // Measured case: ice/white.cards.ts — "Sacred Boon — ACTIVE (#734)" cites
         // the (closed) issue that shipped the gap, not an open tracker.
         const noTrackedBy =
             "// TODO: this thing is not built yet, see #4242 and #100\n" +
@@ -82,7 +82,7 @@ describe("scanText — issueNumbers extraction (issue #2560)", () => {
 // 3, finding 1.
 describe("isNegatedConfession (issue #1900 fixup round 3, finding 1)", () => {
     it("suppresses a line whose ONLY confession word is the negated one", () => {
-        // neo/red.ts's real shape: the negation ('not') sits on the line
+        // neo/red.cards.ts's real shape: the negation ('not') sits on the line
         // above, its object ('approximation') on the marker's own line.
         const lines = [
             "// cards. CR 121.2 makes this not an",
@@ -156,7 +156,7 @@ describe("isNegatedConfession (issue #1900 fixup round 3, finding 1)", () => {
 
 describe("isAiEffectsShadowContext (issue #1900 fixup round 3, finding 1)", () => {
     it("suppresses a confession word inside an aiEffects shadow-script paragraph", () => {
-        // big/green.ts's real shape: the `aiEffects (PRD #1423, ...)` anchor
+        // big/green.cards.ts's real shape: the `aiEffects (PRD #1423, ...)` anchor
         // sits several comment lines above the word 'Approximates'.
         const lines = [
             "// aiEffects (PRD #1423, issue #1431/#2364) — bare resolve() closure,",

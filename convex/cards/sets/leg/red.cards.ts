@@ -69,7 +69,7 @@ export const gravitySphere: CardDefinition = {
 //     tranche.
 //   • Crimson Manticore — "{R}, {T}: deal 1 damage to target attacking OR
 //     blocking creature" is NOT blocked: `combatRoleFilter` is array-capable
-//     and D'Avenant Archer (leg/white.ts) already ships the exact
+//     and D'Avenant Archer (leg/white.cards.ts) already ships the exact
 //     `["attacking", "blocking"]` form in this same set. Deferred to its
 //     tranche for authoring only — owned by #2124.
 //   • Disharmony — "untap target attacking creature, remove it from combat,
@@ -84,7 +84,7 @@ export const gravitySphere: CardDefinition = {
 //     can't-play + revealed-in-hand restriction with no primitive.
 //   • Pyrotechnics — "4 damage divided AS YOU CHOOSE among any number of
 //     targets" is NOT blocked: the `dealDamageDividedAsChosen` Op with
-//     `targetRequirement.divideAsChosen` ships, and Pyrokinesis (all/red.ts)
+//     `targetRequirement.divideAsChosen` ships, and Pyrokinesis (all/red.cards.ts)
 //     writes the identical wording. Deferred to its tranche for authoring only
 //     — owned by #2124.
 //   • Quarum Trench Gnomes — "{T}: target Plains produces colorless mana
@@ -585,7 +585,7 @@ export const dwarvenSong: CardDefinition = {
     // member set via `setColor` with an end-of-turn duration (CR 305.7 /
     // 611.2c — the colour override expires at cleanup via
     // `tickAllDurations`/`finalizeCleanup`, mirroring the sibling colour-
-    // change spells `leg/blue.ts` and `leg/black.ts`). Fixed issue #1833
+    // change spells `leg/blue.cards.ts` and `leg/black.cards.ts`). Fixed issue #1833
     // (the duration was previously dropped, making the change permanent —
     // same shape as Sylvan Paradise, `green.ts`, issue #1834).
     effects: [
@@ -733,7 +733,7 @@ export const activeVolcano: CardDefinition = {
 // `moveZone` shape (issue #1279) records it through `bindCount` (issue
 // #4302) as the hand empties, since a later `draw` could only recount an
 // empty hand. The same three Ops under `forEach { set: "players" }` as
-// Whirlpool Warrior's activated half (apc/blue.ts): a body binding is scoped
+// Whirlpool Warrior's activated half (apc/blue.cards.ts): a body binding is scoped
 // to its iteration, so each player draws back their OWN hand size.
 export const windsOfChange: CardDefinition = {
     id: "186fd917-8d65-4de5-8546-a32a5f6d3bab",

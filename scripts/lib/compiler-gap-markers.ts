@@ -125,7 +125,7 @@ export interface CardAnchor {
  *
  * The `name:` search runs from the anchor to the end of its object literal
  * (`^};` at column 0) rather than a fixed lookahead: `name:` is not always the
- * second property — `iko/multicolor.ts`'s Lutri carries a 13-line comment about
+ * second property — `iko/multicolor.cards.ts`'s Lutri carries a 13-line comment about
  * an import cycle between its anchor and its name — and a fixed window silently
  * drops such a card from the guard's reach, which is an exemption nobody wrote
  * down. An anchor whose name cannot be found at all is returned nowhere and

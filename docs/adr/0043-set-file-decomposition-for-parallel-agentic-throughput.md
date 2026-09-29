@@ -63,7 +63,7 @@ The registry consumes sets via namespace import — `import * as ice from
 - `index.ts` — re-exports every module (`export * from "./white"`, …)
 
 The registry import is **unchanged**: `import * as ice from "./sets/ice"`
-resolves to `ice/index.ts`, which re-exports the same flat set of consts. No
+resolves to `ice/index.cards.ts`, which re-exports the same flat set of consts. No
 churn in `convex/cards/index.ts`.
 
 Test files mirror the split: `sets/ice/__tests__/white.test.ts`, etc., replacing

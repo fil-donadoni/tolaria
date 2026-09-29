@@ -411,7 +411,7 @@ describe("Snow Devil (Aura grants flying + conditional first strike, CR 611/611.
     // read like `pt-buff`), so the "as long as" gate only stays live because
     // the real production SBA path (`checkStateBasedActions` →
     // `recomputeContinuousEffects`) re-runs `condition` every SBA pass —
-    // mirrors Kavu Runner's own coverage (inv/red.ts /
+    // mirrors Kavu Runner's own coverage (inv/red.cards.ts /
     // __tests__/red.test.ts). Exercised via `checkStateBasedActions` (not a
     // direct `recomputeContinuousEffects` call) so this test would go red if
     // that wiring were ever dropped.

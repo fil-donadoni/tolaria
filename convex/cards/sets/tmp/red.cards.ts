@@ -54,7 +54,7 @@ export const moggFanatic: CardDefinition = {
 // construct — the EVENT_FIELD_REGISTRY (ADR 0049) censuses only object/player
 // families, not a numeric `$event.amount`, and `damageTakenTrigger` has no
 // `effects[]` passthrough. Same imperative-resolve shape as El-Hajjâj
-// (arn/black.ts) and Living Artifact (lea/green.ts). Planned-migratable
+// (arn/black.cards.ts) and Living Artifact (lea/green.cards.ts). Planned-migratable
 // pending a triggering-event value ref. The redirect deals damage to the
 // controller as a player (CR 119.3) — it targets a player, not Jackal Pup, so
 // it never re-triggers itself (no loop).
@@ -93,7 +93,7 @@ export const jackalPup: CardDefinition = {
 // creature gets +1/+0 until end of turn. {R}: Return this Aura to its owner's
 // hand." (CR 303.4 Aura, CR 117 activated ability cost.) The bounce ability is
 // a plain DSL `moveZone($source → hand)`. The pump ability is NOT
-// DSL-migratable (ADR 0045, Thrull Retainer precedent, fem/black.ts): it
+// DSL-migratable (ADR 0045, Thrull Retainer precedent, fem/black.cards.ts): it
 // targets the Aura's ENCHANTED HOST via `getAttachedToId` — the object-selector
 // grammar has no attached-host ("enchanted permanent") ref; the `pump` Op
 // itself is available, only the target selector is missing.
@@ -101,7 +101,7 @@ export const jackalPup: CardDefinition = {
 // Home set = earliest paper printing (ADR 0041) = Tempest; it was first
 // implemented against the INV reprint, which filed it under the
 // wrong home set and rendered the wrong art. That printing now rides along
-// as a `CardPrint` in `inv/red.ts`.
+// as a `CardPrint` in `inv/red.cards.ts`.
 export const crownOfFlames: CardDefinition = {
     id: "f2c82741-2869-41f9-82f4-6ed88756e2fd", // TMP 169
     rarity: "common",
@@ -145,13 +145,13 @@ export const crownOfFlames: CardDefinition = {
 // card." Migrated resolve()→effects[] (ADR 0045, issue #1285): "can't block"
 // via the ADR 0053 `restrictCombat` Op (CR 509.1b block restriction on an
 // ANNOUNCED target, `restriction: "cant-block"`, same shape Panic uses in
-// `ice/red.ts`), then an immediate `draw` (unlike Panic's delayed
+// `ice/red.cards.ts`), then an immediate `draw` (unlike Panic's delayed
 // next-upkeep cantrip, Stun's draw fires right away as part of resolution).
 //
 // Home set = earliest paper printing (ADR 0041) = Tempest; it was first
 // implemented against the INV reprint, which filed it under the
 // wrong home set and rendered the wrong art. That printing now rides along
-// as a `CardPrint` in `inv/red.ts`.
+// as a `CardPrint` in `inv/red.cards.ts`.
 export const stun: CardDefinition = {
     id: "c09c0da6-37a7-42ba-b264-18898ee372f0", // TMP 207
     rarity: "common",

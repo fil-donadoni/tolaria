@@ -9,7 +9,7 @@
 // `applyKeywordCounterGrant`/`unapplyKeywordCounterGrant` (`convex/gre/state.ts`,
 // via `getKeywordCounterGrant` in `mechanicsRegistry.ts`, issue #1194) is a
 // generic keyword-granting-counter mechanism, proven live by Arwen, Mortal
-// Queen (`ltr/multicolor.ts`). What remains is only keyword **Miracle**
+// Queen (`ltr/multicolor.cards.ts`). What remains is only keyword **Miracle**
 // (CR 702.94), still `status: "planned"` in `mechanicsRegistry.ts`.
 // tracked-by: #1267
 // export const metamorphosisFanatic: CardDefinition = {

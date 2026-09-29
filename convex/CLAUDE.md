@@ -313,7 +313,7 @@ When adding/modifying cards in `convex/cards/sets/`:
   ability with `event: GameEventType[]` (CR 603.2), discriminating in
   `matches` — duplicates render N times on the stack (UI bug), and
   `triggerDedup.test.ts` fails CI on same-`oracleText` duplicates. Reference:
-  Worldspine Wurm (`rtr/green.ts`). (Array-`event` abilities cannot read
+  Worldspine Wurm (`rtr/green.cards.ts`). (Array-`event` abilities cannot read
   `$event` in a script — an event-inspecting trigger stays scalar `event` +
   `resolve`.)
 - **Token/emblem art is mandatory setup (CR 114/111)** — a missing image
@@ -325,7 +325,7 @@ When adding/modifying cards in `convex/cards/sets/`:
       the spec. Guard: `tokenPrintLookup.test.ts` (#1305;
       `NO_PRINTED_TOKEN_ALLOWLIST` only for genuine no-printed-token cases).
       **Blind spot:** `resolve()`-created tokens are invisible to the guard —
-      pin `imagePrintId` by hand (see `ncc/colorless.ts`).
+      pin `imagePrintId` by hand (see `ncc/colorless.cards.ts`).
     - **Emblems (`{ op: "emblem" }`)**: set `imagePrintId` on the
       `EmblemDefinition` (`convex/cards/emblems.ts`); guard:
       `emblemArt.test.ts`.

@@ -19,7 +19,7 @@ import type { CardDefinition } from "../../../../convex/cards/types";
 // specifically) + `libraryLook`(shuffle) + a trailing `if` (ADR 0045's third
 // frozen construct) whose `EffectComparisonPredicate` compares a `count` of
 // the controller's battlefield lands against 4 (the `EffectCountSpec` used by
-// e.g. Ivory Tower's hand-size read, `atq/colorless.ts`); the `then` branch
+// e.g. Ivory Tower's hand-size read, `atq/colorless.cards.ts`); the `then` branch
 // is a single `tapUntap(action: "untap", target: { ref: "$land" })` (CR
 // 701.26). `resolveObjectRef` re-checks battlefield presence for `$land` at
 // the point the `if` runs, so this reads the CURRENT board — the fetched

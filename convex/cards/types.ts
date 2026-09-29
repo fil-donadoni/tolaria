@@ -10292,7 +10292,7 @@ export function tallyMostCommonColors(
  *  trigger, since `mostCommon.includes(color)` is false against `[]`).
  *
  *  Mirrors `countDomain`'s shape: a shared board-scan helper, not a per-card
- *  closure. Originally a private `inv/black.ts` pair (Goham Djinn / Tsabo's
+ *  closure. Originally a private `inv/black.cards.ts` pair (Goham Djinn / Tsabo's
  *  Assassin); promoted here on its 3rd consumer (Heroic Defiance,
  *  `cards/sets/pls/white.cards.ts`) per the "generalize, don't add" primitive-reuse
  *  rule rather than a third near-duplicate copy.
@@ -10700,7 +10700,7 @@ export interface SpellCastEvent {
 /** "A player kicks a spell" (CR 702.33d, issue #1097) — emitted as part of
  *  CASTING a spell for which at least one Kicker cost was paid. Backs
  *  "whenever a player kicks a spell" triggers (Saproling Infestation,
- *  `inv/green.ts`); distinct from the `wasKicked` / `{ additionalCostPaid }` STATE
+ *  `inv/green.cards.ts`); distinct from the `wasKicked` / `{ additionalCostPaid }` STATE
  *  reads (`gre/kicker.ts`), which answer "is this spell kicked" at resolution
  *  rather than "did someone just kick one".
  *
@@ -11955,7 +11955,7 @@ export interface TriggeredAbility {
      *  ability still triggers only ONCE for that batch — not once per event.
      *  Opt-in and rare: plain "whenever a permanent enters/dies" triggers
      *  (Soul Warden) must keep firing once per event, so this defaults to
-     *  false. Moonshadow (ecl/black.ts, issue #684/#928) is the first
+     *  false. Moonshadow (ecl/black.cards.ts, issue #684/#928) is the first
      *  consumer. */
     oncePerEventBatch?: boolean;
     /** CR 603.2 per-turn TRIGGER cap — "This ability triggers only <N> time(s)
@@ -13023,7 +13023,7 @@ export type EffectAttackTargetSelector = {
 
 /** CR 404.3 (issue #1967) — a DETERMINISTIC POSITIONAL pick out of an ORDERED
  *  zone, with no player choice at all: "the TOP creature card of your
- *  graveyard" (Shallow Grave, `mir/black.ts`; Corpse Dance, `tmp/black.ts`).
+ *  graveyard" (Shallow Grave, `mir/black.cards.ts`; Corpse Dance, `tmp/black.cards.ts`).
  *
  *  The graveyard IS an ordered zone (CR 404.3 — "each graveyard is kept in a
  *  single face-up pile … order can be changed only …"), and this engine
@@ -14712,7 +14712,7 @@ export type EffectOp =
     /** CR 614.10 (issue #1957, Waterspout Elemental) — `player` skips their
      *  next turn. A thin declarative skin over `SpellContext.setSkipNextTurn`,
      *  one execution path (ADR 0045): the same primitive Time Vault's
-     *  pre-DSL activated-ability `resolve()` already calls (`lea/colorless.ts`)
+     *  pre-DSL activated-ability `resolve()` already calls (`lea/colorless.cards.ts`)
      *  and the `PlayerState.skipNextTurn` COUNT `advanceTurn` (phases.ts)
      *  decrements at each turn boundary. `player` is an announced target slot,
      *  the resolving controller, or a relative player. Skipped when the
@@ -15298,7 +15298,7 @@ export type EffectOp =
      *  as the last thing it does ("Exile ~", Recall / Restock). A thin
      *  declarative skin over the pre-existing SpellContext primitive
      *  `exileSelf` (previously reachable only from a `resolve()` closure —
-     *  Recall, `leg/blue.ts`), one execution path (ADR 0045). No
+     *  Recall, `leg/blue.cards.ts`), one execution path (ADR 0045). No
      *  parameters — the primitive flags the CURRENTLY-RESOLVING stack item
      *  (`exileOnResolve`), which `finalizeSpellResolution` (`gre/state.ts`)
      *  checks BEFORE the normal graveyard placement; no-op for an ability (no
@@ -15765,8 +15765,8 @@ export type EffectOp =
     /** CR 404.3 / 400.7 (issue #1967) — the FIFTH `moveZone` shape: a
      *  DETERMINISTIC POSITIONAL pick out of the ordered graveyard, no player
      *  choice. "Return the top creature card of your graveyard to the
-     *  battlefield" (Shallow Grave, `mir/black.ts`; Corpse Dance,
-     *  `tmp/black.ts`) — the topmost card MATCHING `target.filter` (a
+     *  battlefield" (Shallow Grave, `mir/black.cards.ts`; Corpse Dance,
+     *  `tmp/black.cards.ts`) — the topmost card MATCHING `target.filter` (a
      *  filtered scan from the top of the pile, per the oracle wording), moved
      *  to `to`.
      *
@@ -16415,7 +16415,7 @@ export type EffectOp =
      *  `moveCardById(player, id, "library", "exile")` moves each card — the
      *  exact pair `lookDistribute`'s `destination: "exile"` leg already uses.
      *  No new SpellContext primitive. It closes the gap Elkin Bottle
-     *  (`ice/colorless.ts`) confesses in prose: "exile-top + cast-from-exile
+     *  (`ice/colorless.cards.ts`) confesses in prose: "exile-top + cast-from-exile
      *  has no Op skin yet".
      *
      *  FACE UP (CR 406.3): the Oracle texts that reach this Op say plainly
@@ -17187,7 +17187,7 @@ export type EffectOp =
      *  thin declarative skin over the single SpellContext primitive
      *  `setExileOnDeath`, one execution path (ADR 0045) — the migration skin
      *  for the three `resolve()` closures that already call it
-     *  (`drk/green.ts`, `fin/red.ts`, `lea/red.ts`).
+     *  (`drk/green.cards.ts`, `fin/red.cards.ts`, `lea/red.cards.ts`).
      *
      *  `target` is an announced target slot (`{ target: N }`), the resolving
      *  source (`$source`), or a forEach `$each`. DEATH ONLY and cleared at

@@ -572,7 +572,7 @@ export const callToArms: CardDefinition = {
             },
             // Migrated resolve()→effects[] (ADR 0045, PRD #795): sacrifice
             // the source permanent (CR 701.21) via the implicit `$source`
-            // binding — the arn/green.ts Sacred Boon shape.
+            // binding — the arn/green.cards.ts Sacred Boon shape.
             effects: [{ op: "sacrifice", target: { ref: "$source" } }],
         }),
     ],
@@ -702,7 +702,7 @@ export const coldSnap: CardDefinition = {
             // Migrated resolve()→effects[] (ADR 0045, PRD #795): an
             // `each`-scope trigger reads the scoped player via
             // `{ ref: "$event.activePlayerId" }` (issue #1066, the
-            // Collapsing Borders shape, inv/red.ts) rather than the plain
+            // Collapsing Borders shape, inv/red.cards.ts) rather than the plain
             // `"controller"` selector. The snow-land count is a `count`
             // construct over the scoped player's battlefield (CR 205.4a);
             // `dealDamage` no-ops at amount 0 (interpreter parity with the
@@ -1156,7 +1156,7 @@ export const hallowedGround: CardDefinition = {
             },
             // Migrated resolve()→effects[] (ADR 0045, PRD #795): return the
             // announced target land to its owner's hand (CR 400.7) —
-            // the Boomerang shape (leg/blue.ts); `moveZone … to: "hand"` routes
+            // the Boomerang shape (leg/blue.cards.ts); `moveZone … to: "hand"` routes
             // through the same `SpellContext.returnToHand` the old resolve
             // called directly.
             effects: [{ op: "moveZone", target: { target: 0 }, to: "hand" }],
@@ -1256,7 +1256,7 @@ export const justice: CardDefinition = {
     triggeredAbilities: [
         // Migrated resolve()→effects[] (ADR 0045, PRD #795): the upkeep
         // pay-or-sacrifice half inlines `mayPay` + `if` (the Force Spike
-        // shape, leg/blue.ts) directly on `phaseTrigger` instead of the
+        // shape, leg/blue.cards.ts) directly on `phaseTrigger` instead of the
         // (now-unused) local `makeUpkeepPayOrElse` closure factory —
         // `scope: "your"` so the plain `"controller"` selector is the
         // ability's controller (CR 117.3a).
@@ -2078,7 +2078,7 @@ export const swordsToPlowsharesIce: CardPrint = {
 // turn but can still be dealt damage and die.
 //
 // It used to ride `markAssignsNoCombatDamage` (CR 510.1c) as a same-outcome
-// shorthand, exactly as its Oracle twin Restrain (inv/white.ts) did. The two
+// shorthand, exactly as its Oracle twin Restrain (inv/white.cards.ts) did. The two
 // stopped being the same outcome when source-side unpreventable damage shipped
 // (CR 615.12, Questing Beast, issue #2395): a PREVENTION shield is overridden
 // by it, an ASSIGNMENT restriction is not, because a creature that assigns no

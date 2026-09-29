@@ -28,7 +28,7 @@ const TORSTEN_FOUNDER_ID = "0783b426-a527-42c1-9271-be28b229e1c6";
 //
 // DIES (CR 700.4 / 603.2 death trigger): a plain `createToken` Op, `count:
 // 7`. Modeled as a raw `TriggeredAbility` literal (mirrors Haywire Mite,
-// bro/colorless.ts's Third Path Iconoclast) rather than the `diedTrigger`
+// bro/colorless.cards.ts's Third Path Iconoclast) rather than the `diedTrigger`
 // factory, since that factory only exposes a `resolve` closure, not
 // `effects` — the DSL-first site.
 export const torstenFounderOfBenalia: CardDefinition = {

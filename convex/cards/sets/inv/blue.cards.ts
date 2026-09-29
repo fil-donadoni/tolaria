@@ -84,7 +84,7 @@ import { manaCostForCardId } from "../../manaCostLookup";
  *  registry (`cards/index.cards.ts`), which imports every set module including
  *  this one — importing it back here would be an eval-time cycle. Uses the
  *  cycle-free `manaCostForCardId` accessor instead (same precedent as
- *  arn/white.ts's `permanentColors`). `perm` carries `colorOverride`/
+ *  arn/white.cards.ts's `permanentColors`). `perm` carries `colorOverride`/
  *  `grantedColors` at runtime even though `PermanentView`'s declared type
  *  doesn't list them — the combat validator passes the raw (fat)
  *  `CardInstanceState`, just typed narrower. */
@@ -138,7 +138,7 @@ export const opt: CardDefinition = {
 // disrupt — INV reprint of the Weatherlight definition (CardPrint).
 // The card was first implemented here, against this printing; its home set is
 // its earliest paper printing (ADR 0041), so the mechanics live in
-// `wth/blue.ts`.
+// `wth/blue.cards.ts`.
 export const disruptInv: CardPrint = {
     printId: "c000a02f-6b7e-4925-a938-59e645e980d7", // INV 60
     definitionId: "c6cc89b0-9acf-452b-ac1a-bc7e90eb32fc", // disrupt (Weatherlight)
@@ -207,7 +207,7 @@ export const exclude: CardDefinition = {
 // Manipulate Fate — {1}{U} Sorcery. "Search your library for three cards,
 // exile them, then shuffle. Draw a card." (CR 701.23 search + CR 701.13 exile
 // + CR 701.24 shuffle + CR 121.1 draw.) Composition mirrors the shipped
-// search→exile/hand→shuffle tutor template (bbd/blue.ts Spellseeker): a plain
+// search→exile/hand→shuffle tutor template (bbd/blue.cards.ts Spellseeker): a plain
 // `choice(kind:"search-library")` with no filter (any three cards) feeds
 // `moveZone`'s cards-form into exile, then `libraryLook` shuffles.
 export const manipulateFate: CardDefinition = {
@@ -243,7 +243,7 @@ export const manipulateFate: CardDefinition = {
 // Prohibit — {1}{U} Instant. Kicker {2}. "Counter target spell if its mana
 // value is 2 or less. If this spell was kicked, counter that spell if its
 // mana value is 4 or less instead." (CR 702.33 Kicker.) The kick WIDENS the
-// mana-value ceiling, so — exactly like Bloodchief's Thirst (znr/black.ts) —
+// mana-value ceiling, so — exactly like Bloodchief's Thirst (znr/black.cards.ts) —
 // the kicked/unkicked split is expressed via `kickedTargetRequirement`
 // (announcement swaps in the wider mv ceiling), not a runtime `if`: no
 // runtime branch needed, `effects` is a plain counter.
@@ -290,7 +290,7 @@ export const repulse: CardDefinition = {
 
 // Sapphire Leech — {1}{U} Creature — Leech, 2/2. "Flying. Blue spells you
 // cast cost {U} more to cast." (CR 702.9 flying + CR 601.2f cost increase.)
-// `cost-modifier` static, the exact Derelor template (fem/black.ts: "Black
+// `cost-modifier` static, the exact Derelor template (fem/black.cards.ts: "Black
 // spells you cast cost {B} more to cast") with the colour swapped to blue.
 export const sapphireLeech: CardDefinition = {
     id: "e6763ffd-9d89-4f26-871a-be24fbdef38d",
@@ -318,7 +318,7 @@ export const sapphireLeech: CardDefinition = {
 // shimmeringWings — INV reprint of the Tempest definition (CardPrint).
 // The card was first implemented here, against this printing; its home set is
 // its earliest paper printing (ADR 0041), so the mechanics live in
-// `tmp/blue.ts`.
+// `tmp/blue.cards.ts`.
 export const shimmeringWingsInv: CardPrint = {
     printId: "9615a6c2-1732-4a04-9be1-cc0a8d39de3f", // INV 84
     definitionId: "a6a8dc46-04c7-479a-90c1-b55e6c67e0e3", // shimmeringWings (Tempest)
@@ -413,7 +413,7 @@ export const vodalianMerchant: CardDefinition = {
 // effect (CR 121.6 / 614.1c, issue #1693), not a triggered ability: FOUR
 // `entersWith.counters` entries each `count: "kicker"` (kickerCount is 0/1 for
 // a single, non-multi Kicker) sum to exactly 0 or 4 as the creature enters —
-// the shipped Duskwalker / Llanowar Elite idiom (inv/black.ts, inv/green.ts),
+// the shipped Duskwalker / Llanowar Elite idiom (inv/black.cards.ts, inv/green.cards.ts),
 // reusing the per-kick counter primitive rather than adding a multiplier
 // field. Previously an `enteredTrigger` carrying an `if(kickerCount>=1)`
 // `counters` Op, which put the placement on the stack and let both players
@@ -514,7 +514,7 @@ export const washOut: CardDefinition = {
 // tied for most common." (CR 702.9 flying + CR 611.2c conditional CDA anthem
 // on itself.) `StaticPTBuff.condition` reads the full board via
 // `StaticEffectContext.getColors` — the shipped colour-census template
-// (ice/white.ts Call to Arms), generalized to "most common OR TIED" (no
+// (ice/white.cards.ts Call to Arms), generalized to "most common OR TIED" (no
 // strict-plurality requirement) and scoped to ALL permanents (not one
 // player's), matching Zanam Djinn's own printed clause.
 const ZANAM_DJINN_COLORS = ["W", "U", "B", "R", "G"] as const;
@@ -563,7 +563,7 @@ export const zanamDjinn: CardDefinition = {
 // Enchanted creature has landwalk of the chosen type." (CR 603.6b on-entry
 // choice + CR 603.6a ETB draw + CR 702.14 landwalk continuous grant.) The
 // land-type pick reuses the SAME sanctioned choice-storage protocol as
-// Phantasmal Terrain (lea/blue.ts) / Illusionary Terrain (`setChosenSubtypes`,
+// Phantasmal Terrain (lea/blue.cards.ts) / Illusionary Terrain (`setChosenSubtypes`,
 // ADR 0050); the
 // draw is a plain DSL `enteredTrigger`; the landwalk grant is FIVE
 // `keyword-grant` statics (one per basic land type), each gated on both
@@ -575,7 +575,7 @@ export const zanamDjinn: CardDefinition = {
 // (`cards/types.ts` — a dependency-free leaf; NOT `gre/constants.ts`, which
 // imports the card registry and can't be imported FROM a `cards/sets/**`
 // file without reopening the set↔registry eval-time cycle) — Magnigoth
-// Treefolk (`pls/green.ts`) needs the same fan-out for its own Domain
+// Treefolk (`pls/green.cards.ts`) needs the same fan-out for its own Domain
 // landwalk grant and imports the same table.
 export const travelersCloak: CardDefinition = {
     id: "977f0f82-0542-40c9-9a48-73077941dbd1",
@@ -604,8 +604,8 @@ export const travelersCloak: CardDefinition = {
             oracleText: "As this Aura enters, choose a land type.",
             scope: "self",
             // protocol: on-entry choice storage (CR 603.6b), same sanctioned
-            // class as Illusionary Terrain (ice/blue.ts) / Phantasmal Terrain
-            // (lea/blue.ts).
+            // class as Illusionary Terrain (ice/blue.cards.ts) / Phantasmal Terrain
+            // (lea/blue.cards.ts).
             resolve: (ctx) => {
                 const options = BASIC_LAND_SUBTYPES.map((s) => ({
                     id: s,
@@ -644,7 +644,7 @@ export const travelersCloak: CardDefinition = {
 // combat time (`collectAttackManaTax`, `gre/combat.ts`), reading THIS
 // enchantment's controller's Domain via the shared `countDomain` helper —
 // the SAME scan the Domain-scaled `pt-cda` statics use. Untaxed by color/type
-// (unlike Elephant Grass's nonblack clause, `vis/green.ts`) — every attacking
+// (unlike Elephant Grass's nonblack clause, `vis/green.cards.ts`) — every attacking
 // creature is taxed, so `taxes` only confirms the attacker is a creature
 // (defensive; only creatures can attack, CR 506.2).
 export const collectiveRestraint: CardDefinition = {
@@ -957,10 +957,10 @@ export const dreamThrush: CardDefinition = {
 // reopen the identical bug for the keyword: a window where the creature is on
 // the battlefield without flying before the trigger resolves. The
 // already-shipped, CR-exact, and simpler fix is Pouncing Kavu's OWN template
-// (`inv/red.ts`, issue #1716): a `staticEffects` `keyword-grant` gated on
+// (`inv/red.cards.ts`, issue #1716): a `staticEffects` `keyword-grant` gated on
 // `CardInstanceState.wasKicked` — a one-shot fact fixed at CR 614.1c ETB
 // replacement time, materialized into `staticAbilities` continuously, no stack
-// window. Same correction applies to Kavu Titan (`inv/green.ts`).
+// window. Same correction applies to Kavu Titan (`inv/green.cards.ts`).
 export const faerieSquadron: CardDefinition = {
     id: "4c707c81-dbbd-43be-a79a-7bc92a584839",
     name: "Faerie Squadron",

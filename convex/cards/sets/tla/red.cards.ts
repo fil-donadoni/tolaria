@@ -55,7 +55,7 @@ import { colorChoiceModes } from "../../abilities/chooseColor";
 //   III — "Exile this Saga, then return it to the battlefield transformed
 //         under your control." — `exileAndReturnTransformed` (CR 712.14a)
 //         with `controller: "controller"`, byte-identical to Fable of the
-//         Mirror-Breaker's own chapter III (neo/red.ts).
+//         Mirror-Breaker's own chapter III (neo/red.cards.ts).
 //
 // CR 714.4's sacrifice SBA never fires here, for the reason Fable's note
 // spells out: chapter III is on the stack when the lore count reaches the
@@ -180,9 +180,9 @@ export const theLegendOfRoku: CardDefinition = {
         // printed COLOUR INDICATOR (CR 202.2f) would make it coloured. Avatar
         // Roku's printing carries none (Scryfall tla #145 back face reports
         // `colors: []` and no `color_indicator`), and neither does any other
-        // Avatar in the cycle — Aang, Destined Savior (tla/multicolor.ts) is
+        // Avatar in the cycle — Aang, Destined Savior (tla/multicolor.cards.ts) is
         // declared the same way. Contrast Reflection of Kiki-Jiki
-        // (neo/red.ts), which DOES print an indicator and therefore DOES
+        // (neo/red.cards.ts), which DOES print an indicator and therefore DOES
         // declare `colors: ["R"]`. The {8} ability's token is a different
         // object and is genuinely red ("a 4/4 RED Dragon").
         // CR 702.189a — the keyword string is the WHOLE declaration; the

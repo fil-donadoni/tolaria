@@ -11,12 +11,12 @@ import type { CardDefinition } from "../../types";
 // — so protection from the artifact's colour, damage prevention keyed on the
 // source, and "whenever a source deals damage" watchers all read the
 // artifact's identity. `dealDamage.source` is exactly that field (Backlash,
-// `inv/multicolor.ts`, is its shipped precedent), pointed at the `destroy`
+// `inv/multicolor.cards.ts`, is its shipped precedent), pointed at the `destroy`
 // Op's own `bind` snapshot. The snapshot is also what makes the mana-value
 // read correct: by the time the damage is dealt the artifact is in a
 // graveyard, and CR 608.2h says an object that has left the zone it was
 // expected in contributes its LAST KNOWN INFORMATION — the snapshot IS that
-// LKI (Divine Offering, `leg/white.ts`, reads `manaValue` off a destroy bind
+// LKI (Divine Offering, `leg/white.cards.ts`, reads `manaValue` off a destroy bind
 // the same way). The damage lands on `{ ref: "$source" }`, the Tinkerer
 // itself, which is why a big artifact kills it.
 //

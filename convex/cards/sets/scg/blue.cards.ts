@@ -35,7 +35,7 @@ export const stifle: CardDefinition = {
 // `collectCastTriggers` / `resolveCastCopyTrigger` (convex/gre/state.ts), an
 // engine-synthesized cast trigger, not a per-card `resolve()`. The card's OWN
 // effect is a plain DSL `mill` Op (CR 701.17) on the announced target
-// player — the exact shape Thought Scour already exercises (dka/blue.ts),
+// player — the exact shape Thought Scour already exercises (dka/blue.cards.ts),
 // reused verbatim (per-Op test regime: no new Op, no hand-written per-card
 // test required).
 export const brainFreeze: CardDefinition = {

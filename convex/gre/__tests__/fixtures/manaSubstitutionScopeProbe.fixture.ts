@@ -92,7 +92,7 @@ preloadDefinitions([
         ],
     } as CardDefinition,
     {
-        // Fire Sprites' shape (`leg/green.ts`, "{G}, {T}: Add {R}") — a CREATURE
+        // Fire Sprites' shape (`leg/green.cards.ts`, "{G}, {T}: Add {R}") — a CREATURE
         // whose MANA ability carries a COLOURED cost. It is the only shape that
         // reaches `applyManaAbilityManaCost`, a payment site with its own
         // affordability throw and no stack item.

@@ -201,7 +201,7 @@ that does not exist.
   the multicolour one. `convex/cards/sets/inv/white.cards.ts` currently records
   Stand // Deliver as `{W} // {2}{W}` and Wax // Wane as `{W} // {1}{W}`; the
   corpus has `{W} // {2}{U}` and `{G} // {W}`. Both stubs are wrong, and both
-  belong in `inv/multicolor.ts` — slice 1 moves them.
+  belong in `inv/multicolor.cards.ts` — slice 1 moves them.
 - 709.4b's separate-symbols sentence is answered by the halves, not by a field.
   Recorded so the next reader does not add one speculatively.
 - Fuse (CR 702.102) and the 22 cards behind it stay out of scope, recorded here

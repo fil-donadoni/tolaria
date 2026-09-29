@@ -48,7 +48,7 @@ export const ladyOrca: CardDefinition = {
 // battlefield, then shuffle") is SKIPPED here for tranche scope only. The
 // accessor claim recorded here is stale: `getLibraryCards` carries `supertypes`
 // and `EffectCardFilter` has `supertype`, so the basic-land restriction is
-// expressible today (Fabled Passage, eld/colorless.ts). Owned by #2124.
+// expressible today (Fabled Passage, eld/colorless.cards.ts). Owned by #2124.
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Multicolor / gold free tranche (#376) — every multicolor (2+ colors) Legends
@@ -93,7 +93,7 @@ export const ladyOrca: CardDefinition = {
 //     is a combat-tap replacement with no primitive.
 //   • Lady Caleria / Tor Wauki — "{T}: deal N damage to target attacking OR
 //     blocking creature" is NOT blocked: `combatRoleFilter` is array-capable
-//     and D'Avenant Archer (leg/white.ts) ships the `["attacking", "blocking"]`
+//     and D'Avenant Archer (leg/white.cards.ts) ships the `["attacking", "blocking"]`
 //     form. The one-role-at-a-time claim recorded here is stale; both cards
 //     are deferred for authoring only.
 //   • Lady Evangela — "prevent all combat damage that would be dealt BY target
@@ -853,7 +853,7 @@ export function payOrSacrificeUpkeepTrigger(args: {
     // the scoped player, so the plain "controller" player selector is safe —
     // see `phaseTrigger`'s effects doc); `if { not: { binding: "$paid" } }`
     // fires the sacrifice/destroy consequence on `$source` only when the cost
-    // went unpaid (the Force Spike "unless pays" template, `leg/blue.ts`).
+    // went unpaid (the Force Spike "unless pays" template, `leg/blue.cards.ts`).
     return phaseTrigger({
         id: args.id,
         oracleText: `At the beginning of your upkeep, ${verb} ${args.cardName} unless you pay ${args.costText}.`,
@@ -948,10 +948,10 @@ export const arcadesSabboth: CardDefinition = {
 // "sacrifice unless you pay {U}{B}{R}" tax (CR 603.6a + CR 117.3a). Its
 // signature "deals damage to an opponent → that player discards their hand"
 // clause (issue #1831) is `damageDealtTrigger` (CR 603.2 / 120.3, ADR 0049),
-// the same factory The Fallen (`drk/black.ts`) uses for "deals damage to an
+// the same factory The Fallen (`drk/black.cards.ts`) uses for "deals damage to an
 // opponent": `source: "self"` + `target: { kind: "player", player: {
 // relation: "opponent" } }`, and — deliberately — no `isCombat` constraint,
-// unlike Blazing Specter's (`inv/multicolor.ts`, issue #1077) `isCombat:
+// unlike Blazing Specter's (`inv/multicolor.cards.ts`, issue #1077) `isCombat:
 // true`-gated sibling: Oracle says "deals damage", not "deals COMBAT
 // damage", so a non-combat damage source must trigger it too. `{ op:
 // "discard", player: { ref: "$event.damagedPlayer" } }` with no `cards`

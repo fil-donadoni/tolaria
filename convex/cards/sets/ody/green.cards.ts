@@ -7,14 +7,14 @@ const SQUIRREL_NEST_ID = "22eccb27-1723-4c5a-96b8-85e6e5739c30";
 
 // Squirrel Nest — {1}{G}{G} Enchantment — Aura. "Enchant land. Enchanted land
 // has '{T}: Create a 1/1 green Squirrel creature token.'" The Forbidden Lore /
-// Earthlore shape (ice/green.ts): an Aura on any land whose whole effect is an
+// Earthlore shape (ice/green.cards.ts): an Aura on any land whose whole effect is an
 // `activated-grant` StaticEffect (CR 611.2a / 613.1f) pushing ONE activated
 // ability onto the enchanted land. `AURA_AFFECTS_HOST` scopes the grant to the
 // land this Aura is attached to; the template lives on `grantTemplates[]` so
 // Squirrel Nest itself exposes nothing. The cost is the LAND's own tap
 // (`cost.tap`, CR 602.1) and the effect is the spec-driven `createToken` Op
 // (CR 111 / 701.7) — the 1/1 green Squirrel spec Deep Forest Hermit already
-// uses (nem/green.ts). "Enchant land" carries no controller clause, so it may
+// uses (nem/green.cards.ts). "Enchant land" carries no controller clause, so it may
 // sit on an opponent's land (that land's controller activates).
 export const squirrelNest: CardDefinition = {
     id: SQUIRREL_NEST_ID,
@@ -102,7 +102,7 @@ export const callOfTheHerd: CardDefinition = {
 // power AND toughness are each the number of land cards in ALL graveyards
 // (CR 604.3 characteristic-defining ability, applied in layer 7a per
 // CR 613.4a). Same `pt-cda` shape as its ICE ancestor Lhurgoyf
-// (`ice/green.ts`), counting `Land`-typed cards instead of `Creature`-typed
+// (`ice/green.cards.ts`), counting `Land`-typed cards instead of `Creature`-typed
 // ones and with power === toughness (no +1 rider). The printed `*/*` is a 0/0
 // base so the CDA yields exactly `{ n, n }`; `.types` survives
 // `projectPublicState` (slimCard strips only `card`), so the count is

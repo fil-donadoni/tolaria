@@ -18,7 +18,7 @@ import { PERMANENT_TYPES } from "../../types";
 // cast a noncreature spell, put a +1/+1 counter on Vivi Ornitier and it
 // deals 1 damage to each opponent." The second ability is free DSL (CR
 // 603.2 SPELL_CAST trigger with a noncreature-spell `matches` filter — the
-// exact shape already shipped by Third Path Iconoclast, `bro/multicolor.ts`
+// exact shape already shipped by Third Path Iconoclast, `bro/multicolor.cards.ts`
 // — `counters` on self + `dealDamage` to `{player: "opponent"}`, both
 // already-exercised Ops).
 //
@@ -26,7 +26,7 @@ import { PERMANENT_TYPES } from "../../types";
 // the effective-power READ that originally blocked this card is resolved —
 // `manaAmount` / `getManaChoices` now receive the source's CURRENT CR 613.4
 // layered power/toughness (counters, anthems, CDAs), not the raw base
-// `CardInstanceState.power`. See `mrd/green.ts` (Viridian Joiner) for the
+// `CardInstanceState.power`. See `mrd/green.cards.ts` (Viridian Joiner) for the
 // shipped, fully-activatable regression case.
 //
 // #1179 SHIPPED (`convex/game.ts` `activateManaAbility`) — Vivi's mana
@@ -227,7 +227,7 @@ export const sinSpirasPunishment: CardDefinition = {
                 "Whenever Sin enters or attacks, exile a permanent card from your graveyard at random, then create a tapped token that's a copy of that card. If the exiled card is a land card, repeat this process.",
             // CR 603.2 — ONE Oracle line spanning two engine events, so ONE
             // ability with an array `event` (the Loafing Giant shape,
-            // `inv/red.ts`); two abilities would render twice on the stack.
+            // `inv/red.cards.ts`); two abilities would render twice on the stack.
             event: ["PERMANENT_ENTERED", "ATTACKERS_DECLARED"],
             matches: (event: GameEvent, self: PermanentView): boolean =>
                 (event.type === "PERMANENT_ENTERED" &&
@@ -242,7 +242,7 @@ export const sinSpirasPunishment: CardDefinition = {
             // unknowable graveyard card, so a representative 2/2 stands in —
             // the SAME "representative 2/2 for an unknowable body" convention
             // `createTokenCopy`'s own valuer documents in `gre/ai/opValuers.ts`
-            // and Urza's Construct uses (`mh1/blue.ts`).
+            // and Urza's Construct uses (`mh1/blue.cards.ts`).
             aiEffects: [
                 {
                     op: "createToken",

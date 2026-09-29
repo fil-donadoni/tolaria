@@ -751,7 +751,7 @@ export const essenceFlare: CardDefinition = {
 // spell's controller) plus the next-upkeep cantrip rider.
 //
 // Migrated resolve()→effects[] (ADR 0045): the Force Spike shape
-// (leg/blue.ts) — `mayPay` with `player: { controllerOf: { target: 0 } }`
+// (leg/blue.cards.ts) — `mayPay` with `player: { controllerOf: { target: 0 } }`
 // binds the boolean outcome, `if` on `{ not: { binding: "$paid" } }` fires
 // the `counter` consequence — plus the next-upkeep cantrip as an inline
 // `delayedTrigger` Op (ADR 0048, CR 603.7d, the Enervate/Infuse/Updraft
@@ -2064,7 +2064,7 @@ export const sleightOfMindIce: CardPrint = {
 };
 // "It's blocking and you control a snow land" gate for Snow Devil's
 // conditional first-strike grant (CR 611.2c board-state-conditional
-// keyword-grant, the Kavu Runner `condition` shape — `inv/red.ts`). `source`
+// keyword-grant, the Kavu Runner `condition` shape — `inv/red.cards.ts`). `source`
 // is the Aura permanent itself, never the host: "you" in an Aura's ability
 // (CR 109.5 — "you" means the ability's controller; CR 611.2, the controller
 // of a continuous effect from a static ability is the controller of the
@@ -2374,7 +2374,7 @@ export const windSpirit: CardDefinition = {
 //  • X attacking targets: `count: "X"` + `combatRoleFilter: "attacking"`.
 //  • Per-target THREE-WAY may-pay ({1} / {2} / decline): composed from two
 //    sequential `requestMayPay` prompts (the "{B} or {3}" decomposition,
-//    ice/black.ts) — offer {2} first (creature untouched), then {1} (prevent).
+//    ice/black.cards.ts) — offer {2} first (creature untouched), then {1} (prevent).
 //    Outcomes are collected across the loop and applied ONCE after it, because
 //    the resolveStep re-runs on every may-pay resume (Stench of Evil pattern) —
 //    the deferred (tracked-by: #2785) apply keeps `preventAllCombatDamageToAndBy` / the delayed
@@ -2392,7 +2392,7 @@ export const windSpirit: CardDefinition = {
 // NESTED `delayedTrigger` whose `capture` snapshots `$each` is a construct
 // combination with no existing interpreter-suite precedent (every shipped
 // `capture` source today is `$source` or an announced target, never a
-// forEach `$each` — see Skizzik, `inv/red.ts`). Per DSL-first authoring
+// forEach `$each` — see Skizzik, `inv/red.cards.ts`). Per DSL-first authoring
 // (`.claude/rules/gre-development.md` — a new construct combination earns
 // its own permanent interpreter test before a card ships on it), and this
 // migration pass is restricted to `convex/cards/sets/**` files only.
@@ -2488,7 +2488,7 @@ export const wintersChill: CardDefinition = {
 // needs a selector/filter over the caster's battlefield keyed to an aura's
 // `attachedTo` host id. `EffectCardFilter` has no attachment field, and no
 // `ref` path reaches `.attachedTo` (the same gap Feedback's own note
-// documents, `lea/blue.ts`). Blocked on: an attached-to-target
+// documents, `lea/blue.cards.ts`). Blocked on: an attached-to-target
 // selector/filter.
 export const wordOfUndoing: CardDefinition = {
     id: "22b04476-5a5d-4843-a948-82db209c4218",

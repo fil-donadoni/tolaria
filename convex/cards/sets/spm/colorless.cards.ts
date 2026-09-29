@@ -12,12 +12,12 @@ import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 // chosen type." (issue #1306, parent PRD #620.) Composes three EXISTING,
 // independent land-entry mechanisms — no new capability:
 //  - the CR 614.12 pay-choice, `entersTappedUnlessPay: { life: 2 }`, the
-//    shock-land shape (Steam Vents, `gpt/colorless.ts`) — a stackless
+//    shock-land shape (Steam Vents, `gpt/colorless.cards.ts`) — a stackless
 //    `land-entry-tapped` PendingChoice `applyPlayLand` suspends BEFORE the
 //    zone move, independent of anything below;
 //  - the on-entry instance-scoped choice storage `resolve()` protocol
 //    (`source.chosenSubtypes`, `ctx.requestOptionChoice` +
-//    `ctx.setChosenSubtypes`) that Illusionary Terrain (`ice/blue.ts`)
+//    `ctx.setChosenSubtypes`) that Illusionary Terrain (`ice/blue.cards.ts`)
 //    already established as the SANCTIONED pattern for "as ~ enters, choose
 //    a basic land type" — no Effect Script Op persists an instance-scoped
 //    choice, so this is a documented protocol, not a missing-Op escape
@@ -27,7 +27,7 @@ import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 //    for an OTHER-land swap; here it targets the SOURCE itself — "This land
 //    is the chosen type" grants only the subtype, never the Basic
 //    supertype, mirroring Phantasmal Terrain's "Enchanted land is the chosen
-//    type", `lea/blue.ts`). Once the subtype is set, the land's `{T}: Add
+//    type", `lea/blue.cards.ts`). Once the subtype is set, the land's `{T}: Add
 //    [colour]` mana ability is INTRINSIC (CR 305.6, `getBasicLandMana`
 //    reads live/effective subtypes) — no `activatedAbilities` needed.
 export const multiversalPassage: CardDefinition = {
@@ -55,7 +55,7 @@ export const multiversalPassage: CardDefinition = {
             scope: "self",
             // protocol: on-entry instance-scoped choice storage (CR 603.6b) —
             // the same sanctioned class as Illusionary Terrain's
-            // `setChosenSubtypes` two-pick (`ice/blue.ts`), narrowed to one
+            // `setChosenSubtypes` two-pick (`ice/blue.cards.ts`), narrowed to one
             // pick. No Effect Script Op persists an instance-scoped choice
             // yet, so this stays `resolve()` by the documented protocol, NOT
             // a "missing Op" escape hatch.

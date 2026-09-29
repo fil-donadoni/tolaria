@@ -362,7 +362,7 @@ describe("Alternative cost — the board-wide additional-cost sacrifice survives
     // cost (CR 118.8), not a card-owned one, so it applies to an alt-cost
     // cast exactly as CR 118.9d says any additional cost does: "any
     // additional costs … that affect that spell are applied to that
-    // alternative cost." Snuff Out (`mmq/black.ts`, printed {X:3}{B}, one
+    // alternative cost." Snuff Out (`mmq/black.cards.ts`, printed {X:3}{B}, one
     // black pip) cast under Drought while paying its "pay 4 life" pitch cost
     // is the shipped repro: the Swamp used to survive the alt-cost cast and
     // the spell still reached the stack unpaid.

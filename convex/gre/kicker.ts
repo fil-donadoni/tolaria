@@ -648,7 +648,7 @@ export function kickerCostLegs(
  *  lands", "return a creature you control")? The only leg kind that claims the
  *  cast's single `SacrificeSelection` slot; a mana leg folds into the total and
  *  a life leg into `payLife`, neither of which needs a picker. Returns `true`
- *  whenever a PAID Kicker declares a permanent leg — Magma Burst (`pls/red.ts`,
+ *  whenever a PAID Kicker declares a permanent leg — Magma Burst (`pls/red.cards.ts`,
  *  "Kicker—Sacrifice two lands", issue #1951) is one such card, not
  *  necessarily the only or first one in the catalogue. */
 export function hasKickerPermanentLeg(
@@ -1006,7 +1006,7 @@ export function kickerPermanentSlotWouldCollide(
  *  leg any given Move will end up carrying. A `oneOf` leg reuses the exact
  *  same field vocabulary as the base spec (`AdditionalCostLeg.sacrificeFilter`,
  *  `resolveAdditionalCosts` flattens it on), so a leg like "sacrifice a Swamp
- *  or pay 3 life" (the Bitter Triumph disjunction SHAPE, `lci/black.ts`, with
+ *  or pay 3 life" (the Bitter Triumph disjunction SHAPE, `lci/black.cards.ts`, with
  *  a sacrifice leg instead of a discard one) claims the cast's ONE
  *  permanent-cost selection slot exactly like the base field does the moment
  *  the caster picks it — and `assertKickerAnnouncementLegal` (`game.ts`)

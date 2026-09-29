@@ -22,19 +22,19 @@ what the oracle line actually does:
 Should be **7c** (CR 613.4c — "effects and counters that modify power and/or
 toughness"), because the line reads "gets +X/+X":
 
-- `neo/white.ts:41` Lion Sash — "Equipped creature gets +1/+1 for each +1/+1 counter on this"
-- `ice/colorless.ts:954` Infinite Hourglass — "All creatures get +1/+0 for each time counter on this artifact"
-- `inv/white.ts:1416` Strength of Unity — "Enchanted creature gets +1/+1 for each basic land type among lands you control"
-- `pls/white.ts:187` Heroic Defiance — "Enchanted creature gets +3/+3 unless ..."
-- `mh2/colorless.ts:335` Nettlecyst — equipped creature gets +1/+1 for each artifact and enchantment you control
-- `ice/green.ts:1372` Snowblind — "Enchanted creature gets -X/-Y"
-- `inv/black.ts:1534` Exotic Curse — "Enchanted creature gets -1/-1 for each basic land type among lands you control"
+- `neo/white.cards.ts:41` Lion Sash — "Equipped creature gets +1/+1 for each +1/+1 counter on this"
+- `ice/colorless.cards.ts:954` Infinite Hourglass — "All creatures get +1/+0 for each time counter on this artifact"
+- `inv/white.cards.ts:1416` Strength of Unity — "Enchanted creature gets +1/+1 for each basic land type among lands you control"
+- `pls/white.cards.ts:187` Heroic Defiance — "Enchanted creature gets +3/+3 unless ..."
+- `mh2/colorless.cards.ts:335` Nettlecyst — equipped creature gets +1/+1 for each artifact and enchantment you control
+- `ice/green.cards.ts:1372` Snowblind — "Enchanted creature gets -X/-Y"
+- `inv/black.cards.ts:1534` Exotic Curse — "Enchanted creature gets -1/-1 for each basic land type among lands you control"
 
 Should be **7b** (CR 613.4b — "effects that set power and/or toughness to a
 specific number or value"):
 
-- `atq/green.ts:377` Titania's Song — "an artifact creature with power and toughness each equal to its mana value"
-- `lea/blue.ts:82` Animate Artifact — "an artifact creature with power and toughness each equal to its mana value"
+- `atq/green.cards.ts:377` Titania's Song — "an artifact creature with power and toughness each equal to its mana value"
+- `lea/blue.cards.ts:82` Animate Artifact — "an artifact creature with power and toughness each equal to its mana value"
 
 **What it changes, observably.** CR 613.4 applies the sublayers in order, so 7a
 runs FIRST. Infinite Hourglass's "+1/+0 for each time counter" is therefore

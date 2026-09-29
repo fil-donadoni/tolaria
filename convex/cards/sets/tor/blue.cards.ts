@@ -11,7 +11,7 @@ import type { CardDefinition } from "../../types";
 // something else]. If [they don't], [do something]"; CR 701.6a counter; CR
 // 702.35 Madness, the discard-to-exile cast capability in `gre/madness.ts`.)
 //
-// Mana Leak's mayPay + `if (not $paid)` + `counter` shape (`sth/blue.ts`), with
+// Mana Leak's mayPay + `if (not $paid)` + `counter` shape (`sth/blue.cards.ts`), with
 // the tax read at RESOLUTION rather than printed: `genericEqualTo` is the
 // fourth `mayPay` cost shape (issue #2714), the exact twin of the energy
 // shape's `energyEqualTo`, and the tally reuses the ordinary `count`

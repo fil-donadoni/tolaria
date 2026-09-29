@@ -20,7 +20,7 @@ import type { CardDefinition } from "../../types";
 // (a 1994 promotional insert bundled with the novel "Arena" — Scryfall's own
 // `reprint` flag confirms it, not the more familiar Eternal Masters print).
 // It was first drafted against the EMA reprint; that printing now rides
-// along as a `CardPrint` in `ema/colorless.ts`.
+// along as a `CardPrint` in `ema/colorless.cards.ts`.
 export const manaCrypt: CardDefinition = {
     id: "160cf235-6463-4e16-a426-8b5be76b10d2", // PHPR
     name: "Mana Crypt",

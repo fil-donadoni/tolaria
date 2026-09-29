@@ -13,8 +13,8 @@ import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 //
 //   * an OPPONENT-made may-choice inside the controller's own trigger — a
 //     `mayPay` whose `player` is a generic `EffectPlayerRef`, shipped and in
-//     use by Questing Phelddagrif (`pls/multicolor.ts`) and Sibilant Spirit
-//     (`ice/blue.ts`). Not a punisher `mayPay` with a cost: this one is the
+//     use by Questing Phelddagrif (`pls/multicolor.cards.ts`) and Sibilant Spirit
+//     (`ice/blue.cards.ts`). Not a punisher `mayPay` with a cost: this one is the
 //     bare cost-free "you may" shape (issue #680);
 //   * an amount read off a NAMED counter on the source — the `counters`
 //     EffectValue member (CR 122.6, issue #1015), which The One Ring below
@@ -194,7 +194,7 @@ export const theOneRing: CardDefinition = {
             // cast-resolution chokepoint (`PermanentEnteredEvent.wasCast`), so
             // a One Ring reanimated, flickered or otherwise put onto the
             // battlefield grants no protection. Same shape as Lutri, the
-            // Spellchaser (iko/multicolor.ts).
+            // Spellchaser (iko/multicolor.cards.ts).
             condition: (event) => event.wasCast === true,
             effects: [
                 // CR 702.16b/e/i — "you" is the source's controller: an ETB

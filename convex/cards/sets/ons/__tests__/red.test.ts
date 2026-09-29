@@ -1,6 +1,6 @@
 // ONS — per-card behavior tests for red cards in
 // `convex/cards/sets/ons/red.cards.ts` (set split by colour, ADR 0043). Lava Dart's
-// `dealDamage` Op is already exercised catalogue-wide (Firebolt, ody/red.ts),
+// `dealDamage` Op is already exercised catalogue-wide (Firebolt, ody/red.cards.ts),
 // so the main cast is covered by the effect-script static sweep +
 // auto-generated smoke test (per-Op regime, `.claude/rules/gre-development.md`
 // § DSL-first authoring). What is card-specific and worth a hand-written test

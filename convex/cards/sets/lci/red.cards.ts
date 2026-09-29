@@ -15,7 +15,7 @@ import { discardTrigger } from "../../abilities/triggers/discardTrigger";
 // next end step."
 //
 // Ability 1 — a CR 603.12 REFLEXIVE trigger (Minsc & Boo, Timeless Heroes,
-// `clb/multicolor.ts`, precedent): the outer "whenever you attack, you may
+// `clb/multicolor.cards.ts`, precedent): the outer "whenever you attack, you may
 // discard a card" is an untargeted `choice` (kind "choose-hand-card", count
 // {min:0,max:1}) gated by `picksNonEmpty`; "when you do" is the
 // `reflexiveTrigger` Op, which announces ITS OWN target ("target attacking
@@ -25,7 +25,7 @@ import { discardTrigger } from "../../abilities/triggers/discardTrigger";
 //
 // Ability 2 — the SAME impulse-draw PROTOCOL shipped for Ragavan/Robber of
 // the Rich (no Op skin, precedent: Elkin Bottle / Ice Cauldron,
-// ice/colorless.ts), riding `discardTrigger`'s resolve hook. "one or more
+// ice/colorless.cards.ts), riding `discardTrigger`'s resolve hook. "one or more
 // cards" collapses a multi-card discard into a single firing via
 // `oncePerEventBatch` (CR 603.2c, issue #2107).
 // The play-permission window is granted via

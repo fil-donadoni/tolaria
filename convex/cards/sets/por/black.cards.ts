@@ -18,7 +18,7 @@ import type { CardDefinition } from "../../types";
 // Home set = earliest paper printing (ADR 0041) = Portal (POR 19); it was
 // first implemented against the M11 reprint, which filed it under the wrong
 // home set and rendered the wrong art. That printing now rides along as a
-// `CardPrint` in `m11/black.ts`.
+// `CardPrint` in `m11/black.cards.ts`.
 export const mindRot: CardDefinition = {
     id: "b91d355d-8409-4f0b-87ce-7590a8b9ebc0", // POR 19
     name: "Mind Rot",

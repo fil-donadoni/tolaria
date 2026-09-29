@@ -357,7 +357,7 @@ describe("non-graveyard destinations are untouched (issue #3041)", () => {
 
     it("prices an UNDERIVABLE destination identically to the hand tutor", () => {
         // Altar of Bone searches through an imperative `resolve()`
-        // (`ice/multicolor.ts`), so there is no `choice` Op to walk and no
+        // (`ice/multicolor.cards.ts`), so there is no `choice` Op to walk and no
         // `moveZone` consuming a binding: `searchFindDestination` genuinely
         // cannot derive a destination here. Its finds must price exactly as the
         // DSL hand tutor's do — that is what "falls back to today's pricing

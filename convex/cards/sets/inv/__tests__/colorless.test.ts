@@ -261,7 +261,7 @@ describe("Alloy Golem (ETB choose a color, is the chosen color; CR 105.2 / 613.1
 
 // Chromatic Sphere's mana ability shares the `manaChoices` "any colour" shape
 // already exercised by Lotus Guardian / Phyrexian Lens / Chromatic Star
-// (tsp/colorless.ts) above, so the new surface here is purely the
+// (tsp/colorless.cards.ts) above, so the new surface here is purely the
 // `drawsCardOnTap` rider (issue #1093) — a `resolve()`-adjacent engine
 // behavior change (a new declarative rider on `ActivatedAbility`, wired at
 // FOUR call sites in convex/game.ts), so it gets the full GRE test regime
@@ -270,7 +270,7 @@ describe("Chromatic Sphere ({1}, {T}, Sacrifice: add one mana of any color, draw
     // CR 605.1a / 601.2f — the payment-tap path is the REAL commit path this
     // card actually goes through (its mana ability has a {1} cost, which only
     // tapSourceIntoPayment/applyManaAbilityManaCost validates — same as
-    // Chromatic Star, tsp/colorless.ts). Backs BOTH tapForPayment and
+    // Chromatic Star, tsp/colorless.cards.ts). Backs BOTH tapForPayment and
     // tapForActivationPayment (ADR: one shared helper, per game.ts's own
     // doc comment).
     it("payment-tap path (tapSourceIntoPayment): pays {1}, sacrifices the source, adds the chosen color, and draws exactly one card", () => {
@@ -609,7 +609,7 @@ describe("Tek (land-gated P/T + keyword grants, CR 613.1c/1d, issue #1850)", () 
     // as you control a <land type>" gate only stays live because the real
     // production SBA path (`checkStateBasedActions` → `recomputeContinuousEffects`)
     // re-runs `condition` every SBA pass — mirrors Kavu Runner's shipped test
-    // shape (`inv/red.ts`/`__tests__/red.test.ts`, issue #1095).
+    // shape (`inv/red.cards.ts`/`__tests__/red.test.ts`, issue #1095).
     function makeTekState() {
         const dragon = makeInstance(tek.id, {
             controllerId: "p1",

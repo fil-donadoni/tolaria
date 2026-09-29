@@ -10,7 +10,7 @@
 // Effect Script `optionChoice` and the legacy `CardDefinition.modes`
 // mechanism — both pick EXACTLY ONE mode (CR 700.2b "choose one"). This
 // card needs "choose three, repeats allowed" — the same cardinality shape as
-// Fiery Confluence (c15/red.ts), and a strictly more general one than the
+// Fiery Confluence (c15/red.cards.ts), and a strictly more general one than the
 // "choose two DISTINCT modes" gap of Kolaghan's Command. All three, plus
 // Flame of Anor's conditional count, are one construct — the modal
 // cardinality grammar, which per ADR 0089 belongs on the announce-time mode

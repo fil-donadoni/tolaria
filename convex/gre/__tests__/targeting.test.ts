@@ -4128,8 +4128,8 @@ describe("hexproof backend gate (#958, CR 702.11b)", () => {
 // explicit `permanent-guard` staticEffect on its `CardDefinition`. This suite
 // covers the previously-inert path: a card that grants shroud DYNAMICALLY via
 // `SpellContext.grantStaticAbility(target, "shroud", …)` — Skyshroud Blessing
-// (`pls/green.ts`), Homarid Warrior / Svyelunite Priest (`fem/blue.ts`),
-// Sylvan Safekeeper (`jud/green.ts`) — appends ONLY the bare `"shroud"` string
+// (`pls/green.cards.ts`), Homarid Warrior / Svyelunite Priest (`fem/blue.cards.ts`),
+// Sylvan Safekeeper (`jud/green.cards.ts`) — appends ONLY the bare `"shroud"` string
 // to `staticAbilities`, with no paired `permanent-guard` staticEffect.
 // `isGuardedAgainst`'s `hasShroud` helper (`permanentGuard.ts`, mirroring the
 // existing `hasHexproof` bridge for CR 702.11b) now reads that bare string

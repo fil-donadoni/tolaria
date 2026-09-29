@@ -136,7 +136,7 @@ export function distinctColorsSpent(spent: Record<string, number>): number {
  *
  *  Entries of the same counter type SUM (that is what lets "if this creature
  *  was kicked, it enters with five +1/+1 counters" be five `count: "kicker"`
- *  entries — the established idiom, `inv/green.ts` Llanowar Elite — instead of
+ *  entries — the established idiom, `inv/green.cards.ts` Llanowar Elite — instead of
  *  a bespoke multiplier field). Non-positive results are dropped: an unkicked
  *  kicker card and an X=0 cast both enter with no counters at all, not with a
  *  zero-valued counter entry. */
@@ -190,7 +190,7 @@ export function resolveEntersWithCounters(
  *  all of a permanent's abilities removes that one too, so the permanent enters
  *  with NO counters at all — the canonical Blood Moon / Dark Depths ruling, and
  *  equally Humility, Titania's Song, and Blood Moon's CR 305.7 land-type change
- *  (which the catalogue models as a paired `ability-loss` static, `drk/red.ts`).
+ *  (which the catalogue models as a paired `ability-loss` static, `drk/red.cards.ts`).
  *
  *  A PROBE, not a read of materialized state: at every entry site the permanent
  *  is not yet reconciled against the board (`applyExistingGrantsTo` runs AFTER

@@ -15,7 +15,7 @@ Promos, a 1994 promotional insert bundled with the novel "Arena"), id
 `160cf235-6463-4e16-a426-8b5be76b10d2` — confirmed by Scryfall's own
 `reprint: false` flag on that print. This issue moved the `CardDefinition` to
 a new `convex/cards/sets/phpr/` home-set module and left the EMA printing as
-a `CardPrint` in `ema/colorless.ts` (the same fix pattern already used for
+a `CardPrint` in `ema/colorless.cards.ts` (the same fix pattern already used for
 Ravenous Rats / Angel of Mercy in `p02/`, per that set's own comments).
 
 **Evidence.** `bun run scripts/check-card-index.ts` against the ema-homed

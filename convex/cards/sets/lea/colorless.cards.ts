@@ -639,7 +639,7 @@ export const howlingMine: CardDefinition = {
             // `scope: "each"` reads the scoped (drawing) player via the
             // censused `{ ref: "$event.activePlayerId" }` event-field selector
             // (ADR 0049, issue #1066 precedent: Collapsing Borders,
-            // inv/red.ts) rather than the plain `"controller"` selector, which
+            // inv/red.cards.ts) rather than the plain `"controller"` selector, which
             // would incorrectly read the artifact's own controller.
             effects: [
                 {
@@ -1256,7 +1256,7 @@ export const soulNet: CardDefinition = {
             scope: "any",
             // Migrated resolve()→effects[] (ADR 0045): mayPay {1} (CR 117.3a)
             // then gainLife 1 gated on the $paid outcome — same mayPay + if
-            // shape as Urza's Chalice (atq/colorless.ts), riding the same
+            // shape as Urza's Chalice (atq/colorless.cards.ts), riding the same
             // Pending Choice pipeline `requestMayPay` used. The dead creature's
             // LKI isn't read (the effect only touches the controller), so the
             // effects[] site (which doesn't surface LKI) is a clean fit.

@@ -545,8 +545,8 @@ describe("librarySearchedTrigger fires end-to-end (issue #788)", () => {
 });
 
 // Bugfix regression (issue #788 PR #1987 re-review finding 1): `search-library`
-// is an OVERLOADED PendingChoice kind. Expressive Iteration (stx/multicolor.ts)
-// and Diabolic Vision (ice/multicolor.ts) both reuse it for a "look at the top
+// is an OVERLOADED PendingChoice kind. Expressive Iteration (stx/multicolor.cards.ts)
+// and Diabolic Vision (ice/multicolor.cards.ts) both reuse it for a "look at the top
 // N, pick one" prompt — NOT a CR 701.23a search, which requires looking at the
 // WHOLE zone. Before the `isSearch` discriminator, `applyPendingChoiceSubmit`
 // gated the `LIBRARY_SEARCHED` emit on `kind === "search-library"` alone, so

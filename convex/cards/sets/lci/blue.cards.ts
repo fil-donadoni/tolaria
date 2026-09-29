@@ -14,10 +14,10 @@ import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 // the battlefield. (Mana abilities can't be targeted.)"
 //
 // COUNTER HALF (CR 603.3d ETB-targeted trigger, Stifle-parity): the SAME
-// `targetRequirement` shape Stifle (scg/blue.ts) ships —
+// `targetRequirement` shape Stifle (scg/blue.cards.ts) ships —
 // `spellStackKind: "ability"` keeps any ability (activated OR triggered) on
 // the stack legal and drops spells; `count: { min: 0, max: 1 }` is "up to
-// one" (Loran precedent, bro/white.ts). Mana abilities are never legal
+// one" (Loran precedent, bro/white.cards.ts). Mana abilities are never legal
 // targets by construction (CR 605.3b — a mana ability "doesn't go on the
 // stack, so it can't be targeted, countered, or otherwise responded to"), so
 // no extra exclusion is needed. `ctx.counter` vanishes the countered ability
@@ -88,7 +88,7 @@ export const tishanasTidebinder: CardDefinition = {
 //
 // TRIGGER HALF (CR 603.2 damage trigger): `event: "DAMAGE_DEALT"` +
 // `matches` mirrors the shipped Barrowgoyf/Nethergoyf "deals combat damage
-// to a player" template (m3c/black.ts) — combat damage from THIS creature to
+// to a player" template (m3c/black.cards.ts) — combat damage from THIS creature to
 // a player. The body is a flat Op sequence, no `resolveSteps` needed (unlike
 // Barrowgoyf, nothing here reads `event.amount` — CR 122.6 `counters` and
 // CR 121.1 `draw`/discard are all fixed-count):
@@ -96,7 +96,7 @@ export const tishanasTidebinder: CardDefinition = {
 //   2. `draw` — draw a card (CR 121.1).
 //   3. `choice(kind: "choose-hand-card")` + `discard` — "then discard a
 //      card" (CR 701.9), the SAME choice+discard idiom Krovikan Sorcerer
-//      uses (ice/blue.ts). Binds the discarded card's instance id as
+//      uses (ice/blue.cards.ts). Binds the discarded card's instance id as
 //      `$discarded` for the threshold clause below — the id is stable
 //      across the discard (a zone move, not a new instance).
 //   4. `if` gated on the chorus-counter READ (`{ counters: { of: {ref:

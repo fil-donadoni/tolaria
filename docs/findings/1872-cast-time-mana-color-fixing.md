@@ -51,10 +51,10 @@ confidence: high
 > "exactly one shipped card reaches the clause" and sets the bar at "a SECOND
 > card wants the same clause". There are **three**, in three different sets,
 > each having diagnosed this gap independently:
-> **Robber of the Rich** (`eld/red.ts:43`, shipped, clause inert);
-> **North Star** (`leg/colorless.ts:106`, commented-out stub, "any **type**",
+> **Robber of the Rich** (`eld/red.cards.ts:43`, shipped, clause inert);
+> **North Star** (`leg/colorless.cards.ts:106`, commented-out stub, "any **type**",
 > blocked on **nothing else** — the seam ships it outright);
-> **Agatha's Soul Cauldron** (`woe/colorless.ts:9`, commented-out stub,
+> **Agatha's Soul Cauldron** (`woe/colorless.cards.ts:9`, commented-out stub,
 > activation-time, also blocked on ability-copy-from-exile, #1324).
 >
 > **5. "any type" includes colorless; "any color" does not.** Settled by

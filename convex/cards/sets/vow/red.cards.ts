@@ -11,7 +11,7 @@ import { BLOOD_TOKEN_SPEC } from "../../abilities/tokens/bloodToken";
 // card.")" (CR 603.6a self-ETB trigger; CR 120.1 damage-to-a-player —
 // `dealDamage`/`to: { player: "opponent" }`, the single-opponent shorthand
 // this 2-player engine already uses everywhere "each opponent" appears,
-// fin/multicolor.ts's Fireball-shaped burn, leg/black.ts, znr/multicolor.ts;
+// fin/multicolor.cards.ts's Fireball-shaped burn, leg/black.cards.ts, znr/multicolor.cards.ts;
 // CR 111/701.7 token creation via the shared `BLOOD_TOKEN_SPEC`.) Unblocked
 // by issue #778: `EffectTokenSpec`/`TokenSpec` gained a token-scoped
 // `activatedAbilities[]` (#1191), and its cost allow-list now also accepts

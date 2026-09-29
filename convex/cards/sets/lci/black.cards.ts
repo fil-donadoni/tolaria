@@ -51,9 +51,9 @@ export const bitterTriumph: CardDefinition = {
 
 // Deep-Cavern Bat — {1}{B} Creature — Bat, 1/1 (LCI, issue #2523).
 //
-// Elite Spellbinder's script (`stx/white.ts`) minus its `grantCastFromExile`
+// Elite Spellbinder's script (`stx/white.cards.ts`) minus its `grantCastFromExile`
 // clause, plus the linked-exile round trip Tidehollow Sculler ships
-// (`ala/multicolor.ts`, issue #2522). No new Op, no new `SpellContext`
+// (`ala/multicolor.cards.ts`, issue #2522). No new Op, no new `SpellContext`
 // primitive, no `resolve()`:
 //
 //   - `lookHand` (CR 400.2, issue #2383) — the PRIVATE whole-hand look. Not
@@ -93,7 +93,7 @@ export const bitterTriumph: CardDefinition = {
 // stack and cannot be responded to; modelling it as a trigger puts it on the
 // stack, where it can be. This repo
 // already models the identical "until this ~ leaves the battlefield" wording
-// that way — Banishing Light (`jou/white.ts`) — so following the established
+// that way — Banishing Light (`jou/white.cards.ts`) — so following the established
 // precedent is the right call for this card rather than inventing a second
 // mechanism. A general untriggered CR 610.3 "until" return is out of scope
 // for this card — it is a foundation, not a card-sized change. (Contrast

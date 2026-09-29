@@ -496,7 +496,7 @@ export const scarwoodBandits: CardDefinition = {
             // {2} (CR 118.3 optional payment); if they don't, gain control of the
             // targeted artifact "for as long as this creature remains on the
             // battlefield" (CR 613.1b layer-2 control change; CR 611.2b revert).
-            // The Force Spike mayPay + `if !$paid` shape (leg/blue.ts).
+            // The Force Spike mayPay + `if !$paid` shape (leg/blue.cards.ts).
             effects: [
                 {
                     op: "mayPay",

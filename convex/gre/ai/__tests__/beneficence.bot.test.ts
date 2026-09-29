@@ -521,7 +521,7 @@ function nodeOf(edges: Edge[]): Node {
 // ---------------------------------------------------------------------------
 
 describe("activated-ability targets are ranked too (CR 602.2b, PR #1914 review finding 3)", () => {
-    /** Jandor's Saddlebags — "{3}, {T}: Untap target creature." (`arn/colorless.ts`).
+    /** Jandor's Saddlebags — "{3}, {T}: Untap target creature." (`arn/colorless.cards.ts`).
      *  A tapped creature on EACH side, so both a correctly-directed and a
      *  misdirected activation are enumerated, and three untapped lands to pay.
      *

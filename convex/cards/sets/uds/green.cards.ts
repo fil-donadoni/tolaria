@@ -6,7 +6,7 @@ import { manaCostForCardId } from "../../manaCostLookup";
  *  or hybrid `{B}` pip each makes it so. The same reading as
  *  `getColorsFromCost` (`cards/colors.ts`), inlined because importing that
  *  module pulls `gre/constants → cards/index` and closes the set ↔ registry
- *  eval-time cycle (the arn/white.ts `permanentColors` precedent). Colour
+ *  eval-time cycle (the arn/white.cards.ts `permanentColors` precedent). Colour
  *  indicators are not modelled on `CardDefinition` at all, so a cost-derived
  *  colour is the engine's whole notion of a card's colour. */
 function costIsBlack(cost: ManaCost | undefined): boolean {
@@ -37,7 +37,7 @@ function costIsBlack(cost: ManaCost | undefined): boolean {
 // must not be Compost's controller.
 //
 // The "you may" is the cost-free `mayPay` decision (issue #680), Verduran
-// Enchantress's shape (lea/green.ts).
+// Enchantress's shape (lea/green.cards.ts).
 // hand-tail: "Whenever a black card is put into an opponent's graveyard from anywhere, you may draw a card." (#4195)
 export const compost: CardDefinition = {
     id: "2523c403-0025-48c7-8ff1-e66ca27ee585", // UDS 102

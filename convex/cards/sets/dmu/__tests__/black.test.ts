@@ -29,7 +29,7 @@ const sheoldredTheApocalypse = getDefinition(
 // CARD_DRAWN event scoped relative to Sheoldred's controller: the "your"
 // clause is an Effect Script (ADR 0045), the "opponents" clause stays
 // imperative because it must act on the DRAWING player, not the controller
-// (see the card-file comment in dmu/black.ts). Both halves need coverage —
+// (see the card-file comment in dmu/black.cards.ts). Both halves need coverage —
 // this describe block is that coverage.
 // ---------------------------------------------------------------------------
 describe("Sheoldred, the Apocalypse (CR 121.1 draw-triggered life swing)", () => {

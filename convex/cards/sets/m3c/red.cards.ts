@@ -22,7 +22,7 @@ import { EFFECT_AFFECTS_SELF } from "../../types";
 //
 // P/T HALF (CR 604.3 / 613.4c CDA, layer 7a): a `pt-cda` static effect whose
 // `compute` counts DISTINCT card types among cards in ALL graveyards — the
-// IDENTICAL shape already shipped for Barrowgoyf (m3c/black.ts); reused
+// IDENTICAL shape already shipped for Barrowgoyf (m3c/black.cards.ts); reused
 // verbatim (the one card-type-count-across-all-graveyards CDA).
 //
 // TRIGGER HALF: an ENTER trigger with an announced "any target"
@@ -63,7 +63,7 @@ export const pyrogoyf: CardDefinition = {
         {
             // CR 604.3 — power = distinct card types among cards in ALL
             // graveyards; toughness = that + 1 (Lhurgoyf-style CDA, layer 7a).
-            // Same compute as Barrowgoyf (m3c/black.ts).
+            // Same compute as Barrowgoyf (m3c/black.cards.ts).
             kind: "pt-cda",
             applies: EFFECT_AFFECTS_SELF,
             compute: (_source, state) => {

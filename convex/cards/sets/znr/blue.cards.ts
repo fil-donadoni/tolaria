@@ -9,7 +9,7 @@
 // X or less. If that artifact is an Equipment, attach it to this creature."
 // Blocked: this is a VARIABLE-cost Kicker (CR 702.33a — "Pay {X}"), not the
 // fixed-cost shape every shipped Kicker card uses (Everflowing Chalice
-// `wwk/colorless.ts`, Fire // Ice `eoe/blue.ts`) — `KickerCost.cost` is a
+// `wwk/colorless.cards.ts`, Fire // Ice `eoe/blue.cards.ts`) — `KickerCost.cost` is a
 // `ManaCost` that CAN carry the `X: "X"` variable marker structurally, but
 // nothing in the cast-time cost pipeline prompts the caster for that value:
 // `foldKickerCost` (`convex/game.ts`) calls `normalizeManaCost(cardDef.kicker

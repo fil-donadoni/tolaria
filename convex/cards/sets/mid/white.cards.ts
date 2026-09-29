@@ -50,7 +50,7 @@ export const catharCommando: CardDefinition = {
 // this repo (`convex/cards/sets/mid/`, `convex/cards/sets/vow/`), and the
 // `id` convention here is the card's OWN printing's Scryfall print id (see
 // `catharCommando` above, `98cbc1c2-…` = the MID Cathar Commando print) — so
-// she lives here, in `mid/white.ts`, with the MID #1 print id.
+// she lives here, in `mid/white.cards.ts`, with the MID #1 print id.
 //
 // Power CDA (CR 604.3/208.2, issue #2370): declared base `power: 0`,
 // `toughness: 4` (toughness is a FIXED printed value, not a CDA — only power

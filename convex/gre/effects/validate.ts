@@ -3324,7 +3324,7 @@ function isModeList(value: unknown): boolean {
  *  outcome (Mana Crypt — "if you LOSE, deal 3 damage", the win branch does
  *  nothing at all) has no other way to express "nothing happens" under this
  *  frozen grammar, and padding it with a card-shaped placeholder Op is the
- *  workaround this relaxation replaces (`chaoticStrike`, `inv/red.ts`, still
+ *  workaround this relaxation replaces (`chaoticStrike`, `inv/red.cards.ts`, still
  *  padded pending its own cleanup). Each branch's Op-list deep validity
  *  (schema, refs, nesting) is checked by the recursive schema / ref passes,
  *  exactly like an `optionChoice` mode or an `if` branch — an empty list

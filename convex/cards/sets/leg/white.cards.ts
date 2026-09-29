@@ -1377,7 +1377,7 @@ export const petraSphinx: CardDefinition = {
             // suspends for the open choice) → `digMatchingToHand` (CR 701.20a reveal
             // + 401.4 look/split, `look: 1`) reads the chosen name
             // back via a bare `ref` into `EffectCardFilter.name` — the exact
-            // Desperate Research shape (inv/black.ts) narrowed to a single
+            // Desperate Research shape (inv/black.cards.ts) narrowed to a single
             // card and a graveyard (not exile) miss destination.
             effects: [
                 {

@@ -215,7 +215,7 @@ export const goblinKites: CardDefinition = {
             // NON-EMPTY Op list (`validateEffectScript`/`isCoinFlipBranch`) and
             // this card's WIN branch does nothing ("Creature is safe." — no
             // game effect at all). No no-op Op exists to fill it (see
-            // Merseine, fem/blue.ts, for the identical empty-branch gap).
+            // Merseine, fem/blue.cards.ts, for the identical empty-branch gap).
             // Stays resolve().
             resolve: (ctx: SpellContext) => {
                 const target = ctx.targets[0];
@@ -567,7 +567,7 @@ export const dwarvenSoldier: CardDefinition = {
             // once, never +0/+4. Bidirectional: `matches` discriminates which
             // side of the pair the Soldier is on and inspects the OTHER side's
             // subtypes, which the event carries directly (no TriggerStateView
-            // lookup). Same shape as Amphibious Kavu (`pls/green.ts`) with a
+            // lookup). Same shape as Amphibious Kavu (`pls/green.cards.ts`) with a
             // subtype filter instead of a colour one.
             event: "BLOCKERS_CONFIRMED",
             matches: (event, self) => {
@@ -626,7 +626,7 @@ export const dwarvenArmorer: CardDefinition = {
                 "{R}, {T}, Discard a card: Put a +0/+1 counter or a +1/+0 counter on target creature.",
             // "Discard a card" is the cost's non-mana/tap leg (CR 602.1 /
             // 118.3), modelled by `cost.discardFilter` (a match-all filter —
-            // the same "discard a card" idiom Iron-Shield Elf, `ecl/black.ts`,
+            // the same "discard a card" idiom Iron-Shield Elf, `ecl/black.cards.ts`,
             // uses) rather than a resolve-time pick. PREVIOUSLY the discard
             // was performed as `resolveSteps` step 0 with an empty-hand
             // no-op, but step 1 (the counter choice/placement) ran

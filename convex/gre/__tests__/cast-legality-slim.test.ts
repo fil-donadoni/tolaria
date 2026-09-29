@@ -644,7 +644,7 @@ describe("cast affordability — board-dependent canActivate must see the real b
 // permission/alternative-cost) still built its `coloredCostLeftover` probe
 // with NO state at all, so a board-dependent mana ability was silently
 // dropped on every one of those paths. This exercises the FLASHBACK branch
-// specifically: Firebolt's flashback cost is {4}{R} (`ody/red.ts`); with Mox
+// specifically: Firebolt's flashback cost is {4}{R} (`ody/red.cards.ts`); with Mox
 // Opal + 2 other artifacts satisfying Metalcraft and 4 colorless-producing
 // Islands covering the generic portion, the {R} pip can ONLY be paid by Mox
 // Opal's any-colour ability — exactly the shape that is invisible unless

@@ -105,7 +105,7 @@ function mostCommonColorsFromSpellContext(ctx: SpellContext): Color[] {
 // blind guess into a free, always-optimal choice. The "choose a color"
 // clause has no dedicated primitive, so it's expressed as a 5-mode
 // `optionChoice` (one per W/U/B/R/G) — each mode is the exact Thoughtseize
-// `reveal` + `choice(choose-hand-card)` + `discard` template (lrw/black.ts),
+// `reveal` + `choice(choose-hand-card)` + `discard` template (lrw/black.cards.ts),
 // just filtered by that mode's fixed color instead of `excludeType`. The
 // pick is MANDATORY (no "may" in the oracle text): a plain `count: 1` clamps
 // to the filtered candidate set, so "no card of that color" raises no choice
@@ -169,7 +169,7 @@ export const addle: CardDefinition = {
 // Andradite Leech — {2}{B} 2/2. "Black spells you cast cost {B} more to
 // cast. {B}: This creature gets +1/+1 until end of turn." (CR 601.2f cost
 // modification.) The cost-modifier is the exact Derelor template
-// (fem/black.ts): `effectSource.controllerId === card.controllerId` scopes
+// (fem/black.cards.ts): `effectSource.controllerId === card.controllerId` scopes
 // the tax to the Leech's OWN controller's black spells (not a Gloom-style
 // blanket tax).
 export const andraditeLeech: CardDefinition = {
@@ -343,7 +343,7 @@ export const cryptAngel: CardDefinition = {
 // cursedFlesh — INV reprint of the Exodus definition (CardPrint).
 // The card was first implemented here, against this printing; its home set is
 // its earliest paper printing (ADR 0041), so the mechanics live in
-// `exo/black.ts`.
+// `exo/black.cards.ts`.
 export const cursedFleshInv: CardPrint = {
     printId: "fb151ae8-9281-434d-ba8d-9ce34f0875eb", // INV 98
     definitionId: "7433b9bf-ee6e-41fe-b826-0d20584198b1", // cursedFlesh (Exodus)
@@ -356,7 +356,7 @@ export const cursedFleshInv: CardPrint = {
 // creature.'" NOT blocked on any engine gap: `setColor` (issue #1083), `pump`,
 // and `grantAbility`'s `grantedActivatedId` + `duration` payload (issue #738)
 // cover all three clauses — the last one is the exact Touch of Vitae shape
-// (`ice/green.ts`), a `grantTemplates[]` entry whose effect is `regenerate`
+// (`ice/green.cards.ts`), a `grantTemplates[]` entry whose effect is `regenerate`
 // on `$source`. An earlier note here claimed a timed costed-ability grant
 // "has no home"; that was wrong (audit of issue #1405, 2026-09-16).
 // export const defilingTears: CardDefinition = {
@@ -410,7 +410,7 @@ export const desperateResearch: CardDefinition = {
 // this creature." (CR 702.9 flying, CR 702.19 trample, CR 603.6a upkeep,
 // CR 701.21 sacrifice, CR 701.19/701.19 regenerate.) The forced upkeep
 // sacrifice is the Innocent Blood `choice(sacrifice-permanents)` + `sacrifice`
-// template (ody/black.ts), narrowed to `count: 1` and the resolving
+// template (ody/black.cards.ts), narrowed to `count: 1` and the resolving
 // controller only (no `forEach` needed — only one player's upkeep fires this
 // trigger). The activated ability's cost is the existing
 // `sacrificeFilter: { types: "Creature" }` shape (any creature, not
@@ -560,7 +560,7 @@ export const duskwalker: CardDefinition = {
 // or is tied for most common." (CR 701.19/701.19 regenerate, CR 613.4a CDA.)
 // The conditional P/T reduction is a `pt-cda` whose `compute` reads the full
 // board via `StaticEffectStateView` (mirrors People of the Woods,
-// drk/green.ts) through the shared `mostCommonColors` helper (`cards/types.ts`).
+// drk/green.cards.ts) through the shared `mostCommonColors` helper (`cards/types.ts`).
 export const gohamDjinn: CardDefinition = {
     id: "d67796c7-4d93-4c50-8839-bb69e075bc42", // INV 107
     rarity: "uncommon",
@@ -832,7 +832,7 @@ export const phyrexianBattleflies: CardDefinition = {
 // graveyard — modern Oracle says "your graveyard", not "a graveyard".
 //
 // Migrated resolve()→effects[] (ADR 0045): the MV-snapshot clause is the
-// exact Reanimate template (tmp/black.ts) — `moveZone`'s `target` addresses
+// exact Reanimate template (tmp/black.cards.ts) — `moveZone`'s `target` addresses
 // the announced target slot (CR 603.3d, populated the same way for a
 // TriggeredAbility's `targetRequirement` as for a spell's), `bind` snapshots
 // the graveyard card's mana value BEFORE it leaves the graveyard (CR 202.3 /
@@ -891,7 +891,7 @@ export const phyrexianDelver: CardDefinition = {
 // (a delayed trigger) and has no color filter; this is an IMMEDIATE destroy,
 // one direction only ("becomes blocked by", not "blocks or becomes blocked
 // by"), matching Lim-Dûl's Cohort's precedent of declaring the
-// BLOCKERS_CONFIRMED trigger directly (ice/black.ts). The effect body itself
+// BLOCKERS_CONFIRMED trigger directly (ice/black.cards.ts). The effect body itself
 // is now pure DSL (ADR 0049, issue #865): `BLOCKERS_CONFIRMED.blockerId` is a
 // censused `$event.<field>` row (mechanicsRegistry.ts EVENT_FIELD_REGISTRY),
 // so `destroy`'s `target` reads the blocking creature straight off the firing
@@ -978,7 +978,7 @@ export const phyrexianSlayer: CardDefinition = {
 // creature deals 1 damage to each creature and each player. When this
 // creature dies, it deals 1 damage to each creature and each player." (CR
 // 603.6a upkeep, CR 120.3 damage, CR 700.4/603.2 dies.) Both halves are the
-// exact Pestilence `forEach` template (lea/black.ts) — the dies half doesn't
+// exact Pestilence `forEach` template (lea/black.cards.ts) — the dies half doesn't
 // read the dead creature's own LKI (it deals damage to every OTHER creature
 // and every player, not itself), so it composes fully now that `diedTrigger`
 // accepts `effects[]` (binds `ctx.controller`/`$source` only — sufficient
@@ -1062,7 +1062,7 @@ export const plagueSpitter: CardDefinition = {
 // ravenousRats — INV reprint of the Portal Second Age definition (CardPrint).
 // The card was first implemented here, against this printing; its home set is
 // its earliest paper printing (ADR 0041), so the mechanics live in
-// `p02/black.ts`.
+// `p02/black.cards.ts`.
 export const ravenousRatsInv: CardPrint = {
     printId: "89e29069-add5-4099-b800-9f1e4402cc1a", // INV 120
     definitionId: "8899244b-737a-43a9-9241-15a650b47bed", // ravenousRats (Portal Second Age)
@@ -1073,7 +1073,7 @@ export const ravenousRatsInv: CardPrint = {
 // recklessSpite — INV reprint of the Tempest definition (CardPrint).
 // The card was first implemented here, against this printing; its home set is
 // its earliest paper printing (ADR 0041), so the mechanics live in
-// `tmp/black.ts`.
+// `tmp/black.cards.ts`.
 export const recklessSpiteInv: CardPrint = {
     printId: "2412497b-cae5-444d-9beb-7761d15cd5c5", // INV 121
     definitionId: "9141daea-1f4f-4227-b7d7-20753e3cb4d4", // recklessSpite (Tempest)
@@ -1211,7 +1211,7 @@ export const spreadingPlague: CardDefinition = {
 
 // Tainted Well — {2}{B} Aura. "Enchant land. When this Aura enters, draw a
 // card. Enchanted land is a Swamp." (CR 603.6a ETB, CR 305.7/611 layer-4
-// subtype ADDITION — Urborg, Tomb of Yawgmoth precedent, plc/colorless.ts:
+// subtype ADDITION — Urborg, Tomb of Yawgmoth precedent, plc/colorless.cards.ts:
 // "is a Swamp" ADDS the type, it doesn't replace the land's other types.)
 export const taintedWell: CardDefinition = {
     id: "2eec00a1-7e12-42d2-8f46-de8ab7323c2c", // INV 126
@@ -1462,7 +1462,7 @@ export const urborgSkeleton: CardDefinition = {
 // cannot express. Re-audited 2026-08-05 and split three ways:
 //   - clause 3 (the redirect) needs NO new capability — the permanent-bound
 //     `graveyard-bound` replacement (#1145) already ships it, scoped to an
-//     opponent's graveyard by Dauthi Voidwalker (`mh2/black.ts`); Agenda is
+//     opponent's graveyard by Dauthi Voidwalker (`mh2/black.cards.ts`); Agenda is
 //     the same entry with the predicate flipped to its controller's own.
 //   - clause 2 → shipped by #2244 (ADR 0093): the one graveyard play
 //     permission record + single resolver; Agenda declares
@@ -1518,7 +1518,7 @@ export const urborgSkeleton: CardDefinition = {
 // NEITHER, so both Ops are wrapped in an `if` guarding on `$source` still
 // being on the battlefield — reusing the EXACT `count` + `name` filter +
 // `acrossAllPlayers` shape Accumulated Knowledge already uses to count copies
-// of itself (`nem/blue.ts`, issue #985), just pointed at `zone: "battlefield"`
+// of itself (`nem/blue.cards.ts`, issue #985), just pointed at `zone: "battlefield"`
 // instead of `"graveyard"` (both are legal `EffectCountSpec.zone` values — no
 // new predicate/condition shape invented). The target's own presence is
 // already guaranteed by `targetLegalityGate`, so the guard only needs to
@@ -1585,7 +1585,7 @@ export const phyrexianInfiltrator: CardDefinition = {
 // Enchanted creature gets -1/-1 for each basic land type among lands you
 // control." (CR 303.4 aura, CR 604.3 CDA, CR 702 preamble Domain ability
 // word, issue #1066.) Mirrors Strength of Unity's `pt-cda` shape exactly
-// (`inv/white.ts`) with a NEGATED delta — the shared `countDomain` helper
+// (`inv/white.cards.ts`) with a NEGATED delta — the shared `countDomain` helper
 // read against the Aura's OWN controller (`source.controllerId`).
 export const exoticCurse: CardDefinition = {
     id: "8ee35d99-9a8a-421b-bf43-74446909d87d",

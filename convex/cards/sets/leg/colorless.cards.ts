@@ -242,7 +242,7 @@ export const alchorsTomb: CardDefinition = {
             },
             // Migrated resolve()→effects[] (ADR 0045): the "choose one of five
             // colors, then set it" template the `setColor` Op's own registry
-            // note names Shyft under (`ice/blue.ts`) — one `optionChoice` mode
+            // note names Shyft under (`ice/blue.cards.ts`) — one `optionChoice` mode
             // per color, each a single-Op `setColor` body on the announced
             // target. No `duration` — the effect "lasts indefinitely" (CR
             // 611.2b/613.9), matching the original `setColorOverride` call.

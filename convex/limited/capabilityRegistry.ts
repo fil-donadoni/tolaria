@@ -84,7 +84,7 @@ export const CAPABILITY_REGISTRY: CapabilityRow[] = [
     {
         id: "value-on-etb",
         description:
-            "PROVIDES: an enters-the-battlefield trigger or immediate static effect that pays off even if the permanent leaves play again right away (draws cards, deals damage, creates tokens) — independent of the permanent sticking around. REQUIRES: a cheat-into-play effect that only guarantees the permanent briefly touches the battlefield (Sneak Attack — '{R}: You may put a creature card from your hand onto the battlefield... Sacrifice the creature at the beginning of the next end step', usg/red.ts — one attack and it is gone) requires this from its target; Show and Tell, by contrast, puts its target into play PERMANENTLY (no sacrifice/return clause) and does not require this.",
+            "PROVIDES: an enters-the-battlefield trigger or immediate static effect that pays off even if the permanent leaves play again right away (draws cards, deals damage, creates tokens) — independent of the permanent sticking around. REQUIRES: a cheat-into-play effect that only guarantees the permanent briefly touches the battlefield (Sneak Attack — '{R}: You may put a creature card from your hand onto the battlefield... Sacrifice the creature at the beginning of the next end step', usg/red.cards.ts — one attack and it is gone) requires this from its target; Show and Tell, by contrast, puts its target into play PERMANENTLY (no sacrifice/return clause) and does not require this.",
     },
     {
         id: "value-on-attack",
@@ -94,7 +94,7 @@ export const CAPABILITY_REGISTRY: CapabilityRow[] = [
     {
         id: "value-on-death",
         description:
-            "PROVIDES: a death trigger, or an effect elsewhere keyed off this permanent dying / being put into a graveyard from the battlefield, that pays off regardless of the cause of death (draws cards, creates tokens, deals damage) — the Worldspine Wurm shape (ADR 0072's Flash pairing): 'When this creature dies, create three 5/5 green Wurm creature tokens with trample' (rtr/green.ts) fires no matter how it died, making it an excellent Flash target — even though it ALSO shuffles itself out of the graveyard afterward, so it does NOT provide `reanimatable` (see that row). REQUIRES: an effect that wants to sacrifice or trade away permanents profitably requires this from its fodder.",
+            "PROVIDES: a death trigger, or an effect elsewhere keyed off this permanent dying / being put into a graveyard from the battlefield, that pays off regardless of the cause of death (draws cards, creates tokens, deals damage) — the Worldspine Wurm shape (ADR 0072's Flash pairing): 'When this creature dies, create three 5/5 green Wurm creature tokens with trample' (rtr/green.cards.ts) fires no matter how it died, making it an excellent Flash target — even though it ALSO shuffles itself out of the graveyard afterward, so it does NOT provide `reanimatable` (see that row). REQUIRES: an effect that wants to sacrifice or trade away permanents profitably requires this from its fodder.",
     },
     {
         id: "value-on-cast",

@@ -83,7 +83,7 @@ export type MechanicKind =
      *  independent rules meaning of its own (unlike a CR 702 keyword ability,
      *  an ability word never appears in a card's `staticAbilities[]` and the
      *  name-authority guard never checks one against it). Most ability words
-     *  (Threshold, Delirium — see `tor/black.ts` / `mh2/red.ts`) are simple
+     *  (Threshold, Delirium — see `tor/black.cards.ts` / `mh2/red.cards.ts`) are simple
      *  `if`-predicate labels with no registry row at all, per this file's own
      *  header precedent. Domain earns a row because it graduated to a real
      *  engine primitive (`SpellContext.getDomain`) and a NINTH `EffectValue`
@@ -226,7 +226,7 @@ const KEYWORD_ACTIONS: MechanicRow[] = [
         cr: "701.12",
         status: "implemented",
         binding:
-            "EffectOp gainControl ×2 — Phyrexian Infiltrator (inv/black.ts, issue #1068)",
+            "EffectOp gainControl ×2 — Phyrexian Infiltrator (inv/black.cards.ts, issue #1068)",
         note: 'A two-permanent control exchange ("Exchange control of X and target creature", CR 701.12e) decomposes into two calls of the already-shipped `gainControl` Op (issue #848) rather than a new Op/primitive (primitive-reuse mandate, issue #1068): first `$source` moves to the target\'s CURRENT controller — read live, before either mutation, via `{ controller: { controllerOf: { target: 0 } } }` — then the target moves to the ability\'s resolving controller (the literal `"controller"` player ref, fixed once at CR 608.2b resolution and unaffected by the first Op already having moved `$source`). Both omit `duration` (an indefinite reassignment, CR 611.2b/613.1b layer 2 — never auto-reverts, matching "This effect lasts indefinitely."). Each `gainControl` call independently no-ops when the permanent is already under the destination controller (`SpellContext.gainControl`\'s existing guard) — this is what makes "there is no effect if the same player controls both creatures" (the printed ruling) fall out for free, with no special-cased card logic. SCOPE (issue #1068): only the two-permanent control-exchange shape (CR 701.12e) is built; the broader CR 701.12 keyword (exchanging life totals 701.12b/c, hands 701.12d, or other zones) has no in-scope card and is not covered by this row — a future card needing those extends this note rather than opening a second row.',
     },
     // 701.13 Exile
@@ -325,7 +325,7 @@ const KEYWORD_ACTIONS: MechanicRow[] = [
         cr: "701.22",
         status: "implemented",
         binding:
-            "SpellContext.peekLibraryTop / reorderLibraryTop (e.g. dft/blue.ts, fem/blue.ts, atq/blue.ts)",
+            "SpellContext.peekLibraryTop / reorderLibraryTop (e.g. dft/blue.cards.ts, fem/blue.cards.ts, atq/blue.cards.ts)",
     },
     // 701.23 Search
     {
@@ -359,8 +359,8 @@ const KEYWORD_ACTIONS: MechanicRow[] = [
         // graveyard. Same single execution path as Scry (the shared
         // `SpellContext.orderTop` drag-picker), differing only in the
         // un-kept-card destination. Shipping on the MKM surveil-land cycle
-        // (mkm/colorless.ts) since issue #885; reused by Consider
-        // (mid/blue.ts) and Master of Death (mh2/multicolor.ts).
+        // (mkm/colorless.cards.ts) since issue #885; reused by Consider
+        // (mid/blue.cards.ts) and Master of Death (mh2/multicolor.cards.ts).
         binding:
             'scryReorder Op, destination "graveyard" (SpellContext.orderTop)',
     },
@@ -1653,8 +1653,8 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
     // (CR 701.3, ADR 0065's unified attachment model) reading that binding
     // back — the same createToken→attach chain Cori-Steel Cutter already
     // exercises. Built by the `livingWeapon()` factory
-    // (`abilities/equipment.ts`). First cards: Batterskull (nph/colorless.ts),
-    // Kaldra Compleat + Nettlecyst (mh2/colorless.ts).
+    // (`abilities/equipment.ts`). First cards: Batterskull (nph/colorless.cards.ts),
+    // Kaldra Compleat + Nettlecyst (mh2/colorless.cards.ts).
     {
         id: "living-weapon",
         name: "Living Weapon",
@@ -2173,7 +2173,7 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
     // unattach, CR 702.151a) routed through the "attach"/"unattach" Effect
     // Script Ops (ADR 0065's unified attachment model), plus a `type-remove`
     // static effect for CR 702.151b ("isn't a creature while attached").
-    // First card: Lion Sash (neo/white.ts).
+    // First card: Lion Sash (neo/white.cards.ts).
     {
         id: "reconfigure",
         name: "Reconfigure",
@@ -2233,7 +2233,7 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
     // `keyword: "squad"` and `multi: true` (ADR 0085's family + ADR 0079's
     // repeatability axis), the trigger half a CR 603.4-gated ETB whose Effect
     // Script creates `{ additionalCostPaid: "<id>" }` token copies of itself.
-    // First card: Securitron Squadron (pip/white.ts).
+    // First card: Securitron Squadron (pip/white.cards.ts).
     {
         id: "squad",
         name: "Squad",
@@ -2607,7 +2607,7 @@ const ABILITY_WORDS: MechanicRow[] = [
         status: "implemented",
         binding:
             "hasMetalcraft (cards/types.ts) — an activated mana ability's canActivate gate",
-        note: 'Issue #1530 — "you control three or more artifacts" board-state condition (SOM/NPH block ability word). Shared helper `hasMetalcraft(state, controllerId)` (cards/types.ts, mirrors `countDomain`\'s shape) counts live battlefield permanents whose `types` include "Artifact" for the given controller. First consumer: Mox Opal\'s tap-mana ability (`som/colorless.ts`) gates via `canActivate: (source, state) => hasMetalcraft(state, source.controllerId)` — the SAME `canActivate` gate Chrome Mox\'s imprint check already proves is enforced by every real consumer of a tap mana ability (`getManaTapOptionsDetailed` / `hasManaAbility` / `getActivatedManaAbility`, issue #947), not merely a card-shaped closure with no engine teeth.',
+        note: 'Issue #1530 — "you control three or more artifacts" board-state condition (SOM/NPH block ability word). Shared helper `hasMetalcraft(state, controllerId)` (cards/types.ts, mirrors `countDomain`\'s shape) counts live battlefield permanents whose `types` include "Artifact" for the given controller. First consumer: Mox Opal\'s tap-mana ability (`som/colorless.cards.ts`) gates via `canActivate: (source, state) => hasMetalcraft(state, source.controllerId)` — the SAME `canActivate` gate Chrome Mox\'s imprint check already proves is enforced by every real consumer of a tap mana ability (`getManaTapOptionsDetailed` / `hasManaAbility` / `getActivatedManaAbility`, issue #947), not merely a card-shaped closure with no engine teeth.',
     },
     {
         id: "channel",
@@ -2661,7 +2661,7 @@ const SET_KEYWORDS: MechanicRow[] = [
         status: "implemented",
         bindingPattern: /^earthbend \d+$/i,
         binding:
-            "animate + counters + delayedTrigger Ops (Badgermole Cub's ETB effects[], tla/green.ts)",
+            "animate + counters + delayedTrigger Ops (Badgermole Cub's ETB effects[], tla/green.cards.ts)",
         note: 'CR 701.66a: "\'Earthbend N\' means \'Target land you control becomes a 0/0 land creature with haste in addition to its other types. Put N +1/+1 counters on it. When that land dies or is put into exile, return it to the battlefield tapped under your control.\'" Decomposes into TWO already-general Ops (primitive-reuse mandate) on a `targetRequirement: { type: "Land", count: 1, controller: "you" }` triggered ability: `animate` (base 0/0, NO subtype — the rule grants the card type Creature "in addition to its other types", not a creature subtype; `grantedAbilities: ["haste"]`, no `duration` — CR 611.2b indefinite, since the rule text carries no "until end of turn" clause) then `counters` (`action: "add"`, "+1/+1", count N). The rule\'s THIRD sentence — "When that land dies or is put into exile, return it to the battlefield tapped under your control." — is a delayed triggered ability (CR 603.7a) watching one specific object indefinitely, and SHIPPED with issue #1470: a third `delayedTrigger` Op with the new INDEFINITE instance-leave-watch timing `leaves-battlefield-indefinite` (same `watch` + PERMANENT_LEFT match in `gre/triggers.ts` as `"leaves-battlefield"`, but EXCLUDED from the CLEANUP purge in `gre/phases.ts`, so the watch survives end of turn), whose body is two `moveZone` return-a-departed-object Ops (issue #1469) — `from: "graveyard"` (dies) and `from: "exile"` (exiled, or a `graveyardDestinationFor` redirect), both `tapped: true` and both `controller: "controller"` (issue #2446 — CR 701.66a\'s own "under your control" clause: the earthbending player, fixed at scheduling time, NOT the land\'s owner). Exactly one finds the card; the other, and the whole body when the land has moved on, is a CR 608.2b no-op. CR 400.7 hygiene (plain land back, no counters / haste / animation) is handled at `resetBattlefieldTransientState` — see the `animate` row above. CR 701.66b ("An ability that triggers whenever a player earthbends triggers when the delayed triggered ability described in rule 701.66a is created") is N/A: Badgermole Cub is the only card in the catalogue that reaches this keyword, and no card triggers off "whenever a player earthbends" — nothing to wire up yet.',
     },
 ];

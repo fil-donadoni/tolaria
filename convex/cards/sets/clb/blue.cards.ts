@@ -11,20 +11,20 @@ import type { CardDefinition, GameEvent, PermanentView } from "../../types";
 //
 // Three already-shipped pieces compose the whole card, no new Op:
 //  - CR 603.2 SPELL_CAST trigger with a noncreature-spell `matches` filter —
-//    the Third Path Iconoclast / Vivi Ornitier shape (`bro/multicolor.ts`,
-//    `fin/multicolor.ts`).
+//    the Third Path Iconoclast / Vivi Ornitier shape (`bro/multicolor.cards.ts`,
+//    `fin/multicolor.cards.ts`).
 //  - CR 603.3d targeted trigger (issue #1193): "up to one target nonland
 //    permanent you control" is a REAL target locked when the ability is put
 //    on the stack, so it is subject to hexproof / protection / ward and
 //    fires "becomes the target" triggers. `type: PERMANENT_TYPES` minus Land
-//    is the Boomerang idiom (`ons/blue.ts`); `count {min: 0, max: 1}` is the
-//    "up to one" shape (Phelia, `mh3/white.ts`); `controller: "you"` scopes
+//    is the Boomerang idiom (`ons/blue.cards.ts`); `count {min: 0, max: 1}` is the
+//    "up to one" shape (Phelia, `mh3/white.cards.ts`); `controller: "you"` scopes
 //    the candidates to your own battlefield.
 //  - CR 400.7 same-resolution blink (issue #1401): `exile` with a `bind`
 //    snapshots the card before it moves, and the immediate `moveZone`
 //    resolves that ref back through `resolveObjectRef`'s exile-zone fallback,
 //    returning it under its OWNER's control (no explicit `controller` — the
-//    default IS the owner). This is Ephemerate's idiom (`mh1/white.ts`), NOT
+//    default IS the owner). This is Ephemerate's idiom (`mh1/white.cards.ts`), NOT
 //    Phelia's delayed-trigger variant: the Oracle text returns the card in
 //    the same resolution, with no end-step delay.
 //

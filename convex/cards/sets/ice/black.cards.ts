@@ -548,7 +548,7 @@ export const demonicConsultation: CardDefinition = {
 //   1. The trigger (CR 511.3, `scope: "each"`) puts a `paralyzation` counter on
 //      and taps every combat partner (CR 122.1, CR 701.26a tap). The partner
 //      set walks `getBlockersByAttacker()` in BOTH directions relative to the
-//      source — the exact Kjeldoran Frostbeast (`ice/multicolor.ts`) shape,
+//      source — the exact Kjeldoran Frostbeast (`ice/multicolor.cards.ts`) shape,
 //      which is why this trigger stays `resolve()` (see the justification on
 //      the ability).
 //   2. The untap lock is a Continuous Effects Registry entry (ADR 0082, PRD
@@ -874,7 +874,7 @@ export const gangrenousZombies: CardDefinition = {
             // CR 205.4a — "a snow Swamp" is a `count` of the controller's
             // battlefield filtered to Land+Swamp+Snow, `>= 1`; the two
             // branches each repeat the Plague Spitter mass-damage shape
-            // (inv/black.ts) with a literal amount (2 / 1).
+            // (inv/black.cards.ts) with a literal amount (2 / 1).
             effects: [
                 {
                     op: "if",
@@ -1092,7 +1092,7 @@ export const hecatomb: CardDefinition = {
             // Migrating would introduce an unwanted extra prompt in the
             // fewer-than-four-creatures case, changing observable behaviour
             // under the untouched per-card test. Same class as Yawgmoth Demon
-            // (atq/black.ts).
+            // (atq/black.cards.ts).
             // Blocked on: a raise-time affordability gate for `mayPay` (skip
             // the Op entirely when the cost can't be paid at all).
             resolve: (ctx) => {
@@ -1411,7 +1411,7 @@ export const kjeldoranDead: CardDefinition = {
             scope: "self",
             // Migrated resolve()→effects[] (ADR 0045, migration PRD #795):
             // choice(sacrifice-permanents) + sacrifice(picks) — the Innocent
-            // Blood shape (ody/black.ts) — over the controller's own
+            // Blood shape (ody/black.cards.ts) — over the controller's own
             // battlefield (CR 701.21). No exclusion, so Kjeldoran Dead itself
             // is a legal pick, matching the original closure.
             effects: [
@@ -1544,7 +1544,7 @@ export const krovikanElementalist: CardDefinition = {
             // the OLD blocker (`sacrifice` reads only a picks-LIST binding) is
             // stale — it now also accepts a single snapshot-bound `target`
             // (issue #1151), and the declarative `delayedTrigger` Op's
-            // `capture` shape (Phantasmal Mount, ice/blue.ts) would otherwise
+            // `capture` shape (Phantasmal Mount, ice/blue.cards.ts) would otherwise
             // fit this "grant flying, then sacrifice the SAME target at the
             // next end step" pattern exactly. The remaining blocker is
             // NEWLY-FOUND: the declarative `delayedTrigger` Op always
@@ -2101,7 +2101,7 @@ export const minionOfLeshrac: CardDefinition = {
             // `excludeInstanceIds`, but `EffectCardFilter`/the JSON-pure
             // Effect Script has no way to inject the SOURCE's own (runtime,
             // per-instance) id into that filter — same self-exclusion gap as
-            // Lord of the Pit (lea/black.ts).
+            // Lord of the Pit (lea/black.cards.ts).
             // Blocked on: an `excludeInstanceIds`/self-exclusion member
             // reachable from a `mayPay` sacrifice-leg filter.
             resolve: (ctx) => {
@@ -2171,7 +2171,7 @@ export const minionOfTeveshSzat: CardDefinition = {
             // mayPay {B}{B} (CR 117.3a) then, on decline, 2 damage to the
             // controller (`your`-scoped, so `"controller"` == the scoped
             // player) — the same mayPay + if shape as Force Spike
-            // (leg/blue.ts).
+            // (leg/blue.cards.ts).
             effects: [
                 {
                     op: "mayPay",
@@ -3135,7 +3135,7 @@ export const witheringWisps: CardDefinition = {
             // self-sacrifice via `$source` (issue #807) — the `interveningIf`
             // above already re-checks the "no creatures" condition (CR
             // 603.4) — mirrors Drop of Honey's `stateTrigger` shape
-            // (arn/green.ts).
+            // (arn/green.cards.ts).
             effects: [{ op: "sacrifice", target: { ref: "$source" } }],
         }),
     ],
@@ -3160,7 +3160,7 @@ export const witheringWisps: CardDefinition = {
             },
             // Migrated resolve()→effects[] (ADR 0045, migration PRD #795):
             // 1 damage to each creature (forEach permanents) and each player
-            // (forEach players) — the Plague Spitter shape (inv/black.ts).
+            // (forEach players) — the Plague Spitter shape (inv/black.cards.ts).
             effects: [
                 {
                     op: "forEach",

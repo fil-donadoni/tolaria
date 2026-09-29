@@ -24,7 +24,7 @@ import { diedTrigger } from "../../abilities/triggers/diedTrigger";
 //     -0/-2, -0/-1, scream).
 //   • Wall of Shadows → C6 (can't-be-the-target-of Wall-only spells/abilities).
 //   • Pit Scorpion — was C5 (poison counters). No longer blocked: poison ships
-//     as a leg of the `addPlayerCounter` Op (Marsh Viper, drk/green.ts). Owned
+//     as a leg of the `addPlayerCounter` Op (Marsh Viper, drk/green.cards.ts). Owned
 //     by #2230 — see the note further down this file.
 //   • Lesser Werewolf → C5 (-0/-1 counters on a combatant).
 //
@@ -42,7 +42,7 @@ import { diedTrigger } from "../../abilities/triggers/diedTrigger";
 //     directions: "whenever this blocks a creature" (no filter) and "whenever
 //     this becomes blocked by a NON-WALL creature". It is not Abomination's
 //     colour-gated twin and does not ride that forward: the subtype gate
-//     already ships (Cockatrice, lea/green.ts), what is missing is a DIRECTION
+//     already ships (Cockatrice, lea/green.cards.ts), what is missing is a DIRECTION
 //     discriminator — `opponentInPair` knows which side the source is on and
 //     discards it, so `opponentFilter` cannot tell "blocks" from "becomes
 //     blocked by". Owned by #2124.
@@ -64,7 +64,7 @@ import { diedTrigger } from "../../abilities/triggers/diedTrigger";
 //   • Vampire Bats — "{B}: +1/+0, activate no more than TWICE each turn" is NOT
 //     blocked: `CardInstanceState.activationsThisTurn` is a per-ability tally
 //     and `canActivate` reads it against any threshold (Phyrexian Battleflies,
-//     inv/black.ts; Soul Kiss, ice/black.ts). Deferred to its tranche only for
+//     inv/black.cards.ts; Soul Kiss, ice/black.cards.ts). Deferred to its tranche only for
 //     authoring — owned by #2124. (The Bot evaluates `canActivate` closures
 //     since issue #3441, so the cap no longer hides them from the enumerator.)
 //   • Quagmire — "creatures with swampwalk can be blocked as though they didn't
@@ -438,7 +438,7 @@ export const jovialEvil: CardDefinition = {
     targetRequirement: { type: "player", count: 1, controller: "opponent" },
     // Migrated resolve()→effects[] (ADR 0045): X = twice the count of white
     // creatures the targeted opponent controls (CR 202.2), via `count`'s
-    // `times` multiplier (the same shape Price of Progress uses, exo/red.ts).
+    // `times` multiplier (the same shape Price of Progress uses, exo/red.cards.ts).
     effects: [
         {
             op: "dealDamage",

@@ -178,13 +178,13 @@ export const trevasRuins: CardDefinition = {
 // restricted set is visible everywhere and never desyncs. The two exercise the
 // descriptor's two orthogonal axes: WHICH permanents contribute (a filter) and
 // HOW each yields a colour (`"produces"`, CR 106.4, vs `"isColor"`, CR 105.2).
-// Third card of the family: Quirion Explorer (`pls/green.ts`).
+// Third card of the family: Quirion Explorer (`pls/green.cards.ts`).
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** Representative / fallback options (any single colour) for best-effort
  *  callers with no board snapshot. The `manaColorSource` descriptor overrides
  *  it wherever a board IS available — the same contract Fellwar Stone
- *  (`drk/colorless.ts`) established. */
+ *  (`drk/colorless.cards.ts`) established. */
 const ANY_SINGLE_COLOR: ManaCost[] = [
     { W: 1 },
     { U: 1 },
@@ -271,7 +271,7 @@ export const meteorCrater: CardDefinition = {
 //
 // ETB (CR 603.6a self-ETB): the tutor `choice(kind:"search-library")` +
 // `moveZone(cards, to:"exile")` composition (the Jester's Cap precedent,
-// ice/colorless.ts) with an unbounded "any number" count — `count: { min:
+// ice/colorless.cards.ts) with an unbounded "any number" count — `count: { min:
 // 0, max: Number.MAX_SAFE_INTEGER }` is clamped down to however many
 // artifact/creature cards actually sit in the library by the `choice` Op's
 // own availability clamp (`Math.min(op.count.max, available)`,
@@ -279,7 +279,7 @@ export const meteorCrater: CardDefinition = {
 // already use via `peekLibraryTop(..., Number.MAX_SAFE_INTEGER)` — no
 // sentinel/special-case needed (ADR 0045 "generalize, don't add"). `filter:
 // { type: ["Artifact", "Creature"] }` is CR 205's "and/or" read as an OR
-// within the field (Torsten's `lookDistribute` filter, dmc/multicolor.ts, same
+// within the field (Torsten's `lookDistribute` filter, dmc/multicolor.cards.ts, same
 // idiom). The new `linkToSource: true` flag (issue #1947) parametrizes the
 // EXISTING `moveZone` `cards` shape rather than adding a second new Op: it
 // stamps every exiled card with `exiledBySourceId` via `linkExileToSource`
@@ -385,15 +385,15 @@ export const skyshipWeatherlightAlt: CardPrint = {
 // PLS free tranche — colourless cards (#1954, parent PRD #1935): Forsaken
 // City, Mana Cylix, Terminal Moraine. All three are already-exercised Ops
 // (`does-not-untap` self keyword + `mayPay`/`tapUntap` upkeep pattern —
-// Brass Man, arn/colorless.ts; `manaChoices: ANY_SINGLE_COLOR` — Star
+// Brass Man, arn/colorless.cards.ts; `manaChoices: ANY_SINGLE_COLOR` — Star
 // Compass, above; `choice`(search-library) + `moveZone`(tapped) + shuffle —
-// Fabled Passage, eld/colorless.ts). No new Op, no `resolve()`.
+// Fabled Passage, eld/colorless.cards.ts). No new Op, no `resolve()`.
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Forsaken City — Land. "This land doesn't untap during your untap step. At
 // the beginning of your upkeep, you may exile a card from your hand. If you
 // do, untap this land. {T}: Add one mana of any color." Mirrors Brass Man's
-// `does-not-untap` + upkeep may-pay-to-untap shape (arn/colorless.ts)
+// `does-not-untap` + upkeep may-pay-to-untap shape (arn/colorless.cards.ts)
 // exactly, with a HAND leg (`{ hand: { action: "exile", requirements: [{
 // filter: {}, count: 1 }] } }`, ADR 0079 `CostLegs`) instead of a mana cost —
 // the same hand-leg shape Formidable Speaker's "you may discard a card" uses
@@ -478,7 +478,7 @@ export const manaCylix: CardDefinition = {
 // Terminal Moraine — Land. "{T}: Add {C}.\n{2}, {T}, Sacrifice this land:
 // Search your library for a basic land card, put that card onto the
 // battlefield tapped, then shuffle." Mirrors Fabled Passage's fetch ability
-// (eld/colorless.ts) exactly — `choice`(search-library, `supertype: "Basic"`)
+// (eld/colorless.cards.ts) exactly — `choice`(search-library, `supertype: "Basic"`)
 // + `moveZone`(cards, `to: "battlefield"`, `tapped: true`) + `libraryLook`
 // (shuffle) — with an added `{2}` mana leg on the activation cost.
 export const terminalMoraine: CardDefinition = {

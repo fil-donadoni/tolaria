@@ -5,7 +5,7 @@
 // tests below are organised around what separates it from the other two:
 //
 //   - SOURCE-scoped, continuous, combat-only: the
-//     `combat-damage-unpreventable` static (Questing Beast, `eld/green.ts`).
+//     `combat-damage-unpreventable` static (Questing Beast, `eld/green.cards.ts`).
 //   - TARGET-scoped, turn-scoped: Whippoorwill's `damageLockThisTurn` flag —
 //     `damageLock.test.ts` is its suite, and this file deliberately mirrors its
 //     per-sink structure so the two can be read side by side.

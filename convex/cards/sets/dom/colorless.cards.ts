@@ -30,7 +30,7 @@ import { constructArtifactsYouControlToken } from "../../sharedTokens";
 //     ability (CR 604.3, a `compute` closure the JSON-pure DSL token spec has
 //     no slot for, ADR 0046). `imagePrintId` pinned by hand (the DOM Construct
 //     token print reverse-linked from Karn's own Scryfall `all_parts`), the
-//     documented `resolve()`-created-token art blind spot (`ncc/colorless.ts`).
+//     documented `resolve()`-created-token art blind spot (`ncc/colorless.cards.ts`).
 const KARN_CONSTRUCT_TOKEN = constructArtifactsYouControlToken(
     // DOM Karn's OWN printing's Construct token (Scryfall `all_parts` on the
     // DOM print, set `tdom` "Dominaria Tokens").
@@ -44,8 +44,8 @@ const KARN_CONSTRUCT_TOKEN = constructArtifactsYouControlToken(
  *  layer-read time. The DSL token spec (`EffectTokenSpec`) is a JSON-pure
  *  allowlist by construction (ADR 0046) with no `staticEffects` slot.
  *  `TokenSpec.staticEffectKeys` + `SpellContext.createToken` is the shipped
- *  mechanism for exactly this (`mh1/blue.ts` Urza, Lord High Artificer and
- *  `mh2/colorless.ts` Urza's Saga precedents). */
+ *  mechanism for exactly this (`mh1/blue.cards.ts` Urza, Lord High Artificer and
+ *  `mh2/colorless.cards.ts` Urza's Saga precedents). */
 function createKarnConstruct(ctx: SpellContext): void {
     ctx.createToken(KARN_CONSTRUCT_TOKEN, ctx.controller, 1);
 }

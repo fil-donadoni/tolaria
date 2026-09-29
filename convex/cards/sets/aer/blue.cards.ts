@@ -11,8 +11,8 @@ import type { CardDefinition } from "../../types";
 // that it's `status: "implemented"` in mechanicsRegistry.ts (tapping untapped
 // artifacts toward the generic portion of THIS card's own {2}{U} cost, at the
 // payment step — game.ts `tapArtifactForImprovise`). The counter-unless-pay
-// body reuses the shipped punisher template verbatim (Disrupt, inv/blue.ts /
-// Force Spike, leg/blue.ts): `mayPay` + `if(!paid)` + `counter`, all
+// body reuses the shipped punisher template verbatim (Disrupt, inv/blue.cards.ts /
+// Force Spike, leg/blue.cards.ts): `mayPay` + `if(!paid)` + `counter`, all
 // interpreter-suite-exercised Ops — no new Op introduced. Scryfall AER #39.
 export const metallicRebuke: CardDefinition = {
     id: "f712ac26-dca4-459b-84c1-010597007f60",

@@ -78,7 +78,7 @@ const URZAS_SAGA_CONSTRUCT_TOKEN = constructArtifactsYouControlToken(
  *  NOT the "the Op I need doesn't exist yet" case: `createToken` exists and is
  *  used everywhere; what cannot be expressed as JSON is a CDA, by definition.
  *  `TokenSpec.staticEffectKeys` + `SpellContext.createToken` is the shipped
- *  mechanism for exactly this (`ncc/colorless.ts` precedent). */
+ *  mechanism for exactly this (`ncc/colorless.cards.ts` precedent). */
 function createUrzasSagaConstruct(ctx: SpellContext): void {
     ctx.createToken(URZAS_SAGA_CONSTRUCT_TOKEN, ctx.controller, 1);
 }
@@ -240,7 +240,7 @@ export const urzasSaga: CardDefinition = {
 //    equipped creature — so `source: "self"` in the factory means "the
 //    equipped creature dealt the damage", and `$event.damagedPermanent`
 //    (ADR 0049) names the creature it damaged. Same shape as Voracious
-//    Cobra's destroy trigger (`inv/multicolor.ts`), with `exile` instead.
+//    Cobra's destroy trigger (`inv/multicolor.cards.ts`), with `exile` instead.
 export const kaldraCompleat: CardDefinition = {
     id: "87cc2855-6b14-44dd-a398-7dc2bbae081f",
     name: "Kaldra Compleat",

@@ -6,7 +6,7 @@
 // `additionalCosts.payXLife` / `payLife`, and `announceCast`'s NO-TARGET commit
 // folded nothing at all. A non-targeting spell with a life additional cost was
 // therefore gated as affordable at announcement and then never charged —
-// **Toxic Deluge** (`c13/black.ts`, `payXLife: true`, no `targetRequirement`)
+// **Toxic Deluge** (`c13/black.cards.ts`, `payXLife: true`, no `targetRequirement`)
 // has been free of its X life for as long as it has shipped.
 //
 // The fix is a shared seam, `additionalCostLifePayment`, called from both. This

@@ -169,7 +169,7 @@ describe("Multiversal Passage (CR 614.12 pay-choice + CR 603.6b choice + CR 305.
     // — with no type chosen yet, `subtypesFor` returned null, a no-op — and
     // NOTHING runs between the submission and the next board read.
     //
-    // Illusionary Terrain (`ice/blue.ts`) used to be the only guard on that
+    // Illusionary Terrain (`ice/blue.cards.ts`) used to be the only guard on that
     // line; #2467 moved it to a CR 614.12a as-enters choice made BEFORE the
     // permanent enters, which structurally removes the race for that card.
     // Multiversal Passage is still a POST-entry `enteredTrigger`, so it is now

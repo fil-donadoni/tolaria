@@ -10,8 +10,8 @@ import type { CardDefinition } from "../../types";
 // #2761): the `restrictCasting` Op is `status: "implemented"`
 // (`convex/cards/mechanicsRegistry.ts`), shipped by #1057 for Xantid Swarm's
 // "defending player can't cast spells this turn" — `player: "opponent"` is
-// exactly that shape (Orim's Chant, `pls/white.ts`, targets a chosen player
-// instead; Xantid Swarm, `scg/green.ts`, uses the same literal "opponent").
+// exactly that shape (Orim's Chant, `pls/white.cards.ts`, targets a chosen player
+// instead; Xantid Swarm, `scg/green.cards.ts`, uses the same literal "opponent").
 export const silence: CardDefinition = {
     id: "1559d660-8a9d-422b-95d3-710a046583dd", // M10 31 (earliest paper printing, ADR 0041)
     name: "Silence",

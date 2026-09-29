@@ -21,7 +21,7 @@ import { PEST_TOKEN } from "../../sharedTokens";
 //   legal to cast), and fewer legal targets than X is exactly what "up to"
 //   means (no lower bound). The destroy half then iterates the WHOLE
 //   announced set via `forEach { set: "targets" }` (the Distorting Wake /
-//   Sway of Illusion shape, `inv/blue.ts`) rather than a fixed `{ target: N
+//   Sway of Illusion shape, `inv/blue.cards.ts`) rather than a fixed `{ target: N
 //   }` slot, since the number of targets actually chosen varies 0..X.
 // - "Create twice X ... tokens" is the `scaled` `EffectValue` member (issue
 //   #2366): `{ scaled: { value: { X: true }, times: 2 } }` reads the

@@ -145,7 +145,7 @@ export function getProducibleManaUnits(
      *  `coloredCostLeftover` from `opts.state` when a caller has one).
      *  Board-dependent `canActivate` (Mox Opal's Metalcraft, Fanatic of
      *  Rhonas's Ferocious — both scan only the controller's own battlefield,
-     *  `hasMetalcraft` in `types.ts` / the Ferocious closure in `mh3/green.ts`)
+     *  `hasMetalcraft` in `types.ts` / the Ferocious closure in `mh3/green.cards.ts`)
      *  AND board-dependent `getManaChoices` (Fellwar Stone scans every OTHER
      *  player's battlefield) both need it. Omitting these args (as this
      *  function did before this fix) makes `minimalManaGateView` fall back to

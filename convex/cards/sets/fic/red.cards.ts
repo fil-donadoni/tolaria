@@ -37,7 +37,7 @@ import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 // battlefield in response to the end-step trigger the ability deals 0 instead
 // of its last known power. #1417 owns adding that fallback to the ref reader
 // (the `counters` value member already has the shape to copy); the same gap is
-// documented on Tahngarth, Talruum Hero (`pls/red.ts`).
+// documented on Tahngarth, Talruum Hero (`pls/red.cards.ts`).
 //
 // compiler-gap: "At the beginning of each end step, if a card left your graveyard this turn, Gau deals damage equal to its power to each opponent." (#2693)
 export const gauFeralYouth: CardDefinition = {

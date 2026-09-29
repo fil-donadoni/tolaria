@@ -7,7 +7,7 @@ import type { CardDefinition, Color, ManaCost } from "../../types";
 // enters, choose a color.\n{T}: Add {G}.\n{T}: Add one mana of the chosen
 // color." (CR 605.1a two mana abilities on one source; CR 700.2c the colour
 // choice.) First printed in Mirage (ADR 0041 home-set rule); reprinted in
-// Invasion, whose `CardPrint` lives in `inv/green.ts`, and where issue #1097
+// Invasion, whose `CardPrint` lives in `inv/green.cards.ts`, and where issue #1097
 // gap 4 was originally surfaced and closed — see that file's comment for the
 // full design rationale (`modes` + two `activatedAbilities` + the existing
 // `PermanentView.chosenModeId` field). Behaviour tests stay with the INV
@@ -15,8 +15,8 @@ import type { CardDefinition, Color, ManaCost } from "../../types";
 // this module.
 //
 // The colour pick is modelled as an AS-ENTERS choice (CR 614.12a) over
-// `CardDefinition.modes` — the SAME idiom Jihad (`arn/white.ts`), Prismatic
-// Ward and Chromatic Armor (`ice/white.ts` / `ice/multicolor.ts`) already use
+// `CardDefinition.modes` — the SAME idiom Jihad (`arn/white.cards.ts`), Prismatic
+// Ward and Chromatic Armor (`ice/white.cards.ts` / `ice/multicolor.cards.ts`) already use
 // for "as ~ enters, choose a color". Since #2019 the mode is no longer locked
 // at cast announcement: `entersWith.asEnters: [{ kind: "mode" }]` raises it at
 // the CR 614 chokepoint as the permanent enters, on every entry path, and the

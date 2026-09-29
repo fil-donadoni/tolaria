@@ -1,4 +1,4 @@
-// Per-card test for 5dn/green.ts. Eternal Witness's ETB uses a `choice`
+// Per-card test for 5dn/green.cards.ts. Eternal Witness's ETB uses a `choice`
 // Op that suspends for player input — the catalogue-wide auto-generated smoke
 // test (`effectScriptSmoke.test.ts`) explicitly SKIPS it ("covered by the
 // card's own suspension/resume tests"), so per

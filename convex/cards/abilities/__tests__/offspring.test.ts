@@ -47,7 +47,7 @@ import type { CardDefinition } from "../../types";
 const SUBJECT_ID = "off1";
 
 // ADR 0046 — the shipped card is reached through the REGISTRY seam, not by
-// importing `blb/white.ts`'s export, so these claims see the definition the
+// importing `blb/white.cards.ts`'s export, so these claims see the definition the
 // ENGINE serves (post-expansion) rather than the literal.
 const intrepidRabbit = getDefinition("4d70b99d-c8bf-4a56-8957-cf587fe60b81");
 

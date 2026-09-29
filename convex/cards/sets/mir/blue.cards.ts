@@ -52,7 +52,7 @@ export const mysticalTutor: CardDefinition = {
 // reduced by {2}." (Vintage Cube FREE tranche, issue #686.) The "put a
 // creature from hand onto the battlefield" half reuses the existing
 // picks-based `moveZone(hand->battlefield)` shape (Stoneforge Mystic,
-// wwk/white.ts): `choice(kind: "choose-hand-card", zone: "hand", filter:
+// wwk/white.cards.ts): `choice(kind: "choose-hand-card", zone: "hand", filter:
 // {type: "Creature"}, count: {min:0, max:1})` binds `$picked`, then
 // `moveZone` puts it into play. "sacrifice it unless you pay its mana cost
 // reduced by {2}" is the `mayPay` Op's dynamically-derived cost leg (issue

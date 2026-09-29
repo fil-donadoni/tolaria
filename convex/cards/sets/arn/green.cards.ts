@@ -406,7 +406,7 @@ export const dropOfHoney: CardDefinition = {
         }),
         // Migrated resolve()→effects[] (ADR 0045): a single clause,
         // `sacrifice` (issue #807) targeting `$source` — the same
-        // self-sacrifice shape as Underworld Breach (thb/red.ts). No
+        // self-sacrifice shape as Underworld Breach (thb/red.cards.ts). No
         // resolution-time choice or filter beyond the state condition, which
         // the factory already re-checks via `interveningIf`.
         stateTrigger({

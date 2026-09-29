@@ -38,16 +38,16 @@ const LEGENDARY_CREATURE_COUNT = {
 // `{ ref: "$destroyed.controller" }` reads CR 608.2h last-known information
 // regardless of whether the destroy actually removed the permanent
 // (indestructible) — the bind happens unconditionally, pre-effect, exactly
-// like Agonizing Demise's `$slain` (`inv/multicolor.ts`).
+// like Agonizing Demise's `$slain` (`inv/multicolor.cards.ts`).
 //
 // "That player MAY search" (not a compulsory search that may merely fail to
 // find) is the cost-free `mayPay` yes/no gate (CR 117.3a, issue #680) wrapped
 // around the WHOLE search-then-shuffle tail via `if($search)`: declining
 // means CR 701.23's search never begins at all, matching Formidable
-// Speaker's `mayPay` + `if($discarded)` shape (`ecl/green.ts`) exactly. Once
+// Speaker's `mayPay` + `if($discarded)` shape (`ecl/green.cards.ts`) exactly. Once
 // accepted, the search itself may still fail to find nothing
 // (`count: { min: 0, max: 1 }`, CR 701.23b) — Nature's Lore's compulsory-
-// search shape (`ice/green.ts`) — before the mandatory post-search shuffle.
+// search shape (`ice/green.cards.ts`) — before the mandatory post-search shuffle.
 //
 // "a land card with a basic land type" (NOT "a basic land card" — a Triome or
 // a dual with a basic land type qualifies, CR 305.6/205.3i) is
@@ -145,7 +145,7 @@ export const boseijuWhoEndures: CardDefinition = {
 // (defaults to any controller). Bounce is the target-based `moveZone` shape
 // (`{ op: "moveZone", target, to: "hand" }`) — the SAME Op Witch Hunter's
 // "Return target creature an opponent controls to its owner's hand"
-// (`drk/white.ts`) uses; the destination always resolves to the target's
+// (`drk/white.cards.ts`) uses; the destination always resolves to the target's
 // OWNER's hand (CR 400.7), matching "to its owner's hand" verbatim.
 //
 // Reuses ONLY already-exercised Ops (`moveZone`) — no hand-written per-card

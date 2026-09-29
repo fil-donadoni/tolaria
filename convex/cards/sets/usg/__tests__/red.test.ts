@@ -549,7 +549,7 @@ describe("Sneak Attack — {R}: put a creature from hand, gain haste, sacrifice 
         // issue #2490). Before the fix it scheduled anyway, leaving an inert
         // `delayedTriggers[]` entry that would fire and do nothing at the
         // next end step — exactly the residue that defeated the bot's
-        // no-op dominance pruning on Shallow Grave (`mir/black.ts`).
+        // no-op dominance pruning on Shallow Grave (`mir/black.cards.ts`).
         expect(state.delayedTriggers ?? []).toHaveLength(0);
         fireDelayedTriggers(state, "next-end-step");
         if (state.stack.length > 0) resolveTopOfStack(state);

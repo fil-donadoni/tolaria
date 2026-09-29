@@ -43,7 +43,7 @@ export const ignobleHierarch: CardDefinition = {
 // order. Evoke—Exile a green card from your hand." CR 702.74 Evoke: the alt
 // cast is a pure HAND leg (`evoke`, reusing `AlternativeCost`'s `handCost`
 // shape) and the sacrifice-on-ETB half is `evokeTrigger` — Solitude/Grief
-// precedent (mh2/white.ts, mh2/black.ts).
+// precedent (mh2/white.cards.ts, mh2/black.cards.ts).
 //
 // TARGETING (CR 603.3d, issue #1193): "up to one target player" is a REAL
 // target chosen when the ETB trigger is put on the stack — declared as a

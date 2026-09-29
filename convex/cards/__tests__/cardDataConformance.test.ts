@@ -2,7 +2,7 @@
 // supertypes, card types, subtypes, mana cost, and power/toughness — must
 // match its source-of-truth entry in `data/json/<SET>.json` (MTGJSON).
 //
-// Motivating bug (PR #2047): Questing Phelddagrif (pls/multicolor.ts) shipped
+// Motivating bug (PR #2047): Questing Phelddagrif (pls/multicolor.cards.ts) shipped
 // with `supertypes: ["Legendary"]`. It is NOT legendary — both
 // `data/json/PLS.json` (`supertypes: []`) and Scryfall agree. The only
 // existing definition/data-json comparison, `rarity.test.ts`, checks rarity

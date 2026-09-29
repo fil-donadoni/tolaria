@@ -14,7 +14,7 @@ import { COLOR_OPTIONS } from "../../abilities/chooseColor";
 //
 // The printed shroud is LIVE, not decorative: unlike the paired
 // `permanent-guard` staticEffect pattern used by e.g. Blastoderm
-// (`nem/green.ts`), `permanentGuard.ts::isGuardedAgainst` also bridges the
+// (`nem/green.cards.ts`), `permanentGuard.ts::isGuardedAgainst` also bridges the
 // bare `staticAbilities: ["shroud"]` string directly (the `hasShroud`
 // helper, mirroring the existing `hasHexproof` bridge for CR 702.11b),
 // unfiltered per CR 702.18 — so no separate staticEffect is required here.
@@ -47,7 +47,7 @@ export const argothianEnchantress: CardDefinition = {
 // Exploration — {G} Enchantment. "You may play an additional land on each of
 // your turns." (CR 305.2 — extra land drops.) One additional land drop (total
 // 2/turn), the bounded analogue of Fastbond's `extraLandDrops: 999`
-// (lea/green.ts).
+// (lea/green.cards.ts).
 export const exploration: CardDefinition = {
     id: "2f09e451-0246-45a2-8bfd-07d3c65ddfe6",
     rarity: "rare",
@@ -63,7 +63,7 @@ export const exploration: CardDefinition = {
 // mana of any color." (CR 303.4 aura attachment, CR 603.2 PERMANENT_TAPPED
 // trigger, CR 605 mana ability.)
 //
-// NOT DSL-migratable (ADR 0045, twin of Wild Growth, `lea/green.ts`, same
+// NOT DSL-migratable (ADR 0045, twin of Wild Growth, `lea/green.cards.ts`, same
 // tranche convention; re-verified against the current engine, 2026-07):
 // `tappedTrigger` now DOES have an `effects[]` site, but its script only
 // binds the SOURCE's controller (`ctx.controller`) and `$source` — the
@@ -82,7 +82,7 @@ export const exploration: CardDefinition = {
 // Home set = earliest paper printing (ADR 0041) = Urza's Saga; it was first
 // implemented against the INV reprint, which filed it under the
 // wrong home set and rendered the wrong art. That printing now rides along
-// as a `CardPrint` in `inv/green.ts`.
+// as a `CardPrint` in `inv/green.cards.ts`.
 export const fertileGround: CardDefinition = {
     id: "091dda35-59e5-456d-8804-61513a610aed", // USG 252
     rarity: "common",
@@ -134,7 +134,7 @@ export const fertileGround: CardDefinition = {
             // one representative pip (`{ C: 1 }`); `OP_VALUERS.addMana` sums
             // total pips regardless of colour, so this scores identically to
             // the real "any one colour" grant (same shape as Wild Growth's
-            // fixed-`{G:1}` twin, `lea/green.ts`).
+            // fixed-`{G:1}` twin, `lea/green.cards.ts`).
             aiEffects: [{ op: "addMana", mana: { C: 1 } }],
         }),
     ],

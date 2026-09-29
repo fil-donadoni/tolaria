@@ -18,15 +18,15 @@ import type { CardDefinition } from "../../types";
 // itself (cost.loyalty gates, damage→loyalty, 0-loyalty SBA) has dedicated
 // tests in `convex/gre/__tests__/loyalty.test.ts`.
 //   • +1 — each player discards a card: forEach{players} → choice(choose-hand-
-//     card) → discard (the Blazing Specter discard pair, inv/multicolor.ts).
+//     card) → discard (the Blazing Specter discard pair, inv/multicolor.cards.ts).
 //   • −2 — target player sacrifices a creature: choice(sacrifice-permanents)
 //     routed to the target player + sacrifice (the Innocent Blood edict shape,
-//     ody/black.ts, retargeted from "each player" to `{ target: 0 }`).
+//     ody/black.cards.ts, retargeted from "each player" to `{ target: 0 }`).
 //   • −6 — separate all permanents target player controls into two piles; that
 //     player sacrifices the pile of their choice: `divideIntoPiles` (ADR 0053)
 //     with divider = controller, chooser = the target player, chosen pile
 //     sacrificed via forEach{bound} → sacrifice (the Do or Die shape,
-//     inv/black.ts, destroy→sacrifice and no type filter).
+//     inv/black.cards.ts, destroy→sacrifice and no type filter).
 export const lilianaOfTheVeil: CardDefinition = {
     id: "ac506c17-adc8-49c6-9d8d-43db7cb1ec9d",
     name: "Liliana of the Veil",

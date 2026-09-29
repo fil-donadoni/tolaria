@@ -4555,7 +4555,7 @@ describe("buildTriggerStateView — TRIGGER_STATE_VIEW_CENSUS (issue #1951 revie
     });
 
     it("MINOR 6 — Caribou Range's sibling: a token-only board correctly HIDES a nontoken-only sacrificeFilter ability (Thopter Foundry fail-OPEN direction)", () => {
-        // Thopter Foundry (`arb/multicolor.ts`): `sacrificeFilter: { types:
+        // Thopter Foundry (`arb/multicolor.cards.ts`): `sacrificeFilter: { types:
         // "Artifact", isToken: false }`. The sweep's catalogue test reports
         // this card as a self-referential skip (its OWN source already
         // matches its own filter, so a "zero candidates" break can't be

@@ -13,7 +13,7 @@ import { leftTrigger } from "../../abilities/triggers/leftTrigger";
 // one other target nonland permanent until this enchantment leaves the
 // battlefield. Waterbend {3}: Sacrifice this enchantment. If you do, scry 2."
 //
-// O-Ring idiom (precedent: Portable Hole, afr/white.ts; Banishing Light,
+// O-Ring idiom (precedent: Portable Hole, afr/white.cards.ts; Banishing Light,
 // jou/white.ts). TARGETING (CR 603.3d, issue #1193): "up to one other target
 // nonland permanent" is a REAL target chosen when the ETB trigger is put on
 // the stack — declared as a `targetRequirement` on the TriggeredAbility
@@ -30,7 +30,7 @@ import { leftTrigger } from "../../abilities/triggers/leftTrigger";
 // is not modelled (no such cost-payment primitive exists yet); the ability is
 // implemented as a plain {3} generic cost. The golden path (sacrifice this,
 // scry 2) is faithful. Scry composes shipped primitives, no dedicated Op
-// (precedent: Preordain, m11/blue.ts).
+// (precedent: Preordain, m11/blue.cards.ts).
 const aangsIcebergHoldsSomething = (
     _event: unknown,
     self: { id: string },
@@ -59,7 +59,7 @@ export const aangsIceberg: CardDefinition = {
             // resolution-time choice), so it is subject to hexproof /
             // protection / ward and fires "becomes the target" triggers.
             // `type: PERMANENT_TYPES minus Land` = "nonland permanent" (the
-            // Boomerang idiom, ons/blue.ts); `excludeSource` drops Aang's
+            // Boomerang idiom, ons/blue.cards.ts); `excludeSource` drops Aang's
             // Iceberg itself ("other"); `count 0..1` = "up to one". Any
             // controller's permanent is eligible (no controller restriction).
             targetRequirement: {

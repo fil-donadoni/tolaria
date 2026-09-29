@@ -56,7 +56,7 @@ function boardWithPlunderer(): {
 }
 
 /** Pushes the upkeep triggered ability directly onto the stack (the
- *  `clu/red.ts` test convention — exercises the ability's `effects[]` body,
+ *  `clu/red.cards.ts` test convention — exercises the ability's `effects[]` body,
  *  not the generic `matches()` trigger-scan machinery already covered
  *  elsewhere). */
 function pushUpkeepTrigger(

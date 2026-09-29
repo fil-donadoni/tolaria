@@ -1170,8 +1170,8 @@ export const PREMODERN_BANNED: ReadonlySet<string> = new Set([
     "e7880157-7f27-4f1b-9cdc-ab36a6252376", // Strip Mine (atq)
     "ad7ac9a5-340f-4509-826c-7b9416d47887", // Tolarian Academy (usg) — legal-set printing
     // Stubbed guards (add the id when the stub is uncommented):
-    // Amulet of Quoz (ice/colorless.ts), Mystical Tutor (mir/blue.ts),
-    // Vampiric Tutor (vis/black.ts).
+    // Amulet of Quoz (ice/colorless.cards.ts), Mystical Tutor (mir/blue.cards.ts),
+    // Vampiric Tutor (vis/black.cards.ts).
 ]);
 
 /** Standard constructed copy ceiling for non-basic cards in Premodern. */

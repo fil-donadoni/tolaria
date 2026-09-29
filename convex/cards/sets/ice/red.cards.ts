@@ -178,7 +178,7 @@ export const anarchy: CardDefinition = {
 //
 // Mana cost is {X}{2}{R}{R} (MTGJSON ICE.json) — the fixed {2} generic pip
 // alongside the variable {X} uses `generic` (Soul Burn's `{X}{2}{B}` shape,
-// ice/black.ts). The stale "not representable" note above predated that
+// ice/black.cards.ts). The stale "not representable" note above predated that
 // field; the widened data/json conformance guard caught the drift (the
 // stub had shipped one generic mana cheap as {X}{R}{R}).
 export const avalanche: CardDefinition = {
@@ -534,10 +534,10 @@ export const brandOfIllOmen: CardDefinition = {
 // steal that lands during the new controller's OWN turn, after their untap
 // step, from an effect that does NOT itself grant haste and CAN legally take a
 // 7-mana 7/7. Shipped exemplars, all activatable/castable in the thief's own
-// precombat main: Infernal Denizen (`ice/black.ts:1343`, `{T}: Gain control of
+// precombat main: Infernal Denizen (`ice/black.cards.ts:1343`, `{T}: Gain control of
 // target creature`, `targetRequirement: { type: "Creature", count: 1 }` — no
-// filter, no haste grant), Merieke Ri Berit (`ice/multicolor.ts:870`, same
-// unfiltered `{T}:` steal), and Dominate (`nem/blue.ts:102`, `mvFilter: { max:
+// filter, no haste grant), Merieke Ri Berit (`ice/multicolor.cards.ts:870`, same
+// unfiltered `{T}:` steal), and Dominate (`nem/blue.cards.ts:102`, `mvFilter: { max:
 // "X" }` — X ≥ 7 reaches a Chaos Lord). `applyControlChange` re-sets
 // `isSummoningSick`, no untap step intervenes before that turn's combat, but
 // `enteredOnTurn` still points at an earlier turn — so the clause is what lets
@@ -563,7 +563,7 @@ export const brandOfIllOmen: CardDefinition = {
 // transition — so haste appears the turn AFTER the Lord arrives, with no
 // per-reader layer hop. (Granting the `haste` keyword rather than an
 // attack-only permission is the project's established reading of "can attack
-// as though it had haste": Instill Energy, `lea/green.ts`, does the same. The
+// as though it had haste": Instill Energy, `lea/green.cards.ts`, does the same. The
 // difference — real haste also lifts the CR 302.6 {T}-ability lock — is
 // unobservable here: Chaos Lord has no activated abilities.)
 export const chaosLord: CardDefinition = {

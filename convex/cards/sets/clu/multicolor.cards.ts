@@ -59,8 +59,8 @@ function controllerHandSizeAtMost(max: number) {
 //
 // STATIC CLAUSE: one Oracle sentence granting TWO characteristics, so two
 // `staticEffects[]` entries sharing the SAME CR 611.2c gate — `pt-buff` for
-// +2/+2 (layer 7c, the Jihad shape, `arn/white.ts`) and `keyword-grant` for
-// menace (the Kavu Runner shape, `inv/red.ts`).
+// +2/+2 (layer 7c, the Jihad shape, `arn/white.cards.ts`) and `keyword-grant` for
+// menace (the Kavu Runner shape, `inv/red.cards.ts`).
 export const carnageInterpreter: CardDefinition = {
     id: "f6fb576e-a4a4-496b-b553-3f81cc651210", // CLU 26
     name: "Carnage Interpreter",

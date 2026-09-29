@@ -148,7 +148,7 @@ export const brazenBorrower: CardDefinition = {
             // attacker it wants to block; the block is legal only when that
             // attacker flies. The block-restriction `PermanentView` carries
             // keywords on `staticAbilities` (cast, mirroring Stone Spirit's
-            // mirror-image check in `ice/red.ts`).
+            // mirror-image check in `ice/red.cards.ts`).
             predicate: (_self, opponent) =>
                 (
                     (opponent as { staticAbilities?: string[] })

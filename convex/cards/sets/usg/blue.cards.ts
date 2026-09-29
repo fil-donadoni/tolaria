@@ -34,7 +34,7 @@ export const annul: CardDefinition = {
 // hands." (CR 400.7 zone change; CR 105 / 202.2 colour; CR 111.7 a bounced
 // token ceases to exist, SBA-enforced.) A colour-filtered mass bounce — the
 // Upheaval pattern (forEach over EVERY battlefield + `moveZone` to hand,
-// ody/blue.ts) narrowed by a `filter: { color: "G" }` on the `forEach`
+// ody/blue.cards.ts) narrowed by a `filter: { color: "G" }` on the `forEach`
 // selector. No `controller` scope — "all green permanents", every player's;
 // no type restriction — any permanent type that is green. The colour predicate
 // rides the existing `EffectCardFilter.color` field, matched against EFFECTIVE
@@ -46,7 +46,7 @@ export const annul: CardDefinition = {
 // dedicated colour-filtered-bounce assertion lives in the interpreter test.
 //
 // First printing is Urza's Saga (usg), 1998 — Hibernation was NOT printed in
-// Nemesis despite the umbrella issue's nem/blue.ts file hint, so it lives here
+// Nemesis despite the umbrella issue's nem/blue.cards.ts file hint, so it lives here
 // to keep the print id (`id`) consistent with its set (cf. Annul above).
 export const hibernation: CardDefinition = {
     id: "68b7444c-fabb-4437-8db9-a1008ea09415", // USG 79
@@ -71,10 +71,10 @@ export const hibernation: CardDefinition = {
 // Show and Tell — {2}{U} Sorcery (Cube FREE residue, issue #1308). "Each
 // player may put an artifact, creature, enchantment, or land card from their
 // hand onto the battlefield." A per-player OPTIONAL hand-to-battlefield put —
-// the Sneak Attack `moveZone.cards` shape (usg/red.ts's `sneakAttack`),
+// the Sneak Attack `moveZone.cards` shape (usg/red.cards.ts's `sneakAttack`),
 // scoped to EVERY player instead of just the controller: a `forEach { set:
 // "players" }` (CR 101.4 APNAP order, the Innocent Blood shape,
-// ody/black.ts) whose body raises a `choose-hand-card` choice with
+// ody/black.cards.ts) whose body raises a `choose-hand-card` choice with
 // `count: { min: 0, max: 1 }` ("may put ... a card", CR 608.2b — a 0-count
 // pick is a legal decline) restricted to the four named card types (`type`
 // is an OR-within-field array, issue #677), then moves the pick from hand to
@@ -122,12 +122,12 @@ export const showAndTell: CardDefinition = {
 // library, then draws seven cards. You untap up to six lands."
 //
 // NOT DSL-migratable (ADR 0045): the middle clause WAS the EXACT Timetwister
-// shape (lea/blue.ts's `timetwister`, now migrated to `effects[]` on
+// shape (lea/blue.cards.ts's `timetwister`, now migrated to `effects[]` on
 // `moveZone`'s bulk whole-zone shape, issue #1279 — CLOSED), but Time Spiral
 // itself stays `resolveSteps`. CORRECTED 2026-08-25 (#1841 audit): of the two
 // clauses this comment listed as blockers, only ONE survives. "Exile Time
 // Spiral" is NOT a blocker — `exileSelf` is a registered Op (see its
-// EFFECT_OP_REGISTRY row) and `inv/green.ts` uses it. The single remaining
+// EFFECT_OP_REGISTRY row) and `inv/green.cards.ts` uses it. The single remaining
 // blocker is "untap up to six lands": a ranged 0..6 pick over BOTH
 // battlefields, which is exactly the gap Teferi, Hero of Dominaria is already
 // deferred on. tracked-by: #1727
@@ -135,15 +135,15 @@ export const showAndTell: CardDefinition = {
 // Two more clauses ride the same `resolveSteps` body (CR 608.2) rather than a
 // bare `resolve`, since the seven-card draws are IRREVERSIBLE and must run
 // exactly once before the untap step's choice can suspend (the Bazaar of
-// Baghdad re-draw class of bug, Sylvan Library precedent, leg/green.ts):
+// Baghdad re-draw class of bug, Sylvan Library precedent, leg/green.cards.ts):
 //   • "Exile Time Spiral" (CR 608.2m self-redirect) uses the existing
-//     `SpellContext.exileSelf()` primitive (Recall's shape, lea/blue.ts) —
+//     `SpellContext.exileSelf()` primitive (Recall's shape, lea/blue.cards.ts) —
 //     step 0, alongside the Timetwister shuffle, both irreversible and
 //     choice-free.
 //   • "You untap up to six lands" — no "you control" restriction printed, so
 //     the candidate pool is every land on either player's battlefield
 //     (`allControllers: true`, the Farrel's Mantle `choose-permanents`
-//     shape, fem/white.ts); a ranged 0..6 pick, then `ctx.untap` each pick —
+//     shape, fem/white.cards.ts); a ranged 0..6 pick, then `ctx.untap` each pick —
 //     step 1, suspends on the choice and resumes without re-running step 0.
 export const timeSpiral: CardDefinition = {
     id: "f3d62dbd-63db-4ac9-950f-9852627f23f2", // USG 103

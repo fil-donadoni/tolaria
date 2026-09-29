@@ -13,8 +13,8 @@ which fail closed (`searchCanModelGraveyardCast`, `convex/gre/castCost.ts`):
 - **Escape** (CR 702.138a) owes "exile N other cards from your graveyard" on top
   of its mana cost.
 - **Flashback with a non-mana flashback cost** (CR 702.34a / 118.5) — Lava Dart's
-  "Sacrifice a Mountain" (`ons/red.ts`) and the `flashbackExileFromGraveyard` X
-  cost (`jud/blue.ts`, Deep Analysis' shape).
+  "Sacrifice a Mountain" (`ons/red.cards.ts`) and the `flashbackExileFromGraveyard` X
+  cost (`jud/blue.cards.ts`, Deep Analysis' shape).
 
 Both are real, shipped mechanics the Bot simply never plays.
 

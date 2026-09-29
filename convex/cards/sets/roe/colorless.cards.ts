@@ -34,7 +34,7 @@ import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
  *  put into a graveyard from anywhere" triggers (no "would"/"instead" in
  *  either card's Oracle text, verified against Scryfall), so the object
  *  legitimately dies first and other permanents correctly observe that
- *  departure. Distinct from Blightsteel Colossus (`mbs/colorless.ts`), whose
+ *  departure. Distinct from Blightsteel Colossus (`mbs/colorless.cards.ts`), whose
  *  Oracle text DOES say "would ... instead" — a true CR 614.1a replacement,
  *  fixed in issue #2106 to use `shuffleFromAnywhereReplacement` instead of
  *  this trigger shape.

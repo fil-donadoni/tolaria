@@ -13,7 +13,7 @@ import type {
 // `scheduleNextUpkeepDraw` from its resolve; the matching `DelayedTriggerDef`
 // lives on the card's `delayedTriggers[]` and fires exactly once at the very
 // next upkeep (`fireDelayedTriggers`, gre/phases.ts). Mirrors the Ice Age
-// cantrip cycle (ice/colorless.ts) — copied locally because the helper repeats
+// cantrip cycle (ice/colorless.cards.ts) — copied locally because the helper repeats
 // per-colour-module across sets.
 const NEXT_UPKEEP_DRAW_TRIGGER_ID = "next-upkeep-cantrip";
 

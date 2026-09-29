@@ -8,7 +8,7 @@
 // `preventDamage` Op's source-scoped mode, CR 615. Liberate migrated resolve()
 // ->effects[] via the exile(bind)+delayedTrigger "blink" idiom, issue
 // #1401/#1403.) Holy Day is NOT a new card here —
-// it was first printed in Legends and already ships from `leg/white.ts`; no
+// it was first printed in Legends and already ships from `leg/white.cards.ts`; no
 // duplicate `CardDefinition`/lockfile row for the same oracleId. Benalish
 // Emissary, Benalish Lancer and Prison Barricade shipped later, off the
 // resolved kicker-ETB/keyword-grant capability slice (issue #1328,
@@ -47,7 +47,7 @@ import { additionalCostPaidCondition } from "../../abilities/triggers/shared";
 // ─────────────────────────────────────────────────────────────────────────
 
 // Alabaster Leech — "White spells you cast cost {W} more to cast." Precedent:
-// Gloom (lea/black.ts) is the SAME `cost-modifier` static effect shape for a
+// Gloom (lea/black.cards.ts) is the SAME `cost-modifier` static effect shape for a
 // SYMMETRIC ("White spells cost {3} more", any caster) tax; here the
 // `appliesToSpell` predicate additionally scopes to "YOU cast" by comparing
 // the cast card's `controllerId` (the caster, while the card is still in
@@ -81,7 +81,7 @@ export const alabasterLeech: CardDefinition = {
 // angelOfMercy — INV reprint of the Portal Second Age definition (CardPrint).
 // The card was first implemented here, against this printing; its home set is
 // its earliest paper printing (ADR 0041), so the mechanics live in
-// `p02/white.ts`.
+// `p02/white.cards.ts`.
 export const angelOfMercyInv: CardPrint = {
     printId: "5b6de688-685f-4389-be35-a472ada988e1", // INV 3
     definitionId: "dac5c913-4eb5-4cfb-9c24-223f14f07064", // angelOfMercy (Portal Second Age)
@@ -201,7 +201,7 @@ export const obsidianAcolyte: CardDefinition = {
 
 // Crusading Knight — "Protection from black. This creature gets +1/+1 for
 // each Swamp your opponents control." Precedent: Angry Mob's "2 plus Swamps
-// your opponents control" CDA (drk/white.ts) — same
+// your opponents control" CDA (drk/white.cards.ts) — same
 // `state.players.flatMap(battlefield).filter(controllerId !== self, Swamp)`
 // scan. `getEffectivePower`/`getEffectiveToughness` ADD the CDA `compute`
 // result on top of the printed base (power/toughness: 2), so the compute
@@ -413,10 +413,10 @@ const HARSH_JUDGMENT_COLOR_NAMES: Record<
 // Harsh Judgment — "As this enchantment enters, choose a color. If an
 // instant or sorcery spell of the chosen color would deal damage to you, it
 // deals that damage to its controller instead." ETB colour choice via
-// `modes` (precedent: Prismatic Ward, ice/white.ts — `chosenModeId` read by
+// `modes` (precedent: Prismatic Ward, ice/white.cards.ts — `chosenModeId` read by
 // the replacement, no per-mode resolve needed) + a redirect replacement
 // (precedent: Personal Incarnation's `kind: "modified"` target rewrite,
-// lea/white.ts).
+// lea/white.cards.ts).
 export const harshJudgment: CardDefinition = {
     id: "34c78dee-ab45-4638-b89a-10686145b19a",
     rarity: "rare",
@@ -624,7 +624,7 @@ export const rewardsOfDiversity: CardDefinition = {
 // `choice`. `count: {min:0,max:1}` encodes the "you may" (up-to-one, decline
 // = empty target set); `zone: "graveyard"` + `controller: "you"` scopes the
 // candidates to the controller's own graveyard creature cards (Soul Exchange
-// idiom, fem/black.ts). The Effect Script then reads the announced slot
+// idiom, fem/black.cards.ts). The Effect Script then reads the announced slot
 // (`{ target: 0 }`) and reanimates via `moveZone` — the target-shape's
 // `graveyard-card` → `battlefield` branch (issue #680), no `from` needed
 // (inferred from the target kind).
@@ -677,7 +677,7 @@ export const reyaDawnbringer: CardDefinition = {
 // shackles — INV reprint of the Exodus definition (CardPrint).
 // The card was first implemented here, against this printing; its home set is
 // its earliest paper printing (ADR 0041), so the mechanics live in
-// `exo/white.ts`.
+// `exo/white.cards.ts`.
 export const shacklesInv: CardPrint = {
     printId: "35b3da05-9a3e-4827-96b8-5de244128db3", // INV 27
     definitionId: "c5315668-b8ef-49ab-a8f5-144adc7bcd84", // shackles (Exodus)
@@ -852,7 +852,7 @@ export const teferisCare: CardDefinition = {
 // instant it enters, read by the ETB trigger below.
 //
 // Gate shape: a SINGLE Kicker (not the Battlemage cycle's "and/or" pair), so
-// this uses the Waterspout Elemental template (`pls/blue.ts`) rather than
+// this uses the Waterspout Elemental template (`pls/blue.cards.ts`) rather than
 // Jacked Rabbit's `condition`/`interveningIf` pair — `conditionOnSelf:
 // additionalCostPaidCondition("kicker")` at CR 603.4 check time, and the matching
 // `if { additionalCostPaid: "kicker" }` branch inside `effects[]` at resolution
@@ -916,7 +916,7 @@ export const benalishEmissary: CardDefinition = {
 // this creature was kicked, it enters with two +1/+1 counters on it and
 // with first strike." (CR 702.33 Kicker, CR 702.7 first strike, CR
 // 122.1/614.1c ETB counters — the exact Pouncing Kavu / Duskwalker template,
-// `inv/red.ts` / `inv/black.ts`: two `entersWith` counter entries each
+// `inv/red.cards.ts` / `inv/black.cards.ts`: two `entersWith` counter entries each
 // `count: "kicker"`, plus a `keyword-grant` gated on the permanent's own
 // `wasKicked` flag (`CardInstanceState.wasKicked`, gre/state.ts) — a
 // one-shot fact snapshotted from the resolving stack item's `kickerCount` at
@@ -1050,7 +1050,7 @@ export const prisonBarricade: CardDefinition = {
 
 // Global Ruin — {4}{W} Sorcery. "Each player chooses from the lands they
 // control a land of each basic land type, then sacrifices the rest."
-// (issue #3712) The Planar Overlay pick (`pls/blue.ts`): `chooseCategorized`
+// (issue #3712) The Planar Overlay pick (`pls/blue.cards.ts`): `chooseCategorized`
 // on the battlefield over the five basic land types, whose COVER rule lets a
 // dual land answer both its types. The picks stay; the `sacrifice` sweep
 // (CR 701.21a) takes every other LAND — so a nonbasic with no basic land type
@@ -1099,7 +1099,7 @@ export const globalRuin: CardDefinition = {
 // "shroud" string the same way it bridges `hexproof` — `grantAbility`
 // appending the literal string to `staticAbilities` is enforced live.
 // Straight `grantAbility` DSL body over `$source`, precedent Homarid Warrior
-// (fem/blue.ts) minus its tap/skipNextUntap legs.
+// (fem/blue.cards.ts) minus its tap/skipNextUntap legs.
 export const glimmeringAngel: CardDefinition = {
     id: "f14f55e4-eded-4a86-87f4-b8fa6f30bc0f",
     name: "Glimmering Angel",
@@ -1178,7 +1178,7 @@ export const glimmeringAngel: CardDefinition = {
 // though it had flash"), and the {2} is charged — mandatorily — only when the
 // cast actually lands outside their own sorcery-speed window. Inside it the
 // spell costs exactly {3}{W}{W}; the surcharge is never payable for nothing.
-// The mass-destruction half is the Wrath of God shape (`lea/white.ts`): a
+// The mass-destruction half is the Wrath of God shape (`lea/white.cards.ts`): a
 // `forEach` over battlefield creatures feeding `destroy` with
 // `cantBeRegenerated` (CR 701.19 — Regenerate is what the clause suppresses).
 export const rout: CardDefinition = {

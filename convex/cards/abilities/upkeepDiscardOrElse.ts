@@ -6,8 +6,8 @@
 // upkeep discards (issue #1129, parent PRD #1058).
 //
 // The existing "upkeep pay-or-else" family — `payOrSacrificeUpkeepTrigger`
-// (leg/multicolor.ts), `makeUpkeepPayOrElse` (lea/white.ts, ice/*.ts), and
-// drk/blue.ts's own local `upkeepPayOrElse` — all thread a
+// (leg/multicolor.cards.ts), `makeUpkeepPayOrElse` (lea/white.cards.ts, ice/*.ts), and
+// drk/blue.cards.ts's own local `upkeepPayOrElse` — all thread a
 // `SpellContext.requestMayPay` call with a `ManaCost` / `MayPayCost` `cost`,
 // the mana-pool (+ life / typed-sacrifice) payment path. A discard
 // alternative cost is NOT a `MayPayCost` leg — nothing in that union names
@@ -16,7 +16,7 @@
 // (`applyMayPaySubmit`), and every existing may-pay caller for a single new
 // use. Instead this factory composes the ALREADY-SHIPPED primitives that
 // solve exactly this shape — Oath of Lim-Dûl's "sacrifice ... unless you
-// discard a card" punisher clause (ice/black.ts, issue #668): a cost-less
+// discard a card" punisher clause (ice/black.cards.ts, issue #668): a cost-less
 // `requestMayPay` (CR 117.3a yes/no, no `cost` field) offers the discard,
 // `requestChoice({ kind: "choose-hand-card" })` (CR 701.8) picks the card,
 // and `discardCard` performs it — the SAME `SpellContext.discardCard` choke

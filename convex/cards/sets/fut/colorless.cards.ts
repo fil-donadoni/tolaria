@@ -46,7 +46,7 @@ export const horizonCanopy: CardDefinition = {
 // for each charge counter removed this way." STOP-AND-ISSUE (re-audited
 // under the #1306 residue tranche, parent PRD #620): the first mana ability
 // alone is trivial (the established any-colour `manaChoices` shape — see
-// Starting Town, `fin/colorless.ts`, shipped the same tranche), but the
+// Starting Town, `fin/colorless.cards.ts`, shipped the same tranche), but the
 // phase-trigger effect needs to add N independently-coloured mana instances
 // (one choice per counter removed) — there is no `EffectChoiceKind` for
 // "pick a mana colour" (the existing `choice` Op kinds are all

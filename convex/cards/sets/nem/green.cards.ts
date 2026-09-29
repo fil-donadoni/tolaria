@@ -16,7 +16,7 @@ import { tokenPrintIdFor } from "../../tokenPrintLookup";
 // Fading is expanded implicitly at the getDefinition seam (ADR 0054): the
 // `"fading 3"` string injects `entersWith` three fade counters plus the upkeep
 // remove-or-sacrifice trigger — no per-card boilerplate. Shroud follows the
-// established per-card pattern (Blurred Mongoose `inv/green.ts`): an
+// established per-card pattern (Blurred Mongoose `inv/green.cards.ts`): an
 // unconditional self-scoped `permanent-guard` static effect enforces CR
 // 702.18. The registry's `staticAbilities: ["shroud"]` string is now
 // registry status "implemented" too (`mechanicsRegistry.ts`, issue #959) —

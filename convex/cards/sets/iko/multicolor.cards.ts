@@ -18,9 +18,9 @@ import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 // Printed cost is {1}{U/R}{U/R} — TWO HYBRID U/R pips, declared via
 // `manaCost.hybrid` (issue #1338) and payable with mana off either colour of
 // land (issues #1738/#1739, PRD #1736, landed #1755) — see Figure of Destiny
-// (eve/multicolor.ts) for the reference shape. This closes the divergence
+// (eve/multicolor.cards.ts) for the reference shape. This closes the divergence
 // this card previously shipped under (issue #782, closed), the same gap that
-// stubbed Deathrite Shaman (rtr/multicolor.ts).
+// stubbed Deathrite Shaman (rtr/multicolor.cards.ts).
 export const lutri: CardDefinition = {
     // Kept as a literal (not imported from `gre/companion.ts`'s `LUTRI_ID`):
     // that module imports `tryGetDefinition` from the card registry
@@ -90,7 +90,7 @@ export const lutri: CardDefinition = {
             // wrapper anywhere in the registry (grepped `EFFECT_OP_REGISTRY`
             // for "copy" — zero hits) — copying a spell on the stack is a
             // resolve()-only capability by design across the whole codebase,
-            // not a gap specific to this card. Fork (lea/red.ts) is the
+            // not a gap specific to this card. Fork (lea/red.cards.ts) is the
             // sole existing precedent and uses the identical shape.
             resolve: (ctx: SpellContext) => {
                 const target = ctx.targets[0];
@@ -116,9 +116,9 @@ export const lutri: CardDefinition = {
 // Printed cost is {1}{W/B}{W/B} — TWO HYBRID W/B pips, declared via
 // `manaCost.hybrid` (issue #1338) and payable with mana off either colour of
 // land (issues #1738/#1739, PRD #1736, landed #1755) — see Figure of Destiny
-// (eve/multicolor.ts) for the reference shape. This closes the divergence
+// (eve/multicolor.cards.ts) for the reference shape. This closes the divergence
 // this card previously shipped under (issue #782, closed), the same gap that
-// stubbed Deathrite Shaman (rtr/multicolor.ts) and previously narrowed Lutri
+// stubbed Deathrite Shaman (rtr/multicolor.cards.ts) and previously narrowed Lutri
 // (`lutri` above, same file).
 //
 // The graveyard-cast ability ("Once during each of your turns, you may cast
@@ -176,7 +176,7 @@ export const lurrus: CardDefinition = {
 // activated-ability cost-modifier machinery (`StaticCostModifier.costReduction`
 // / `minTotalMana`, threaded through `getCostModifiers` into
 // `applyCostModifiers`) turned out to be ALREADY wired to the real activation
-// path (`convex/game.ts`), exercised by Power Artifact (atq/blue.ts) — the
+// path (`convex/game.ts`), exercised by Power Artifact (atq/blue.cards.ts) — the
 // stub's comment claiming the seam didn't exist had gone stale. The one
 // genuine gap #1339 closed: `appliesToAbility` only ever received the ability's
 // SOURCE permanent, never the ability itself, so nothing could express "...
@@ -211,7 +211,7 @@ export const lurrus: CardDefinition = {
 //
 // "{1}, {T}: Target creature can't block this turn." reuses the already
 // exercised `restrictCombat` Op (`restriction: "cant-block"`, ADR 0053) on an
-// announced target — the same shape Stun (tmp/red.ts) exercises — so no new
+// announced target — the same shape Stun (tmp/red.cards.ts) exercises — so no new
 // Op and no hand-written test beyond the catalogue's static sweep + smoke
 // test (per-Op regime, `.claude/rules/gre-development.md`).
 //

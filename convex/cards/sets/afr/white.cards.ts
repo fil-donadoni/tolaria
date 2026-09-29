@@ -8,7 +8,7 @@ import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { leftTrigger } from "../../abilities/triggers/leftTrigger";
 
 // Portable Hole — O-Ring-style exile-until-leaves (Banishing Light precedent,
-// jou/white.ts), scoped to a nonland permanent an opponent controls with mana
+// jou/white.cards.ts), scoped to a nonland permanent an opponent controls with mana
 // value 2 or less.
 //
 // TARGETING (CR 603.3d): "exile target nonland permanent an opponent controls

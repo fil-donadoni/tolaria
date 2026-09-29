@@ -726,7 +726,7 @@ export const pirateShip: CardDefinition = {
             // permanent (CR 701.21). `{ ref: "$source" }` is the interpreter's
             // standard binding for the triggered ability's own source,
             // regardless of which factory built the ability (see the same
-            // shape at arn/blue.ts `sacrificeSelfWhen`).
+            // shape at arn/blue.cards.ts `sacrificeSelfWhen`).
             effects: [{ op: "sacrifice", target: { ref: "$source" } }],
         }),
     ],
@@ -1204,7 +1204,7 @@ export const timeWalk: CardDefinition = {
     types: ["Sorcery"],
     // Migrated resolve()→effects[] (ADR 0045): schedule an extra turn for
     // the caster (CR 500.7), the same `extraTurn` Op / `takeExtraTurn`
-    // primitive Time Warp uses (tmp/blue.ts) with `player: { target: 0 }` —
+    // primitive Time Warp uses (tmp/blue.cards.ts) with `player: { target: 0 }` —
     // Time Walk has no announced target, so `player: "controller"` names the
     // caster directly.
     effects: [{ op: "extraTurn", player: "controller" }],

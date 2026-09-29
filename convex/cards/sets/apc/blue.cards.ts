@@ -149,7 +149,7 @@ export const unnaturalSelection: CardDefinition = {
 // with a creature you control." (CR 608.2b, CR 105.2.)
 // "Target spell" is unqualified, so ANY spell is a legal target and the colour
 // test is a resolution-time gate, not a targeting restriction (same reading as
-// Ertai's Trickery in pls/blue.ts): casting it at a spell that shares nothing
+// Ertai's Trickery in pls/blue.cards.ts): casting it at a spell that shares nothing
 // is legal and simply does nothing.
 // "a creature you control" is existential — `forEach` over the controller's
 // creatures with a `sharesColor` gate (CR 202.2: colourless shares nothing).
@@ -204,7 +204,7 @@ export const jadedResponse: CardDefinition = {
 // spell with no mana cost — one cast face down (CR 702.37c) — has an
 // unpayable one (CR 118.6): the Op skips and nothing is countered; a printed
 // {0} is paid with nothing. CR 701.6a — the counter names the same spell through
-// the event, as Decree of Silence does (`scg/blue.ts`).
+// the event, as Decree of Silence does (`scg/blue.cards.ts`).
 // hand-tail: Whenever a player casts a spell, any other player may pay that spell's mana cost. If a player does, counter the spell. (#4335)
 export const iceCave: CardDefinition = {
     id: "fc2877c2-4426-4c07-92a2-8ba5107d5e7e", // APC 24

@@ -4,7 +4,7 @@
 // abilities suspend for a live choice the canned smoke generator can't drive
 // (the ETB `scryReorder` order-top pick; the upkeep `mayPay` Pay/Skip
 // decision), so per the per-Op regime it earns a hand-written test. The
-// graveyard-zone upkeep recursion mirrors Squee, Goblin Nabob (mmq/red.ts),
+// graveyard-zone upkeep recursion mirrors Squee, Goblin Nabob (mmq/red.cards.ts),
 // here gated by a 1-life cost (CR 117.3a).
 
 import { describe, it, expect } from "vitest";

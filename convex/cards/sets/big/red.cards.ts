@@ -77,7 +77,7 @@ export const legionExtruder: CardDefinition = {
 //
 // Menace is a native keyword (`staticAbilities: ["menace"]`,
 // mechanicsRegistry.ts:1704). The upkeep clause is the Minsc & Boo shape
-// (`clb/multicolor.ts`): a bare cost-free `mayPay` ("you may…", issue #680)
+// (`clb/multicolor.cards.ts`): a bare cost-free `mayPay` ("you may…", issue #680)
 // gates an `if` whose THEN branch both creates the controller's own Treasure
 // AND queues a `reflexiveTrigger` (CR 603.12) for "When you do…" — nesting
 // the reflexive trigger inside the `mayPay` gate is what makes it fire ONLY
@@ -91,10 +91,10 @@ export const legionExtruder: CardDefinition = {
 // `entersTapped: true` (CR 508.4, `EffectTokenSpec.entersTapped`, #1195) —
 // for the announced target's control.
 //
-// The attack trigger is the Xantid Swarm shape (`scg/green.ts`): raw
+// The attack trigger is the Xantid Swarm shape (`scg/green.cards.ts`): raw
 // `ATTACKERS_DECLARED` + `matches` on `attackerIds.includes(self.id)`,
 // `dealDamage` sized off a `count` construct scoped to `"opponent"`'s
-// battlefield artifacts (Typhoon's `leg/green.ts` island-count shape) —
+// battlefield artifacts (Typhoon's `leg/green.cards.ts` island-count shape) —
 // "opponent" resolves to the defending player, the only other seat in this
 // engine's 2-player scope (CLAUDE.md § Out of Scope).
 //

@@ -16,7 +16,7 @@ import type { CardDefinition } from "../../types";
 // `putIntoLibraryFromBattlefield` — the same leaves-the-battlefield funnel a
 // bounce uses; a library shorter than the position puts the card on the
 // bottom). Teferi, Hero of Dominaria's −3 is the shipped precedent at
-// `position: 3` (`dom/multicolor.ts`); Oust is the same Op at `position: 2`.
+// `position: 3` (`dom/multicolor.cards.ts`); Oust is the same Op at `position: 2`.
 //
 // "Its controller" is the CREATURE's controller (CR 110.2 — every permanent
 // has a controller, by default the player it entered under), not Oust's, and
@@ -25,7 +25,7 @@ import type { CardDefinition } from "../../types";
 // `{ controllerOf: { target: 0 } }` would resolve to nothing. The snapshot
 // idiom is what the DSL provides for exactly this — `bind` the object on the
 // Op that removes it, then read `{ ref: "$c.controller" }` (Crumble,
-// `atq/green.ts`, does the same across a `destroy`).
+// `atq/green.cards.ts`, does the same across a `destroy`).
 //
 // Guard C (issue #2701): the Oracle compiler consumes neither half of this
 // card's text yet — the positional library insert and the

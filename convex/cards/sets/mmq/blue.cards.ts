@@ -75,7 +75,7 @@ export const thwart: CardDefinition = {
 // `sacrifice-permanents` pick (CR 701.21a) of any permanent they control.
 // "Each opponent" is the single opponent of a two-player game, the same
 // `player: "opponent"` scoping Portal to Phyrexia's "each opponent sacrifices"
-// (bro/colorless.ts) uses.
+// (bro/colorless.cards.ts) uses.
 // compiler-gap: "When this creature enters, each opponent sacrifices a permanent of their choice unless they pay {1}." (#2693)
 export const rishadanCutpurse: CardDefinition = {
     id: "947fc270-11e3-46cd-9086-e880a5845c79", // MMQ 93

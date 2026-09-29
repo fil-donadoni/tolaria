@@ -24,7 +24,7 @@ other zone boundaries the fix does not cross:
   itself was worth, and gaining CONTROL of an opponent's 8-drop swings the
   margin twice (the loop counts permanents you control, not ones you paid for);
 - a **face-down** permanent has no mana cost (CR 708.2), so casting a shipped
-  morph creature face down (Exalted Angel, `ons/white.ts`) moves it hand →
+  morph creature face down (Exalted Angel, `ons/white.cards.ts`) moves it hand →
   battlefield and still drops the term by up to `12 x 6 = 72`, with `turn-face-up`
   refunding it for free. Reading the hidden identity back through `faceDownOf`
   would fix the number and leak hidden information into the opponent-side half

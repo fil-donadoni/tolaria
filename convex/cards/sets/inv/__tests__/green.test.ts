@@ -9,7 +9,7 @@
 import { describe, it, expect } from "vitest";
 // Quirion Elves — INV reprint (`quirionElvesInv`, a `CardPrint` in
 // `../green`); first printed in Mirage, so the mechanics live in
-// `mir/green.ts` (ADR 0041 home-set rule). This test stays with the INV
+// `mir/green.cards.ts` (ADR 0041 home-set rule). This test stays with the INV
 // tranche that authored it (issue #1097 gap 4).
 import {
     makeInstance,
@@ -1179,7 +1179,7 @@ describe("Saproling Infestation (CR 702.33d / 603.2)", () => {
 
 // Kavu Titan exercises the kicker → entersWith-counters →
 // wasKicked-gated keyword-grant chain — the exact Pouncing Kavu template
-// (inv/red.ts, issue #1716), corrected onto this card in place of the old
+// (inv/red.cards.ts, issue #1716), corrected onto this card in place of the old
 // marker's (wrong) `grantAbility`-on-a-conditional-ETB-trigger sketch (issue
 // #2761): that shape would reopen a stack window where the creature is on
 // the battlefield without trample before a trigger resolves, exactly the bug

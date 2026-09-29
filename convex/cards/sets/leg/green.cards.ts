@@ -56,12 +56,12 @@ export const concordantCrossroads: CardDefinition = {
 // may draw two additional cards" decision is a cost-free `mayPay` (issue
 // #680 — `cost` omitted, `bind: "$mayDraw"`) feeding an `if` whose `then`
 // runs the draw + topdeck body and whose `else` is simply OMITTED (the `if`
-// construct's else is optional — Squee, Goblin Nabob, `mmq/red.ts`, is the
+// construct's else is optional — Squee, Goblin Nabob, `mmq/red.cards.ts`, is the
 // reference shape for this exact idiom). `optionChoice` was considered and
 // rejected here: EVERY mode's `effects` must be non-empty (`isModeList`), and
 // "decline" is a genuine no-op with nothing to put in it — the project
-// deliberately has no no-op Op to plug that gap (fem/blue.ts,
-// fem/colorless.ts document the same constraint). The topdeck-or-pay body is
+// deliberately has no no-op Op to plug that gap (fem/blue.cards.ts,
+// fem/colorless.cards.ts document the same constraint). The topdeck-or-pay body is
 // the new `rangedTopdeck` Op (a single ranged 0..N "drawn this turn" hand
 // pick with a per-NOT-chosen life cost — the two printed per-card options,
 // "pay 4 / put on top", are collapsed into one pick since the reachable
@@ -162,7 +162,7 @@ export const sylvanLibrary: CardDefinition = {
 //     none of them is it: the `loseAllAbilities` Op (all abilities, indefinite),
 //     the `keyword-remove` static (one keyword, continuous, source-tied,
 //     Earthbind) and the raw `removeStaticAbilities` primitive, reachable only
-//     from a resolve() closure (Vertigo, ice/red.ts). tracked-by: #2125.
+//     from a resolve() closure (Vertigo, ice/red.cards.ts). tracked-by: #2125.
 //   • Reincarnation — "when that creature dies this turn, return a creature from
 //     its owner's graveyard" needs a per-target delayed dies-watcher; the
 //     delayed-trigger timings are phase boundaries only, not "when X dies".
@@ -505,7 +505,7 @@ export const typhoon: CardDefinition = {
     types: ["Sorcery"],
     // Migrated resolve()→effects[] (ADR 0045): 2-player game (CR 102.2), so
     // "each opponent" is the plain `"opponent"` player selector (The Fallen
-    // shape, `drk/black.ts`); the amount is a `count` of the opponent's
+    // shape, `drk/black.cards.ts`); the amount is a `count` of the opponent's
     // battlefield filtered to the Island subtype. `dealDamage` no-ops on a
     // resolved amount of 0 (`reduced <= 0` guard in `SpellContext.dealDamage`),
     // matching the original `if (islands > 0)` guard exactly.
@@ -585,7 +585,7 @@ export const sylvanParadise: CardDefinition = {
     // member set via `setColor` with an end-of-turn duration (CR 305.7 /
     // 611.2c — the colour override expires at cleanup via
     // `tickAllDurations`/`finalizeCleanup`, mirroring the sibling colour-
-    // change spells `leg/blue.ts` and `leg/black.ts`). Fixed issue #1834
+    // change spells `leg/blue.cards.ts` and `leg/black.cards.ts`). Fixed issue #1834
     // (the duration was previously dropped, making the change permanent —
     // same shape as Dwarven Song, `red.ts`, issue #1833).
     effects: [

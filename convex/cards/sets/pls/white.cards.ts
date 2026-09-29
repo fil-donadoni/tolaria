@@ -21,7 +21,7 @@ import { manaCostForCardId } from "../../manaCostLookup";
 
 // The five colours a "choose a color" effect can name (CR 105.1), in WUBRG
 // order — Voice of All's CR 614.12 as-enters pick, mirroring the
-// Prismatic Ward / Quirion Elves idiom (`ice/white.ts`, `mir/green.ts`).
+// Prismatic Ward / Quirion Elves idiom (`ice/white.cards.ts`, `mir/green.cards.ts`).
 const PLS_WHITE_COLORS = ["W", "U", "B", "R", "G"] as const;
 const PLS_WHITE_COLOR_NAMES: Record<(typeof PLS_WHITE_COLORS)[number], string> =
     {
@@ -34,15 +34,15 @@ const PLS_WHITE_COLOR_NAMES: Record<(typeof PLS_WHITE_COLORS)[number], string> =
 
 /** Live colour read off a `PermanentView` with no `ctx` in scope (a
  *  `block-restriction` predicate gets `(self, opponent, state?)` only — no
- *  colour-derivation context). Mirrors `inv/blue.ts`'s local
+ *  colour-derivation context). Mirrors `inv/blue.cards.ts`'s local
  *  `effectiveColors` helper exactly (duplicated per-file, same precedent as
- *  `arn/white.ts`'s `permanentColors`): colorOverride wins outright, else
+ *  `arn/white.cards.ts`'s `permanentColors`): colorOverride wins outright, else
  *  derive from mana cost, then fold in granted colors. `perm` carries
  *  `colorOverride`/`grantedColors` at runtime even though `PermanentView`'s
  *  declared type doesn't list them — the combat validator passes the raw
  *  (fat) `CardInstanceState`, just typed narrower. Reimplemented locally
  *  rather than imported to avoid the same eval-time registry cycle
- *  `inv/blue.ts` documents (`gre/layers.ts` imports the card registry, which
+ *  `inv/blue.cards.ts` documents (`gre/layers.ts` imports the card registry, which
  *  imports every set module including this one). */
 function effectiveColors(perm: PermanentView): Color[] {
     const raw = perm as unknown as {
@@ -69,7 +69,7 @@ function effectiveColors(perm: PermanentView): Color[] {
 // continuous replacement — issue #1939.) The ETB draw is a plain `draw` Op
 // trigger (DSL-first). The reduction is a permanent-bound
 // `replacementEffects[]` entry, the same live-scan mechanism as Well-Laid
-// Plans / Camel (`convex/cards/sets/inv/blue.cards.ts` / `arn/white.ts`) — no new
+// Plans / Camel (`convex/cards/sets/inv/blue.cards.ts` / `arn/white.cards.ts`) — no new
 // persisted state, since the effect is simply "active while this enchantment
 // is on the battlefield" and re-evaluated at every `damage` event.
 //
@@ -228,7 +228,7 @@ export const auraBlast: CardDefinition = {
 // colour-change via the `setColor` Op, issue #1083.) "Target permanent" of
 // any type uses the full CR 300.1 permanent-type set (incl. Land), not
 // `type: "any"` (which matches only the CR 115.4 damageable types) —
-// Vindicate / Boomerang precedent (`apc/multicolor.ts`).
+// Vindicate / Boomerang precedent (`apc/multicolor.cards.ts`).
 export const auroraGriffin: CardDefinition = {
     id: "bfd6c695-1944-4bb0-a701-0daf47cdbcb4", // PLS 2
     name: "Aurora Griffin",
@@ -691,7 +691,7 @@ export const samitePilgrim: CardDefinition = {
 // can't attack.)\nGreen spells and blue spells you cast cost {1} less to
 // cast." (CR 702.3 defender; CR 601.2f generic cost reduction via a
 // `cost-modifier` static, gated to the controller's OWN spells via the
-// matching `effectSource` check — Alabaster Leech's `inv/white.ts`
+// matching `effectSource` check — Alabaster Leech's `inv/white.cards.ts`
 // cost-increase precedent, just a reduction.)
 //
 // A SINGLE `cost-modifier` entry with an OR predicate (issue #1948 review,
@@ -735,7 +735,7 @@ export const sunscapeFamiliar: CardDefinition = {
 // step, precedent Spinal Embrace `inv/multicolor.ts`; CR 400.7 hand →
 // battlefield via a `choice(kind: "choose-hand-card")` + `moveZone(from:
 // "hand", to: "battlefield", bind)` pair, EXACT precedent Sneak Attack
-// `usg/red.ts` — the same `bind`-on-the-`cards`-shape capability issue #1151
+// `usg/red.cards.ts` — the same `bind`-on-the-`cards`-shape capability issue #1151
 // added closes the "capture the just-entered permanent" gap Cauldron Dance's
 // still-stubbed comment describes as blocking; CR 603.7 delayed trigger for
 // the return, ADR 0048.)
@@ -914,7 +914,7 @@ export const voiceOfAll: CardDefinition = {
 //
 // The shield itself is the `preventDamage` mode `"all-from-source"` with
 // `combatOnly: true` — the same source-scoped, recipient-agnostic entry
-// Falling Timber uses (`pls/green.ts`).
+// Falling Timber uses (`pls/green.cards.ts`).
 export const guardDogs: CardDefinition = {
     id: "ba32eee7-10ba-4f0b-8a87-c3ecfa22ae41", // PLS 5
     rarity: "uncommon",

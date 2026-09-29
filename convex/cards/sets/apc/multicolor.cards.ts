@@ -174,7 +174,7 @@ export const guidedPassage: CardDefinition = {
 // its toughness to 0.
 //
 // DEATH is ordinary reanimation over already-exercised Ops, and it is
-// Reanimate's script (`tmp/black.ts`) narrowed to `controller: "you"` — "your
+// Reanimate's script (`tmp/black.cards.ts`) narrowed to `controller: "you"` — "your
 // graveyard", not "a graveyard". `bind` + `ref.manaValue` snapshots the card's
 // mana value BEFORE the zone change (CR 608.2h last-known information), since
 // "its mana value" is the card's, read off the object that just left the

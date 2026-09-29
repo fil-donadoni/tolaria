@@ -125,7 +125,7 @@ export const entomb: CardDefinition = {
 // are ONE search, and this card searches for the name of EVERY card it exiled.
 // The CR-correct shape is therefore a single search whose candidate filter is
 // a SET of names, and `EffectCardFilter.name` holds one literal or one ref.
-// Lobotomy (`tmp/multicolor.ts`) searches for ONE name, which is why it can
+// Lobotomy (`tmp/multicolor.cards.ts`) searches for ONE name, which is why it can
 // afford the explicit `search-library` prompt — and its own comment records
 // why that prompt matters — and why this card cannot copy it. Recorded in
 // docs/findings/2711-fromzones-sweep-unvalued-and-unsearched.md.

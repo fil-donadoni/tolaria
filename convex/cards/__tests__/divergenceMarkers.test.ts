@@ -31,7 +31,7 @@
 // deferral note below it; a genuine untracked list vouched by an unrelated
 // "Out of scope" note lower in the same block) but left a THIRD one open one
 // level down: an unrelated ref sitting in a DIFFERENT sentence of the SAME
-// paragraph as the marker (`eld/colorless.ts`'s Fabled Passage — a
+// paragraph as the marker (`eld/colorless.cards.ts`'s Fabled Passage — a
 // `moveZone` provenance ref for one clause wrongly vouching for a wholly
 // separate, untracked divergence a few lines later in the same paragraph;
 // fixed on its own merits since, see the regression fixture below). A real
@@ -54,7 +54,7 @@
 //      "earlier dispositioned marker line" window case, tested above and
 //      below.
 //   4. Set-header boilerplate / a card NAME containing a confession-shaped
-//      word (`Fear of Missing Out`, `dsk/red.ts`; the `4ed/*.ts` "cards not
+//      word (`Fear of Missing Out`, `dsk/red.cards.ts`; the `4ed/*.ts` "cards not
 //      yet implemented are omitted" line, which line-wraps its own
 //      `not`/`implemented` split so the literal phrase never appears on one
 //      line) — regression-tested below.
@@ -171,7 +171,7 @@ describe("Guard B — documented-divergence-needs-issue (issue #962)", () => {
     });
 
     it("regression: a marker is NOT vouched for by a separate deferral note's ref lower in the same contiguous block", () => {
-        // The arn/colorless.ts shape: an untracked 'Deferred to later batches'
+        // The arn/colorless.cards.ts shape: an untracked 'Deferred to later batches'
         // note, then a blank `//`, then a separate 'Out of scope' note. The
         // whole-block scan absorbed the lower note's disposition; paragraph
         // scoping keeps them independent.
@@ -212,7 +212,7 @@ describe("Guard B — documented-divergence-needs-issue (issue #962)", () => {
             "// ─────────────────────────────────────────────",
         ];
         // Several continuation lines START with a marker word (the real
-        // leg/black.ts C5-footer shape), but they are ONE paragraph under the
+        // leg/black.cards.ts C5-footer shape), but they are ONE paragraph under the
         // single #1213 header — all tracked, ref needed only once.
         const hits = scanDivergenceMarkers(block);
         expect(hits.length).toBeGreaterThanOrEqual(2);
@@ -322,7 +322,7 @@ describe("Guard B — documented-divergence-needs-issue (issue #962)", () => {
         expect(hits).toHaveLength(0);
     });
 
-    it("false positive 2: an 'ACTIVE (#NNN)' completion citation on the marker's own line disposes it presence-wise, even though the cited issue is deliberately CLOSED (`ice/white.ts:164` shape)", () => {
+    it("false positive 2: an 'ACTIVE (#NNN)' completion citation on the marker's own line disposes it presence-wise, even though the cited issue is deliberately CLOSED (`ice/white.cards.ts:164` shape)", () => {
         // `DISPOSITION` is presence-only (`#\d+`) — it does not, and by
         // design cannot, know the cited issue is closed on purpose. That is
         // exactly why the (network) liveness sweep's `scanTrackedByRefs`
@@ -346,7 +346,7 @@ describe("Guard B — documented-divergence-needs-issue (issue #962)", () => {
     // was `expect(true).toBe(true)`, vacuous).
 
     it("false positive 4: a card NAME containing a confession-shaped word does not itself become a marker unless the vocabulary actually matches", () => {
-        // "Fear of Missing Out" (dsk/red.ts) — none of the widened words
+        // "Fear of Missing Out" (dsk/red.cards.ts) — none of the widened words
         // (simplif/approximat/not modelled/not enforced/deviat/unimplemented/
         // unbuilt) are substrings of "Missing" or "Fear", so a plain card-name
         // comment line never trips MARKER regardless of anchoring.

@@ -7,7 +7,7 @@ import { tokenPrintIdFor } from "../../tokenPrintLookup";
 // The categorized shared-window half of #1364 HAS since shipped as the
 // `revealAndCategorize` Op (reveal a fixed top-N window once, then at most one
 // card per category out of that same revealed set, each card claimable by only
-// one category — Atraxa, Grand Unifier, one/multicolor.ts, now implemented on
+// one category — Atraxa, Grand Unifier, one/multicolor.cards.ts, now implemented on
 // it). What remains for Niv-Mizzet is the CATEGORY PREDICATE: its ten
 // categories are exact colour PAIRS ("a card that's EXACTLY those colors"),
 // and `EffectCardFilter.color` is only an OR-any-of-these-colours match with
@@ -124,7 +124,7 @@ const SAHEELI_SUBLIME_ARTIFICER_ID = "5a10b543-d5d4-42a8-9ee8-dada59a2ad7e";
 //   • TRIGGER — "Whenever you cast a noncreature spell, create a 1/1 colorless
 //     Servo artifact creature token." A SPELL_CAST triggered ability (CR 603.2
 //     + 601.2i) gated on the caster and a noncreature spell — the Third Path
-//     Iconoclast shape (`bro/multicolor.ts`); a planeswalker's non-loyalty
+//     Iconoclast shape (`bro/multicolor.cards.ts`); a planeswalker's non-loyalty
 //     triggered ability works like any other permanent's.
 //   • −2 — "Target artifact you control becomes a copy of another target
 //     artifact or creature you control until end of turn, except it's an

@@ -16,12 +16,12 @@ import { equipAbility, forMirrodin } from "../../abilities/equipment";
 // Home set = earliest paper printing (ADR 0041) = Phyrexia: All Will Be One
 // Commander (ONC 10). It was originally implemented against the much later SOC
 // reprint, which filed it under the wrong home set and rendered the wrong art;
-// the SOC printing now rides along as a `CardPrint` (`soc/colorless.ts`). Its
+// the SOC printing now rides along as a `CardPrint` (`soc/colorless.cards.ts`). Its
 // cost is coloured ({1}{W}), so it lives in white.ts, not colorless.ts.
 //
 // Three DSL pieces, all Op-expressible (no resolve() needed):
 //   - ETB (`enteredTrigger` scope: "self") — plain `createToken` (CR 111 /
-//     701.7), the exact 1/1 white flying Spirit shape `dka/white.ts`'s
+//     701.7), the exact 1/1 white flying Spirit shape `dka/white.cards.ts`'s
 //     Lingering Souls already exercises.
 //   - The middle trigger — `tokenCreatedTrigger` (issue #1345's new factory)
 //     scoped "you", filtered to creature tokens (`filter: { types:
@@ -33,7 +33,7 @@ import { equipAbility, forMirrodin } from "../../abilities/equipment";
 //     in one resolution nets exactly ONE counter (the "one or more" batching
 //     issue #1345 exists to prove).
 //   - The activated ability — `{W}, {T}, Remove a story counter` cost (the
-//     `removeCounter` activation-cost shape `eld/black.ts`'s Wishclaw
+//     `removeCounter` activation-cost shape `eld/black.cards.ts`'s Wishclaw
 //     Talisman already exercises) → a plain `draw` Op.
 export const staffOfTheStoryteller: CardDefinition = {
     id: "ab1d1461-1625-4163-aacd-a939f4871fad", // ONC 10

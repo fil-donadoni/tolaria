@@ -9,7 +9,7 @@ import { CREATURE_SUBTYPES } from "../../../oracle/grammar/shared/subtypes";
 // Dragon Arch — {5} Artifact. "{2}, {T}: You may put a multicolored creature
 // card from your hand onto the battlefield."
 //
-// Sneak Attack's hand → battlefield template (usg/red.ts) with the "You may"
+// Sneak Attack's hand → battlefield template (usg/red.cards.ts) with the "You may"
 // spelled as `count: { min: 0, max: 1 }` — declining is a legal answer, so the
 // activation is never a trap — and the ONE thing this card adds over it:
 // "multicolored" (CR 105.2b) as `colorCountAtLeast: 2` rather than an OR over
@@ -72,7 +72,7 @@ export const dragonArch: CardDefinition = {
 //    BEFORE it enters and stored on `CardInstanceState.chosenSubtypes`
 //    (Engineered Plague's shape, `ulg/black.ts`), from CR 205.3m's own table.
 //  - The ETB (CR 603.6a) is Goblin Ringleader's reveal-four template
-//    (`apc/red.ts`) with the chosen type in the filter: the reserved
+//    (`apc/red.cards.ts`) with the chosen type in the filter: the reserved
 //    `$source.chosenSubtype` ref reads the source's stored choice — its
 //    departure-time last-known record if Brass Herald left before the trigger
 //    resolved (CR 608.2h) — and fails CLOSED (nothing is kept) when there is
@@ -198,7 +198,7 @@ export const dodecapod: CardDefinition = {
 //
 // The VARIABLE Kicker itself has been payable since issue #2141 (CR 107.3a —
 // the Kicker's {X} is the spell's one announced X; see Verdeloth the Ancient,
-// `inv/green.ts`). The spend clause — issue #4506 — is a DIFFERENT
+// `inv/green.cards.ts`). The spend clause — issue #4506 — is a DIFFERENT
 // constraint from `ManaCost.xSpendColors` (issue #3811, Drain Life /
 // Soul Burn): "only coloured, at most one of each colour" is a distinctness
 // rule across the X pips the CASTER resolves (which colours, not just how

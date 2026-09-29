@@ -9,7 +9,7 @@ import type { CardDefinition } from "../../types";
 // `staticAbilities: ["storm"]` drives the copy mechanism
 // (`collectCastTriggers` / `resolveCastCopyTrigger`, convex/gre/state.ts). The
 // card's own effect is the plain two-Op DSL sequence Stormscape Master's
-// drain ability already exercises (inv/multicolor.ts): `loseLife` on the
+// drain ability already exercises (inv/multicolor.cards.ts): `loseLife` on the
 // announced target player, then `gainLife` on the resolving controller — no
 // new Op, reused verbatim (per-Op test regime).
 export const tendrilsOfAgony: CardDefinition = {

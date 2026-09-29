@@ -18,7 +18,7 @@ import { holdsExileBundle } from "../../abilities/exileBundle";
 //
 //   - The cost clause is `CardDefinition.selfCostReduction` in the
 //     `countMode: "domain"` shape (`DomainDrivenCostReduction`,
-//     `cards/types.ts`, issue #1958 — Draco / Stratadon, `pls/colorless.ts`).
+//     `cards/types.ts`, issue #1958 — Draco / Stratadon, `pls/colorless.cards.ts`).
 //     Domain counts distinct basic land TYPES (CR 305.6 — Plains, Island,
 //     Swamp, Mountain, Forest), not permanents: three Forests are ONE, a
 //     single Tundra is TWO. Resolved by `resolveCostReductionGeneric`
@@ -29,7 +29,7 @@ import { holdsExileBundle } from "../../abilities/exileBundle";
 //     mana component at {0} and reduces only GENERIC mana, so the {W} pip
 //     survives every reduction: at Domain 5 the card costs exactly {W}, never
 //     less.
-//   - The ETB is the O-Ring shape verbatim (Banishing Light, `jou/white.ts`):
+//   - The ETB is the O-Ring shape verbatim (Banishing Light, `jou/white.cards.ts`):
 //     a real announced target (CR 603.3d) exiled host-only through the ADR
 //     0028 exile-and-return bundle keyed to `$source`, returned by the
 //     leaves-the-battlefield trigger (CR 603.7a). The bundle is keyed to the

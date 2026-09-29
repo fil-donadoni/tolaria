@@ -367,7 +367,7 @@ export const manaVortex: CardDefinition = {
             // What still blocks it is the SECOND, unchanged: the
             // sacrifice-a-land-or-be-countered gate needs the raise-time
             // affordability pre-check documented on Yawgmoth Demon
-            // (atq/black.ts). The imperative body checks `lands.length === 0`
+            // (atq/black.cards.ts). The imperative body checks `lands.length === 0`
             // BEFORE prompting, so a landless controller is countered with NO
             // suspension; the generic `mayPay` Op has no such pre-check and
             // would prompt a player who cannot pay. Migrating on the counter
@@ -620,7 +620,7 @@ export const psychicAllergy: CardDefinition = {
             // sacrifice: { filter: { subtypes: "Island" }, count: 2 } } }` +
             // `if !$paid` for the destroy else-branch. The remaining blocker
             // is the SAME raise-time/skip mismatch documented on Yawgmoth
-            // Demon (atq/black.ts): this card's imperative body checks
+            // Demon (atq/black.cards.ts): this card's imperative body checks
             // `islandIds.length < 2` BEFORE calling `requestMayPay`, so with
             // fewer than two Islands the may-pay prompt is never raised at
             // all and Psychic Allergy is destroyed immediately (see this

@@ -1,4 +1,4 @@
-// Per-card tests for mh2/green.ts.
+// Per-card tests for mh2/green.cards.ts.
 //
 // Endurance's ETB is a CR 603.3d targeted trigger: "up to one target player"
 // is a real target chosen when the ability is put on the stack, declared as a

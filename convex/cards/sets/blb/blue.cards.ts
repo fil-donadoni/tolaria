@@ -17,7 +17,7 @@ import { OTTER_TOKEN } from "../../sharedTokens";
 // creature, it also has base power and toughness 2/2 until your next turn."
 //
 // The block restriction is a plain `staticEffects[]` predicate (CR 509.1b,
-// layer system, precedent: Argothian Pixies, atq/green.ts — already-shipped
+// layer system, precedent: Argothian Pixies, atq/green.cards.ts — already-shipped
 // continuous-effect machinery, not a DSL Op).
 //
 // TARGETING (CR 603.3d): "up to one target artifact, creature, or planeswalker
@@ -181,7 +181,7 @@ export const stormchasersTalent: CardDefinition = {
                     oracleText:
                         "When this Class becomes level 2, return target instant or sorcery card from your graveyard to your hand.",
                     // CR 603.3d — a REAL target, chosen as the trigger is put
-                    // on the stack (the Snapcaster Mage shape, isd/blue.ts):
+                    // on the stack (the Snapcaster Mage shape, isd/blue.cards.ts):
                     // `zone: "graveyard"` + `controller: "you"` narrows to
                     // instant/sorcery cards in the controller's own graveyard,
                     // and `count: 1` auto-selects when exactly one is legal and

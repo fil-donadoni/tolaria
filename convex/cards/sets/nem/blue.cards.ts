@@ -13,7 +13,7 @@ import { holdsExileBundle } from "../../abilities/exileBundle";
 // (CR 702.32 Fading; CR 701.13 exile; CR 603.7a leaves-the-battlefield.)
 //
 // The blue land-exiling half of the Parallax Wave cycle — identical structure
-// (see nem/white.ts for the full rationale), the only divergence (tracked-by: #2785) being the
+// (see nem/white.cards.ts for the full rationale), the only divergence (tracked-by: #2785) being the
 // target type (`Land` instead of `Creature`). Fading 5 rides the getDefinition
 // seam (ADR 0054); the exile-and-return bundle is the DSL-first (ADR 0045)
 // `exileWithAttachments` / `returnExiledForSource` Op pair (ADR 0028).
@@ -55,7 +55,7 @@ export const parallaxTide: CardDefinition = {
 // Accumulated Knowledge — {1}{U} Instant. "Draw a card, then draw cards equal
 // to the number of cards named Accumulated Knowledge in all graveyards."
 // (CR 121.1 draw; CR 122 counting; CR 201.2 name match.) First printed in
-// Nemesis (issue #985 said mmq/blue.ts, but the card has no Mercadian Masques
+// Nemesis (issue #985 said mmq/blue.cards.ts, but the card has no Mercadian Masques
 // printing — its earliest set is Nemesis, so it lives here per ADR 0043).
 //
 // DSL-first (ADR 0045): two sequential `draw` Ops, no new Op. The first draws

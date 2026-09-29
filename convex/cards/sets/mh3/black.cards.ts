@@ -115,7 +115,7 @@ export const emperorOfBones: CardDefinition = {
         // CR 603.6a — "at the beginning of combat on your turn". "up to one"
         // = an OPTIONAL target (`count: { min: 0, max: 1 }`, CR 601.2c);
         // "a graveyard" = either player's (`controller: "any"`), the exact
-        // Soul-Guide Lantern (`thb/colorless.ts`) shape plus the new
+        // Soul-Guide Lantern (`thb/colorless.cards.ts`) shape plus the new
         // `linkToSource` flag so the exiled card stays findable by the
         // reanimation trigger below.
         phaseTrigger({
@@ -148,7 +148,7 @@ export const emperorOfBones: CardDefinition = {
         // "under your control" per the Oracle), stamps a finality counter,
         // grants haste (no duration — indefinite, matching the printed "It
         // gains haste" with no "until end of turn", the Sneak Attack idiom
-        // per `mir/black.ts`'s Shallow Grave), and schedules the delayed
+        // per `mir/black.cards.ts`'s Shallow Grave), and schedules the delayed
         // sacrifice at the next end step (same idiom, `sacrifice` swapped
         // for Shallow Grave's `exile`).
         counterAddedTrigger({

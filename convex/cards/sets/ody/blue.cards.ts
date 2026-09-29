@@ -51,8 +51,8 @@ export const upheaval: CardDefinition = {
 // presence before the primitive runs), so a Standstill removed in response to
 // its own trigger sacrifices nothing, captures nothing, and the predicate's
 // own `if (!snap) return false` short-circuit reads false: no draw. The same
-// bind-then-read idiom Agatha's Soul Cauldron (`woe/colorless.ts`) and Minsc &
-// Boo (`clb/multicolor.ts`) already use, with no boolean Op and no new
+// bind-then-read idiom Agatha's Soul Cauldron (`woe/colorless.cards.ts`) and Minsc &
+// Boo (`clb/multicolor.cards.ts`) already use, with no boolean Op and no new
 // predicate form.
 //
 // The filter is EMPTY on purpose. Every other `boundMatchesFilter` site asks

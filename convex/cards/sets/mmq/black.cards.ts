@@ -16,7 +16,7 @@ import { CREATURE_SUBTYPES } from "../../../oracle/grammar/shared/subtypes";
 // target rides `excludeColors` on the TargetRequirement. The "can't be
 // regenerated" rider is not expressible as a declarative Op (it is a
 // destroy-time flag on the primitive), so — matching the shipped Dark Banishing
-// / Terror pattern (ice/black.ts, lea/black.ts) — the effect stays `resolve()`.
+// / Terror pattern (ice/black.cards.ts, lea/black.cards.ts) — the effect stays `resolve()`.
 // protocol card: `ctx.destroy(target, { cantBeRegenerated: true })` has no
 // Effect Script Op (the destroy Op carries no regeneration-suppression flag).
 export const snuffOut: CardDefinition = {

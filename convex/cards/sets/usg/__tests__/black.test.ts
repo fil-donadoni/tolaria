@@ -1,4 +1,4 @@
-// Per-card test for usg/black.ts. Exhume's `forEach(players)` construct
+// Per-card test for usg/black.cards.ts. Exhume's `forEach(players)` construct
 // iterates a runtime-selected set — `effectScriptSmoke.test.ts` explicitly
 // SKIPS it ("covered by the card's own tests"), so per
 // `.claude/rules/gre-development.md` § DSL-first authoring this card earns a

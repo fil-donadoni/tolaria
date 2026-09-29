@@ -1,4 +1,4 @@
-// Per-card behaviour test for vis/red.ts — Fireblast, the red alternative-cost
+// Per-card behaviour test for vis/red.cards.ts — Fireblast, the red alternative-cost
 // card (CR 118.9 "sacrifice two Mountains rather than pay this spell's mana
 // cost", then deal 4 damage to any target). The alt-cost payment happens at
 // cast commit, so this exercises the real commit path

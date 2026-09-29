@@ -10,7 +10,7 @@ import { colorChoiceModes } from "../../abilities/chooseColor";
 // #1736 hybrid mana wave). Printed cost is a single GUILD-HYBRID pip,
 // declared via `manaCost.hybrid` (issue #1338) and payable with mana off
 // either colour of land (issues #1738/#1739, landed #1755) — see Figure of
-// Destiny (eve/multicolor.ts) for the reference shape. This unblocks the
+// Destiny (eve/multicolor.cards.ts) for the reference shape. This unblocks the
 // stub previously tracked at #782 (closed).
 //
 // Current Oracle text (Ravnica Remastered — modern wording, no printed-era
@@ -32,7 +32,7 @@ import { colorChoiceModes } from "../../abilities/chooseColor";
 // activated abilities. `zone: "graveyard", controller: "any"` targets a
 // card in ANY player's graveyard (CR 400.7), matching "a graveyard" (not
 // "your graveyard") in the Oracle text — same shape as Grave Robbers / Eater
-// of the Dead (drk/black.ts).
+// of the Dead (drk/black.cards.ts).
 //
 // The runtime "add one mana of any color" choice has no dedicated Op
 // (`addMana`'s own Mechanics Registry note scopes out a runtime colour
@@ -40,7 +40,7 @@ import { colorChoiceModes } from "../../abilities/chooseColor";
 // (`manaChoices`/`effect` is reserved for `useStack: false` mana abilities
 // only, per `ActivatedAbility.effect`'s own doc) is a 5-mode `optionChoice`,
 // each mode a bare `addMana` for that colour, exactly as Phyrexian Altar
-// (inv/colorless.ts) already ships — both Ops already exercised
+// (inv/colorless.cards.ts) already ships — both Ops already exercised
 // catalogue-wide (per-Op regime, no hand-written test required).
 export const deathriteShaman: CardDefinition = {
     id: "70496f16-c4c0-4c03-beef-454eb4824cd1",

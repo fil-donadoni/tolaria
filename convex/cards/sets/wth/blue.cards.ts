@@ -3,12 +3,12 @@
 // Disrupt — {U} Instant. "Counter target instant or sorcery spell unless its
 // controller pays {1}. Draw a card." (CR 701.6a counter/punisher pattern +
 // CR 121.1 draw.) `mayPay` + `if` on the outcome is the shipped punisher
-// template (leg/blue.ts Force Spike / fem/blue.ts Vodalian Mage).
+// template (leg/blue.cards.ts Force Spike / fem/blue.cards.ts Vodalian Mage).
 //
 // Home set = earliest paper printing (ADR 0041) = Weatherlight; it was first
 // implemented against the INV reprint, which filed it under the
 // wrong home set and rendered the wrong art. That printing now rides along
-// as a `CardPrint` in `inv/blue.ts`.
+// as a `CardPrint` in `inv/blue.cards.ts`.
 import type { CardDefinition } from "../../types";
 export const disrupt: CardDefinition = {
     id: "c6cc89b0-9acf-452b-ac1a-bc7e90eb32fc", // WTH 37

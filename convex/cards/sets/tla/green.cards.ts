@@ -69,7 +69,7 @@ import { tappedTrigger } from "../../abilities/triggers/tappedTrigger";
 // creature the controller taps for mana instead. NOT DSL-migratable (ADR
 // 0045): `tappedTrigger` hardcodes its `resolve` and exposes no `effects[]`
 // site (same documented limitation as every other `tappedTrigger` card in the
-// catalogue, e.g. Wild Growth, lea/green.ts).
+// catalogue, e.g. Wild Growth, lea/green.cards.ts).
 export const badgermoleCub: CardDefinition = {
     id: "340c5799-4964-44dd-8c48-8f3f3aba5211",
     name: "Badgermole Cub",

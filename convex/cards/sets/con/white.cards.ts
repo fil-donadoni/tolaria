@@ -8,9 +8,9 @@ import { isBasicLandCard } from "../../types";
 // Path to Exile — "Exile target creature. Its controller may search their
 // library for a basic land card, put that card onto the battlefield tapped,
 // then shuffle." (CR 701.13 exile; CR 601.2c search/battlefield-entry.) Same
-// search-to-battlefield gap as Erode (sos/white.ts) — `moveZone` only reaches
+// search-to-battlefield gap as Erode (sos/white.cards.ts) — `moveZone` only reaches
 // `battlefield` from a graveyard card, not a library search choice. Stays
-// `resolve()` (Nature's Lore precedent, ice/green.ts).
+// `resolve()` (Nature's Lore precedent, ice/green.cards.ts).
 
 export const pathToExile: CardDefinition = {
     id: "29b7a8b1-b98e-483a-87a4-73bd831c03d4",
@@ -27,7 +27,7 @@ export const pathToExile: CardDefinition = {
         const controllerId = ctx.getController(target);
         // Request the choice BEFORE the irreversible exile so exile only ever
         // executes once, on the final (answered) pass (Cuombajj Witches
-        // precedent, arn/black.ts — resolve() re-runs whole on resume).
+        // precedent, arn/black.cards.ts — resolve() re-runs whole on resume).
         // CR 205.4a — "a basic land card" is the Basic SUPERTYPE, not a basic
         // land SUBTYPE: a dual land (Tundra) is nonbasic and must not be
         // findable here.

@@ -108,7 +108,7 @@ export const subtlety: CardDefinition = {
 // entry's payments — the mechanism Storm uses with a different count
 // (ADR 0052), per-copy retarget and countered-original ruling included.
 //
-// The spell's own effect is Force Spike's shape (leg/blue.ts) with {2}: a
+// The spell's own effect is Force Spike's shape (leg/blue.cards.ts) with {2}: a
 // `mayPay` offered to the targeted spell's controller, then `counter` when it
 // went unpaid (CR 701.6a).
 //

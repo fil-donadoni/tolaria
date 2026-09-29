@@ -8,9 +8,9 @@ import type { CardDefinition } from "../../types";
 // creature would die this turn, exile it instead. • Exile target artifact."
 // (CR 700.2 modal.) Modes target different types (creature vs artifact),
 // chosen before the target — the same cross-mode-target shape as Abrade
-// (hou/red.ts), so this uses the legacy `modes` mechanism too. Mode 1's
+// (hou/red.cards.ts), so this uses the legacy `modes` mechanism too. Mode 1's
 // "exile instead of dying" is the existing `setExileOnDeath` primitive
-// (Disintegrate precedent, lea/red.ts) — no new primitive.
+// (Disintegrate precedent, lea/red.cards.ts) — no new primitive.
 export const suplex: CardDefinition = {
     id: "f61693a2-7042-44e0-85ba-9bf12ab94e7e",
     rarity: "common",

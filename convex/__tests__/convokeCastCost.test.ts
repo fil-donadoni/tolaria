@@ -9,7 +9,7 @@
 //   - Wire format: the convoke picker survives `projectPublicState`, and the
 //     can't-spend-mana castability crosses the projection.
 //
-// Hogaak, Arisen Necropolis ({5}{B/G}{B/G}, mh1/multicolor.ts) is the first card
+// Hogaak, Arisen Necropolis ({5}{B/G}{B/G}, mh1/multicolor.cards.ts) is the first card
 // to ship convoke, guild-hybrid pips, `cantSpendManaToCast`, and the intrinsic
 // `castableFromOwnGraveyard` permission.
 

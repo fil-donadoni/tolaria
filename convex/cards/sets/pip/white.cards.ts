@@ -42,7 +42,7 @@ import {
 // INTERVENING IF ("if its squad cost was paid"), expressed as the shared
 // check-time predicate `additionalCostPaidCondition("squad")` over the
 // permanent's own snapshotted record — the exact gate the Planeshift
-// Battlemage cycle uses (`pls/blue.ts`, issue #2015). With zero payments the
+// Battlemage cycle uses (`pls/blue.cards.ts`, issue #2015). With zero payments the
 // ability never goes on the stack at all, which is what CR 603.4 asks for and
 // what a resolution-time `if` alone could not give (the trigger would still
 // have been announced). The `if` inside `effects[]` is ADR 0079's documented

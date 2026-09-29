@@ -247,7 +247,7 @@ export const wildResearch: CardDefinition = {
 // CR 702.33b: "Kicker A and/or B" is two INDEPENDENT kicker costs, so two
 // `kickers[]` entries with distinct ids, each read by its own resolution-time
 // `if { additionalCostPaid }` (CR 702.33e — the linked clause names only its
-// own kicker). The Planeshift Battlemage shape (`pls/black.ts`), on a spell:
+// own kicker). The Planeshift Battlemage shape (`pls/black.cards.ts`), on a spell:
 // the gate is the resolving stack item's payment record, no permanent needed.
 // X is the base cost's announced X (`manaCost.X: "X"`); neither kicker cost
 // carries an X of its own, so `{ X: true }` is unambiguous in all three

@@ -1,4 +1,4 @@
-// Per-card tests for c14/white.ts. Containment Priest ships the new
+// Per-card tests for c14/white.cards.ts. Containment Priest ships the new
 // "enters-battlefield" `ReplacementEventKind` (issue #1148) — the
 // FRAMEWORK is proven independently in
 // `gre/__tests__/entersBattlefieldReplacement.test.ts` (synthetic

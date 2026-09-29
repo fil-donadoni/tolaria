@@ -238,7 +238,7 @@ export const absorb: CardDefinition = {
 // static half is unconditional (unlike Vibrating Sphere's turn-gated pair) —
 // a plain "creatures you control" `pt-buff` with no `condition`. The
 // activated half pays sacrifice-self as its entire cost (no mana/tap,
-// precedent Bottle of Suleiman `arn/colorless.ts`) and bounces an announced
+// precedent Bottle of Suleiman `arn/colorless.cards.ts`) and bounces an announced
 // creature target to hand via `moveZone`.
 export const angelicShield: CardDefinition = {
     id: "5aaa3e4e-4e08-4df2-9e0c-66e15a10fec4",
@@ -291,9 +291,9 @@ export const galinasKnight: CardDefinition = {
 // Hanna, Ship's Navigator — {1}{W}{U} Legendary Creature — Human Artificer,
 // 1/2. "{1}{W}{U}, {T}: Return target artifact or enchantment card from your
 // graveyard to your hand." (CR 605 activated ability, CR 400.7 zone change.)
-// Same shape as Argivian Archaeologist (`atq/white.ts`) — a graveyard-zone
+// Same shape as Argivian Archaeologist (`atq/white.cards.ts`) — a graveyard-zone
 // target filtered to an OR of two card types (`TargetRequirement.type`
-// array, precedent c19/white.ts's Sevinne's Reclamation) — then a plain
+// array, precedent c19/white.cards.ts's Sevinne's Reclamation) — then a plain
 // `moveZone` to hand.
 export const hannaShipsNavigator: CardDefinition = {
     id: "83a4e48d-6452-4245-bdad-63fe3263550e",
@@ -327,7 +327,7 @@ export const hannaShipsNavigator: CardDefinition = {
 
 // Riptide Crab — {1}{W}{U} Creature — Crab, 1/3. "Vigilance. When this
 // creature dies, draw a card." (CR 702.20b vigilance, CR 700.4/603.2 dies
-// trigger, precedent Haywire Mite `bro/colorless.ts` — a direct DSL
+// trigger, precedent Haywire Mite `bro/colorless.cards.ts` — a direct DSL
 // `triggeredAbilities[]` entry on `CREATURE_DIED` rather than the
 // `resolve()`-only `diedTrigger` factory.)
 export const riptideCrab: CardDefinition = {
@@ -358,8 +358,8 @@ export const riptideCrab: CardDefinition = {
 // Prevent the next 1 damage that would be dealt to any target this turn.
 // {T}: This creature deals 1 damage to any target." (CR 615.1 prevention
 // shield, CR 120.1 damage.) Two independent tap-only activated abilities —
-// exact precedent pair Samite Healer (`lea/white.ts`) + Prodigal Sorcerer
-// (`lea/blue.ts`), fused onto one creature.
+// exact precedent pair Samite Healer (`lea/white.cards.ts`) + Prodigal Sorcerer
+// (`lea/blue.cards.ts`), fused onto one creature.
 export const samiteArcher: CardDefinition = {
     id: "07a262d7-6d0c-43d0-89b6-9f46a1a9eb69",
     rarity: "uncommon",
@@ -402,7 +402,7 @@ export const samiteArcher: CardDefinition = {
 
 // The five colours a "choose a color" enchantment picker offers, shared by
 // Teferi's Moat (mirrors the local HARSH_JUDGMENT_COLORS array in
-// `inv/white.ts` — kept local rather than exported since only one gold card
+// `inv/white.cards.ts` — kept local rather than exported since only one gold card
 // needs it this tranche).
 const TEFERIS_MOAT_COLORS = ["W", "U", "B", "R", "G"] as const;
 
@@ -410,7 +410,7 @@ const TEFERIS_MOAT_COLORS = ["W", "U", "B", "R", "G"] as const;
 // a color. Creatures of the chosen color without flying can't attack you."
 // (CR 603.6b ETB colour choice via `modes` — precedent Harsh Judgment,
 // `inv/white.ts`, `chosenModeId` read by a later predicate; CR 508.1c
-// battlefield-scanned attack restriction — precedent Moat, `leg/white.ts`,
+// battlefield-scanned attack restriction — precedent Moat, `leg/white.cards.ts`,
 // `global-attack-restriction`.) DIRECTED at "you" (this enchantment's
 // controller): the `forbids` predicate first excludes attackers already
 // controlled by Teferi's Moat's own controller (a player's creatures never
@@ -463,7 +463,7 @@ export const teferisMoat: CardDefinition = {
 
 // Wings of Hope — {W}{U} Enchantment — Aura. "Enchant creature. Enchanted
 // creature gets +1/+3 and has flying." (CR 611 layer 7c static P/T + layer 6
-// keyword-grant.) Exact shape precedent Wings of Aesthir (`ice/multicolor.ts`,
+// keyword-grant.) Exact shape precedent Wings of Aesthir (`ice/multicolor.cards.ts`,
 // also {W}{U}) — one `pt-buff` + one `keyword-grant`, both scoped to the aura
 // host via the shared `AURA_AFFECTS_HOST` predicate.
 export const wingsOfHope: CardDefinition = {
@@ -494,12 +494,12 @@ export const wingsOfHope: CardDefinition = {
 // Target creature you control gains protection from the color of your
 // choice until end of turn. {1}{U}{U}: This creature gains shroud until end
 // of turn." Unblocked by PR #2040 (issue #959): same root cause as
-// Glimmering Angel (`inv/white.ts`) — `shroud` is `status: "implemented"` in
+// Glimmering Angel (`inv/white.cards.ts`) — `shroud` is `status: "implemented"` in
 // the Mechanics Registry and `gre/permanentGuard.ts`'s `isGuardedAgainst`
 // bridges a dynamically-granted "shroud" string live. First ability is a
 // straight `protectionColorModes` reuse (precedent Mother of Runes,
-// ulg/white.ts); second is a `grantAbility` DSL body over `$source`
-// (precedent Homarid Warrior, fem/blue.ts).
+// ulg/white.cards.ts); second is a `grantAbility` DSL body over `$source`
+// (precedent Homarid Warrior, fem/blue.cards.ts).
 export const armoredGuardian: CardDefinition = {
     id: "6de5e1bd-1d31-4f9f-b18d-d6f49bc7ef10",
     name: "Armored Guardian",
@@ -554,7 +554,7 @@ export const armoredGuardian: CardDefinition = {
 // feather counters on it. Other Bird creatures get +1/+1 for each feather
 // counter on Kangee." tracked-by: #4507 — the "Kicker {X}{2}" and the kicked
 // ETB's X are expressible since issue #2141 (Verdeloth the Ancient,
-// `inv/green.ts`); what remains is the anthem, a layer 7c buff whose amount
+// `inv/green.cards.ts`); what remains is the anthem, a layer 7c buff whose amount
 // scales with the counters on its source.
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -610,7 +610,7 @@ export const revivingVapors: CardDefinition = {
 // Then that player discards a card." (CR 400.7 zone change, CR 701.9
 // discard.) `moveZone`'s `bind` snapshots the bounced permanent's OWNER
 // before it leaves the battlefield (the same LKI snapshot Swords to
-// Plowshares reads its target's power/controller from, `lea/white.ts`, now
+// Plowshares reads its target's power/controller from, `lea/white.cards.ts`, now
 // also carrying an owner slot — issue #1106); the trailing
 // `choice`(`choose-hand-card`) + `discard` pair reads that snapshot's
 // `.owner` as "that player" — the shipped choose-then-discard shape (issue
@@ -811,8 +811,8 @@ export const spinalEmbrace: CardDefinition = {
 // raised out of the resolution, and after it the life loss is silently
 // skipped. Reading first is the shipped idiom for every spell-slot
 // `controllerOf` in the catalogue — the counter-unless-pay punishers all put
-// the controller read ahead of the counter (Force Spike `leg/blue.ts`, Mana
-// Leak `sth/blue.ts`, the shared `abilities/ward.ts` factory).
+// the controller read ahead of the counter (Force Spike `leg/blue.cards.ts`, Mana
+// Leak `sth/blue.cards.ts`, the shared `abilities/ward.ts` factory).
 //
 // The swap is observationally identical to the printed order: SBAs "pay no
 // attention to what happens during the resolution of a spell or ability"
@@ -843,8 +843,8 @@ export const undermine: CardDefinition = {
 
 // Urborg Drake — {1}{U}{B} Creature — Drake, 2/3. "Flying. This creature
 // attacks each combat if able." (CR 702.9b flying; CR 508.1d attack
-// requirement via `staticEffects[]`, precedent Juggernaut `lea/colorless.ts`
-// / Sengir Autocrat's counterpart `lea/black.ts`.)
+// requirement via `staticEffects[]`, precedent Juggernaut `lea/colorless.cards.ts`
+// / Sengir Autocrat's counterpart `lea/black.cards.ts`.)
 export const urborgDrake: CardDefinition = {
     id: "97d1327e-bf87-423f-8a04-8124e45b9ae0",
     rarity: "uncommon",
@@ -869,7 +869,7 @@ export const urborgDrake: CardDefinition = {
 // beginning of your upkeep, sacrifice this creature unless you pay 1
 // life.'" (CR 113.1/611 `triggered-grant` static effect granting a templated
 // upkeep trigger to EVERY creature — either player's — exact precedent The
-// Tabernacle at Pendrell Vale (`leg/colorless.ts`), generalized from a mana
+// Tabernacle at Pendrell Vale (`leg/colorless.cards.ts`), generalized from a mana
 // cost to a life cost.) UNLIKE Tabernacle's shared
 // `payOrSacrificeUpkeepTrigger` factory (which is `resolve()`-only and takes
 // a `ManaCost`, not a life payment), the granted template here is written as
@@ -1000,7 +1000,7 @@ export const barrinsSpite: CardDefinition = {
 // lobotomy — INV reprint of the Tempest definition (CardPrint).
 // The card was first implemented here, against this printing; its home set is
 // its earliest paper printing (ADR 0041), so the mechanics live in
-// `tmp/multicolor.ts`.
+// `tmp/multicolor.cards.ts`.
 export const lobotomyInv: CardPrint = {
     printId: "ff307dbb-4ab6-457b-be56-47106864bf61", // INV 258
     definitionId: "ee7ba92d-d327-4b1c-be40-708c5abb27df", // lobotomy (Tempest)
@@ -1382,9 +1382,9 @@ export const viciousKavu: CardDefinition = {
 // shield suppression.)
 //
 // Closed by issue #1328 (capability slice, decomposed from #1086): same
-// `CardInstanceState.wasKicked` fix as Benalish Emissary (`inv/white.ts`) —
+// `CardInstanceState.wasKicked` fix as Benalish Emissary (`inv/white.cards.ts`) —
 // see that card's comment for the full precedent chain. Uses the same
-// Waterspout Elemental (`pls/blue.ts`) template: `conditionOnSelf:
+// Waterspout Elemental (`pls/blue.cards.ts`) template: `conditionOnSelf:
 // additionalCostPaidCondition("kicker")` at check time, `if { additionalCostPaid: "kicker" }`
 // inside `effects[]` at resolution time — no `interveningIf`. The
 // resolution-time branch reads the RESOLVING STACK ITEM's own
@@ -1394,7 +1394,7 @@ export const viciousKavu: CardDefinition = {
 // `additionalCostPaidCondition` in `cards/abilities/triggers/shared.ts`).
 //
 // `excludeColors: "B"` on the target requirement expresses "nonblack" (Dark
-// Banishing precedent, `ice/black.ts`; Annihilate, `inv/black.ts` — same
+// Banishing precedent, `ice/black.cards.ts`; Annihilate, `inv/black.cards.ts` — same
 // file, BR-adjacent). `destroy`'s `cantBeRegenerated: true` is the direct
 // Op passthrough for "It can't be regenerated." (ADR 0053).
 export const shivanEmissary: CardDefinition = {
@@ -1480,10 +1480,10 @@ export const shivanEmissary: CardDefinition = {
 // the just-entered permanent could not be captured for its haste grant +
 // delayed sacrifice. #1151 added exactly that (`gre/effects/validate.ts`
 // gates `bind` on `to: "battlefield"` only — `from` is unconstrained), and
-// **Surprise Deployment** (`pls/white.ts`) ships the identical hand-side
+// **Surprise Deployment** (`pls/white.cards.ts`) ships the identical hand-side
 // clause line for line: `choice(kind: "choose-hand-card", bind)` →
 // `moveZone(cards, from: "hand", to: "battlefield", bind)` →
-// `delayedTrigger(capture)`. Sneak Attack (`usg/red.ts`) is the same shape
+// `delayedTrigger(capture)`. Sneak Attack (`usg/red.cards.ts`) is the same shape
 // with the sacrifice flavour of the delayed trigger. The graveyard half was
 // always free (Spinal Embrace, this file). Assembly, not design.
 
@@ -1500,7 +1500,7 @@ export const shivanEmissary: CardDefinition = {
 // value member has exactly this fallback (Powder Keg, issue #997) and is the
 // shape to copy. The snapshot itself already exists
 // (`ctx.getAdditionalSacrificePower()`), with one consumer: Freyalise
-// Supplicant `ice/green.ts`, `resolve()`-only for want of a DSL skin.
+// Supplicant `ice/green.cards.ts`, `resolve()`-only for want of a DSL skin.
 // "Never ship silent partials" means the whole card waits.
 
 // Pyre Zombie — {1}{B}{R} Creature — Zombie, 2/1 (INV 261). Both halves are
@@ -1518,9 +1518,9 @@ export const shivanEmissary: CardDefinition = {
 //     opponent exiling the card off the graveyard in response would still get
 //     the {1}{B}{B} charged for a no-op self-return. `mayPay` with a bare
 //     `ManaCost` gates the `moveZone({ ref: "$source" }, to: "hand")` on the
-//     "if you do" clause — Master of Death's shape (`mh2/multicolor.ts`), which
+//     "if you do" clause — Master of Death's shape (`mh2/multicolor.cards.ts`), which
 //     differs only in the cost (1 life) and now shares this predicate.
-//   * Sacrifice-for-damage — Mogg Fanatic's shape (`tmp/red.ts`): the mana leg
+//   * Sacrifice-for-damage — Mogg Fanatic's shape (`tmp/red.cards.ts`): the mana leg
 //     plus `sacrifice: true` as the activation cost (CR 602.1), then a single
 //     `dealDamage` to the announced any-target (CR 120.1). The amount is a
 //     FIXED 2 — it never reads the sacrificed creature's own power, so this
@@ -1671,7 +1671,7 @@ export const tsaboTavoc: CardDefinition = {
 // cross-colour activated-ability cost (the Hooded Kavu/Bloodstone
 // Cameo/Urborg Volcano shape already established by the BR tranche,
 // issue #1077). Serpentine Kavu is ALREADY shipped by the mono green free
-// tranche (issue #1073, `inv/green.ts`), and so is Verduran Emissary
+// tranche (issue #1073, `inv/green.cards.ts`), and so is Verduran Emissary
 // (issue #1328) — neither is re-declared here (never duplicate a
 // `CardDefinition`).
 
@@ -1717,7 +1717,7 @@ export const artifactMutation: CardDefinition = {
 // Fires of Yavimaya — {1}{R}{G} Enchantment. "Creatures you control have
 // haste. Sacrifice this enchantment: Target creature gets +2/+2 until end
 // of turn." (CR 611/613 layer 6 controller-scoped keyword-grant — the exact
-// Goblin War Drums `keyword-grant` shape, `fem/red.ts`, keyword swapped to
+// Goblin War Drums `keyword-grant` shape, `fem/red.cards.ts`, keyword swapped to
 // haste — then the Angelic Shield sacrifice-for-effect shape, this file's
 // WU tranche, target creature `pump` instead of `moveZone`.)
 export const firesOfYavimaya: CardDefinition = {
@@ -1762,7 +1762,7 @@ export const firesOfYavimaya: CardDefinition = {
 // library for a basic land card, put that card onto the battlefield
 // tapped, then shuffle." (CR 701.8 destroy, CR 401.4 search / 701.24
 // shuffle — the Quirion Trailblazer / Harrow search-put-tapped-shuffle
-// idiom, `inv/green.ts`, composed after a plain land `destroy`.)
+// idiom, `inv/green.cards.ts`, composed after a plain land `destroy`.)
 export const frenziedTilling: CardDefinition = {
     id: "15875876-3341-40fb-866f-5587c3638538",
     rarity: "uncommon",
@@ -1853,7 +1853,7 @@ export const ragingKavu: CardDefinition = {
 // simoon — INV reprint of the Visions definition (CardPrint).
 // The card was first implemented here, against this printing; its home set is
 // its earliest paper printing (ADR 0041), so the mechanics live in
-// `vis/multicolor.ts`.
+// `vis/multicolor.cards.ts`.
 export const simoonInv: CardPrint = {
     printId: "84b1930d-2e4b-472f-98a9-008fd632f3be", // INV 279
     definitionId: "642d9239-82e0-4696-ad99-10796042d1f8", // simoon (Visions)
@@ -1924,8 +1924,8 @@ export const yavimayaBarbarian: CardDefinition = {
 // equal to the number of red creatures on the battlefield. Yavimaya Kavu's
 // toughness is equal to the number of green creatures on the battlefield."
 // (CR 604.3 characteristic-defining ability, layer 7b — the Keldon Warlord
-// / Drift of the Dead `pt-cda` `compute` closure shape, `lea/red.ts` /
-// `ice/black.ts`, generalized from a CONTROLLER-scoped count to a GLOBAL
+// / Drift of the Dead `pt-cda` `compute` closure shape, `lea/red.cards.ts` /
+// `ice/black.cards.ts`, generalized from a CONTROLLER-scoped count to a GLOBAL
 // battlefield-wide one — the oracle text reads "on the battlefield", not
 // "you control" — by dropping the `controllerId` equality check.)
 export const yavimayaKavu: CardDefinition = {
@@ -1965,7 +1965,7 @@ export const yavimayaKavu: CardDefinition = {
 // cast cost — the Hooded Kavu / Bloodstone Cameo shape, this file's BR
 // tranche, ships alongside the true-gold cards per issue #1078. CR 602.1
 // activated ability — the Stoneforge Mystic hand-source `choice` +
-// `moveZone` shape, `wwk/white.ts`: `count: { min: 0, max: 1 }` makes it
+// `moveZone` shape, `wwk/white.cards.ts`: `count: { min: 0, max: 1 }` makes it
 // "you may".)
 export const firebrandRanger: CardDefinition = {
     id: "ee05211e-cf08-4dea-9740-ed06f8682153",
@@ -2257,11 +2257,11 @@ export const aetherRift: CardDefinition = {
 //     and `tappedTrigger({ scope: "any", filter: { types: "Land" },
 //     forMana: true })` is the shipped way to key off it.
 //   - "the mana doubling has no engine precedent (Extraplanar Lens-style
-//     doublers unimplemented catalogue-wide)" (tracked-by: #2785) — Mana Flare (`lea/red.ts`)
+//     doublers unimplemented catalogue-wide)" (tracked-by: #2785) — Mana Flare (`lea/red.cards.ts`)
 //     is SHIPPED and its Oracle text is this card's first clause verbatim;
-//     Gauntlet of Might (`lea/colorless.ts`) ships the same shape.
+//     Gauntlet of Might (`lea/colorless.cards.ts`) ships the same shape.
 //
-// Overabundance is Mana Flare ∪ Manabarbs (both `lea/red.ts`) in ONE
+// Overabundance is Mana Flare ∪ Manabarbs (both `lea/red.cards.ts`) in ONE
 // ability, which per CR 605.1b/605.4a is a triggered MANA ability —
 // `manaAbility: true`, resolves off-stack, no window to respond to the
 // damage (ruling 2004-10-04). Note Manabarbs correctly OMITS that flag: it
@@ -2287,12 +2287,12 @@ export const aetherRift: CardDefinition = {
 // scoped to the aura host via `AURA_AFFECTS_HOST`.)
 //
 // resolve() justification (ADR 0045 DSL-first, precedent-twin): the
-// lifegain-on-damage clause is the EXACT Spirit Link shape (`leg/white.ts`)
+// lifegain-on-damage clause is the EXACT Spirit Link shape (`leg/white.cards.ts`)
 // — a `damageDealtTrigger` factory call, `source: "any"` narrowed by a
 // `condition` checking `event.sourceInstanceId === self.attachedTo` (CR
 // 303.4b, the damage source must be the aura's host), `resolve: (ctx,
 // event) => ctx.gainLife(ctx.controller, event.amount)`. NOT DSL-migratable
-// (documented catalogue-wide, e.g. `arn/black.ts` El-Hajjâj, `tmp/red.ts`):
+// (documented catalogue-wide, e.g. `arn/black.cards.ts` El-Hajjâj, `tmp/red.cards.ts`):
 // the gained amount is `event.amount`, a runtime value with no
 // `EffectValue` grammar member (literal / ref / count / X / domain only)
 // and no trigger-event `amount` row in `EVENT_FIELD_REGISTRY` — a real,
@@ -2415,7 +2415,7 @@ export const auraShards: CardDefinition = {
 // your hand, then shuffle." (CR 605 activated ability, CR 701.23 search
 // filtered by `supertype: "Legendary"`, CR 701.20 reveal, CR 400.7
 // shuffle — the Stoneforge Mystic `choice(search-library)` + `reveal` +
-// `moveZone` + `libraryLook` shape, `wwk/white.ts`, no "may"/no count
+// `moveZone` + `libraryLook` shape, `wwk/white.cards.ts`, no "may"/no count
 // range since the printed text has neither.)
 export const captainSisay: CardDefinition = {
     id: "d24d441c-f37f-44fe-8a93-f5c89df807e4",
@@ -2472,8 +2472,8 @@ export const captainSisay: CardDefinition = {
 // Charging Troll — {2}{G}{W} Creature — Troll, 3/3. "Vigilance\n{G}:
 // Regenerate this creature." (CR 702.20b vigilance; CR 701.19a
 // regeneration via the shipped `regenerate` Op self-targeted through
-// `$source` — the Clay Statue/Ghost Ship shape, `atq/colorless.ts` /
-// `drk/blue.ts`.)
+// `$source` — the Clay Statue/Ghost Ship shape, `atq/colorless.cards.ts` /
+// `drk/blue.cards.ts`.)
 export const chargingTroll: CardDefinition = {
     id: "58956099-6b97-4c7b-ab23-9f9b4d50ef95",
     rarity: "uncommon",
@@ -2503,7 +2503,7 @@ export const chargingTroll: CardDefinition = {
 // controls this enchantment.
 //
 // One `combat-declaration-cap` static effect per Oracle line — the same kind
-// Caverns of Despair (`leg/red.ts`) declares at two. It is scanned from ANY
+// Caverns of Despair (`leg/red.cards.ts`) declares at two. It is scanned from ANY
 // battlefield source (this is a free-standing enchantment, not an Aura, so the
 // `declared-attack-restriction` collectors — which only read the attacking
 // creature's own definition and its attached Auras, CR 303.4 — could never see
@@ -2556,7 +2556,7 @@ export const heroesReunion: CardDefinition = {
 //
 // resolve() justification (ADR 0045 DSL-first, precedent-twin): identical
 // to Armadillo Cloak's lifegain clause (this file, GW tranche) minus the
-// Aura indirection — the EXACT El-Hajjâj shape (`arn/black.ts`):
+// Aura indirection — the EXACT El-Hajjâj shape (`arn/black.cards.ts`):
 // `damageDealtTrigger({ source: "self", resolve: (ctx, event) =>
 // ctx.gainLife(ctx.controller, event.amount) })`. Same documented gap
 // (`event.amount` has no `EffectValue` grammar member / `$event` field row)
@@ -2632,7 +2632,7 @@ export const sabertoothNishoba: CardDefinition = {
 // `permanent-guard` (CR 702.18 shroud — `cantBeTargeted`), mirroring the
 // shroud dominant-enforcement pattern (mechanicsRegistry.ts's "shroud" row)
 // but scoped to OTHER permanents instead of self, precedent Elvish
-// Champion's own-type lord anthem (`inv/green.ts`).
+// Champion's own-type lord anthem (`inv/green.cards.ts`).
 const STERLING_GROVE_AFFECTS_OTHER_ENCHANTMENTS: StaticKeywordGrant["applies"] =
     (target, source) =>
         target.id !== source.id &&
@@ -2666,7 +2666,7 @@ const STERLING_GROVE_AFFECTS_OTHER_ENCHANTMENTS: StaticKeywordGrant["applies"] =
 // to its owner's hand" modes Dromar's triggered ability offers (CR 700.2
 // modal colour pick via `optionChoice`). The body is the SAME
 // `forEach(permanents) + moveZone(to: "hand")` combination Upheaval
-// (`ody/blue.ts`) already exercises and earned its own interpreter test for
+// (`ody/blue.cards.ts`) already exercises and earned its own interpreter test for
 // ("the FIRST card to pair forEach's $each with moveZone's target-shape"),
 // just scoped to ONE color via `filter` (an already-supported `forEach`
 // field, Voracious Cobra/Yavimaya Kavu this same set already filter
@@ -3142,7 +3142,7 @@ export const darigaaz: CardDefinition = {
 // The five Attendants — {5} Artifact Creature — Golem, 3/3. "{1}, Sacrifice
 // this creature: Add <the paired dragon's three colours>." (CR 605.1a mana
 // ability with a {1} + self-sacrifice cost — the exact Coal Golem shape,
-// `drk/colorless.ts`, generalized from one fixed colour to three.)
+// `drk/colorless.cards.ts`, generalized from one fixed colour to three.)
 export const crosisAttendant: CardDefinition = {
     id: "45edc18c-2046-4d0e-92fe-a6cf4aaf1c6f",
     rarity: "uncommon",
@@ -3263,7 +3263,7 @@ export const trevaAttendant: CardDefinition = {
 // paired dragon>." (CR 110.5b enters tapped; CR 605.1a two chained mana
 // abilities — the first the plain Urborg Volcano/Shivan Oasis shape (this
 // file) minus the choice, the second the Coal Golem sacrifice-for-mana
-// shape, `drk/colorless.ts`, with a {T} rider added alongside the
+// shape, `drk/colorless.cards.ts`, with a {T} rider added alongside the
 // sacrifice, generalized from one fixed colour to two.)
 export const ancientSpring: CardDefinition = {
     id: "004eefa4-947b-45fc-b45c-5263bfd763bc",

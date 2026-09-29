@@ -68,7 +68,7 @@ export const moxDiamond: CardDefinition = {
 // a one-card-a-turn engine into a card you never see again. The interpreter
 // follows the move with `putLibraryCardsOnTop`, the single primitive that
 // addresses the top of a library — the same two steps Doomsday
-// (`wth/black.ts`) performs imperatively, here as one declarative Op.
+// (`wth/black.cards.ts`) performs imperatively, here as one declarative Op.
 //
 // compiler-gap: {1}{B}, {T}: Put target creature card from your graveyard on top of your library. (#2693)
 export const volrathsStronghold: CardDefinition = {

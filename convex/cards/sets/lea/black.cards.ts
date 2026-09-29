@@ -344,7 +344,7 @@ export const demonicTutor: CardDefinition = {
     // shape (`cards` from a `choice` pick, `from: "library"`) now covers a
     // library-sourced move of a choice-picked card — the exact gap the
     // earlier NOT-DSL-migratable note on this card cited. Same shape as
-    // Entomb (ody/black.ts), `to: "hand"` instead of `to: "graveyard"`.
+    // Entomb (ody/black.cards.ts), `to: "hand"` instead of `to: "graveyard"`.
     effects: [
         {
             op: "choice",
@@ -378,12 +378,12 @@ export const demonicTutor: CardDefinition = {
 // to the damage dealt, BUT NOT MORE THAN the player's life total / the
 // planeswalker's loyalty / the creature's toughness before the damage" — needs
 // a damage-DEALT readback no Op surfaces; life gained is exactly X today.
-// Shared with Soul Burn (`ice/black.ts`), which models its own {B}-spent cap
+// Shared with Soul Burn (`ice/black.cards.ts`), which models its own {B}-spent cap
 // but drops these same three.
 //
 // Mana cost is {X}{1}{B} (MTGJSON LEA.json, mana value 2) — the fixed {1}
 // generic pip alongside the variable {X} uses `generic` (Soul Burn's
-// `{X}{2}{B}` shape, ice/black.ts), found missing by the widened
+// `{X}{2}{B}` shape, ice/black.cards.ts), found missing by the widened
 // data/json conformance guard (issue tracking PR #2047's guard gap).
 export const drainLife: CardDefinition = {
     id: "5d077a49-73d4-4958-b42a-31b814e110e8",
@@ -1775,7 +1775,7 @@ export const terror: CardDefinition = {
     // earlier marker's blocker (a "can't be regenerated" option on `destroy`)
     // has shipped — `cantBeRegenerated` (ADR 0053) is a direct passthrough of
     // `SpellContext.destroy`'s existing option, same shape as Tunnel
-    // (lea/red.ts).
+    // (lea/red.cards.ts).
     effects: [
         { op: "destroy", target: { target: 0 }, cantBeRegenerated: true },
     ],

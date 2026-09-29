@@ -2,7 +2,7 @@
 //
 // Mind Rot's home set is Portal, its earliest paper printing (ADR 0041); the
 // M11 reprint it was first implemented against now rides along as a `CardPrint`
-// in `m11/black.ts`.
+// in `m11/black.cards.ts`.
 
 import { describe, it, expect } from "vitest";
 import {

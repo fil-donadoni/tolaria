@@ -1544,7 +1544,7 @@ describe("moveCardById grants knowledge on a public→hidden move (issue #1721)"
     // (`exileFaceDownCard`, CR 406.3) carries a `knownTo` scoped to its one
     // knower alone; the gate must NOT overwrite that with "known to
     // everyone" when the card returns to a hidden zone (Memory Jar,
-    // ulg/colorless.ts, exercises exactly this — see the card-level
+    // ulg/colorless.cards.ts, exercises exactly this — see the card-level
     // regression test in ulg/__tests__/colorless.test.ts). `knownTo: ["p1"]`
     // here models the marker `exileFaceDownCard` leaves; `projectExileCard`
     // reads the very same non-empty-`knownTo`-on-exile signal on the wire.

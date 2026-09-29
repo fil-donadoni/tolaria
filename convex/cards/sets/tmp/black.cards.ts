@@ -69,8 +69,8 @@ export const reanimate: CardDefinition = {
 // card only when it happens to be a creature. Never a player choice:
 // substituting one diverges from the modern oracle text (ADR 0004).
 //
-// The remainder is exactly Shallow Grave's script (`mir/black.ts`) — the
-// Sneak Attack idiom (`usg/red.ts`, issue #1151) with the sacrifice swapped
+// The remainder is exactly Shallow Grave's script (`mir/black.cards.ts`) — the
+// Sneak Attack idiom (`usg/red.cards.ts`, issue #1151) with the sacrifice swapped
 // for an exile — since the two cards' non-buyback text is word-for-word
 // identical in modern oracle.
 export const corpseDance: CardDefinition = {
@@ -113,12 +113,12 @@ export const corpseDance: CardDefinition = {
 // Reckless Spite — {1}{B}{B} Instant. "Destroy two target nonblack
 // creatures. You lose 5 life." (CR 701.8 destroy, CR 601.2c "two target" —
 // exact count, not "up to two".) Two announced targets addressed by
-// position (Force of Vigor precedent, mh1/green.ts).
+// position (Force of Vigor precedent, mh1/green.cards.ts).
 //
 // Home set = earliest paper printing (ADR 0041) = Tempest; it was first
 // implemented against the INV reprint, which filed it under the
 // wrong home set and rendered the wrong art. That printing now rides along
-// as a `CardPrint` in `inv/black.ts`.
+// as a `CardPrint` in `inv/black.cards.ts`.
 export const recklessSpite: CardDefinition = {
     id: "9141daea-1f4f-4227-b7d7-20753e3cb4d4", // TMP 152
     rarity: "uncommon",
@@ -141,7 +141,7 @@ export const recklessSpite: CardDefinition = {
 // turned another colour is not — `matchesCardFilter`'s `color` leg reads the
 // effective colours, not the printed ones. "They can't be regenerated"
 // (CR 701.19c) is the `destroy` Op's own `cantBeRegenerated` flag, the same
-// shape Shatterstorm (`atq/red.ts`) uses; the shield is denied at destruction
+// shape Shatterstorm (`atq/red.cards.ts`) uses; the shield is denied at destruction
 // time rather than pre-emptively stripped.
 //
 // compiler-gap: Destroy all green creatures. They can't be regenerated. (#2693)

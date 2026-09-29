@@ -41,7 +41,7 @@ import { JACE_TELEPATH_UNBOUND_EMBLEM_ID } from "../../emblems";
 //     `pump` with `{ phase: "untap", player: "controller" }`, the engine's
 //     encoding of "until your next turn" (CR 502.1 — the effect ends as the
 //     controller's next untap step begins; precedent: Orcish Farmer's
-//     land-type change, ice/red.ts).
+//     land-type change, ice/red.cards.ts).
 //   • −3 — "You may cast target instant or sorcery card from your graveyard
 //     this turn. If that spell would be put into your graveyard, exile it
 //     instead." `grantCastFromGraveyard` with the impulse `this-turn` window

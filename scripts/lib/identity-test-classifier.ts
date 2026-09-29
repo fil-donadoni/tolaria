@@ -289,7 +289,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** A module path that exports card definitions directly. */
 const CARD_MODULE =
-    /(^|\/)(sets\/[^/]+\/)?(white|blue|black|red|green|colorless|multicolor|lands)$|\/cards\/sets\//;
+    /(^|\/)(sets\/[^/]+\/)?(white|blue|black|red|green|colorless|multicolor|lands)(\.cards)?$|\/cards\/sets\//;
 
 /** What the caller knows about one catalogue card. */
 export interface CardFact {

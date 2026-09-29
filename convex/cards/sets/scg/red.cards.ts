@@ -78,7 +78,7 @@ export const sulfuricVortex: CardDefinition = {
 // target".) The sacrifice leg is `cost.sacrificeFilter` — a filtered
 // permanent the controller picks through the unified sacrifice-choice layer,
 // NOT `sacrifice: true` (which would sacrifice the Commander itself); the
-// same shape Deadapult (`pls/red.ts`) uses for "Sacrifice a Zombie". The
+// same shape Deadapult (`pls/red.cards.ts`) uses for "Sacrifice a Zombie". The
 // Commander is itself a Goblin, so it is a legal sacrifice for its own
 // ability (CR 701.21a — the cost names a characteristic, not "another").
 export const siegeGangCommander: CardDefinition = {

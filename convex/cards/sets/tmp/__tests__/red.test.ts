@@ -1,4 +1,4 @@
-// Per-card test for tmp/red.ts — Mogg Fanatic. Same sacrifice-for-effect
+// Per-card test for tmp/red.cards.ts — Mogg Fanatic. Same sacrifice-for-effect
 // shape as nem Seal of Fire, but on a creature: the self-sacrifice cost
 // (`cost.sacrifice: true`) is NOT a tap ability, so summoning sickness never
 // gates it (CR 302.6 / 602.5b) — a Mogg Fanatic can ping the turn it enters.

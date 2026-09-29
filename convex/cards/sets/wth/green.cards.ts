@@ -67,7 +67,7 @@ export const gaeasBlessing: CardDefinition = {
                 event.type === "CARD_MILLED" &&
                 event.cardInstanceId === self.id,
             // CR 701.24 — shuffle the OWNER's graveyard into their library:
-            // Feldon's Cane's composition (atq/colorless.ts), aimed at the
+            // Feldon's Cane's composition (atq/colorless.cards.ts), aimed at the
             // milled card's owner read off the firing event.
             effects: [
                 {

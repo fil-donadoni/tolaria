@@ -14,7 +14,7 @@ import { untapRestriction } from "../../abilities/static/untapRestriction";
 // Flashback—Sacrifice a Mountain." (CR 702.34, issue #1005, part of the
 // Premodern mono-red Burn deck sideboard, PRD #979). The main cast is a plain
 // DSL `dealDamage` to the announced "any target" (CR 115.4 — creature /
-// planeswalker / battle / player), same shape as Firebolt (ody/red.ts). The
+// planeswalker / battle / player), same shape as Firebolt (ody/red.cards.ts). The
 // flashback cast pays NO mana — only the non-mana `FlashbackCost.sacrifice`
 // additional cost (CR 702.34a / 118.5): "a Mountain" is a land permanent with
 // the Mountain subtype. WHICH Mountain is sacrificed is the caster's explicit
@@ -107,11 +107,11 @@ export const goblinPiledriver: CardDefinition = {
 //      `forEach` over every Goblin creature on the battlefield — the Oracle
 //      line names no controller, so the pump reaches the opponent's Goblins
 //      too — each one taking the same `pump`, the History of Benalia
-//      (`dom/white.ts`) shape with the subtype swapped.
+//      (`dom/white.cards.ts`) shape with the subtype swapped.
 //   2. "At the beginning of the end step, destroy all Goblins." (CR 603.6a
 //      phase trigger on EVERY end step, not just its controller's — hence
 //      `scope: "each"` — and CR 701.8's destroy over the same `forEach`
-//      sweep Tivadar's Crusade (`drk/white.ts`) uses. Regeneration is NOT
+//      sweep Tivadar's Crusade (`drk/white.cards.ts`) uses. Regeneration is NOT
 //      denied: the printed line has no "can't be regenerated" clause, so no
 //      `cantBeRegenerated` flag. The Pyromancer is itself a Goblin and dies
 //      to its own trigger.)

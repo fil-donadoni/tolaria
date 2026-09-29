@@ -12,7 +12,7 @@
 // regression proof for the shared machinery; what this file proves is the
 // Replicate count provider and the not-a-kick split, through the REAL commit
 // path (`finalizeTargetSelection`, `convex/game.ts`) and the real resolution
-// machinery, with Lose Focus (`mh2/blue.ts`) as the card.
+// machinery, with Lose Focus (`mh2/blue.cards.ts`) as the card.
 import { describe, it, expect } from "vitest";
 import { finalizeTargetSelection } from "../../game";
 import {

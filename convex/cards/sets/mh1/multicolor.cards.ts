@@ -65,8 +65,8 @@ export const hogaakArisenNecropolis: CardDefinition = {
 // exile off the DAMAGED player's library, grant the ATTACKER the play
 // permission — which has no Op skin (`grantCastFromExile`'s Op form consumes a
 // preceding `choice(zone: "exile")` pick, and no choice happens here). Ragavan,
-// Nimble Pilferer (`mh2/red.ts`) is the shipped precedent for exactly this
-// shape, itself following Robber of the Rich (`eld/red.ts`); this trigger is
+// Nimble Pilferer (`mh2/red.cards.ts`) is the shipped precedent for exactly this
+// shape, itself following Robber of the Rich (`eld/red.cards.ts`); this trigger is
 // that composition with N=2 and the two riders the Oracle text adds.
 // `aiEffects` below is the shadow script the bot's value model walks, since a
 // bare closure gives `cardValueById`/`latentValue` nothing to read.

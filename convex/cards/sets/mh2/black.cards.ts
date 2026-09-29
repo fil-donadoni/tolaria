@@ -107,7 +107,7 @@ export const archonOfCruelty: CardDefinition = {
 // silently ignored protection from everything and shroud (CR 702.16b /
 // 702.18 via CR 115.4, issue #2801). The ETB
 // effect is the canonical Thoughtseize/Duress template (`reveal` + `choice
-// (choose-hand-card)` with `zoneOwnerId` — lrw/black.ts): reveal the
+// (choose-hand-card)` with `zoneOwnerId` — lrw/black.cards.ts): reveal the
 // opponent's hand, the CONTROLLER picks a nonland card from it, that card is
 // discarded. DSL-first (ADR 0045) — every Op here is already exercised by
 // Thoughtseize, so no hand-written GRE/wire test is required (per-Op regime).
@@ -173,7 +173,7 @@ export const grief: CardDefinition = {
  *  intentions to pay any or all of those costs". Both legs are paid ALONGSIDE
  *  the mana cost (CR 601.2f), never instead of it, and the caster names which
  *  one at ANNOUNCEMENT — before targets and before anything is paid. That is
- *  `additionalCosts.oneOf`, the shape Bitter Triumph (`lci/black.ts`) shipped:
+ *  `additionalCosts.oneOf`, the shape Bitter Triumph (`lci/black.cards.ts`) shipped:
  *  the engine flattens the named leg onto the spec (`resolveAdditionalCosts`,
  *  `convex/gre/additionalCost.ts`) and the ordinary cost machinery pays it —
  *  the sacrifice through the cast's permanent picker (CR 701.21), the discard
@@ -296,7 +296,7 @@ export const damn: CardDefinition = {
 //    commit sites / `applyPlayLandFromExile`) was SAME-PLAYER-ONLY before
 //    this card — Dauthi's grant is the first CROSS-PLAYER one to actually
 //    exercise the `zoneOwnerId` path end to end (Robber of the Rich,
-//    eld/red.ts, declared the same shape earlier but nothing drove it
+//    eld/red.cards.ts, declared the same shape earlier but nothing drove it
 //    through `announceCast`/`playCard`), so those choke points now search
 //    every player's exile for the granted card instead of assuming the
 //    caster's own.

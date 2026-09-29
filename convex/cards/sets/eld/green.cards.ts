@@ -150,8 +150,8 @@ export const questingBeast: CardDefinition = {
             // object- and player-family `$event.<field>` refs, and `EffectValue`
             // has no numeric event member, so `dealDamage.amount` cannot read
             // `event.amount`. This is the same documented gap that keeps Jackal
-            // Pup (`tmp/red.ts`), El-Hajjâj (`arn/black.ts`) and Living Artifact
-            // (`lea/green.ts`) imperative; `aiEffects` below is the bot's shadow
+            // Pup (`tmp/red.cards.ts`), El-Hajjâj (`arn/black.cards.ts`) and Living Artifact
+            // (`lea/green.cards.ts`) imperative; `aiEffects` below is the bot's shadow
             // script, per PRD #1423.
             resolve: (ctx, event) => {
                 if (event.type !== "DAMAGE_DEALT") return;

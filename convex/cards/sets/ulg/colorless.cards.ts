@@ -105,7 +105,7 @@ export const grimMonolith: CardDefinition = {
 // entire hand with no selection — but that alone doesn't unblock this card:
 // this is a FACE-DOWN exile — [CLOSED by #3812] the whole-zone shape now
 // takes `faceDown` + `bindAll`, and a `{ select: { set: "bound" } }` capture
-// freezes the exiled ids (Suppress, apc/black.ts); (2) [CLOSED by #3812, same
+// freezes the exiled ids (Suppress, apc/black.cards.ts); (2) [CLOSED by #3812, same
 // skin]; (3) STILL OPEN, and the reason this stays `resolve()`: the
 // `delayedTrigger` Op's `capture` map resolves ONCE at
 // scheduling (a flat map), but this card needs a DIFFERENT list of exiled ids
@@ -204,7 +204,7 @@ export const memoryJar: CardDefinition = {
 //  • "{T}: Add {G}." (CR 605.1a/605.3a mana ability, `useStack: false`.)
 //  • "{1}{G}: This land becomes a 3/3 green Ape creature with trample until
 //    end of turn. It's still a land." (CR 611.1 animate — the Mishra's Factory
-//    shape, `atq/colorless.ts`.) The `animate` Op sets the 3/3 base P/T and the
+//    shape, `atq/colorless.cards.ts`.) The `animate` Op sets the 3/3 base P/T and the
 //    Ape subtype, grants trample (CR 702.19a) and applies the layer-5 colour
 //    set (CR 613.1e — green REPLACES the land's colourlessness, CR 105.3), all
 //    on the same end-of-turn duration so the whole animation reverts together.

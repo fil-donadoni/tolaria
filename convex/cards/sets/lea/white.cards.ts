@@ -794,7 +794,7 @@ export const karma: CardDefinition = {
             // Migrated resolve()→effects[] (ADR 0045, PRD #795, re-assessed):
             // an `each`-scope trigger reads the scoped (upkeep) player via
             // `{ ref: "$event.activePlayerId" }` (issue #1066, ADR 0049) — the
-            // same shape ice/white.ts's near-identical "damage equal to the
+            // same shape ice/white.cards.ts's near-identical "damage equal to the
             // number of snow lands they control" card already uses. The Swamp
             // count is a `count` construct over that same dynamic player's
             // battlefield; `dealDamage` no-ops at amount 0 (interpreter parity

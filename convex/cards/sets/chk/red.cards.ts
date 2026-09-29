@@ -28,7 +28,7 @@ export const lavaSpike: CardDefinition = {
 // TWO independent halves, and each one already had its shape in the engine.
 //
 // The put-with-haste-then-sacrifice half is Sneak Attack's Effect Script
-// verbatim (`usg/red.ts`, issue #1151) with its activation cost replaced by
+// verbatim (`usg/red.cards.ts`, issue #1151) with its activation cost replaced by
 // casting this instant: `choice(choose-hand-card)` picks the creature, with
 // `{ min: 0 }` because the Oracle line says "you MAY" and declining is legal,
 // `moveZone(hand → battlefield, bind)` puts it in play without casting it

@@ -109,7 +109,7 @@ export const alliedStrategies: CardDefinition = {
 // }` filter already means "a creature you control" — no `controller` field
 // needed on a cost-leg `PermanentFilter`. The Kicker is single (non-multi),
 // so `count: "kicker"` on `entersWith.counters` (0 or 1, CR 702.33e) is the
-// exact Pincer Spider / Llanowar Elite template, `inv/green.ts`.)
+// exact Pincer Spider / Llanowar Elite template, `inv/green.cards.ts`.)
 export const arcticMerfolk: CardDefinition = {
     id: "86369fe5-d86d-4f4c-8f3d-dedc174f2032", // PLS 21
     rarity: "common",
@@ -256,7 +256,7 @@ export const huntingDrake: CardDefinition = {
 // grant-cast → conditional-return sequence composes `revealRandomHandCard` +
 // `moveCardById` + `grantCastFromExile` + a legacy `delayedTriggers[]`
 // template exactly like the established Elkin Bottle / Ice Cauldron /
-// Robber of the Rich precedent (`ice/colorless.ts`, `eld/red.ts`) — no Op
+// Robber of the Rich precedent (`ice/colorless.cards.ts`, `eld/red.cards.ts`) — no Op
 // wraps that composition either, and it is the SAME "no Op skin, protocol"
 // shape those cards already carry, not a novel imperative invention.
 // `grantCastFromExile`'s `"until-next-end-step"` window (issue #1557)
@@ -323,7 +323,7 @@ export const planeswalkersMischief: CardDefinition = {
             // is the closest already-exercised, structurally valid Op for
             // an information-disruption effect against that player's hand —
             // a loose analogue, not a mechanical match, mirroring how Inti's
-            // own shadow (`lookDistribute`, `lci/red.ts`) stands in for a
+            // own shadow (`lookDistribute`, `lci/red.cards.ts`) stands in for a
             // differently-shaped impulse effect.
             aiEffects: [{ op: "reveal", player: { target: 0 }, zone: "hand" }],
         },
@@ -425,7 +425,7 @@ export const rushingRiver: CardDefinition = {
 // land-type change via the `setSubtype` Op over `SpellContext.
 // setSubtypesUntil`; the "choose the basic land type" half reuses the
 // pre-existing `optionChoice` Op, one mode per `BASIC_LAND_SUBTYPES` entry —
-// the EXACT Dream Thrush template, `inv/blue.ts`, just without flying and at
+// the EXACT Dream Thrush template, `inv/blue.cards.ts`, just without flying and at
 // this card's own cost/stats.)
 export const seaSnidd: CardDefinition = {
     id: "ca11015e-200b-488c-8bf5-662dcc03cd2d", // PLS 31
@@ -463,7 +463,7 @@ export const seaSnidd: CardDefinition = {
 // color.\nAll nonland permanents are the chosen color." STOP-AND-ISSUE
 // (gre-development.md § DSL-first authoring): the "choose a color as it
 // enters" half is free (the existing modal-choice machinery, `chosenModeId`
-// — the exact Psychic Allergy shape, `drk/blue.ts`), but "all nonland
+// — the exact Psychic Allergy shape, `drk/blue.cards.ts`), but "all nonland
 // permanents ARE the chosen color" is a layer-5 color REPLACEMENT
 // (Gatherer: this changes colors, it doesn't add one) applied BOARD-WIDE and
 // continuously — no such static effect kind exists. The layer system has a
@@ -487,10 +487,10 @@ export const seaSnidd: CardDefinition = {
 // becomes the color of your choice until end of turn.'" (CR 303.4 Aura; CR
 // 603.6a self-ETB cantrip, the Coveted Jewel `enteredTrigger` template,
 // `c18/colorless.ts`; CR 611.2c layer-6 `activated-grant` — the Mystic Might
-// template, `ice/blue.ts` — granting a `grantTemplates[]` ability to the
+// template, `ice/blue.cards.ts` — granting a `grantTemplates[]` ability to the
 // host via `AURA_AFFECTS_HOST`. The granted ability's own body reuses
 // `chooseColorEffects` — the SAME `setColor` Op + `optionChoice` "choose one
-// of five colors" composition Blind Seer already uses, `inv/blue.ts`.)
+// of five colors" composition Blind Seer already uses, `inv/blue.cards.ts`.)
 export const sisaysIngenuity: CardDefinition = {
     id: "bbe20cc1-621a-4813-9bbb-ace006e173ff", // PLS 33
     rarity: "common",
@@ -539,9 +539,9 @@ export const sisaysIngenuity: CardDefinition = {
 // target of a spell or ability, sacrifice this Aura." (CR 303.4 Aura; CR
 // 502.1 untap-lock via `keyword-grant`'ing the engine-internal
 // "does-not-untap" marker to the host — the exact Venarian Gold template,
-// `leg/blue.ts`, minus its counter-gating (this lock is unconditional); CR
+// `leg/blue.cards.ts`, minus its counter-gating (this lock is unconditional); CR
 // 603.2b/115.5 `BECAME_TARGET` — the Phantasmal Image self-sacrifice
-// template, `m12/blue.ts`, re-keyed to the AURA'S HOST via `self.attachedTo`
+// template, `m12/blue.cards.ts`, re-keyed to the AURA'S HOST via `self.attachedTo`
 // instead of `self.id`.)
 //
 // The ETB "tap enchanted creature" trigger stays `resolve()`: NOT
@@ -613,7 +613,7 @@ export const sleepingPotion: CardDefinition = {
 // can't be regenerated." (CR 702.33a "Kicker {A} and/or {B}" — TWO
 // independently-payable Kickers, ADR 0079/#1937's flagship shape, each with
 // its own `{ additionalCostPaid: "<id>" }` intervening-if — the EXACT Thunderscape
-// Battlemage template (`pls/red.ts`, issue #1951/PR #2005), the cycle's
+// Battlemage template (`pls/red.cards.ts`, issue #1951/PR #2005), the cycle's
 // first-landed sibling.)
 //
 // Each trigger is gated PER KICKER at CHECK time (CR 603.4) by
@@ -643,7 +643,7 @@ export const sleepingPotion: CardDefinition = {
 // the live permanent). The `effects[]` branch simply covers strictly more: an
 // ability COPY put on the stack without re-running `matches` (CR 707.10), and
 // a `DelayedTriggerInstance`, which carries no `interveningIf` at all. See the
-// Thunderscape Battlemage note in `pls/red.ts` and its regression test.
+// Thunderscape Battlemage note in `pls/red.cards.ts` and its regression test.
 export const stormscapeBattlemage: CardDefinition = {
     id: "7d46a39d-c6f4-4281-b31f-f0a0c9fba887", // PLS 35
     rarity: "uncommon",
@@ -724,8 +724,8 @@ export const stormscapeBattlemage: CardDefinition = {
 // Stormscape Familiar — {1}{U} Creature — Bird, 1/1. "Flying\nWhite spells
 // and black spells you cast cost {1} less to cast." (CR 702.9b flying; CR
 // 601.2f cost reduction via `cost-modifier`, the exact Multicolored-spells /
-// Instant-and-enchantment cost-reducer template — `inv/colorless.ts` /
-// `leg/colorless.ts` — restricted to the caster's OWN spells and to EITHER
+// Instant-and-enchantment cost-reducer template — `inv/colorless.cards.ts` /
+// `leg/colorless.cards.ts` — restricted to the caster's OWN spells and to EITHER
 // of two colours via `.some`.)
 export const stormscapeFamiliar: CardDefinition = {
     id: "4c831c42-77a0-4f4f-9628-ad630541cf66", // PLS 36
@@ -756,10 +756,10 @@ export const stormscapeFamiliar: CardDefinition = {
 // (CR 603.6a each-player upkeep trigger, `scope: "each"` reading the firing
 // player off `{ ref: "$event.activePlayerId" }` — issue #1066/ADR 0049, the
 // Mana Vortex "each player sacrifices a land of their choice" template,
-// `drk/blue.ts` — with a mandatory `choose-permanents` pick over the firing
+// `drk/blue.cards.ts` — with a mandatory `choose-permanents` pick over the firing
 // player's OWN battlefield creatures, then a `forEach` bounce of the single
 // bound pick — the Teferi, Hero of Dominaria "+1" delayed-body template,
-// `dom/multicolor.ts`, reused for an immediate effect body instead of an
+// `dom/multicolor.cards.ts`, reused for an immediate effect body instead of an
 // inline delayed one.)
 export const sunkenHope: CardDefinition = {
     id: "5f12ac0c-cfe6-4f08-b6df-20be4ce83e8c", // PLS 37
@@ -825,7 +825,7 @@ export const sunkenHope: CardDefinition = {
 // re-running `matches` (CR 707.10), which no check-time predicate reaches.
 // Exact template:
 // Stormscape Battlemage / Nightscape Battlemage / Thunderscape Battlemage
-// (this same file / `pls/black.ts` / `pls/red.ts`).
+// (this same file / `pls/black.cards.ts` / `pls/red.cards.ts`).
 //
 // The bounce is "all OTHER creatures" — both players', excluding only this
 // permanent — via `forEach { set: "permanents", filter: { type: "Creature" },

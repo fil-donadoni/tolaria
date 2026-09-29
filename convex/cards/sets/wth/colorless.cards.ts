@@ -47,7 +47,7 @@ export const mindStone: CardDefinition = {
 //    at resolution (CR 602.2b routes an activated ability through the same
 //    CR 601.2c target grammar a spell uses). `type: "card"` + `zone:
 //    "graveyard"` + `controller: "any"` — either bin — is the Soul-Guide
-//    Lantern shape (`thb/colorless.ts`), exiled through `moveZone` and
+//    Lantern shape (`thb/colorless.cards.ts`), exiled through `moveZone` and
 //    followed by the plain `draw` Op.
 //
 // hand-tail: {T}: Exile the bottom card of target player's graveyard. (#4195)

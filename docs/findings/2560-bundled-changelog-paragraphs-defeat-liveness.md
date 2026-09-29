@@ -18,7 +18,7 @@ to a sibling card's ref. A first cut that resolved every bare `#NNN` measured
 shape (`convex/cards/sets/ice/white.cards.ts:164`'s "DEFERRED (remain commented
 stubs...)" paragraph alone cites four closed-but-shipped issue numbers as
 completion records). Narrowing to `tracked-by:` only dropped this to 1 real
-hit (fixed in this PR, `pls/white.ts:877`).
+hit (fixed in this PR, `pls/white.cards.ts:877`).
 
 **Consequence.** A genuine per-item rot INSIDE one of these bundled
 paragraphs — a bullet whose bare `(#NNN)` is a live tracker, not a completion
@@ -44,8 +44,8 @@ liveness check — a mechanical per-bullet parser would need to key off each
 bullet's own leading `•` and its own trailing disposition clause, which is a
 real parsing project (bullet boundaries are not currently structured data),
 not a regex tweak. It is also scale-bounded: two files show this shape today
-(`ice/white.ts`, `ice/blue.ts`, `ice/multicolor.ts`, `ice/red.ts`,
-`ice/black.ts`, `ice/green.ts`, plus `inv/*.ts`'s residue-tranche TODOs — all
+(`ice/white.cards.ts`, `ice/blue.cards.ts`, `ice/multicolor.cards.ts`, `ice/red.cards.ts`,
+`ice/black.cards.ts`, `ice/green.cards.ts`, plus `inv/*.ts`'s residue-tranche TODOs — all
 already excluded from `check-marker-liveness.ts`'s scope by the SEPARATE
 `isStubContext` exclusion for the `inv`/residue-tranche ones, or captured by
 the bare-number drop for the `ice` changelog ones). A future per-bullet parser

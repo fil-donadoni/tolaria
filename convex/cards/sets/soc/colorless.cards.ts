@@ -6,7 +6,7 @@ import type { CardPrint } from "../../types";
 
 // Staff of the Storyteller was first implemented here, against the SOC
 // reprint. Home set = earliest paper printing (ADR 0041) = ONC, so the
-// definition moved to `onc/white.ts` (its cost is coloured) and SOC keeps only
+// definition moved to `onc/white.cards.ts` (its cost is coloured) and SOC keeps only
 // this reprint entry — which is what makes the SOC edition selectable in the
 // deck builder without claiming to be the card's first printing.
 export const staffOfTheStorytellerSoc: CardPrint = {

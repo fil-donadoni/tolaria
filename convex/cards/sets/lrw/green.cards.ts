@@ -19,7 +19,7 @@ import type { CardDefinition } from "../../types";
 // hand-written per-card test is required (per-Op regime, ADR 0045/0046); the
 // loyalty FRAMEWORK has dedicated tests in `convex/gre/__tests__/loyalty.test.ts`.
 //   • +1 — untap two target lands: two `tapUntap{action:"untap"}` Ops (the Icy
-//     Manipulator untap shape, arn/colorless.ts) over a two-Land target group.
+//     Manipulator untap shape, arn/colorless.cards.ts) over a two-Land target group.
 //   • −1 — create a 3/3 green Beast token: `createToken` with a plain static
 //     P/T spec (the folded happy path, no `staticEffects`).
 //   • −4 — creatures you control get +3/+3 and gain trample until end of turn:

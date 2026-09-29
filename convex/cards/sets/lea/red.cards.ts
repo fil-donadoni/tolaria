@@ -1218,7 +1218,7 @@ export const stoneRain: CardDefinition = {
 
 // Tunnel — "Destroy target Wall. It can't be regenerated." (CR 205.3 subtype
 // filter, 701.8 destroy, 701.19c can't-be-regenerated). Same shape as Fissure
-// (drk/red.ts) / Detonate (atq/red.ts) modulo target filter.
+// (drk/red.cards.ts) / Detonate (atq/red.cards.ts) modulo target filter.
 export const tunnel: CardDefinition = {
     id: "b21ebc9f-a93e-4d18-b3e8-8459e3abbf31",
     rarity: "uncommon",

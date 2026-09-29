@@ -20,10 +20,10 @@ a disposition, never whether it is still open.
 **Evidence.** Measured directly against HEAD of this branch (`gh issue view
 <n> --json state`): every `TODO(issue #NNN` stub-context site in
 `convex/cards/sets/**` names one of `#676`, `#679`, `#684`, `#1303`, `#1305`,
-`#1307` — all six **CLOSED**. Representative sites: `akh/red.ts:6` (#676,
-Exert), `fin/green.ts:6` (#679, mill), `dsc/green.ts:6` (#684, Ursine
-Monstrosity), `c13/white.ts:3` (#1303, Unexpectedly Absent), `mh1/red.ts:3`
-(#1305, Vintage Cube residue tranche), `shm/green.ts:6` (#1307, residue
+`#1307` — all six **CLOSED**. Representative sites: `akh/red.cards.ts:6` (#676,
+Exert), `fin/green.cards.ts:6` (#679, mill), `dsc/green.cards.ts:6` (#684, Ursine
+Monstrosity), `c13/white.cards.ts:3` (#1303, Unexpectedly Absent), `mh1/red.cards.ts:3`
+(#1305, Vintage Cube residue tranche), `shm/green.cards.ts:6` (#1307, residue
 re-audit). 26 of the 29 sites using this syntax repo-wide sit in stub
 context and are therefore excluded by design from both this PR's fix and the
 sweep that predates it.

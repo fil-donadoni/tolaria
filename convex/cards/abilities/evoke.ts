@@ -60,7 +60,7 @@ export function evokeTrigger(cardName: string): TriggeredAbility {
         // exactly backwards for the one trigger whose whole job is to give the
         // creature back. `{ op: "sacrifice", target: { ref: "$source" } }` is a
         // faithful transcription of the `resolve` body above (the same shape
-        // the shared self-sacrifice factories in `arn/blue.ts` execute for
+        // the shared self-sacrifice factories in `arn/blue.cards.ts` execute for
         // real); the closure is retained as the executed path so no shipped
         // Evoke card's runtime behaviour changes.
         aiEffects: [{ op: "sacrifice", target: { ref: "$source" } }],

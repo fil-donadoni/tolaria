@@ -343,7 +343,7 @@ describe("Emperor of Bones (CR 603.6a combat trigger, CR 701.46 adapt, CR 607 li
         // with nothing to act on (CR 608.2b, issue #2490) — before the fix
         // it scheduled anyway, leaving inert `delayedTriggers[]` residue that
         // would fire and sacrifice nothing at the next end step (the exact
-        // Shallow Grave bug, `mir/black.ts`, shares this script shape).
+        // Shallow Grave bug, `mir/black.cards.ts`, shares this script shape).
         expect(state.delayedTriggers ?? []).toHaveLength(0);
     });
 });

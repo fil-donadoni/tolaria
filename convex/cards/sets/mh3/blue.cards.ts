@@ -33,7 +33,7 @@ import { TAMIYO_SEASONED_SCHOLAR_EMBLEM_ID } from "../../emblems";
 //
 // Front face — "Whenever Tamiyo attacks, investigate" is the shared
 // `investigateOp()` skin (CLUE_TOKEN_SPEC, `abilities/tokens/clueToken.ts`)
-// under a raw `ATTACKERS_DECLARED` self-attack trigger (the `big/red.ts`
+// under a raw `ATTACKERS_DECLARED` self-attack trigger (the `big/red.cards.ts`
 // Xantid Swarm / Generous Plunderer shape: `attackerIds.includes(self.id)`).
 // "When you draw your third card in a turn" is `drawTrigger` +
 // `nthDrawThisTurn(3)` (`abilities/triggers/drawTrigger.ts`, issue #781) —

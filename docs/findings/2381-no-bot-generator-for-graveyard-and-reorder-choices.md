@@ -11,8 +11,8 @@ confidence: medium
 `trigger-mode`, `search-library`, `random-reveal`, `choose-hand-card`. Two
 kinds that shipped cards raise routinely are absent:
 
-- `choose-graveyard-card` — Recall (LEG), Forgotten Lore (`ice/green.ts:596`), Exhume (`usg/black.ts:29`), Gaea's Blessing, and now Doomsday's graveyard half.
-- `reorder-library` — Portent, Natural Selection (`lea/green.ts:907`), Diabolic Vision (`ice/multicolor.ts:370`), Elemental Augury, Drafna's Restoration (`atq/blue.ts:149`), and Doomsday's "in any order" step.
+- `choose-graveyard-card` — Recall (LEG), Forgotten Lore (`ice/green.cards.ts:596`), Exhume (`usg/black.cards.ts:29`), Gaea's Blessing, and now Doomsday's graveyard half.
+- `reorder-library` — Portent, Natural Selection (`lea/green.cards.ts:907`), Diabolic Vision (`ice/multicolor.cards.ts:370`), Elemental Augury, Drafna's Restoration (`atq/blue.cards.ts:149`), and Doomsday's "in any order" step.
 
 `isSearchableChoiceNode` returns false for both, so the ISMCTS search never
 treats them as decision nodes and the bot lands on the driver's emergency

@@ -142,7 +142,7 @@ export const unholyHeat: CardDefinition = {
 
 // Blazing Rootwalla — {R} Creature — Lizard, 1/1. "{R}: This creature gets +2/+0
 // until end of turn. Activate only once each turn.\nMadness {0}." (CR 605 pump
-// activated ability with `oncePerTurn`, template Fire Drake `drk/red.ts`; CR
+// activated ability with `oncePerTurn`, template Fire Drake `drk/red.cards.ts`; CR
 // 702.35 Madness — the discard→exile cast capability, `convex/gre/madness.ts`.
 // `Madness {0}` is the empty cost `{}`. The red counterpart to Basking Rootwalla
 // first printed in Modern Horizons 2.)
@@ -187,13 +187,13 @@ export const blazingRootwalla: CardDefinition = {
 // Dash {1}{R}."
 //
 // PROTOCOL (impulse-draw off an opponent's library — no Op skin, precedent:
-// Elkin Bottle / Ice Cauldron, ice/colorless.ts; the cross-player exile-and-
-// grant shape specifically mirrors Robber of the Rich, eld/red.ts, almost
+// Elkin Bottle / Ice Cauldron, ice/colorless.cards.ts; the cross-player exile-and-
+// grant shape specifically mirrors Robber of the Rich, eld/red.cards.ts, almost
 // line for line): composes `createToken` + `peekLibraryTop` +
 // `moveCardById(..., "exile")` (FACE UP, CR 406.3 / issue #3001) +
 // `grantCastFromExile(..., "this-turn")`, sourced from the DAMAGED player's
 // library rather than the caster's own. Dash is the SAME
-// factory-composed shape as Death-Greeter's Champion (moc/red.ts):
+// factory-composed shape as Death-Greeter's Champion (moc/red.cards.ts):
 // `CardDefinition.dash` + `dashTrigger(name)`.
 export const ragavanNimblePilferer: CardDefinition = {
     id: "a9738cda-adb1-47fb-9f4c-ecd930228c4d", // MH2 138
@@ -300,7 +300,7 @@ export const ragavanNimblePilferer: CardDefinition = {
 // three continuous clauses share ONE delirium gate, expressed as three
 // `staticEffects[]` entries:
 //   - +2/+2 is `pt-buff` with `condition: hasDelirium` (CR 611.2c, the
-//     Carnage Interpreter shape, `clu/multicolor.ts`).
+//     Carnage Interpreter shape, `clu/multicolor.cards.ts`).
 //   - flying is `keyword-grant` with `condition: hasDelirium` — a MATERIALIZED
 //     kind re-run by `recomputeContinuousEffects` on every stable transition
 //     (issue #1095), so the keyword appears/disappears live as the graveyard
@@ -314,7 +314,7 @@ const DELIRIUM_CARD_TYPES = 4;
 /** "Four or more card types among cards in your graveyard" (CR 207.2c /
  *  CR 205.3). Reads the SOURCE's controller's graveyard through
  *  `StaticEffectStateView` — the same wire-projection-safe shape Barrowgoyf's
- *  graveyard CDA (`m3c/black.ts`) and the count reader's `countTypes: true`
+ *  graveyard CDA (`m3c/black.cards.ts`) and the count reader's `countTypes: true`
  *  branch (Unholy Heat, this file) use. FAIL-CLOSED: a missing graveyard view
  *  reads zero distinct types, withholding the buff rather than granting it
  *  spuriously. */
@@ -349,7 +349,7 @@ export const dragonsRageChanneler: CardDefinition = {
             event: "SPELL_CAST",
             // CR 603.2 — fires when the source's controller casts a spell that
             // is NOT a creature (the Displacer Kitten / Third Path Iconoclast
-            // shape, `clb/blue.ts`).
+            // shape, `clb/blue.cards.ts`).
             matches: (event, self) =>
                 event.type === "SPELL_CAST" &&
                 event.casterId === self.controllerId &&

@@ -547,7 +547,7 @@ describe("Hobble ({2}{W} Aura — can't-attack + conditional can't-block, CR 508
     });
 
     it("still evaluates a card's OWN (non-aura) attack-restriction — regression check for the aura-scan extension", () => {
-        // Vodalian Serpent (inv/blue.ts) restricts ITSELF via a card-own
+        // Vodalian Serpent (inv/blue.cards.ts) restricts ITSELF via a card-own
         // `attack-restriction`, with no aura involved — confirms
         // `collectAttackRestrictions`'s new aura scan doesn't disturb the
         // pre-existing own-card path (`inv/__tests__/blue.test.ts` covers this

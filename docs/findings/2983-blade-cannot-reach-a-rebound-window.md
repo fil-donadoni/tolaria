@@ -45,7 +45,7 @@ driving the real `advancePhase` the way the new `discard` step drives the real
 `discardToGraveyard` — perhaps twenty lines. That smallness cuts both ways: it
 is cheap enough to fold into whatever next touches the blade harness, and it
 only pays off if a rebound-shaped decision is actually worth measuring. Today
-exactly one card has rebound (Ephemerate, `mh1/white.ts`), and its decision —
+exactly one card has rebound (Ephemerate, `mh1/white.cards.ts`), and its decision —
 recast a free blink or not — is close to the "strictly dominant" shape that
 makes a weak blade entry. The argument for doing it anyway is that the gap is
 about the HARNESS, not about Ephemerate: any future delayed-trigger mechanic

@@ -14,19 +14,19 @@ import { createBloodTokenOp } from "../../abilities/tokens/bloodToken";
 //
 // Ability 1 — CR 603.6a self-ETB `createToken` reusing the shared
 // `BLOOD_TOKEN_SPEC` (`createBloodTokenOp`, issue #778), the exact
-// Voldaren Epicure shape (`vow/red.ts`) one file over.
+// Voldaren Epicure shape (`vow/red.cards.ts`) one file over.
 //
 // Ability 2 — CR 602.5b/602.3b activated ability, tap + sacrifice-self cost
 // (`cost: { tap: true, sacrifice: true }`) restricted to sorcery timing
 // (`sorcerySpeedOnly: true`) — the exact Dauthi Voidwalker shape
-// (`mh2/black.ts`, issue #1156) that unblocked `ActivatedAbility.
+// (`mh2/black.cards.ts`, issue #1156) that unblocked `ActivatedAbility.
 // sorcerySpeedOnly`. The body is a single announced-target `pump` Op
 // (CR 611.2, issue #840): `power`/`toughness` are `{ negate: { count: {...,
 // times: 2 } } }` — the SIGNED value grammar's negation (issue #926, Toxic
-// Deluge's -X/-X shape, `c13/black.ts`) wrapping a `count` of the
+// Deluge's -X/-X shape, `c13/black.cards.ts`) wrapping a `count` of the
 // controller's battlefield permanents with subtype Blood, scaled `times: 2`
 // ("twice the number of ...", the Price of Progress `EffectCountSpec.times`
-// shape, issue #999, `exo/red.ts`) — no new Op, no new value grammar member,
+// shape, issue #999, `exo/red.cards.ts`) — no new Op, no new value grammar member,
 // pure composition of three already-shipped primitives. Read live at
 // resolution: the sacrificed Bloodtithe Harvester is gone by then (CR 602.1
 // cost paid before the ability resolves) but its own Blood tokens are

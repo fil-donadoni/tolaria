@@ -29,7 +29,7 @@
 //   * the `createTokenCopy` Op (`gre/effects/interpreter.ts`) — counts, and
 //     needs its own replay marker because a park suspends and RE-ENTERS it;
 //   * `SpellContext.createTokenCopyOf` called from a resolve() closure
-//     (Sin, Spira's Punishment `fin/multicolor.ts`) — counts;
+//     (Sin, Spira's Punishment `fin/multicolor.cards.ts`) — counts;
 //   * plain `createToken` / `createTokenPermanents` — must NOT change: a token
 //     with no copied definition owes nothing, and a token whose own SPEC
 //     declares `asEnters` must still owe those clauses exactly once.
@@ -474,7 +474,7 @@ describe("plain token creation is unchanged (the must-NOT census rows)", () => {
 
 // --- The resolve()-closure producer ------------------------------------------
 
-describe("the resolve() producer: Sin, Spira's Punishment (fin/multicolor.ts)", () => {
+describe("the resolve() producer: Sin, Spira's Punishment (fin/multicolor.cards.ts)", () => {
     it("its token copy of a card with an as-enters clause is created exactly once", () => {
         const sin = makeInstance(sinSpirasPunishment.id, {
             id: "sin",

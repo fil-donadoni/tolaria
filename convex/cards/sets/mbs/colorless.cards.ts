@@ -20,7 +20,7 @@ const BLIGHTSTEEL_COLOSSUS_ID = "7928bb14-7631-4830-a756-26d1ea832ba2";
 // may fire for it (issue #2106 — a prior revision of this file modeled it as
 // a `zone: "graveyard"` triggered ability instead, which let the card
 // genuinely die first and spuriously fire every "whenever a creature dies"
-// permanent on the battlefield, e.g. Soul Net, `lea/colorless.ts`). Uses the
+// permanent on the battlefield, e.g. Soul Net, `lea/colorless.cards.ts`). Uses the
 // shared `shuffleFromAnywhereReplacement` factory
 // (`abilities/shuffleFromAnywhereReplacement.ts`), whose own doc comment
 // covers the mechanism (`ReplacementEffect.appliesFromAnyZone`,

@@ -7,7 +7,7 @@ import type { CardDefinition } from "../../types";
 
 // Consider — {U} Instant. "Surveil 1. Draw a card." (Modern Scryfall oracle
 // text.) Authored DSL-first as an Effect Script (ADR 0045) reusing already-
-// shipped Ops — the same shape as Opt (inv/blue.ts) with the surveil variant
+// shipped Ops — the same shape as Opt (inv/blue.cards.ts) with the surveil variant
 // of `scryReorder`: Surveil 1 (CR 701.25) is `destination: "graveyard"` —
 // look at the top card, keep it on top or put it into the graveyard — then
 // draw (CR 121.1). Surveil resolves first, then the draw.

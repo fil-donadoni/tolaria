@@ -74,7 +74,7 @@ const ROGUE_TOKEN: TokenSpec = {
 //      if that Op is ever added.
 //   2. CR 121.6 draw + CR 701.9 discard — migrated to `effects[]`
 //      (`draw` → `choice` kind `choose-hand-card` → `discard`), the same
-//      shape as Jalum Tome (`atq/colorless.ts`). The interpreter suspends at
+//      shape as Jalum Tome (`atq/colorless.cards.ts`). The interpreter suspends at
 //      the `choice` Op exactly like the old `resolveSteps` split did, so the
 //      draw never re-runs on resume (Bazaar of Baghdad precedent preserved).
 //      The discard emits CARD_DISCARDED, which re-fires ability 1 — the
@@ -139,7 +139,7 @@ export const currencyConverter: CardDefinition = {
             cost: { mana: { X: 2 }, tap: true },
             useStack: true,
             // CR 121.6 draw, then CR 701.9 discard — draw → choice → discard,
-            // same shape as Jalum Tome (atq/colorless.ts). The interpreter
+            // same shape as Jalum Tome (atq/colorless.cards.ts). The interpreter
             // suspends at the `choice` Op, so the draw never re-runs on resume
             // (Bazaar of Baghdad precedent preserved).
             effects: [

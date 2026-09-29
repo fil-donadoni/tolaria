@@ -14,7 +14,7 @@ import { landfallTrigger } from "../../abilities/triggers/landfallTrigger";
 // 4, take: 1, optional: true` — "you MAY put A land card", `filter: { type:
 // "Land" }`, `destination: "graveyard"`). Both the reveal-window suspend and
 // the graveyard-destination leg are already interpreter-exercised (Reviving
-// Vapors, inv/multicolor.ts, issue #1101) — no hand-written per-card test
+// Vapors, inv/multicolor.cards.ts, issue #1101) — no hand-written per-card test
 // required (per-Op test regime, gre-development.md).
 export const satyrWayfinder: CardDefinition = {
     id: "13c5a1ce-932a-4b3d-8b86-ed920e646afc",
@@ -58,7 +58,7 @@ export const satyrWayfinder: CardDefinition = {
 // top of your library. Landfall — Whenever a land you control enters, you gain
 // 1 life." Three independent structured declarations, no `resolve()`:
 //   - `revealsLibraryTop: "controller"` (CR 401.5 / 604.2) — the same live,
-//     never-stored derivation Goblin Spy uses (`inv/red.ts`,
+//     never-stored derivation Goblin Spy uses (`inv/red.cards.ts`,
 //     `computeLibraryTopRevealedPlayers`): the reveal belongs to the POSITION,
 //     so a draw / shuffle / mill / put-on-top moves it with nothing to update
 //     (CR 401.6 / 701.20d) and it simply stops when the Courser leaves play.

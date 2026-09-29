@@ -20,7 +20,7 @@ import { getDefinition } from "../../../index";
 const figureOfFable = getDefinition("e0ef33dd-5f6d-48fa-8ef6-a8092868d50f");
 
 // Figure of Fable (ECL, issue #684 — shipped by #1749). Same staged-respec
-// shape as Figure of Destiny (eve/multicolor.ts), plus two things that card
+// shape as Figure of Destiny (eve/multicolor.cards.ts), plus two things that card
 // doesn't exercise: a MIXED cost (generic + hybrid pips) and the CR 702.16j
 // player-quality protection its final stage grants (issue #1748).
 

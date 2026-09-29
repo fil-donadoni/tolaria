@@ -68,7 +68,7 @@ const MOX_OPAL_COLORS = ["W", "U", "B", "R", "G"] as const;
 // like Domain/Flurry — never declared in `staticAbilities[]`), backed by the
 // shared `hasMetalcraft` board-scan helper (`cards/types.ts`, registered in
 // `mechanicsRegistry.ts`'s `ABILITY_WORDS`). Shape mirrors Chrome Mox
-// (`mrd/colorless.ts`) exactly: `canActivate` is the availability gate,
+// (`mrd/colorless.cards.ts`) exactly: `canActivate` is the availability gate,
 // `manaChoices` is the static 5-colour option list every `getManaTapOptions`
 // consumer reads once gated true, and `effect` is the required-but-unreached
 // DSL fallback (no board-conditional colour narrowing needed here — unlike

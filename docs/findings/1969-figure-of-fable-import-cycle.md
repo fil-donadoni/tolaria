@@ -31,7 +31,7 @@ Figure of Fable's final stage grants nothing at all.
 **Why it may not deserve its own issue.** Today exactly one card reads a runtime
 constant out of a cycle-participating engine module, the sweep does currently
 catch the bad order, and the trivially local fix (inline the string literal in
-`ecl/multicolor.ts`, or move `PROTECTION_FROM_EACH_OPPONENT` into a
+`ecl/multicolor.cards.ts`, or move `PROTECTION_FROM_EACH_OPPONENT` into a
 dependency-free leaf beside `cards/snowReads.ts`) is a two-line change someone
 could fold into any nearby PR. Against that: the failure mode is a SILENT
 capability loss in a shipped card, the gate's ability to catch it is incidental

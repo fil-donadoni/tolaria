@@ -20,7 +20,7 @@ import type { CardDefinition } from "../../types";
 // Leng and every "whenever you discard" watcher hang off it.
 //
 // The flashback cost is purely non-mana (`{ sacrifice: … }` with no `mana`
-// key), the Lava Dart shape (`ons/red.ts`): any creature, the caster's
+// key), the Lava Dart shape (`ons/red.cards.ts`): any creature, the caster's
 // explicit pick through the unified sacrifice-choice layer.
 //
 // compiler-gap: Choose a nonland card name. Target player reveals their hand and discards all cards with that name. (#2693)

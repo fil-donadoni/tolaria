@@ -168,8 +168,8 @@ export const PROTECTION_QUALITY_NAMES: Record<Color, string> = {
 /** Builds one `optionChoice` mode per grantable color/quality in `codes`,
  *  each granting "protection from <quality>" to the announced target (CR
  *  702.16, 613.1f, CR 700.2 modal choice). Shared by Mother of Runes (5
- *  colors, ulg/white.ts) and Giver of Runes (5 colors + colorless,
- *  mh1/white.ts) — issue #684/#928 dedup. */
+ *  colors, ulg/white.cards.ts) and Giver of Runes (5 colors + colorless,
+ *  mh1/white.cards.ts) — issue #684/#928 dedup. */
 export function protectionColorModes(
     codes: ReadonlyArray<Color>
 ): { id: string; label: string; color: Color; effects: EffectOp[] }[] {

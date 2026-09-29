@@ -129,7 +129,7 @@ export const powerArmor: CardDefinition = {
 //
 // Migrated resolve()→effects[] (ADR 0045): the stale marker here cited the
 // `setColor` Op as `status: "planned"` — it has since shipped (issue #1083,
-// promoted from `EFFECT_OP_BACKLOG`), the same Shyft shape (`ice/blue.ts`) /
+// promoted from `EFFECT_OP_BACKLOG`), the same Shyft shape (`ice/blue.cards.ts`) /
 // Kavu Chameleon shape (this set's `green.ts`): `optionChoice` — one mode per
 // colour, each a single-Op `setColor` body targeting `$source` with no
 // `duration` (indefinite, mirrors the removed `setColorOverride` call this
@@ -185,7 +185,7 @@ export const alloyGolem: CardDefinition = {
 // `ActivatedAbilityContext` exposing ONLY `addMana`, so a non-mana additional
 // effect (the draw) is declared as a rider and applied by the shared engine
 // call sites instead of the ability's own `effect` closure. Chromatic STAR
-// (`tsp/colorless.ts`) is NOT the template here: Star's actual (later,
+// (`tsp/colorless.cards.ts`) is NOT the template here: Star's actual (later,
 // different) Oracle text splits its draw into a separate "leaves the
 // battlefield to a graveyard" trigger, which would incorrectly draw a card if
 // Sphere were destroyed by unrelated removal instead of sacrificed for its
@@ -437,7 +437,7 @@ export const sparringGolem: CardDefinition = {
 //
 // Keyword clauses (Island/Mountain/Forest) — `keyword-grant`'s `condition`
 // field (issue #1095, generalize-don't-add; shipped on Kavu Runner,
-// `inv/red.ts`) is exactly this shape: a board-state gate evaluated once per
+// `inv/red.cards.ts`) is exactly this shape: a board-state gate evaluated once per
 // source against the whole board, re-evaluated every SBA pass by
 // `recomputeContinuousEffects` (`gre/state.ts`) so the keyword appears/
 // disappears as the controller's basics come and go. Each of the three

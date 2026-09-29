@@ -664,7 +664,7 @@ describe("Thunderscape Battlemage — two independent Kickers, two independently
             { type: "permanent", id: "blink-ench" },
         ]);
         // …and Ephemerate ("Exile target creature you control, then return it
-        // to the battlefield", `mh1/white.ts`) resolves ON TOP of it.
+        // to the battlefield", `mh1/white.cards.ts`) resolves ON TOP of it.
         pushSpell(state, ephemerate.id, "p1", [
             { type: "permanent", id: "blink-bm" },
         ]);

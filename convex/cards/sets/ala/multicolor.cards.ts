@@ -14,7 +14,7 @@ import { leftTrigger } from "../../abilities/triggers/leftTrigger";
 // triggers — this card has no CR divergence. Composed entirely from Ops that
 // already ship; no new Op, no new `SpellContext` primitive, no `resolve()`.
 //
-//   - The ETB half is the canonical Thoughtseize template (`lrw/black.ts`):
+//   - The ETB half is the canonical Thoughtseize template (`lrw/black.cards.ts`):
 //     `reveal` stamps the announced opponent's hand `knownTo` the controller
 //     (CR 701.20a), then a `choose-hand-card` `choice` whose CHOOSER is the
 //     controller and whose ZONE OWNER (`zoneOwnerId`) is that opponent.
@@ -29,7 +29,7 @@ import { leftTrigger } from "../../abilities/triggers/leftTrigger";
 //     card out of the OWNER's exile pile into the OWNER's hand — CR 400.7,
 //     which is what this card needs, since the exiled card belongs to the
 //     opponent and not to the Sculler's controller. Precedent for pairing
-//     `linkToSource` with this selector: Emperor of Bones (`mh3/black.ts`).
+//     `linkToSource` with this selector: Emperor of Bones (`mh3/black.cards.ts`).
 //
 // "Target opponent" is a REAL target announced when the ETB trigger goes on
 // the stack (CR 603.3d, the issue #1193 machinery), not a resolution-time

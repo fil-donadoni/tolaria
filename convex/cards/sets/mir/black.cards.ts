@@ -14,7 +14,7 @@ import type { CardDefinition } from "../../types";
 // NOT a player choice: substituting one would diverge from the modern oracle
 // text (ADR 0004).
 //
-// The rest is the Sneak Attack idiom (`usg/red.ts`, issue #1151) with the
+// The rest is the Sneak Attack idiom (`usg/red.cards.ts`, issue #1151) with the
 // sacrifice swapped for an exile: `bind` snapshots the permanent that just
 // entered, `grantAbility(haste)` reads it, and `delayedTrigger`'s `capture`
 // carries it to the next end step. `grantAbility`'s

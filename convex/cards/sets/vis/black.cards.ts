@@ -110,10 +110,10 @@ function sourceIsOnBattlefield(
 // so no OTHER creature is a legal host. Necromancy therefore needs NO cast-time
 // `targetRequirement` — the host is chosen by this trigger, and modern Oracle
 // text has no "enchant creature card in a graveyard" line to model (contrast
-// Dance of the Dead, `ice/black.ts`, which is PRINTED as an Aura).
+// Dance of the Dead, `ice/black.cards.ts`, which is PRINTED as an Aura).
 //
 // (3) "When this enchantment leaves the battlefield, that creature's controller
-// sacrifices it." Same Oracle shape as Animate Dead (`lea/black.ts`), and the
+// sacrifices it." Same Oracle shape as Animate Dead (`lea/black.cards.ts`), and the
 // same recorded `resolve()` justification: it needs
 // `LeavingPermanent.attachedToBeforeLeave` (CR 603.10a — leaves-the-battlefield
 // abilities look back in time), a `leftTrigger`-only payload the Effect Script
@@ -138,7 +138,7 @@ export const necromancy: CardDefinition = {
             // an enchantment that has already left play does nothing (no
             // reanimation, no attach), rather than reanimating a creature and
             // leaving it behind. Fails CLOSED without a state view, mirroring
-            // the `sacrificeSelfWhen` shape in `arn/blue.ts`.
+            // the `sacrificeSelfWhen` shape in `arn/blue.cards.ts`.
             interveningIf: (_event, self, state) =>
                 sourceIsOnBattlefield(self.id, state),
             // CR 603.3d — a real announced target, chosen as the trigger goes
@@ -218,7 +218,7 @@ export const necromancy: CardDefinition = {
             // read from last-known information), a `leftTrigger`-only payload
             // the Effect Script interpreter has no object-ref selector for.
             // Identical justification, and identical body, to Animate Dead
-            // (`lea/black.ts`).
+            // (`lea/black.cards.ts`).
             //
             // PRD #1423 — the AI-only SHADOW script for that imperative body:
             // never executed, only walked by `OP_VALUERS`, so the Bot's value

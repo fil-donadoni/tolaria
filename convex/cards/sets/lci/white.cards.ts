@@ -37,7 +37,7 @@ import { BAT_TOKEN } from "../../sharedTokens";
 //    else about it.
 // 2. ONE Oracle line spanning two engine events (CR 603.2) => ONE
 //    `TriggeredAbility` with an array `event` and a discriminating `matches`,
-//    the Sentinel of the Nameless City shape (`lci/green.ts`). Two abilities
+//    the Sentinel of the Nameless City shape (`lci/green.cards.ts`). Two abilities
 //    would put two triggers on the stack off one printed line. The dies half
 //    reads the death event's own `creatureInstanceId` rather than rescanning
 //    the battlefield for the source, which by then has left it (CR 603.10 /

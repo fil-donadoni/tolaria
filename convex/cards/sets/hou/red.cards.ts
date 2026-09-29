@@ -7,7 +7,7 @@ import type { CardDefinition } from "../../types";
 // Abrade — "Choose one — • Abrade deals 3 damage to target creature. •
 // Destroy target artifact." (CR 700.2 modal.) Modes target different types
 // (creature vs artifact), chosen before the target — the same cross-mode-
-// target gap as Healing Salve (lea/white.ts); uses the legacy `modes`
+// target gap as Healing Salve (lea/white.cards.ts); uses the legacy `modes`
 // mechanism instead of the DSL `optionChoice` Op (which runs on a single
 // already-announced target set). Each mode's own body is migrated
 // resolve()→effects[] (ADR 0045): a fixed-damage / destroy shape identical to

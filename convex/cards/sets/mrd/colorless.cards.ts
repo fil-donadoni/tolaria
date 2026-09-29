@@ -35,7 +35,7 @@ const CHROME_MOX_COLORS = ["W", "U", "B", "R", "G"] as const;
 // is still on the battlefield (its own mana ability), so this does not hit
 // the "counter value unreadable once its holder leaves play" ceiling that
 // blocks a leave-triggered reader (see Skyclave Apparition, split out
-// separately in znr/white.ts). `getManaChoices` (board-conditional mana
+// separately in znr/white.cards.ts). `getManaChoices` (board-conditional mana
 // choices, Fellwar Stone's own mechanism) reads them back to offer exactly
 // the exiled card's colours; a card with no colours (or no imprint) offers
 // none.
@@ -110,11 +110,11 @@ export const chromeMox: CardDefinition = {
             // `getManaChoices` (server + client share the same list, ADR
             // matches Fellwar Stone); `effect` is the required-but-unreached
             // fallback for this choice-ability shape (mirrors Birds of
-            // Paradise, lea/green.ts).
+            // Paradise, lea/green.cards.ts).
             effect: (ctx) => ctx.addMana({ W: 1 }),
             // Fallback / representative list (all five colours) for
             // best-effort callers without a board snapshot (affordability,
-            // autoTap) — mirrors Fellwar Stone (drk/colorless.ts). Also
+            // autoTap) — mirrors Fellwar Stone (drk/colorless.cards.ts). Also
             // load-bearing for `getActivatedManaAbility` (gre/constants.ts),
             // which gates on `manaProduced || manaChoices` and does not look
             // at `getManaChoices` alone; without this static fallback Chrome
@@ -188,19 +188,19 @@ export const aetherSpellbomb: CardDefinition = {
 
 // Lightning Greaves — {2} Artifact — Equipment (Vintage Cube FREE wave 3,
 // issue #1530, parent PRD #1525). "Equipped creature has haste and shroud.
-// Equip {0}." Precedent: Skullclamp (`dst/colorless.ts`) proves the Equip
+// Equip {0}." Precedent: Skullclamp (`dst/colorless.cards.ts`) proves the Equip
 // spine (`attach` Op, sorcery-speed-only targeted activated ability);
-// Cori-Steel Cutter (`tdm/red.ts`) proves the `keyword-grant` P/T+keyword
+// Cori-Steel Cutter (`tdm/red.cards.ts`) proves the `keyword-grant` P/T+keyword
 // combo (there: +1/+1, trample, haste, all `AURA_AFFECTS_HOST`-scoped); this
 // card's own haste grant is the identical `keyword-grant` shape.
 //
 // Shroud (CR 702.18) is NOT itself a keyword-grant-only effect — every
-// printed-shroud card in this catalogue (Blastoderm, `nem/green.ts`; the
+// printed-shroud card in this catalogue (Blastoderm, `nem/green.cards.ts`; the
 // Mechanics Registry `shroud` row, status "implemented") pairs the
 // `staticAbilities: ["shroud"]` reminder string with a `permanent-guard`
 // staticEffect (`cantBeTargeted: true`) that `isGuardedAgainst`
 // (`gre/permanentGuard.ts`) actually reads. Sterling Grove
-// (`inv/multicolor.ts`) is the precedent for a GRANTED (not self-printed)
+// (`inv/multicolor.cards.ts`) is the precedent for a GRANTED (not self-printed)
 // shroud: it pairs a `keyword-grant` (the reminder string) with a
 // `permanent-guard` (the real enforcement), BOTH scoped by the same
 // predicate — here `AURA_AFFECTS_HOST` instead of Sterling Grove's

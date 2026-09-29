@@ -3,7 +3,7 @@
 //
 // Staff of the Storyteller's home set is ONC, its earliest paper printing
 // (ADR 0041); it was originally implemented against the far later SOC reprint,
-// which now rides along as a `CardPrint` in `soc/colorless.ts`.
+// which now rides along as a `CardPrint` in `soc/colorless.cards.ts`.
 //
 // Staff of the Storyteller (issue #1345 — residue of #1302, parent PRD #620)
 // is the FIRST card to consume the new `tokenCreatedTrigger` factory /

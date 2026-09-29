@@ -10,7 +10,7 @@
 // hand at cast commit through the ordinary hand-cost picker, and X is
 // snapshotted onto the stack item so `getX()` reads it back at resolve.
 //
-// Sickening Dreams (`tor/black.ts`) is the first card announcing an X with NO
+// Sickening Dreams (`tor/black.cards.ts`) is the first card announcing an X with NO
 // `{X}` pip in its mana cost at all, which is why this crosses every layer:
 //
 //  1. **Unit** — `additionalCostDiscardXCeiling` (the single authority on the

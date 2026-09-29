@@ -9,7 +9,7 @@ import type { CardDefinition } from "../../../../convex/cards/types";
 // Green Sun's Zenith into its owner's library." (CR 701.23 search / 400.7 /
 // 701.24 shuffle / 608.2m spell-resolution destination.) A DSL-first card
 // (ADR 0045) built entirely from the tutor-to-battlefield template
-// (`naturalOrder`, vis/green.ts) plus two extensions this card unblocked
+// (`naturalOrder`, vis/green.cards.ts) plus two extensions this card unblocked
 // (issue #898):
 //   1. `filter.manaValueAtMost: { X: true }` — the DYNAMIC "mana value X or
 //      less" ceiling (as opposed to Spellseeker/Brightglass Gearhulk's FIXED

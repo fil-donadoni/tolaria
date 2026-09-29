@@ -115,7 +115,7 @@ export const goblinCadets: CardDefinition = {
 //      captures it, letting `grantAbility` and `delayedTrigger`'s `capture`
 //      read `{ ref: "$sneak" }` for the exact creature that entered.
 // `grantAbility(haste)` uses `duration: { phase: "end-of-turn" }` (Spinal
-// Embrace's identical idiom, inv/multicolor.ts) rather than a genuinely
+// Embrace's identical idiom, inv/multicolor.cards.ts) rather than a genuinely
 // indefinite grant — the DSL's `grantAbility` Op requires a `DurationSpec`
 // (no "indefinite" member). No behavioural divergence: the delayed trigger
 // fires at the BEGINNING of the next end step (sacrificing the creature),
@@ -210,10 +210,10 @@ export const arcLightning: CardDefinition = {
 // to COMBAT damage, so a Lackey whose damage reaches a player by any route
 // (a pump-and-ping effect, a redirect) fires it — `damageDealtTrigger` with
 // `source: "self"` and `target: { kind: "player" }` and NO `isCombat` flag,
-// unlike Enduring Curiosity (`dsk/blue.ts`), which prints "combat damage".
+// unlike Enduring Curiosity (`dsk/blue.cards.ts`), which prints "combat damage".
 //
 // The body is Goblin Wizard's shipped hand→battlefield shape verbatim
-// (`drk/red.ts`): `choice(zone: "hand")` over the controller's own hand with
+// (`drk/red.cards.ts`): `choice(zone: "hand")` over the controller's own hand with
 // `count: { min: 0, max: 1 }` for the "you may", then `moveZone` routing
 // through `putFromHandOntoBattlefield`. CR 205.3 — a "Goblin permanent card"
 // is `subtype: "Goblin"` AND NOT Instant/Sorcery (`excludeType`).

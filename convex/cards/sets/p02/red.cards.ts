@@ -11,7 +11,7 @@ import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 // hand, then shuffle." (CR 603.6a ETB trigger; CR 701.23 search;
 // CR 701.20a reveal; CR 701.24 shuffle.)
 //
-// The search template Elfhame Sanctuary (`inv/green.ts`) already exercises:
+// The search template Elfhame Sanctuary (`inv/green.cards.ts`) already exercises:
 // a `choice` over the hidden library zone (the interpreter precomputes an
 // explicit `candidateIds` allow-list from the filter, so the picker never
 // leaks the rest of the library), then `reveal`, then `moveZone` out of the

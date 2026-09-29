@@ -1,5 +1,5 @@
 // The Blood token (CR 111.10g) — shared spec for the "create a Blood token"
-// clause (Voldaren Epicure, vow/red.ts). A colorless artifact token with
+// clause (Voldaren Epicure, vow/red.cards.ts). A colorless artifact token with
 // subtype Blood and the activated ability "{1}, {T}, Discard a card,
 // Sacrifice this token: Draw a card." Every printed Blood producer creates
 // this EXACT spec, so their Bloods share one synthesized token definition
@@ -11,7 +11,7 @@
 // ability's `discardFilter` cost leg — Blood is the first token to combine
 // FOUR cost legs (`mana`, `tap`, `discardFilter`, `sacrifice`) on one
 // ability; each leg is already a real `ActivatedAbility.cost` primitive
-// (Arc Mage — nem/red.ts — already combines `mana`+`tap`+`discardFilter` on a
+// (Arc Mage — nem/red.cards.ts — already combines `mana`+`tap`+`discardFilter` on a
 // printed card's ability), so no new primitive was needed, only the token
 // spec's allow-list catching up to what `ActivatedAbility.cost` already
 // supports.
@@ -28,7 +28,7 @@ import type {
  *  Sacrifice this token: Draw a card." — `cost.mana: { generic: 1 }` is the
  *  {1} generic cost, `cost.tap: true` taps the token, `cost.discardFilter:
  *  { filter: {}, count: 1 }` is "discard a card" (a match-all filter, the
- *  same shape Arc Mage's "discard a card" leg uses — nem/red.ts), and
+ *  same shape Arc Mage's "discard a card" leg uses — nem/red.cards.ts), and
  *  `cost.sacrifice: true` sacrifices the ability's own source (the token
  *  itself, CR 602.1). The DSL-only `effects: [{ op: "draw", ... }]` body
  *  draws one card for the activating controller. Carries `imagePrintId`

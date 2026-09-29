@@ -11,7 +11,7 @@ import type { CardDefinition } from "../../types";
 // census for "copy this spell N times") is `status: "planned"` in
 // mechanicsRegistry.ts with zero engine hits — there is no copy-a-spell
 // primitive/Op anywhere in the codebase to build on. Flying + lifelink
-// (lifelink itself also `planned`/decorative, precedent: avr/black.ts) are
+// (lifelink itself also `planned`/decorative, precedent: avr/black.cards.ts) are
 // individually free, but shipping just the vanilla stat line while dropping
 // the storm-style copy — the card's entire reason for being in a Cube —
 // would misrepresent it (gre-development.md "never ship partial"). Stop-

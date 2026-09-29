@@ -1,4 +1,4 @@
-// Per-card test for nem/red.ts — Seal of Fire. The "Sacrifice this: deal N
+// Per-card test for nem/red.cards.ts — Seal of Fire. The "Sacrifice this: deal N
 // damage to any target" shape (shared with tmp Mogg Fanatic) is exercised
 // here via the GRE entry point: the self-sacrifice cost (`cost.sacrifice`) is
 // paid by removing the source to the graveyard BEFORE the ability resolves off

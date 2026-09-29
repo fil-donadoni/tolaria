@@ -211,7 +211,7 @@ export function buildActivationSacrificeSelection(
     // action, which the REQUIREMENT carries (`action: "return"`). Pushed FIRST
     // and then falling through to everything below, because an activation can
     // owe this leg AND a static additional-sacrifice tax (Drought,
-    // `ice/white.ts`, taxes any activation cost with a black pip — which
+    // `ice/white.cards.ts`, taxes any activation cost with a black pip — which
     // Fallen Shinobi's {2}{U}{B} has). An earlier version returned here
     // instead, which skipped the tax loop entirely and let the activation pay
     // nothing for it: fail-open on a mandatory additional cost.

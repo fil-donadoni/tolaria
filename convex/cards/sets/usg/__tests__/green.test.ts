@@ -104,7 +104,7 @@ describe("Argothian Enchantress (draw on enchantment cast, CR 603.2 / 601.2i / 1
     });
 });
 
-// resolve() card (twin of Wild Growth, `lea/green.ts` — see the card's own
+// resolve() card (twin of Wild Growth, `lea/green.cards.ts` — see the card's own
 // justification comment). Full engine integration: attach → tap the
 // enchanted land for mana → the `PERMANENT_TAPPED` trigger fires → suspends
 // on the runtime colour choice → resumes → adds the chosen colour on top of

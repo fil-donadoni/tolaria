@@ -108,7 +108,7 @@ export const earthcraft: CardDefinition = {
 // Home set = earliest paper printing (ADR 0041) = Tempest; it was first
 // implemented against the INV reprint, which filed it under the
 // wrong home set and rendered the wrong art. That printing now rides along
-// as a `CardPrint` in `inv/green.ts`.
+// as a `CardPrint` in `inv/green.cards.ts`.
 export const harrow: CardDefinition = {
     id: "3c207142-4880-4935-9827-b91bc7d9d643", // TMP 230
     rarity: "uncommon",

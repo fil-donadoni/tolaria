@@ -567,7 +567,7 @@ describe("Retrace capability (CR 702.81)", () => {
 // straight CR 702.81a violation, and it removed the only thing bounding the
 // no-exile recast loop (`canPayRetraceDiscard`'s doc).
 //
-// Wrath of God (`lea/white.ts`) is the shape: a Sorcery with NO
+// Wrath of God (`lea/white.cards.ts`) is the shape: a Sorcery with NO
 // `targetRequirement`, so the Wrenn and Six emblem grants it retrace and its
 // cast can only commit down this path. Driven through the REGISTERED mutation's
 // own `_handler` (`gameMutationHarness`, the established seam — this project has

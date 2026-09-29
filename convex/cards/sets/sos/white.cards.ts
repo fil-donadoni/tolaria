@@ -13,7 +13,7 @@ import { isBasicLandCard } from "../../types";
 // battlefield, a path the `moveZone` Op only supports FROM a graveyard card
 // (reanimation) — not from a library search choice. Stays `resolve()`,
 // following the established search-to-battlefield precedent (Nature's Lore,
-// ice/green.ts: `ctx.requestChoice` + `ctx.putFromLibraryOntoBattlefield` +
+// ice/green.cards.ts: `ctx.requestChoice` + `ctx.putFromLibraryOntoBattlefield` +
 // `ctx.shuffleLibrary`).
 
 export const erode: CardDefinition = {
@@ -32,7 +32,7 @@ export const erode: CardDefinition = {
         // The choice suspends/resumes and re-runs this WHOLE closure on
         // resume (CR 608.2c) — request it BEFORE the irreversible destroy so
         // destroy only ever executes once, on the final (answered) pass
-        // (Cuombajj Witches precedent, arn/black.ts).
+        // (Cuombajj Witches precedent, arn/black.cards.ts).
         // CR 205.4a — "a basic land card" is the Basic SUPERTYPE, not a basic
         // land SUBTYPE: a dual land (Tundra) is nonbasic and must not be
         // findable here.

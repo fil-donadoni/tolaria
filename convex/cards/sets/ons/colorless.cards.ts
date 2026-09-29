@@ -4,7 +4,7 @@
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 import type { CardDefinition } from "../../../../convex/cards/types";
 
-// Fetchland family (issue #677) — see zen/colorless.ts's header comment for
+// Fetchland family (issue #677) — see zen/colorless.cards.ts's header comment for
 // the shared DSL pattern (`choice` with an OR subtype filter + `moveZone`
 // cards-shape to the battlefield + `libraryLook` shuffle).
 

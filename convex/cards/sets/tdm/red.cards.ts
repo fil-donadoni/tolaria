@@ -31,7 +31,7 @@ import { equipAbility } from "../../abilities/equipment";
 // underlying trigger condition — "whenever you cast your second spell each
 // turn" — is exactly `nthSpellThisTurn(2)` + `scope: "you"`
 // (abilities/triggers/spellCastTrigger.ts, issue #1343/#1041), the SAME
-// per-player spell-count plumbing Ledger Shredder (snc/blue.ts) already
+// per-player spell-count plumbing Ledger Shredder (snc/blue.cards.ts) already
 // exercises for connive's "a player casts their second spell" (that one uses
 // `scope: "any"`; Cori-Steel Cutter's own controller only, hence "you").
 //
@@ -52,14 +52,14 @@ import { equipAbility } from "../../abilities/equipment";
 // "battlefield"` shape already carry a near-identical `bind?: string` field
 // that snapshots an object for a later Op to `{ ref }` — the SAME
 // snapshot-family binding `attach`'s `target: EffectObjectSelector` already
-// accepts (Reconfigure, neo/white.ts). Generalizing `createToken` with the
+// accepts (Reconfigure, neo/white.cards.ts). Generalizing `createToken` with the
 // identical `bind` field (issue #1202, `cards/types.ts` +
 // `gre/effects/interpreter.ts` + `gre/effects/validate.ts`) is a "generalize,
 // don't add" primitive-reuse move, not a new Op — it required no new grammar,
 // no new validator family, and no new binding kind (the schema row tags its
 // `bind` with the existing "snapshot" family). The "you MAY attach"
 // half reuses the pre-existing cost-free `mayPay` Op (issue #680 — "a bare
-// optional action with no payment", the exact shape `drk/white.ts`'s Fasting
+// optional action with no payment", the exact shape `drk/white.cards.ts`'s Fasting
 // already exercises for "you may skip your draw step"). No STOP-AND-ISSUE
 // needed: the full oracle text is expressible with zero new Ops, only a
 // field generalization on an existing one.

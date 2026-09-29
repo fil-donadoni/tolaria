@@ -169,14 +169,14 @@ export const noxiousVapors: CardDefinition = {
 // the unified sacrificeChoice layer (never auto-picked) — the framework's
 // own guarantee, not something this card re-implements. Single Kicker →
 // `{ kickerCount: true }` (Hypnotic Cloud's identical "discards N instead"
-// shape, `inv/black.ts`) rather than `{ additionalCostPaid: "kicker" }`; both read
+// shape, `inv/black.cards.ts`) rather than `{ additionalCostPaid: "kicker" }`; both read
 // the same answer for a one-Kicker card, and `kickerCount` is the
 // established idiom there.
 //
 // DIVERGENCE (issue #1950 review, MINOR 4) — "discards two/three cards" is a
 // MANDATORY discard (CR 701.9a — up to hand size), but `count: { min: 0, max:
 // N }` lets the targeted player submit zero cards even with a full hand. This
-// copies the shipped Hypnotic Cloud idiom verbatim (`inv/black.ts`) — a
+// copies the shipped Hypnotic Cloud idiom verbatim (`inv/black.cards.ts`) — a
 // pre-existing class defect, not introduced here. tracked-by: #2018
 export const bogDown: CardDefinition = {
     id: "8752a605-38f8-4d75-b122-063a788dff6e", // PLS 39
@@ -311,7 +311,7 @@ export const darkSuspicions: CardDefinition = {
 // sacrifice cost via `additionalCosts.sacrificeFilter`, CR 701.8 destroy / 701.19c regeneration
 // suppression, CR 202.2 "nonblack" via `excludeColors`.)
 // The life-loss reads the target's controller BEFORE the `destroy` Op runs
-// — `{ controllerOf: { target: 0 } }` (`inv/multicolor.ts`'s precedent)
+// — `{ controllerOf: { target: 0 } }` (`inv/multicolor.cards.ts`'s precedent)
 // resolves through `ctx.getController`, which throws once the permanent has
 // actually left the battlefield; ordering the read first keeps the object
 // live for it. Safe because the spell has exactly one target: CR 608.2b
@@ -345,7 +345,7 @@ export const deathBomb: CardDefinition = {
 // spell, sacrifice a creature. Search your library for a card, put that
 // card into your hand, then shuffle." (CR 601.2b/118.8 additional sacrifice
 // cost, CR 401.4 search.) The tutor body is Demonic Tutor's own effect body
-// verbatim (`lea/black.ts`) — this card's only distinguishing clause is the
+// verbatim (`lea/black.cards.ts`) — this card's only distinguishing clause is the
 // additional cost.
 export const diabolicIntent: CardDefinition = {
     id: "76d1b5c5-cc47-465f-8549-4fd1ca4280df", // PLS 42
@@ -381,7 +381,7 @@ export const diabolicIntent: CardDefinition = {
 // you gain X life, where X is the number of basic land types among lands
 // you control." (CR 702 preamble Domain ability word, issue #1066's shipped
 // `{ domain: { of } }` EffectValue — the exact shape Wandering Stream
-// (`inv/green.ts`) already uses for "gain life for each basic land type".)
+// (`inv/green.cards.ts`) already uses for "gain life for each basic land type".)
 export const exoticDisease: CardDefinition = {
     id: "4e9624e5-79a2-41de-997b-12d871d4be66", // PLS 43
     name: "Exotic Disease",
@@ -410,7 +410,7 @@ export const exoticDisease: CardDefinition = {
 // graveyard to your hand." (CR 611 layer 7c Lord-style anthem, mirroring
 // Lord of Atlantis's `pt-buff` shape exactly, `lea/blue.ts`; CR 400.7
 // zone-change activated ability, mirroring Recover's plain graveyard target
-// — `zone: "graveyard", controller: "you"` — `inv/black.ts`.)
+// — `zone: "graveyard", controller: "you"` — `inv/black.cards.ts`.)
 export const lordOfTheUndead: CardDefinition = {
     id: "0a7f50f4-37a0-476e-8655-edba228aafd6", // PLS 44
     name: "Lord of the Undead",
@@ -542,8 +542,8 @@ export const morgueToad: CardDefinition = {
 // `resolveTopOfStackInner` now prefers over the live permanent (CR 608.2h).
 // The resolution-time answer stays the
 // `if { additionalCostPaid: "<id>" }` branch inside `effects[]` — the resolving stack
-// item's own record, the same shape Thunderscape (`pls/red.ts`) and
-// Stormscape (`pls/blue.ts`) use, and what still holds for an ability COPY
+// item's own record, the same shape Thunderscape (`pls/red.cards.ts`) and
+// Stormscape (`pls/blue.cards.ts`) use, and what still holds for an ability COPY
 // that never re-runs `matches` (CR 707.10). This card
 // wrote the predicate as a raw inline closure until issue #2015 extracted it,
 // so all three shipped Battlemages share one gate (`conditionOnSelf` over
@@ -624,9 +624,9 @@ export const nightscapeBattlemage: CardDefinition = {
 // Nightscape Familiar — {1}{B} Creature — Zombie, 1/1. "Blue spells and red
 // spells you cast cost {1} less to cast. {1}{B}: Regenerate this creature."
 // (CR 601.2f `cost-modifier` static effect, two-colour `appliesToSpell`
-// filter — Derelor's single-colour shape (`fem/black.ts`) widened to an OR
+// filter — Derelor's single-colour shape (`fem/black.cards.ts`) widened to an OR
 // of two colours; CR 701.19/701.19 regenerate, Goham Djinn's `{1}{B}:
-// Regenerate` shape, `inv/black.ts`.)
+// Regenerate` shape, `inv/black.cards.ts`.)
 export const nightscapeFamiliar: CardDefinition = {
     id: "24fa6853-09b0-4c9f-a138-9dd005780255", // PLS 48
     name: "Nightscape Familiar",
@@ -707,7 +707,7 @@ export const phyrexianBloodstock: CardDefinition = {
 // leg PLS's own PRD names as a headline non-mana Kicker card, alongside Bog
 // Down; `kicker.test.ts`'s "Kicker — LIFE leg" probe is this exact
 // `life: 3` shape. CR 122.1/614.1c ETB counters via `entersWith`'s
-// `count: "kicker"`, the Duskwalker shape (`inv/black.ts`) — TWO entries so
+// `count: "kicker"`, the Duskwalker shape (`inv/black.cards.ts`) — TWO entries so
 // the placement loop sums them to exactly 0 or 2.)
 export const phyrexianScuta: CardDefinition = {
     id: "eb57e656-c94e-4cc2-ae8d-9300f51f941f", // PLS 51
@@ -743,7 +743,7 @@ export const phyrexianScuta: CardDefinition = {
 // STOP-AND-ISSUE (`.claude/rules/gre-development.md` § DSL-first authoring):
 // the engine has the underlying primitive
 // (`SpellContext.revealRandomHandCard`, CR 701.20a public reveal, used today
-// only from a `resolve()` closure in `tmp/colorless.ts`) but no Effect
+// only from a `resolve()` closure in `tmp/colorless.cards.ts`) but no Effect
 // Script Op wraps it. The DSL's only random-hand-card Op is `lookRandomHand`
 // — deliberately the PRIVATE CR 400.2 "look" sibling
 // (`lookRandomHandCard`, known to the looker alone); using it here for a
@@ -764,7 +764,7 @@ export const phyrexianScuta: CardDefinition = {
 // Shriek of Dread — {1}{B} Instant. "Target creature gains fear until end
 // of turn." (CR 702.14b fear, CR 611.2a temporary keyword grant via the
 // shipped `grantAbility` Op — Hooded Kavu's own self-targeted shape
-// (`inv/multicolor.ts`) with an announced target instead of `$source`.)
+// (`inv/multicolor.cards.ts`) with an announced target instead of `$source`.)
 export const shriekOfDread: CardDefinition = {
     id: "54a7fb3b-8e81-4763-b2a1-7c2108a00afe", // PLS 53
     name: "Shriek of Dread",
@@ -787,8 +787,8 @@ export const shriekOfDread: CardDefinition = {
 // Enchanted creature gets +3/+1 and is black." (CR 303.4 aura; CR 611 layer
 // 7c pt-buff + layer 5 color-grant, both scoped via the shared
 // `AURA_AFFECTS_HOST` predicate — Kormus Bell's own pt-cda + color-grant
-// pairing, `lea/colorless.ts`, adapted to a per-instance `pt-buff` the way
-// Unholy Strength does, `lea/black.ts`.)
+// pairing, `lea/colorless.cards.ts`, adapted to a per-instance `pt-buff` the way
+// Unholy Strength does, `lea/black.cards.ts`.)
 //
 // DIVERGENCE (issue #1950 review round 2, BLOCKER 1) — colour is ADDED, not
 // SET (host keeps its printed colours). CR 613.1e / 105.2 make "is black" a
@@ -799,7 +799,7 @@ export const shriekOfDread: CardDefinition = {
 // them. Reviewed and confirmed the additive shape DOMINATES dropping the
 // grant entirely: on every interaction a bare +3/+1 (no grant at all) gets
 // wrong (`excludeColors: "B"` — Death Bomb/Terror, this file and
-// `lea/black.ts` — wrongly treats an enchanted non-black host as illegal;
+// `lea/black.cards.ts` — wrongly treats an enchanted non-black host as illegal;
 // `colorFilter: "B"` wrongly treats it as an illegal "target black creature"
 // target; protection from black wouldn't apply when it should), the additive
 // grant gets it right too, while ALSO getting `colorFilter: "G"`
@@ -835,7 +835,7 @@ export const sinisterStrength: CardDefinition = {
 
 // Slay — {2}{B} Instant. "Destroy target green creature. It can't be
 // regenerated. Draw a card." (CR 701.8/701.19c destroy + can't-be-
-// regenerated — Terror's shape (`lea/black.ts`) with a positive
+// regenerated — Terror's shape (`lea/black.cards.ts`) with a positive
 // `colorFilter: "G"` instead of `excludeColors`; CR 120.1 draw.)
 export const slay: CardDefinition = {
     id: "eccda747-2680-4793-8a13-35e49b4de12f", // PLS 55

@@ -26,7 +26,7 @@ import { getDefinition } from "../../../index";
 const barrowgoyf = getDefinition("f979fc86-2c7e-49b3-965e-607a203cbfb1");
 
 // A dead card of a chosen card type sitting in a graveyard (the CDA reads the
-// instance `.types`), mirroring Nethergoyf's fixture (mh3/black.ts).
+// instance `.types`), mirroring Nethergoyf's fixture (mh3/black.cards.ts).
 function deadCard(
     id: string,
     owner: string,

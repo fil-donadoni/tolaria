@@ -14,7 +14,7 @@ import { tokenPrintIdFor } from "../../tokenPrintLookup";
 // Printed cost is {W/B}{U} — ONE guild-hybrid W/B pip plus a fixed {U},
 // declared via `manaCost.hybrid` (issue #1338) and payable with mana off
 // either colour of land (issues #1738/#1739, landed #1755) — see Figure of
-// Destiny (eve/multicolor.ts) for the reference shape. This unblocks the
+// Destiny (eve/multicolor.cards.ts) for the reference shape. This unblocks the
 // stub previously tracked at #782 (closed).
 //
 // The ability itself is fully DSL-free — `createToken` (a vanilla flying

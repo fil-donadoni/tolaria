@@ -35,17 +35,17 @@ const PROFT_ID = "af5b29b3-974c-4200-8df8-b072c11e1600";
 /** Grizzly Bears — a vanilla 2/2 body for the counters to land on. */
 const BEAR_ID = "ce2d603a-3231-4a8c-bf39-1617586ea870";
 const FORENSIC_GADGETEER_ID = "97d08a15-e61c-4421-a541-c68a4f87cb74";
-/** Dragon Engine (atq/colorless.ts) — Artifact Creature, "{2}: +1/+0"
+/** Dragon Engine (atq/colorless.cards.ts) — Artifact Creature, "{2}: +1/+0"
  *  (non-mana, useStack: true). Cross-set fixture, same pattern as Power
  *  Artifact's own test (atq/__tests__/blue.test.ts). */
 const DRAGON_ENGINE_ID = "07793a71-1106-4303-b620-e403bd378020";
-/** Ancient Kavu (inv/red.ts) — a NON-artifact creature, "{2}: This creature
+/** Ancient Kavu (inv/red.cards.ts) — a NON-artifact creature, "{2}: This creature
  *  becomes colorless until end of turn." GENERIC-only cost above the floor,
  *  so a reduction that wrongly ignored the "artifacts you control" scope
  *  would show up as a smaller number, not hide behind the floor the way a
  *  colored-pip-only or already-at-floor cost would. */
 const ANCIENT_KAVU_ID = "c8ccb5d0-735b-443f-addd-8b70f5f2c60d";
-/** Celestial Prism (lea/colorless.ts) — Artifact, "{2}, {T}: Add one mana of
+/** Celestial Prism (lea/colorless.cards.ts) — Artifact, "{2}, {T}: Add one mana of
  *  any color" — a MANA ability (`useStack: false`) with mana in its own
  *  cost, and no static `manaProduced` (it uses `manaChoices` instead). Proves
  *  the reduction reaches the mana-ability PAYMENT chokepoint

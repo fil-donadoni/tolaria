@@ -428,7 +428,7 @@ describe("buildPreviewBody — chosen mode in the live oracle text", () => {
 
 // Same CR 700.2c idiom as Chromatic Armor, on a creature instead of an Aura:
 // Quirion Elves' "As this creature enters, choose a color." + "{T}: Add one
-// mana of the chosen color." (mir/green.ts).
+// mana of the chosen color." (mir/green.cards.ts).
 describe("buildPreviewBody — Quirion Elves chosen colour", () => {
     const QUIRION_ELVES_ID = "be9a64fb-1e8d-4ed8-b4c5-3d44db9c1d3b";
 

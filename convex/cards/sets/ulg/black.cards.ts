@@ -8,7 +8,7 @@ import { CREATURE_SUBTYPES } from "../../../oracle/grammar/shared/subtypes";
 // Unearth — {B} Sorcery. "Return target creature card with mana value 3 or less
 // from your graveyard to the battlefield." plus Cycling {2} (CR 702.29). The
 // reanimation is the same targeted-graveyard-card → battlefield `moveZone`
-// shape as Reanimate (tmp/black.ts); the `mvFilter: { max: 3 }` gates the
+// shape as Reanimate (tmp/black.cards.ts); the `mvFilter: { max: 3 }` gates the
 // target (CR 601.2c) as in Sevinne's Reclamation (c19/white.ts). The Cycling
 // ability is the engine/cost capability from issue #689.
 export const unearth: CardDefinition = {

@@ -8,7 +8,7 @@
 // Home set = earliest paper printing (ADR 0041) = Portal Second Age; it was first
 // implemented against the INV reprint, which filed it under the
 // wrong home set and rendered the wrong art. That printing now rides along
-// as a `CardPrint` in `inv/white.ts`.
+// as a `CardPrint` in `inv/white.cards.ts`.
 import type { CardDefinition } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 export const angelOfMercy: CardDefinition = {

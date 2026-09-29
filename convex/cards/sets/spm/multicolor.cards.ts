@@ -12,7 +12,7 @@ import type { CardDefinition, PermanentView } from "../../types";
 // sacrifice it.' Mayhem {B}{R}." Blocked only on Mayhem: `grantAbility`
 // widened (issue #1665 — `grantedTriggeredId` + `triggeredGrantTemplates[]`)
 // to grant non-keyword TRIGGERED abilities, proven by Guardian Scalelord
-// (`moc/white.ts`), so "when this creature deals combat damage to a player,
+// (`moc/white.cards.ts`), so "when this creature deals combat damage to a player,
 // sacrifice it" is now expressible, and (issue #1972) so is "attacks each
 // combat if able": `grantAbility`'s `attackRequirement` payload grants it
 // per-instance, indefinitely, read by the single predicate

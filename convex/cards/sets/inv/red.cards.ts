@@ -39,7 +39,7 @@ function noOpponentWhiteOrBlueCreature(
 }
 
 // Local mana-cost → colours helper (CR 202.2), following the established
-// inline-helper precedent (arn/white.ts) rather than importing the shared
+// inline-helper precedent (arn/white.cards.ts) rather than importing the shared
 // `convex/cards/colors.ts` — that module pulls in `gre/constants.ts`, which
 // imports back into `convex/cards/index.cards.ts` (the registry), creating an
 // import cycle through the `sets/inv` barrel that leaves `red.ts`'s OWN
@@ -208,7 +208,7 @@ export const tribalFlames: CardDefinition = {
 // Kavu Scout — {2}{R} Creature — Kavu Scout, printed 0/2. "Domain — This
 // creature gets +1/+0 for each basic land type among lands you control."
 // (CR 604.3 CDA, CR 702 preamble Domain ability word, issue #1066.) Mirrors
-// Wayfaring Giant's self-scoped `pt-cda` shape (`inv/white.ts`) — only the
+// Wayfaring Giant's self-scoped `pt-cda` shape (`inv/white.cards.ts`) — only the
 // toughness half of the delta is zero (a +1/+0-per-Domain scaling, not
 // +1/+1).
 export const kavuScout: CardDefinition = {
@@ -292,7 +292,7 @@ export const collapsingBorders: CardDefinition = {
 
 // Callous Giant — {4}{R}{R} Creature — Giant, 4/4. "If a source would deal 3
 // or less damage to this creature, prevent that damage." (CR 614/615
-// replacement effect — the exact Divine Presence clamp template, inv/white.ts,
+// replacement effect — the exact Divine Presence clamp template, inv/white.cards.ts,
 // generalized from "reduce to 3" to "prevent entirely" via `{kind:"consumed"}`
 // instead of `{kind:"modified"}`.)
 export const callousGiant: CardDefinition = {
@@ -377,7 +377,7 @@ export const chaoticStrike: CardDefinition = {
 // crownOfFlames — INV reprint of the Tempest definition (CardPrint).
 // The card was first implemented here, against this printing; its home set is
 // its earliest paper printing (ADR 0041), so the mechanics live in
-// `tmp/red.ts`.
+// `tmp/red.cards.ts`.
 export const crownOfFlamesInv: CardPrint = {
     printId: "5a46239c-3de7-48ca-8f5c-b51f307fd0e5", // INV 138
     definitionId: "f2c82741-2869-41f9-82f4-6ed88756e2fd", // crownOfFlames (Tempest)
@@ -388,8 +388,8 @@ export const crownOfFlamesInv: CardPrint = {
 // Halam Djinn — {5}{R} Creature — Djinn, 6/5. "Haste. This creature gets
 // -2/-2 as long as red is the most common color among all permanents or is
 // tied for most common." (CR 702.10 haste + CR 611.2c conditional CDA anthem
-// on itself — the Zanam Djinn / Goham Djinn cycle template, inv/blue.ts /
-// inv/black.ts, colour swapped to red.)
+// on itself — the Zanam Djinn / Goham Djinn cycle template, inv/blue.cards.ts /
+// inv/black.cards.ts, colour swapped to red.)
 const HALAM_DJINN_COLORS = ["W", "U", "B", "R", "G"] as const;
 function redIsMostCommonOrTied(
     battlefields: ReadonlyArray<{ colors: readonly string[] }>
@@ -524,7 +524,7 @@ export const kavuMonarch: CardDefinition = {
 // maniacalRage — INV reprint of the Exodus definition (CardPrint).
 // The card was first implemented here, against this printing; its home set is
 // its earliest paper printing (ADR 0041), so the mechanics live in
-// `exo/red.ts`.
+// `exo/red.cards.ts`.
 export const maniacalRageInv: CardPrint = {
     printId: "3d17886c-fffd-4f0d-b4da-4b5fba18b811", // INV 151
     definitionId: "f3aa840f-6a70-4674-acb7-ded0ea4397d8", // maniacalRage (Exodus)
@@ -535,7 +535,7 @@ export const maniacalRageInv: CardPrint = {
 // Pouncing Kavu — {1}{R} Creature — Kavu, 1/1. "Kicker {2}{R}. First strike.
 // If this creature was kicked, it enters with two +1/+1 counters on it and
 // with haste." (CR 702.33 Kicker, CR 702.7 first strike, CR 122.1/614.1c ETB
-// counters — the exact Duskwalker template, inv/black.ts: two `entersWith`
+// counters — the exact Duskwalker template, inv/black.cards.ts: two `entersWith`
 // counter entries each `count: "kicker"`, plus a `keyword-grant` gated on the
 // permanent's own `wasKicked` flag, CardInstanceState.wasKicked, gre/state.ts
 // — a one-shot fact snapshotted from the resolving stack item's
@@ -671,7 +671,7 @@ export const rogueKavu: CardDefinition = {
 // Ruby Leech — {1}{R} Creature — Leech, 2/2. "First strike. Red spells you
 // cast cost {R} more to cast." (CR 702.7 first strike + CR 601.2f cost
 // increase — the exact Sapphire Leech / Derelor `cost-modifier` template,
-// inv/blue.ts / fem/black.ts, colour swapped to red.)
+// inv/blue.cards.ts / fem/black.cards.ts, colour swapped to red.)
 export const rubyLeech: CardDefinition = {
     id: "be621b12-4f4e-43a6-b65e-da4223e742b5",
     rarity: "rare",
@@ -734,7 +734,7 @@ export const scarredPuma: CardDefinition = {
 // Searing Rays — {2}{R} Sorcery. "Choose a color. Searing Rays deals damage
 // to each player equal to the number of creatures of that color that player
 // controls." (CR 700.2 "choose a color" via a 5-mode `optionChoice` — the
-// Addle template, inv/black.ts; per player, `count` reads that player's
+// Addle template, inv/black.cards.ts; per player, `count` reads that player's
 // battlefield filtered by the chosen color, fed straight into `dealDamage`.)
 function searingRaysMode(color: "W" | "U" | "B" | "R" | "G", label: string) {
     return {
@@ -824,7 +824,7 @@ export const skittishKavu: CardDefinition = {
 // `kickerCount` (the exact Vodalian Serpent / Duskwalker ETB-kicker-read
 // idiom) that schedules a `delayedTrigger` sacrifice — the Kjeldoran Elite
 // Guard / Kjeldoran Guard `capture: { ref: "$source" }` + `sacrifice: {
-// target: { ref } }` template, ice/white.ts.)
+// target: { ref } }` template, ice/white.cards.ts.)
 export const skizzik: CardDefinition = {
     id: "dc7732bc-e168-44d9-923a-db7e985bd6db",
     rarity: "rare",
@@ -883,7 +883,7 @@ export const skizzik: CardDefinition = {
 // DSL-migratable, ADR 0045 — a land-type change has no Effect Script Op
 // wrapper around the existing SpellContext primitive `setSubtypesUntil` (no
 // `setSubtype` Op is registered)". WRONG at HEAD: issue #1083 shipped exactly
-// that Op, and the sibling Kavu Recluse (pls/red.ts) has been written with it
+// that Op, and the sibling Kavu Recluse (pls/red.cards.ts) has been written with it
 // since. Same execution path either way — the Op is a skin over the same
 // primitive — but the closure kept the card out of the gold harness's
 // structural comparison, where it now sits as the Oracle compiler's land-type
@@ -920,7 +920,7 @@ export const slimyKavu: CardDefinition = {
 // stun — INV reprint of the Tempest definition (CardPrint).
 // The card was first implemented here, against this printing; its home set is
 // its earliest paper printing (ADR 0041), so the mechanics live in
-// `tmp/red.ts`.
+// `tmp/red.cards.ts`.
 export const stunInv: CardPrint = {
     printId: "d22f3ae8-a40b-4dab-abf4-3ab7b05191f7", // INV 162
     definitionId: "c09c0da6-37a7-42ba-b264-18898ee372f0", // stun (Tempest)
@@ -994,7 +994,7 @@ export const zap: CardDefinition = {
 // 1 damage to each creature without flying and each player. If this spell was
 // kicked, it deals 4 damage to each creature without flying and each player
 // instead." (CR 702.33 Kicker, CR 120.1 damage. NOT DSL-migratable, ADR 0045
-// #852 — the Earthquake precedent, lea/red.ts: "each creature without
+// #852 — the Earthquake precedent, lea/red.cards.ts: "each creature without
 // flying" needs an ABILITY-EXCLUSION filter on a forEach permanents set;
 // `EffectCardFilter` is type/subtype/colour/mana-value only. Blocked on a
 // forEach ability-exclusion filter, not on the kicker branch — that's a
@@ -1120,7 +1120,7 @@ export const ancientKavu: CardDefinition = {
 // `AlternativeCost`: the {2} joins {X}{R} (CR 601.2f), it does not replace it,
 // so casting for X=3 on the opponent's turn costs {5}{R} and the same cast in
 // your own main phase costs {3}{R}. The damage half is Lava Burst's body
-// (`ice/red.ts`).
+// (`ice/red.cards.ts`).
 export const ghituFire: CardDefinition = {
     id: "78827acd-a526-411b-bd22-ab9b538c75dd",
     name: "Ghitu Fire",
@@ -1225,7 +1225,7 @@ export const lightningDart: CardDefinition = {
 //
 // The two-event `event: [...]` + `matches` shape is the standing "one Oracle
 // line = ONE TriggeredAbility" multi-event form (CR 603.2), same as
-// Smuggler's Copter (`kld/colorless.ts`).
+// Smuggler's Copter (`kld/colorless.cards.ts`).
 export const loafingGiant: CardDefinition = {
     id: "fab5f738-04d0-44c9-88ec-28469b668040",
     name: "Loafing Giant",
@@ -1310,7 +1310,7 @@ export const loafingGiant: CardDefinition = {
 //    issue #1283 (Incinerate's identical rider);
 //  - the "exile it instead" half is this issue's own slice — the primitive
 //    `SpellContext.setExileOnDeath` already existed with three `resolve()`
-//    callers (Disintegrate `drk/green.ts`, `fin/red.ts`, `lea/red.ts`); it
+//    callers (Disintegrate `drk/green.cards.ts`, `fin/red.cards.ts`, `lea/red.cards.ts`); it
 //    now has its DSL skin, the `exileOnDeath` Op.
 //
 // The rider is DELIBERATELY unguarded by a creature check: the spell targets

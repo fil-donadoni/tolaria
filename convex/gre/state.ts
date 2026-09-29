@@ -2701,7 +2701,7 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
                 //    it must stay live: a permanent that never left is the
                 //    same object, so counters or combat history it gained
                 //    AFTER the trigger went on the stack are legitimately
-                //    visible here (Living Artifact, `lea/green.ts`).
+                //    visible here (Living Artifact, `lea/green.cards.ts`).
                 // 3. The stack item itself — a source that was never on the
                 //    battlefield at all (graveyard-zone triggers like Nether
                 //    Shadow). Its `id` was reallocated, so pin the identity to
@@ -10838,7 +10838,7 @@ function untilNextEndStepTurn(state: GameState, playerId: string): number {
  *  CR 202.1): those all return `undefined` here, which `matchesCardFilter`
  *  fails CLOSED on. `{}` is a DISTINCT, real encoding of the printed cost
  *  `{0}` some non-land cards use (Ornithopter writes `manaCost: {}` itself,
- *  `atq/colorless.ts` — note Mishra's Factory/Workshop, elsewhere in that
+ *  `atq/colorless.cards.ts` — note Mishra's Factory/Workshop, elsewhere in that
  *  same file, are the OPPOSITE branch: `types: ["Land"]`, correctly excluded
  *  by the carve-out below) — so `{}` is passed through
  *  unchanged for a non-land card, never collapsed to `undefined`. Without the
@@ -13201,7 +13201,7 @@ export function buildSpellContext(
             seededShuffle(state, library);
             clearKnowledge(library, null);
         },
-        // Endurance's ETB (mh2/green.ts, #1207): "put all the cards from their
+        // Endurance's ETB (mh2/green.cards.ts, #1207): "put all the cards from their
         // graveyard on the bottom of their library in a random order." Detach
         // the whole graveyard, randomize it among itself with the seeded PRNG
         // (deterministic under replay), then append after the existing library
@@ -19185,7 +19185,7 @@ export function moveCard(
  *  must NOT be stamped known to every player — that would over-reveal it.
  *  `projectExileCard` already treats a non-empty `knownTo` on an exiled card
  *  as the face-down marker (`gameProjections.ts`); reuse that same signal
- *  here rather than inventing a new one. Memory Jar (`ulg/colorless.ts`) is
+ *  here rather than inventing a new one. Memory Jar (`ulg/colorless.cards.ts`) is
  *  the shipped card that exercises this: it exiles every hand face down,
  *  then returns them via `moveCardById`. */
 /** issue #3242 — the general mover's library-entry emission. A card moved

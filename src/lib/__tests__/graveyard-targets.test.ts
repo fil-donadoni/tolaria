@@ -151,7 +151,7 @@ describe("matchesGraveyardTarget (mirror of server filter, CR 109.2)", () => {
 // ever needs to compare against a resolved bound, same as `matchesMvFilter`
 // (`gre/targetFilters.ts`) does server-side. Closes a pre-existing gap
 // affecting every mvFilter-restricted graveyard target (Sevinne's
-// Reclamation, sos/multicolor.ts, ulg/black.ts), not just this new card.
+// Reclamation, sos/multicolor.cards.ts, ulg/black.cards.ts), not just this new card.
 describe("matchesGraveyardTarget — mvFilter (CR 202.3, issue #1378)", () => {
     it("accepts a card within the resolved mana-value bound, rejects one outside it", () => {
         const cheap = gyCard("cheap", "me", ["Creature"], { generic: 2 });

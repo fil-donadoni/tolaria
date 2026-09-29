@@ -48,7 +48,7 @@ export const detonate: CardDefinition = {
 // Shatterstorm — {2}{R}{R} Sorcery. "Destroy all artifacts. They can't be
 // regenerated." Mass destroy via `forEach` over the "Artifact" battlefield
 // filter + `destroy { ref: "$each", cantBeRegenerated: true }` (CR 701.8,
-// 701.19c) — the Day of Judgment shape (`m11/white.ts`) with the `destroy`
+// 701.19c) — the Day of Judgment shape (`m11/white.cards.ts`) with the `destroy`
 // Op's `cantBeRegenerated` passthrough (ADR 0053); indestructible artifacts
 // are still spared.
 export const shatterstorm: CardDefinition = {

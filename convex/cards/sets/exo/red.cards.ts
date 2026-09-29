@@ -49,7 +49,7 @@ export const priceOfProgress: CardDefinition = {
 // Home set = earliest paper printing (ADR 0041) = Exodus; it was first
 // implemented against the INV reprint, which filed it under the
 // wrong home set and rendered the wrong art. That printing now rides along
-// as a `CardPrint` in `inv/red.ts`.
+// as a `CardPrint` in `inv/red.cards.ts`.
 export const maniacalRage: CardDefinition = {
     id: "f3aa840f-6a70-4674-acb7-ded0ea4397d8", // EXO 87
     rarity: "common",

@@ -145,7 +145,7 @@ describe("each creature and each player (CR 120.3) — goldens", () => {
     // dealer and lowers it to `$source`, nothing more. Whether `$source` still
     // resolves once the sacrifice cost has moved the creature off the
     // battlefield is a GRE question, already exercised by the hand-written
-    // cards that print the same shape (`sets/ice/black.cards.ts`, `fem/black.ts`,
+    // cards that print the same shape (`sets/ice/black.cards.ts`, `fem/black.cards.ts`,
     // `sets/lea/black.cards.ts`) — claiming it here would be a test whose docstring
     // covers more than the test does.
     it("dealDamage, 'It' dealer behind a sacrifice cost: Bloodfire Colossus deals 6 (CR 120.1)", () => {

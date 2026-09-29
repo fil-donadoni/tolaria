@@ -254,7 +254,7 @@ export const vaultbornTyrant: CardDefinition = {
 // `TriggeredAbility.maxTriggersPerTurn` exists (`convex/cards/types.ts`), is
 // enforced in `convex/gre/triggers.ts`, and ships on an MH3 card (Nadu). The
 // mana ability is the established any-colour `manaChoices` shape (City of
-// Brass, `arn/colorless.ts`).
+// Brass, `arn/colorless.cards.ts`).
 //
 // Residual, and this marker already sanctioned the fallback: the life-gain
 // amount is the firing spell's live colour count, and `SPELL_CAST` still has

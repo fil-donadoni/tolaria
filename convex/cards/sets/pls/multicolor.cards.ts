@@ -55,7 +55,7 @@ import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 // The sacrifice is always the player's own explicit pick (`choice(kind:
 // "sacrifice-permanents")` feeding `sacrifice`), never engine-auto-selected —
 // the project-wide sacrifice-choice convention, and the shape Mana Vortex's
-// each-upkeep land sacrifice (`drk/blue.ts`) already uses. With no legal
+// each-upkeep land sacrifice (`drk/blue.cards.ts`) already uses. With no legal
 // creature the choice clamps to zero candidates and the ability does nothing
 // (CR 608.2b); the trigger still goes on the stack under its full oracle text
 // and visibly resolves, which is the engine's existing "nothing to choose"
@@ -123,7 +123,7 @@ export const keldonTwilight: CardDefinition = {
 //
 // The "unless they pay {2}" half reuses the existing `mayPay` (CR 117.3a /
 // 118.4) + `if`/`loseLife` shape — the exact "unless you pay" punisher
-// template Force Spike / Hasran Ogress already ship (`arn/black.ts`) — with
+// template Force Spike / Hasran Ogress already ship (`arn/black.cards.ts`) — with
 // the payer resolved to the drawing player instead of `"controller"`. No new
 // Op, no new primitive: only the `player` ref differs from every prior
 // mayPay card.
@@ -458,8 +458,8 @@ export const lavaZombie: CardDefinition = {
 //
 // The variable target COUNT is `count: "X"` (CR 107.3 / 601.2c — X is chosen at
 // announcement and the target count is fixed there, not at resolution), the
-// same shape Word of Binding (`drk/black.ts`) and Distorting Wake
-// (`inv/blue.ts`) already use. The heterogeneous "artifacts, creatures, and/or
+// same shape Word of Binding (`drk/black.cards.ts`) and Distorting Wake
+// (`inv/blue.cards.ts`) already use. The heterogeneous "artifacts, creatures, and/or
 // lands" set is the array form of `TargetRequirement.type` — one requirement
 // admitting three card types, NOT three separate requirements, because the
 // player chooses freely among them (all X may be lands).
@@ -557,7 +557,7 @@ export const marshCrocodile: CardDefinition = {
 // symmetric land sacrifice. "A land of their choice" is explicit in the modern
 // Oracle text: each player picks their OWN land (CR 701.17a), which is the
 // `choice(kind: "sacrifice-permanents")` feeding `sacrifice` shape Mana Vortex
-// (`drk/blue.ts`) and Keldon Twilight (above) already use.
+// (`drk/blue.cards.ts`) and Keldon Twilight (above) already use.
 export const razingSnidd: CardDefinition = {
     id: "d2090b80-2ce2-4c9a-87fe-d221f3c677b4", // PLS printing (scryfallId)
     rarity: "uncommon",
@@ -834,14 +834,14 @@ export const sawtoothLoon: CardDefinition = {
 // clause decomposes into two already-exercised Ops. "Look at that player's hand
 // and choose a card from it" is `choice(kind: "choose-hand-card")` with
 // `player: "controller"` (WHO chooses) split from `zoneOwnerId` (WHOSE hand) —
-// the Thoughtseize shape (`lrw/black.ts`). Note there is deliberately NO
+// the Thoughtseize shape (`lrw/black.cards.ts`). Note there is deliberately NO
 // `reveal` Op here: the Oracle text says "look at", a CR 701.20 private look
 // for this creature's controller, not Thoughtseize's public "reveals their
 // hand".
 //
 // The damaged player is read off the firing event through the censused
 // `$event.damagedPlayer` ref (ADR 0049), the same way Blazing Specter
-// (`inv/multicolor.ts`) does — NOT `"opponent"`, which would be the source's
+// (`inv/multicolor.cards.ts`) does — NOT `"opponent"`, which would be the source's
 // controller-relative opponent rather than the player actually dealt damage.
 export const doomsdaySpecter: CardDefinition = {
     id: "85206cc1-5484-40c6-b11d-b8d6fad4fc5c", // PLS printing (scryfallId)
@@ -895,7 +895,7 @@ export const doomsdaySpecter: CardDefinition = {
 // that permanent to its owner's hand."
 //
 // CR 603.2b — the trigger event is `BECAME_TARGET`, emitted once per targeted
-// object per targeting spell/ability, the same event Leovold (`cn2/multicolor.ts`)
+// object per targeting spell/ability, the same event Leovold (`cn2/multicolor.cards.ts`)
 // and Ward (CR 702.21a) already read. Three clauses, all in `matches`:
 //   * "another permanent you control" — `event.target.type === "permanent"`
 //     (a targeted PLAYER never triggers this), `event.target.id !== self.id`
@@ -907,7 +907,7 @@ export const doomsdaySpecter: CardDefinition = {
 //     needed.
 //
 // "You may" is the bare cost-free `mayPay` + `if` shape (CR 601.2b), the same
-// pairing Squee (`mmq/red.ts`) and Leovold use.
+// pairing Squee (`mmq/red.cards.ts`) and Leovold use.
 //
 // "That permanent" is read off the firing event via the newly-censused
 // `$event.targetPermanent` object ref (ADR 0049) — the object is neither the
@@ -975,7 +975,7 @@ export const cloudCover: CardDefinition = {
 //
 // "ALL Goblins" is board-wide, either controller (CR 109.4) — the `applies`
 // predicate deliberately carries NO `target.controllerId === source.controllerId`
-// check, the same shape Bad Moon and Crusade (`lea/black.ts`, `lea/white.ts`)
+// check, the same shape Bad Moon and Crusade (`lea/black.cards.ts`, `lea/white.cards.ts`)
 // use. It also has no `target.id !== source.id` exclusion (unlike Goblin King's
 // "OTHER Goblins"): Dralnu's Crusade is an Enchantment, never a Goblin itself,
 // and the text has no "other".
@@ -990,7 +990,7 @@ export const cloudCover: CardDefinition = {
 // colours instead of replacing them. A mono-red Goblin correctly becomes black
 // here; a Goblin that was already another colour keeps that colour as well, so
 // e.g. protection from red still stops it. Same additive-vs-set gap Sinister
-// Strength (`pls/black.ts`) documents in this very set, and the same tracking
+// Strength (`pls/black.cards.ts`) documents in this very set, and the same tracking
 // ticket — tracked-by: #2009.
 export const dralnusCrusade: CardDefinition = {
     id: "6a35d227-4489-4a0b-8f81-eb8e5949e1fc", // PLS printing (scryfallId)
@@ -1038,7 +1038,7 @@ export const dralnusCrusade: CardDefinition = {
 //   * layer 7a (characteristic-defining P/T) — `pt-cda` computes a flat 2/2.
 //     NOT `pt-buff`: a land's printed P/T is undefined, so an additive +2/+2
 //     modification has nothing to modify; a CDA SETS the values, the same shape
-//     Living Lands (`lea/green.ts`) and Kormus Bell (`lea/colorless.ts`) use for
+//     Living Lands (`lea/green.cards.ts`) and Kormus Bell (`lea/colorless.cards.ts`) use for
 //     exactly this "lands are N/N creatures" template.
 //   * layer 6 (ability grant) — `keyword-grant` grants "first strike".
 //
@@ -1105,7 +1105,7 @@ export const naturalEmergence: CardDefinition = {
 // happily let the player pick two artifacts, whereas the Oracle text forces
 // exactly one of each. That is what `SpellMode.additionalTargetRequirements`
 // (issue #1953) expresses — the per-mode twin of the card-level field Fumarole
-// (`ice/multicolor.ts`) and Plague Spores (`inv/multicolor.ts`) already use.
+// (`ice/multicolor.cards.ts`) and Plague Spores (`inv/multicolor.cards.ts`) already use.
 // Groups are chosen in declaration order and concatenate onto the stack item's
 // flat `targets` list, so the script reads them positionally: `{ target: 0 }`
 // is the artifact, `{ target: 1 }` the enchantment.
@@ -1169,7 +1169,7 @@ export const hullBreach: CardDefinition = {
 //     at submit.
 //
 //  2. The RESTRICTION — a `cast-restriction` static (CR 601.3a), the SAME kind
-//     Brand of Ill Omen (`ice/red.ts`) uses, evaluated read-time by the shared
+//     Brand of Ill Omen (`ice/red.cards.ts`) uses, evaluated read-time by the shared
 //     cast gate `castProhibitionReason` (`cards/castRestrictions.ts`) that both
 //     `getLegalActions` and the cast mutation call. Because it is a read-time
 //     gate it needs no per-instance flag and auto-reverts the moment Meddling
@@ -1248,7 +1248,7 @@ export const meddlingMage: CardDefinition = {
 // to its owner's hand. / Destroy target nonblack creature. It can't be
 // regenerated. / Destroy target artifact." (Modern Oracle text, verified
 // against Scryfall — the 2001 printing read differently.) Mode 2 mirrors Dark
-// Banishing's `excludeColors` + `cantBeRegenerated` shape exactly (ice/black.ts).
+// Banishing's `excludeColors` + `cantBeRegenerated` shape exactly (ice/black.cards.ts).
 export const crosissCharm: CardDefinition = {
     id: "b59a9e75-9988-4040-a718-b1655fc20d11", // PLS 99
     rarity: "uncommon",
@@ -1262,7 +1262,7 @@ export const crosissCharm: CardDefinition = {
             id: "bounce",
             label: "Return target permanent to its owner's hand",
             oracleText: "Return target permanent to its owner's hand.",
-            // "target permanent" of any type (Boomerang precedent, leg/blue.ts):
+            // "target permanent" of any type (Boomerang precedent, leg/blue.cards.ts):
             // `type: "any"` only covers the CR 115.4 damageable set, so the
             // full CR 300.1 permanent-type list is used instead.
             targetRequirement: { type: [...PERMANENT_TYPES], count: 1 },
@@ -1299,8 +1299,8 @@ export const crosissCharm: CardDefinition = {
 // Darigaaz's Charm — {B}{R}{G} Instant. "Choose one — Return target creature
 // card from your graveyard to your hand. / Darigaaz's Charm deals 3 damage to
 // any target. / Target creature gets +3/+3 until end of turn." Mode 1 mirrors
-// Raise Dead's graveyard-target shape (lea/black.ts); mode 3 mirrors Giant
-// Growth's `pump` shape (lea/green.ts).
+// Raise Dead's graveyard-target shape (lea/black.cards.ts); mode 3 mirrors Giant
+// Growth's `pump` shape (lea/green.cards.ts).
 export const darigaazsCharm: CardDefinition = {
     id: "cf4c9d6a-86eb-45be-9405-473eb263b94c", // PLS 100
     rarity: "uncommon",
@@ -1393,8 +1393,8 @@ export const dromarsCharm: CardDefinition = {
 // Treva's Charm — {G}{W}{U} Instant. "Choose one — Destroy target
 // enchantment. / Exile target attacking creature. / Draw a card, then discard
 // a card." Mode 2's `combatRoleFilter: "attacking"` mirrors the DRK
-// precedent (drk/colorless.ts); mode 3's draw-then-discard mirrors Jalum
-// Tome's loot shape (atq/colorless.ts).
+// precedent (drk/colorless.cards.ts); mode 3's draw-then-discard mirrors Jalum
+// Tome's loot shape (atq/colorless.cards.ts).
 export const trevasCharm: CardDefinition = {
     id: "72acb67d-01cb-4fde-8b0b-199e8d1e396a", // PLS 129
     rarity: "uncommon",
@@ -1452,7 +1452,7 @@ export const trevasCharm: CardDefinition = {
 // (Modern Oracle — the 2001 printing read "loses 2 life" for a nonland
 // permanent; current wording is the land-sacrifice-only version verified via
 // Scryfall.) Mirrors Mana Vortex's each-upkeep land-sacrifice trigger
-// (drk/blue.ts) exactly, filtered to nonbasic via `excludeSupertype: "Basic"`
+// (drk/blue.cards.ts) exactly, filtered to nonbasic via `excludeSupertype: "Basic"`
 // instead of a bare land filter. `{ ref: "$event.activePlayerId" }` (issue
 // #1066 / ADR 0049) reads the player whose upkeep it is — needed under
 // `scope: "each"`, where that differs from the ability's own `"controller"`
@@ -1544,12 +1544,12 @@ export const ertaiTheCorruptedAlt: CardPrint = {
 // cost-free `mayPay` whose `player` ref is the announced opponent target
 // (`{ target: 0 }`, not `"controller"`) — the exact cross-player mayPay shape
 // already shipped for "Counter target spell unless ITS CONTROLLER pays {N}"
-// (`player: { controllerOf: { target: 0 } }`, e.g. ice/blue.ts), just resolved
+// (`player: { controllerOf: { target: 0 } }`, e.g. ice/blue.cards.ts), just resolved
 // through the plain `{ target }` selector instead of `controllerOf`. The {W}
 // ability's two-colour protection grant is two independent `grantAbility`
-// Ops (Crimson Acolyte / Obsidian Acolyte precedent, inv/white.ts) — a
+// Ops (Crimson Acolyte / Obsidian Acolyte precedent, inv/white.cards.ts) — a
 // temporary grant has no combined-quality string, unlike a permanent
-// `staticAbilities[]` declaration (Sabertooth Nishoba, inv/multicolor.ts).
+// `staticAbilities[]` declaration (Sabertooth Nishoba, inv/multicolor.cards.ts).
 // Token art: Scryfall carries no printed "1/1 green Hippo" token (Questing
 // Phelddagrif predates linked token products) — the TAKH Hippo token (3/3
 // green Hippo) is the only Hippo token Scryfall has at all, pinned as a

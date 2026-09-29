@@ -14,7 +14,7 @@ import { equipAbility } from "../../abilities/equipment";
 //
 // +1/+0 (`pt-buff`) and haste (`keyword-grant`) are the SAME
 // `AURA_AFFECTS_HOST`-scoped continuous-static shape Cori-Steel Cutter
-// (`tdm/red.ts`, +1/+1/trample/haste) and Skullclamp (`dst/colorless.ts`,
+// (`tdm/red.cards.ts`, +1/+1/trample/haste) and Skullclamp (`dst/colorless.cards.ts`,
 // +1/-1, the Equip {1} spine this card's own Equip ability reuses) already
 // prove.
 //
@@ -24,11 +24,11 @@ import { equipAbility } from "../../abilities/equipment";
 // not a plain keyword flag like haste, so a `keyword-grant` alone (which only
 // pushes a reminder STRING into `staticAbilities`) cannot make it function —
 // exactly the same reminder-vs-enforcement split shroud has (see Lightning
-// Greaves, `mrd/colorless.ts`). The enforcement half needs the granted
+// Greaves, `mrd/colorless.cards.ts`). The enforcement half needs the granted
 // permanent to gain the actual `TriggeredAbility` object, which is what
 // `StaticTriggeredGrant` (`kind: "triggered-grant"`, `cards/types.ts`) is
-// for — Energy Flux (`atq/blue.ts`) and The Tabernacle at Pendrell Vale
-// (`leg/colorless.ts`) already prove the mechanism (a battlefield-wide grant
+// for — Energy Flux (`atq/blue.cards.ts`) and The Tabernacle at Pendrell Vale
+// (`leg/colorless.cards.ts`) already prove the mechanism (a battlefield-wide grant
 // via `triggeredGrantTemplates[]`, scanned as if printed on the recipient —
 // `self` in the granted trigger IS the recipient, per `triggers.ts`'s
 // `buildTriggerItem(state, permanent, ability.id, event)`, so `wardAbility`'s

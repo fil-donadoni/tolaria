@@ -397,7 +397,7 @@ describe("Ancient Cornucopia (may gain life = colours of a cast spell, once/turn
     });
 
     // The `{T}: Add one mana of any color` ability is the established
-    // `manaChoices` any-colour shape (City of Brass, `arn/colorless.ts`) —
+    // `manaChoices` any-colour shape (City of Brass, `arn/colorless.cards.ts`) —
     // that card's own test suite covers only its OTHER (triggered) ability,
     // treating `useStack: false` + `manaChoices` mana production as
     // already-covered generic engine machinery, not a per-card test surface.

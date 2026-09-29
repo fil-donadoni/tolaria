@@ -626,7 +626,7 @@ describe("Restrain (CR 615 source-scoped prevention shield + draw)", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Liberate — resolve() protocol card (precedent: Flickerwisp, eve/white.ts)
+// Liberate — resolve() protocol card (precedent: Flickerwisp, eve/white.cards.ts)
 // ---------------------------------------------------------------------------
 
 describe("Liberate (CR 603.7a exile + next-end-step return, flicker idiom)", () => {
@@ -1013,7 +1013,7 @@ describe("Fight or Flight (CR 603.6a combat-begin trigger / 508.1a attack restri
 // predicate — covered by the card's own tests"), so per
 // `.claude/rules/gre-development.md` this hand-written suite is the required
 // proof obligation, not optional per-Op coverage. Uses the Waterspout
-// Elemental (`pls/blue.ts`) / Thunderscape Battlemage (`pls/red.ts`)
+// Elemental (`pls/blue.cards.ts`) / Thunderscape Battlemage (`pls/red.cards.ts`)
 // template: `conditionOnSelf: additionalCostPaidCondition` at CR 603.4 check time
 // (exercised via the REAL cast path below), `if { additionalCostPaid }` inside
 // `effects[]` at resolution time (exercised via `resolveTrigger`, which
@@ -1133,7 +1133,7 @@ describe("Benalish Emissary (single Kicker ETB — destroy target land, issue #1
 // ---------------------------------------------------------------------------
 // Benalish Lancer — single Kicker, entersWith two +1/+1 counters + a
 // `keyword-grant` of first strike gated on `wasKicked` (issue #1328). Exact
-// Pouncing Kavu / Duskwalker template (`inv/red.ts` / `inv/black.ts`) —
+// Pouncing Kavu / Duskwalker template (`inv/red.cards.ts` / `inv/black.cards.ts`) —
 // already-exercised composition, so this is a confirming test of THIS
 // card's specific outcome (per-Op regime), not a re-proof of the underlying
 // `wasKicked` mechanism (which carries its own regression suite on Pouncing

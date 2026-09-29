@@ -8,7 +8,7 @@ import type { CardDefinition } from "../../types";
 // this artifact on top of its owner's library." (issue #789, parent PRD
 // #620.) Both abilities are DSL-first (ADR 0045). The FIRST is the
 // order-only `scryReorder` shape (`count: 3`, `destination: "none"` —
-// the Ponder precedent, `lrw/blue.ts`). The SECOND composes `draw` with a
+// the Ponder precedent, `lrw/blue.cards.ts`). The SECOND composes `draw` with a
 // `moveZone` self-reference (`$source`) to `to: "library"` — a battlefield
 // permanent to a specific 1-based position from the top, `position`
 // omitted defaulting to 1/top (issue #1726, `putIntoLibraryFromBattlefield`)

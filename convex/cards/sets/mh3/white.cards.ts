@@ -173,7 +173,7 @@ export const phelia: CardDefinition = {
             // resolution-time choice), so it is subject to hexproof /
             // protection / ward and fires "becomes the target" triggers.
             // `type: PERMANENT_TYPES minus Land` = "nonland permanent" (the
-            // Boomerang idiom, ons/blue.ts); `excludeSource` drops Phelia
+            // Boomerang idiom, ons/blue.cards.ts); `excludeSource` drops Phelia
             // herself ("other"); `count 0..1` = "up to one". Any controller's
             // permanent is eligible (no controller restriction in the text).
             targetRequirement: {

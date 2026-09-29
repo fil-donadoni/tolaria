@@ -131,8 +131,8 @@ export const mirrorwoodTreefolk: CardDefinition = {
 // engine's single `boardDerivedManaChoices` authority (`gre/constants.ts`)
 // that the castability probe, the auto-tap solver, the bot's payment planner
 // and the client picker all already read. Same descriptor family as Fellwar
-// Stone (`drk/colorless.ts`) and PLS's own Star Compass / Meteor Crater
-// (`pls/colorless.ts`).
+// Stone (`drk/colorless.cards.ts`) and PLS's own Star Compass / Meteor Crater
+// (`pls/colorless.cards.ts`).
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Quirion Explorer — {1}{G} Creature — Elf Druid Scout, 1/1. "{T}: Add one
@@ -194,7 +194,7 @@ export const quirionExplorer: CardDefinition = {
 // the production `collectTriggers` call passes the raw live `GameState` as
 // that state view, whose `CardInstanceState` carries no live `colors` field,
 // so a `matches` reading `state.players[].battlefield[].colors` (Phyrexian
-// Reaper/Slayer's existing pattern, inv/black.ts) never actually resolves a
+// Reaper/Slayer's existing pattern, inv/black.cards.ts) never actually resolves a
 // colour outside their own hand-built test fixtures — a pre-existing dead
 // trigger in production, tracked-by: #1996 rather than silently fixed here
 // (out of this slice's scope). Amphibious Kavu avoids that trap by reading
@@ -204,7 +204,7 @@ export const quirionExplorer: CardDefinition = {
 // every BLOCKERS_CONFIRMED pair this permanent participates in during the
 // SAME confirmation batch into a single trigger — a multi-blocked attacker
 // pumps once even when several of its blockers are blue/black (Moonshadow,
-// ecl/black.ts, is the precedent consumer).
+// ecl/black.cards.ts, is the precedent consumer).
 //
 // Effect body is the already-shipped `pump` Op (self, +3/+3, until end of
 // turn) — no new primitive, no `resolve()`.
@@ -337,7 +337,7 @@ function controllerControlsBasicLandType(
 // a SET of abilities, not a number. `StaticKeywordGrant.keyword` is a FIXED
 // string, so a dynamic set is FIVE `keyword-grant` statics — one per basic
 // land type — each gated by its own `condition` reading board state, exactly
-// Traveler's Cloak's five-entry fan-out (`inv/blue.ts`) with a board-derived
+// Traveler's Cloak's five-entry fan-out (`inv/blue.cards.ts`) with a board-derived
 // `condition` in place of Traveler's Cloak's stored chosen-type flag. No new
 // construct: `keyword-grant`'s `condition` (CR 611.2c "as long as") already
 // re-evaluates every stable transition via `recomputeContinuousEffects`, so
@@ -375,10 +375,10 @@ export const magnigothTreefolk: CardDefinition = {
 // Multani's Harmony — {G} Enchantment — Aura. "Enchant creature. Enchanted
 // creature has '{T}: Add one mana of any color.'" (CR 303.4 aura; CR 611.2c
 // layer-6 ACTIVATED-ability grant — Squirrel Nest's `activated-grant` +
-// `grantTemplates` shape (`ody/green.ts`), here with a `useStack: false`
+// `grantTemplates` shape (`ody/green.cards.ts`), here with a `useStack: false`
 // MANA ability template (CR 605.3a) instead of Squirrel Nest's stack-using
 // token maker — the exact Urza's Saga chapter-I mana-ability shape
-// (`mh2/colorless.ts`) granted to a HOST via `AURA_AFFECTS_HOST` rather than
+// (`mh2/colorless.cards.ts`) granted to a HOST via `AURA_AFFECTS_HOST` rather than
 // self-granted. Composition of two already-shipped, already-tested halves
 // (issue #1880 confirmed `getEffectiveActivatedAbilities` — the single
 // authority `getManaTapOptionsDetailed`/`hasManaAbility` read — already
@@ -419,7 +419,7 @@ export const multanisHarmony: CardDefinition = {
 // Guardian. Art reverse-linked from Nemata's own PLS printing via Scryfall
 // `all_parts` (`scripts/fetch-token-prints.mjs`, `token-prints.json`) —
 // not promoted to `sharedTokens.ts` since no other PLS card in this slice
-// creates one (FEM's own Saproling stays local to `fem/green.ts` for the
+// creates one (FEM's own Saproling stays local to `fem/green.cards.ts` for the
 // same reason; a later cross-set promotion is a separate, non-blocking
 // cleanup).
 // `EffectTokenSpec` (not `TokenSpec`): only ever used at a DSL `createToken`
@@ -520,7 +520,7 @@ export const nemataGroveGuardian: CardDefinition = {
 // wraps it — the DSL's only random-hand-card Op, `lookRandomHand`, is the
 // deliberately PRIVATE CR 400.2 sibling and has no `bind` to read the
 // picked card's mana value back afterward regardless. Same gap as
-// Planeswalker's Scorn (`pls/black.ts`, the cycle's black member, issue
+// Planeswalker's Scorn (`pls/black.cards.ts`, the cycle's black member, issue
 // #1950) — tracked by the SAME shared issue, which explicitly lists this
 // slice (#1952) among its siblings. Left as a stub rather than a
 // card-shaped `resolve()`. tracked-by: #2003
@@ -538,7 +538,7 @@ export const nemataGroveGuardian: CardDefinition = {
 // two basic land cards, put them onto the battlefield, then shuffle."
 // (CR 702.33a Kicker with a PERMANENT leg — `kickers[0].permanent`
 // (ADR 0079); the count-branching search is a plain `if { kickerCount: true
-// } >= 1` (already-censused predicate, `pls/black.ts`'s Bog Down/Falling
+// } >= 1` (already-censused predicate, `pls/black.cards.ts`'s Bog Down/Falling
 // Timber precedent) wrapping two `search-library` + `moveZone` + shuffle
 // legs — the Frenzied Tilling / Elvish Guidance search-put-shuffle idiom
 // (`inv/*.ts`), just with a `count: { min: 0, max: 2 }` on the kicked leg
@@ -613,7 +613,7 @@ export const primalGrowth: CardDefinition = {
 // Pygmy Kavu — {3}{G} Creature — Kavu, 1/2. "When this creature enters,
 // draw a card for each black creature your opponents control." (CR 603.6a
 // self-ETB trigger; the count-of-filtered-permanents `draw` shape
-// (`chk/blue.ts`'s Shrine-count precedent) — `count: { count: { zone:
+// (`chk/blue.cards.ts`'s Shrine-count precedent) — `count: { count: { zone:
 // "battlefield", controller: "opponent", filter: { type: "Creature", color:
 // "B" } } }` — no new construct.)
 export const pygmyKavu: CardDefinition = {
@@ -653,7 +653,7 @@ export const pygmyKavu: CardDefinition = {
 // Quirion Dryad — {1}{G} Creature — Dryad, 1/1. "Whenever you cast a spell
 // that's white, blue, black, or red, put a +1/+1 counter on this creature."
 // (CR 601.2i / 603.2 SPELL_CAST trigger, `spellCastTrigger` factory — the
-// Crystal Rod color-sphere shape (`lea/colorless.ts`) with an OR-of-four-
+// Crystal Rod color-sphere shape (`lea/colorless.cards.ts`) with an OR-of-four-
 // colors `filter.colors` array instead of one, discriminating the CAST
 // SPELL's color off `SpellCastEvent.spellColors` — never this permanent's
 // own color, and never a lookup. `scope: "you"` — only the controller's own
@@ -693,7 +693,7 @@ export const quirionDryad: CardDefinition = {
 // creature: Destroy all enchantments of the color of your choice." (CR
 // 602.1 activated ability, cost `{ mana, tap, sacrifice: true }`; the
 // five-way color choice reuses `colorChoiceModes` (`abilities/
-// chooseColor.ts`, Caldera Kavu's own builder, `pls/red.ts`) with a
+// chooseColor.ts`, Caldera Kavu's own builder, `pls/red.cards.ts`) with a
 // per-mode `forEach { filter: { type: "Enchantment", color } }` + `destroy`
 // sweep body instead of `setColor` — the builder's documented multi-target
 // composition point, ADR 0045 "generalize, don't add".)
@@ -754,9 +754,9 @@ export const rootGreevil: CardDefinition = {
 // unfiltered per CR 702.18. This closes the catalogue-wide dynamic-shroud-
 // grant gap the Mechanics Registry's shroud row (`cards/mechanicsRegistry.ts`)
 // used to document as inert (issue #959) — it now covers every dynamic grant
-// site (Homarid Warrior / Svyelunite Priest `fem/blue.ts`, Sylvan Safekeeper
-// `jud/green.ts`, Blurred Mongoose's activated ability `inv/green.ts`, the
-// `usg/green.ts` grant) plus this card, with one engine-level fix rather than
+// site (Homarid Warrior / Svyelunite Priest `fem/blue.cards.ts`, Sylvan Safekeeper
+// `jud/green.cards.ts`, Blurred Mongoose's activated ability `inv/green.cards.ts`, the
+// `usg/green.cards.ts` grant) plus this card, with one engine-level fix rather than
 // a per-card `permanent-guard` staticEffect.)
 export const skyshroudBlessing: CardDefinition = {
     id: "c0c10b16-97b1-4a36-b2b4-f0c28ead3eb4", // PLS 92
@@ -792,8 +792,8 @@ export const skyshroudBlessing: CardDefinition = {
 // it was kicked with its {W} kicker, destroy target artifact." (CR 702.33a
 // plural Kicker, ADR 0079 — the Battlemage cycle's own flagship shape,
 // following its shipped siblings' exact template: Stormscape Battlemage
-// (`pls/blue.ts`), Thunderscape Battlemage (`pls/red.ts`), Nightscape
-// Battlemage (`pls/black.ts`). Two independently-payable Kickers, two
+// (`pls/blue.cards.ts`), Thunderscape Battlemage (`pls/red.cards.ts`), Nightscape
+// Battlemage (`pls/black.cards.ts`). Two independently-payable Kickers, two
 // `enteredTrigger`s each gated PER KICKER at CHECK time (CR 603.4) by
 // `conditionOnSelf: additionalCostPaidCondition("<id>")` — the shared predicate over
 // the permanent's own per-Kicker payment record — and again at RESOLUTION
@@ -878,7 +878,7 @@ export const thornscapeBattlemage: CardDefinition = {
 // Thornscape Familiar — {1}{G} Creature — Insect, 2/1. "Red spells and
 // white spells you cast cost {1} less to cast." (CR 601.2f `cost-modifier`
 // static effect, two-colour `appliesToSpell` filter — Nightscape Familiar's
-// own two-colour shape (`pls/black.ts`) with R/W in place of U/R.)
+// own two-colour shape (`pls/black.cards.ts`) with R/W in place of U/R.)
 export const thornscapeFamiliar: CardDefinition = {
     id: "76c6e426-6165-4f8e-8766-de768ae13452", // PLS 95
     name: "Thornscape Familiar",
@@ -921,7 +921,7 @@ export const thornscapeFamiliar: CardDefinition = {
 //
 // The Kicker leg is a land sacrifice (`permanent`, ADR 0079/#1937) and the
 // kicked mode WIDENS the target count 1 → 2 via `kickedTargetRequirement` —
-// the Magma Burst precedent in this set (`pls/red.ts`), same shape. "ANOTHER
+// the Magma Burst precedent in this set (`pls/red.cards.ts`), same shape. "ANOTHER
 // target creature" is the engine's distinct-targets invariant on the kicked
 // requirement, not a card-level filter. The second shield is gated on
 // `{ kickerCount: true } >= 1`, the standard kicker branch idiom.

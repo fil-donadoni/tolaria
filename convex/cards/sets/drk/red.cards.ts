@@ -533,7 +533,7 @@ export const goblinWizard: CardDefinition = {
             cost: { tap: true },
             useStack: true,
             // Migrated resolve()→effects[] (ADR 0045): the Stoneforge Mystic
-            // hand-source shape (`wwk/white.ts`) — `choice(zone: "hand",
+            // hand-source shape (`wwk/white.cards.ts`) — `choice(zone: "hand",
             // filter)` + `moveZone(from: "hand", to: "battlefield")`, routing
             // through `putFromHandOntoBattlefield`. CR 205.3 — a "Goblin
             // permanent card" is `subtype: "Goblin"` AND NOT Instant/Sorcery

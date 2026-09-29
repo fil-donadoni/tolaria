@@ -8,12 +8,12 @@
 // 120.1 damage — a `forEach` battlefield sweep scoped to the TARGETED
 // player via the `{ target: 0 }` `EffectPlayerRef` shape, the Do or Die
 // `controller: { target: 0 }` `divideIntoPiles.objects` precedent
-// generalized to a plain `forEach` selector, `inv/black.ts`.)
+// generalized to a plain `forEach` selector, `inv/black.cards.ts`.)
 //
 // Home set = earliest paper printing (ADR 0041) = Visions; it was first
 // implemented against the INV reprint, which filed it under the
 // wrong home set and rendered the wrong art. That printing now rides along
-// as a `CardPrint` in `inv/multicolor.ts`.
+// as a `CardPrint` in `inv/multicolor.cards.ts`.
 import type { CardDefinition } from "../../types";
 export const simoon: CardDefinition = {
     id: "642d9239-82e0-4696-ad99-10796042d1f8", // VIS 136

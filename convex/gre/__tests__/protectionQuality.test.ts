@@ -956,7 +956,7 @@ describe("single-authority guard — source bundles are never hand-assembled", (
 //
 // This is the sibling axis to protection: `TargetingSource.isSpell` narrows
 // `targetSourceMustBeSpell` guards. Lurker ("This creature can't be the target
-// of SPELLS unless it attacked or blocked this turn", `drk/green.ts`) is the
+// of SPELLS unless it attacked or blocked this turn", `drk/green.cards.ts`) is the
 // shipped fixture — a triggered ability MUST be able to target it.
 //
 // Before the `TargetingSource` bundle, the three sites disagreed:

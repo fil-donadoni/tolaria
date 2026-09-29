@@ -7,14 +7,14 @@ import type { CardDefinition } from "../../types";
 //
 // The oracle names two kinds of target (a player + up to two graveyard cards
 // from THAT player's graveyard). The engine's single `targetRequirement` yields
-// targets of one kind, so — mirroring the established usg/black.ts Duress
+// targets of one kind, so — mirroring the established usg/black.cards.ts Duress
 // template (a target player + a `choice(zoneOwnerId: { target: 0 })` pick from
 // that player's zone) — the player is the announced target and the up-to-two
 // graveyard cards are a caster-made `choose-graveyard-card` resolution pick
 // scoped to the target player's graveyard (`player: "controller"` chooses,
 // `zoneOwnerId: { target: 0 }` names the zone). `count: { min: 0, max: 2 }` is
 // the engine's "up to two" idiom (issue #677). The picks then `moveZone`
-// graveyard → library (5dn/green.ts Eternal Witness cards-shape) and a trailing
+// graveyard → library (5dn/green.cards.ts Eternal Witness cards-shape) and a trailing
 // `libraryLook` shuffle (CR 701.24) randomizes the target player's library.
 export const krosanReclamation: CardDefinition = {
     id: "5b3c5144-7e15-46c6-b819-d729ecb30bb1",

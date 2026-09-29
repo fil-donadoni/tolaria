@@ -1,4 +1,4 @@
-// Per-card behaviour tests for mmq/blue.ts — Gush and Thwart, the two blue
+// Per-card behaviour tests for mmq/blue.cards.ts — Gush and Thwart, the two blue
 // alternative-cost cards (CR 118.9 "return N Islands rather than pay this
 // spell's mana cost"). The alt-cost payment happens at cast commit, so these
 // exercise the real commit path (`finalizeTargetSelection` for the targeted

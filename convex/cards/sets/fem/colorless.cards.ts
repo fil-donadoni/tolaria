@@ -381,7 +381,7 @@ export const conchHorn: CardDefinition = {
             useStack: true,
             // Migrated resolve()→effects[] (ADR 0045, issue #1264): CR 121.1
             // draw 2, then CR 401.4 put 1 card from hand on top via `putBack`
-            // (same shape as Brainstorm, ice/blue.ts).
+            // (same shape as Brainstorm, ice/blue.cards.ts).
             effects: [
                 { op: "draw", player: "controller", count: 2 },
                 {

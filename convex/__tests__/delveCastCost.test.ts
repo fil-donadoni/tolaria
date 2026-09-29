@@ -11,7 +11,7 @@
 //   - Wire format: the picker survives `projectPublicState` un-slimmed, which
 //     is what the client dialog reads.
 //
-// Treasure Cruise ({7}{U} Sorcery, ktk/blue.ts) is the first card to ship the
+// Treasure Cruise ({7}{U} Sorcery, ktk/blue.cards.ts) is the first card to ship the
 // "delve" keyword now that mechanicsRegistry.ts flips it to
 // `status: "implemented"`.
 

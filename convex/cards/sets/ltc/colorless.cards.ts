@@ -43,7 +43,7 @@ export const relicOfSauron: CardDefinition = {
             // Migrated resolveSteps()→effects[] (ADR 0045, issue #1264): draw
             // two through the unified suspend-capable draw seam (CR 121.1,
             // ADR 0061), then a `choice`-driven discard of one (CR 701.9) —
-            // same shape as Traumatic Critique (sos/multicolor.ts).
+            // same shape as Traumatic Critique (sos/multicolor.cards.ts).
             effects: [
                 { op: "draw", player: "controller", count: 2 },
                 {

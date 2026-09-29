@@ -41,7 +41,7 @@ import type { CardDefinition } from "../../types";
 //     classifies by KIND, and `activated-grant` is on its materialized list, so
 //     the declaration is what a reader of that list is entitled to see.
 //   - Clause 3, the exile. The announced-target `moveZone` + `linkToSource`
-//     shape Emperor of Bones already ships (`mh3/black.ts`, issues #1947 /
+//     shape Emperor of Bones already ships (`mh3/black.cards.ts`, issues #1947 /
 //     #1323): "a graveyard" is `controller: "any"`, "target card" is
 //     `type: "card"`, and the CR 607.2a link is what clause 2's selector reads
 //     back. "When a creature card is exiled this way" is a REFLEXIVE trigger

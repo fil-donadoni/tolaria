@@ -23,7 +23,7 @@ const IVORA_BLOOD_TRIGGER =
 // ONE Oracle line = ONE `TriggeredAbility` (CR 603.2). The first line names
 // two engine events — the self-ETB (`PERMANENT_ENTERED`) and its own combat
 // damage to a player (`DAMAGE_DEALT`) — so it is a single ability over an
-// ARRAY of events, the Orcish Bowmasters shape (`ltr/black.ts`), never two
+// ARRAY of events, the Orcish Bowmasters shape (`ltr/black.cards.ts`), never two
 // near-duplicate entries. The body is identical for both firings and reads
 // nothing off the event, which is what makes an Effect Script legal here (an
 // array-`event` ability whose effect must inspect `$event` would have to stay
@@ -37,13 +37,13 @@ const IVORA_BLOOD_TRIGGER =
 //
 // The Blood token (CR 111.1 / 707.2) is the shared `BLOOD_TOKEN_SPEC` via
 // `createBloodTokenOp`, so this card's Bloods are the SAME synthesized token
-// definition as Voldaren Epicure's (`vow/red.ts`) and render with the printed
+// definition as Voldaren Epicure's (`vow/red.cards.ts`) and render with the printed
 // Blood art the spec pins (`imagePrintId`, issue #778).
 //
 // The discard line is a plain `CARD_DISCARDED` trigger with an `effects[]`
 // body (the `discardTrigger` factory takes only an imperative `resolve`, so
 // the DSL-first default is written out here — Emrakul's graveyard trigger in
-// `roe/colorless.ts` is the same hand-written shape). Scope is "your"
+// `roe/colorless.cards.ts` is the same hand-written shape). Scope is "your"
 // discards from ANY source, cost discards included — notably the Blood
 // token's own "{1}, {T}, Discard a card, Sacrifice this token" activation,
 // which discards as a COST (CR 601.2h) and so fires this trigger. The counter

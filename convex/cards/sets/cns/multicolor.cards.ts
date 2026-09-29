@@ -12,7 +12,7 @@ import { DACK_FAYDEN_EMBLEM_ID } from "../../emblems";
 //     sequencing: the whole draw happens before the discard, so the two fresh
 //     cards are discardable. The discard is MANDATORY and the discarding player
 //     picks (CR 701.9b), which is the `choice(discard-hand)` + `discard` pair
-//     Urza's Guilt (pls/multicolor.ts) already exercises — here scoped to the
+//     Urza's Guilt (pls/multicolor.cards.ts) already exercises — here scoped to the
 //     announced target player (CR 115.1) instead of a `forEach` over players.
 //   • −2 — "Gain control of target artifact." `gainControl` with no `duration`
 //     is the INDEFINITE layer-2 reassignment (CR 613.1b) — it never reverts.

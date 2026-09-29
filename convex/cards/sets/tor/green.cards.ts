@@ -6,7 +6,7 @@ import type { CardDefinition } from "../../types";
 
 // Basking Rootwalla — {G} Creature — Lizard, 1/1. "{1}{G}: This creature gets
 // +2/+2 until end of turn. Activate only once each turn.\nMadness {0}." (CR 605
-// pump activated ability with `oncePerTurn`, template Fire Drake `drk/red.ts`;
+// pump activated ability with `oncePerTurn`, template Fire Drake `drk/red.cards.ts`;
 // CR 702.35 Madness — the discard→exile cast capability, `convex/gre/madness.ts`.
 // `Madness {0}` is the empty cost `{}`.)
 export const baskingRootwalla: CardDefinition = {

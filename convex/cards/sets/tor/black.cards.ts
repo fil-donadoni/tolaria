@@ -46,7 +46,7 @@ export const cabalRitual: CardDefinition = {
 // anyone) and makes the spell a 2-mana no-op, which is the printed card.
 //
 // Damage is split into two `forEach` sweeps, the Plague Spitter shape
-// (`inv/black.ts`): the permanents set carries the creature filter, the players
+// (`inv/black.cards.ts`): the permanents set carries the creature filter, the players
 // set carries the player refs, and neither can name the other's members.
 //
 // compiler-gap: "As an additional cost to cast this spell, discard X cards." (#2693)

@@ -19,15 +19,15 @@ import { investigateOp } from "../../abilities/tokens/clueToken";
 // is `status: "implemented"` in the Mechanics Registry (the Clue token's
 // activated ability rides `EffectTokenSpec.activatedAbilities`, issue #1191) —
 // same `investigateOp()` + `spellCastTrigger` shape as Thraben Inspector
-// (soi/white.ts) and Urza's Chalice (atq/colorless.ts), filtered to artifact
+// (soi/white.cards.ts) and Urza's Chalice (atq/colorless.cards.ts), filtered to artifact
 // spells and scoped to the controller (`scope: "self"`). The second clause
 // shipped with #1339's activated-ability cost-reduction seam: scoped to
 // "artifacts you control" via the `cost-modifier` static effect's
 // `appliesToAbility`, matching both the source's own type line and its
 // controller against the effect's carrier (Forensic Gadgeteer itself) — the
-// same "you control" shape Stone Calendar (drk/colorless.ts) uses on the
+// same "you control" shape Stone Calendar (drk/colorless.cards.ts) uses on the
 // spell side, generalized to a type filter instead of a single host
-// (Power Artifact's Aura `attachedTo` scope, atq/blue.ts).
+// (Power Artifact's Aura `attachedTo` scope, atq/blue.cards.ts).
 //
 // compiler-gap: "Whenever you cast an artifact spell, investigate." (#2693)
 // compiler-gap: "Activated abilities of artifacts you control cost {1} less to activate. This effect can't reduce the mana in that cost to less than one mana." (#2693)
@@ -73,7 +73,7 @@ export const forensicGadgeteer: CardDefinition = {
 // Three clauses, three shipped mechanisms and no new one:
 //  1. the ETB draw is a plain `enteredTrigger({ scope: "self" })` + `draw`;
 //  2. "no maximum hand size" is the CR 402.2 / 514.1 `hand-size-override`
-//     static effect Library of Leng established (`lea/colorless.ts`) — read
+//     static effect Library of Leng established (`lea/colorless.cards.ts`) — read
 //     inline off the battlefield by `effectiveMaxHandSize` at CLEANUP, so no
 //     PlayerState bookkeeping and no enter/leave churn;
 //  3. the combat trigger is a CR 603.4 intervening-if ("if you've drawn more

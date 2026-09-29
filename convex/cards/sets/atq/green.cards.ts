@@ -31,7 +31,7 @@ import { abilityActivatedTrigger } from "../../abilities/triggers/abilityActivat
 // Migrated to Effect Script (ADR 0045): `destroy`'s `bind` snapshots the
 // target's controller + mana value BEFORE it leaves the battlefield (CR
 // 608.2h/608.2c), mirroring Reanimate's `bind` + `{ ref: "$x.manaValue" }`
-// shape (tmp/black.ts).
+// shape (tmp/black.cards.ts).
 export const crumble: CardDefinition = {
     id: "d2101f86-8d3c-4ba8-ac42-bd3df0644280",
     rarity: "common",
@@ -92,7 +92,7 @@ export const citanulDruid: CardDefinition = {
             // exposes an `effects[]` site (mutually exclusive with `resolve`)
             // for a spell-cast trigger whose effect doesn't need to inspect
             // the firing spell. `counters` `target: { ref: "$source" }` is
-            // the same self-counter shape Kavu Monarch uses (inv/red.ts).
+            // the same self-counter shape Kavu Monarch uses (inv/red.cards.ts).
             effects: [
                 {
                     op: "counters",

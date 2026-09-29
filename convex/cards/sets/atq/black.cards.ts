@@ -44,7 +44,7 @@ export const yawgmothDemon: CardDefinition = {
             scope: "your",
             // NOT DSL-migratable (ADR 0045, re-assessed): the `mayPay` Op's
             // `cost` union DOES now support a sacrifice leg (MayPayCost.sacrifice,
-            // the Phyrexian Dreadnought / mir/colorless.ts shape) — "you may
+            // the Phyrexian Dreadnought / mir/colorless.cards.ts shape) — "you may
             // sacrifice an artifact" itself IS expressible as
             // `{ op: "mayPay", cost: { sacrifice: { filter: { types:
             // "Artifact" }, count: 1 } } }` + `if !$paid` for the tap+damage
@@ -109,7 +109,7 @@ export const yawgmothDemon: CardDefinition = {
 // of {B} equal to the sacrificed artifact's mana value." The mana-value-derived
 // effect reads the sacrificed permanent's mv via getAdditionalSacrificeMv
 // (snapshotted at commit). Modeled as a stack ability (see the CR 605.1a note
-// in `atq/red.ts`, tracked-by: #3989).
+// in `atq/red.cards.ts`, tracked-by: #3989).
 export const priestOfYawgmoth: CardDefinition = {
     id: "c9fd4054-42fc-4f95-a6f7-369a5da43dd5",
     rarity: "common",

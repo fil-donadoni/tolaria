@@ -13,7 +13,7 @@ import type { CardDefinition, SpellContext } from "../../types";
 // though it were mana of any color to cast that spell."
 //
 // PROTOCOL (impulse-draw off an opponent's library — no Op skin, precedent:
-// Elkin Bottle / Ice Cauldron, ice/colorless.ts): composes `peekLibraryTop` +
+// Elkin Bottle / Ice Cauldron, ice/colorless.cards.ts): composes `peekLibraryTop` +
 // `moveCardById(..., "exile")` + `grantCastFromExile`, same idiom, sourced
 // from the defending player's library instead of the caster's own. The exile
 // is FACE UP (CR 406.3, issue #3001) — the defending player watches their own
@@ -107,7 +107,7 @@ export const robberOfTheRich: CardDefinition = {
 // FIRST line — "Damage can't be prevented this turn" — which is neither of the
 // two anti-prevention shapes that already shipped: `lockDamage` (CR 615.12 /
 // 614.9, Whippoorwill) binds the override to ONE RECIPIENT, and the
-// `combat-damage-unpreventable` static (Questing Beast, `eld/green.ts`) binds
+// `combat-damage-unpreventable` static (Questing Beast, `eld/green.cards.ts`) binds
 // it to ONE SOURCE and to combat only. Stomp's line names neither, so it earned
 // the game-scoped `suppressDamagePrevention` Op (issue #3303) rather than a
 // Guard B marker: ADR 0120 § 6 is explicit that a buildable clause shipped

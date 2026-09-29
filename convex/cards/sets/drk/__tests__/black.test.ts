@@ -578,7 +578,7 @@ describe("Nameless Race — CDA P/T from life paid as it enters (CR 604.3 / 614.
     // life total; in other words, the player loses that much life." The
     // as-enters `payLife` arm must therefore route through the shared
     // `loseLifeEmitting` choke point, not subtract from `player.life` raw:
-    // Oath of Lim-Dûl (`ice/black.ts`) is a shipped "whenever you lose life"
+    // Oath of Lim-Dûl (`ice/black.cards.ts`) is a shipped "whenever you lose life"
     // listener and stops seeing the payment otherwise. `main`'s pre-#2467
     // `resolveSteps` shape called `ctx.loseLife`, so a raw subtraction here is
     // a live regression of a shipped card, not a new gap.

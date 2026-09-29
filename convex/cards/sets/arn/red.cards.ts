@@ -41,8 +41,8 @@ export const rukhEgg: CardDefinition = {
     // Migrated resolve()→effects[] (ADR 0045, playbook: effect-script-
     // migration.md). The `diedTrigger` factory has no `effects[]` site
     // (its `resolve` is the only body it exposes), so this is authored as a
-    // raw `TriggeredAbility` — the SAME shape as Nafs Asp (`arn/green.ts`)
-    // and Third Path Iconoclast (`bro/multicolor.ts`) — with an inline
+    // raw `TriggeredAbility` — the SAME shape as Nafs Asp (`arn/green.cards.ts`)
+    // and Third Path Iconoclast (`bro/multicolor.cards.ts`) — with an inline
     // `matches` that reproduces `diedTrigger({ scope: "self" })`'s own check
     // (`event.creatureInstanceId === self.id`, CR 700.4/603.2 death trigger).
     // The `delayedTrigger` Op (issue #838, ADR 0048) covers the
@@ -53,7 +53,7 @@ export const rukhEgg: CardDefinition = {
     // onto the death-trigger's own StackItem (`buildTriggerItem`,
     // `gre/triggers.ts`) and forwarded onto the `DelayedTriggerInstance` as
     // `controller: item.castById` (`scheduleDelayedTrigger`, `gre/state.ts`)
-    // — the exact no-capture shape Forth Eorlingas! (`ltc/multicolor.ts`)
+    // — the exact no-capture shape Forth Eorlingas! (`ltc/multicolor.cards.ts`)
     // documents for the same reason.
     triggeredAbilities: [
         {

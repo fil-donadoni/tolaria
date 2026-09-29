@@ -89,7 +89,7 @@ export const gaeasBalance: CardDefinition = {
 // Kavu." (CR 508.1 attack declaration, CR 613.4c layer 7c buff, CR 611.2a
 // duration.)
 //
-// The Goblin Piledriver shape (`ons/red.ts`): a `pump` on `$source` whose power
+// The Goblin Piledriver shape (`ons/red.cards.ts`): a `pump` on `$source` whose power
 // AND toughness are the `count` of attacking Kavu excluding the source itself.
 // `acrossAllPlayers` because the Oracle line scopes the count to no controller.
 // hand-tail: Whenever this creature attacks, it gets +1/+1 until end of turn for each other attacking Kavu. (#4337)

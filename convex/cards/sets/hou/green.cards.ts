@@ -12,8 +12,8 @@ import type { CardDefinition } from "../../types";
 // 305.1-analog), read live off the battlefield by the single resolver
 // `getGraveyardPlayPermissions` (`convex/gre/rules.ts`), so the permission
 // ends the instant this creature leaves play — no stale flag.
-// Same shape as Icetill Explorer (`eoe/green.ts`) and Crucible of Worlds
-// (`5dn/colorless.ts`); the source's card type is irrelevant to the
+// Same shape as Icetill Explorer (`eoe/green.cards.ts`) and Crucible of Worlds
+// (`5dn/colorless.cards.ts`); the source's card type is irrelevant to the
 // permission scan.
 export const ramunapExcavator: CardDefinition = {
     id: "90a54d18-8403-441d-a115-ee462fabdabb",

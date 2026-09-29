@@ -31,15 +31,15 @@ import { protectionColorModes } from "../../abilities";
 // `game.ts::selectTarget`. This card additionally pairs the keyword with an
 // explicit `permanent-guard` static effect scoped to the permanent itself
 // (`target.id === source.id`) — the established per-card pattern (Lurker
-// `drk/green.ts`, Spectral Cloak `leg/blue.ts`) — unconditional and
+// `drk/green.cards.ts`, Spectral Cloak `leg/blue.cards.ts`) — unconditional and
 // unfiltered here (unlike Lurker's combat-gated version), matching CR
 // 702.18's unqualified "can't be the target of spells or abilities." The two
 // are redundant-but-agreeing, not a conflict: the keyword-string bridge is
 // what closes the gap for cards that grant shroud DYNAMICALLY via
 // `SpellContext.grantStaticAbility` with no paired `permanent-guard`
 // staticEffect of their own (Homarid Warrior / Svyelunite Priest
-// `fem/blue.ts`, Sylvan Safekeeper `jud/green.ts`, Skyshroud Blessing
-// `pls/green.ts`) — this card's own printed shroud was never part of that
+// `fem/blue.cards.ts`, Sylvan Safekeeper `jud/green.cards.ts`, Skyshroud Blessing
+// `pls/green.cards.ts`) — this card's own printed shroud was never part of that
 // gap, since it always carried the explicit static effect above.
 export const blurredMongoose: CardDefinition = {
     id: "4b073e3f-6a6f-495a-ab16-39d906b660f1",
@@ -71,7 +71,7 @@ export const blurredMongoose: CardDefinition = {
 // Migrated resolve()→effects[] (ADR 0045): the `setColor` Op shipped (issue
 // #1083, promoted from `EFFECT_OP_BACKLOG`), a thin declarative skin over
 // the same `SpellContext.setColorOverride` primitive this closure called
-// directly. The Shyft shape (`ice/blue.ts`): `optionChoice` — one mode per
+// directly. The Shyft shape (`ice/blue.cards.ts`): `optionChoice` — one mode per
 // colour, each a single-Op `setColor` body with `duration: { phase:
 // "end-of-turn" }` so the change reverts at CLEANUP (CR 514.2) instead of
 // riding indefinitely like Shyft's own no-duration grant.
@@ -170,7 +170,7 @@ export const aggressiveUrge: CardDefinition = {
 // can't be targeted.) Draw a card." (CR 701.6a counter; CR 605.3a mana
 // abilities never use the stack, so the reminder text holds for free; CR
 // 121.1 draw.) `spellStackKind: "activated-ability"` with no source-type
-// restriction (unlike Brown Ouphe's artifact-only variant, `ice/green.ts`)
+// restriction (unlike Brown Ouphe's artifact-only variant, `ice/green.cards.ts`)
 // keeps every activated ability on the stack a legal target.
 export const bind: CardDefinition = {
     id: "cfa51783-9ef8-4e51-ba0d-ce8439d83bdf",
@@ -194,7 +194,7 @@ export const bind: CardDefinition = {
 // Elvish Champion — {1}{G}{G} Creature — Elf, 2/2. "Other Elf creatures get
 // +1/+1 and have forestwalk." (CR 611.2c continuous anthem, layer 7c power/
 // toughness; CR 702.14c forestwalk evasion.) Group `keyword-grant` mirrors
-// Hidden Path's global forestwalk grant (`drk/green.ts`); the `pt-buff`
+// Hidden Path's global forestwalk grant (`drk/green.cards.ts`); the `pt-buff`
 // mirrors Zombie Master's own-type lord anthem. Both scoped to "other Elf
 // creatures" (excludes self via `target.id !== source.id`).
 const ELVISH_CHAMPION_AFFECTS_OTHER_ELVES: StaticKeywordGrant["applies"] = (
@@ -279,7 +279,7 @@ export const explosiveGrowth: CardDefinition = {
 // harrow — INV reprint of the Tempest definition (CardPrint).
 // The card was first implemented here, against this printing; its home set is
 // its earliest paper printing (ADR 0041), so the mechanics live in
-// `tmp/green.ts`.
+// `tmp/green.cards.ts`.
 export const harrowInv: CardPrint = {
     printId: "ed0f633e-7238-4d02-ad8b-06dd20453030", // INV 183
     definitionId: "3c207142-4880-4935-9827-b91bc7d9d643", // harrow (Tempest)
@@ -290,7 +290,7 @@ export const harrowInv: CardPrint = {
 // Jade Leech — {2}{G}{G} Creature — Leech, 5/5. "Green spells you cast cost
 // {G} more to cast." (CR 601.2f cost increase.) Scoped to the controller's
 // own spells via `card.controllerId === effectSource.controllerId`, mirroring
-// Stone Calendar's cost-modifier idiom (`drk/colorless.ts`), narrowed to
+// Stone Calendar's cost-modifier idiom (`drk/colorless.cards.ts`), narrowed to
 // green spells via `ctx.getColors(card).includes("G")`.
 export const jadeLeech: CardDefinition = {
     id: "3392171d-ed25-46a1-91cc-a4f24537617d",
@@ -349,7 +349,7 @@ export const kavuClimber: CardDefinition = {
 // or not — the factory's own doc comment claiming the event isn't threaded
 // was stale. `{ ref: "$event.controllerId" }` reads the entering permanent's
 // controller straight off the firing event, bypassing `ctx.controller`
-// entirely, exactly like Ankh of Mishra's `dealDamage` (`lea/colorless.ts`)
+// entirely, exactly like Ankh of Mishra's `dealDamage` (`lea/colorless.cards.ts`)
 // already does at this SAME `enteredTrigger` `effects[]` site. Power is
 // still read from the trigger's `TriggerStateView` snapshot in `condition`
 // (printed/base power — the event payload itself carries no power field).
@@ -465,7 +465,7 @@ export const mightWeaver: CardDefinition = {
 // Sorcerer, */*. "Trample. Molimo's power and toughness are each equal to the
 // number of lands you control." (CR 702.19e trample; CR 613.4b layer 7b
 // characteristic-defining P/T.) `pt-cda` compute mirrors the ICE snow-land
-// counting CDA (`ice/black.ts`), generalized to every land (no snow filter).
+// counting CDA (`ice/black.cards.ts`), generalized to every land (no snow filter).
 export const molimoMaroSorcerer: CardDefinition = {
     id: "750d3475-ae72-42c1-ae4d-638f8e7c6d1a",
     rarity: "rare",
@@ -504,7 +504,7 @@ export const molimoMaroSorcerer: CardDefinition = {
 // Nomadic Elf — {1}{G} Creature — Elf Nomad, 2/2. "{1}{G}: Add one mana of
 // any color." (CR 605.1a mana ability, `useStack: false`.) Runtime colour
 // choice via `manaChoices`, the established mana-ability idiom (Standing
-// Stones, `drk/colorless.ts`; Celestial Prism, `lea/colorless.ts`).
+// Stones, `drk/colorless.cards.ts`; Celestial Prism, `lea/colorless.cards.ts`).
 export const nomadicElf: CardDefinition = {
     id: "3b69e57a-5b19-450c-9cf5-c189e8505781",
     rarity: "common",
@@ -665,7 +665,7 @@ export const quirionTrailblazer: CardDefinition = {
 // -2/-2 as long as green is the most common color among all permanents or is
 // tied for most common." (CR 702.19e trample; CR 611.2c conditional CDA
 // anthem on itself.) Mirrors Zanam Djinn's own colour-census template
-// (`inv/blue.ts`), generalized to green.
+// (`inv/blue.cards.ts`), generalized to green.
 const SULAM_DJINN_COLORS = ["W", "U", "B", "R", "G"] as const;
 function greenIsMostCommonOrTied(
     battlefield: ReadonlyArray<{ colors: readonly string[] }>
@@ -768,7 +768,7 @@ export const thornscapeMaster: CardDefinition = {
 // `tranquility` in `sets/lea/green.cards.ts` (id 774cc5a6-…). ADR 0043/0014: a
 // cross-set reprint is a `CardPrint` referencing the original
 // `CardDefinition`, not a duplicate definition (precedent: Soul Burn,
-// `inv/black.ts`).
+// `inv/black.cards.ts`).
 export const tranquilityInv: CardPrint = {
     printId: "97019ba5-ce2a-460c-8a4e-2b22053ced65", // INV Tranquility
     definitionId: "774cc5a6-3a69-4812-add4-eb5eb6389238", // LEA Tranquility
@@ -892,7 +892,7 @@ export const whipSilk: CardDefinition = {
 // fertileGround — INV reprint of the Urza's Saga definition (CardPrint).
 // The card was first implemented here, against this printing; its home set is
 // its earliest paper printing (ADR 0041), so the mechanics live in
-// `usg/green.ts`.
+// `usg/green.cards.ts`.
 export const fertileGroundInv: CardPrint = {
     printId: "789e3582-b541-4916-ac7e-015214d7a27a", // INV 180
     definitionId: "091dda35-59e5-456d-8804-61513a610aed", // fertileGround (Urza's Saga)
@@ -917,10 +917,10 @@ export const fertileGroundInv: CardPrint = {
 // an `enteredTrigger` would reopen the identical bug for keywords: a window
 // where the creature is on the battlefield without trample before the trigger
 // resolves. The already-shipped, CR-exact, and simpler fix is Pouncing Kavu's
-// OWN template (`inv/red.ts`, issue #1716): a `staticEffects` `keyword-grant`
+// OWN template (`inv/red.cards.ts`, issue #1716): a `staticEffects` `keyword-grant`
 // gated on `CardInstanceState.wasKicked` — a one-shot fact fixed at CR 614.1c
 // ETB replacement time, materialized into `staticAbilities` continuously, no
-// stack window. Same correction applies to Faerie Squadron (`inv/blue.ts`),
+// stack window. Same correction applies to Faerie Squadron (`inv/blue.cards.ts`),
 // which carried the identical wrong claim.
 export const kavuTitan: CardDefinition = {
     id: "2c5fb86d-1d9a-4da2-bb5b-4266faa20197",
@@ -1045,7 +1045,7 @@ export const rootingKavu: CardDefinition = {
 // charged mandatorily only when the cast lands outside the caster's own
 // sorcery-speed window. The token half is `createToken` with a DYNAMIC
 // `count` — the same `EffectCount` shape Pygmy Kavu's `draw` uses
-// (`pls/green.ts`) — counting the caster's own battlefield creatures at
+// (`pls/green.cards.ts`) — counting the caster's own battlefield creatures at
 // RESOLUTION (CR 608.2), so a creature that died in response reduces the
 // count. Token art resolves from the committed Scryfall reverse-link
 // (`generated/token-prints.json`) keyed by this card's id + "Saproling", the
@@ -1088,7 +1088,7 @@ export const saprolingSymbiosis: CardDefinition = {
 // reveal a creature card. If you do, put that card onto the battlefield and
 // shuffle all other cards revealed this way into your library." The
 // `kickerCount`-persistence gap this comment originally cited (same root
-// cause as Benalish Emissary, `inv/white.ts`) closed with
+// cause as Benalish Emissary, `inv/white.cards.ts`) closed with
 // `CardInstanceState.wasKicked` (issue #1753) — see Benalish Emissary /
 // Verduran Emissary above, shipped off issue #1328. Thicket Elemental itself
 // stays a stub: its "reveal until a creature card" clause is not expressible
@@ -1119,20 +1119,20 @@ export const saprolingSymbiosis: CardDefinition = {
 // `identifiers.scryfallId`-keyed INV.json entry, both cross-checked here).
 //
 // Closed by issue #1328 (capability slice, decomposed from #1086): same
-// `CardInstanceState.wasKicked` fix as Benalish Emissary (`inv/white.ts`),
-// same Waterspout Elemental (`pls/blue.ts`) template —
+// `CardInstanceState.wasKicked` fix as Benalish Emissary (`inv/white.cards.ts`),
+// same Waterspout Elemental (`pls/blue.cards.ts`) template —
 // `conditionOnSelf: additionalCostPaidCondition("kicker")` at check time, `if {
 // additionalCostPaid: "kicker" }` inside `effects[]` at resolution time, no
 // `interveningIf`. The resolution-time branch reads the RESOLVING STACK
 // ITEM's own `kickerPayments`, which is what still gates an ability COPY put
 // on the stack without re-running `matches` (CR 707.10) — an `interveningIf`
 // would not, and that, not blink safety, is why the pair is the template (see
-// Benalish Emissary, `inv/white.ts`, and `additionalCostPaidCondition` in
+// Benalish Emissary, `inv/white.cards.ts`, and `additionalCostPaidCondition` in
 // `cards/abilities/triggers/shared.ts`).
 // `destroy`'s `cantBeRegenerated: true` (ADR 0053) is the
 // direct Op passthrough for "It can't be regenerated" — the second half of
 // the original blocker (no Op option existed) closed alongside Obliterate
-// (`inv/red.ts`, issue #831).
+// (`inv/red.cards.ts`, issue #831).
 export const verduranEmissary: CardDefinition = {
     id: "55f3361b-e2e7-4297-85c2-94323f90cc90", // INV 221
     rarity: "uncommon",
@@ -1193,7 +1193,7 @@ export const verduranEmissary: CardDefinition = {
 // materialized `staticAbilities` array (a keyword GRANT, e.g. an Aura giving
 // flying, is spliced directly into it — CR 611/113.1 — so a granted flying is
 // hit exactly like printed flying). The "if kicked, 4 instead of 1" branch is
-// the standard `{ kickerCount: true } >= 1` gate (Overload, `inv/red.ts`);
+// the standard `{ kickerCount: true } >= 1` gate (Overload, `inv/red.cards.ts`);
 // each branch pairs a creature-flying sweep with a `forEach { set: "players"
 // }` sweep, both feeding the SAME already-exercised `dealDamage` Op — no new
 // Op, just the new filter field.
@@ -1275,7 +1275,7 @@ export const canopySurge: CardDefinition = {
 // 504.1 draw-step skip, issue #1097.)
 //
 // The "you may … if you do" gate is the pre-existing cost-free `mayPay`
-// (issue #680) + `if` shape (Formidable Speaker, `ecl/green.ts`) — bind
+// (issue #680) + `if` shape (Formidable Speaker, `ecl/green.cards.ts`) — bind
 // `$searched` on the bare may-decision, then gate the WHOLE search/reveal/
 // hand/shuffle/skip sequence on it. "If you do" is the entire preceding
 // compound action (searching — even one that finds no basic land — reveals,
@@ -1402,7 +1402,7 @@ export const elfhameSanctuary: CardDefinition = {
 
 // quirionElvesInv — INV reprint of the Mirage definition (CardPrint, ADR
 // 0041). First printed in Mirage — the mechanics (closing issue #1097 gap 4:
-// the ETB colour choice + two mana abilities) live in `mir/green.ts`,
+// the ETB colour choice + two mana abilities) live in `mir/green.cards.ts`,
 // authored against THIS printing (issue #1097's INV free-tranche audit is
 // where the gap was originally surfaced). Behaviour tests stay with this INV
 // tranche (`inv/__tests__/green.test.ts`), importing the definition from its
@@ -1416,10 +1416,10 @@ export const quirionElvesInv: CardPrint = {
 
 // Restock — "Return two target cards from your graveyard to your hand.
 // Exile Restock." (CR 400.7 zone change; CR 608.2 "Exile ~".) The return
-// clause is the standard Regrowth-shaped `moveZone` pair (`lea/green.ts`);
+// clause is the standard Regrowth-shaped `moveZone` pair (`lea/green.cards.ts`);
 // "Exile Restock" is unblocked by issue #1097's new `exileSelf` Op
 // (`convex/cards/types.ts`) — a thin declarative skin over the pre-existing
-// `SpellContext.exileSelf()` primitive (Recall, `leg/blue.ts`, `resolve()`),
+// `SpellContext.exileSelf()` primitive (Recall, `leg/blue.cards.ts`, `resolve()`),
 // now wired into the interpreter so a DSL card can redirect its own
 // resolution destination from the graveyard to exile.
 export const restock: CardDefinition = {
@@ -1471,7 +1471,7 @@ export const restock: CardDefinition = {
 // tokens, so the lockfile maps this card to a same-characteristics substitute
 // (a 1/1 green Saproling from a modern printing) — the token/emblem art rule's
 // documented fallback, and the same print the other INV Saproling producers
-// (`inv/multicolor.ts`) already resolve to. Spec matches theirs.
+// (`inv/multicolor.cards.ts`) already resolve to. Spec matches theirs.
 export const saprolingInfestation: CardDefinition = {
     id: "8642e530-914c-4149-944a-c4966ee27299",
     name: "Saproling Infestation",
@@ -1519,7 +1519,7 @@ export const saprolingInfestation: CardDefinition = {
 // and it preserves PICK order (CR 401.4). Mystical Tutor (`mir/blue.ts`) is
 // the reference composition; "any number" is the shipped
 // `count: { min: 0, max: Number.MAX_SAFE_INTEGER }` convention (Skyship
-// Weatherlight, `pls/colorless.ts`). What is left is a pure card ship whose
+// Weatherlight, `pls/colorless.cards.ts`). What is left is a pure card ship whose
 // only untested edge is a PLURAL pick on the `library-top` path.
 // tracked-by: #2140
 // export const scoutingTrek: CardDefinition = {

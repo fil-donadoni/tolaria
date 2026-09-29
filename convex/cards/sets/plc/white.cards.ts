@@ -3,7 +3,7 @@ import type { CardDefinition } from "../../types";
 
 // Mana Tithe — "Counter target spell unless its controller pays {1}." (CR
 // 701.6a counter-unless-pay, CR 118.12a may-pay). The white Force Spike
-// (leg/blue.ts) — same mayPay + if(not $paid) + counter shape, one Op
+// (leg/blue.cards.ts) — same mayPay + if(not $paid) + counter shape, one Op
 // vocabulary, no card-specific logic (issue #683).
 export const manaTithe: CardDefinition = {
     id: "7d48d622-f397-4f31-b1a5-0c23f60aa71c",

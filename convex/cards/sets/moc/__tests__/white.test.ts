@@ -1,9 +1,9 @@
 // MOC white — per-colour card behavior tests (ADR 0043 parallel test file).
 //
 // Guardian Scalelord composes `backupTrigger` (already proven by Consuming
-// Aetherborn, `mom/black.ts`, and Death-Greeter's Champion, `moc/red.ts`)
+// Aetherborn, `mom/black.cards.ts`, and Death-Greeter's Champion, `moc/red.cards.ts`)
 // plus the ALREADY-EXERCISED `moveZone` target-shape Op (Raise Dead-style
-// reanimation, e.g. `ulg/black.ts`). This file pins the CARD's own new
+// reanimation, e.g. `ulg/black.cards.ts`). This file pins the CARD's own new
 // combination: a graveyard-zone `targetRequirement` restricted to nonland
 // permanent cards via `type: PERMANENT_TYPES` + `excludeTypes: "Land"` (the
 // Phelia idiom, now also enforced for a CARD-kind candidate — issue #1378

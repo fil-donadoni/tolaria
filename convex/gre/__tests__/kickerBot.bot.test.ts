@@ -60,8 +60,8 @@ const BOG_DOWN = getCardByName("Bog Down").id;
 // round 1 fixed), so this proves the enumerator refuses it BEFORE a real
 // card exercises the gap. Shape: "As an additional cost to cast this spell,
 // sacrifice a land or pay 3 life. Kicker—Sacrifice a Forest." — the
-// Bitter Triumph disjunction (`lci/black.ts`) with a sacrifice leg standing
-// in for its discard leg, plus a Magma Burst-shaped (`pls/red.ts`) permanent
+// Bitter Triumph disjunction (`lci/black.cards.ts`) with a sacrifice leg standing
+// in for its discard leg, plus a Magma Burst-shaped (`pls/red.cards.ts`) permanent
 // Kicker leg.
 const SYNTHETIC_KICKER_ONEOF_ID = "00000000-0000-4000-8000-00002081f001";
 const SYNTHETIC_KICKER_ONEOF: CardDefinition = {

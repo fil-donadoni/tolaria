@@ -13,7 +13,7 @@
 //   - the 2 bespoke `pt-cda` cards (Goham Djinn, Marauding Knight) — new
 //     board-scan compute logic, with a wire-format assertion;
 //   - Andradite Leech's cost-modifier (mirrors the Derelor precedent,
-//     fem/black.ts) + its activated pump;
+//     fem/black.cards.ts) + its activated pump;
 //   - Duskwalker's kicker → entersWith-counters → wasKicked-gated
 //     keyword-grant chain (issue #1716), a novel-enough composition to
 //     warrant its own assertion.
@@ -1154,7 +1154,7 @@ describe("Urborg Shambler (other black creatures get -1/-1, self and nonblack ex
 
 // ---------------------------------------------------------------------------
 // Exotic Curse — Domain-scaled `pt-cda` Aura (CR 303.4 / 604.3 / 702
-// preamble, issue #1066). Mirrors Strength of Unity (`inv/white.ts`) with a
+// preamble, issue #1066). Mirrors Strength of Unity (`inv/white.cards.ts`) with a
 // NEGATED delta; the wire-format re-assertion after `projectPublicState` is
 // mandatory per the Card testing convention for staticEffects[] (layer 7c).
 // ---------------------------------------------------------------------------

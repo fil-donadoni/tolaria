@@ -15,7 +15,7 @@ import { cyclingAbility, cycledTrigger } from "../../abilities/cycling";
 // the cycling cost marks `cause: "cycling"`.)
 //
 // Target and choice sit at different times, the Decree of Silence
-// (`scg/blue.ts`) split: the creature is announced as the trigger goes on the
+// (`scg/blue.cards.ts`) split: the creature is announced as the trigger goes on the
 // stack (mandatory `count: 1`), and the "you may" is a RESOLUTION-time
 // decision — the costless `mayPay` + `if` shape. An "up to one" target would
 // move the decision to announcement and let the controller decline before the

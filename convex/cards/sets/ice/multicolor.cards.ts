@@ -184,7 +184,7 @@ export const altarOfBone: CardDefinition = {
 
 // The five colours Chromatic Armor's warded-colour picker offers, at ETB (the
 // modal `chosenModeId` pick) and via the re-choose activated ability. Mirrors
-// Prismatic Ward's WARD_COLORS (`ice/white.ts`) — kept local rather than
+// Prismatic Ward's WARD_COLORS (`ice/white.cards.ts`) — kept local rather than
 // exported since only these two ICE shields use it.
 const CHROMATIC_ARMOR_COLORS = ["W", "U", "B", "R", "G"] as const;
 const CHROMATIC_ARMOR_COLOR_NAMES: Record<string, string> = {
@@ -236,7 +236,7 @@ export const chromaticArmor: CardDefinition = {
         asEnters: [{ kind: "mode" }],
     },
     // CR 615 — the SAME colour-filtered ALL-damage prevention shield as
-    // Prismatic Ward (`ice/white.ts`): a `replacementEffects[]` entry with
+    // Prismatic Ward (`ice/white.cards.ts`): a `replacementEffects[]` entry with
     // `eventKind: "damage"` that consumes any damage to the Aura's host
     // (`self.attachedTo`) from a source whose colours include the LAST chosen
     // colour (`self.chosenModeId`, updated by the re-choose ability). The

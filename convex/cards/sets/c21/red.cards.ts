@@ -14,7 +14,7 @@ import { cardsExiledTrigger } from "../../abilities/triggers/cardsExiledTrigger"
 // counter on Laelia."
 //
 // ABILITY 1 — PROTOCOL (impulse-draw off your own library — no Op skin,
-// precedent: Elkin Bottle / Ice Cauldron, ice/colorless.ts; the SAME idiom
+// precedent: Elkin Bottle / Ice Cauldron, ice/colorless.cards.ts; the SAME idiom
 // shipped for Ragavan / Robber of the Rich / Headliner Scarlett): composes
 // `peekLibraryTop` + `moveCardById(..., "exile")` + `grantCastFromExile(...,
 // "this-turn")` — a FACE-UP exile (CR 406.3, issue #3001).
@@ -71,7 +71,7 @@ export const laeliaTheBladeReforged: CardDefinition = {
             // exile-and-grant-cast protocol — see the PROTOCOL note above),
             // so the bot's value model has nothing to walk without a shadow
             // script. Same sketch as Ragavan's combat-damage ability
-            // (mh2/red.ts) minus the Treasure token: `lookDistribute` is this
+            // (mh2/red.cards.ts) minus the Treasure token: `lookDistribute` is this
             // codebase's precedent for valuing "look at N, keep 1" impulse
             // draw, standing in for the exile-and-may-cast upside.
             aiEffects: [

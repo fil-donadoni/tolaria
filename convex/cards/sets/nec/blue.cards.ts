@@ -24,7 +24,7 @@ import { wardAbility } from "../../abilities/ward";
 // want to see its own ETB, unlike the `another-yours`/`any-other` scopes).
 // Effects: `counters` (CR 122, add a +1/+1 on `$source`) then `restrictCombat`
 // (`restriction: "cant-be-blocked"`, CR 509.1b, the Creeping Tar Pit
-// precedent, `wwk/colorless.ts`) on `$source`. Ward is
+// precedent, `wwk/colorless.cards.ts`) on `$source`. Ward is
 // `wardAbility({ cost: { mana: {X:4} }, costLabel: "{4}" })` (CR 702.21a) —
 // the shared "counter unless pay" DSL shape (Miscalculation/Force Spike);
 // Kappa Cannoneer is the first catalogue card to prove the keyword.

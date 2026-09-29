@@ -54,7 +54,7 @@ import { resurrection } from "../../cards/sets/lea/white.cards";
 import { titaniasSong } from "../../cards/sets/atq/green.cards";
 import { bloodMoon } from "../../cards/sets/drk/red.cards";
 
-/** History of Benalia (`dom/white.ts`) — the catalogue's first Saga. Referenced
+/** History of Benalia (`dom/white.cards.ts`) — the catalogue's first Saga. Referenced
  *  by id (not by import) exactly as `gre/__tests__/sagas.test.ts` does. */
 const HISTORY_OF_BENALIA_ID = "d134385d-b01c-41c7-bb2d-30722b44dc5a";
 

@@ -1,4 +1,4 @@
-// Per-card test for tmp/black.ts. Reanimate's `moveZone` target-shape
+// Per-card test for tmp/black.cards.ts. Reanimate's `moveZone` target-shape
 // (graveyard-card source, `controller` override, `bind` + `ref.manaValue`)
 // changes zones on an object whose source zone the canned smoke generator
 // does not model — `effectScriptSmoke.test.ts` explicitly SKIPS it ("covered
@@ -159,7 +159,7 @@ describe("Corpse Dance (CR 404.3 ordered graveyard, CR 702.27 buyback, CR 702.10
         // to act on (CR 608.2b, issue #2490) — before the fix it scheduled
         // anyway, leaving inert `delayedTriggers[]` residue that would fire
         // and exile nothing at the next end step (the exact Shallow Grave
-        // bug, `mir/black.ts`, shares this script shape).
+        // bug, `mir/black.cards.ts`, shares this script shape).
         expect(state.delayedTriggers ?? []).toHaveLength(0);
         fireDelayedTriggers(state, "next-end-step");
         if (state.stack.length > 0) resolveTopOfStack(state);

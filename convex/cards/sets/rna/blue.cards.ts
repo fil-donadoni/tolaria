@@ -6,7 +6,7 @@
 // Home set for Skitter Eel (earliest paper printing, ADR 0041) — a new
 // cross-set home set opened to prove Adapt N (CR 701.46, issue #1316,
 // parent #917) against a genuinely SIMPLE adapt user: no linked-exile
-// tracking (unlike Emperor of Bones, mh3/black.ts, still a tracked stub),
+// tracking (unlike Emperor of Bones, mh3/black.cards.ts, still a tracked stub),
 // no counter-placement meta-trigger, nothing beyond the keyword action
 // itself.
 

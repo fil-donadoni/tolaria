@@ -16,7 +16,7 @@ const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
  *  flow — mirrored here by sacrificing the land up front). */
 // Sylvan Safekeeper — {G} Creature — Human Wizard (CR 118.5 sacrifice cost;
 // CR 702.18 shroud grant — decorative pending project-wide target-legality
-// wiring, see ulg/white.ts-style precedent noted in jud/green.ts).
+// wiring, see ulg/white.cards.ts-style precedent noted in jud/green.cards.ts).
 describe("Sylvan Safekeeper (CR 118.5 sacrifice-a-land cost; CR 702.18 shroud grant)", () => {
     function setup() {
         const safekeeper = makeInstance(

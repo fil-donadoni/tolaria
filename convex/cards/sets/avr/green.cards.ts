@@ -20,7 +20,7 @@ import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 // member `+X/+X`, both `duration: { phase: "end-of-turn" }`. X is a
 // non-literal `count` value (`zone: "battlefield", controller: "controller",
 // filter: { type: "Creature" }` — the Bloodtithe Harvester dynamic-pump
-// shape, `vow/multicolor.ts`) evaluated per member; since the body only
+// shape, `vow/multicolor.cards.ts`) evaluated per member; since the body only
 // grants an ability and pumps P/T (it never adds/removes a creature), the
 // count is identical on every iteration, which is exactly the "value fixed
 // as this ability resolves" one-shot continuous effect CR 611.2c specifies —

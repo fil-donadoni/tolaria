@@ -107,7 +107,7 @@ export const aurochs: CardDefinition = {
 //
 // "Cast this spell only if you control a snow land" (CR 601.3a) is the card's
 // own `castCondition` — the ICE pool DOES ship snow lands (the Snow-Covered
-// basics, `ice/colorless.ts`, `supertypes: ["Basic", "Snow"]`). The filter reads
+// basics, `ice/colorless.cards.ts`, `supertypes: ["Basic", "Snow"]`). The filter reads
 // LIVE supertypes, so a Melting / Arcum's Weathervane mutation is honoured.
 export const blizzard: CardDefinition = {
     id: "c369e4f9-0f2b-446c-9e2d-d3eefab0586d",
@@ -389,7 +389,7 @@ export const elderDruid: CardDefinition = {
 //
 // Migrated resolve()→effects[] (ADR 0045): `SpellMode.effects` (mutually
 // exclusive with `SpellMode.resolve`) runs each mode through the same
-// forEach{set:"permanents"}+destroy shape as Day of Judgment (m11/white.ts).
+// forEach{set:"permanents"}+destroy shape as Day of Judgment (m11/white.cards.ts).
 export const essenceFilter: CardDefinition = {
     id: "9b610103-dafd-4248-9d79-ce57f84b9e03",
     name: "Essence Filter",
@@ -706,7 +706,7 @@ export const freyalisesCharm: CardDefinition = {
             scope: "opponents",
             filter: { colors: "B" },
             // Migrated resolve()→effects[] (ADR 0045, issue #1264): mayPay +
-            // if(bound $paid) + draw, the Force Spike shape (leg/blue.ts).
+            // if(bound $paid) + draw, the Force Spike shape (leg/blue.cards.ts).
             effects: [
                 {
                     op: "mayPay",
@@ -1088,7 +1088,7 @@ export const lureIce: CardPrint = {
 // Nature's Lore — "Search your library for a Forest card, put that card onto the
 // battlefield, then shuffle." (CR 701.23 search; CR 400.7 put onto battlefield;
 // CR 701.24 shuffle.) A library search restricted to Forest cards, then put
-// onto the battlefield and shuffle — the Natural Order (vis/green.ts) shape.
+// onto the battlefield and shuffle — the Natural Order (vis/green.cards.ts) shape.
 //
 // Migrated resolve()→effects[] (ADR 0045): `choice(kind:"search-library",
 // zone:"library", filter:{subtype:"Forest"})` binds the pick, `moveZone`
@@ -1618,8 +1618,8 @@ export const wallOfPineNeedles: CardDefinition = {
 // zone): "Sacrifice a snow land: Return this card from your graveyard to your
 // hand." Every piece is shipped machinery (2026-08-05 #1212 audit correction —
 // the prior "engine gap" premise here was false): `activateFromGraveyard`
-// (Ashen Ghoul, `ice/black.ts`), the snow-land `sacrificeFilter` (Sunstone,
-// `ice/colorless.ts`), and `moveZone` reaching `$source` while it sits in the
+// (Ashen Ghoul, `ice/black.cards.ts`), the snow-land `sacrificeFilter` (Sunstone,
+// `ice/colorless.cards.ts`), and `moveZone` reaching `$source` while it sits in the
 // graveyard. No timing restriction (unlike Ashen Ghoul) — the Oracle line has
 // no upkeep/your-turn clause.
 export const whiteout: CardDefinition = {
@@ -1768,11 +1768,11 @@ export const wildGrowthIce: CardPrint = {
 // behaviour.) A `keyword-grant` static effect with a `condition` (CR 611.2c
 // "as long as ...") re-evaluates every stable transition via
 // `recomputeContinuousEffects`, so gaining/losing snow lands mid-game keeps
-// the grant current — mirrors Kavu Runner (`inv/red.ts`) and Magnigoth
-// Treefolk (`pls/green.ts`). "You" is this creature's CONTROLLER at read
+// the grant current — mirrors Kavu Runner (`inv/red.cards.ts`) and Magnigoth
+// Treefolk (`pls/green.cards.ts`). "You" is this creature's CONTROLLER at read
 // time (`source.controllerId`), read live via `countSnowLands` so a
 // Melting/Arcum's-Weathervane-style supertype change is honoured, matching
-// Arctic Foxes' snow read (`ice/white.ts`).
+// Arctic Foxes' snow read (`ice/white.cards.ts`).
 export const woollyMammoths: CardDefinition = {
     id: "eaca1216-99c8-4ad5-a51a-3c4ff3b82097",
     name: "Woolly Mammoths",

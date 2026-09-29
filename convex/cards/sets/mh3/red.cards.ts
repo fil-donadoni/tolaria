@@ -23,7 +23,7 @@ import type { CardDefinition, SpellContext } from "../../types";
 // nothing here restructures control flow), same shape as the X-value gap the
 // playbook documents for Stream of Life / Earthquake. Worth an Op/EffectValue
 // addition if the "pay any amount, deal that much" template recurs. Modeled
-// exactly like Nameless Race's "pay any amount of life" (drk/black.ts): a
+// exactly like Nameless Race's "pay any amount of life" (drk/black.cards.ts): a
 // `requestOptionChoice` over 0..pool. Split into two steps so the "you get
 // {E}{E}{E}" mutation (step 0) runs ONCE and is not re-applied when the pay
 // choice (step 1) suspends/resumes (CR 608.3 stepped resolution).

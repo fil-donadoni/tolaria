@@ -613,7 +613,7 @@ describe("a cast mode is priced against its OWN characteristics (CR 601.2f)", ()
         // issue #2970's bug, not a new one, and nothing else here would catch
         // it (measured: removing the branch left the whole suite green).
         //
-        // Gloom ("White spells cost {3} more to cast", `lea/black.ts`) reads a
+        // Gloom ("White spells cost {3} more to cast", `lea/black.cards.ts`) reads a
         // COLOUR, and CR 702.37c strips it: a face-down spell is a colourless
         // nameless 2/2. Six Plains cover the {3} morph cost taxed to {6}, and
         // exactly cover the untaxed {3} with three to spare — so the tap plan's

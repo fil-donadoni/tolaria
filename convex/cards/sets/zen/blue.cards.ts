@@ -8,7 +8,7 @@ import type { CardDefinition } from "../../types";
 // pays {2}." (CR 701.6a counter-unless-pay, CR 117.3a may-pay, CR 114.1
 // `spellExcludeTypeFilter` — issue #683's new "noncreature spell" targeting
 // restriction). Same mayPay + if(not $paid) + counter shape as Force Spike
-// (leg/blue.ts), restricted to noncreature spells at the target-requirement
+// (leg/blue.cards.ts), restricted to noncreature spells at the target-requirement
 // level.
 export const spellPierce: CardDefinition = {
     id: "cb3d3901-e4a6-45ab-a7b5-c65d91e1875e",

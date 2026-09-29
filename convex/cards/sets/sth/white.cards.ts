@@ -31,7 +31,7 @@ import {
 // "the firing event is not threaded into a script"), so a trigger that must
 // act on the departed object stays imperative. Mirrors every existing
 // leftTrigger card that reads `leaving.id` / `leaving.ownerId` (Personal
-// Incarnation's `pinc-ltb`, lea/white.ts).
+// Incarnation's `pinc-ltb`, lea/white.cards.ts).
 export const sacredGround: CardDefinition = {
     id: "37ae4b01-a9c1-4eec-9204-78cb2508e0df",
     rarity: "rare",

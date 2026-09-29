@@ -13,7 +13,7 @@
 //     payment/coverage layer settles them off either colour of land (issues
 //     #1738/#1739/#1755). If this card shipped, its cost would be
 //     `{ generic: 1, hybrid: [["R", "G"]] }` — same shape as Deathrite Shaman
-//     (`rtr/multicolor.ts`).
+//     (`rtr/multicolor.cards.ts`).
 //  2. Effect: the draw half is trivial (`draw` Op), but "any combination of
 //     colors" needs a runtime colour choice PER mana instance at
 //     spell-resolution time. `EffectManaPool` (the `addMana` Op's mana spec)

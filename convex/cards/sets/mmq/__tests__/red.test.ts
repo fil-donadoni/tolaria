@@ -1,4 +1,4 @@
-// Per-card test for mmq/red.ts. Squee, Goblin Nabob's graveyard-zone upkeep
+// Per-card test for mmq/red.cards.ts. Squee, Goblin Nabob's graveyard-zone upkeep
 // trigger uses a cost-free `mayPay` Op — the catalogue-wide auto-generated
 // smoke test (`effectScriptSmoke.test.ts`) explicitly SKIPS it ("Op 'mayPay'
 // suspends for a Pay/Skip decision — covered by the card's own

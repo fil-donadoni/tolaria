@@ -427,7 +427,7 @@ describe("Wings of Hope (Aura +1/+3 + flying, CR 611/613 layer 6/7c)", () => {
         // instance's own staticAbilities never mutate; the interpreter reads
         // it via the same staticEffects scan getEffective{Power,Toughness}
         // uses. Assert via the declared keyword-grant static effect, mirroring
-        // the Wings of Aesthir precedent (ice/multicolor.ts).
+        // the Wings of Aesthir precedent (ice/multicolor.cards.ts).
         const grants = (wingsOfHope.staticEffects ?? [])
             .filter((e) => e.kind === "keyword-grant")
             .map((e) => (e as { keyword: string }).keyword);
@@ -2634,7 +2634,7 @@ describe("Sterling Grove (CR 611/613 layer 6 keyword grant + 702.18 Shroud, issu
     // non-enchantment control. The shroud grant is the real CR-702.18
     // enforcement — a `permanent-guard` staticEffect read live by
     // `isGuardedAgainst` (`cantBeTargeted`), the SAME path Blurred Mongoose's
-    // printed shroud uses (`inv/green.ts`), scoped by
+    // printed shroud uses (`inv/green.cards.ts`), scoped by
     // STERLING_GROVE_AFFECTS_OTHER_ENCHANTMENTS to OTHER enchantments the
     // Grove's controller owns.
     const makeBoard = () => {

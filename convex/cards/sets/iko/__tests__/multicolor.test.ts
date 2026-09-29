@@ -34,15 +34,15 @@ const lightningBolt = getDefinition("d573ef03-4730-45aa-93dd-e45ac1dbaf4a");
 const savannahLions = getDefinition("d05b92bd-797e-413f-a8b0-32e0937a1ee0");
 const stoneRain = getDefinition("57ff74cb-a2ed-4123-ac42-f72f9820049e");
 const zirda = getDefinition("1bd8e61c-2ee8-4243-a848-7008810db8a0");
-// Dragon Engine (atq/colorless.ts) — Artifact Creature, "{2}: +1/+0" (non-mana,
+// Dragon Engine (atq/colorless.cards.ts) — Artifact Creature, "{2}: +1/+0" (non-mana,
 // useStack: true). Cross-set fixture, same pattern as Power Artifact's own
 // test (atq/__tests__/blue.test.ts).
-// Celestial Prism (lea/colorless.ts) — Artifact, "{2}, {T}: Add one mana of
+// Celestial Prism (lea/colorless.cards.ts) — Artifact, "{2}, {T}: Add one mana of
 // any color" — a MANA ability (useStack: false) WITH mana in its own cost,
 // the one shape that proves Zirda's "aren't mana abilities" exclusion (a
 // mana-less mana ability, like a basic land's, would pass vacuously).
 const celestialPrism = getDefinition("a47417cb-1ea7-4f65-ba06-e27a99373114");
-// Armageddon Clock (atq/colorless.ts) — "{4}: Remove a doom counter... Any
+// Armageddon Clock (atq/colorless.cards.ts) — "{4}: Remove a doom counter... Any
 // player may activate this ability" (`activatableByAnyPlayer: true`, CR
 // 113.3c). The one shipped ability where the ACTIVATOR can differ from the
 // source's controller — exactly the axis Zirda's "abilities YOU ACTIVATE"

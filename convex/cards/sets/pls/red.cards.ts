@@ -46,11 +46,11 @@ export const flametongueKavu: CardDefinition = {
 // +1/+1 until end of turn.\n{G}: This creature becomes the color of your
 // choice until end of turn." (CR 605 activated abilities; off-color activation
 // costs don't affect the card's own colour identity, CR 202.2 — mono-red by
-// mana cost, same as Phyrexian Infiltrator's blue-cost ability, `inv/black.ts`.)
-// The pump is the censused `pump` Op (Dragon Engine precedent, `atq/colorless.ts`);
+// mana cost, same as Phyrexian Infiltrator's blue-cost ability, `inv/black.cards.ts`.)
+// The pump is the censused `pump` Op (Dragon Engine precedent, `atq/colorless.cards.ts`);
 // the color-choice is the shared `chooseColorEffects` builder — an
 // `optionChoice` over the five colors, each mode a single `setColor` Op
-// (Rainbow Crow / Blind Seer precedent, `inv/blue.ts`) — no new choice-kind
+// (Rainbow Crow / Blind Seer precedent, `inv/blue.cards.ts`) — no new choice-kind
 // construct needed (ADR 0045 "generalize, don't add").
 export const calderaKavu: CardDefinition = {
     id: "fcad32aa-2ce1-402d-a9d8-ad5c81fe4c5b", // PLS 58
@@ -114,7 +114,7 @@ export const implode: CardDefinition = {
 // enchanted creature becomes tapped, this Aura deals 2 damage to that
 // creature's controller." (CR 303.4 aura attachment; CR 701.26a becomes-tapped
 // trigger scoped to the host via `tappedTrigger({ scope: "host" })`, the
-// Seizures precedent `ice/black.ts` — this card is the SAME shape minus the
+// Seizures precedent `ice/black.cards.ts` — this card is the SAME shape minus the
 // "unless that player pays" rider.)
 //
 // NOT DSL-migratable (ADR 0045, same gap Seizures already documents):
@@ -149,7 +149,7 @@ export const insolence: CardDefinition = {
             // `dealDamage` Op skin reaches from a `tappedTrigger` script (see
             // the NOT DSL-migratable note above). Shadow with the
             // representative "opponent" recipient — the common case, and the
-            // same one-representative-value idiom `usg/green.ts`'s `{ C: 1 }`
+            // same one-representative-value idiom `usg/green.cards.ts`'s `{ C: 1 }`
             // any-colour shadow uses.
             aiEffects: [
                 { op: "dealDamage", amount: 2, to: { player: "opponent" } },
@@ -161,7 +161,7 @@ export const insolence: CardDefinition = {
 // Kavu Recluse — {2}{R} Creature — Kavu, 2/2. "{T}: Target land becomes a
 // Forest until end of turn." (CR 605 activated ability; CR 305.7 land-type
 // change via the censused `setSubtype` Op — the Dream Thrush precedent
-// `inv/blue.ts` — no new capability.)
+// `inv/blue.cards.ts` — no new capability.)
 export const kavuRecluse: CardDefinition = {
     id: "6f04ac02-3eff-4a66-8320-ee7b4357522f", // PLS 64
     rarity: "common",
@@ -200,8 +200,8 @@ export const kavuRecluse: CardDefinition = {
 // NOT DSL-migratable (ADR 0045): all three read the enchanted creature via
 // `ctx.getAttachedTo(ctx.sourceInstanceId)` — the object-selector grammar
 // (`EffectObjectSelector`) has no attached-host ("enchanted permanent") ref
-// (the same gap Regeneration / Stonehands document, `lea/green.ts` /
-// `ice/red.ts`). Blocked on: an attached-host object selector (planned-
+// (the same gap Regeneration / Stonehands document, `lea/green.cards.ts` /
+// `ice/red.cards.ts`). Blocked on: an attached-host object selector (planned-
 // migratable — not a stop-and-issue case, an already-recorded gap).
 export const keldonMantle: CardDefinition = {
     id: "35bb73df-f488-468c-a9ad-72f52c8da3dc", // PLS 65
@@ -291,10 +291,10 @@ export const keldonMantle: CardDefinition = {
 // to another target." (CR 702.33 Kicker — a non-mana PERMANENT leg,
 // `permanent: { action: "sacrifice", filter: { types: "Land" }, count: 2 }`,
 // ADR 0079/#1937; CR 601.2c the kicked mode WIDENS the target count 1 -> 2 via
-// `kickedTargetRequirement` — the Bloodchief's Thirst precedent `znr/black.ts`,
+// `kickedTargetRequirement` — the Bloodchief's Thirst precedent `znr/black.cards.ts`,
 // here widening `count` rather than the type filter. The second `dealDamage`
 // is gated on `{ kickerCount: true } >= 1`, the standard kicker branch idiom
-// (Overload, `inv/red.ts`) — both damage Ops are already-exercised, no new Op.)
+// (Overload, `inv/red.cards.ts`) — both damage Ops are already-exercised, no new Op.)
 export const magmaBurst: CardDefinition = {
     id: "d9752bc3-0bdf-4657-8750-73c8cbc8e83f", // PLS 66
     rarity: "common",
@@ -328,7 +328,7 @@ export const magmaBurst: CardDefinition = {
 
 // Mire Kavu — {3}{R} Creature — Kavu, 3/2. "This creature gets +1/+1 as long
 // as you control a Swamp." (CR 611.3a board-conditional layer-7c buff — the
-// Kird Ape shape `arn/red.ts`, Swamp instead of Forest.)
+// Kird Ape shape `arn/red.cards.ts`, Swamp instead of Forest.)
 export const mireKavu: CardDefinition = {
     id: "ccdd0086-eb27-48b3-91cb-a113aa1de102", // PLS 67
     rarity: "common",
@@ -361,7 +361,7 @@ export const mireKavu: CardDefinition = {
 // Mogg Jailer — {1}{R} Creature — Goblin, 2/2. "This creature can't attack if
 // defending player controls an untapped creature with power 2 or less." (CR
 // 508.1c card-level attack restriction — the Goblin Mutant precedent
-// `ice/red.ts`, same shape with the inequality flipped to <= 2.)
+// `ice/red.cards.ts`, same shape with the inequality flipped to <= 2.)
 export const moggJailer: CardDefinition = {
     id: "52513235-0e6c-40ea-8ead-a050e6da676e", // PLS 68
     rarity: "uncommon",
@@ -432,7 +432,7 @@ export const moggSentry: CardDefinition = {
 // PROTOCOL CARD — resolve() justified (DSL-first exception, ADR 0045): reads
 // a RANDOMLY-revealed hand card's mana value back into the damage amount.
 // `revealRandomHandCard` has no bound ref reachable from an Effect Script
-// (mirrors Cursed Scroll's exact gap, `tmp/colorless.ts` — "reading a
+// (mirrors Cursed Scroll's exact gap, `tmp/colorless.cards.ts` — "reading a
 // randomly-revealed card's [characteristic] back into a conditional/effect is
 // not expressible with the current Op vocabulary"). The random reveal draws
 // from the seeded PRNG exactly once, in this single non-suspending segment,
@@ -473,7 +473,7 @@ export const planeswalkersFury: CardDefinition = {
             // aiEffects (PRD #1423, issue #1431/#1519) — the real amount is a
             // RANDOMLY-revealed card's mana value, not a static number (the
             // Cursed Scroll gap cited above); shadow with a flat representative
-            // amount (one-representative-value idiom, `usg/green.ts`'s `{C:1}`
+            // amount (one-representative-value idiom, `usg/green.cards.ts`'s `{C:1}`
             // precedent) standing in for a typical mana value.
             aiEffects: [
                 { op: "dealDamage", amount: 3, to: { player: "opponent" } },
@@ -524,7 +524,7 @@ export const strafe: CardDefinition = {
 // 4/4. "Vigilance\n{1}{R}, {T}: Tahngarth deals damage equal to its power to
 // target creature. That creature deals damage equal to its power to
 // Tahngarth." (CR 702.20b vigilance; the mutual-damage "fight" shape (CR
-// 701.14-style) — Karplusan Yeti (`ice/red.ts`) ships the identical body
+// 701.14-style) — Karplusan Yeti (`ice/red.cards.ts`) ships the identical body
 // behind a bare tap instead of {1}{R} + tap, but predates the DSL-first rule
 // and carries no tracking ref, so it is NOT valid `resolve()` precedent on
 // its own.)
@@ -549,7 +549,7 @@ export const strafe: CardDefinition = {
 //
 // Two printings in the same set (ADR 0014): PLS 74 (canonical) and PLS 74★
 // (the foil-only alternate-illustration variant) — one CardDefinition plus
-// one CardPrint, the Skyship Weatherlight precedent `pls/colorless.ts`.
+// one CardPrint, the Skyship Weatherlight precedent `pls/colorless.cards.ts`.
 export const tahngarthTalruumHero: CardDefinition = {
     id: "c1778f37-af01-4f8c-ab9d-a4c60abf7e78", // PLS 74 (canonical art)
     rarity: "rare",
@@ -728,7 +728,7 @@ export const thunderscapeBattlemage: CardDefinition = {
 // Thunderscape Familiar — {1}{R} Creature — Kavu, 1/1. "First strike\nBlack
 // spells and green spells you cast cost {1} less to cast." (CR 702.7 first
 // strike; CR 601.2f cost reduction via `cost-modifier` scoped to the
-// controller's own casts — the Andradite Leech precedent `inv/black.ts`,
+// controller's own casts — the Andradite Leech precedent `inv/black.cards.ts`,
 // same shape as a reduction instead of a tax, over TWO colours via `.some`.)
 export const thunderscapeFamiliar: CardDefinition = {
     id: "26c9c0aa-9412-4320-aaee-e05369b8bc7b", // PLS 76

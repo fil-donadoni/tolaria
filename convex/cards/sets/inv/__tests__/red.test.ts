@@ -7,7 +7,7 @@
 //
 // Pouncing Kavu exercises the kicker → entersWith-counters →
 // wasKicked-gated keyword-grant chain (issue #1716), the exact Duskwalker
-// template (inv/black.ts) — a novel-enough composition to warrant its own
+// template (inv/black.cards.ts) — a novel-enough composition to warrant its own
 // assertion, including revert-sensitive regressions for the two failure
 // modes the old counter-count proxy had.
 //

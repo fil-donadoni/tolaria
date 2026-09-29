@@ -22,7 +22,7 @@ import { backupTrigger } from "../../abilities/triggers/backupTrigger";
 //     end to end (the mechanic was previously proven only by a synthetic
 //     probe, `gre/__tests__/dash.test.ts`).
 //   - Backup 1: `backupTrigger(1, ["double strike"])` — the SAME factory
-//     Consuming Aetherborn (`mom/black.ts`) already proved, granting the
+//     Consuming Aetherborn (`mom/black.cards.ts`) already proved, granting the
 //     card's own printed ability (double strike) to a non-self target.
 export const deathGreetersChampion: CardDefinition = {
     id: "7cb2b582-1c45-4bb2-8aef-59a71a5a9e94", // MOC 30

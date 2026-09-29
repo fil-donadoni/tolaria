@@ -22,7 +22,7 @@ import type { CardDefinition } from "../../types";
 //     (per-Op regime) in `convex/gre/effects/__tests__/interpreter.test.ts`.
 //   • 0 BRAINSTORM — "Draw three cards, then put two cards from your hand on
 //     top of your library in any order." The exact `draw` + `putBack` pair
-//     Brainstorm (ice/blue.ts) already exercises; a 0-cost loyalty ability
+//     Brainstorm (ice/blue.cards.ts) already exercises; a 0-cost loyalty ability
 //     removes/adds no counters.
 //   • −1 BOUNCE — "Return target creature to its owner's hand." A `moveZone`
 //     of the announced target creature to hand (CR 400.7).

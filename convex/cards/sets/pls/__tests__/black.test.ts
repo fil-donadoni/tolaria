@@ -691,7 +691,7 @@ describe("Sinister Strength (CR 303.4 aura, layer 7c pt-buff + layer 5 color-gra
         });
         // pt-buff is read live through the layer pipeline (Unholy Strength's
         // own pattern) — no separate "apply" step needed.
-        // Savannah Lions is a printed 2/1 (`lea/white.ts`); +3/+1 → 5/2.
+        // Savannah Lions is a printed 2/1 (`lea/white.cards.ts`); +3/+1 → 5/2.
         expect(getEffectivePower(state, host)).toBe(5);
         expect(getEffectiveToughness(state, host)).toBe(2);
         // color-grant is a materialized (`grantedColors`) effect, applied via

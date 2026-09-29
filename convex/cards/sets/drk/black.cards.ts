@@ -500,7 +500,7 @@ export const seasonOfTheWitch: CardDefinition = {
             // resume with `$paid=true` but no life ever deducted, silently
             // failing the pre-existing "paying 2 life keeps it" assertion.
             // Reusing the exact `mayPay+if+sacrifice` shape Vile Consumption
-            // ships (`inv/multicolor.ts`) is correct in PRODUCTION (which
+            // ships (`inv/multicolor.cards.ts`) is correct in PRODUCTION (which
             // always goes through the real submit mutation) but not provably
             // equivalent against this test harness without editing the test —
             // forbidden by the migration playbook. Stays resolve(), which pays
@@ -590,7 +590,7 @@ export const theFallen: CardDefinition = {
             // Migrated resolve()→effects[] (ADR 0045, issue #1015): the
             // `damageDealtTrigger` factory now exposes an `effects[]` site;
             // the body is a plain `counters` add on `$source` (Powder Keg
-            // shape, `uds/colorless.ts`).
+            // shape, `uds/colorless.cards.ts`).
             effects: [
                 {
                     op: "counters",

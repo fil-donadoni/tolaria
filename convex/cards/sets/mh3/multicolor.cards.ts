@@ -19,8 +19,8 @@ import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 // "Discard a card: Put a +1/+1 counter on this creature." (CR 122.1 counter;
 //  CR 602.1/118.3 discard-a-chosen-card activation cost, modelled by
 //  `ActivatedAbility.cost.discardFilter` — a match-all filter (`{}`) is the
-//  same "discard a card" idiom Iron-Shield Elf (`ecl/black.ts`) and Arc Mage
-//  (`nem/red.ts`) already use. Previously the discard was performed inside
+//  same "discard a card" idiom Iron-Shield Elf (`ecl/black.cards.ts`) and Arc Mage
+//  (`nem/red.cards.ts`) already use. Previously the discard was performed inside
 //  `resolve()` via a resolve-time `requestChoice` instead of as a real
 //  activation cost, so none of the three affordability gates (server
 //  `activateAbilityOnState`, bot `enumerateAbilityMoves`, frontend
@@ -200,7 +200,7 @@ export const phlageTitanOfFiresFury: CardDefinition = {
 //
 // 1. The battlefield-wide GRANT (CR 113.1 granted ability + CR 611 continuous
 //    filtered set) is the `triggered-grant` static effect Energy Flux
-//    (`atq/blue.ts`) and The Tabernacle at Pendrell Vale (`leg/colorless.ts`)
+//    (`atq/blue.cards.ts`) and The Tabernacle at Pendrell Vale (`leg/colorless.cards.ts`)
 //    already prove: the template lives on `triggeredGrantTemplates[]` (NOT on
 //    `triggeredAbilities`, so the recipients own it and Nadu does not fire a
 //    separate copy of its own), `effectiveTriggeredAbilities` unions it into
