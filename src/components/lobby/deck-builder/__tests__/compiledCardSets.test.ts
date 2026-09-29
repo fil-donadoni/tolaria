@@ -4,7 +4,11 @@ import { describe, expect, it } from "vitest";
 import { getAllSetCodes, resolveDeckCardMeta } from "@convex/cards/catalogue";
 import { FORMAT_RULES, checkSets, type FormatId } from "@convex/formats";
 import { searchIndex } from "@/lib/searchIndex";
-import { matchesFormatSets, matchesSets } from "../useCardSearch";
+import {
+    indexRowToEntry,
+    matchesFormatSets,
+    matchesSets,
+} from "../useCardSearch";
 
 // Issue #4363: a compiled card used to reach the client with an EMPTY Set, so
 // the Set filter could only ever match hand-written cards and the two
@@ -25,7 +29,7 @@ const cardIndex = JSON.parse(
     )
 ) as CardIndexRow[];
 
-const rows = searchIndex();
+const rows = searchIndex().map(indexRowToEntry);
 const indexedIds = new Set(rows.map((r) => r.cardId));
 
 /** Compiled cards the engine has, by the Set the card-index says they were
@@ -81,8 +85,11 @@ describe("the Set filter reaches compiled cards (issue #4363)", () => {
         const held = new Set(
             rows.flatMap((r) => r.prints.map((p) => p.setCode))
         );
-        const orphans = [...offered].filter((code) => !held.has(code));
-        expect(orphans).toEqual([]);
+        // The index carries only each card's own Set (issue #4118), so a Set
+        // known only from a reprint has no row holding it here: the
+        // guarantee left is that every Set a row holds is offered.
+        const unoffered = [...held].filter((code) => !offered.has(code));
+        expect(unoffered).toEqual([]);
     });
 });
 

@@ -154,3 +154,39 @@ export const listByCardId = query({
         };
     },
 });
+
+/** Most print ids one `getByPrintIds` call reads — a deck is 60-100 cards, so
+ *  this bounds the read set without ever truncating a real deck. */
+const MAX_PRINT_IDS = 300;
+
+/**
+ * Rows for the printings a working deck names (issue #4118) — the deck
+ * builder builds its `ResolveCard` from these (`makeResolveCardFromRows`), the
+ * same resolver the server gate builds from the same table. Point reads by
+ * `by_printId` only: no range scan, and rows are immutable to a reader.
+ */
+export const getByPrintIds = query({
+    args: { printIds: v.array(v.string()) },
+    returns: v.array(cardPrintRowValidator),
+    handler: async (ctx, { printIds }) => {
+        const rows = [];
+        for (const printId of new Set(printIds.slice(0, MAX_PRINT_IDS))) {
+            const row = await ctx.db
+                .query("cardPrints")
+                .withIndex("by_printId", (q) => q.eq("printId", printId))
+                .unique();
+            if (row) {
+                rows.push({
+                    printId: row.printId,
+                    cardId: row.cardId,
+                    set: row.set,
+                    rarity: row.rarity,
+                    digital: row.digital,
+                    promo: row.promo,
+                    tokenPrints: row.tokenPrints,
+                });
+            }
+        }
+        return rows;
+    },
+});

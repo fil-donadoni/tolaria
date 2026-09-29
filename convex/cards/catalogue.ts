@@ -763,6 +763,11 @@ export const getPrintingsForCard = (definitionId: string): CardPrinting[] => {
     return printings;
 };
 
+/** A Card Definition's own (first-printing) Set code — the one Set the
+ *  registry knows without a printing list. Empty when unknown. */
+export const getDefinitionSetCode = (definitionId: string): string =>
+    definitionSetCode.get(definitionId) ?? "";
+
 export const getPrintsForCard = (definitionId: string): string[] =>
     getPrintingsForCard(definitionId).map((p) => p.printId);
 

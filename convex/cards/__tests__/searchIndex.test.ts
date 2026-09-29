@@ -99,10 +99,13 @@ describe("the search index population (issue #3054)", () => {
         expect(wrong.map((r) => r.name)).toEqual([]);
     });
 
-    it("puts the card's own id first in `prints`, which the edition picker relies on", () => {
-        const offenders = buildSearchIndex()
-            .filter((r) => r.prints[0]?.printId !== r.cardId)
-            .map((r) => r.name);
-        expect(offenders).toEqual([]);
+    it("carries no printing list, only the card's own Set (Card Prints, issue #4118)", () => {
+        const rows = buildSearchIndex();
+        expect(rows.filter((r) => "prints" in r).map((r) => r.name)).toEqual(
+            []
+        );
+        expect(
+            rows.filter((r) => typeof r.setCode !== "string").map((r) => r.name)
+        ).toEqual([]);
     });
 });

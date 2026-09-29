@@ -35,11 +35,7 @@
 // side effect. There is no third case.
 import { getCardColorIdentity } from "./colors";
 import { aggregateOracleText } from "./oracleAggregator";
-import {
-    getAllCatalogueCards,
-    getPrintingsForCard,
-    type CardPrinting,
-} from "./catalogue";
+import { getAllCatalogueCards, getDefinitionSetCode } from "./catalogue";
 import { foldAccents } from "./textNormalize";
 import type { CardDefinition } from "./types";
 import { manaValue } from "../gre/constants";
@@ -59,18 +55,12 @@ export interface SearchIndexRow {
     oracleText: string;
     /** `oracleText` with diacritics stripped. */
     oracleFold: string;
-    /** All printings (original first). `cardId === prints[0].printId`. Drives
-     *  the set filter and the per-card edition picker.
-     *
-     *  A COMPILED card has no `CardPrint` in the module graph, so it carries
-     *  exactly one printing: its first-printing Set, which the catalogue
-     *  artifact's generator joins in from `data/card-index.json`
-     *  (`CardDefinition.setCode`, issue #4363). Its reprints arrive with the
-     *  Card Prints table (issue #4116). The Set filter, `matchesSets` and
-     *  `matchesFormatSets` all read this list, and `checkSets` reads the same
-     *  Set through `resolveDeckCardMeta`, so search offers a card iff the
-     *  Format validator accepts it. */
-    prints: CardPrinting[];
+    /** The card's own first-printing Set (`CardDefinition.setCode` for a
+     *  compiled card, issue #4363). The index carries NO printing list (Card
+     *  Prints, ADR 0140, issue #4118): every printing lives in the
+     *  `cardPrints` table and is queried by Card ID when the edition
+     *  selector opens. */
+    setCode: string;
 }
 
 /** Project ONE definition into its index row. Pure; the definition must
@@ -91,7 +81,7 @@ export function toSearchIndexRow(def: CardDefinition): SearchIndexRow {
         manaValue: manaValue(def.manaCost),
         oracleText,
         oracleFold: foldAccents(oracleText),
-        prints: getPrintingsForCard(def.id),
+        setCode: getDefinitionSetCode(def.id),
     };
 }
 

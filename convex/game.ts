@@ -141,6 +141,8 @@ import {
 import { declineMadness, consumeMadnessCastChoice } from "./gre/madness";
 import { declineRebound, consumeReboundCastChoice } from "./gre/rebound";
 import { assertDeckLegal, type ResolvePool } from "./formats";
+import { loadDeckPrintRows } from "./cardPrintRows";
+import { makeResolveCardFromRows } from "./cards/printRows";
 import {
     JOIN_CODE_REJECTED,
     findGameByJoinCode,
@@ -3469,7 +3471,7 @@ export const createGame = mutation({
         // is enforced here even if the client is stale.
         assertDeckLegal(
             args.deck,
-            undefined,
+            makeResolveCardFromRows(await loadDeckPrintRows(ctx, args.deck)),
             await loadBanlistOverrides(ctx, args.deck.format),
             await loadLimitedPoolResolver(ctx, args.deck, user._id)
         );
@@ -3580,7 +3582,7 @@ export const challengeLimitedSeat = mutation({
         // must be legal against its own seat's Pool before any row is written.
         assertDeckLegal(
             args.deck,
-            undefined,
+            makeResolveCardFromRows(await loadDeckPrintRows(ctx, args.deck)),
             await loadBanlistOverrides(ctx, args.deck.format),
             await loadLimitedPoolResolver(ctx, args.deck, user._id)
         );
@@ -3720,7 +3722,7 @@ export const startPairingMatch = mutation({
         // written — the caller's deck must be legal against its own Pool.
         assertDeckLegal(
             args.deck,
-            undefined,
+            makeResolveCardFromRows(await loadDeckPrintRows(ctx, args.deck)),
             await loadBanlistOverrides(ctx, args.deck.format),
             await loadLimitedPoolResolver(ctx, args.deck, user._id)
         );
@@ -3934,14 +3936,16 @@ export const createSoloGame = mutation({
         // seats' decks aren't guaranteed to share a Format.
         assertDeckLegal(
             args.deck,
-            undefined,
+            makeResolveCardFromRows(await loadDeckPrintRows(ctx, args.deck)),
             await loadBanlistOverrides(ctx, args.deck.format),
             await loadLimitedPoolResolver(ctx, args.deck, user._id)
         );
         if (args.deck2)
             assertDeckLegal(
                 args.deck2,
-                undefined,
+                makeResolveCardFromRows(
+                    await loadDeckPrintRows(ctx, args.deck2)
+                ),
                 await loadBanlistOverrides(ctx, args.deck2.format),
                 // Solo/vs-AI: a single authenticated user occupies BOTH seats
                 // it controls, so the same `user._id` is the correct owner
@@ -4407,7 +4411,7 @@ async function joinWaitingGame(
     // joiner can't sneak in a DB-banned card even on a stale client.
     assertDeckLegal(
         args.deck,
-        undefined,
+        makeResolveCardFromRows(await loadDeckPrintRows(ctx, args.deck)),
         await loadBanlistOverrides(ctx, args.deck.format),
         await loadLimitedPoolResolver(ctx, args.deck, user._id)
     );

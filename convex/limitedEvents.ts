@@ -33,13 +33,14 @@ import {
     saveSelection,
     seatRowNeedsInterning,
 } from "./limitedSeatStore";
-import { resolveCardMeta } from "./limitedCardMeta";
+import { loadPrintRows } from "./cardPrintRows";
 import {
-    getCardByName,
-    getPrintingsForCard,
-    resolveDeckCardMeta,
-    tryGetDefinition,
-} from "./cards";
+    makeResolveCardFromRows,
+    makeResolveCardMetaFromRows,
+} from "./cards/printRows";
+import type { ResolveCard } from "./formats";
+import type { ResolveCardMeta } from "./limited/eventLogic";
+import { getCardByName, getPrintingsForCard, tryGetDefinition } from "./cards";
 import {
     basicLandsForColors,
     getCardColorIdentity,
@@ -575,20 +576,22 @@ const MY_EVENTS_SCAN_LIMIT = 500;
  *  all read `[]` there — `producedColors` (`getDefinitionProducibleColors`)
  *  reads what the card PRODUCES instead, and `pips` (`getPipCountsFromCost`)
  *  carries the coloured PIP COUNT a plain `colors` presence check can't. */
-const getCardEvalMeta: GetCardEvalMeta = (scryfallId) => {
-    const meta = resolveDeckCardMeta(scryfallId);
-    if (!meta) return null;
-    const def = tryGetDefinition(meta.cardId);
-    if (!def) return null;
-    return {
-        cardId: meta.cardId,
-        colors: getCardColorIdentity(def),
-        manaValue: manaValue(def.manaCost),
-        rarity: meta.rarity,
-        pips: getPipCountsFromCost(def.manaCost),
-        producedColors: [...getDefinitionProducibleColors(def)],
+const makeCardEvalMeta =
+    (resolve: ResolveCard): GetCardEvalMeta =>
+    (scryfallId) => {
+        const meta = resolve(scryfallId);
+        if (!meta) return null;
+        const def = tryGetDefinition(meta.cardId);
+        if (!def) return null;
+        return {
+            cardId: meta.cardId,
+            colors: getCardColorIdentity(def),
+            manaValue: manaValue(def.manaCost),
+            rarity: meta.rarity,
+            pips: getPipCountsFromCost(def.manaCost),
+            producedColors: [...getDefinitionProducibleColors(def)],
+        };
     };
-};
 
 /** Wires the Pick Heuristic (`convex/limited/botDrafter.ts`) AND the Pick
  *  Rating layer into `runBotAutoPicks`'s injected `ChooseBotPick` shape — the
@@ -616,7 +619,8 @@ const getCardEvalMeta: GetCardEvalMeta = (scryfallId) => {
  *  authored at all". */
 function makeBotChoosePick(
     getPickRating: GetPickRating,
-    getCardProfile: GetCardProfile
+    getCardProfile: GetCardProfile,
+    getCardEvalMeta: GetCardEvalMeta
 ): ChooseBotPick {
     return (seat, pack, packsSeen) =>
         chooseBotPick(pack, seat.pool ?? [], getCardEvalMeta, {
@@ -701,24 +705,63 @@ async function loadEventCardProfile(
  *  shared code), plus the two builder-only facts: `isLand` (the spell /
  *  mana-source split) and `isBasicLand` (CR 205.4a — a basic is not fixing,
  *  so it can never be the evidence that unlocks a third colour). */
-const getAutoBuildCardMeta: GetAutoBuildCardMeta = (scryfallId) => {
-    const meta = resolveDeckCardMeta(scryfallId);
-    if (!meta) return null;
-    const def = tryGetDefinition(meta.cardId);
-    if (!def) return null;
-    return {
-        cardId: meta.cardId,
-        colors: getCardColorIdentity(def),
-        manaValue: manaValue(def.manaCost),
-        rarity: meta.rarity,
-        pips: getPipCountsFromCost(def.manaCost),
-        producedColors: [...getDefinitionProducibleColors(def)],
-        isLand: def.types.includes("Land"),
-        isBasicLand:
-            def.types.includes("Land") &&
-            (def.supertypes?.includes("Basic") ?? false),
+const makeAutoBuildCardMeta =
+    (resolve: ResolveCard): GetAutoBuildCardMeta =>
+    (scryfallId) => {
+        const meta = resolve(scryfallId);
+        if (!meta) return null;
+        const def = tryGetDefinition(meta.cardId);
+        if (!def) return null;
+        return {
+            cardId: meta.cardId,
+            colors: getCardColorIdentity(def),
+            manaValue: manaValue(def.manaCost),
+            rarity: meta.rarity,
+            pips: getPipCountsFromCost(def.manaCost),
+            producedColors: [...getDefinitionProducibleColors(def)],
+            isLand: def.types.includes("Land"),
+            isBasicLand:
+                def.types.includes("Land") &&
+                (def.supertypes?.includes("Basic") ?? false),
+        };
     };
-};
+
+/** The three card-registry resolvers a Limited event runs on, all built from
+ *  ONE set of `cardPrints` rows (Card Prints, ADR 0140, issue #4118) — a drawn
+ *  print-level Scryfall id resolves to its definition, and its Rarity comes
+ *  from its own row (CR 206), never from the print alias. */
+interface EventCardResolvers {
+    resolveCardMeta: ResolveCardMeta;
+    getCardEvalMeta: GetCardEvalMeta;
+    getAutoBuildCardMeta: GetAutoBuildCardMeta;
+}
+
+/** Every card id the event's Pack Sources can deal: each set's raw Booster
+ *  Config sheets (a superset of what the runtime config keeps). A cube source
+ *  deals Card IDs (`def.id`) and has no sheets. */
+function eventSheetCardIds(packSlots: readonly string[]): string[] {
+    const ids = new Set<string>();
+    for (const slot of new Set(packSlots)) {
+        const config = isCubeSource(slot) ? null : getBoosterConfig(slot);
+        for (const sheet of Object.values(config?.sheets ?? {})) {
+            for (const id of Object.keys(sheet.cards)) ids.add(id);
+        }
+    }
+    return [...ids];
+}
+
+async function loadEventCardResolvers(
+    ctx: QueryCtx | MutationCtx,
+    packSlots: readonly string[]
+): Promise<EventCardResolvers> {
+    const index = await loadPrintRows(ctx, eventSheetCardIds(packSlots));
+    const resolve = makeResolveCardFromRows(index);
+    return {
+        resolveCardMeta: makeResolveCardMetaFromRows(index),
+        getCardEvalMeta: makeCardEvalMeta(resolve),
+        getAutoBuildCardMeta: makeAutoBuildCardMeta(resolve),
+    };
+}
 
 /** Resolves ONE basic land of `color` to a `DeckCard` printed in `setCode`
  *  when a printing of that basic exists there, else falls back to the card's
@@ -768,6 +811,10 @@ export async function resolveSeatAutoBuiltDeck(
     const hydratedSeats = await hydrateSeat(ctx, event, seatIndex);
     const seat = hydratedSeats.find((s) => s.seatIndex === seatIndex);
     if (!seat) return null;
+    const { getAutoBuildCardMeta } = await loadEventCardResolvers(
+        ctx,
+        event.packSlots
+    );
     return computeBotAutoBuiltDeck(
         seat,
         {
@@ -955,6 +1002,10 @@ async function projectEventForViewer(
         isAdmin
     );
     const resolveBasicLand = resolveBasicLandFor(event.packSlots[0] ?? "");
+    const { getAutoBuildCardMeta } = await loadEventCardResolvers(
+        ctx,
+        event.packSlots
+    );
     // Challenges (issue #1577) only exist once Pools do — skip the games read
     // entirely for `open` events (the lobby list's common case).
     const challenges = arePoolsDealt(event.status)
@@ -1024,6 +1075,8 @@ async function buildSeatStrengthResolver(
     };
     const getPickRating = await loadEventPickRating(ctx, event.packSlots);
     const resolveBasicLand = resolveBasicLandFor(event.packSlots[0] ?? "");
+    const { getCardEvalMeta, getAutoBuildCardMeta } =
+        await loadEventCardResolvers(ctx, event.packSlots);
     // Bot deck strength is Auto-Built from the seat's POOL, which no longer
     // lives on the event row (`convex/schema.ts`'s `limitedSeats`) — so this
     // is one of the paths that must hydrate in FULL. A slim `event.seats` here
@@ -1797,9 +1850,14 @@ export const startLimitedEvent = mutation({
                 ctx,
                 event.packSlots
             );
+            const cardResolvers = await loadEventCardResolvers(
+                ctx,
+                event.packSlots
+            );
             const botChoosePick = makeBotChoosePick(
                 getPickRating,
-                getCardProfile
+                getCardProfile,
+                cardResolvers.getCardEvalMeta
             );
             // The cube pool is FROZEN here, once, and persisted on the event
             // (ADR 0062): every later round is dealt from THIS array, never
@@ -1815,7 +1873,7 @@ export const startLimitedEvent = mutation({
                 event.packSlots,
                 seed,
                 getRuntimeBoosterConfig,
-                resolveCardMeta,
+                cardResolvers.resolveCardMeta,
                 timerConfig,
                 cubePool,
                 botChoosePick
@@ -1827,7 +1885,7 @@ export const startLimitedEvent = mutation({
                 event.packSlots,
                 seed,
                 getRuntimeBoosterConfig,
-                resolveCardMeta,
+                cardResolvers.resolveCardMeta,
                 botChoosePick,
                 false,
                 timerConfig,
@@ -1868,12 +1926,16 @@ export const startLimitedEvent = mutation({
         const seed = freshSeed();
         const rng = makeRng(seed);
         const now = Date.now();
+        const cardResolvers = await loadEventCardResolvers(
+            ctx,
+            event.packSlots
+        );
         const seededSeats = generateSealedPools(
             seats,
             event.packSlots,
             event.sealedBoosterCount ?? DEFAULT_SEALED_BOOSTER_COUNT,
             getRuntimeBoosterConfig,
-            resolveCardMeta,
+            cardResolvers.resolveCardMeta,
             rng
         );
 
@@ -2087,7 +2149,15 @@ export const submitPick = mutation({
         // its Default Pick stamped too (ADR 0095, issue #2271).
         const getPickRating = await loadEventPickRating(ctx, event.packSlots);
         const getCardProfile = await loadEventCardProfile(ctx, event.packSlots);
-        const botChoosePick = makeBotChoosePick(getPickRating, getCardProfile);
+        const cardResolvers = await loadEventCardResolvers(
+            ctx,
+            event.packSlots
+        );
+        const botChoosePick = makeBotChoosePick(
+            getPickRating,
+            getCardProfile,
+            cardResolvers.getCardEvalMeta
+        );
         const result = applyPick(
             hydratedSeats,
             event.draftRound ?? 0,
@@ -2097,7 +2167,7 @@ export const submitPick = mutation({
             args.pickId,
             event.seed,
             getRuntimeBoosterConfig,
-            resolveCardMeta,
+            cardResolvers.resolveCardMeta,
             timerConfig,
             cubePool,
             botChoosePick
@@ -2121,7 +2191,7 @@ export const submitPick = mutation({
             event.packSlots,
             event.seed,
             getRuntimeBoosterConfig,
-            resolveCardMeta,
+            cardResolvers.resolveCardMeta,
             botChoosePick,
             result.completed,
             timerConfig,
@@ -2399,7 +2469,15 @@ export const autoPickSeatTimeout = internalMutation({
         const cubePool = await loadCubePool(ctx, event);
         const getPickRating = await loadEventPickRating(ctx, event.packSlots);
         const getCardProfile = await loadEventCardProfile(ctx, event.packSlots);
-        const botChoosePick = makeBotChoosePick(getPickRating, getCardProfile);
+        const cardResolvers = await loadEventCardResolvers(
+            ctx,
+            event.packSlots
+        );
+        const botChoosePick = makeBotChoosePick(
+            getPickRating,
+            getCardProfile,
+            cardResolvers.getCardEvalMeta
+        );
         const resolution = resolveAutoPickTimeout(
             hydratedSeats,
             args.seatIndex,
@@ -2424,7 +2502,7 @@ export const autoPickSeatTimeout = internalMutation({
             resolution.pickId,
             event.seed,
             getRuntimeBoosterConfig,
-            resolveCardMeta,
+            cardResolvers.resolveCardMeta,
             timerConfig,
             cubePool,
             botChoosePick
@@ -2445,7 +2523,7 @@ export const autoPickSeatTimeout = internalMutation({
             event.packSlots,
             event.seed,
             getRuntimeBoosterConfig,
-            resolveCardMeta,
+            cardResolvers.resolveCardMeta,
             botChoosePick,
             result.completed,
             timerConfig,
