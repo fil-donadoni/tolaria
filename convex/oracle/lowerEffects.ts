@@ -1085,6 +1085,52 @@ function selectorsFor(
     );
 }
 
+/**
+ * CR 702.34a / 514.2 (issue #4756) — "target instant or sorcery card in your
+ * graveyard gains flashback until end of turn. The flashback cost is equal to
+ * its mana cost." lowers to ONE `grantFlashback` on the announced slot.
+ *
+ * Read for exactly the subject the corpus prints: ONE target card in YOUR
+ * graveyard whose type is instant, sorcery, or either. CR 702.34a lets a
+ * flashback cast happen only "if the resulting spell is an instant or sorcery
+ * spell", so a wider type ("target card") would grant a Flashback the card
+ * could never use; another player's graveyard and "up to" counts are
+ * neighbours no card prints, refused rather than guessed.
+ */
+function lowerGrantFlashback(
+    subject: SubjectIR,
+    slots: TargetSlots,
+    site: SiteOptions
+): Lowered<EffectOp[]> {
+    if (
+        subject.kind !== "target" ||
+        subject.requirement.zone !== "graveyard" ||
+        subject.requirement.controller !== "you"
+    )
+        return unlowerable(
+            "a flashback grant is read for a target card in your graveyard (CR 702.34a)"
+        );
+    if (subject.requirement.count !== 1)
+        return unlowerable(
+            "a flashback grant is read for exactly one target (CR 702.34a)"
+        );
+    if (
+        !announcedTypes(subject.requirement).every(
+            (type) => type === "Instant" || type === "Sorcery"
+        )
+    )
+        return unlowerable(
+            "a flashback grant is read for an instant or sorcery card (CR 702.34a)"
+        );
+    const card = objectSelector(subject, slots, site, "zone-change");
+    if (!card.ok) return card;
+    if (!("target" in card.value))
+        return unlowerable(
+            "a flashback grant names an announced target (CR 702.34a)"
+        );
+    return lowered([{ op: "grantFlashback", card: card.value }]);
+}
+
 /** The single object a verb with no fan-out acts on (see `selectorsFor`). */
 function objectSelector(
     subject: SubjectIR,
@@ -1409,6 +1455,8 @@ function lowerSentenceBody(
                 },
             ]);
         }
+        case "grant-flashback":
+            return lowerGrantFlashback(sentence.subject, slots, site);
         // CR 613.1e / CR 105.1 — the pick is the pre-existing `optionChoice`
         // Op, one mode per colour, each mode a single `setColor` (ADR 0045
         // "generalize, don't add" — no choice-kind construct). The builder is

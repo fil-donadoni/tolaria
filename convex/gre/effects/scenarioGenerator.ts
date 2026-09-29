@@ -1340,7 +1340,7 @@ const SCENARIO_SKIPS = {
     // and its outcome is a cast PERMISSION stamped on that graveyard card,
     // not a battlefield/life/hand-count delta. Card-dependent by the slot's
     // zone: a golden fixture exhibiting the form (`GOLDEN_FIXTURES`,
-    // rule "grant flashback") clears it; the Op's permanent test is the
+    // Snapcaster Mage) clears it; the Op's permanent test is the
     // interpreter suite plus the wire-format assertion.
     grantFlashback: {
         code: "unmodelled-object-or-zone",

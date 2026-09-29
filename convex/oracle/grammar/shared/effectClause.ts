@@ -428,6 +428,20 @@ export type EffectSentenceIR =
       }
     | {
           /**
+           * CR 702.34a / 514.2 (issue #4756) — "<target graveyard card> gains
+           * flashback until end of turn. The flashback cost is equal to its
+           * mana cost." Folded by `assembleSentences` from the two sentences'
+           * markers (`flashback-grant` + `flashback-cost`): the first alone
+           * grants a keyword with no cost, which is not a Flashback anyone
+           * could pay, so neither sentence is an effect by itself. Kept apart
+           * from `grant-ability` because the subject is a CARD in a graveyard,
+           * not a permanent (CR 110.1) — the layer-6 grant cannot reach it.
+           */
+          readonly kind: "grant-flashback";
+          readonly subject: SubjectIR;
+      }
+    | {
+          /**
            * CR 613.1f/702.16a — "Choose a color. <mass subject> gain(s)
            * protection from the chosen color until <duration>.": one
            * `optionChoice` mode per CR 105.1 colour (`colorChoiceModes`, ADR
@@ -940,6 +954,15 @@ export type SentenceIR =
      */
     | { readonly role: "choose-color" }
     /**
+     * CR 702.34a (issue #4756) — the two sentences of a granted Flashback:
+     * "<subject> gains flashback until end of turn." then "The flashback cost
+     * is equal to its mana cost." Folded into one `grant-flashback` effect by
+     * `assembleSentences`, mirroring the `library-look` window: the grant
+     * waits for the sentence that prices it, and either one alone is refused.
+     */
+    | { readonly role: "flashback-grant"; readonly subject: SubjectIR }
+    | { readonly role: "flashback-cost" }
+    /**
      * CR 107.1c / CR 705.2 — the three sentences of a coin-flip series
      * (`coinFlipSeries.ts`): each names an antecedent only the next one
      * reads, so none is an effect alone. Folded into one `coin-flip-series`
@@ -1060,7 +1083,52 @@ export function assembleSentences(
         effects.push(folded);
         return null;
     };
+    // CR 702.34a — a flashback grant waits for the sentence that prices it.
+    let flashbackGrant: Extract<
+        SentenceIR,
+        { role: "flashback-grant" }
+    > | null = null;
     for (const sentence of sentences) {
+        if (flashbackGrant !== null) {
+            if (sentence.role !== "flashback-cost")
+                return {
+                    ok: false,
+                    reason: "a flashback grant is not followed by its flashback cost",
+                };
+            effects.push({
+                kind: "grant-flashback",
+                subject: flashbackGrant.subject,
+            });
+            flashbackGrant = null;
+            continue;
+        }
+        if (sentence.role === "flashback-cost")
+            return {
+                ok: false,
+                reason: "a flashback cost follows no flashback grant",
+            };
+        if (sentence.role === "flashback-grant") {
+            const coinFlipPending = flushCoinFlip();
+            if (coinFlipPending !== null)
+                return { ok: false, reason: coinFlipPending };
+            if (window !== null)
+                return {
+                    ok: false,
+                    reason: "a library look is not followed by where its cards go",
+                };
+            if (awaitingColorChoice)
+                return {
+                    ok: false,
+                    reason: '"Choose a color." is not followed by an effect that reads the choice',
+                };
+            if (restrictions.length > 0)
+                return {
+                    ok: false,
+                    reason: "an effect sentence follows an activation restriction",
+                };
+            flashbackGrant = sentence;
+            continue;
+        }
         if (
             sentence.role === "choose-number" ||
             sentence.role === "coin-flip-series" ||
@@ -1257,6 +1325,11 @@ export function assembleSentences(
     }
     const coinFlipRefused = flushCoinFlip();
     if (coinFlipRefused !== null) return { ok: false, reason: coinFlipRefused };
+    if (flashbackGrant !== null)
+        return {
+            ok: false,
+            reason: "a flashback grant is not followed by its flashback cost",
+        };
     if (window !== null)
         return {
             ok: false,
@@ -1932,6 +2005,18 @@ const REDIRECT_NEXT_DAMAGE =
 
 const KEYWORDS = keywordVocabulary();
 
+/**
+ * CR 702.34a / 514.2 (issue #4756) — "<subject> gains flashback until end of
+ * turn". Only the end-of-turn duration: it is the one the corpus prints, and
+ * the one `grantedFlashback`'s cleanup reset honours. An explicit cost
+ * ("gains flashback {2}{R}{G} until end of turn") does not match and stays
+ * its own Grammar Gap.
+ */
+const GRANT_FLASHBACK = /^(.+) gains flashback until end of turn$/;
+/** CR 702.34a — the pricing sentence, in both of its printed spellings. */
+const FLASHBACK_COST_IS_MANA_COST =
+    /^The flashback cost is equal to (?:its|that card's) mana cost$/;
+
 /** Exact restriction sentences (CR 602.5). Both templatings are printed. */
 const RESTRICTIONS: ReadonlyMap<string, RestrictionIR> = new Map<
     string,
@@ -2103,6 +2188,22 @@ export const sentenceRule: Rule<SentenceIR> = subGrammar(
                 },
             });
         }
+
+        // CR 702.34a / 514.2 (issue #4756) — a granted Flashback, in its two
+        // sentences (the role's own doc comment). Read before the effect
+        // cascade: its keyword-grant branch would otherwise take the first
+        // sentence as a layer-6 grant to a permanent.
+        const grantsFlashback = span.match(GRANT_FLASHBACK);
+        if (grantsFlashback !== null) {
+            const subject = subjectRule.run(grantsFlashback[1]!, ctx);
+            if (!subject.ok) return subject;
+            return ok({
+                role: "flashback-grant" as const,
+                subject: subject.value,
+            });
+        }
+        if (FLASHBACK_COST_IS_MANA_COST.test(span))
+            return ok({ role: "flashback-cost" as const });
 
         const coinFlip = readCoinFlipSentence(span, (clause) =>
             effectSentence(clause, ctx)

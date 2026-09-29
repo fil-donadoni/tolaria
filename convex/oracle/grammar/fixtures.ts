@@ -3398,4 +3398,53 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 702.34a / 514.2 (issue #4756) — "<target instant or sorcery card in
+    // your graveyard> gains flashback until end of turn. The flashback cost is
+    // equal to its mana cost." Exhibits the "grants flashback to a
+    // graveyard-card target" form: the canned smoke scenario seeds no
+    // graveyard target, so this fixture is the evidence that the grant the
+    // grammar emits is the one the hand-written catalogue writes (Snapcaster
+    // Mage also round-trips, Guard C). One form for every slot: the triggered,
+    // spell and activated sites lower the same `grantFlashback` on a
+    // graveyard slot.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "2bb2eda7-3b38-4c56-870f-c3218a1056f5",
+            name: "Snapcaster Mage",
+            manaCost: "{1}{U}",
+            typeLine: "Creature — Human Wizard",
+            oracleText:
+                "Flash\nWhen this creature enters, target instant or sorcery card in your graveyard gains flashback until end of turn. The flashback cost is equal to its mana cost. (You may cast that card from your graveyard for its flashback cost. Then exile it.)",
+            power: "2",
+            toughness: "1",
+            layout: "normal",
+        },
+        expected: {
+            name: "Snapcaster Mage",
+            types: ["Creature"],
+            subtypes: ["Human", "Wizard"],
+            manaCost: { X: 1, U: 1 },
+            power: 2,
+            toughness: 1,
+            oracleText:
+                "Flash\nWhen this creature enters, target instant or sorcery card in your graveyard gains flashback until end of turn. The flashback cost is equal to its mana cost. (You may cast that card from your graveyard for its flashback cost. Then exile it.)",
+            staticAbilities: ["flash"],
+            compiledTriggeredAbilities: [
+                {
+                    id: "snapcaster-mage-trigger",
+                    oracleText:
+                        "When this creature enters, target instant or sorcery card in your graveyard gains flashback until end of turn. The flashback cost is equal to its mana cost.",
+                    head: { kind: "entered", scope: "self" },
+                    targetRequirement: {
+                        type: ["Instant", "Sorcery"],
+                        count: 1,
+                        zone: "graveyard",
+                        controller: "you",
+                    },
+                    effects: [{ op: "grantFlashback", card: { target: 0 } }],
+                },
+            ],
+        },
+    },
 ]);
