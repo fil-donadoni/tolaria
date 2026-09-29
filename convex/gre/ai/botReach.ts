@@ -59,6 +59,7 @@ import { tryGetCardByName } from "../../cards";
 import { matchesPermanentFilter } from "../../cards/filters";
 import { sweepPermanentFilter, UNREADABLE_SWEEP_FILTER } from "./latentBoard";
 import { castShape } from "./botReachForm";
+import { projectBotReachTrace, type BotReachTrace } from "./botReachTrace";
 import {
     attackEdictPosition,
     combatTrickPosition,
@@ -568,6 +569,14 @@ export interface BotReachVerdict {
      * when `outcome === "played"`.
      */
     readonly form?: string;
+    /**
+     * The search's own reasons for a `never-chosen` refusal (issue #4179): a
+     * bounded projection of the `DecisionTrace` of the decision that passed
+     * the card over — see {@link BotReachTrace}. Carried only when
+     * `cause === "never-chosen"`: every other cause is decided before, or
+     * without, a search that passed the card over.
+     */
+    readonly trace?: BotReachTrace;
 }
 
 export interface BotReachBudget {
@@ -991,7 +1000,12 @@ export function buildBotReachState(
 
 export type SeatVerdict =
     | { outcome: "played" }
-    | { outcome: "ignored" | "frozen"; cause: BotReachCause; form: string };
+    | {
+          outcome: "ignored" | "frozen";
+          cause: BotReachCause;
+          form: string;
+          trace?: BotReachTrace;
+      };
 
 /**
  * Follow the chosen move through: every decision the position owes afterwards
@@ -1166,14 +1180,22 @@ function playFrom(
     // of PR #4057, finding 1). The first non-played follow-through is
     // remembered and only reported if no seed ever settles.
     let stalled: SeatVerdict | null = null;
+    // The FIRST seed's refusal, kept as the finding's evidence (issue #4179).
+    // `searchWithTrace` builds the trace after choosing, so reading it costs
+    // no draw from the search RNG and changes no verdict.
+    let refusal: BotReachTrace | undefined;
     for (const seed of budget.seeds) {
-        const move = searchWithTrace(
+        const { move, trace } = searchWithTrace(
             state,
             holderId,
             { iterations: budget.iterations },
             seed
-        ).move;
-        if (move === null || !usesCard(move, instanceId)) continue;
+        );
+        if (move === null || !usesCard(move, instanceId)) {
+            if (refusal === undefined && trace !== null)
+                refusal = projectBotReachTrace(trace, instanceId);
+            continue;
+        }
         const followed = followThrough(
             state,
             holderId,
@@ -1190,6 +1212,7 @@ function playFrom(
         outcome: "ignored",
         cause: "never-chosen",
         form: castShape(def),
+        ...(refusal === undefined ? {} : { trace: refusal }),
     };
 }
 

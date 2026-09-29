@@ -12,6 +12,7 @@
 // it), pinned to {@link MEASURED_FINDING_FIELDS}, so a human field in a seed
 // write reds `tsc` instead of riding along by accident. No mutation writes a measured field except the seed.
 import { v, type Infer } from "convex/values";
+import type { BotReachTrace } from "./gre/ai/botReachTrace";
 
 /** A finding produced by the Bot-play sweep. Human-reported findings (issue
  *  #4182) take another source, so the two never overwrite each other on one
@@ -38,6 +39,40 @@ export const findingBlameValidator = v.union(
     v.literal("harness")
 );
 
+/**
+ * The search's reasons for a `never-chosen` refusal (issue #4179) —
+ * `BotReachTrace` (`convex/gre/ai/botReachTrace.ts`), restated as a
+ * validator and pinned to it below. Bounded by the projection, not here.
+ */
+export const botReachTraceValidator = v.object({
+    mechanism: v.string(),
+    iterations: v.number(),
+    weighed: v.number(),
+    cardWeighed: v.boolean(),
+    candidates: v.array(
+        v.object({
+            role: v.union(
+                v.literal("chosen"),
+                v.literal("card"),
+                v.literal("alternative")
+            ),
+            label: v.string(),
+            visits: v.number(),
+            meanReward: v.number(),
+            total: v.number(),
+            /** `EvalTerms` key → `[self, opp]`, non-zero terms only. */
+            terms: v.optional(v.record(v.string(), v.array(v.number()))),
+        })
+    ),
+});
+export type FindingTrace = Infer<typeof botReachTraceValidator>;
+
+// The projection's type must fit the validator: a field added to
+// `BotReachTrace` and not here reds `tsc` (one way — the validator is looser
+// on the enum-like strings and the term keys by design).
+const _tracePinned: (t: BotReachTrace) => FindingTrace = (t) => t;
+void _tracePinned;
+
 /** One card the sweep saw the Bot NOT play — the measured half of a row. */
 export const measuredFindingValidator = v.object({
     oracleId: v.string(),
@@ -52,6 +87,8 @@ export const measuredFindingValidator = v.object({
     gap: v.optional(v.string()),
     blame: v.optional(findingBlameValidator),
     compileSource: v.optional(compileSourceValidator),
+    /** Why the search passed the card over — `never-chosen` rows only. */
+    trace: v.optional(botReachTraceValidator),
 });
 export type MeasuredFinding = Infer<typeof measuredFindingValidator>;
 
@@ -109,6 +146,7 @@ export const MEASURED_FINDING_FIELDS = [
     "gap",
     "blame",
     "compileSource",
+    "trace",
     "sha",
     "botHash",
     "measuredAt",
@@ -198,6 +236,7 @@ export function measuredFindingPatch(
         gap: finding.gap,
         blame: finding.blame,
         compileSource: finding.compileSource,
+        trace: finding.trace,
         ...stamps(m),
         active: true,
     };
