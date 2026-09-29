@@ -7967,42 +7967,48 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         note: "Issue #3532, position B — the discriminating twin of position A, and the reason the preference is about EVIDENCE rather than about colours existing. Same card, same two materially identical basic-land targets, and the creature swapped for one of the OTHER colour (Savannah Lions is {W} where the Bears are {1}{G}, so its mana value and toughness move too — that shifts the opponent's `creatures` and `manaDevelopment` between the two SCENARIOS, never between the two targets inside either one, which is what the discrimination rests on). Now {W} is the colour the opponent is visibly using, {G} is evidenced by nothing but the Forest itself, and the expectation flips: coverage goes 1 → 1/4 on the Plains and 1 → 1 on the Forest, so B is driven POSITIVELY toward the other land rather than passing by abstention. What the pair rules out is a term that reads a colour's PRESENCE instead of its EVIDENCE — and, because the two halves differ only in which colour carries the creature, that position A did not pass through a target-ordering or positional artifact of the enumerator.",
     },
     {
-        label: "symmetric sweep: casts Armageddon when the opponent holds the land surplus and the Bot the board",
+        label: "recoverable sweep: casts Armageddon when the Bot keeps its mana in rocks and the opponent has only lands",
         spec: {
             cards: [
                 { name: "Armageddon", owner: "me", zone: "hand" },
-                { name: "Plains", owner: "me", zone: "battlefield", count: 4 },
-                {
-                    name: "Savannah Lions",
-                    owner: "me",
-                    zone: "battlefield",
-                    count: 3,
-                },
-                {
-                    name: "Forest",
-                    owner: "opp",
-                    zone: "battlefield",
-                    count: 12,
-                },
-                { name: "Craw Wurm", owner: "opp", zone: "hand" },
-                { name: "Worldspine Wurm", owner: "opp", zone: "hand" },
+                { name: "Plains", owner: "me", zone: "battlefield", count: 2 },
+                { name: "Sol Ring", owner: "me", zone: "battlefield" },
+                { name: "Mind Stone", owner: "me", zone: "battlefield" },
+                { name: "Fellwar Stone", owner: "me", zone: "battlefield" },
+                { name: "Forest", owner: "opp", zone: "battlefield", count: 6 },
             ],
-            life: { opp: 10 },
             phase: "POSTCOMBAT_MAIN",
             turn: 6,
             libraryCount: 20,
         },
         bot: "me",
         budget: { iterations: 400 },
-        // Seed 2 → 5 (issue #4756): the cast/pass pick here sits on a
-        // knife-edge — base weights pass 20/20 seeds, the issue-#4756 refit
-        // (every weight moved < 0.05%) passes 17/20 (2, 11, 14 fail). A pin
-        // that flips on that movement is rollout noise, not a valuation
-        // (the issue-#4764/#4773 precedent); seed 5 passes under both.
-        seeds: [0xb1ade, 1, 3, 4, 5],
+        seeds: [0xb1ade, 1, 2, 3, 4],
         tier: "must",
         expect: { moves: [{ kind: "cast-spell", card: "Armageddon" }] },
-        note: "Issue #4773, position A of the symmetric-sweep pair. A `forEach` over every battlefield that destroys `$each` used to sit in hand at ONE representative victim's worth, whatever the board held, so the land sweep outweighed the three-land surplus it takes and the cast read as a loss at 1 ply. The hand term now prices the sweep at the NET realised loss it inflicts (`LatentLens.sweepUnits`, `ai/latentBoard.ts`): the opponent's members minus the Bot's own. Position B is the mirror and must pass.",
+        note: "Issue #4880 (replacing issue #4773's knife-edge position A, issue #4874), position A of the mana-rock pair. The sweep takes six Forests and two Plains, and the Bot keeps four mana of rocks against none: a human casts it without hedging. Armageddon's swing is RECOVERABLE — the opponent replaces a land with every land drop (CR 305.2) — so the realised swing decays from the turn it resolves, while the card held in hand used to be priced at the whole swing at every leaf: holding weakly dominated and the Bot never cast it. The hand price now credits only `recoverableSweepFraction` of the recoverable part (`LatentLens.sweepUnits`). POSTCOMBAT_MAIN because this is the turn's last window: precombat, `pass` contains the same cast after combat, and deferral is genuinely equivalent. The opponent is BLIND (the default build): with a decklist-informed opponent the pick is dominated by the Mind Stone activation line whatever the hand price, and discriminates nothing. Position B is the mirror and must hold.",
+    },
+    {
+        label: "recoverable sweep: holds Armageddon when the opponent keeps its mana in rocks and the Bot has only lands",
+        spec: {
+            cards: [
+                { name: "Armageddon", owner: "me", zone: "hand" },
+                { name: "Plains", owner: "me", zone: "battlefield", count: 6 },
+                { name: "Forest", owner: "opp", zone: "battlefield", count: 2 },
+                { name: "Sol Ring", owner: "opp", zone: "battlefield" },
+                { name: "Mind Stone", owner: "opp", zone: "battlefield" },
+                { name: "Fellwar Stone", owner: "opp", zone: "battlefield" },
+            ],
+            phase: "POSTCOMBAT_MAIN",
+            turn: 6,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: { forbidden: [{ kind: "cast-spell", card: "Armageddon" }] },
+        note: "Issue #4880, position B of the mana-rock pair: the mirror of A, with Armageddon castable (six Plains). The sweep takes six of the Bot's lands and two of the opponent's, who keeps four mana of rocks: its net worth is below zero and the Bot holds by mean reward, not by a material tie-break.",
     },
     {
         label: "symmetric sweep: holds Armageddon when the Bot holds the land surplus and the opponent the board",
@@ -9371,8 +9377,11 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         budget: { iterations: 200 },
         // Re-seeded 0xb07 → 5 on issue #4761's promotion refit: a noise pin
         // (16/20 seeds cast on the refit vector, 17/20 on the one before),
-        // not a valuation change — follow-up issue #4804.
-        seeds: [5, 0x5eed, 1, 2, 3],
+        // not a valuation change — follow-up issue #4804. Re-seeded 5 → 6 on
+        // issue #4880's refit (15/20 seeds cast; 4, 5, 8, 17 and 19 `pass`):
+        // the same noise pin, listed in the robustness baseline under issue
+        // #4877.
+        seeds: [6, 0x5eed, 1, 2, 3],
         tier: "must",
         expect: {
             predicate: (move, state) =>

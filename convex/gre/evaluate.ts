@@ -104,7 +104,11 @@ import {
 } from "./ai/evalWeights";
 import type { LatentLens } from "./ai/grounding";
 import { contextFreeLatentLens } from "./ai/grounding";
-import { asReturnedToHand, makeLatentBoardLens } from "./ai/latentBoard";
+import {
+    asReturnedToHand,
+    makeLatentBoardLens,
+    type SweepZoneChange,
+} from "./ai/latentBoard";
 
 /** A won position. Large enough to dominate every reachable material margin so
  *  the bot always prefers lethal, and finite so two winning lines stay
@@ -280,7 +284,8 @@ function latentBoardFor(
     state: GameState,
     player: PlayerState,
     card: CardInstanceState,
-    weights: EvalWeights
+    weights: EvalWeights,
+    seat: SeatView
 ): LatentLens | undefined {
     const def = tryGetDefinition(String(card.card.id ?? ""));
     if (!def) return undefined;
@@ -300,6 +305,8 @@ function latentBoardFor(
                     undefined,
                     weights.latent
                 ),
+            aggregateLoss: (changes) =>
+                sweptAggregateNetLoss(state, player.id, weights, seat, changes),
         },
         contextFreeLatentLens(weights.latent)
     );
@@ -1208,8 +1215,6 @@ function playableExileCards(
     );
 }
 
-/** The weighted contributions of one player's resources, from their own
- *  perspective. `sumTerms` of this equals the legacy `playerScore`. */
 /** Which seat `playerTerms` is being asked about, RELATIVE TO THE VIEWER
  *  (issue #3532). Every caller evaluates a position from one player's point of
  *  view and asks for both seats' terms, so the distinction is always available
@@ -1222,6 +1227,93 @@ function playableExileCards(
  *  which is its own pre-existing question and not one this seat flag changes. */
 type SeatView = "own" | "observed";
 
+function otherSeat(seat: SeatView): SeatView {
+    return seat === "own" ? "observed" : "own";
+}
+
+/** The per-player AGGREGATE terms of the mana base — the ones no single
+ *  permanent owns, so `permanentRealisedValue` leaves them out. */
+function baseAggregateTerms(
+    state: GameState,
+    player: PlayerState,
+    weights: EvalWeights,
+    seat: SeatView,
+    base: ManaUnits
+): Pick<EvalTerms, "manaDevelopment" | "colorCoverage"> {
+    return {
+        // The mana-development term prices the base against the hand's
+        // castability (issue #2686) — additive to `mana`, never a replacement
+        // for it, and zero on any board whose land count already covers the
+        // hand's mana needs.
+        manaDevelopment: manaDevelopmentTerm(player, base, weights),
+        // Colour coverage (issue #3532) — the same `base` census, asked the
+        // colour question instead of the count one: what fraction of the
+        // colours this seat needs can its own mana base actually produce. The
+        // two seats differ only in where the DEMAND comes from, which is the
+        // hidden-information boundary — see `ai/colorCoverage.ts`.
+        colorCoverage:
+            weights.colorCoverageWeight *
+            (seat === "own"
+                ? ownHandColorCoverage(player, base)
+                : observedColorCoverage(state, player, base)),
+    };
+}
+
+/** Issue #4874 — the `AggregateLoss` the latent board lens prices a sweep
+ *  with: `baseAggregateTerms` read on `state` and on the position the sweep
+ *  leaves behind, through the same census and the same two terms
+ *  `playerTerms` scores. The "after" position is a SHALLOW copy with only the
+ *  swept players' zones replaced — the opponent seat's colour evidence reads
+ *  the whole state (`observedColorCoverage`), so filtering one player object
+ *  alone would price a coverage the resolution never realises.
+ *
+ *  The caster (`casterId`) reads in `seat`, every other player in the other
+ *  one, exactly as `playerTerms` would score them from the caster's side —
+ *  a two-seat reading, as `evaluateBreakdown`'s own `me` / `opp` is. */
+function sweptAggregateNetLoss(
+    state: GameState,
+    casterId: string,
+    weights: EvalWeights,
+    seat: SeatView,
+    changes: ReadonlyMap<string, SweepZoneChange>
+): number {
+    const after: GameState = {
+        ...state,
+        players: state.players.map((p) => {
+            const change = changes.get(p.id);
+            if (!change) return p;
+            const { leaving, returned } = change;
+            return {
+                ...p,
+                battlefield: p.battlefield.filter((c) => !leaving.has(c.id)),
+                hand: [...p.hand, ...returned],
+            };
+        }),
+    };
+    const aggregate = (s: GameState, p: PlayerState, view: SeatView) => {
+        const t = baseAggregateTerms(
+            s,
+            p,
+            weights,
+            view,
+            availableManaUnitsFor(s, p).base
+        );
+        return t.manaDevelopment + t.colorCoverage;
+    };
+    let net = 0;
+    state.players.forEach((before, i) => {
+        const own = before.id === casterId;
+        const view = own ? seat : otherSeat(seat);
+        const loss =
+            aggregate(state, before, view) -
+            aggregate(after, after.players[i], view);
+        net += own ? -loss : loss;
+    });
+    return net;
+}
+
+/** The weighted contributions of one player's resources, from their own
+ *  perspective. `sumTerms` of this equals the legacy `playerScore`. */
 function playerTerms(
     state: GameState,
     player: PlayerState,
@@ -1254,7 +1346,7 @@ function playerTerms(
                 cardValue(
                     state,
                     c,
-                    latentBoardFor(state, player, c, weights),
+                    latentBoardFor(state, player, c, weights, seat),
                     weights.latent
                 ),
             0
@@ -1315,24 +1407,15 @@ function playerTerms(
     // cannot see: how many activations a counter-paid source has left. Zero on
     // a board of renewable sources.
     terms.finiteManaUses = finiteManaUsesTermFor(player, weights);
-    // The mana-development term prices the base against the hand's castability
-    // (issue #2686) — additive to `mana`, never a replacement for it, and zero
-    // on any board whose land count already covers the hand's mana needs.
-    terms.manaDevelopment = manaDevelopmentTerm(
+    const aggregates = baseAggregateTerms(
+        state,
         player,
-        manaCensus.base,
-        weights
+        weights,
+        seat,
+        manaCensus.base
     );
-    // Colour coverage (issue #3532) — the same `base` census, asked the colour
-    // question instead of the count one: what fraction of the colours this seat
-    // needs can its own mana base actually produce. The two seats differ only
-    // in where the DEMAND comes from, which is the hidden-information boundary
-    // — see `ai/colorCoverage.ts`.
-    terms.colorCoverage =
-        weights.colorCoverageWeight *
-        (seat === "own"
-            ? ownHandColorCoverage(player, manaCensus.base)
-            : observedColorCoverage(state, player, manaCensus.base));
+    terms.manaDevelopment = aggregates.manaDevelopment;
+    terms.colorCoverage = aggregates.colorCoverage;
     // Reactive flexibility uses the SAME available-mana count as the affordability
     // gate, so it can only reward instants the player can actually cast now — and
     // activated options the player can actually pay for (issue #1890 item 3).

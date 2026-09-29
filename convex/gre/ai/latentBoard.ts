@@ -45,6 +45,7 @@ import { effectivePermanentView } from "../permanentView";
 import { clearCardFieldsAt } from "../state/cardFieldLifecycle";
 import { liveSupertypesOf } from "../snow";
 import { getLegalTargets, pendingTargetingSource } from "../rules";
+import { isLand } from "../constants";
 import type { EvalWeights } from "./evalWeights";
 import type { LatentLens, SweepOutcome } from "./grounding";
 
@@ -77,6 +78,32 @@ export function representativeVictimLoss(weights: EvalWeights): number {
  *  one per-permanent valuation in the engine and this module needs no import
  *  back into `evaluate.ts` (which imports this one). */
 export type RealisedLoss = (perm: CardInstanceState) => number;
+
+/** Issue #4874 — how one player's zones change when a sweep resolves:
+ *  `leaving` go off their battlefield, `returned` come back to their hand.
+ *
+ *  The sweep card itself stays in the caster's hand on both sides (issue
+ *  #4880): what the hand price reads is what the MEMBERS move, in the demand
+ *  context the leaf actually holds. Taking the card out as well priced the
+ *  relief of unloading it — an Armageddon held over Forests alone, which no
+ *  cast can ever unload, was worth the `colorCoverage` its white pip costs
+ *  the hand, so finding the Plains that fixes the colour bought nothing. */
+export type SweepZoneChange = {
+    leaving: ReadonlySet<string>;
+    returned: readonly CardInstanceState[];
+};
+
+/** Issue #4874 — what the caster's opponents lose, net of what the caster
+ *  loses, in the PER-PLAYER aggregate terms when every player's zones change
+ *  as `changes` (keyed by player id) says: the terms
+ *  `permanentRealisedValue` deliberately leaves out because no single
+ *  permanent owns them (`manaDevelopment`, `colorCoverage`). A SWEEP names
+ *  its whole member set, so the aggregate it moves is a fact of the board,
+ *  not a double count. Supplied by `evaluate.ts` for the same reason
+ *  `RealisedLoss` is. */
+export type AggregateLoss = (
+    changes: ReadonlyMap<string, SweepZoneChange>
+) => number;
 
 /** How many flat slots a requirement group fills, when the DEFINITION states
  *  a ceiling. A fixed `count: N` fills N; the object form's numeric `max` is
@@ -172,6 +199,8 @@ export interface LatentBoardInputs {
     /** Issue #4781 — the worth `evaluate`'s hand term gives the permanent's
      *  card back in its owner's hand: what a bounce hands back. */
     returnedWorth: RealisedLoss;
+    /** Issue #4874 — see `AggregateLoss`. */
+    aggregateLoss: AggregateLoss;
 }
 
 /** A lens that prices a card in hand against THIS board (issue #3398).
@@ -194,8 +223,16 @@ export function makeLatentBoardLens(
     inputs: LatentBoardInputs,
     base: LatentLens
 ): LatentLens {
-    const { state, casterId, card, def, weights, realisedLoss, returnedWorth } =
-        inputs;
+    const {
+        state,
+        casterId,
+        card,
+        def,
+        weights,
+        realisedLoss,
+        returnedWorth,
+        aggregateLoss,
+    } = inputs;
     // A cast-time modal card declares its targets PER MODE (CR 700.2d), and
     // which mode will be chosen is not a fact this valuation has. Fall back
     // to the representative victim for every slot rather than pricing the
@@ -249,7 +286,14 @@ export function makeLatentBoardLens(
         },
         sweepUnits(select, outcome = LEAVES) {
             const lossOf = memberLoss(outcome, realisedLoss, returnedWorth);
-            const net = sweptNetLoss(state, casterId, select, lossOf);
+            const net = sweptNetLoss(
+                state,
+                casterId,
+                select,
+                lossOf,
+                aggregateLoss,
+                weights
+            );
             if (net === undefined) return undefined;
             measured = true;
             return net / denominator;
@@ -280,12 +324,22 @@ export function makeLatentBoardLens(
  *
  *  Issue #4781 — each member's outcome is `lossOf` it, per the sweep's
  *  `SweepOutcome` (`memberLoss`): what it takes is its controller's loss,
- *  what it hands back its owner's gain. */
+ *  what it hands back its owner's gain.
+ *
+ *  Issue #4874 — plus, per player, what the member set moves in the
+ *  per-player aggregate terms (`aggregateLoss`). Summed per permanent alone,
+ *  the hand price of Armageddon over a board of mana rocks exceeded what the
+ *  resolution realised: the caster's `manaDevelopment` fell to zero with its
+ *  lands and nothing in the price said so, so holding the card beat casting
+ *  it at every leaf and the Bot never cast it. The hand worth of a sweep must
+ *  not exceed what resolving it moves the margin by. */
 function sweptNetLoss(
     state: GameState,
     casterId: string,
     select: EffectForEachSelector,
-    lossOf: MemberLoss
+    lossOf: MemberLoss,
+    aggregateLoss: AggregateLoss,
+    weights: EvalWeights
 ): number | undefined {
     if (select.set !== "permanents") return undefined;
     const filter = sweepPermanentFilter(select.filter);
@@ -298,7 +352,12 @@ function sweptNetLoss(
     ) {
         return undefined;
     }
-    let net = 0;
+    // Issue #4880 — two ledgers: what the opponent can RECOVER from
+    // (`recoverable`) and what is gone for good (`fixed`), each with the
+    // member ids leaving and the cards handed back, so the aggregate terms
+    // split the same way.
+    const fixed = new SweepLedger();
+    const recoverable = new SweepLedger();
     for (const player of state.players) {
         const own = player.id === casterId;
         if (controller === "controller" && !own) continue;
@@ -315,12 +374,89 @@ function sweptNetLoss(
             ) {
                 continue;
             }
-            const { taken, handedBack } = lossOf(perm, view);
-            net += own ? -taken : taken;
-            net += perm.ownerId === casterId ? handedBack : -handedBack;
+            const outcome = lossOf(perm, view);
+            const ledger = outcome.recoverable ? recoverable : fixed;
+            ledger.net += own ? -outcome.taken : outcome.taken;
+            ledger.net +=
+                perm.ownerId === casterId
+                    ? outcome.handedBack
+                    : -outcome.handedBack;
+            if (!outcome.leaves) continue;
+            ledger.leave(player.id, perm.id);
+            // CR 111.7 — a token hands nothing back; any other card lands in
+            // its OWNER's hand (CR 400.3).
+            if (outcome.handedBack > 0) {
+                ledger.handBack(perm.ownerId, asReturnedToHand(perm));
+            }
         }
     }
-    return net;
+    // A ledger no member leaves changes no zone, so it moves no aggregate:
+    // skip the census rather than read two identical boards.
+    const aggregateOf = (ledgers: readonly SweepLedger[]): number =>
+        ledgers.some((l) => l.leavers > 0)
+            ? aggregateLoss(zoneChanges(state, ledgers))
+            : 0;
+    const aggregateAll = aggregateOf([fixed, recoverable]);
+    const fraction = weights.recoverableSweepFraction;
+    // A recoverable member always leaves (`MemberOutcome.recoverable`).
+    if (recoverable.leavers === 0 || fraction === 1) {
+        return fixed.net + recoverable.net + aggregateAll;
+    }
+    // The aggregate the FIXED members move alone; the rest of `aggregateAll`
+    // is what the recoverable members move, and it regrows with them. The
+    // aggregate terms are not additive per member (`min(lands, curveTop)`),
+    // so the order is a choice: the fixed members are read first and the
+    // INTERACTION goes to the recoverable side — a sweep taking Llanowar
+    // Elves and Forests discounts the part of the Elves' curve demand that
+    // only the missing lands made unreachable.
+    const aggregateFixed = aggregateOf([fixed]);
+    return (
+        fixed.net +
+        aggregateFixed +
+        fraction * (recoverable.net + aggregateAll - aggregateFixed)
+    );
+}
+
+/** Issue #4880 — one side of a sweep's member set: its net realised loss
+ *  (the caster's opponents' minus the caster's), and the zone changes it
+ *  makes per player. */
+class SweepLedger {
+    net = 0;
+    readonly leaving = new Map<string, Set<string>>();
+    readonly returned = new Map<string, CardInstanceState[]>();
+    /** How many members leave the battlefield. */
+    leavers = 0;
+    leave(playerId: string, permId: string): void {
+        const gone = this.leaving.get(playerId) ?? new Set<string>();
+        gone.add(permId);
+        this.leaving.set(playerId, gone);
+        this.leavers++;
+    }
+    handBack(ownerId: string, card: CardInstanceState): void {
+        const back = this.returned.get(ownerId) ?? [];
+        back.push(card);
+        this.returned.set(ownerId, back);
+    }
+}
+
+/** The per-player `SweepZoneChange`s of `ledgers` together. */
+function zoneChanges(
+    state: GameState,
+    ledgers: readonly SweepLedger[]
+): Map<string, SweepZoneChange> {
+    const changes = new Map<string, SweepZoneChange>();
+    for (const player of state.players) {
+        const leaving = new Set<string>();
+        const returned: CardInstanceState[] = [];
+        for (const ledger of ledgers) {
+            for (const id of ledger.leaving.get(player.id) ?? []) {
+                leaving.add(id);
+            }
+            returned.push(...(ledger.returned.get(player.id) ?? []));
+        }
+        changes.set(player.id, { leaving, returned });
+    }
+    return changes;
 }
 
 const LEAVES: SweepOutcome = { kind: "leaves" };
@@ -352,6 +488,12 @@ export function asReturnedToHand(perm: CardInstanceState): CardInstanceState {
 interface MemberOutcome {
     taken: number;
     handedBack: number;
+    /** Issue #4874 — the member goes off the battlefield. */
+    leaves: boolean;
+    /** Issue #4880 — what the member takes can be won back by its owner in
+     *  the ordinary course of the game: a land is replaced by the next land
+     *  drop (CR 305.2), a card returned to hand is recast. */
+    recoverable: boolean;
 }
 
 /** One member's outcome, given the raw permanent and its
@@ -379,16 +521,29 @@ function memberLoss(
 ): MemberLoss {
     switch (outcome.kind) {
         case "leaves":
-            return (perm) => ({ taken: realisedLoss(perm), handedBack: 0 });
-        case "lethalDamage":
             return (perm, view) => ({
-                taken: diesTo(view, outcome.amount) ? realisedLoss(perm) : 0,
+                taken: realisedLoss(perm),
                 handedBack: 0,
+                leaves: true,
+                recoverable: isLand(view),
             });
+        case "lethalDamage":
+            return (perm, view) => {
+                const dies = diesTo(view, outcome.amount);
+                return {
+                    taken: dies ? realisedLoss(perm) : 0,
+                    handedBack: 0,
+                    leaves: dies,
+                    recoverable: dies && isLand(view),
+                };
+            };
         case "returnsToHand":
             return (perm) => ({
                 taken: realisedLoss(perm),
                 handedBack: perm.isToken ? 0 : returnedWorth(perm),
+                leaves: true,
+                // CR 111.7 — a token ceases to exist: nothing to recast.
+                recoverable: !perm.isToken,
             });
     }
 }

@@ -202,6 +202,22 @@ export type EvalWeights = {
      *  use it run out, and this term models neither — so an enormous graveyard
      *  cannot dominate the leaf. */
     graveyardReachCap: number;
+    /** Issue #4880 — fraction of the RECOVERABLE part of a sweep's swing a
+     *  card in hand is credited with (`LatentLens.sweepUnits`,
+     *  `ai/latentBoard.ts`). A member is recoverable when its owner wins it
+     *  back in the ordinary course of the game: a land is replaced by the
+     *  next land drop (CR 305.2), a nontoken card returned to hand is recast.
+     *
+     *  The realised swing of such a sweep DECAYS once it resolves — the
+     *  opponent redraws lands, recasts what was bounced — while its price in
+     *  hand, read off each leaf's board, never does. Credited in full, a held
+     *  Armageddon is worth its whole sweep at every leaf of the horizon, the
+     *  line that cast it watches the opponent recover, and holding dominates
+     *  at any depth: the Bot never casts the sweep it should. A FRACTION below
+     *  1 makes the swing worth most when taken now. The members that are gone
+     *  for good (a creature destroyed, a token bounced) are credited in full:
+     *  their loss does not decay, and their pricing is unchanged. */
+    recoverableSweepFraction: number;
 
     // --- search.ts: tree selection + reward-mapping weights ----------------
     /** UCB1 exploration constant (`UCB_C`). The SOLE override path for this
@@ -297,6 +313,7 @@ export const FIT_BASE_EVAL_WEIGHTS: Readonly<EvalWeights> = Object.freeze({
     graveyardEngineCap: 5,
     graveyardReachFraction: 0.15,
     graveyardReachCap: 2,
+    recoverableSweepFraction: 0.8,
     permanentWeight: 5,
     manaWeight: 12,
     // 10.5 since issue #4761 (was 9): the prior must sit inside the fit's own
@@ -399,29 +416,30 @@ export const FIT_BASE_EVAL_WEIGHTS: Readonly<EvalWeights> = Object.freeze({
 export const DEFAULT_EVAL_WEIGHTS: Readonly<EvalWeights> = Object.freeze({
     ...FIT_BASE_EVAL_WEIGHTS,
     lifeWeight: 8,
-    permanentWeight: 5.79932,
-    manaWeight: 13.440521,
-    tappedManaWeight: 11.940521,
-    finiteManaUseWeight: 4.006336,
-    manaDevWeight: 12.820444,
-    colorCoverageWeight: 24.979307,
-    flexWeight: 6.743622,
+    permanentWeight: 5.802078,
+    manaWeight: 13.455473,
+    tappedManaWeight: 11.955473,
+    finiteManaUseWeight: 4.00631,
+    manaDevWeight: 13.936036,
+    colorCoverageWeight: 25.074582,
+    flexWeight: 6.720043,
     deckingWeight: 1.5,
-    graveyardEngineWeight: 62.595435,
-    graveyardReachFraction: 0.169137,
+    graveyardEngineWeight: 62.58282,
+    graveyardReachFraction: 0.169062,
+    recoverableSweepFraction: 0.792809,
     latent: Object.freeze({
-        damage: 22.11586,
-        cardAdvantage: 44.134311,
-        lifeSwing: 7.785924,
-        boardRemoval: 155.504924,
-        ramp: 11.69949,
+        damage: 22.097976,
+        cardAdvantage: 44.098664,
+        lifeSwing: 7.785653,
+        boardRemoval: 151.853875,
+        ramp: 11.701047,
         evasion: 40,
-        tempo: 51.343567,
-        disruption: 114.91451,
+        tempo: 51.374786,
+        disruption: 114.972308,
         recursion: 140,
-        tokens: 0.613592,
-        pump: 9.334878,
-        protection: 58.793713,
+        tokens: 0.614386,
+        pump: 9.322405,
+        protection: 58.798651,
     }),
 });
 

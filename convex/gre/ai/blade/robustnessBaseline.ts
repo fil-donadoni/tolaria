@@ -18,23 +18,11 @@ import type { RobustnessBaselineRow } from "./robustness";
 export const ROBUSTNESS_BASELINE: readonly RobustnessBaselineRow[] = [
     // First run (issue #4875), wide seeds 0..9 × default / jitter+ / jitter-.
     {
-        label: "symmetric sweep: casts Armageddon when the opponent holds the land surplus and the Bot the board",
-        issue: 4874,
-    },
-    {
         label: "bounce sweep: casts Hibernation when the opponent holds the green surplus",
         issue: 4878,
     },
     {
         label: "Sacrifice outlet with a transient payoff: casts the creature",
-        issue: 4877,
-    },
-    {
-        label: "Sacrifice-for-removal outlet: casts the creature",
-        issue: 4877,
-    },
-    {
-        label: "Sacrifice-for-draw outlet: casts the creature",
         issue: 4877,
     },
     {

@@ -396,6 +396,11 @@
     },
     {
         "file": "convex/gre/ai/__tests__/evalWeights.bot.test.ts",
+        "test": "DEFAULT_EVAL_WEIGHTS (issue #2683) > credits a recoverable sweep's swing at a FRACTION of it (issue #4880)",
+        "reason": "Range invariant on a fitted weight no fit band can bound (bands constrain differences only): 0 < recoverableSweepFraction <= 1, which the trust region around its 0.8 prior would otherwise let a refit leave."
+    },
+    {
+        "file": "convex/gre/ai/__tests__/evalWeights.bot.test.ts",
         "test": "DEFAULT_EVAL_WEIGHTS (issue #2683) > is frozen — a mutation attempt is a no-op / throws in strict mode",
         "reason": "Invariant check that exported weight objects (incl. nested latent) are frozen."
     },
