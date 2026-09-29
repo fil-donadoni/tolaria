@@ -211,7 +211,10 @@ export { cardValueById } from "./cardValue";
  *  projection-safe path the latent term uses, never the wire-stripped
  *  `card.card` blob — so it is identical client- and server-side. Scored on a
  *  creature in play; a creature is scored as realized OR latent, never both,
- *  so the ability value is never double-counted. */
+ *  so the ability value is never double-counted. The one exception to the
+ *  #149 ordering is an ETB Ability (issue #4758): spent on entering, it is
+ *  latent-only, so a creature whose ETB is most of its worth reads as a loss
+ *  when cast into nothing and a gain only through what the ETB did. */
 export function evaluateCreature(
     state: GameState,
     card: CardInstanceState,

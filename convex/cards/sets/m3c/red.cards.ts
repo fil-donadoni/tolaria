@@ -84,6 +84,7 @@ export const pyrogoyf: CardDefinition = {
             oracleText:
                 "Whenever this creature or another Lhurgoyf creature you control enters, that creature deals damage equal to its power to any target.",
             event: "PERMANENT_ENTERED",
+            etbAbility: false, // issue #4758
             // "this creature or another Lhurgoyf creature you control": an
             // entering creature the source's controller controls whose
             // subtypes include Lhurgoyf. `event.instanceId === self.id` short-

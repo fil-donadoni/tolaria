@@ -71,6 +71,7 @@ export const sanguineEvangelist: CardDefinition = {
             oracleText:
                 "When this creature enters or dies, create a 1/1 black Bat creature token with flying.",
             event: ["PERMANENT_ENTERED", "CREATURE_DIED"],
+            etbAbility: false, // issue #4758
             matches: (event: GameEvent, self: PermanentView): boolean =>
                 (event.type === "PERMANENT_ENTERED" &&
                     event.instanceId === self.id) ||

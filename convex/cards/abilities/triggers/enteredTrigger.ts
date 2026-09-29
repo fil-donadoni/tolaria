@@ -159,6 +159,11 @@ export function enteredTrigger(args: EnteredTriggerArgs): TriggeredAbility {
         id: args.id,
         oracleText: args.oracleText,
         event: "PERMANENT_ENTERED",
+        // Issue #4758 — CR 603.6a "When [this object] enters": a `self`-scoped
+        // ability on the entering event alone is an ETB Ability, spent on
+        // entering. Every other scope fires on another permanent and stays
+        // realized.
+        etbAbility: args.scope === "self",
         matches: (event, self, state) => {
             if (event.type !== "PERMANENT_ENTERED") return false;
             const identity = {

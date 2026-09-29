@@ -82,6 +82,7 @@ export const minscAndBooTimelessHeroes: CardDefinition = {
             // ability with an event ARRAY (never two near-duplicates, which
             // would render the same line twice on the stack).
             event: ["PERMANENT_ENTERED", "PHASE_BEGIN"],
+            etbAbility: false, // issue #4758
             matches: (event, self) =>
                 (event.type === "PERMANENT_ENTERED" &&
                     event.instanceId === self.id) ||

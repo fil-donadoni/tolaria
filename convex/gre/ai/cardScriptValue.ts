@@ -422,11 +422,30 @@ export function carriesSpellOrAbilityScript(def: CardDefinition): boolean {
  *  `self` — the SOURCE PERMANENT, when the caller has one (the realized,
  *  in-play path). It decides each triggered ability's check-time gate
  *  (CR 603.4, `gateWeight`): without it a gated ability is only weighted,
- *  with it a gate that reads the instance is answered exactly. */
+ *  with it a gate that reads the instance is answered exactly.
+ *
+ *  An ETB Ability is NOT read here (issue #4758): it is spent on entering, so
+ *  it belongs to the latent reader below and never to a permanent in play. */
 export function dslAbilityScriptOpValue(
     def: CardDefinition,
     ctx: GroundingContext = contextFreeGrounding(),
     self?: PermanentView
+): OpValue | undefined {
+    return abilityScriptOpValue(def, ctx, self, "realized");
+}
+
+/** Which Card Value face an ability reading is for (issue #4758). An **ETB
+ *  Ability** (`TriggeredAbility.etbAbility`, CR 603.6a) is spent the moment
+ *  its permanent enters: it belongs to the `latent` face (hand, library,
+ *  graveyard, playable exile) and never to the `realized` one — on the
+ *  battlefield, what it did is already in the state it left behind. */
+type AbilityFace = "latent" | "realized";
+
+function abilityScriptOpValue(
+    def: CardDefinition,
+    ctx: GroundingContext,
+    self: PermanentView | undefined,
+    face: AbilityFace
 ): OpValue | undefined {
     let acc: OpValue | undefined;
     const abilities: {
@@ -437,11 +456,17 @@ export function dslAbilityScriptOpValue(
         gate?: TriggeredAbility["gate"];
         zone?: TriggeredAbility["zone"];
         activateFromGraveyard?: boolean;
+        etbAbility?: boolean;
     }[] = [
         ...(def.activatedAbilities ?? []),
         ...(def.triggeredAbilities ?? []),
     ];
     for (const ability of abilities) {
+        // Issue #4758 — a spent ETB Ability is no part of a permanent's
+        // realized worth. Only an explicit `true` counts as spent: an
+        // unclassified trigger stays realized (fail-closed, the census in
+        // `etbAbilityCensus.bot.test.ts` keeps the catalogue classified).
+        if (face === "realized" && ability.etbAbility === true) continue;
         // CR 603.6e / 602.5b / issue #1964 (review round 1) — a GRAVEYARD-
         // sourced ability's `$source` denotes a GRAVEYARD card, not a
         // battlefield permanent, on EITHER ability shape: a `TriggeredAbility`
@@ -519,19 +544,21 @@ export function dslRealizedAbilityScriptValue(
 
 /** The merged, DISCOUNTED `{ points, tags }` of a card's activated + triggered
  *  ability scripts under `ctx` (context-free by default) — the LATENT
- *  (in-hand) sibling of `dslAbilityScriptOpValue`: same tags, points scaled by
+ *  (in-hand) sibling of `dslAbilityScriptOpValue`: points scaled by
  *  `ABILITY_SCRIPT_DISCOUNT` (tags are a membership fact, not a magnitude —
- *  discounting them makes no sense). `undefined` when the card has no
+ *  discounting them makes no sense), and the card's ETB Abilities INCLUDED
+ *  (issue #4758): in hand they are still potential, priced context-free at
+ *  their Representative Victim times the Latent Weight, whatever the board. `undefined` when the card has no
  *  ability scripts (same convention as the realized reader). */
 export function dslLatentAbilityScriptOpValue(
     def: CardDefinition,
     ctx: GroundingContext = contextFreeGrounding()
 ): OpValue | undefined {
-    const realized = dslAbilityScriptOpValue(def, ctx);
-    if (!realized) return undefined;
+    const whole = abilityScriptOpValue(def, ctx, undefined, "latent");
+    if (!whole) return undefined;
     return {
-        points: realized.points * ABILITY_SCRIPT_DISCOUNT,
-        tags: realized.tags,
+        points: whole.points * ABILITY_SCRIPT_DISCOUNT,
+        tags: whole.tags,
     };
 }
 
@@ -539,10 +566,13 @@ export function dslLatentAbilityScriptOpValue(
  *  (context-free by default), discounted and summed — the LATENT (in-hand)
  *  ability worth added to a creature's body by the `latentValue` precedence.
  *  Kept strictly below its realized (in-play) counterpart
- *  (`dslRealizedAbilityScriptValue`) by `ABILITY_SCRIPT_DISCOUNT < 1`, so a
- *  creature's latent worth stays below its realized board worth — casting a
- *  utility creature is strictly positive (issue #149, review #1440). 0 when
- *  the card has no ability scripts. */
+ *  (`dslRealizedAbilityScriptValue`) by `ABILITY_SCRIPT_DISCOUNT < 1` for the
+ *  abilities both faces read, so casting a utility creature is strictly
+ *  positive (issue #149, review #1440). An ETB Ability is the deliberate
+ *  exception (issue #4758): counted here and never realized, so casting a
+ *  creature whose ETB finds nothing to hit reads as the loss it is, and only
+ *  what the ETB actually does on resolution pays it back. 0 when the card has
+ *  no ability scripts. */
 export function dslAbilityScriptValue(
     def: CardDefinition,
     ctx: GroundingContext = contextFreeGrounding()

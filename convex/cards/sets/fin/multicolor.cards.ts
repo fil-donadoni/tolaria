@@ -229,6 +229,7 @@ export const sinSpirasPunishment: CardDefinition = {
             // ability with an array `event` (the Loafing Giant shape,
             // `inv/red.cards.ts`); two abilities would render twice on the stack.
             event: ["PERMANENT_ENTERED", "ATTACKERS_DECLARED"],
+            etbAbility: false, // issue #4758
             matches: (event: GameEvent, self: PermanentView): boolean =>
                 (event.type === "PERMANENT_ENTERED" &&
                     event.instanceId === self.id) ||

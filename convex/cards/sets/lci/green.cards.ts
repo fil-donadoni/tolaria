@@ -45,6 +45,7 @@ export const sentinelOfTheNamelessCity: CardDefinition = {
             // `fin/multicolor.cards.ts`); two abilities would render twice on the
             // stack off a single printed line.
             event: ["PERMANENT_ENTERED", "ATTACKERS_DECLARED"],
+            etbAbility: false, // issue #4758
             matches: (event: GameEvent, self: PermanentView): boolean =>
                 (event.type === "PERMANENT_ENTERED" &&
                     event.instanceId === self.id) ||

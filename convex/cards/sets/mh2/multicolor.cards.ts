@@ -42,6 +42,7 @@ export const masterOfDeath: CardDefinition = {
             id: "master-of-death-etb-surveil",
             oracleText: "When this creature enters, surveil 2.",
             event: "PERMANENT_ENTERED",
+            etbAbility: true, // issue #4758
             matches: (event, self) =>
                 event.type === "PERMANENT_ENTERED" &&
                 event.instanceId === self.id,

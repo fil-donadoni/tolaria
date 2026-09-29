@@ -73,6 +73,7 @@ export const ivoraInsatiableHeir: CardDefinition = {
             oracleText: IVORA_BLOOD_TRIGGER,
             // CR 603.2 — one Oracle sentence, two engine events.
             event: ["PERMANENT_ENTERED", "DAMAGE_DEALT"],
+            etbAbility: false, // issue #4758
             matches: (event: GameEvent, self: PermanentView): boolean => {
                 if (event.type === "PERMANENT_ENTERED") {
                     return event.instanceId === self.id;

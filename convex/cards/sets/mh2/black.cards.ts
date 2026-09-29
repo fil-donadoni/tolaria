@@ -66,6 +66,7 @@ export const archonOfCruelty: CardDefinition = {
             oracleText:
                 "Whenever this creature enters, target opponent sacrifices a creature or planeswalker of their choice, discards a card, and loses 3 life. You draw a card and gain 3 life.",
             event: "PERMANENT_ENTERED",
+            etbAbility: true, // issue #4758
             matches: (event, self) =>
                 event.type === "PERMANENT_ENTERED" &&
                 event.instanceId === self.id,

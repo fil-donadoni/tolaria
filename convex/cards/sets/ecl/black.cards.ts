@@ -227,6 +227,7 @@ function twilightDivinerGraveyardCopy(): TriggeredAbility {
         oracleText:
             "Whenever one or more other creatures you control enter, if they entered or were cast from a graveyard, create a token that's a copy of one of them. This ability triggers only once each turn.",
         event: "PERMANENT_ENTERED",
+        etbAbility: false, // issue #4758
         matches: (event, self) =>
             event.type === "PERMANENT_ENTERED" &&
             event.controllerId === self.controllerId &&
