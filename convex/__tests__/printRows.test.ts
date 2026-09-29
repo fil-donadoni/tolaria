@@ -2,7 +2,7 @@
 // resolve a printing through `cardPrints` TABLE ROWS, not the hand-written
 // print alias. Every print id below is synthetic — unknown to the alias — so a
 // verdict that follows the row can only have come from the injected resolver.
-// Rarity is a printed characteristic (CR 206): the row, not the definition,
+// Rarity is a printed characteristic (CR 206.2): the row, not the definition,
 // is the authority on the CHOSEN printing's Set and Rarity.
 import { describe, expect, it } from "vitest";
 import {

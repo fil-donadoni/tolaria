@@ -729,7 +729,7 @@ const makeAutoBuildCardMeta =
 /** The three card-registry resolvers a Limited event runs on, all built from
  *  ONE set of `cardPrints` rows (Card Prints, ADR 0140, issue #4118) — a drawn
  *  print-level Scryfall id resolves to its definition, and its Rarity comes
- *  from its own row (CR 206), never from the print alias. */
+ *  from its own row (CR 206.2), never from the print alias. */
 interface EventCardResolvers {
     resolveCardMeta: ResolveCardMeta;
     getCardEvalMeta: GetCardEvalMeta;
