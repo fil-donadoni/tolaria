@@ -14,7 +14,10 @@ const read = (rel: string) =>
 describe("batchTouchesBot", () => {
     it("is true when any changed file falls under the Bot globs", () => {
         expect(
-            batchTouchesBot(["docs/adr/README.md", "convex/gre/ai/botReach.ts"])
+            batchTouchesBot([
+                "scripts/health-main.ts",
+                "convex/gre/ai/botReach.ts",
+            ])
         ).toBe(true);
         expect(batchTouchesBot(["src/lib/ai/eval-term-labels.ts"])).toBe(true);
     });
