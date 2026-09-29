@@ -640,14 +640,14 @@ describe("a sweep's price counts the aggregate terms its members move (issue #48
     });
 
     it("never prices the relief of unloading a card no cast can unload", () => {
-        // Pyroclasm over a Forest is uncastable (CR 202.1a): its {R} pip
+        // Armageddon over a Forest is uncastable (CR 202.1a): its {W} pip
         // costs the hand `colorCoverage` whatever the sweep takes. Taking the
         // card out of the hand in the "after" board read that cost back as
-        // the sweep's worth, so a sweep that kills nothing — the Craw Wurm
-        // survives two damage (CR 704.5g) — was worth the colour it lacks.
-        expect(
-            latentAgainst(pyroclasm.id, [forest.id], [crawWurm.id], noDiscount)
-        ).toBe(0);
+        // the sweep's worth, so a sweep whose only member is the caster's own
+        // Forest was worth more than the land it loses.
+        expect(latentAgainst(armageddon.id, [forest.id], [], noDiscount)).toBe(
+            0
+        );
     });
 });
 
