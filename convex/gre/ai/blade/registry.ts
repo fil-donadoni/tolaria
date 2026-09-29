@@ -5657,32 +5657,22 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     // ── A GRANTED flashback (CR 702.34a) — issue #4756 ────────────────────
     // Snapcaster Mage's ETB is now a `grantFlashback` Effect Script instead of
-    // a `resolve()` closure the value model could not read. The line is three
-    // steps deep — cast the Mage, point the trigger at the Bolt, flash the
-    // Bolt back — and every step goes through a seam this issue touched: the
-    // Op's executor, its valuer, and the `grantedFlashback` stamp that
-    // `graveyardCastMechanism` reads to enumerate the graveyard cast.
+    // a `resolve()` closure. The decision is the one the grant CREATES: the
+    // Bolt sits in the graveyard with no printed flashback, so a cast of it
+    // exists in the Bot's move set only if the ETB really stamped
+    // `grantedFlashback` and `graveyardCastMechanism` reads that stamp.
+    // Casting the Mage itself is NOT the decision: a flash 2/1 is worth
+    // casting anyway, so it would pass with the grant broken.
     {
-        label: "granted-flashback: flashes in Snapcaster Mage at end of turn to flash back Lightning Bolt for lethal",
+        label: "granted-flashback: casts the Lightning Bolt Snapcaster Mage's ETB granted flashback, for lethal",
         spec: {
-            // {1}{U} for the Mage, then {R} for the Bolt's granted flashback
-            // (its own mana cost): exactly three lands, coloured, so no
-            // other line is affordable.
             cards: [
-                { name: "Snapcaster Mage", owner: "me", zone: "hand" },
+                {
+                    name: "Snapcaster Mage",
+                    owner: "me",
+                    zone: "battlefield",
+                },
                 { name: "Lightning Bolt", owner: "me", zone: "graveyard" },
-                {
-                    name: "Island",
-                    owner: "me",
-                    zone: "battlefield",
-                    tapped: false,
-                },
-                {
-                    name: "Island",
-                    owner: "me",
-                    zone: "battlefield",
-                    tapped: false,
-                },
                 {
                     name: "Mountain",
                     owner: "me",
@@ -5690,15 +5680,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
                     tapped: false,
                 },
             ],
-            // The OPPONENT's end step (CR 513.1), priority to the Bot: the
-            // last deferral window (`isLastDeferralWindow`), where the
-            // `last-window-deferral` root rule (issue #4757) no longer holds
-            // an own-side flash cast — so the entry tests the line, not the
-            // timing doctrine. In the Bot's own main phase the same line is
-            // held for exactly this window.
-            phase: "END_STEP",
-            activePlayer: "opp",
-            priority: "me",
+            phase: "PRECOMBAT_MAIN",
             turn: 6,
             // Three damage is lethal and `evaluate` is banded so a win
             // dominates every material term — no seed can prefer passing.
@@ -5706,12 +5688,19 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
             landCount: 0,
             libraryCount: 20,
         },
+        // The ETB, through the engine's own trigger placement: the Bolt is
+        // the only instant or sorcery in the graveyard, so the CR 603.3d
+        // target is the only legal one; resolving it runs `grantFlashback`.
+        setup: [
+            { kind: "etb-trigger", card: "Snapcaster Mage" },
+            { kind: "resolve-top" },
+        ],
         bot: "me",
         budget: { iterations: 400 },
         seeds: [0xb1ade, 1, 2, 3, 4],
         tier: "must",
-        expect: { moves: [{ kind: "cast-spell", card: "Snapcaster Mage" }] },
-        note: "Issue #4756. The Bot must find the whole granted-flashback line from the root: the only lethal runs through Snapcaster Mage's ETB granting the graveyard Bolt flashback at its own mana cost ({R}), then casting it from the graveyard. A broken `grantFlashback` executor, or a graveyard enumerator blind to an instance-level grant, leaves the Bolt uncastable and the Mage a vanilla 2/1.",
+        expect: { moves: [{ kind: "cast-spell", card: "Lightning Bolt" }] },
+        note: "Issue #4756. The Bot must cast a graveyard card whose ONLY cast permission is the flashback Snapcaster Mage's ETB granted at its own mana cost ({R}, CR 702.34a). A broken `grantFlashback` executor, or a graveyard enumerator blind to an instance-level grant, removes the Bolt from the move set and the Bot passes on lethal.",
     },
     // ── The ESCAPE cast (CR 702.138a) — issue #2980 ──────────────────────
     // A DISCRIMINATING PAIR. The only difference between the two positions is
