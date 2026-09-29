@@ -5655,6 +5655,64 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         expect: { forbidden: [{ kind: "cast-spell", card: "Firebolt" }] },
         note: "Issue #2971, half 2 — the discriminating twin. Same lethal-shaped board, the Firebolt one zone away. The new graveyard loop gates on `graveyardCastMechanism` before the affordance precisely so the candidate set stays the cards a mechanism actually permits.",
     },
+    // ── A GRANTED flashback (CR 702.34a) — issue #4756 ────────────────────
+    // Snapcaster Mage's ETB is now a `grantFlashback` Effect Script instead of
+    // a `resolve()` closure the value model could not read. The line is three
+    // steps deep — cast the Mage, point the trigger at the Bolt, flash the
+    // Bolt back — and every step goes through a seam this issue touched: the
+    // Op's executor, its valuer, and the `grantedFlashback` stamp that
+    // `graveyardCastMechanism` reads to enumerate the graveyard cast.
+    {
+        label: "granted-flashback: flashes in Snapcaster Mage at end of turn to flash back Lightning Bolt for lethal",
+        spec: {
+            // {1}{U} for the Mage, then {R} for the Bolt's granted flashback
+            // (its own mana cost): exactly three lands, coloured, so no
+            // other line is affordable.
+            cards: [
+                { name: "Snapcaster Mage", owner: "me", zone: "hand" },
+                { name: "Lightning Bolt", owner: "me", zone: "graveyard" },
+                {
+                    name: "Island",
+                    owner: "me",
+                    zone: "battlefield",
+                    tapped: false,
+                },
+                {
+                    name: "Island",
+                    owner: "me",
+                    zone: "battlefield",
+                    tapped: false,
+                },
+                {
+                    name: "Mountain",
+                    owner: "me",
+                    zone: "battlefield",
+                    tapped: false,
+                },
+            ],
+            // The OPPONENT's end step (CR 513.1), priority to the Bot: the
+            // last deferral window (`isLastDeferralWindow`), where the
+            // `last-window-deferral` root rule (issue #4757) no longer holds
+            // an own-side flash cast — so the entry tests the line, not the
+            // timing doctrine. In the Bot's own main phase the same line is
+            // held for exactly this window.
+            phase: "END_STEP",
+            activePlayer: "opp",
+            priority: "me",
+            turn: 6,
+            // Three damage is lethal and `evaluate` is banded so a win
+            // dominates every material term — no seed can prefer passing.
+            life: { me: 20, opp: 3 },
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: { moves: [{ kind: "cast-spell", card: "Snapcaster Mage" }] },
+        note: "Issue #4756. The Bot must find the whole granted-flashback line from the root: the only lethal runs through Snapcaster Mage's ETB granting the graveyard Bolt flashback at its own mana cost ({R}), then casting it from the graveyard. A broken `grantFlashback` executor, or a graveyard enumerator blind to an instance-level grant, leaves the Bolt uncastable and the Mage a vanilla 2/1.",
+    },
     // ── The ESCAPE cast (CR 702.138a) — issue #2980 ──────────────────────
     // A DISCRIMINATING PAIR. The only difference between the two positions is
     // how much FODDER the graveyard holds: enough to pay "exile three other
