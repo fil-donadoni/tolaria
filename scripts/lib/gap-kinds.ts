@@ -31,7 +31,7 @@ import {
     type GapFiling,
 } from "./gap-issues";
 import { gapOf } from "./grammar-gaps";
-import type { BotGapVerdict } from "./oracle-bot-reach";
+import type { BotFindingVerdict } from "./bot-findings-merge";
 import type { CardRow, Lockfile } from "./oracle-lockfile";
 import {
     claimId,
@@ -111,6 +111,22 @@ export function rankedCardIds(
             ranked.add(card.oracleId);
     }
     return ranked;
+}
+
+/**
+ * The ids of the Targets whose cards are ranked — priority ∪ enforced, the
+ * Target-level twin of {@link rankedCardIds}. A Bot Findings card no lockfile
+ * row resolves has no oracle id in any slice, so its rank is read off the
+ * Targets the report measured it under (issue #4180).
+ */
+export function rankedTargetIds(registry: TargetRegistry): Set<string> {
+    return new Set(
+        registry.targets
+            .filter(
+                (row) => row.priority !== undefined || row.enforced === true
+            )
+            .map((row) => row.id)
+    );
 }
 
 /**
@@ -207,7 +223,12 @@ export interface KindInputs {
      * reads the committed one; a test that does not care about hand-written
      * Bot Gaps omits it and falls back to the lockfile's own `botReach`).
      */
-    readonly botFindings?: ReadonlyMap<string, BotGapVerdict>;
+    readonly botFindings?: ReadonlyMap<string, BotFindingVerdict>;
+    /**
+     * {@link rankedTargetIds} — what ranks a findings-only Bot card, which no
+     * slice's `ids` holds (issue #4180). Absent: the priority slices' ids.
+     */
+    readonly rankedTargets?: ReadonlySet<string>;
     /**
      * Oracle id → the OPEN issues (ascending) whose `## Cards` section
      * names the card (`openCardIssueIndex`, issue #4515) — the input a
@@ -741,8 +762,8 @@ export function botCauseOf(key: string): string {
  */
 function mergedBotVerdict(
     row: CardRow,
-    findings?: ReadonlyMap<string, BotGapVerdict>
-): BotGapVerdict | undefined {
+    findings?: ReadonlyMap<string, BotFindingVerdict>
+): BotFindingVerdict | undefined {
     const found = findings?.get(row.oracleId);
     if (found !== undefined) return found;
     return row.botReach === undefined
@@ -750,20 +771,52 @@ function mergedBotVerdict(
         : { outcome: row.botReach, gap: row.botGap };
 }
 
+/** One card's merged Bot verdict, keyed by oracle id — see {@link botVerdictRows}. */
+interface BotVerdictRow {
+    readonly oracleId: string;
+    readonly name: string;
+    readonly verdict: BotFindingVerdict;
+}
+
 /**
- * A card's Bot Gap key, when it carries one — present iff the merged verdict
- * is not `played`, and the pair is re-checked here rather than trusted: a
- * `played` verdict with a stale key would file a gap for a card the Bot
- * plays.
+ * Every card carrying a merged Bot verdict: each lockfile row's, then the
+ * Findings report's rows the lockfile has no row for (hand-written cards with
+ * no compiled shadow, `mergeBotVerdicts`). One row per oracle id, so a class
+ * present in both inputs counts its card once.
  */
-function botGapOf(
-    row: CardRow,
-    findings?: ReadonlyMap<string, BotGapVerdict>
-): string | undefined {
-    const verdict = mergedBotVerdict(row, findings);
-    return verdict !== undefined && verdict.outcome !== "played"
-        ? verdict.gap
-        : undefined;
+function botVerdictRows(
+    cards: readonly CardRow[],
+    findings?: ReadonlyMap<string, BotFindingVerdict>
+): BotVerdictRow[] {
+    const rows: BotVerdictRow[] = [];
+    const seen = new Set<string>();
+    for (const row of cards) {
+        seen.add(row.oracleId);
+        const verdict = mergedBotVerdict(row, findings);
+        if (verdict !== undefined)
+            rows.push({ oracleId: row.oracleId, name: row.name, verdict });
+    }
+    for (const [oracleId, verdict] of findings ?? [])
+        if (!seen.has(oracleId))
+            rows.push({ oracleId, name: verdict.name ?? oracleId, verdict });
+    return rows;
+}
+
+/**
+ * Whether a Bot verdict's card is ranked: its oracle id is (`ranked`), or —
+ * a findings-only card, which no slice resolves — a Target it was measured
+ * under is.
+ */
+function botCardRanked(
+    oracleId: string,
+    verdict: BotFindingVerdict,
+    ranked: ReadonlySet<string>,
+    rankedTargets: ReadonlySet<string>
+): boolean {
+    return (
+        ranked.has(oracleId) ||
+        (verdict.targets ?? []).some((id) => rankedTargets.has(id))
+    );
 }
 
 /**
@@ -776,13 +829,17 @@ function botGapOf(
 export function inScopeBotGapKeys(
     cards: readonly CardRow[],
     ranked: ReadonlySet<string>,
-    findings?: ReadonlyMap<string, BotGapVerdict>
+    findings?: ReadonlyMap<string, BotFindingVerdict>,
+    rankedTargets: ReadonlySet<string> = new Set()
 ): string[] {
     const keys = new Set<string>();
-    for (const row of cards) {
-        const key = botGapOf(row, findings);
-        if (key !== undefined && ranked.has(row.oracleId)) keys.add(key);
-    }
+    for (const { oracleId, verdict } of botVerdictRows(cards, findings))
+        if (
+            verdict.outcome !== "played" &&
+            verdict.gap !== undefined &&
+            botCardRanked(oracleId, verdict, ranked, rankedTargets)
+        )
+            keys.add(verdict.gap);
     return [...keys].sort();
 }
 
@@ -800,9 +857,25 @@ export function inScopeBotGapKeys(
  */
 export function buildBotGapFilings(inputs: KindInputs): GapFiling[] {
     const byKey = new Map<string, { ids: Set<string>; frozen: boolean }>();
-    for (const row of inputs.lock.cards) {
-        const verdict = mergedBotVerdict(row, inputs.botFindings);
-        if (verdict === undefined || verdict.outcome === "played") continue;
+    const rows = botVerdictRows(inputs.lock.cards, inputs.botFindings);
+    const verdictOf = new Map(
+        rows.map((r) => [r.oracleId, r.verdict] as const)
+    );
+    const rankedTargets =
+        inputs.rankedTargets ?? new Set(inputs.slices.map((s) => s.id));
+    // A findings-only card sits in a slice by the Targets the report measured
+    // it under; a lockfile card, by the slice's own ids.
+    const slices = inputs.slices.map((slice) => ({
+        ...slice,
+        ids: new Set([
+            ...slice.ids,
+            ...rows
+                .filter((r) => r.verdict.targets?.includes(slice.id))
+                .map((r) => r.oracleId),
+        ]),
+    }));
+    for (const { oracleId, verdict } of rows) {
+        if (verdict.outcome === "played") continue;
         const key = verdict.gap;
         if (key === undefined) continue;
         let entry = byKey.get(key);
@@ -810,17 +883,25 @@ export function buildBotGapFilings(inputs: KindInputs): GapFiling[] {
             entry = { ids: new Set(), frozen: false };
             byKey.set(key, entry);
         }
-        entry.ids.add(row.oracleId);
+        entry.ids.add(oracleId);
         if (verdict.outcome === "frozen") entry.frozen = true;
     }
 
-    const nameOf = new Map(
-        inputs.lock.cards.map((c) => [c.oracleId, c.name] as const)
-    );
+    const nameOf = new Map(rows.map((r) => [r.oracleId, r.name] as const));
     const drafts: Draft[] = [];
     for (const [key, entry] of byKey) {
-        if (![...entry.ids].some((id) => inputs.ranked.has(id))) continue;
-        const counts = inputs.slices.map(
+        if (
+            ![...entry.ids].some((id) =>
+                botCardRanked(
+                    id,
+                    verdictOf.get(id)!,
+                    inputs.ranked,
+                    rankedTargets
+                )
+            )
+        )
+            continue;
+        const counts = slices.map(
             (slice) => [...entry.ids].filter((id) => slice.ids.has(id)).length
         );
         const held = [...entry.ids]
@@ -832,7 +913,7 @@ export function buildBotGapFilings(inputs: KindInputs): GapFiling[] {
             kind: "bot",
             key,
             title: title(GAP_TITLE_PREFIX.bot, key),
-            parentSetCode: topSetCode(inputs.slices, entry.ids),
+            parentSetCode: topSetCode(slices, entry.ids),
             counts,
             corpus: entry.ids.size,
             render: () =>
@@ -847,7 +928,7 @@ export function buildBotGapFilings(inputs: KindInputs): GapFiling[] {
                         : "Outcome: `ignored` — the cards ship; the Bot just does not play them.",
                     "",
                     perTargetBlock(
-                        inputs.slices,
+                        slices,
                         counts,
                         entry.ids.size,
                         "cards the Bot does not play"
@@ -887,7 +968,7 @@ export interface ComputedGapKeys {
  */
 export function computedGapKeys(
     lock: Pick<Lockfile, "cards" | "fragments">,
-    botFindings: ReadonlyMap<string, BotGapVerdict> | null
+    botFindings: ReadonlyMap<string, BotFindingVerdict> | null
 ): ComputedGapKeys {
     const byKind = {
         mechanic: new Set<string>(),
@@ -899,9 +980,13 @@ export function computedGapKeys(
             const cls = quarantineClass(reason);
             byKind[cls.kind].add(cls.key);
         }
-        const key = botGapOf(row, botFindings ?? undefined);
-        if (key !== undefined) byKind.bot.add(key);
     }
+    for (const { verdict } of botVerdictRows(
+        lock.cards,
+        botFindings ?? undefined
+    ))
+        if (verdict.outcome !== "played" && verdict.gap !== undefined)
+            byKind.bot.add(verdict.gap);
     return {
         grammar: new Set(lock.fragments.map((f) => gapOf(f).key)),
         mechanic: byKind.mechanic,

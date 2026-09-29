@@ -146,6 +146,7 @@ import {
     orphanCardActions,
     prioritySlices,
     enforcedCardIds,
+    rankedTargetIds,
     type ComputedGapKeys,
     floorlessCardIds,
     rankedCardIds,
@@ -153,13 +154,11 @@ import {
     type KindInputs,
 } from "./lib/gap-kinds";
 import { LOCKFILE_PATH } from "./check-gaps";
+import { botHash, FINDINGS_PATH, parseFindings } from "./lib/oracle-bot-reach";
 import {
-    botHash,
-    FINDINGS_PATH,
-    mergeBotVerdicts,
-    parseFindings,
-    type BotGapVerdict,
-} from "./lib/oracle-bot-reach";
+    mergeAllBotVerdicts,
+    type BotFindingVerdict,
+} from "./lib/bot-findings-merge";
 import { parseLockfile } from "./lib/oracle-lockfile";
 import {
     claimId,
@@ -681,7 +680,7 @@ export function buildAllFilings(
     ctx: ReturnType<typeof resolveContext>,
     /** The Bot Reach Findings report merged over the lockfile (issue #4406) —
      *  absent exactly when `data/bot-reach-findings.json` is missing. */
-    botFindings?: ReadonlyMap<string, BotGapVerdict>,
+    botFindings?: ReadonlyMap<string, BotFindingVerdict>,
     /** Oracle id → the open issue naming the card in its `## Cards` section
      *  (issue #4515) — what a card-keyed claim adopts instead of filing. */
     openCardIssues?: ReadonlyMap<string, readonly number[]>
@@ -712,6 +711,7 @@ export function buildAllFilings(
         floorless: floorlessCardIds(registry, ctx),
         handTail: new Set(markerIssues.keys()),
         botFindings,
+        rankedTargets: rankedTargetIds(registry),
         openCardIssues,
         ...gapIndex(lock),
     };
@@ -735,6 +735,18 @@ export function buildAllFilings(
             index
         );
     const nameOf = new Map(lock.cards.map((c) => [c.oracleId, c.name]));
+    // Findings-only cards (hand-written, no lockfile row) reach their Bot Gap
+    // and lend its band exactly like a lockfile card (issue #4180).
+    const lockIds = new Set(lock.cards.map((c) => c.oracleId));
+    for (const [oracleId, verdict] of botFindings ?? []) {
+        if (lockIds.has(oracleId) || verdict.outcome === "played") continue;
+        if (verdict.gap === undefined) continue;
+        nameOf.set(oracleId, verdict.name ?? oracleId);
+        const id = claimId("bot", verdict.gap);
+        const set = reached.get(id) ?? new Set<string>();
+        set.add(oracleId);
+        reached.set(id, set);
+    }
     const setFiles = readSetFileMatches(root);
     const filings = withPartitionBands(
         [
@@ -1064,10 +1076,10 @@ export function closeClaims(
 export function trustedBotFindings(
     findings: unknown | null,
     botMerge: {
-        readonly merged: ReadonlyMap<string, BotGapVerdict>;
+        readonly merged: ReadonlyMap<string, BotFindingVerdict>;
         readonly stale: readonly string[];
     }
-): ReadonlyMap<string, BotGapVerdict> | null {
+): ReadonlyMap<string, BotFindingVerdict> | null {
     return findings !== null && botMerge.stale.length === 0
         ? botMerge.merged
         : null;
@@ -1140,9 +1152,14 @@ function main(): void {
     // catches up the next time `oracle:compile` REPLAYS a card, so it can
     // lag behind the Bot's actual source for arbitrarily long between full
     // compiler runs (`mergeBotVerdicts`'s own doc).
-    const botMerge = mergeBotVerdicts(findings, lock.cards, botHash(root));
+    const botMerge = mergeAllBotVerdicts(findings, lock.cards, botHash(root));
     if (botMerge.stale.length > 0) {
-        const nameOf = new Map(lock.cards.map((c) => [c.oracleId, c.name]));
+        const nameOf = new Map([
+            ...(findings?.findings ?? []).map(
+                (r) => [r.oracleId, r.name] as const
+            ),
+            ...lock.cards.map((c) => [c.oracleId, c.name] as const),
+        ]);
         const names = botMerge.stale
             .map((id) => nameOf.get(id) ?? id)
             .slice(0, 20);

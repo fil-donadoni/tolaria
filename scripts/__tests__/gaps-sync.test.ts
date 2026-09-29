@@ -2484,3 +2484,86 @@ describe("readSetFileMatches — a Hand Tail card's set file (ADR 0146)", () => 
         expect(readSetFileMatches("/nonexistent").size).toBe(0);
     });
 });
+
+describe("the bot kind — a class found only on hand-written cards (issue #4180)", () => {
+    const lockBoth = {
+        fragments: [],
+        cards: [
+            botRow("b-1", "Aura of Doom", NEVER_CHOSEN, ["premodern"]),
+            ...FILLER,
+        ],
+    };
+    /** A findings-only card: measured under Targets, no lockfile row. */
+    const handOnly = (
+        gap: string,
+        targets: string[],
+        name = "Hand Written Only"
+    ) => ({ outcome: "ignored" as const, gap, name, targets });
+
+    it("files a class present only in the findings artifact, with the same key shape, labels and claim as a lockfile one", () => {
+        const findings = new Map([
+            ["h-1", handOnly(UNMODELLED, ["format-vintage"])],
+        ]);
+        const filings = buildBotGapFilings(
+            inputs(lockBoth, { botFindings: findings })
+        );
+        expect(filings.map((f) => f.key)).toEqual([NEVER_CHOSEN, UNMODELLED]);
+        const handFiling = filings[1]!;
+        expect(handFiling.kind).toBe("bot");
+        expect(handFiling.title).toBe(`Bot Gap: ${UNMODELLED}`);
+        expect(handFiling.labels).toEqual(filings[0]!.labels);
+        const tracker = new StubTracker();
+        const result = syncGaps(filings, tracker);
+        expect(
+            applyUpdatedIssues({ ops: [] }, result.updatedRows).claims
+        ).toContainEqual({ kind: "bot", key: UNMODELLED, issue: 5001 });
+    });
+
+    it("counts a class present in both inputs once — one filing, the union of its cards", () => {
+        const findings = new Map([
+            ["h-1", handOnly(NEVER_CHOSEN, ["format-premodern"], "Hand Twin")],
+        ]);
+        const filings = buildBotGapFilings(
+            inputs(lockBoth, { botFindings: findings })
+        );
+        expect(filings.map((f) => f.key)).toEqual([NEVER_CHOSEN]);
+        const body = filings[0]!.body(7001);
+        expect(body).toContain("- format-premodern (format, priority 1): 2");
+        expect(body).toContain("- corpus: 2");
+        expect(body).toContain("Cards held (2): Aura of Doom, Hand Twin");
+    });
+
+    it("attributes a findings-only card to the Targets it was measured under, and files nothing for an unranked one", () => {
+        const vintage = new Map([
+            ["h-1", handOnly(UNMODELLED, ["format-vintage"])],
+        ]);
+        const body = buildBotGapFilings(
+            inputs(lockBoth, { botFindings: vintage })
+        )[1]!.body(1);
+        expect(body).toContain("- format-premodern (format, priority 1): 0");
+        expect(body).toContain("- format-vintage (format, priority 2): 1");
+        const unranked = new Map([["h-1", handOnly(UNMODELLED, ["cube-x"])]]);
+        expect(
+            buildBotGapFilings(inputs(lockBoth, { botFindings: unranked })).map(
+                (f) => f.key
+            )
+        ).toEqual([NEVER_CHOSEN]);
+    });
+
+    it("a findings-only key is live for `computedGapKeys` and in scope for `inScopeBotGapKeys`", () => {
+        const findings = new Map([
+            ["h-1", handOnly(UNMODELLED, ["format-vintage"])],
+        ]);
+        expect(computedGapKeys(lockBoth, findings).bot).toEqual(
+            new Set([NEVER_CHOSEN, UNMODELLED])
+        );
+        expect(
+            inScopeBotGapKeys(
+                lockBoth.cards,
+                inputs(lockBoth).ranked,
+                findings,
+                new Set(["format-vintage"])
+            )
+        ).toEqual([NEVER_CHOSEN, UNMODELLED]);
+    });
+});

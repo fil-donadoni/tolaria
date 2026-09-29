@@ -59,6 +59,7 @@ import {
     computedGapKeys,
     inScopeBotGapKeys,
     rankedCardIds,
+    rankedTargetIds,
 } from "./lib/gap-kinds";
 import { matchingClusterIssues, signatureMatches } from "./lib/gap-issues";
 import { opGapKey } from "./lib/grammar-gaps";
@@ -70,13 +71,11 @@ import {
     type HandTailClaimMismatch,
 } from "./lib/compiler-gap-markers";
 import { collectSetFiles } from "./lib/divergence-markers";
+import { botHash, FINDINGS_PATH, parseFindings } from "./lib/oracle-bot-reach";
 import {
-    botHash,
-    FINDINGS_PATH,
-    mergeBotVerdicts,
-    parseFindings,
-    type BotGapVerdict,
-} from "./lib/oracle-bot-reach";
+    mergeAllBotVerdicts,
+    type BotFindingVerdict,
+} from "./lib/bot-findings-merge";
 import {
     claimId,
     CLUSTER_KINDS,
@@ -428,7 +427,7 @@ export function liveClusterKeys(
     lock: Pick<Lockfile, "cards" | "fragments">,
     implemented: readonly string[],
     emitted: ReadonlySet<string>,
-    botFindings: ReadonlyMap<string, BotGapVerdict> | null,
+    botFindings: ReadonlyMap<string, BotFindingVerdict> | null,
     handTailMarkers: readonly (CompilerGapMarker & { readonly file: string })[]
 ): LiveGapKey[] {
     const computed = computedGapKeys(lock, botFindings);
@@ -628,11 +627,13 @@ function main(): void {
     const findings = existsSync(findingsPath)
         ? parseFindings(readFileSync(findingsPath, "utf8"))
         : null;
-    const botMerge = mergeBotVerdicts(findings, lock.cards, botHash(root));
+    const botMerge = mergeAllBotVerdicts(findings, lock.cards, botHash(root));
+    const registry = readTargetRegistry(root);
     const inScope = inScopeBotGapKeys(
         lock.cards,
-        rankedCardIds(readTargetRegistry(root), resolveContext(root, lock)),
-        botMerge.merged
+        rankedCardIds(registry, resolveContext(root, lock)),
+        botMerge.merged,
+        rankedTargetIds(registry)
     );
     const claims = parseClaimRows(allowlist, ALLOWLIST_PATH);
     const unclaimed = unclaimedBotGaps(inScope, claims);
