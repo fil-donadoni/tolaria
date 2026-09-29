@@ -42684,6 +42684,7 @@
         {"id":"704.3","line":"* per CR 704.3 until no SBA applies). */","sites":1,"status":"baseline"},
         {"id":"704.3","line":"* real state-based-action sweep runs (CR 704.3 — so CR 704.5f's zero-toughness","sites":1,"status":"baseline"},
         {"id":"704.3","line":"* sweep (CR 704.3) on a CLONE of `state`, with `cost` paid first when one is","sites":1,"status":"baseline"},
+        {"id":"704.3","line":"* sweep (CR 704.3). It is a proxy for applications, named for what it counts.","sites":1,"status":"confirmed","ruleHash":"af9d4c6d9584be2f"},
         {"id":"704.3","line":"- CR 614.1c, 614.12, 614.12a, 614.12b, 614.12c, 704.3, 704.5f, 704.5j, 704.5m,","sites":1,"status":"baseline"},
         {"id":"704.3","line":"// (CR 704.3). Also MONOTONIC: once obtained, the blessing is","sites":1,"status":"baseline"},
         {"id":"704.3","line":"// 0-toughness creature) may create an SBA — CR 704.3, repeat until none","sites":1,"status":"baseline"},
