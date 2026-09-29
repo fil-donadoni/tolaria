@@ -22,7 +22,8 @@ import type { GameState } from "../state";
  * enumerations, evaluations and SBA sweeps it performs is an exact integer. A
  * change that makes an iteration do more work (an extra clone in the hot path)
  * moves these counters; a slower CPU does not. `ms/iteration` and the load
- * average are PRINTED beside them and never asserted.
+ * average are PRINTED beside them and never asserted (vitest swallows console
+ * output of a passing test: run with `--disableConsoleIntercept` to see them).
  *
  * "Move applications" is counted through `checkStateBasedActions` (`sbaSweeps`):
  * `applyMoveInSearch` is a module-internal call the test cannot wrap without a
