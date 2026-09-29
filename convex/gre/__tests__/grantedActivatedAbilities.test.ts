@@ -6,7 +6,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import type { CardInstanceState, GameState } from "../state";
 import { resolveTopOfStack } from "../state";
 import { finalizeCleanup } from "../phases";
@@ -27,13 +27,13 @@ import {
 import { getProducibleManaOptions, getLegalActions } from "../rules";
 import { validateEffectScript } from "../effects/validate";
 import { projectPublicState } from "../../gameProjections";
-import { forest } from "../../cards/sets/lea/colorless";
+import { forest } from "../../cards/sets/lea/colorless.cards";
 import type { Id } from "../../_generated/dataModel";
 import {
     gameStateSeed,
     makeMutationCtx,
     runMutation,
-} from "../../__tests__/gameMutationHarness";
+} from "../../__tests__/gameMutationHarness.fixture";
 
 // ── Fixtures ────────────────────────────────────────────────────────────────
 //

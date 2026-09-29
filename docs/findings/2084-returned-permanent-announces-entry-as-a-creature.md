@@ -25,7 +25,7 @@ creature.
 **Evidence.** Two Enduring Innocences on one battlefield: kill A, let its return
 resolve, and **B draws a card** (B's trigger is "whenever one or more other
 creatures you control with power 2 or less enter"). Same for Soul Warden and any
-other ETB creature watcher. Ops at `convex/cards/sets/dsk/white.ts:76-92`; the
+other ETB creature watcher. Ops at `convex/cards/sets/dsk/white.cards.ts:76-92`; the
 emit is inside `returnToBattlefield` (`convex/gre/state.ts`), reached from
 `moveZone`'s reanimation branch (`convex/gre/effects/interpreter.ts:2965-2985`).
 

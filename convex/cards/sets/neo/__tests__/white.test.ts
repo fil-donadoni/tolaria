@@ -8,7 +8,7 @@ import {
     makePlayer,
     makeState,
     resolveActivated,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import { type CardInstanceState } from "../../../../gre/state";
 import { checkStateBasedActions } from "../../../../gre/sba";
 import {

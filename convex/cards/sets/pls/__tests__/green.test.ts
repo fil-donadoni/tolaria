@@ -7,7 +7,7 @@ import {
     makeState,
     pushSpell,
     resolveTriggerOrder,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import { projectPublicState } from "../../../../gameProjections";
 import {
     beginApplyingStaticEffects,
@@ -1398,7 +1398,7 @@ describe("Thornscape Battlemage ({2}{G} 2/2 — Kicker {R} and/or {W}, two indep
 // the trigger, and censuses which of the two ETB abilities the engine
 // actually allows onto the stack — one test per (kickers paid) cell,
 // including the must-NOT cells, which are the whole point (mirrors
-// Thunderscape Battlemage's `pls/red.ts` census exactly).
+// Thunderscape Battlemage's `pls/red.cards.ts` census exactly).
 // ─────────────────────────────────────────────────────────────────────────
 const TB_ARTIFACT_ID = "test-pls-green-battlemage-artifact";
 registerTokenDefinition({

@@ -8,7 +8,7 @@ import { describe, it, expect } from "vitest";
 import { buildInitialGameState, type PlayerInput } from "../game";
 import { buildNextGameSeats, type MatchPlayer } from "../matches";
 import { getCardByName } from "../cards";
-import { lutri } from "../cards/sets/iko/multicolor";
+import { lutri } from "../cards/sets/iko/multicolor.cards";
 
 const MOUNTAIN = getCardByName("Mountain").id;
 const LIGHTNING_BOLT = getCardByName("Lightning Bolt").id;

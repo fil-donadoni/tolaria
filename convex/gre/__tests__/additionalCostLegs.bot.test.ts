@@ -27,9 +27,9 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
-import { bitterTriumph } from "../../cards/sets/lci";
-import { grizzlyBears, lightningBolt } from "../../cards/sets/lea";
+} from "../../cards/__tests__/setup.helper";
+import { bitterTriumph } from "../../cards/sets/lci/index.cards";
+import { grizzlyBears, lightningBolt } from "../../cards/sets/lea/index.cards";
 
 const SWAMP = "6176936d-72e2-4205-8871-4c5a4f1cb2d8";
 

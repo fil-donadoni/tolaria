@@ -224,7 +224,7 @@ the graveyard as the Enchantment Creature — Sheep Glimmer card it prints.
 
 **Known boundary, and it is REACHABLE today.** The CR 614 entry-REPLACEMENT
 check (`enterBattlefieldDestinationFor`) runs earlier in the same function and
-still reads the printed type line, so a Containment Priest (`c14/white.ts` — it
+still reads the printed type line, so a Containment Priest (`c14/white.cards.ts` — it
 ships) exiles a dying Enduring Innocence as a "nontoken creature" even though
 what would enter is an enchantment. Deferred deliberately, not for want of a
 card: moving the stamp above the destination check would mutate a card on the

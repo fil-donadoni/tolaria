@@ -12,7 +12,11 @@
 // to each other — the pile the `{T}` ability links is the pile the grant reads,
 // and the granted ability's coloured pip is one the scope actually reaches.
 import { describe, expect, it } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import type { CardInstanceState, GameState } from "../../../../gre/state";
 import {
     getAbilityManaSubstitutions,

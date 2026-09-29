@@ -31,7 +31,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../../cards/__tests__/setup";
+} from "../../../cards/__tests__/setup.helper";
 
 const IMPULSE = getCardByName("Impulse").id;
 const BEARS = getCardByName("Grizzly Bears").id;

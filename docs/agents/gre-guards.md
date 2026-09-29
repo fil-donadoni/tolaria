@@ -40,7 +40,7 @@ disposition, closing two absorption leaks (a provenance ADR citation
 swallowing a deferral note below it; an untracked list vouched by an
 unrelated "out of scope" note lower in the same block). #1900 found a THIRD
 leak one level down: an unrelated ref sitting in a DIFFERENT SENTENCE of the
-SAME paragraph as the marker — the `eld/colorless.ts` Fabled Passage shape, a
+SAME paragraph as the marker — the `eld/colorless.cards.ts` Fabled Passage shape, a
 `moveZone` provenance ref for one clause wrongly vouching for a separate,
 untracked divergence a few lines later in the same paragraph. Tightened to:
 the marker's own line, the line immediately following it, or an earlier

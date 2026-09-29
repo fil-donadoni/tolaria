@@ -1,7 +1,11 @@
 // Innistrad (ISD) — green behavior tests (ADR 0043 colour split).
 
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import { getManaTapOptionsDetailed } from "../../../../gre/constants";
 import { getDefinition } from "../../../index";
 

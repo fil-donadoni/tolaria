@@ -20,11 +20,15 @@
 
 import { describe, it, expect } from "vitest";
 import { activateAbilityOnState, submitNumberChoice, tapUntap } from "../game";
-import { decreeOfJustice } from "../cards/sets/scg/white";
+import { decreeOfJustice } from "../cards/sets/scg/white.cards";
 import { resolveTopOfStack, numberChoiceRange } from "../gre/state";
 import type { GameState } from "../gre/state";
 import { projectPublicState } from "../gameProjections";
-import { makeInstance, makePlayer, makeState } from "../cards/__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../cards/__tests__/setup.helper";
 import { getCardByName } from "../cards";
 import type { Id } from "../_generated/dataModel";
 import {
@@ -32,7 +36,7 @@ import {
     runMutation,
     gameStateSeed,
     type Handler,
-} from "./gameMutationHarness";
+} from "./gameMutationHarness.fixture";
 
 const GAME_ID = "game-1" as Id<"games">;
 

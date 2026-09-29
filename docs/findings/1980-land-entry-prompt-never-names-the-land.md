@@ -15,7 +15,7 @@ looks for is never there.
 `(landCardData as { name?: string }).name ?? "This land"`. Its `landCardData`
 is always a `CardInstanceState.card`, which `convex/game.ts:528` and `:551`
 build as `{ id: def.id }` — no `name` field anywhere in the engine's own
-instance construction (`convex/cards/__tests__/setup.ts:31` mirrors it). The
+instance construction (`convex/cards/__tests__/setup.helper.ts:31` mirrors it). The
 client hydrates definitions from the registry by id; the prompt string is
 built server-side and crosses the wire verbatim.
 

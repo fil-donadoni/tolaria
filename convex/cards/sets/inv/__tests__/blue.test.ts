@@ -30,7 +30,7 @@ import {
     pushSpell,
     resolveActivated,
     submitChoice,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import {
     beginApplyingStaticEffects,
     processPendingActionTriggers,
@@ -67,7 +67,7 @@ import {
     tryCommitAttackManaTax,
     tapSourceIntoPayment,
 } from "../../../../game";
-import { resolveTrigger } from "./helpers";
+import { resolveTrigger } from "./set.helper";
 import { buildActivatedAbilityStackItem } from "../../../../gre/activationCommit";
 import type { CardDefinition } from "../../../types";
 import { getDefinition } from "../../../index";
@@ -1676,7 +1676,7 @@ describe("Well-Laid Plans (CR 615 shared-color damage prevention, issue #1083)",
 
 // Faerie Squadron exercises the kicker → entersWith-counters →
 // wasKicked-gated keyword-grant chain — the exact Pouncing Kavu template
-// (inv/red.ts, issue #1716), corrected onto this card in place of the old
+// (inv/red.cards.ts, issue #1716), corrected onto this card in place of the old
 // marker's (wrong) `grantAbility`-on-a-conditional-ETB-trigger sketch (issue
 // #2761): that shape would reopen a stack window where the creature is on
 // the battlefield without flying before a trigger resolves, exactly the bug

@@ -27,7 +27,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import { getDefinition } from "../../../index";
 
 const solitaryConfinement = getDefinition(
@@ -156,7 +156,7 @@ describe("Solitary Confinement ({2}{W} Enchantment, CR 504/614/615/702.18, #1130
                 ],
             });
             // Cast directly onto the stack with the target already assigned —
-            // mirrors Divine Presence's own test (inv/white.ts): the
+            // mirrors Divine Presence's own test (inv/white.cards.ts): the
             // replacement is exercised at RESOLUTION, independent of the
             // cast-time shroud gate (which lives in game.ts::selectTarget,
             // not in the GRE resolve path).

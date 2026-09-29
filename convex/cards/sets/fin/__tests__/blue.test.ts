@@ -1,5 +1,5 @@
 // FIN — per-card behavior tests for blue cards in
-// `convex/cards/sets/fin/blue.ts` (Final Fantasy, split by colour per ADR
+// `convex/cards/sets/fin/blue.cards.ts` (Final Fantasy, split by colour per ADR
 // 0043). Astrologian's Planisphere (issue #2610, Job select CR 702.182a) is
 // the second consumer of the generalized `equipmentAttachTokenTrigger`
 // factory and the SECOND catalogue card combining a layer-4 `subtype-add`
@@ -17,7 +17,11 @@ import {
     type GameState,
     type StackItem,
 } from "../../../../gre/state";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import { projectPublicState } from "../../../../gameProjections";
 import { effectiveTriggeredAbilities } from "../../../../gre/copy";
 import { tokenPrintIdFor } from "../../../tokenPrintLookup";

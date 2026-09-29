@@ -11,16 +11,16 @@
 // because a hand-built item is exactly what hid the bug: it sets `targets`
 // itself and never asks the engine whether the target was legal.
 import { describe, it, expect } from "vitest";
-import { ravenousRats } from "../../cards/sets/p02/black";
-import { archonOfCruelty } from "../../cards/sets/mh2/black";
-import { solitaryConfinement } from "../../cards/sets/jud/white";
-import { sheoldredTheApocalypse } from "../../cards/sets/dmu/black";
-import { grizzlyBears } from "../../cards/sets/lea";
+import { ravenousRats } from "../../cards/sets/p02/black.cards";
+import { archonOfCruelty } from "../../cards/sets/mh2/black.cards";
+import { solitaryConfinement } from "../../cards/sets/jud/white.cards";
+import { sheoldredTheApocalypse } from "../../cards/sets/dmu/black.cards";
+import { grizzlyBears } from "../../cards/sets/lea/index.cards";
 import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import { raiseTriggerTargetSelection } from "../rules";
 import {
     resolveTopOfStack,

@@ -27,7 +27,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "@convex/cards/__tests__/setup";
+} from "@convex/cards/__tests__/setup.helper";
 import { resolveTopOfStack, type GameState } from "@convex/gre/state";
 import { applyPendingChoiceSubmit } from "@convex/gre/pendingChoiceSubmit";
 import { emitAttackersDeclaredEvents } from "@convex/gre/phases";

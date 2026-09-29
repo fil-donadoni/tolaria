@@ -222,7 +222,7 @@ const SUITE_FNS = new Set(["describe", "suite"]);
  * Closed and named — a call outside it clears the Op-only class.
  */
 export const OP_ONLY_CALLS: ReadonlySet<string> = new Set([
-    // fixture builders (`convex/cards/__tests__/setup.ts`)
+    // fixture builders (`convex/cards/__tests__/setup.helper.ts`)
     "makeState",
     "makePlayer",
     "makeInstance",
@@ -289,7 +289,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** A module path that exports card definitions directly. */
 const CARD_MODULE =
-    /(^|\/)(sets\/[^/]+\/)?(white|blue|black|red|green|colorless|multicolor|lands)$|\/cards\/sets\//;
+    /(^|\/)(sets\/[^/]+\/)?(white|blue|black|red|green|colorless|multicolor|lands)(\.cards)?$|\/cards\/sets\//;
 
 /** What the caller knows about one catalogue card. */
 export interface CardFact {

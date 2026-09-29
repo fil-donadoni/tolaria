@@ -5,7 +5,7 @@ status: draft
 confidence: medium
 ---
 
-**What is wrong.** Ancient Cornucopia (`convex/cards/sets/big/green.ts`,
+**What is wrong.** Ancient Cornucopia (`convex/cards/sets/big/green.cards.ts`,
 `ancient-cornucopia-lifegain`) reads "Whenever you cast a spell that's one or
 more colors, you may gain 1 life for each of that spell's colors. Do this only
 once each turn." CR 603.2h says precisely: "This ability triggers only if its
@@ -21,7 +21,7 @@ whether the "may" was accepted or declined — the coarser, already-shipped
 primitive named by the issue that unblocked this card (#2761), not a
 CR-precise reading of 603.2h.
 
-**Evidence.** `convex/cards/sets/big/green.ts` (`ancientCornucopia`), comment
+**Evidence.** `convex/cards/sets/big/green.cards.ts` (`ancientCornucopia`), comment
 directly above the definition. `bun run cr 603.2h` prints the exact rule text.
 `convex/gre/triggers.ts:298-311` is where `maxTriggersPerTurn` is enforced —
 purely a per-ability trigger tally (`CardInstanceState.triggersThisTurn`), with

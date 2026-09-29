@@ -42,20 +42,20 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import { getDefinition, registerTokenDefinition } from "../../cards";
 import type { CardDefinition } from "../../cards/types";
-import { bloodchiefsThirst } from "../../cards/sets/znr/black";
-import { drought } from "../../cards/sets/ice/white";
-import { tearAsunder } from "../../cards/sets/dmu/green";
-import { burstLightning } from "../../cards/sets/zen/red";
+import { bloodchiefsThirst } from "../../cards/sets/znr/black.cards";
+import { drought } from "../../cards/sets/ice/white.cards";
+import { tearAsunder } from "../../cards/sets/dmu/green.cards";
+import { burstLightning } from "../../cards/sets/zen/red.cards";
 import {
     serraAngel,
     grizzlyBears,
     blackLotus,
     forest,
     swamp,
-} from "../../cards/sets/lea";
+} from "../../cards/sets/lea/index.cards";
 
 // A synthetic probe card carrying BOTH a Kicker (CR 702.33a — an ADDITIONAL
 // mana cost) AND a pitch-style ALTERNATIVE cost (CR 118.9 — "pay 6 life

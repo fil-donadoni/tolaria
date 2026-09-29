@@ -24,7 +24,7 @@ import {
     makeState,
     pushSpell,
     submitChoice,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import type { CardDefinition } from "../../../types";
 import {
     applyCostModifiers,
@@ -82,7 +82,7 @@ function nonLairLand(id: string): CardInstanceState {
 }
 
 /** Puts a Lair's self-ETB trigger on the stack with its `triggerSourceId` set,
- *  mirroring `fireReturnLegEtb` (`gre/__tests__/fixtures/mayPayReturnLegProbe.ts`). */
+ *  mirroring `fireReturnLegEtb` (`gre/__tests__/fixtures/mayPayReturnLegProbe.fixture.ts`). */
 function fireLairEtb(
     state: GameState,
     lair: CardInstanceState,
@@ -650,7 +650,7 @@ function fireSkyshipActivated(
 }
 
 /** Submits the current head pending choice (search-library pick) with the
- *  given ordered ids, mirroring `ice/__tests__/helpers.ts`'s `submitChoice`. */
+ *  given ordered ids, mirroring `ice/__tests__/set.helper.ts`'s `submitChoice`. */
 describe("Skyship Weatherlight (CR 400.7 / 701.13, issue #1947)", () => {
     describe("ETB — search for any number of artifact and/or creature cards, exile + link, then shuffle", () => {
         function libraryOf(owner: "p1" | "p2") {

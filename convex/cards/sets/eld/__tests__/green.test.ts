@@ -32,7 +32,11 @@ import {
 import { tryAutoCommitPendingCast } from "../../../../game";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { projectPublicState } from "../../../../gameProjections";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import { getDefinition } from "../../../index";
 
 const onceUponATime = getDefinition("4034e5ba-9974-43e3-bde7-8d9b4586c3a4");

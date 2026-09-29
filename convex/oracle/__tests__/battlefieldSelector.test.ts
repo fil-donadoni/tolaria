@@ -19,7 +19,7 @@
 
 import { describe, expect, it } from "vitest";
 import { compileCard } from "../compile";
-import { oracleCard } from "./fixtures";
+import { oracleCard } from "./oracle.fixture";
 
 const ANY_REASON =
     '"any target" may be a player, which is not an object (CR 115.4, CR 109.1)';

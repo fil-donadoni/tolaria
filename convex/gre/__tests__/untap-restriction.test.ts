@@ -32,8 +32,8 @@ import {
     meekstone,
     smoke,
     sengirVampire,
-} from "../../cards/sets/lea";
-import { goblinSharpshooter } from "../../cards/sets/ons/red";
+} from "../../cards/sets/lea/index.cards";
+import { goblinSharpshooter } from "../../cards/sets/ons/red.cards";
 import { matchesPermanentFilter } from "../state";
 import { projectPublicState } from "../../gameProjections";
 import { tryGetDefinition } from "../../cards";

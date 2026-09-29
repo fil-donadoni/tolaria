@@ -6,7 +6,7 @@ issue: 4452
 confidence: high
 ---
 
-**What is wrong.** `convex/cards/sets/ecl/multicolor.ts` reads a runtime constant
+**What is wrong.** `convex/cards/sets/ecl/multicolor.cards.ts` reads a runtime constant
 out of `convex/gre/protection.ts` at MODULE-EVALUATION time, and the two sit in
 an import cycle. Whether the constant is defined by the time the card literal is
 built depends purely on which module the bundler happens to start from. When it
@@ -16,7 +16,7 @@ Figure of Fable's final stage grants nothing at all.
 
 **Evidence.**
 
-- `convex/cards/sets/ecl/multicolor.ts:8` — `import { PROTECTION_FROM_EACH_OPPONENT } from "../../../gre/protection"`, used at `:271` inside the card's object literal (evaluated at import time, not lazily).
+- `convex/cards/sets/ecl/multicolor.cards.ts:8` — `import { PROTECTION_FROM_EACH_OPPONENT } from "../../../gre/protection"`, used at `:271` inside the card's object literal (evaluated at import time, not lazily).
 - The cycle: `cards/sets/ecl/multicolor` → `gre/protection` (`:83` `import { STATIC_EFFECT_CTX } from "./layers"`) → `gre/layers` → `gre/constants` (`:22` `import { getDefinition, tryGetDefinition } from "../cards"`) → the card registry → every set module → back to `cards/sets/ecl/multicolor`.
 - Reproduced on a CLEAN checkout of `98a98a43` (no diff applied), with a two-line probe test that imports `gre/protection` before `cards/sets/ecl/multicolor`:
 
@@ -31,7 +31,7 @@ Figure of Fable's final stage grants nothing at all.
 **Why it may not deserve its own issue.** Today exactly one card reads a runtime
 constant out of a cycle-participating engine module, the sweep does currently
 catch the bad order, and the trivially local fix (inline the string literal in
-`ecl/multicolor.ts`, or move `PROTECTION_FROM_EACH_OPPONENT` into a
+`ecl/multicolor.cards.ts`, or move `PROTECTION_FROM_EACH_OPPONENT` into a
 dependency-free leaf beside `cards/snowReads.ts`) is a two-line change someone
 could fold into any nearby PR. Against that: the failure mode is a SILENT
 capability loss in a shipped card, the gate's ability to catch it is incidental

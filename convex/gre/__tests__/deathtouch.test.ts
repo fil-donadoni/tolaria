@@ -20,7 +20,7 @@ import type { CardType } from "../../cards/types";
 import { markDeathtouchDamage, resolveFight } from "../state";
 import { applyAllCombatDamage } from "../phases";
 import { checkDeathtouchDestroySBA, checkStateBasedActions } from "../sba";
-import { makePlayer, makeState } from "../../cards/__tests__/setup";
+import { makePlayer, makeState } from "../../cards/__tests__/setup.helper";
 import { projectPublicState } from "../../gameProjections";
 
 function creature(

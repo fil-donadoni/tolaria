@@ -24,8 +24,8 @@ import {
     planSmokeTest,
     type Plan,
 } from "../../gre/effects/scenarioGenerator";
-import { collectDslSites } from "./smokeSites";
-import { makeInstance } from "./setup";
+import { collectDslSites } from "./smokeSites.helper";
+import { makeInstance } from "./setup.helper";
 import { resolveTopOfStack } from "../../gre/state";
 
 // The filler card the generated scenarios use for targets / library / zones.

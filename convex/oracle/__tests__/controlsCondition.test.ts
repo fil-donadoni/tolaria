@@ -28,7 +28,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import { projectPublicState } from "../../gameProjections";
 import { getEffectivePower, getEffectiveToughness } from "../../gre/layers";
 import { resolveTopOfStack } from "../../gre/state";
@@ -40,7 +40,7 @@ import {
     permanentFilterFromDescriptor,
 } from "../grammar/shared/targetFilter";
 import type { OracleCard } from "../types";
-import { oracleCard, parseContext } from "./fixtures";
+import { oracleCard, parseContext } from "./oracle.fixture";
 
 function compiled(card: OracleCard): CardDefinition {
     const outcome = compileCard(card);

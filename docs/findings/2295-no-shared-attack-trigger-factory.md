@@ -20,7 +20,7 @@ matches: (event, self) =>
 
 **Evidence.** `grep -rn 'event: "ATTACKERS_DECLARED"' convex/cards/sets` → 25 hits;
 `grep -rn 'event\.attackerIds\.includes(self\.id)' convex/cards/sets` → the same 25.
-Byte-identical in `drk/red.ts:230-249` (Cave People) and `drk/red.ts:466-483`
+Byte-identical in `drk/red.cards.ts:230-249` (Cave People) and `drk/red.cards.ts:466-483`
 (Goblin Rock Sled Arm). The annihilator expansion this issue shipped
 (`convex/cards/abilities/annihilator.ts`) is the 26th copy — it was left inline
 deliberately rather than growing the change's blast radius.

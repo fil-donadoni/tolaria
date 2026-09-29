@@ -38,7 +38,7 @@ DEFENDING PLAYER — the case the current signature cannot represent.
 
 Every OTHER aura in the catalogue already says "the permanent I am attached to"
 the same way: `applies: (target, source) => target.id === source.attachedTo`,
-found verbatim in `atq/white.ts`, `arn/blue.ts`, `leg/blue.ts` and others. The
+found verbatim in `atq/white.cards.ts`, `arn/blue.cards.ts`, `leg/blue.cards.ts` and others. The
 sibling guard module `gre/permanentGuard.ts` (`isGuardedAgainst`, Guardian
 Beast) already scans EVERY permanent on the battlefield for exactly this reason.
 The self-scan is the outlier, not the house style.

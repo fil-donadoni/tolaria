@@ -1,10 +1,14 @@
 // LTR — per-card behavior tests for blue cards in
-// `convex/cards/sets/ltr/blue.ts` (set split by colour, ADR 0043).
+// `convex/cards/sets/ltr/blue.cards.ts` (set split by colour, ADR 0043).
 
 import { describe, it, expect } from "vitest";
-import { makePlayer, makeState, pushSpell } from "../../../__tests__/setup";
+import {
+    makePlayer,
+    makeState,
+    pushSpell,
+} from "../../../__tests__/setup.helper";
 import { resolveTopOfStack } from "../../../../gre/state";
-import { makeInstance } from "../../../__tests__/setup";
+import { makeInstance } from "../../../__tests__/setup.helper";
 import { registerTokenDefinition } from "../../..";
 import { getDefinition } from "../../../index";
 

@@ -4,7 +4,11 @@
 // (CR 107.4f). The generic cost-system pieces are covered in
 // convex/gre/__tests__/phyrexian.test.ts.
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import { finalizeTargetSelection } from "../../../../game";
 import {
     getEffectivePower,

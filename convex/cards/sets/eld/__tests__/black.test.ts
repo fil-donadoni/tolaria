@@ -1,5 +1,5 @@
 // ELD — per-card behavior tests for black cards in
-// `convex/cards/sets/eld/black.ts` (set split by colour, ADR 0043).
+// `convex/cards/sets/eld/black.cards.ts` (set split by colour, ADR 0043).
 
 import { describe, it, expect } from "vitest";
 import {
@@ -7,7 +7,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import {
     processPendingActionTriggers,
     resolveTopOfStack,

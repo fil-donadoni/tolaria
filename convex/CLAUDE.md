@@ -151,10 +151,10 @@ the subject is a finding — fix it before proceeding.
 
 ## Card testing convention (resolve() cards and new Ops)
 
-Sets are colour-split directories (`sets/<code>/<colour>.ts`, ADR 0043); each
+Sets are colour-split directories (`sets/<code>/<colour>.cards.ts`, ADR 0043); each
 non-trivial card gets a `describe` block in the parallel per-colour test file
-(`sets/lea/red.ts` → `sets/lea/__tests__/red.test.ts`). Shared fixtures:
-`convex/cards/__tests__/setup.ts` (`makeInstance`, `makePlayer`, `makeState`,
+(`sets/lea/red.cards.ts` → `sets/lea/__tests__/red.test.ts`). Shared fixtures:
+`convex/cards/__tests__/setup.helper.ts` (`makeInstance`, `makePlayer`, `makeState`,
 `pushSpell`) — never duplicate them.
 
 | Card has                     | GRE test                                               | Wire format test                                |
@@ -272,7 +272,7 @@ round-trip test with a non-empty value). Every optional `CardInstanceState`
 field is ONE row of `CARD_FIELD_LIFECYCLE` (`gre/state/cardFieldLifecycle.ts`,
 issue #4453: `codec` + `reset` — the row IS the compact/expand branch and the
 reset-ladder line; never hand-write either) plus its value in
-`__tests__/fixtures/everyOptionalCardField.ts`; `check:ts` names what you
+`__tests__/fixtures/everyOptionalCardField.fixture.ts`; `check:ts` names what you
 forgot. Derivation: the module's doc comment.
 
 ## Code patterns
@@ -313,7 +313,7 @@ When adding/modifying cards in `convex/cards/sets/`:
   ability with `event: GameEventType[]` (CR 603.2), discriminating in
   `matches` — duplicates render N times on the stack (UI bug), and
   `triggerDedup.test.ts` fails CI on same-`oracleText` duplicates. Reference:
-  Worldspine Wurm (`rtr/green.ts`). (Array-`event` abilities cannot read
+  Worldspine Wurm (`rtr/green.cards.ts`). (Array-`event` abilities cannot read
   `$event` in a script — an event-inspecting trigger stays scalar `event` +
   `resolve`.)
 - **Token/emblem art is mandatory setup (CR 114/111)** — a missing image
@@ -325,7 +325,7 @@ When adding/modifying cards in `convex/cards/sets/`:
       the spec. Guard: `tokenPrintLookup.test.ts` (#1305;
       `NO_PRINTED_TOKEN_ALLOWLIST` only for genuine no-printed-token cases).
       **Blind spot:** `resolve()`-created tokens are invisible to the guard —
-      pin `imagePrintId` by hand (see `ncc/colorless.ts`).
+      pin `imagePrintId` by hand (see `ncc/colorless.cards.ts`).
     - **Emblems (`{ op: "emblem" }`)**: set `imagePrintId` on the
       `EmblemDefinition` (`convex/cards/emblems.ts`); guard:
       `emblemArt.test.ts`.

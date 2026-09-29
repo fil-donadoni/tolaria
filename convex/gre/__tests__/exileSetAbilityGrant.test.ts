@@ -17,7 +17,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import type { CardDefinition, PermanentView } from "../../cards/types";
 import { getEffectiveActivatedAbilities } from "../activatedAbilities";
 import { getCardsExiledWith } from "../exileLinks";

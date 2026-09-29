@@ -22,11 +22,11 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../cards/__tests__/setup";
-import { grizzlyBears } from "../../cards/sets/lea/green";
-import { bloodMoon } from "../../cards/sets/drk/red";
-import { tundra } from "../../cards/sets/lea/colorless";
-import { wireCharacteristicsOf } from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
+import { grizzlyBears } from "../../cards/sets/lea/green.cards";
+import { bloodMoon } from "../../cards/sets/drk/red.cards";
+import { tundra } from "../../cards/sets/lea/colorless.cards";
+import { wireCharacteristicsOf } from "../../cards/__tests__/setup.helper";
 
 function makeBoard(land: CardInstanceState, extra: CardInstanceState[] = []) {
     return makeState({

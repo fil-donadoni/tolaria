@@ -1,7 +1,11 @@
 // LTC (Tales of Middle-earth Commander) — multicolor card behavior tests
 // (ADR 0043 colour split).
 import { describe, it, expect } from "vitest";
-import { makePlayer, makeState, pushSpell } from "../../../__tests__/setup";
+import {
+    makePlayer,
+    makeState,
+    pushSpell,
+} from "../../../__tests__/setup.helper";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { applyAllCombatDamage } from "../../../../gre/phases";
 import type { GameState } from "../../../../gre/state";

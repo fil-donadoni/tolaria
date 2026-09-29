@@ -30,13 +30,13 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import { enumerateMoves, type Move } from "../moves";
 import { applyMoveForSearch } from "../applyMove";
 import { getEffectivePower } from "../layers";
 import type { GameState } from "../state";
-import { springheartNantuko } from "../../cards/sets/mh3/green";
-import { grizzlyBears } from "../../cards/sets/lea";
+import { springheartNantuko } from "../../cards/sets/mh3/green.cards";
+import { grizzlyBears } from "../../cards/sets/lea/index.cards";
 
 const FOREST = getCardByName("Forest").id;
 

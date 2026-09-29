@@ -8,8 +8,12 @@ import {
 } from "../rng";
 import type { GameState } from "../state";
 import { buildSpellContext } from "../state";
-import { grizzlyBears } from "../../cards/sets/lea/green";
-import { makePlayer, makeState, pushSpell } from "../../cards/__tests__/setup";
+import { grizzlyBears } from "../../cards/sets/lea/green.cards";
+import {
+    makePlayer,
+    makeState,
+    pushSpell,
+} from "../../cards/__tests__/setup.helper";
 
 function state(seed: number): GameState {
     return {

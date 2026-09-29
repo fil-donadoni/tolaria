@@ -2,7 +2,11 @@
 // describe block cites the CR section it exercises.
 
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import type { CardInstanceState } from "../../../../gre/state";
 import type { CardType } from "../../../types";
 import {

@@ -10,11 +10,11 @@
 // Herald is the gold reference for what the line must lower to.
 
 import { describe, expect, it } from "vitest";
-import { brassHerald } from "../../cards/sets/apc/colorless";
+import { brassHerald } from "../../cards/sets/apc/colorless.cards";
 import { compileCard } from "../compile";
 import { CREATURE_SUBTYPES } from "../grammar/shared/subtypes";
 import { staticSlot } from "../grammar/slots/staticSlot";
-import { oracleCard, parseContext } from "./fixtures";
+import { oracleCard, parseContext } from "./oracle.fixture";
 
 const LINE = "As this creature enters, choose a creature type.";
 

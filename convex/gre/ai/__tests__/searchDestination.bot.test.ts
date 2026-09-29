@@ -28,7 +28,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../../cards/__tests__/setup";
+} from "../../../cards/__tests__/setup.helper";
 import {
     getPlayer,
     resolveTopOfStack,
@@ -40,24 +40,27 @@ import { choiceCandidates, CHOICE_TOP_K } from "../choiceCandidates";
 import { priorFor } from "../choicePriors";
 import { libraryTargetWorth } from "../candidateValue";
 import { searchFindDestination } from "../searchDestination";
-import { entomb } from "../../../cards/sets/ody/black";
-import { demonicTutor, sengirVampire } from "../../../cards/sets/lea/black";
-import { reanimate } from "../../../cards/sets/tmp/black";
-import { altarOfBone } from "../../../cards/sets/ice/multicolor";
-import { firebolt } from "../../../cards/sets/ody/red";
-import { forceOfNature } from "../../../cards/sets/lea/green";
+import { entomb } from "../../../cards/sets/ody/black.cards";
+import {
+    demonicTutor,
+    sengirVampire,
+} from "../../../cards/sets/lea/black.cards";
+import { reanimate } from "../../../cards/sets/tmp/black.cards";
+import { altarOfBone } from "../../../cards/sets/ice/multicolor.cards";
+import { firebolt } from "../../../cards/sets/ody/red.cards";
+import { forceOfNature } from "../../../cards/sets/lea/green.cards";
 import {
     bloodCrypt,
     breedingPool,
     hallowedFountain,
-} from "../../../cards/sets/dis/colorless";
+} from "../../../cards/sets/dis/colorless.cards";
 import {
     forest,
     island,
     mountain,
     plains,
     swamp,
-} from "../../../cards/sets/lea";
+} from "../../../cards/sets/lea/index.cards";
 
 const ME = "p1";
 const OPP = "p2";
@@ -354,7 +357,7 @@ describe("non-graveyard destinations are untouched (issue #3041)", () => {
 
     it("prices an UNDERIVABLE destination identically to the hand tutor", () => {
         // Altar of Bone searches through an imperative `resolve()`
-        // (`ice/multicolor.ts`), so there is no `choice` Op to walk and no
+        // (`ice/multicolor.cards.ts`), so there is no `choice` Op to walk and no
         // `moveZone` consuming a binding: `searchFindDestination` genuinely
         // cannot derive a destination here. Its finds must price exactly as the
         // DSL hand tutor's do — that is what "falls back to today's pricing

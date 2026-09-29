@@ -179,7 +179,7 @@ that does not exist.
   the two census rows, the compiler gate, the frontend and Bot walks, and
   **Stand // Deliver** and **Wax // Wane** (INV), whose every capability
   exists: a damage prevention shield, a bounce, a P/T pump, a targeted destroy.
-  `convex/cards/sets/inv/white.ts`'s own out-of-scope note and
+  `convex/cards/sets/inv/white.cards.ts`'s own out-of-scope note and
   `cardDataConformance.test.ts`'s exclusion comment are revised in this slice.
 - **Slice 2** — **Life // Death** (issue #3224's cube card). Its right half is
   ordinary reanimation; its left half — "All lands you control become 1/1
@@ -198,10 +198,10 @@ that does not exist.
   half as pending the new issue; the Room card is not "permanently out of
   scope", it is out of scope until CR 709.5 gets its own decision.
 - **A two-colour split card is a GOLD card** (709.4b), so its home-set file is
-  the multicolour one. `convex/cards/sets/inv/white.ts` currently records
+  the multicolour one. `convex/cards/sets/inv/white.cards.ts` currently records
   Stand // Deliver as `{W} // {2}{W}` and Wax // Wane as `{W} // {1}{W}`; the
   corpus has `{W} // {2}{U}` and `{G} // {W}`. Both stubs are wrong, and both
-  belong in `inv/multicolor.ts` — slice 1 moves them.
+  belong in `inv/multicolor.cards.ts` — slice 1 moves them.
 - 709.4b's separate-symbols sentence is answered by the halves, not by a field.
   Recorded so the next reader does not add one speculatively.
 - Fuse (CR 702.102) and the 22 cards behind it stay out of scope, recorded here

@@ -15,7 +15,7 @@ up. Both real commit paths in `game.ts` call it. This predates issue #2081
 `StackItem`, skip the effect" reimplementation since #2473) — #2081 only
 confirmed the gap still exists while wiring the Kicker payment through both
 sandboxes, since a kicked spell's `SPELL_KICKED` event (Saproling Infestation,
-`inv/green.ts`'s "whenever a player kicks a spell" trigger) is exactly the
+`inv/green.cards.ts`'s "whenever a player kicks a spell" trigger) is exactly the
 kind of thing this choke point would raise.
 
 **Evidence.** `grep -n "emitSpellCastEvent" convex/gre/applyMove.ts

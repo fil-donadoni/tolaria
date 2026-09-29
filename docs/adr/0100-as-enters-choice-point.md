@@ -260,7 +260,7 @@ Effect Script involved"). The interpreter also has no coherent `$self` here:
 the card is in no zone. `/new-op`'s seven registration sites are therefore not
 walked by this work.
 
-Nameless Race (`drk/black.ts:399`) is not a special case under this shape: it is
+Nameless Race (`drk/black.cards.ts:399`) is not a special case under this shape: it is
 `payLife` with a board-derived cap, feeding `body`. Two kinds composing beats
 one more bespoke kind.
 
@@ -458,7 +458,7 @@ suspends and still re-executes the Op at its resume position. The CARD-level
 twin does not — `Sin, Spira's Punishment` carried a hand-written
 run-to-completion marker in its plain `resolve()` body for exactly the replay
 #2570 removed, and it was deleted with the general fix rather than left standing
-as a second, silent authority on the same question (`cards/sets/fin/multicolor.ts`).
+as a second, silent authority on the same question (`cards/sets/fin/multicolor.cards.ts`).
 
 The rejected alternative is exempting as-enters choices from
 `resolutionSuspendedOnChoice` (`gre/state.ts`) the way `land-entry-tapped`
@@ -559,7 +559,7 @@ wasCast })` that all four census rows are refactored onto**, owning the whole
 - **An as-enters Effect Script (`asEnters: EffectOp[]`).** The DSL-first default
   (ADR 0045) points here, but D3 rejects it: the writers are typed field writes,
   not effect vocabulary; `becomeCopyOf` is deliberately absent from the Mechanics
-  Registry (`m12/blue.ts:28`), so this is the new-Op tax several times over; and
+  Registry (`m12/blue.cards.ts:28`), so this is the new-Op tax several times over; and
   the interpreter checkpoints on `StackItem.resolutionStep`, while two of the
   four rows have no stack item at all — which is the reason the park exists.
   `entersWith.counters` is the governing precedent: a CR 614.1c replacement is

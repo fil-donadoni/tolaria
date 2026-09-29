@@ -15,7 +15,11 @@
 //     printed play pattern and the one interaction a static-only test misses.
 
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import {
     type CardInstanceState,
     type GameState,

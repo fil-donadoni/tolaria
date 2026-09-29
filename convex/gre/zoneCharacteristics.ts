@@ -150,7 +150,7 @@ export function resolveZoneCharacteristics(
  *
  *  Always ASSIGNS fresh arrays rather than mutating in place: several instance
  *  factories (`gre/setup.ts`, `game.ts`, `gre/scenarioBuilder.ts`,
- *  `cards/__tests__/setup.ts`) alias `types` straight to the shared
+ *  `cards/__tests__/setup.helper.ts`) alias `types` straight to the shared
  *  `CardDefinition.types` array, so an in-place edit would corrupt the
  *  registry catalogue-wide.
  *

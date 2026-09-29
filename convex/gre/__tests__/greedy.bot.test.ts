@@ -11,7 +11,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 
 const BEARS = getCardByName("Grizzly Bears").id; // 2/2
 const GIANT = getCardByName("Hill Giant").id; // 3/3

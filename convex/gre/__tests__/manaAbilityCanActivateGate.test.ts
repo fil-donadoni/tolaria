@@ -3,7 +3,7 @@
 // NOT a usable mana source at all: it must not be offered as tappable, and
 // any attempt to tap it for mana must be rejected cleanly (never the
 // confusing "Invalid mana choice" symptom the bug report described). Chrome
-// Mox (convex/cards/sets/mrd/colorless.ts) is the one production mana
+// Mox (convex/cards/sets/mrd/colorless.cards.ts) is the one production mana
 // ability that declares `canActivate` today — with no imprinted card it has
 // no colour to produce, yet the pre-fix `getActivatedManaAbility` reported it
 // as a live mana source regardless.
@@ -28,9 +28,12 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
-import { chromeMox, talismanOfProgress } from "../../cards/sets/mrd/colorless";
-import { balduvianBears } from "../../cards/sets/ice/green";
+} from "../../cards/__tests__/setup.helper";
+import {
+    chromeMox,
+    talismanOfProgress,
+} from "../../cards/sets/mrd/colorless.cards";
+import { balduvianBears } from "../../cards/sets/ice/green.cards";
 
 function etbEvent(instanceId: string): StackItem["triggerEvent"] {
     return {

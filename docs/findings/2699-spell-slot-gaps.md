@@ -31,7 +31,7 @@ both consumers implement it that way: `matchesTargetRequirement`
 two spells can destroy a blue **player** and cannot destroy a blue artifact
 or enchantment. The compiler emits the six permanent card types (CR 110.4).
 
-**Desert Twister** (`convex/cards/sets/lea/green.ts`) is the same mistake a
+**Desert Twister** (`convex/cards/sets/lea/green.cards.ts`) is the same mistake a
 third time — Oracle `"Destroy target permanent."`, hand-written
 `type: "any"`. It surfaced only during review of PR #3044: it authors its body
 with the pre-ADR-0045 `effect: "destroy-target"` shorthand, and the closure
@@ -44,7 +44,7 @@ finding — the third, fourth and fifth instances of one encoding mistake, which
 argues the fix is a catalogue sweep for `type: "any"` on a non-damage effect
 rather than four per-card edits.
 
-**(2)** **Lava Dart** (`convex/cards/sets/ons/red.ts`) — `flashback: { sacrifice: {
+**(2)** **Lava Dart** (`convex/cards/sets/ons/red.cards.ts`) — `flashback: { sacrifice: {
 types: "Land", subtypes: "Mountain" } }` for `"Flashback—Sacrifice a
 Mountain."`, where the compiler writes `subtypes` alone. The Horror of
 Horrors encoding tie from the #2697 finding, at the flashback cost site.

@@ -24,7 +24,7 @@ import {
     makeState,
     makePlayer,
     makeInstance,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import { withTemporaryDefinition } from "../../cards/registry";
 import { attacksTrigger } from "../../cards/abilities/triggers/attacksTrigger";
 import { attacksOrBlocksTrigger } from "../../cards/abilities/triggers/attacksOrBlocksTrigger";

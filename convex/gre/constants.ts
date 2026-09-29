@@ -79,12 +79,12 @@ export { LAND_SUBTYPE_MANA };
 // `LANDWALK_KEYWORD_BY_BASIC_TYPE` itself lives in `cards/types.ts` rather
 // than here because this module imports the card registry (`../cards`,
 // below) — a `cards/sets/**` card file importing FROM this module re-opens
-// the set↔registry eval-time cycle documented at `arn/white.ts` /
-// `inv/red.ts` (confirmed by trial: `LANDWALK_KEYWORD_BY_BASIC_TYPE` read as
+// the set↔registry eval-time cycle documented at `arn/white.cards.ts` /
+// `inv/red.cards.ts` (confirmed by trial: `LANDWALK_KEYWORD_BY_BASIC_TYPE` read as
 // `undefined` mid-evaluation when defined here and imported by two set
 // files loaded together through the registry). `cards/types.ts` is a
 // dependency-free leaf, so cross-set card files (Magnigoth Treefolk
-// `pls/green.ts`, Traveler's Cloak `inv/blue.ts`) import the basic-type table
+// `pls/green.cards.ts`, Traveler's Cloak `inv/blue.cards.ts`) import the basic-type table
 // from there instead.
 export const LANDWALK_KEYWORDS: Record<string, string> = {
     ...Object.fromEntries(
@@ -1435,7 +1435,7 @@ export function pureGenericManaSubCost(mana: ManaCost): number | null {
  *     (review finding, issue #2420 round 2: this used to admit ANY
  *     `cost.mana` shape, and an unexecutable one nulled the entire plan
  *     instead of the planner simply not offering it as a source — measured
- *     regression on Nomadic Elf, `convex/cards/sets/inv/green.ts`).
+ *     regression on Nomadic Elf, `convex/cards/sets/inv/green.cards.ts`).
  *
  *  Still EXCLUDED, deliberately, because the issue's acceptance criteria
  *  name only the two shapes above: a `removeCounter` cost (Rasputin

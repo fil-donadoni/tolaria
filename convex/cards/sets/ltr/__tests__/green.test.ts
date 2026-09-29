@@ -1,4 +1,4 @@
-// Per-card behavior tests for green cards in `convex/cards/sets/ltr/green.ts`
+// Per-card behavior tests for green cards in `convex/cards/sets/ltr/green.cards.ts`
 // (LTR, split by colour per ADR 0043). Each non-trivial card gets a describe
 // block citing the CR section it exercises.
 
@@ -8,7 +8,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import { projectPublicState } from "../../../../gameProjections";
 import { tryAutoCommitPendingCast } from "../../../../game";
 import {

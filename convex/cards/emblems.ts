@@ -451,7 +451,7 @@ registerEmblemDefinition({
 /** Nissa, Who Shakes the World −8 emblem (WAR, issue #3229). A STATIC emblem
  *  (CR 114.4, 611.2b) — "Lands you control have indestructible." The same
  *  `keyword-grant` continuous static effect Consecrate Land carries on a
- *  battlefield permanent (`sets/lea/white.ts`), reused here on a command-zone
+ *  battlefield permanent (`sets/lea/white.cards.ts`), reused here on a command-zone
  *  source, with Sorin's owner-scoped anthem predicate shape: CR 114.3 gives the
  *  emblem no characteristics of its own, so its synthetic source's
  *  `controllerId` is the owner and the standard "target and source share a
@@ -473,7 +473,7 @@ registerEmblemDefinition({
             // CR 114.3 — "lands you control": the emblem's owner is the
             // synthetic source's controller, so the anthem predicate scopes it.
             // `target.types` is the LIVE layer-4 type line (Natural Emergence's
-            // own land predicate, `sets/pls/multicolor.ts`), so a land animated
+            // own land predicate, `sets/pls/multicolor.cards.ts`), so a land animated
             // into a creature keeps the grant — it is still a land (CR 205.1b).
             applies: (target, source) =>
                 target.types.includes("Land") &&

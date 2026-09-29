@@ -6,7 +6,11 @@
 // it (CR 707.12) and retarget the copy. The flashback exile is covered
 // class-wide by convex/gre/__tests__/flashback.test.ts.
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import {
     resolveTopOfStack,
     getPlayer,

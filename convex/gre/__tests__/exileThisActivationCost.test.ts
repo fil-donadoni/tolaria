@@ -32,7 +32,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 
 const MANA_SELF_EXILE_ID = "00000000-0000-4000-8000-000022320001";
 const TARGETED_SELF_EXILE_ID = "00000000-0000-4000-8000-000022320002";

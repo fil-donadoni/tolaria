@@ -8,7 +8,7 @@
 
 import { describe, it, expect } from "vitest";
 import { pendingTargetFiltersFromRequirement } from "@convex/gre/rules";
-import { subtlety } from "@convex/cards/sets/mh2/blue";
+import { subtlety } from "@convex/cards/sets/mh2/blue.cards";
 import { matchesSpellPendingTarget, wantsSpellTarget } from "~/lib/card-utils";
 import type { PendingTarget } from "~/types/game";
 

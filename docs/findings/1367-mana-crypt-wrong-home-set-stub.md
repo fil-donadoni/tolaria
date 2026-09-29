@@ -7,7 +7,7 @@ confidence: high
 
 **What is wrong.** The pre-existing commented stub for Mana Crypt (left by an
 earlier pass under PRD #620 / the #1306 residue tranche) named
-`convex/cards/sets/ema/colorless.ts` and Scryfall id
+`convex/cards/sets/ema/colorless.cards.ts` and Scryfall id
 `0cb33b46-4d1b-4f97-bfdc-d815aee111da` (the Eternal Masters print) as the
 card's home. That id fails `scripts/check-card-index.ts`'s ADR 0041 check:
 Mana Crypt's actual earliest PAPER printing is `phpr` (HarperPrism Book
@@ -15,7 +15,7 @@ Promos, a 1994 promotional insert bundled with the novel "Arena"), id
 `160cf235-6463-4e16-a426-8b5be76b10d2` — confirmed by Scryfall's own
 `reprint: false` flag on that print. This issue moved the `CardDefinition` to
 a new `convex/cards/sets/phpr/` home-set module and left the EMA printing as
-a `CardPrint` in `ema/colorless.ts` (the same fix pattern already used for
+a `CardPrint` in `ema/colorless.cards.ts` (the same fix pattern already used for
 Ravenous Rats / Angel of Mercy in `p02/`, per that set's own comments).
 
 **Evidence.** `bun run scripts/check-card-index.ts` against the ema-homed

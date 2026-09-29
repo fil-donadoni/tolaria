@@ -25,7 +25,7 @@ each already has a ledger entry asserting a reader printed it and agreed.
 
 The convention spans ~38 sites, including the `mayPay` executor itself
 (`convex/gre/effects/interpreter.ts`, the `mayPay` case) and Dromar / Rith /
-Treva (`convex/cards/sets/inv/multicolor.ts`). PR #4412 fixed only the four
+Treva (`convex/cards/sets/inv/multicolor.cards.ts`). PR #4412 fixed only the four
 lines it authored (Crosis, Darigaaz and their two test describes) and left the
 rest, because re-wording 38 lines invalidates 38 ledger entries and is a
 separate change.

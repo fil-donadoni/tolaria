@@ -9,11 +9,11 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../../cards/__tests__/setup";
-import { grizzlyBears } from "../../../cards/sets/lea/green";
-import { lightningBolt } from "../../../cards/sets/lea/red";
-import { island, mountain } from "../../../cards/sets/lea/colorless";
-import { lotusPetal } from "../../../cards/sets/tmp/colorless";
+} from "../../../cards/__tests__/setup.helper";
+import { grizzlyBears } from "../../../cards/sets/lea/green.cards";
+import { lightningBolt } from "../../../cards/sets/lea/red.cards";
+import { island, mountain } from "../../../cards/sets/lea/colorless.cards";
+import { lotusPetal } from "../../../cards/sets/tmp/colorless.cards";
 import { observedOpponentColors } from "../observedColors";
 
 describe("observedOpponentColors — evidence weighting (issue #2306)", () => {

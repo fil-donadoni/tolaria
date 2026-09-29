@@ -15,9 +15,13 @@
 
 import { describe, it, expect } from "vitest";
 import { toggleAttacker, toggleExert, confirmAttackers } from "../game";
-import { makeInstance, makePlayer, makeState } from "../cards/__tests__/setup";
-import { glorybringer } from "../cards/sets/akh/red";
-import { grizzlyBears } from "../cards/sets/lea/green";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../cards/__tests__/setup.helper";
+import { glorybringer } from "../cards/sets/akh/red.cards";
+import { grizzlyBears } from "../cards/sets/lea/green.cards";
 import type { GameState } from "../gre/state";
 import type { Id } from "../_generated/dataModel";
 import {
@@ -25,7 +29,7 @@ import {
     runMutation,
     gameStateSeed,
     type Handler,
-} from "./gameMutationHarness";
+} from "./gameMutationHarness.fixture";
 
 const GAME_ID = "game-1" as Id<"games">;
 

@@ -36,8 +36,8 @@ even if #1975 lands in full, #2392 remains blocked on this fourth capability.
   "Grant a **per-player** casting-TIMING permission" —
   `convex/cards/mechanicsRegistry.ts:2646`; writer at `convex/gre/state.ts:13824-13826`.
 - Two further cards are commented out on this same clause:
-  Breaking Wave `convex/cards/sets/inv/blue.ts:784-801` (tracked-by #2146 /
-  #1332) and Saproling Symbiosis `convex/cards/sets/inv/green.ts:1078`. Both
+  Breaking Wave `convex/cards/sets/inv/blue.cards.ts:784-801` (tracked-by #2146 /
+  #1332) and Saproling Symbiosis `convex/cards/sets/inv/green.cards.ts:1078`. Both
   carry the conditional variant ("…as though it had flash **if** you pay {2}
   more"), which additionally couples the permission to an additional cost.
 

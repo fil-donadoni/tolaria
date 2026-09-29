@@ -19,7 +19,7 @@ in an ENERGY-counter context and has since been corrected to CR 601.2h —
 printed, CR 601.2h ends "Unpayable costs can't be paid," verbatim the claim
 that line makes.)
 
-- `convex/cards/sets/drk/green.ts:599` — Spitting Slug's "you may pay `{1}{G}`"
+- `convex/cards/sets/drk/green.cards.ts:599` — Spitting Slug's "you may pay `{1}{G}`"
   optional MANA payment cites `CR 118.4`; printed, CR 118.4 is the {X}-cost
   rule and says nothing about optional payment. The shape "may [do something].
   If [that player] does, [effect]" is governed by CR 118.12, printed: "Some
@@ -30,7 +30,7 @@ that line makes.)
   priority at the beginning of most steps and phases…" — unrelated). This
   needs a per-line read against Spitting Slug's actual oracle text before
   rewriting, so it stays in this drawer rather than being fixed here.
-- `convex/cards/sets/lea/white.ts:575` — a deferred capability note (floating
+- `convex/cards/sets/lea/white.cards.ts:575` — a deferred capability note (floating
   repeatable special action, Reprisal-shaped) cites `CR 118.4 / 116.2b` for a
   MANA-based special action, not life.
 

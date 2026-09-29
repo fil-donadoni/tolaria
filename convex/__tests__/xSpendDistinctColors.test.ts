@@ -35,24 +35,28 @@ import {
 import { maxAffordableDistinctColorX } from "../gre/rules";
 import { greedyDistinctColorMatch } from "../gre/payWith";
 import { buildAutoTapSources, solveAutoTap } from "../gre/autoTap";
-import { emblazonedGolem } from "../cards/sets/apc/colorless";
+import { emblazonedGolem } from "../cards/sets/apc/colorless.cards";
 import {
     swamp,
     mountain,
     plains,
     island,
     forest,
-} from "../cards/sets/lea/colorless";
+} from "../cards/sets/lea/colorless.cards";
 import { announceCast } from "../game";
 import { projectPublicState } from "../gameProjections";
-import { makeInstance, makePlayer, makeState } from "../cards/__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../cards/__tests__/setup.helper";
 import type { Id } from "../_generated/dataModel";
 import {
     makeMutationCtx,
     runMutation,
     gameStateSeed,
     type Handler,
-} from "./gameMutationHarness";
+} from "./gameMutationHarness.fixture";
 
 const POOL0 = { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 };
 const golemKicker = emblazonedGolem.kickers![0].mana!;

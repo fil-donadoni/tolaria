@@ -910,7 +910,7 @@ describe("validateDeck — Premodern legality by Scryfall, REAL registry (issue 
     // CardDefinition/reprint anywhere in the catalogue, so `resolveDeckCardMeta`
     // can never resolve it to an allowed-set printing (unlike Animate Dead,
     // which this block used to cite here but which ALSO has a built `4ed`
-    // print — `convex/cards/sets/4ed/black.ts` — so its printing-gap claim was
+    // print — `convex/cards/sets/4ed/black.cards.ts` — so its printing-gap claim was
     // false; `4ed` is in PREMODERN_LEGAL_SETS, making the old assertion pass
     // for a reason unrelated to the class it claimed to prove — issue #2695
     // review, finding 2). City of Brass genuinely has no allowed-set printing

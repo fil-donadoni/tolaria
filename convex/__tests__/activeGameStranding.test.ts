@@ -22,7 +22,10 @@ import type { Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
 import type { GameState } from "../gre/state";
 import { finalizeGameOver, leaveGame, myActiveGame } from "../game";
-import { makeInMemoryDb, type InMemoryRow } from "./fixtures/inMemoryDb";
+import {
+    makeInMemoryDb,
+    type InMemoryRow,
+} from "./fixtures/inMemoryDb.fixture";
 
 const USER = "user1";
 const SEAT_A = `${USER}-p1`;

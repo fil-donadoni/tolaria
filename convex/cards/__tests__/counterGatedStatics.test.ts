@@ -153,7 +153,7 @@ function staticEffectsOf(card: CardDefinition): StaticEffect[] {
 /** Narrow, per-(card, kind) exemption for a materialized static effect whose
  *  counter read is a **proxy for a one-shot fact**, not a live condition.
  *
- *  Formerly held Pouncing Kavu and Duskwalker (`cards/sets/inv/red.ts` /
+ *  Formerly held Pouncing Kavu and Duskwalker (`cards/sets/inv/red.cards.ts` /
  *  `cards/sets/inv/black.ts`): Kicker (CR 702.33) is fixed as the spell
  *  resolves, and the "if this creature was kicked …" clause applies as a CR
  *  614.1c ETB replacement, but `kickerCount` used to live only on the STACK

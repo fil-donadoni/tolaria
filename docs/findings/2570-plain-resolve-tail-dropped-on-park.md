@@ -49,18 +49,18 @@ either way — this is a dropped effect, not a mis-applied one.
 
 Three shipped bodies lose a clause this way:
 
-- `convex/cards/sets/fem/black.ts:602` (Soul Exchange) — `if (!returned)
+- `convex/cards/sets/fem/black.cards.ts:602` (Soul Exchange) — `if (!returned)
 return;` guards the Thrull `+2/+2` counter. Reanimating a Voice of All /
   Meddling Mage / Primal Clay with a Thrull exiled to the additional cost
   returns the creature **without** its counter.
-- `convex/cards/sets/ice/blue.ts:562` (Dreams of the Dead) — `if (!ok) return;`
+- `convex/cards/sets/ice/blue.cards.ts:562` (Dreams of the Dead) — `if (!ok) return;`
   guards BOTH `grantTriggeredAbilityPermanent` (the CR 702.24 cumulative upkeep
   the card exists to attach) and `setExileOnLeave` (CR 614.1c). Its target
   filter is "white or black creature card", which Voice of All and Meddling
   Mage both satisfy, so the drop is reachable with shipped cards: the creature
   comes back with no upkeep to pay and no exile-on-leave — strictly better than
   the card allows.
-- `convex/cards/sets/mh3/white.ts:221` (Phelia, Iron Wind's delayed return) —
+- `convex/cards/sets/mh3/white.cards.ts:221` (Phelia, Iron Wind's delayed return) —
   `if (!entered) return;` guards the `+1/+1` counter on Phelia. Same shape, via
   the delayed-trigger site.
 

@@ -8,7 +8,7 @@
 // client's actual fields can rule out.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, cleanup, fireEvent } from "@testing-library/react";
-import { makeInstance, makeState } from "@convex/cards/__tests__/setup";
+import { makeInstance, makeState } from "@convex/cards/__tests__/setup.helper";
 import { getCardByName } from "@convex/cards";
 import { projectPublicState } from "@convex/gameProjections";
 import type {

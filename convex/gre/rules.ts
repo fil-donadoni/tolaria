@@ -1381,7 +1381,7 @@ export function getLegalActions(
         // here.) Judging affordability without them (issue #2398 review round
         // 1, finding 4) offers a cast that then parks unpayable in
         // `pendingCast` the moment a `costIncrease` static (Thorn Elemental's
-        // shape — inv/*.ts, fem/black.ts, lea/black.ts, wth/white.ts) is on
+        // shape — inv/*.ts, fem/black.cards.ts, lea/black.cards.ts, wth/white.cards.ts) is on
         // the board. Shared by BOTH branches below, exactly as the plain
         // hand-cast branch does it.
         const mandatoryCostOpts = {

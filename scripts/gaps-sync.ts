@@ -620,7 +620,7 @@ export function commitAndPushAllowlist(root: string): void {
 
 /**
  * Card name → the set file a hand-written definition of it lives in (ADR
- * 0043's `<set>/<colour>.ts`) — what a `hand-tail` Cluster Signature's
+ * 0043's `<set>/<colour>.cards.ts`) — what a `hand-tail` Cluster Signature's
  * `{ set, colour }` is matched against (ADR 0146). The colour is its mana
  * cost's (`setFileColour`), read off the committed Full Catalogue. The set is
  * the card's first-print set when `data/card-index.json` knows it; else the

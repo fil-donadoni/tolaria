@@ -23,12 +23,12 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../cards/__tests__/setup";
-import { crawWurm } from "../../cards/sets/lea/green";
-import { lightningBolt } from "../../cards/sets/lea/red";
-import { divineLight } from "../../cards/sets/apc/white";
-import { captainsManeuver } from "../../cards/sets/apc/multicolor";
-import { lashknifeBarrier } from "../../cards/sets/pls/white";
+} from "../../cards/__tests__/setup.helper";
+import { crawWurm } from "../../cards/sets/lea/green.cards";
+import { lightningBolt } from "../../cards/sets/lea/red.cards";
+import { divineLight } from "../../cards/sets/apc/white.cards";
+import { captainsManeuver } from "../../cards/sets/apc/multicolor.cards";
+import { lashknifeBarrier } from "../../cards/sets/pls/white.cards";
 import { projectPublicState } from "../../gameProjections";
 import {
     dealDamageFromPermanentToPlayer,

@@ -20,16 +20,16 @@ So an untargeted alternative-cost spell is cast at exactly its alternative
 cost, with every CR 601.2f increase and reduction on the board ignored.
 
 **Scenario.** Elite Spellbinder (issue #2383) exiles the opponent's **Gush**
-(`convex/cards/sets/mmq/blue.ts`, alt cost "return two Islands you control",
+(`convex/cards/sets/mmq/blue.cards.ts`, alt cost "return two Islands you control",
 untargeted). The owner casts it from exile choosing the alt cost: the
-object-scoped `{2}` tax never joins the total. **Foil** (`pcy/blue.ts`) is the
+object-scoped `{2}` tax never joins the total. **Foil** (`pcy/blue.cards.ts`) is the
 same shape. The asymmetry is the tell — Force of Will, Daze, Thwart and
 Dominate all TARGET, so they route through `finalizeTargetSelection` and are
 taxed correctly.
 
 The same hole swallows every shipped battlefield `costIncrease` static (the
-Thorn Elemental shape in `inv/*`, `fem/black.ts`, `lea/black.ts`,
-`wth/white.ts`) and every `costReduction` static, for the same untargeted
+Thorn Elemental shape in `inv/*`, `fem/black.cards.ts`, `lea/black.cards.ts`,
+`wth/white.cards.ts`) and every `costReduction` static, for the same untargeted
 alt-cost casts. It predates #2383 by a long way.
 
 **Why nothing is visibly broken today.** The affordance gate has the matching

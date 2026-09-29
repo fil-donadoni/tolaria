@@ -1,4 +1,4 @@
-// LTR — multicolor card tests (ADR 0043 split). Mirrors sets/ltr/multicolor.ts.
+// LTR — multicolor card tests (ADR 0043 split). Mirrors sets/ltr/multicolor.cards.ts.
 
 import { describe, it, expect } from "vitest";
 import {
@@ -16,14 +16,14 @@ import {
     makeState,
     pushSpell,
     resolveActivated,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import { continuousEffectsInLayer } from "../../../../gre/continuousEffects";
 import { getDefinition } from "../../../index";
 
 const arwenMortalQueen = getDefinition("547f92d4-cd1d-4ca7-a6e2-6473b4d3c832");
 const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 
-// Mirrors the per-set `resolveActivated` shim (arn/__tests__/helpers.ts and
+// Mirrors the per-set `resolveActivated` shim (arn/__tests__/set.helper.ts and
 // every other set's local copy) — pushes an already-targeted activated
 // ability directly onto the stack and resolves it, bypassing cost/targeting
 // choreography (tested separately below).

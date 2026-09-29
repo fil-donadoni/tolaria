@@ -16,7 +16,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import type { PlayerState } from "../state";
 import {
     lightningBolt,
@@ -24,8 +24,8 @@ import {
     plains,
     savannahLions,
     serraAngel,
-} from "../../cards/sets/lea";
-import { lutri, lurrus, zirda } from "../../cards/sets/iko/multicolor";
+} from "../../cards/sets/lea/index.cards";
+import { lutri, lurrus, zirda } from "../../cards/sets/iko/multicolor.cards";
 
 describe("companion.ts — Singleton (CR 702.139b, Lutri, the Spellchaser)", () => {
     it("passes a deck with duplicate LANDS but no duplicate nonland names", () => {

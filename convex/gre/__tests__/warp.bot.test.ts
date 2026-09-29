@@ -22,9 +22,9 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import type { GameState } from "../state";
-import { WARP_PROBE_ID, warpProbe } from "./fixtures/warpProbe";
+import { WARP_PROBE_ID, warpProbe } from "./fixtures/warpProbe.fixture";
 
 const MOUNTAIN = getCardByName("Mountain").id;
 

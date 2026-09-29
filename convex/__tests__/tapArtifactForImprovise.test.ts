@@ -5,9 +5,9 @@
 // autoTapForPayment.test.ts) — plus the rollback path through
 // abandonPendingPayment and a full commit through tryAutoCommitPendingCast.
 //
-// Metallic Rebuke ({2}{U} Instant, aer/blue.ts) is the first card to ship the
+// Metallic Rebuke ({2}{U} Instant, aer/blue.cards.ts) is the first card to ship the
 // "improvise" keyword now that mechanicsRegistry.ts flips it to
-// `status: "implemented"`. Millstone (atq/colorless.ts, {2} Artifact, no mana
+// `status: "implemented"`. Millstone (atq/colorless.cards.ts, {2} Artifact, no mana
 // ability) stands in for "an untapped artifact the caster controls" — the
 // mechanic cares only about the Artifact TYPE, not a mana ability.
 
@@ -20,7 +20,11 @@ import {
 } from "../game";
 import { emitPermanentTapped, type PendingCast } from "../gre/state";
 import { projectPublicState } from "../gameProjections";
-import { makeInstance, makePlayer, makeState } from "../cards/__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../cards/__tests__/setup.helper";
 
 const METALLIC_REBUKE = "f712ac26-dca4-459b-84c1-010597007f60"; // {2}{U} Instant, improvise
 const DISRUPT = "c000a02f-6b7e-4925-a938-59e645e980d7"; // {U} Instant, no improvise

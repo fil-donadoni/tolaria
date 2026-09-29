@@ -154,7 +154,7 @@ since it resolves in THIS outer scope at token-creation time, same as
   actual "Incubate N" keyword action (create an Incubator token with N
   counters and the transform ability, likely via a small shared token spec in
   `cards/sharedTokens.ts` mirroring `TREASURE_TOKEN`) and un-stubbing Sunfall
-  (`cards/sets/mom/white.ts`) is left to #924 — a card-level slice, not a
+  (`cards/sets/mom/white.cards.ts`) is left to #924 — a card-level slice, not a
   foundational one.
 - **Serialization**: `transformed`/`transformedFrom` added to
   `compactCard`/`expandCard` (`gre/serialize.ts`) and asserted in the

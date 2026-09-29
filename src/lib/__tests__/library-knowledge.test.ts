@@ -10,12 +10,12 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../../convex/cards/__tests__/setup";
+} from "../../../convex/cards/__tests__/setup.helper";
 import { resolveTopOfStack } from "../../../convex/gre/state";
 import { projectPublicState } from "../../../convex/gameProjections";
-import { memoryLapse } from "../../../convex/cards/sets/hml/blue";
-import { grizzlyBears } from "../../../convex/cards/sets/lea";
-import { mountain } from "../../../convex/cards/sets/lea/colorless";
+import { memoryLapse } from "../../../convex/cards/sets/hml/blue.cards";
+import { grizzlyBears } from "../../../convex/cards/sets/lea/index.cards";
+import { mountain } from "../../../convex/cards/sets/lea/colorless.cards";
 
 // ADR 0026 / PRD #338 — pure render-model helpers map the projected (sparse)
 // library to face-up positions. No game logic; identity is gated server-side.

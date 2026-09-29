@@ -1,5 +1,5 @@
 // C21 — per-card behavior tests for green cards in
-// `convex/cards/sets/c21/green.ts` (set split by colour, ADR 0043).
+// `convex/cards/sets/c21/green.cards.ts` (set split by colour, ADR 0043).
 //
 // Pest Infestation (issue #2369): the FIRST card to compose three engine
 // primitives that shipped ahead of it with zero card consumers —
@@ -18,7 +18,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import {
     getPlayer,
     processPendingActionTriggers,

@@ -8,7 +8,7 @@
 // wrong group, is exactly as frozen as no Move at all (the #2283/#2284 class),
 // and neither half can see that alone. Harness discipline as the other
 // `game.ts` integration coverage: the REGISTERED mutations' own `_handler`s
-// (`gameMutationHarness.ts`), never a reimplementation.
+// (`gameMutationHarness.fixture.ts`), never a reimplementation.
 //
 // Fixture: Darigaaz's Charm with a `modeSelection` (no shipped card declares
 // one before issue #2266) — a fixture for "targeted scripted modes", never
@@ -29,14 +29,14 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "@convex/cards/__tests__/setup";
+} from "@convex/cards/__tests__/setup.helper";
 import {
     gameStateSeed,
     makeMutationCtx,
     runMutation,
     type Handler,
     type MutationStub,
-} from "@convex/__tests__/gameMutationHarness";
+} from "@convex/__tests__/gameMutationHarness.fixture";
 import { enumerateMoves, type Move } from "@convex/gre/moves";
 import type { GameState } from "@convex/gre/state";
 import { resolveTopOfStack } from "@convex/gre/state";

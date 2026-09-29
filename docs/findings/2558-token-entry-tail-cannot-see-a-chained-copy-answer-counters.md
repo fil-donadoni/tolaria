@@ -26,7 +26,7 @@ token acquires AFTER the park — by answering a `copy` as-enters choice, CR 707
 - `convex/gre/state.ts` `refreshOwedAsEnters` — the comment that assumes the
   re-derivation happens.
 - Reachable shape: a token copy of a Clone-family permanent (Fractured
-  Identity, `c17/multicolor.ts`, targeting a Clone), whose `copy` answer names
+  Identity, `c17/multicolor.cards.ts`, targeting a Clone), whose `copy` answer names
   a card with `entersWith.counters` — a token copy of Clone that copies
   Clockwork Beast would enter with no +1/+0 counters.
 

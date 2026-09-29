@@ -1,5 +1,5 @@
 // ELD — per-card behavior tests for red cards in
-// `convex/cards/sets/eld/red.ts` (set split by colour, ADR 0043).
+// `convex/cards/sets/eld/red.cards.ts` (set split by colour, ADR 0043).
 
 import { describe, it, expect } from "vitest";
 import {
@@ -7,7 +7,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import {
     emitBecameTargetEvents,
     processPendingActionTriggers,
@@ -241,7 +241,7 @@ describe("Robber of the Rich (CR 508.1 attack trigger + CR 601.3 cast-from-exile
 
     // CR 305.9 / 116.2a (issue #1689) — Robber's oracle says "you may CAST
     // that card" (not "play"): a LAND exiled this way must expose NO action
-    // at all for either viewer — same bug class as Ragavan (mh2/red.ts).
+    // at all for either viewer — same bug class as Ragavan (mh2/red.cards.ts).
     it("grants NO play/cast action when the defending player's exiled top card is a LAND (CR 305.9 regression)", () => {
         const robber = makeInstance(robberOfTheRich.id, {
             id: "robber",

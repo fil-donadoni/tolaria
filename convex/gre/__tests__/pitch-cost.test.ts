@@ -4,7 +4,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import { getCardByName } from "../../cards/index";
 import {
     tryAutoCommitPendingCast,
@@ -253,7 +253,7 @@ describe("canPayAlternativeCost — life & hand legs (CR 119.4 / 118.9)", () => 
     // Island (no `manaCost` field at all — a bare `def.manaCost` read would
     // also be `undefined` there, so it proves nothing) must NOT match, and
     // Mishra's Factory (a Land that DOES carry a printed `manaCost: {}`,
-    // `atq/colorless.ts`) must ALSO not match — only that second card
+    // `atq/colorless.cards.ts`) must ALSO not match — only that second card
     // actually exercises `manaCostForCardFilter`'s Land carve-out rather than
     // an early `undefined` exit. Lightning Bolt ({R}) / Counterspell ({U}{U})
     // must not match either.

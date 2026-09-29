@@ -17,7 +17,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 
 const BEARS = getCardByName("Grizzly Bears").id; // 2/2 ground
 const BOLT = getCardByName("Lightning Bolt").id; // R: 3 dmg any target

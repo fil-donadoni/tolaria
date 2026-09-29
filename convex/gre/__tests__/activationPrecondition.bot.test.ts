@@ -24,7 +24,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import type { CardInstanceState, GameState } from "../state";
 
 const RING = getCardByName("Barbarian Ring");

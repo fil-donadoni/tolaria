@@ -4,10 +4,10 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import { resolveTopOfStack } from "../state";
-import { lightningBolt } from "../../cards/sets/lea/red";
-import { serraAngel } from "../../cards/sets/lea/white";
+import { lightningBolt } from "../../cards/sets/lea/red.cards";
+import { serraAngel } from "../../cards/sets/lea/white.cards";
 
 /**
  * Noncombat damage ACCUMULATES on a creature across events (issue #4490).

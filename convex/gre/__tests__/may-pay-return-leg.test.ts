@@ -25,13 +25,13 @@ import {
 } from "../state";
 import { applyMayPaySubmit } from "../pendingChoiceSubmit";
 import { projectPublicState } from "../../gameProjections";
-import { makePlayer, makeState } from "../../cards/__tests__/setup";
+import { makePlayer, makeState } from "../../cards/__tests__/setup.helper";
 import {
     RETURN_A_LAND,
     fireReturnLegEtb,
     returnLegLand,
     returnLegProbeInstance,
-} from "./fixtures/mayPayReturnLegProbe";
+} from "./fixtures/mayPayReturnLegProbe.fixture";
 
 const land = (id: string) => returnLegLand(id, "p1");
 

@@ -28,7 +28,7 @@ import { kickerRule, keywordLineSlot } from "../grammar/slots/keywordLine";
 import { lowerCard } from "../lower";
 import { lowerKickers } from "../lowerSpell";
 import { readTypeLine } from "../typeLine";
-import { oracleCard, parseContext } from "./fixtures";
+import { oracleCard, parseContext } from "./oracle.fixture";
 
 function creature(name: string, manaCost: string, oracleText: string) {
     return oracleCard({ name, manaCost, oracleText, typeLine: "Creature" });

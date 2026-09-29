@@ -11,12 +11,16 @@
 // Same harness discipline as `selectTargetsBatch.test.ts` — this project has
 // no convex-test harness, so the established seam for `game.ts` mutation
 // coverage is a stub `MutationCtx` driving the REGISTERED mutation's own
-// `_handler` (`gameMutationHarness.ts`).
+// `_handler` (`gameMutationHarness.fixture.ts`).
 
 import { describe, it, expect } from "vitest";
 import { selectTarget } from "../game";
-import { makeInstance, makePlayer, makeState } from "../cards/__tests__/setup";
-import { blackLotus } from "../cards/sets/lea/colorless";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../cards/__tests__/setup.helper";
+import { blackLotus } from "../cards/sets/lea/colorless.cards";
 import type { GameState, PendingTarget } from "../gre/state";
 import type { Id } from "../_generated/dataModel";
 import {
@@ -24,7 +28,7 @@ import {
     runMutation,
     gameStateSeed,
     type Handler,
-} from "./gameMutationHarness";
+} from "./gameMutationHarness.fixture";
 
 const GAME_ID = "game-1" as Id<"games">;
 

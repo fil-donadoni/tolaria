@@ -6,7 +6,7 @@ import {
     makePlayer,
     makeState,
     submitChoice,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import { tapSourceIntoPayment } from "../../../../game";
 import { projectPublicState } from "../../../../gameProjections";
 import {
@@ -242,11 +242,11 @@ describe("Chrome Mox ({0} Artifact — imprint exile + colour-gated mana, CR 603
 
 // Lightning Greaves (issue #1530, parent PRD #1525). "Equipped creature has
 // haste and shroud. Equip {0}." The Equip spine (`attach` Op) is Skullclamp's
-// (`dst/colorless.ts`); haste is the same `keyword-grant` combo Cori-Steel
-// Cutter (`tdm/red.ts`) proves. Shroud's real enforcement is the
+// (`dst/colorless.cards.ts`); haste is the same `keyword-grant` combo Cori-Steel
+// Cutter (`tdm/red.cards.ts`) proves. Shroud's real enforcement is the
 // `permanent-guard` staticEffect `isGuardedAgainst` reads LIVE off
 // `attachedTo` (no materialization step needed, unlike `keyword-grant`) — the
-// same shape Sterling Grove (`inv/multicolor.ts`) proves for a GRANTED (not
+// same shape Sterling Grove (`inv/multicolor.cards.ts`) proves for a GRANTED (not
 // self-printed) shroud.
 function equipGreavesTo(
     state: GameState,

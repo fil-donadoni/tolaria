@@ -17,13 +17,13 @@
 // `convex/cards/sets/lcc/__tests__/red.test.ts`.
 
 import { describe, it, expect } from "vitest";
-import { broadsideBombardiers } from "@convex/cards/sets/lcc/red";
-import { grizzlyBears } from "@convex/cards/sets/lea/green";
+import { broadsideBombardiers } from "@convex/cards/sets/lcc/red.cards";
+import { grizzlyBears } from "@convex/cards/sets/lea/green.cards";
 import {
     makeInstance,
     makePlayer,
     makeState,
-} from "@convex/cards/__tests__/setup";
+} from "@convex/cards/__tests__/setup.helper";
 import { projectPublicState } from "@convex/gameProjections";
 import { getStackAbilities } from "../card-utils";
 import type { CardInstance } from "~/types/game";

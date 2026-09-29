@@ -45,10 +45,10 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import { registerTokenDefinition } from "../../cards";
 import type { CardDefinition, TargetRequirement } from "../../cards/types";
-import { grizzlyBears } from "../../cards/sets/lea";
+import { grizzlyBears } from "../../cards/sets/lea/index.cards";
 
 // ---------------------------------------------------------------------------
 // Probes

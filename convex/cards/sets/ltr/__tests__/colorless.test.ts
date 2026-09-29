@@ -1,4 +1,4 @@
-// LTR — colorless card tests (ADR 0043 split). Mirrors sets/ltr/colorless.ts.
+// LTR — colorless card tests (ADR 0043 split). Mirrors sets/ltr/colorless.cards.ts.
 //
 // The One Ring (issue #674) is a DSL card whose {T} draw and upkeep drain reuse
 // already-exercised Ops (`counters` / `draw` / `loseLife` + the `counters`
@@ -37,7 +37,7 @@ import {
     makeState,
     pushSpell,
     resolveActivated,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import { getDefinition } from "../../../index";
 
 const theOneRing = getDefinition("d5806e68-1054-458e-866d-1f2470f682b2");
@@ -46,7 +46,7 @@ const lightningBolt = getDefinition("d573ef03-4730-45aa-93dd-e45ac1dbaf4a");
 /** Per-set shim (mirrors `resolveActivated` in this set's multicolor tests):
  *  pushes an already-paid activated ability onto the stack and resolves it,
  *  bypassing the cost/targeting choreography tested elsewhere. */
-/** Per-set shim (mirrors `fireTrigger`, atq/__tests__/helpers.ts): pushes a
+/** Per-set shim (mirrors `fireTrigger`, atq/__tests__/set.helper.ts): pushes a
  *  triggered ability with the same shape `collectTriggers` builds, then
  *  resolves it. */
 function fireTrigger(

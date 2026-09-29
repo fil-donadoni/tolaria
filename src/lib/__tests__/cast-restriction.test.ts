@@ -13,7 +13,7 @@ import {
     balduvianBears,
     blizzard,
     snowCoveredForest,
-} from "@convex/cards/sets/ice";
+} from "@convex/cards/sets/ice/index.cards";
 import type { CardInstance, Player } from "~/types/game";
 
 function inst(

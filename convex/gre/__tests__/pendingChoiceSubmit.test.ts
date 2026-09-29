@@ -12,7 +12,10 @@ import {
     applyNameCardSubmit,
     applyRandomRevealAck,
 } from "../pendingChoiceSubmit";
-import { illusionaryForces, polarKraken } from "../../cards/sets/ice";
+import {
+    illusionaryForces,
+    polarKraken,
+} from "../../cards/sets/ice/index.cards";
 import { getCardByName } from "../../cards";
 import { checkStateBasedActions } from "../sba";
 import {
@@ -28,20 +31,24 @@ import {
     swamp,
     winterOrb,
     wordOfCommand,
-} from "../../cards/sets/lea";
-import { jasmineBoreal, petraSphinx, tundraWolves } from "../../cards/sets/leg";
+} from "../../cards/sets/lea/index.cards";
+import {
+    jasmineBoreal,
+    petraSphinx,
+    tundraWolves,
+} from "../../cards/sets/leg/index.cards";
 import {
     bottleOfSuleiman,
     cuombajjWitches,
     juzamDjinn,
     ydwenEfreet,
-} from "../../cards/sets/arn";
+} from "../../cards/sets/arn/index.cards";
 import {
     makeInstance,
     makePlayer,
     makeState,
     pushSpell,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 
 const STARTING_HAND_SIZE = 7;
 

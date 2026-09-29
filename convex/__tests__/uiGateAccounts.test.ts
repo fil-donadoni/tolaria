@@ -2,7 +2,7 @@
 //
 // Driven through the REAL registered handlers (`_handler`) against the
 // in-memory ctx — the project has no convex-test harness
-// (`fixtures/inMemoryDb.ts`). The two actions run through a fake `ActionCtx`
+// (`fixtures/inMemoryDb.fixture.ts`). The two actions run through a fake `ActionCtx`
 // whose `runQuery`/`runMutation` dispatch a function reference back to the
 // handler exported under that name, so the pagination, the per-batch deletes
 // and the final indexed delete all execute exactly as deployed.
@@ -14,7 +14,10 @@ import {
     LANE_ACCOUNT_MAX_AGE_MS,
     laneAccountEmail,
 } from "../lib/uiGateLaneAccount";
-import { type InMemoryRow, makeInMemoryDb } from "./fixtures/inMemoryDb";
+import {
+    type InMemoryRow,
+    makeInMemoryDb,
+} from "./fixtures/inMemoryDb.fixture";
 
 type Handler = (ctx: unknown, args: unknown) => Promise<unknown>;
 

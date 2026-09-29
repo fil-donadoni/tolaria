@@ -47,14 +47,14 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import {
     lightningBolt,
     mountain,
     savannahLions,
     serraAngel,
-} from "../../cards/sets/lea";
-import { lurrus } from "../../cards/sets/iko/multicolor";
+} from "../../cards/sets/lea/index.cards";
+import { lurrus } from "../../cards/sets/iko/multicolor.cards";
 
 function withLurrusOnBattlefield(
     overrides: Parameters<typeof makePlayer>[1] = {}

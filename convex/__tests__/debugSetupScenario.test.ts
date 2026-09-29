@@ -8,10 +8,10 @@ import {
     assertLoadableIntoLiveGame,
     buildStateFromScenario,
 } from "../gre/scenarioBuilder";
-import { makePlayer, makeState } from "../cards/__tests__/setup";
-import { grizzlyBears } from "../cards/sets/lea/green";
-import { lightningBolt, shivanDragon } from "../cards/sets/lea/red";
-import { forest } from "../cards/sets/lea/colorless";
+import { makePlayer, makeState } from "../cards/__tests__/setup.helper";
+import { grizzlyBears } from "../cards/sets/lea/green.cards";
+import { lightningBolt, shivanDragon } from "../cards/sets/lea/red.cards";
+import { forest } from "../cards/sets/lea/colorless.cards";
 import type { ScenarioSpec } from "../debugScenarioSpec";
 
 /** The live game's two seats in every fixture below — deliberately NOT

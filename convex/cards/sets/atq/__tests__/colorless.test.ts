@@ -1,8 +1,8 @@
 // Antiquities (ATQ) — per-card behavior tests for colorless cards in
-// `convex/cards/sets/atq/colorless.ts` (set split by colour, ADR 0043). Each
+// `convex/cards/sets/atq/colorless.cards.ts` (set split by colour, ADR 0043). Each
 // non-trivial card gets a describe block citing the CR section it exercises;
 // assertions check external behavior only. Shared test shims live in
-// `./helpers`; fixtures in `convex/cards/__tests__/setup.ts`.
+// `./helpers`; fixtures in `convex/cards/__tests__/setup.helper.ts`.
 
 import { describe, it, expect } from "vitest";
 import { getDefinition, getInstanceManaCost } from "../../..";
@@ -14,7 +14,7 @@ import {
     resolveTriggerOrder,
     resolveActivated,
     submitChoice,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import {
     isCreature,
     getActivatedManaRestriction,
@@ -74,7 +74,7 @@ import {
     fireTrigger,
     getManaSubstitutionsEmpty,
     vanilla,
-} from "./helpers";
+} from "./set.helper";
 
 const ornithopter = getDefinition("59cc9bdb-7cf2-4795-bac7-ffff605c9eb0");
 const tawnossCoffin = getDefinition("c27bc1de-8246-4dc8-af51-ec21def9e226");

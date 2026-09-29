@@ -1,7 +1,7 @@
-// Per-card behavior tests for colorless cards in `convex/cards/sets/lea/colorless.ts`
+// Per-card behavior tests for colorless cards in `convex/cards/sets/lea/colorless.cards.ts`
 // (LEA, split by colour per ADR 0043). Each non-trivial card gets a describe
 // block citing the CR section it exercises. Shared stack/resolve shims live in
-// ./helpers; fixture builders stay in convex/cards/__tests__/setup.ts.
+// ./helpers; fixture builders stay in convex/cards/__tests__/setup.helper.ts.
 
 import { describe, it, expect } from "vitest";
 import {
@@ -71,8 +71,8 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../../__tests__/setup";
-import { grizzlyBearsId, runUntapForJ } from "./helpers";
+} from "../../../__tests__/setup.helper";
+import { grizzlyBearsId, runUntapForJ } from "./set.helper";
 import { NO_BOARD_LAYER_VIEW } from "../../../../gre/layers";
 import { getDefinition } from "../../../index";
 

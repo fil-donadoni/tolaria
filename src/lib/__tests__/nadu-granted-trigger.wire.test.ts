@@ -12,13 +12,13 @@
 
 import { describe, it, expect } from "vitest";
 import { getTriggeredAbilityOracleText } from "../card-utils";
-import { naduWingedWisdom } from "../../../convex/cards/sets/mh3/multicolor";
-import { grizzlyBears } from "../../../convex/cards/sets/lea/green";
+import { naduWingedWisdom } from "../../../convex/cards/sets/mh3/multicolor.cards";
+import { grizzlyBears } from "../../../convex/cards/sets/lea/green.cards";
 import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../../convex/cards/__tests__/setup";
+} from "../../../convex/cards/__tests__/setup.helper";
 import {
     beginApplyingStaticEffects,
     type StackItem,

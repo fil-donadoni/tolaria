@@ -21,16 +21,20 @@ import {
 import { projectPublicState } from "../gameProjections";
 import type { GameState } from "../gre/state";
 import type { Id } from "../_generated/dataModel";
-import { makeInstance, makePlayer, makeState } from "../cards/__tests__/setup";
-import { dodecapod } from "../cards/sets/apc/colorless";
-import { mindRot } from "../cards/sets/por/black";
-import { grizzlyBears } from "../cards/sets/lea/green";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../cards/__tests__/setup.helper";
+import { dodecapod } from "../cards/sets/apc/colorless.cards";
+import { mindRot } from "../cards/sets/por/black.cards";
+import { grizzlyBears } from "../cards/sets/lea/green.cards";
 import {
     makeMutationCtx,
     runMutation,
     gameStateSeed,
     type Handler,
-} from "./gameMutationHarness";
+} from "./gameMutationHarness.fixture";
 
 const GAME_ID = "game-1" as Id<"games">;
 type Ctx = Parameters<typeof runMutation>[1];

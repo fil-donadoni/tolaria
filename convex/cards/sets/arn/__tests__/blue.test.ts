@@ -1,4 +1,4 @@
-// Per-card behavior tests for blue cards in `convex/cards/sets/arn/blue.ts`
+// Per-card behavior tests for blue cards in `convex/cards/sets/arn/blue.cards.ts`
 // (ARN, split by colour per ADR 0043). Each non-trivial card gets a describe
 // block citing the CR section it exercises; assertions check external behavior
 // only (effective P/T, damage, zone, combat outcome).
@@ -10,7 +10,7 @@ import {
     makeState,
     pushSpell,
     resolveActivated,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import { projectPublicState } from "../../../../gameProjections";
 import {
     getEffectivePower,
@@ -20,7 +20,7 @@ import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
 import { checkStateBasedActions } from "../../../../gre/sba";
 import { validateBlockerEligibility } from "../../../../gre/combat";
 import { resolveTopOfStack, type StackItem } from "../../../../gre/state";
-import { resolveTrigger, answerChoice, upkeepEvent } from "./helpers";
+import { resolveTrigger, answerChoice, upkeepEvent } from "./set.helper";
 import { getDefinition } from "../../../index";
 
 const dandan = getDefinition("414d3cae-b8cf-4d53-bd6b-1aa83a828ba9");

@@ -13,7 +13,7 @@ import { describe, expect, it } from "vitest";
 import type { EffectOp } from "../../cards/types";
 import { EFFECT_OP_REGISTRY } from "../../cards/mechanicsRegistry";
 import { childOpArrays } from "../ai/effectOpChildren";
-import { markerOp, NESTING_SHAPES } from "./fixtures/nestedOpShapes";
+import { markerOp, NESTING_SHAPES } from "./fixtures/nestedOpShapes.fixture";
 
 /** Every Op reachable from `ops` through `childOpArrays`, depth-first. */
 function reach(ops: readonly EffectOp[]): EffectOp[] {

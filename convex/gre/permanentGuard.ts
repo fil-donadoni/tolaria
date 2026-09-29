@@ -85,9 +85,9 @@ function hasHexproof(card: CardInstanceState): boolean {
 // for those — harmless, since it agrees with the declared static effect.
 // What it newly covers is the keyword-only path: a card that grants shroud
 // DYNAMICALLY via `SpellContext.grantStaticAbility(target, "shroud", …)`
-// (Skyshroud Blessing `pls/green.ts`, Homarid Warrior / Svyelunite Priest
-// `fem/blue.ts`, Sylvan Safekeeper `jud/green.ts`, Blurred Mongoose's own
-// activated ability and the `usg/green.ts` grant — the "GAP" the Mechanics
+// (Skyshroud Blessing `pls/green.cards.ts`, Homarid Warrior / Svyelunite Priest
+// `fem/blue.cards.ts`, Sylvan Safekeeper `jud/green.cards.ts`, Blurred Mongoose's own
+// activated ability and the `usg/green.cards.ts` grant — the "GAP" the Mechanics
 // Registry's shroud row (`cards/mechanicsRegistry.ts`) used to document as
 // decorative-only, issue #959) appends ONLY the bare string to `staticAbilities`
 // with no accompanying `permanent-guard` static effect, so nothing read it.

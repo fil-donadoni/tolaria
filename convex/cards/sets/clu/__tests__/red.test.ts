@@ -1,8 +1,12 @@
 // clu — per-card behavior tests for red cards in
-// `convex/cards/sets/clu/red.ts` (set split by colour, ADR 0043).
+// `convex/cards/sets/clu/red.cards.ts` (set split by colour, ADR 0043).
 
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { applyPlayLandFromExile } from "../../../../gre/playLand";
 import {

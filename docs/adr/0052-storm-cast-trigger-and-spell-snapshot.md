@@ -26,8 +26,8 @@ Three facts about the existing engine shape the decision:
 3. **The copy machinery already exists and is CR-subtle.**
    `copyStackItem` / `copyResolvingSpell` / `requestCopyRetarget`
    (`gre/state.ts`, all built on `cloneSpellOntoStack`) ship and are exercised
-   end-to-end (Fork `lea/red.ts`, Chain-Lightning family `leg/red.ts`, Onslaught
-   `ons/blue.ts`, c19) — backend finalization, bot dispatch, and the frontend
+   end-to-end (Fork `lea/red.cards.ts`, Chain-Lightning family `leg/red.cards.ts`, Onslaught
+   `ons/blue.cards.ts`, c19) — backend finalization, bot dispatch, and the frontend
    copy-retarget banner are all live. But every existing user makes **one**
    copy from a **live** source still on the stack. Two storm-specific subtleties
    are not covered:

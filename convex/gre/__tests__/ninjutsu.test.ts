@@ -16,7 +16,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import { activateAbilityOnState } from "../../game";
 import { resolveTopOfStack } from "../state";
 import type { CardInstanceState, GameState } from "../state";
@@ -25,9 +25,9 @@ import { unblockedAttackerIds } from "../combat";
 import { ninjutsuReturnCandidateIds } from "../ninjutsu";
 import { computeExpectedInput, refreshExpectedInput } from "../expectedInput";
 import { advancePhase } from "../phases";
-import { drought } from "../../cards/sets/ice/white";
-import { wrennAndSix } from "../../cards/sets/mh1/multicolor";
-import { swamp } from "../../cards/sets/lea/colorless";
+import { drought } from "../../cards/sets/ice/white.cards";
+import { wrennAndSix } from "../../cards/sets/mh1/multicolor.cards";
+import { swamp } from "../../cards/sets/lea/colorless.cards";
 
 const FALLEN_SHINOBI = "900c9dfd-ece1-4b09-a801-0fa05e1994b9";
 /** Grizzly Bears — a vanilla body to attack with. */

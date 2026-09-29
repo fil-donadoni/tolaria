@@ -24,7 +24,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../../convex/cards/__tests__/setup";
+} from "../../../convex/cards/__tests__/setup.helper";
 import { getCardByName, preloadDefinitions } from "../../../convex/cards";
 import type { CardDefinition } from "../../../convex/cards/types";
 import { projectPublicState } from "../../../convex/gameProjections";

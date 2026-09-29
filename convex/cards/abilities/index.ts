@@ -43,7 +43,7 @@ export function makeTapForMana(args: {
  *  ONE choice mana ability whose first option is the painless {C} and whose
  *  two coloured options carry the `dealsDamageToControllerOnColoredTap: 1`
  *  rider — the exact painland shape ICE's Adarkar Wastes cycle already
- *  established (`convex/cards/sets/ice/colorless.ts`), reused here for an
+ *  established (`convex/cards/sets/ice/colorless.cards.ts`), reused here for an
  *  artifact instead of a land. Used by the MRD/MH1 Talisman cycle
  *  (issue #675, ADR 0041). */
 export function makeTalisman(args: {
@@ -82,7 +82,7 @@ export function makeTalisman(args: {
  *  `getActivatedManaAbility`'s single `.find()`), so this is modelled as ONE
  *  choice mana ability whose second option is gated by a board-conditional
  *  `getManaChoices` hook — the same primitive Fellwar Stone uses
- *  (`convex/cards/sets/drk/colorless.ts`), here checking the ACTIVATING
+ *  (`convex/cards/sets/drk/colorless.cards.ts`), here checking the ACTIVATING
  *  PLAYER's own battlefield for either of two named basic land subtypes
  *  instead of an opponent's producible colours. The static `manaChoices`
  *  (both options) is the representative / fallback list for best-effort
@@ -168,8 +168,8 @@ export const PROTECTION_QUALITY_NAMES: Record<Color, string> = {
 /** Builds one `optionChoice` mode per grantable color/quality in `codes`,
  *  each granting "protection from <quality>" to the announced target (CR
  *  702.16, 613.1f, CR 700.2 modal choice). Shared by Mother of Runes (5
- *  colors, ulg/white.ts) and Giver of Runes (5 colors + colorless,
- *  mh1/white.ts) — issue #684/#928 dedup. */
+ *  colors, ulg/white.cards.ts) and Giver of Runes (5 colors + colorless,
+ *  mh1/white.cards.ts) — issue #684/#928 dedup. */
 export function protectionColorModes(
     codes: ReadonlyArray<Color>
 ): { id: string; label: string; color: Color; effects: EffectOp[] }[] {

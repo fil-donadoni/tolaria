@@ -32,7 +32,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import { enumerateMoves, planManaPayment, type Move } from "../moves";
 import { getLegalActions, maxAffordableX } from "../rules";
 import { getPlayer } from "../state";

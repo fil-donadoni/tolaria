@@ -23,9 +23,9 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../../cards/__tests__/setup";
+} from "../../../cards/__tests__/setup.helper";
 import { getCardByName, registerTokenDefinition } from "../../../cards";
-import { pushSpell } from "../../../cards/__tests__/setup";
+import { pushSpell } from "../../../cards/__tests__/setup.helper";
 import { resolveTopOfStack } from "../../state";
 
 const NOMINATOR_ID = "test-bot-payvariable-nominator";

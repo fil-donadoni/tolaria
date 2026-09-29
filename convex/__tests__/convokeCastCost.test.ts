@@ -9,7 +9,7 @@
 //   - Wire format: the convoke picker survives `projectPublicState`, and the
 //     can't-spend-mana castability crosses the projection.
 //
-// Hogaak, Arisen Necropolis ({5}{B/G}{B/G}, mh1/multicolor.ts) is the first card
+// Hogaak, Arisen Necropolis ({5}{B/G}{B/G}, mh1/multicolor.cards.ts) is the first card
 // to ship convoke, guild-hybrid pips, `cantSpendManaToCast`, and the intrinsic
 // `castableFromOwnGraveyard` permission.
 
@@ -34,7 +34,11 @@ import type { Color } from "../cards/types";
 import type { PendingCast } from "../gre/state";
 import { projectPublicState } from "../gameProjections";
 import { compactState, expandState } from "../gre/serialize";
-import { makeInstance, makePlayer, makeState } from "../cards/__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../cards/__tests__/setup.helper";
 
 const HOGAAK = getCardByName("Hogaak, Arisen Necropolis").id;
 const CRAW_WURM = getCardByName("Craw Wurm").id; // mono-green creature

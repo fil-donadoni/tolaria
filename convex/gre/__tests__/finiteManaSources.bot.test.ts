@@ -26,7 +26,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import { enumerateMoves, planManaPayment, type Move } from "../moves";
 import { evaluate } from "../evaluate";
 import { makeTapForMana } from "../../cards/abilities";

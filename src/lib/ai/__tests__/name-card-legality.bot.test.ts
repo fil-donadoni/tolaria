@@ -41,7 +41,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "@convex/cards/__tests__/setup";
+} from "@convex/cards/__tests__/setup.helper";
 import { projectPublicState } from "@convex/gameProjections";
 import type { GameState, PendingChoice } from "@convex/gre";
 import { applyNameCardSubmit } from "@convex/gre";

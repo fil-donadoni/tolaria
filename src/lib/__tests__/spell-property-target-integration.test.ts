@@ -35,13 +35,17 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "@convex/cards/__tests__/setup";
-import { grizzlyBears, island, lightningBolt } from "@convex/cards/sets/lea";
-import { stoneRain } from "@convex/cards/sets/lea/red";
-import { confound } from "@convex/cards/sets/pls/blue";
-import { teferisResponse } from "@convex/cards/sets/inv/blue";
+} from "@convex/cards/__tests__/setup.helper";
+import {
+    grizzlyBears,
+    island,
+    lightningBolt,
+} from "@convex/cards/sets/lea/index.cards";
+import { stoneRain } from "@convex/cards/sets/lea/red.cards";
+import { confound } from "@convex/cards/sets/pls/blue.cards";
+import { teferisResponse } from "@convex/cards/sets/inv/blue.cards";
 import { buildActivatedAbilityStackItem } from "@convex/gre/activationCommit";
-import { urzasRage } from "@convex/cards/sets/inv/red";
+import { urzasRage } from "@convex/cards/sets/inv/red.cards";
 import type { TargetRequirement } from "@convex/cards/types";
 import type { GameState } from "@convex/gre/state";
 import type { CardInstance, PendingTarget } from "~/types/game";

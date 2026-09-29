@@ -20,7 +20,7 @@ import {
     lethalThresholdsForSource,
 } from "@convex/gre/damageAssignment";
 import { projectPublicState } from "@convex/gameProjections";
-import { makePlayer, makeState } from "@convex/cards/__tests__/setup";
+import { makePlayer, makeState } from "@convex/cards/__tests__/setup.helper";
 import {
     assignmentIsRejected,
     damageAssignmentPlan,

@@ -8,7 +8,7 @@
 
 import { describe, expect, it } from "vitest";
 import { compileCard } from "../compile";
-import { oracleCard } from "./fixtures";
+import { oracleCard } from "./oracle.fixture";
 
 const LINE_TAIL =
     "Choose a creature type other than Wall. Target creature becomes that type until end of turn.";

@@ -1383,7 +1383,7 @@ export function applySacrificeWhenNoCountersRemain(
  *  `autoTapForManaAbilityCost` plans for, and the two MUST see the same set:
  *  otherwise the auto-tap reserves a source under a permission this throw then
  *  refuses ("Not enough mana to activate this ability"). Fire Sprites ("{G},
- *  {T}: Add {R}" — a CREATURE with a coloured mana-ability cost, `leg/green.ts`)
+ *  {T}: Add {R}" — a CREATURE with a coloured mana-ability cost, `leg/green.cards.ts`)
  *  is a shipped card the disagreement is reachable on. */
 export function applyManaAbilityManaCost(
     state: GameState,
@@ -1733,8 +1733,8 @@ type ResolvedManaTapChoice = {
  *
  *  What that fall-through then DOES differs by path, and for a choice-ONLY
  *  source it is not a silent zero-output tap. Such a source declares no
- *  `manaProduced` (Fellwar Stone `drk/colorless.ts`, Chrome Mox
- *  `mrd/colorless.ts`), so `getBasicLandMana(card) ?? getActivatedManaColor(card)`
+ *  `manaProduced` (Fellwar Stone `drk/colorless.cards.ts`, Chrome Mox
+ *  `mrd/colorless.cards.ts`), so `getBasicLandMana(card) ?? getActivatedManaColor(card)`
  *  — the latter requires `manaProduced` (`gre/constants.ts`) — is null:
  *  `tapSourceIntoPayment` throws `"Card does not produce mana"`, the SAME
  *  rejection a zero-output fixed source gets, and nothing is tapped. The
@@ -2591,7 +2591,7 @@ function graveyardCardMatchesColor(
  *
  *  Deliberately NOT exported. Its coverage runs through the registered
  *  `activateManaAbility` `_handler` (`cards/sets/mh1/__tests__/blue.test.ts`
- *  via `gameMutationHarness.ts`), because a test that calls this directly
+ *  via `gameMutationHarness.fixture.ts`), because a test that calls this directly
  *  stays green when the mutation stops calling it at all — which is exactly
  *  what shipped in PR #2419 round 1 and what the harness's own header comment
  *  forbids. */

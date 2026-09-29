@@ -21,7 +21,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import {
     discardToGraveyard,
     getPlayer,
@@ -43,9 +43,9 @@ import {
     consumeMadnessCastChoice,
     openMadnessWindowCard,
 } from "../madness";
-import { baskingRootwalla } from "../../cards/sets/tor/green";
-import { anjesRavager } from "../../cards/sets/c19/red";
-import { grizzlyBears } from "../../cards/sets/lea";
+import { baskingRootwalla } from "../../cards/sets/tor/green.cards";
+import { anjesRavager } from "../../cards/sets/c19/red.cards";
+import { grizzlyBears } from "../../cards/sets/lea/index.cards";
 
 /** Discards `cardId` from `p1` and pushes the reflexive madness trigger onto the
  *  stack through the real post-action trigger scan (CR 702.35a). Returns the

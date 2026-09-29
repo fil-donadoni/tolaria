@@ -9,9 +9,9 @@ confidence: high
 `DAMAGE_DEALT.amount`, the `number` family — issue #4131), but the hand-written
 catalogue still carries `resolve()` closures that read `event.amount`
 (`convex/cards/sets/**`, 38 call sites) and several justify staying imperative
-with a claim that is no longer true: `inv/multicolor.ts` (Armadillo Cloak, "no
-trigger-event `amount` row in `EVENT_FIELD_REGISTRY`"), `arn/black.ts`
-(El-Hajjâj, "the gained amount is event.amount"), `leg/white.ts` (Spirit Link,
+with a claim that is no longer true: `inv/multicolor.cards.ts` (Armadillo Cloak, "no
+trigger-event `amount` row in `EVENT_FIELD_REGISTRY`"), `arn/black.cards.ts`
+(El-Hajjâj, "the gained amount is event.amount"), `leg/white.cards.ts` (Spirit Link,
 "Blocked on: a numeric $event ref family").
 
 **Evidence.** `bun run oracle:compile` now compiles Spirit Link, Armadillo Cloak,

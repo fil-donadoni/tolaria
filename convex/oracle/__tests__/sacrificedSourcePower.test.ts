@@ -19,7 +19,7 @@
 import { describe, expect, it } from "vitest";
 import { compileCard } from "../compile";
 import { sortKeys } from "../gates";
-import { oracleCard } from "./fixtures";
+import { oracleCard } from "./oracle.fixture";
 
 const FLAME_ELEMENTAL_TEXT =
     "{R}, {T}, Sacrifice this creature: It deals damage equal to its power to target creature.";

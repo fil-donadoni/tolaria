@@ -10,15 +10,15 @@
 
 import { describe, expect, it } from "vitest";
 import { announceCast } from "../../game";
-import { aluren } from "../../cards/sets/tmp/green";
-import { bolassCitadel } from "../../cards/sets/war/black";
-import { grizzlyBears } from "../../cards/sets/lea/green";
-import { forest } from "../../cards/sets/lea/colorless";
+import { aluren } from "../../cards/sets/tmp/green.cards";
+import { bolassCitadel } from "../../cards/sets/war/black.cards";
+import { grizzlyBears } from "../../cards/sets/lea/green.cards";
+import { forest } from "../../cards/sets/lea/colorless.cards";
 import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import { CAST_PERMISSION_ALT_COST_PREFIX } from "../castPermissions";
 import { enumerateMoves } from "../moves";
 import type { GameState } from "../state";
@@ -28,7 +28,7 @@ import {
     makeMutationCtx,
     runMutation,
     type Handler,
-} from "../../__tests__/gameMutationHarness";
+} from "../../__tests__/gameMutationHarness.fixture";
 
 const ALUREN_ALT_COST_ID = `${CAST_PERMISSION_ALT_COST_PREFIX}any-player-creature-f9f346f4`;
 

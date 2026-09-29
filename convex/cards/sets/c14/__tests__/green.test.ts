@@ -1,4 +1,4 @@
-// Per-card tests for c14/green.ts. Titania's two triggered abilities each use
+// Per-card tests for c14/green.cards.ts. Titania's two triggered abilities each use
 // a DSL Op combination (`choice(zone: "graveyard", filter)` + `moveZone`
 // cards-shape; `createToken`) that the catalogue-wide auto-generated smoke
 // test (`effectScriptSmoke.test.ts`) explicitly SKIPS — "Op 'choice' suspends
@@ -9,7 +9,11 @@ import { describe, it, expect } from "vitest";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { collectTriggers } from "../../../../gre/triggers";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import { getDefinition } from "../../../index";
 
 const titaniaProtectorOfArgoth = getDefinition(

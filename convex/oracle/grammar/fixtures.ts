@@ -121,7 +121,7 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
     // the hand), then a `discard` Op consumes the picks binding. Exhibits the
     // "discard consumes a choice binding" form the canned smoke scenario
     // cannot answer, so this fixture is the evidence the pair is emitted as
-    // the hand-written Mind Rot (sets/por/black.ts) writes it — the same
+    // the hand-written Mind Rot (sets/por/black.cards.ts) writes it — the same
     // card, whose own per-card test covers the suspension and resume.
     {
         rule: "effect clause",
@@ -163,7 +163,7 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
     // consumes the picks binding. Exhibits the "sacrifice consumes a choice
     // binding" form the canned smoke scenario cannot answer, so this fixture
     // is the evidence the pair is emitted as the hand-written edicts write it
-    // (Liliana of the Veil's -2, sets/isd/black.ts).
+    // (Liliana of the Veil's -2, sets/isd/black.cards.ts).
     {
         rule: "effect clause",
         card: {
@@ -201,7 +201,7 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
     // forms the smoke scenario cannot build — a `forEach` over the runtime
     // player set and a `choice` acting on its `$each` — so this fixture is the
     // evidence both are emitted as the hand-written Innocent Blood
-    // (sets/ody/black.ts) writes them, the card the round-trip also compares.
+    // (sets/ody/black.cards.ts) writes them, the card the round-trip also compares.
     {
         rule: "effect clause",
         card: {
@@ -487,7 +487,7 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
     // canned smoke scenario cannot build — a `moveZone` to hand that binds
     // its object, and a `createToken` whose count is a ref — so this fixture
     // is the evidence both are emitted as the hand-written Artifact Mutation
-    // (sets/inv/multicolor.ts) writes them (issue #4125).
+    // (sets/inv/multicolor.cards.ts) writes them (issue #4125).
     {
         rule: "create token",
         card: {
@@ -1576,7 +1576,7 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
     // scenario cannot build: `counter` acts on a SPELL ON THE STACK, and the
     // generator seeds only players and battlefield permanents. This fixture
     // is the evidence the grammar emits the counter the hand-written
-    // Counterspell writes (sets/lea/blue.ts — it round-trips, Guard C), for
+    // Counterspell writes (sets/lea/blue.cards.ts — it round-trips, Guard C), for
     // every card whose counter has the same shape (issue #4129).
     {
         rule: "counter",
@@ -1941,7 +1941,7 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
     // CR 400.7 + CR 110.2a — "Return target creature card from your graveyard
     // to the battlefield": a graveyard-slot `moveZone` whose destination is the
     // battlefield, so the card returns as a NEW object under its owner's
-    // control (the hand-written Resurrection, sets/lea/white.ts, writes the same
+    // control (the hand-written Resurrection, sets/lea/white.cards.ts, writes the same
     // op). Exhibits the "moveZone changes zones on a zone the canned generator
     // does not model" form whose op skeleton is `to: "battlefield"` and whose
     // slot zone is the GRAVEYARD, a different skeleton from Urborg Uprising's
@@ -2283,7 +2283,7 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
     // Exhibits the form the canned smoke scenario refuses — a `setColor` on
     // `$source`, which the generator hands back to the card's own test rather
     // than scenario-izing — so this fixture is the evidence the grammar emits
-    // the colour pick the hand-written Rainbow Crow writes (sets/inv/blue.ts
+    // the colour pick the hand-written Rainbow Crow writes (sets/inv/blue.cards.ts
     // — it round-trips, Guard C), for every card printing the same self form
     // (Caldera Kavu, Spiritmonger; issue #4137).
     {
@@ -2803,7 +2803,7 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
     // subject it does not seed (`$host` is neither a target slot nor the
     // seeded `$source`) — so this fixture is the evidence the grammar emits
     // the host pump the hand-written `$host` cards write (Umezawa's Jitte's
-    // "+2/+2", sets/bok/colorless.ts), for every Aura whose pump is a fixed
+    // "+2/+2", sets/bok/colorless.cards.ts), for every Aura whose pump is a fixed
     // "+N/+M until end of turn" (issue #4303). A pump with another duration
     // is a different form and quarantines until it has a fixture of its own.
     {
@@ -3030,7 +3030,7 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
     // sets. Exhibits the "$each object ref" and "$each player ref" forms the
     // canned smoke scenario cannot build, so this fixture is the evidence the
     // pair is emitted the way the hand-written Pestilence writes it
-    // (`sets/lea/black.ts`).
+    // (`sets/lea/black.cards.ts`).
     {
         rule: "effect clause",
         card: {

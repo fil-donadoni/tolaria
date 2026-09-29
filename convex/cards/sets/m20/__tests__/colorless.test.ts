@@ -6,7 +6,7 @@ import {
     makePlayer,
     makeState,
     resolveActivated,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import { getDefinition } from "../../../index";
 
 const manifoldKey = getDefinition("715e637a-dfd8-45a0-b1ea-53e4abd29307");

@@ -32,13 +32,13 @@ import {
     makeState,
     makePlayer,
     makeInstance,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import { applyPlayLand, applyPlayLandFromExile } from "../playLand";
 import { checkStateBasedActions } from "../sba";
 import { compactState, expandState } from "../serialize";
 import { planDrawStep } from "../state";
 import { buildSpellContext, flushPendingEvents } from "../state";
-import { pushSpell } from "../../cards/__tests__/setup";
+import { pushSpell } from "../../cards/__tests__/setup.helper";
 
 // A land that is a 1/1 Insect creature everywhere except the battlefield —
 // Grist's shape transplanted onto a card type that reaches the battlefield

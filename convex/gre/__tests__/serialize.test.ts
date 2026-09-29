@@ -15,7 +15,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import {
     animateArtifact,
     cyclopeanTomb,
@@ -24,10 +24,10 @@ import {
     plains,
     savannahLions,
     tundra,
-} from "../../cards/sets/lea";
-import { bloodMoon } from "../../cards/sets/drk/red";
-import { crusade } from "../../cards/sets/lea/white";
-import { grizzlyBears } from "../../cards/sets/lea/green";
+} from "../../cards/sets/lea/index.cards";
+import { bloodMoon } from "../../cards/sets/drk/red.cards";
+import { crusade } from "../../cards/sets/lea/white.cards";
+import { grizzlyBears } from "../../cards/sets/lea/green.cards";
 import { syncLayer6 } from "../layer6";
 import { tokenDefinitionId, tryGetDefinition } from "../../cards";
 import type { TokenSpec } from "../../cards/types";

@@ -13,7 +13,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../../cards/__tests__/setup";
+} from "../../../cards/__tests__/setup.helper";
 import type { CardDefinition } from "../../../cards/types";
 import { enumerateMoves, type Move } from "../../moves";
 import { isDominatedNoOpMove } from "../dominance";

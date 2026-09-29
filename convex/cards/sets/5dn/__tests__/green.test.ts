@@ -1,4 +1,4 @@
-// Per-card test for 5dn/green.ts. Eternal Witness's ETB uses a `choice`
+// Per-card test for 5dn/green.cards.ts. Eternal Witness's ETB uses a `choice`
 // Op that suspends for player input — the catalogue-wide auto-generated smoke
 // test (`effectScriptSmoke.test.ts`) explicitly SKIPS it ("covered by the
 // card's own suspension/resume tests"), so per
@@ -9,7 +9,11 @@ import { resolveTopOfStack } from "../../../../gre/state";
 import { collectTriggers } from "../../../../gre/triggers";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { projectPublicState } from "../../../../gameProjections";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import { getDefinition } from "../../../index";
 
 const eternalWitness = getDefinition("c7e10ca7-1e5d-4224-82cf-798a4d436d72");

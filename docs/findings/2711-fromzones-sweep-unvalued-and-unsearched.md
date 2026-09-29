@@ -7,7 +7,7 @@ confidence: medium
 
 **What is wrong.** `moveZone`'s FOURTH shape — `player` + `fromZones` +
 `filter` + `to`, issue #1104 — carries three holes that only bite once a card
-uses it over a LIBRARY. Lobotomy (`convex/cards/sets/tmp/multicolor.ts`) sweeps
+uses it over a LIBRARY. Lobotomy (`convex/cards/sets/tmp/multicolor.cards.ts`) sweeps
 only the graveyard and hand and routes its library leg through an explicit
 `choice(kind: "search-library")`, so it dodges all three. Haunting Echoes
 (issue #2711) cannot: it searches for the name of every card it exiled, and
@@ -55,7 +55,7 @@ change.
 
 **Why it may not deserve its own issue.** (2) is currently unobservable in
 play: the only card reading `LIBRARY_SEARCHED` is Wan Shi Tong, Librarian, a
-commented-out stub in `convex/cards/sets/tla/blue.ts` blocked on an unrelated
+commented-out stub in `convex/cards/sets/tla/blue.cards.ts` blocked on an unrelated
 draw-primitive gap. (3) cannot be fixed at the card at all — it needs the
 set-of-names search capability above, which is a DSL slice someone has to
 charter. (1) is one branch condition wide, but fixing it is a bot-path diff and

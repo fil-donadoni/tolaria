@@ -40,20 +40,20 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import { LAYER_2_5_STATIC_EFFECT_KINDS } from "../layers2to5";
 import { LAYER_6_STATIC_EFFECT_KINDS } from "../layer6";
-import { bloodMoon } from "../../cards/sets/drk/red";
-import { magusOfTheMoon } from "../../cards/sets/fut/red";
-import { urborgTombOfYawgmoth } from "../../cards/sets/plc/colorless";
-import { prismaticOmen } from "../../cards/sets/shm/green";
-import { conspiracy } from "../../cards/sets/mmq/black";
-import { lifeAndLimb } from "../../cards/sets/plc/green";
-import { humility } from "../../cards/sets/tmp/white";
-import { opalescence } from "../../cards/sets/uds/white";
-import { grizzlyBears } from "../../cards/sets/lea/green";
-import { flight, lordOfAtlantis } from "../../cards/sets/lea/blue";
-import { tropicalIsland } from "../../cards/sets/lea/colorless";
+import { bloodMoon } from "../../cards/sets/drk/red.cards";
+import { magusOfTheMoon } from "../../cards/sets/fut/red.cards";
+import { urborgTombOfYawgmoth } from "../../cards/sets/plc/colorless.cards";
+import { prismaticOmen } from "../../cards/sets/shm/green.cards";
+import { conspiracy } from "../../cards/sets/mmq/black.cards";
+import { lifeAndLimb } from "../../cards/sets/plc/green.cards";
+import { humility } from "../../cards/sets/tmp/white.cards";
+import { opalescence } from "../../cards/sets/uds/white.cards";
+import { grizzlyBears } from "../../cards/sets/lea/green.cards";
+import { flight, lordOfAtlantis } from "../../cards/sets/lea/blue.cards";
+import { tropicalIsland } from "../../cards/sets/lea/colorless.cards";
 
 const view = (state: GameState): LayerStateView =>
     state as unknown as LayerStateView;

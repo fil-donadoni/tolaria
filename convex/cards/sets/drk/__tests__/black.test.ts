@@ -1,18 +1,18 @@
-// Per-card behavior tests for black cards in `convex/cards/sets/drk/black.ts`
+// Per-card behavior tests for black cards in `convex/cards/sets/drk/black.cards.ts`
 // (The Dark, split by colour per ADR 0043). Each non-trivial card gets a
 // describe block citing the CR section it exercises; set-wide registry-parity
 // checks live in colorless.test.ts. Shared stack/resolve shims live in
-// ./helpers; fixtures stay in convex/cards/__tests__/setup.ts.
+// ./helpers; fixtures stay in convex/cards/__tests__/setup.helper.ts.
 
 import { describe, it, expect } from "vitest";
-import { UPKEEP, answerChoice, resolveTrigger } from "./helpers";
+import { UPKEEP, answerChoice, resolveTrigger } from "./set.helper";
 import {
     makeInstance,
     makePlayer,
     makeState,
     pushSpell,
     resolveActivated,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import { projectPublicState } from "../../../../gameProjections";
 import {
     getEffectivePower,
@@ -578,7 +578,7 @@ describe("Nameless Race — CDA P/T from life paid as it enters (CR 604.3 / 614.
     // life total; in other words, the player loses that much life." The
     // as-enters `payLife` arm must therefore route through the shared
     // `loseLifeEmitting` choke point, not subtract from `player.life` raw:
-    // Oath of Lim-Dûl (`ice/black.ts`) is a shipped "whenever you lose life"
+    // Oath of Lim-Dûl (`ice/black.cards.ts`) is a shipped "whenever you lose life"
     // listener and stops seeing the payment otherwise. `main`'s pre-#2467
     // `resolveSteps` shape called `ctx.loseLife`, so a raw subtraction here is
     // a live regression of a shipped card, not a new gap.

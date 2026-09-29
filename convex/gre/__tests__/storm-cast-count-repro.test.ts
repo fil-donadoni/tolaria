@@ -6,9 +6,9 @@ import {
     makeState,
     makePlayer,
     makeInstance,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import { finalizeTargetSelection } from "../../game";
-import { lightningBolt } from "../../cards/sets/lea";
+import { lightningBolt } from "../../cards/sets/lea/index.cards";
 import type { GameState, PendingTarget } from "../state";
 
 describe("Cast-commit count (real finalizeTargetSelection path)", () => {

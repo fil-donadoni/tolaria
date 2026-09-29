@@ -85,6 +85,7 @@ import { CLOSURE_SENTINEL, compiledTwin } from "../convex/oracle/gold";
 import { SWAP_ENV } from "../convex/oracle/behavioural";
 import { behaviouralProjection } from "../convex/oracle/gold";
 import type { CardDefinition } from "../convex/cards/types";
+import { SET_MODULE_SUFFIX } from "./lib/set-module-suffix";
 
 const ROOT = join(dirname(new URL(import.meta.url).pathname), "..");
 const SETS_ROOT = join(ROOT, "convex", "cards", "sets");
@@ -131,7 +132,7 @@ function carriesClosure(definition: CardDefinition): boolean {
  * The card's OWN test file, resolved through its own set module.
  *
  * Test files are colour-split beside the set module (ADR 0043):
- * `sets/<code>/<colour>.ts` → `sets/<code>/__tests__/<colour>.test.ts`.
+ * `sets/<code>/<colour>.cards.ts` → `sets/<code>/__tests__/<colour>.test.ts`.
  *
  * Anchored on the definition's `id` (a uuid, unique in the tree) rather than on
  * its NAME, because a name search across every test file is not safe here: a
@@ -161,7 +162,7 @@ function findTestFile(card: CardDefinition): string | undefined {
     const testFile = join(
         dirname(module),
         "__tests__",
-        `${basename(module, ".ts")}.test.ts`
+        `${basename(module, `${SET_MODULE_SUFFIX}.ts`)}.test.ts`
     );
     if (!existsSync(testFile)) return undefined;
     if (!ownsADescribeBlock(readFileSync(testFile, "utf8"), card.name))

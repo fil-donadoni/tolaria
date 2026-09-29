@@ -1,0 +1,3225 @@
+// Ice Age (ICE) — Black (mono-B) cards, split by colour per ADR 0043.
+// The registry's `import * as ice from "./sets/ice/index.cards"` resolves through
+// ice/index.cards.ts. Modern Scryfall oracle text is authoritative (ADR 0004);
+// generic mana is encoded as `X: n` (e.g. {1}{G} → { X: 1, G: 1 }).
+// Cards are classified by the colour identity of their mana cost (CR 202.2).
+import type {
+    CardDefinition,
+    CardPrint,
+    GameEvent,
+    PermanentFilter,
+    PermanentView,
+    SpellContext,
+    TargetSelection,
+} from "../../types";
+import { controlsSnowSubtype } from "../../snowReads";
+import { creatureCardsAboveInGraveyard } from "../../graveyardOrder";
+import { AURA_AFFECTS_HOST, EFFECT_AFFECTS_SELF } from "../../types";
+import { legalTargetSlots } from "../../types";
+import { cumulativeUpkeepTrigger } from "../../abilities/cumulativeUpkeep";
+import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
+import { leftTrigger } from "../../abilities/triggers/leftTrigger";
+import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
+import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
+import { damageDealtTrigger } from "../../abilities/triggers/damageDealtTrigger";
+import { diedTrigger } from "../../abilities/triggers/diedTrigger";
+import { discardTrigger } from "../../abilities/triggers/discardTrigger";
+import { lifeLostTrigger } from "../../abilities/triggers/lifeLostTrigger";
+import { tappedTrigger } from "../../abilities/triggers/tappedTrigger";
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Black free tranche (#632)
+//
+// The free-tranche Black cards — expressible entirely with already-shipped
+// primitives — are activated below (intermixed with the remaining commented
+// stubs). Reprints already implemented in earlier sets (Dark Ritual, Fear,
+// Howl from Beyond) are CardPrints onto their existing LEA definitions
+// (ADR 0014); new-to-ICE Black cards are full CardDefinitions.
+//
+// BLACK BUILDABLE-NOW COMPLETION (#655): the Black tranche under-delivered, and
+// several "needs primitive" stubs were STALE — the primitives had since shipped.
+// Now ACTIVE from shipped primitives only (no new SpellContext primitive):
+//   • Lim-Dûl's Cohort — BLOCKERS_CONFIRMED + `setTargetCantBeRegeneratedThisTurn`
+//     (the stale stub claimed only `destroy(cantBeRegenerated)` existed).
+//   • Soul Kiss — hard per-turn activation cap via `canActivate` reading the
+//     per-turn tally (the stale stub claimed `maxActivationsPerTurn` was needed).
+//   • Lim-Dûl's Hex, Mind Whip — recurring pay-or-damage upkeep (host-controller
+//     phaseTrigger + requestMayPay; "{B} or {3}" composed from two may-pays).
+//   • Minion of Leshrac, Infernal Denizen, Norritt — sac-or-penalty upkeep,
+//     conditional `gainControl` (Aladdin pattern), and force-attack
+//     (`setMustAttackThisTurn`, Nettling Imp pattern).
+//   • Dance of the Dead — graveyard-reanimation aura (Animate Dead + Paralyze
+//     patterns: reanimate, +1/+1, does-not-untap + pay-to-untap, LTB sacrifice).
+//   • Krovikan Elementalist, Leshrac's Sigil, Zuran Enchanter — pump / sac-at-
+//     end-step, green-spell-cast discard trigger, target-player discard.
+//   • Flow of Maggots — cumulative upkeep {1} (ADR 0042 template) + Walls-only
+//     block restriction.
+//
+// STILL DEFERRED (remain commented stubs, owned by a later cluster) (tracked-by: #2785):
+//   • Cumulative upkeep — Infernal Darkness (mana-color-replacement clause).
+//   • "Draw a card at the beginning of the next turn's upkeep" delayed cantrips —
+//     Gravebind, Krovikan Fetish, Mind Ravel, Touch of Death: ACTIVE (#660 —
+//     the `next-upkeep` delayed-trigger timing shipped).
+//   • Snow-land-counting effects — Drift of the Dead (P/T = snow lands),
+//     Gangrenous Zombies, Icequake, Withering Wisps; snow swampwalk
+//     (Legions of Lim-Dûl) (no supertype filter / snow-evasion keyword yet —
+//     snow cluster).
+//   • CARD_DISCARDED trigger — Necropotence's "whenever you discard a card,
+//     exile that card from your graveyard": ACTIVE (#667 — the CARD_DISCARDED
+//     event + `discardTrigger` factory shipped; Necropotence is composed from
+//     skip-draw + pay-life face-down exile + next-end-step return + the new
+//     discard→exile trigger).
+//   • Ashen Ghoul — graveyard-SOURCE activated ability (the engine only resolves
+//     activated abilities whose source is on the battlefield; the
+//     "creatures-above-in-graveyard" test itself ships, but activate-from-
+//     graveyard does not).
+//   • Cloak of Confusion / Gaze of Pain (assign-no-combat-damage redirect — the
+//     mark ships, but the "if you do, defender discards" combat-replacement
+//     rider does not), Hecatomb / Stench of Evil (tap-Swamp / pay-per-land),
+//     Seizures (becomes-tapped pay-or-damage on the host's controller),
+//     Oath of Lim-Dûl (lose-life trigger), Pox (fractional sacrifice). Each
+//     needs a primitive not yet built; flagged for its capability cluster.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Abyssal Specter — flying 2/3; "Whenever this creature deals damage to a
+// player, that player discards a card." (CR 702.9 flying, CR 120.3 / 603.4
+// damage trigger, CR 701.9 discard.) The damaged player chooses which card to
+// discard (modern oracle — not at random), modelled with a `discard-hand`
+// requestChoice scoped to the damaged player's hand.
+export const abyssalSpecter: CardDefinition = {
+    id: "fc26f19c-bcf7-4bd8-af42-4757dbe47fb1",
+    name: "Abyssal Specter",
+    rarity: "uncommon",
+    oracleText:
+        "Flying\nWhenever this creature deals damage to a player, that player discards a card.",
+    manaCost: { X: 2, B: 2 },
+    types: ["Creature"],
+    subtypes: ["Specter"],
+    power: 2,
+    toughness: 3,
+    staticAbilities: ["flying"],
+    triggeredAbilities: [
+        damageDealtTrigger({
+            id: "abyssal-specter-discard",
+            oracleText:
+                "Whenever this creature deals damage to a player, that player discards a card.",
+            source: "self",
+            target: { kind: "player", player: { relation: "any" } },
+            // NOT DSL-migratable (ADR 0045, re-assessed migration PRD #795):
+            // `damageDealtTrigger`'s `effects[]` site binds only `$source`
+            // and the ability's own controller — NOT the DAMAGED player,
+            // which is the whole point of this effect ("THAT player
+            // discards"). The damage event's target is a separate
+            // `resolve`-only payload (`DamageTriggerPayload`), same class as
+            // Seizures' tapped-permanent-controller gap.
+            // Blocked on: a damaged-player selector reachable from a
+            // `damageDealtTrigger` script.
+            resolve: (ctx, _event, damage) => {
+                if (damage.target.type !== "player") return;
+                const pid = damage.target.id;
+                if (ctx.getHandSize(pid) === 0) return;
+                const picks = ctx.requestChoice({
+                    playerId: pid,
+                    choiceId: `abyssal-specter-${ctx.sourceInstanceId}-${pid}`,
+                    kind: "discard-hand",
+                    zone: "hand",
+                    count: 1,
+                    prompt: "Abyssal Specter: discard a card.",
+                });
+                if (picks === undefined) return; // suspended for the choice
+                for (const id of picks) ctx.discardCard(pid, id);
+            },
+        }),
+    ],
+};
+// Ashen Ghoul — {3}{B} 3/1 Zombie. "Haste\n{B}: Return this card from your
+// graveyard to the battlefield. Activate only during your upkeep and only if
+// three or more creature cards are above this card." (CR 702.10 haste; CR 113.6
+// graveyard-source activated ability; CR 602.5 activation restrictions;
+// CR 603.6e graveyard order.)
+// The `activateFromGraveyard` seam (issue #737) lets `activateAbility` locate
+// the source in its owner's graveyard; `controllerTurnOnly` + the UPKEEP phase
+// restriction enforce "only during your upkeep"; `canActivate` gates on three
+// or more creature cards stacked above it via the shared
+// `creatureCardsAboveInGraveyard` helper (the same predicate Nether Shadow
+// uses). The effect is the censused `moveZone` Op reanimating the DSL `$source`
+// (graveyard → battlefield).
+export const ashenGhoul: CardDefinition = {
+    id: "6bb83301-5662-4628-b536-6a3ee0296f2e",
+    name: "Ashen Ghoul",
+    rarity: "uncommon",
+    oracleText:
+        "Haste\n{B}: Return this card from your graveyard to the battlefield. Activate only during your upkeep and only if three or more creature cards are above this card.",
+    manaCost: { X: 3, B: 1 },
+    types: ["Creature"],
+    subtypes: ["Zombie"],
+    power: 3,
+    toughness: 1,
+    staticAbilities: ["haste"],
+    activatedAbilities: [
+        {
+            id: "ashen-ghoul-reanimate",
+            oracleText:
+                "{B}: Return this card from your graveyard to the battlefield. Activate only during your upkeep and only if three or more creature cards are above this card.",
+            cost: { mana: { B: 1 } },
+            useStack: true,
+            activateFromGraveyard: true,
+            controllerTurnOnly: true,
+            activationPhaseRestriction: ["UPKEEP"],
+            canActivate: (source, state) =>
+                creatureCardsAboveInGraveyard(state, source) >= 3,
+            effects: [
+                {
+                    op: "moveZone",
+                    target: { ref: "$source" },
+                    to: "battlefield",
+                },
+            ],
+        },
+    ],
+};
+// Brine Shaman — sacrifice-a-creature engine (CR 602.1 / 118.5 sacrifice cost).
+// "{T}, Sacrifice a creature: Target creature gets +2/+2 until end of turn."
+// and "{1}{U}{U}, Sacrifice a creature: Counter target creature spell."
+// (CR 611.2a temporary buff; CR 701.6 counter.) The sacrifice cost uses
+// `sacrificeFilter` (a Creature the activator controls).
+export const brineShaman: CardDefinition = {
+    id: "f445962c-44a1-4f3f-88d4-17048f8ca9dc",
+    name: "Brine Shaman",
+    rarity: "common",
+    oracleText:
+        "{T}, Sacrifice a creature: Target creature gets +2/+2 until end of turn.\n{1}{U}{U}, Sacrifice a creature: Counter target creature spell.",
+    manaCost: { X: 1, B: 1 },
+    types: ["Creature"],
+    subtypes: ["Human", "Cleric", "Shaman"],
+    power: 1,
+    toughness: 1,
+    activatedAbilities: [
+        {
+            id: "brine-shaman-pump",
+            oracleText:
+                "{T}, Sacrifice a creature: Target creature gets +2/+2 until end of turn.",
+            cost: { tap: true, sacrificeFilter: { types: "Creature" } },
+            useStack: true,
+            targetRequirement: { type: "Creature", count: 1 },
+            // Migrated resolve()→effects[] (ADR 0045, issue #840): +2/+2 EOT
+            // on the announced target (CR 611.2a) via the pump Op.
+            effects: [
+                {
+                    op: "pump",
+                    target: { target: 0 },
+                    power: 2,
+                    toughness: 2,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
+        },
+        {
+            id: "brine-shaman-counter",
+            oracleText:
+                "{1}{U}{U}, Sacrifice a creature: Counter target creature spell.",
+            cost: {
+                mana: { X: 1, U: 2 },
+                sacrificeFilter: { types: "Creature" },
+            },
+            useStack: true,
+            targetRequirement: {
+                type: "spell",
+                count: 1,
+                spellTypeFilter: "Creature",
+            },
+            // Migrated resolve()→effects[] (ADR 0045): counter the announced
+            // target creature spell (CR 701.6a). The other ability (pump) is
+            // also migrated (brine-shaman-pump, pump Op, issue #840). Untouched
+            // per-card test is the equivalence harness.
+            effects: [{ op: "counter", target: { target: 0 } }],
+        },
+    ],
+};
+// Burnt Offering — "As an additional cost to cast this spell, sacrifice a
+// creature. Add X mana in any combination of {B} and/or {R}, where X is the
+// sacrificed creature's mana value." (CR 118.3 additional cost, CR 202.3 mana
+// value, CR 106.1 mana.) The sacrifice is an `additionalCosts.sacrificeFilter`
+// paid at cast; the sacrificed creature's mana value is snapshotted on the
+// stack item and read at resolution via `getAdditionalSacrificeMv()` (as with
+// Sacrifice / Metamorphosis).
+export const burntOffering: CardDefinition = {
+    id: "1dae52a2-3af7-4b97-9d2e-2448b7c413fb",
+    name: "Burnt Offering",
+    rarity: "common",
+    oracleText:
+        "As an additional cost to cast this spell, sacrifice a creature.\nAdd X mana in any combination of {B} and/or {R}, where X is the sacrificed creature's mana value.",
+    manaCost: { B: 1 },
+    types: ["Instant"],
+    additionalCosts: {
+        sacrificeFilter: { types: "Creature" },
+    },
+    // NOT DSL-migratable (ADR 0045): the produced AMOUNT (= sacrificed creature's
+    // mana value, a runtime read with no EffectValue member) AND the COLOUR split
+    // ("any combination of {B}/{R}", a free per-resolution choice) are both
+    // outside the `addMana` Op's fixed produced-mana grammar. Mirrors the
+    // Sacrifice / Metamorphosis sac-MV rituals. Blocked on: a variable-amount +
+    // runtime-colour-split mana EffectValue construct.
+    resolve: (ctx: SpellContext) => {
+        const mv = ctx.getAdditionalSacrificeMv();
+        if (mv === undefined || mv <= 0) return;
+        // CR 202.3 — X = sacrificed creature's mana value. The controller
+        // chooses how to split the X mana between {B} and {R} ("any
+        // combination"): one option per possible black count 0..X.
+        const options = [];
+        for (let black = mv; black >= 0; black--) {
+            options.push({
+                id: `split-${black}`,
+                label: `${black} {B}, ${mv - black} {R}`,
+            });
+        }
+        const choice = ctx.requestOptionChoice({
+            playerId: ctx.controller,
+            choiceId: "burnt-offering-split",
+            options,
+            prompt: "Burnt Offering: split the mana between black and red.",
+        });
+        if (choice === undefined) return; // suspended — resume after the pick
+        const black = Number(choice.slice("split-".length));
+        ctx.addMana({ B: black, R: mv - black });
+    },
+};
+// Cloak of Confusion — {1}{B} Aura, enchant creature you control. "Whenever
+// enchanted creature attacks and isn't blocked, you may have it assign no
+// combat damage this turn. If you do, defending player discards a card at
+// random." protocol card: the trigger reads the ATTACKER_UNBLOCKED event's
+// attacker and installs the "assigns no combat damage" combat seam
+// (`markAssignsNoCombatDamage`, CR 510.1c) — the DSL cannot yet reference the
+// trigger event's attacker (`$event.<field>`, gap #865), the same reason the
+// twin Farrel's Mantle stays a resolve() trigger. Payload = `discardAtRandom`.
+export const cloakOfConfusion: CardDefinition = {
+    id: "dc45d103-0fca-4431-a5c0-869f0f9be93e",
+    name: "Cloak of Confusion",
+    rarity: "common",
+    oracleText:
+        "Enchant creature you control\nWhenever enchanted creature attacks and isn't blocked, you may have it assign no combat damage this turn. If you do, defending player discards a card at random.",
+    manaCost: { X: 1, B: 1 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Creature", count: 1, controller: "you" },
+    triggeredAbilities: [
+        {
+            id: "cloak-of-confusion-unblocked",
+            oracleText:
+                "Whenever enchanted creature attacks and isn't blocked, you may have it assign no combat damage this turn. If you do, defending player discards a card at random.",
+            event: "ATTACKER_UNBLOCKED",
+            matches: (event, self) =>
+                event.type === "ATTACKER_UNBLOCKED" &&
+                self.attachedTo !== undefined &&
+                event.attackerId === self.attachedTo,
+            resolve: (ctx: SpellContext, event) => {
+                if (event?.type !== "ATTACKER_UNBLOCKED") return;
+                const attacker = {
+                    type: "permanent" as const,
+                    id: event.attackerId,
+                };
+                // "you may have it assign no combat damage this turn."
+                const choice = ctx.requestOptionChoice({
+                    playerId: ctx.controller,
+                    choiceId: `cloak-of-confusion-${ctx.sourceInstanceId}`,
+                    options: [
+                        { id: "yes", label: "Assign no combat damage" },
+                        { id: "no", label: "Deal combat damage normally" },
+                    ],
+                    prompt: "Cloak of Confusion: have the attacker assign no combat damage this turn? (defending player then discards at random)",
+                });
+                if (choice === undefined) return; // suspended
+                if (choice !== "yes") return;
+                // CR 510.1c — the attacker assigns no combat damage this turn.
+                ctx.markAssignsNoCombatDamage(attacker);
+                // "defending player discards a card at random." In a 2-player
+                // game the defending player is the opponent of the attacking
+                // creature's controller (= this Aura's controller).
+                const defender = ctx.allPlayerIds.find(
+                    (p) => p !== ctx.controller
+                );
+                if (defender) ctx.discardAtRandom(defender, 1);
+            },
+        },
+    ],
+};
+// Dance of the Dead — graveyard-reanimation Aura (CR 303.4i, the Animate Dead
+// family). Composes shipped primitives:
+//   - targetRequirement zone:"graveyard" → caster picks a Creature card in any
+//     graveyard at cast; the aura branch in finalizeSpellResolution reanimates
+//     the host under the caster and attaches this Aura (same plumbing as Animate
+//     Dead). The reanimated creature enters tapped via the resolve() tap below.
+//   - staticEffect pt-buff +1/+1 (layer 7c) and a `does-not-untap` keyword-grant,
+//     both via AURA_AFFECTS_HOST (Paralyze pattern, CR 611).
+//   - phaseTrigger scope:"host-controller" — the host's controller may pay {1}{B}
+//     each upkeep to untap the creature (CR 603.6a, 117.3a).
+//   - leftTrigger (self) — when this Aura leaves, the host's controller
+//     sacrifices it (CR 603.10 last-known-info), identical to Animate Dead.
+// SIMPLIFICATION (out of scope) (flagged, no engine change): the printed "loses
+// 'enchant creature card in a graveyard' and gains 'enchant creature put onto
+// the battlefield with this Aura'" self-text-change is a no-op in practice — it only
+// re-scopes the attachment target after reanimation, which the engine already
+// handles by attaching to the reanimated permanent. The observable behavior
+// (reanimate tapped, +1/+1, untap-lock with pay-to-untap, sacrifice on leave) is
+// faithful.
+export const danceOfTheDead: CardDefinition = {
+    id: "e7c53ba4-9956-4cd6-85ca-2d6b61a5127c",
+    name: "Dance of the Dead",
+    rarity: "uncommon",
+    oracleText:
+        "Enchant creature card in a graveyard\nWhen this Aura enters, if it's on the battlefield, it loses \"enchant creature card in a graveyard\" and gains \"enchant creature put onto the battlefield with this Aura.\" Put enchanted creature card onto the battlefield tapped under your control and attach this Aura to it. When this Aura leaves the battlefield, that creature's controller sacrifices it.\nEnchanted creature gets +1/+1 and doesn't untap during its controller's untap step.\nAt the beginning of the upkeep of enchanted creature's controller, that player may pay {1}{B}. If the player does, untap that creature.",
+    manaCost: { X: 1, B: 1 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: {
+        type: "Creature",
+        count: 1,
+        zone: "graveyard",
+        controller: "any",
+    },
+    staticEffects: [
+        {
+            kind: "pt-buff",
+            applies: AURA_AFFECTS_HOST,
+            power: 1,
+            toughness: 1,
+        },
+        {
+            kind: "keyword-grant",
+            applies: AURA_AFFECTS_HOST,
+            keyword: "does-not-untap",
+        },
+    ],
+    // CR 303.4 — the reanimated host enters tapped. The aura's resolve() runs
+    // before finalizeSpellResolution moves the host onto the battlefield, so we
+    // schedule the tap as a one-step body after attachment via a self-ETB
+    // trigger instead. (Paralyze taps the EXISTING host in resolve(); here the
+    // host doesn't exist on the battlefield yet, so we tap on enter.)
+    triggeredAbilities: [
+        enteredTrigger({
+            id: "dance-of-the-dead-enter-tapped",
+            oracleText:
+                "Put enchanted creature card onto the battlefield tapped under your control.",
+            scope: "self",
+            // NOT DSL-migratable (ADR 0045, re-assessed migration PRD #795):
+            // `enteredTrigger` DOES now have an `effects[]` site (that half of
+            // the old blocker is stale — see e.g. Krovikan Fetish's ETB above).
+            // The remaining blocker is unchanged: this taps the ENCHANTED HOST
+            // (`getAttachedTo`), not `$source` (the Aura itself) — there is
+            // still no attached-object `EffectObjectSelector` a script could
+            // read to name the host.
+            // Blocked on: an attached-object selector.
+            resolve: (ctx) => {
+                const hostId = ctx.getAttachedTo(ctx.sourceInstanceId);
+                if (hostId) ctx.tap({ type: "permanent", id: hostId });
+            },
+        }),
+        phaseTrigger({
+            id: "dance-of-the-dead-upkeep",
+            oracleText:
+                "At the beginning of the upkeep of enchanted creature's controller, that player may pay {1}{B}. If the player does, untap that creature.",
+            phase: "UPKEEP",
+            scope: "host-controller",
+            // NOT DSL-migratable (ADR 0045): untaps the ENCHANTED host
+            // (`getAttachedTo` — no attached-object selector) on a
+            // `host-controller`-scoped trigger (scoped player ≠ controller, so
+            // `effects` is disallowed on the phaseTrigger).
+            // Blocked on: attached-object selector + non-"your" trigger effects.
+            resolve: (ctx, _event, hostController) => {
+                const hostId = ctx.getAttachedTo(ctx.sourceInstanceId);
+                if (!hostId) return;
+                const accept = ctx.requestMayPay({
+                    playerId: hostController,
+                    choiceId: hostController,
+                    cost: { X: 1, B: 1 },
+                    prompt: "Pay {1}{B} to untap the creature Dance of the Dead enchants?",
+                });
+                if (accept === undefined) return;
+                if (accept) ctx.untap({ type: "permanent", id: hostId });
+            },
+        }),
+        leftTrigger({
+            id: "dance-of-the-dead-ltb",
+            oracleText:
+                "When this Aura leaves the battlefield, that creature's controller sacrifices it.",
+            scope: "self",
+            // NOT DSL-migratable (ADR 0045): sacrifices the HOST the Aura was
+            // attached to immediately before leaving (`leaving.attachedToBeforeLeave`,
+            // CR 603.10 last-known information) — `leftTrigger`'s `effects[]`
+            // site binds only the source's controller and `$source` (the
+            // Aura itself); the leaving permanent's LKI payload, including
+            // `attachedToBeforeLeave`, is a separate `resolve`-only argument.
+            // Blocked on: an attached-object-before-leave selector reachable
+            // from a `leftTrigger` script.
+            resolve: (ctx, _event, leaving) => {
+                const hostId = leaving.attachedToBeforeLeave;
+                if (hostId) ctx.sacrifice(hostId);
+            },
+        }),
+    ],
+};
+// Dark Banishing — "Destroy target nonblack creature. It can't be regenerated."
+// (CR 701.8 destroy, CR 701.19 regeneration suppression, CR 202.2 colour
+// restriction.) The colour gate is enforced at target selection via the
+// `excludeColors` TargetRequirement filter.
+export const darkBanishing: CardDefinition = {
+    id: "f7dc2716-ed62-4797-ad2b-227eca5408d0",
+    name: "Dark Banishing",
+    rarity: "common",
+    oracleText: "Destroy target nonblack creature. It can't be regenerated.",
+    manaCost: { X: 2, B: 1 },
+    types: ["Instant"],
+    targetRequirement: { type: "Creature", count: 1, excludeColors: "B" },
+    // Migrated resolve()→effects[] (ADR 0045, migration PRD #795): destroy
+    // the announced target with the regeneration shield suppressed (CR
+    // 701.19c), a direct passthrough of the `destroy` Op's `cantBeRegenerated`
+    // option (ADR 0053).
+    effects: [
+        { op: "destroy", target: { target: 0 }, cantBeRegenerated: true },
+    ],
+};
+// Dark Ritual — ICE reprint of the LEA original (ADR 0014). Mechanics live on
+// the existing LEA definition; this is a CardPrint binding the ICE print id.
+export const darkRitualIce: CardPrint = {
+    printId: "4ebcd681-1871-4914-bcd7-6bd95829f6e0",
+    definitionId: "ebb6664d-23ca-456e-9916-afcd6f26aa7f",
+    setCode: "ice",
+    rarity: "common",
+};
+// Demonic Consultation — "Choose a card name. Exile the top six cards of your
+// library, then reveal cards from the top of your library until you reveal a
+// card with the chosen name. Put that card into your hand and exile all other
+// cards revealed this way." (CR 202.3 name-a-card via `requestNameCard`;
+// CR 701.13 reveal; CR 406 exile.) Composition of shipped primitives: name →
+// `peekLibraryTop` to read the top in order → `moveCardById` library→exile for
+// the first six → continue revealing one at a time, exiling each until one
+// matches the named card (then hand). Empty-library mid-loop is a silent stop
+// (CR 608.2b).
+export const demonicConsultation: CardDefinition = {
+    id: "8d727b9b-6114-414d-9172-16b6e1db41cc",
+    name: "Demonic Consultation",
+    rarity: "uncommon",
+    oracleText:
+        "Choose a card name. Exile the top six cards of your library, then reveal cards from the top of your library until you reveal a card with the chosen name. Put that card into your hand and exile all other cards revealed this way.",
+    manaCost: { B: 1 },
+    types: ["Instant"],
+    // NOT DSL-migratable (ADR 0045, re-assessed migration PRD #795): the
+    // `nameCard` Op covers the naming half, but the reveal is an UNBOUNDED
+    // "reveal from the top until you reveal a card with the chosen name"
+    // loop that STOPS at the first match — the rest of the library is never
+    // even looked at. `digMatchingToHand` is the closest Op, but it scans a
+    // FIXED `look` window and puts EVERY matching card in that window into
+    // hand (and exiles every non-match in it) rather than stopping at the
+    // first hit; there is no "reveal-until-match" search Op today.
+    // Blocked on: a reveal-until-match search Op/construct.
+    resolve: (ctx: SpellContext) => {
+        const me = ctx.controller;
+        const named = ctx.requestNameCard({
+            playerId: me,
+            choiceId: "demonic-consultation-name",
+            prompt: "Name a card.",
+        });
+        if (named === undefined) return; // suspended on the name choice
+        // Read the whole library top-down so exiles operate on stable ids.
+        const lib = ctx.peekLibraryTop(me, Number.MAX_SAFE_INTEGER);
+        // Exile the top six.
+        const firstSix = lib.slice(0, 6);
+        for (const id of firstSix) ctx.moveCardById(me, id, "library", "exile");
+        // Reveal from the new top until the named card (or library runs out).
+        for (let i = 6; i < lib.length; i++) {
+            const id = lib[i];
+            ctx.markKnownToAll(me, [id]);
+            const cardName = ctx.getCardName(id);
+            if (cardName === named) {
+                ctx.moveCardById(me, id, "library", "hand");
+                return;
+            }
+            ctx.moveCardById(me, id, "library", "exile");
+        }
+    },
+};
+// Dread Wight — "At end of combat, put a paralyzation counter on each creature
+// blocking or blocked by this creature and tap those creatures. Each of those
+// creatures doesn't untap during its controller's untap step for as long as it
+// has a paralyzation counter on it. Each of those creatures gains '{4}: Remove
+// a paralyzation counter from this creature.'"
+//
+// Three coupled pieces, all created by the ONE end-of-combat trigger:
+//   1. The trigger (CR 511.3, `scope: "each"`) puts a `paralyzation` counter on
+//      and taps every combat partner (CR 122.1, CR 701.26a tap). The partner
+//      set walks `getBlockersByAttacker()` in BOTH directions relative to the
+//      source — the exact Kjeldoran Frostbeast (`ice/multicolor.cards.ts`) shape,
+//      which is why this trigger stays `resolve()` (see the justification on
+//      the ability).
+//   2. The untap lock is a Continuous Effects Registry entry (ADR 0082, PRD
+//      #2064) granting `does-not-untap` (CR 502.3), with `counter` expiry on
+//      that creature's own paralyzation counters. The untap step reads the
+//      keyword off the layer-6 derivation, so no engine branch is needed.
+//   3. The granted "{4}: Remove a paralyzation counter" is a second registry
+//      entry, same expiry, whose payload names Dread Wight's `grantTemplates[]`
+//      row (CR 113.1 / 611). `getEffectiveActivatedAbilities` enumerates it, so
+//      the grantee's controller can activate it normally.
+//
+// CR 611.2c is what makes 2 and 3 registry entries rather than `staticEffects[]`
+// on Dread Wight: a continuous effect generated by a RESOLVING ability is
+// created once, when the trigger resolves, and does not depend on its source
+// afterwards. Dread Wight dying does not free the paralyzed creatures. They
+// are also CONDITION-gated — "for as long as it has a paralyzation counter on
+// it" — and no pre-registry channel could be both at once: `staticEffects[]`
+// carried the gate but was spliced out with its source, while
+// `grantStaticAbilityPermanent` outlived the source but took no predicate.
+// The registry makes the gate the entry's own expiry, so nothing has to revoke
+// anything: the derivation stops producing the entry when the last counter
+// comes off.
+/** Dread Wight's own definition id, referenced by the `activated-grant`
+ *  registry entries its trigger creates: the granted template is looked up by
+ *  DEFINITION id, so the ability stays activatable after Dread Wight itself has
+ *  left the battlefield (CR 611.2c). */
+const DREAD_WIGHT_ID = "65d332e2-4b2d-4131-84f7-862cb138c477";
+
+export const dreadWight: CardDefinition = {
+    id: DREAD_WIGHT_ID,
+    name: "Dread Wight",
+    rarity: "rare",
+    oracleText:
+        "At end of combat, put a paralyzation counter on each creature blocking or blocked by this creature and tap those creatures. Each of those creatures doesn't untap during its controller's untap step for as long as it has a paralyzation counter on it. Each of those creatures gains \"{4}: Remove a paralyzation counter from this creature.\"",
+    manaCost: { X: 3, B: 2 },
+    types: ["Creature"],
+    subtypes: ["Zombie"],
+    power: 3,
+    toughness: 4,
+    grantTemplates: [
+        {
+            id: "dread-wight-remove-paralyzation",
+            oracleText:
+                "{4}: Remove a paralyzation counter from this creature.",
+            cost: { mana: { X: 4 } },
+            useStack: true,
+            // DSL-first (ADR 0045): remove one paralyzation counter from the
+            // permanent carrying the granted ability (CR 122.1).
+            effects: [
+                {
+                    op: "counters",
+                    action: "remove",
+                    counter: "paralyzation",
+                    count: 1,
+                    target: { ref: "$source" },
+                },
+            ],
+        },
+    ],
+    triggeredAbilities: [
+        phaseTrigger({
+            id: "dread-wight-end-of-combat",
+            oracleText:
+                "At end of combat, put a paralyzation counter on each creature blocking or blocked by this creature and tap those creatures.",
+            phase: "END_OF_COMBAT",
+            scope: "each",
+            // NOT DSL-migratable (ADR 0045), the Kjeldoran Frostbeast
+            // justification verbatim: "creatures blocking or blocked by this
+            // creature" is a COMBAT-RELATIONSHIP selector (walking
+            // `getBlockersByAttacker()` both directions relative to the
+            // source) — no `EffectForEachSelector` filters permanents by
+            // combat role relative to a specific object (only zone /
+            // controller / type). Blocked on: a combat-partner-of-source
+            // forEach selector — stays resolve().
+            //
+            // AI-only shadow script (PRD #1423, issue #1519): the real body
+            // walks the combat graph, which no selector expresses, so the
+            // value model has nothing to score. Sketch the OUTCOME instead —
+            // tapping opposing creatures and putting a paralyzation counter on
+            // them (the counter is what keeps them tapped, so both Ops belong
+            // in the sketch). Never executed; only `OP_VALUERS` reads it.
+            aiEffects: [
+                {
+                    op: "forEach",
+                    select: {
+                        set: "permanents",
+                        zone: "battlefield",
+                        controller: "opponent",
+                        filter: { type: "Creature" },
+                    },
+                    effects: [
+                        {
+                            op: "tapUntap",
+                            action: "tap",
+                            target: { ref: "$each" },
+                        },
+                        {
+                            op: "counters",
+                            action: "add",
+                            counter: "paralyzation",
+                            count: 1,
+                            target: { ref: "$each" },
+                        },
+                    ],
+                },
+            ],
+            resolve: (ctx: SpellContext) => {
+                const selfId = ctx.sourceInstanceId;
+                const blockersByAttacker = ctx.getBlockersByAttacker();
+                const partners = new Set<string>();
+                for (const [attackerId, blockerIds] of Object.entries(
+                    blockersByAttacker
+                )) {
+                    if (attackerId === selfId) {
+                        // Dread Wight attacked → the creatures blocking it.
+                        for (const id of blockerIds) partners.add(id);
+                    } else if (blockerIds.includes(selfId)) {
+                        // Dread Wight blocked → the attacker it blocked.
+                        partners.add(attackerId);
+                    }
+                }
+                for (const id of partners) {
+                    const partner: TargetSelection = {
+                        type: "permanent",
+                        id,
+                    };
+                    // CR 122.1 counter, then CR 701.26a tap.
+                    ctx.addCounter(partner, "paralyzation", 1);
+                    ctx.tap(partner);
+                    // CR 611.2c — two continuous effects created HERE, by this
+                    // resolution, each gated on that creature's own counters
+                    // and independent of Dread Wight from now on. The affected
+                    // set is fixed at creation (CR 611.2c), which is exactly
+                    // the `instances` scope.
+                    const gatedOnItsCounters = {
+                        layer: 6 as const,
+                        affected: {
+                            kind: "instances" as const,
+                            instanceIds: [id],
+                        },
+                        expiry: {
+                            kind: "counter" as const,
+                            permanentId: id,
+                            counterType: "paralyzation",
+                        },
+                        characteristicDefining: false,
+                    };
+                    // CR 502.3 — "doesn't untap during its controller's untap
+                    // step". A layer-6 keyword the untap step reads, NOT a CR
+                    // 611.3 rules-modifying effect.
+                    ctx.addContinuousEffect({
+                        ...gatedOnItsCounters,
+                        payload: {
+                            kind: "keyword-grant" as const,
+                            keyword: "does-not-untap",
+                        },
+                    });
+                    // CR 113.1 — the counter-removal ability, so its controller
+                    // can free it. The template lives on Dread Wight's
+                    // `grantTemplates[]` and is resolved by definition id, so it
+                    // stays activatable after Dread Wight has left.
+                    ctx.addContinuousEffect({
+                        ...gatedOnItsCounters,
+                        payload: {
+                            kind: "activated-grant" as const,
+                            sourceCardId: DREAD_WIGHT_ID,
+                            abilityId: "dread-wight-remove-paralyzation",
+                        },
+                    });
+                }
+            },
+        }),
+    ],
+};
+// Drift of the Dead — Defender Wall whose P/T is a characteristic-defining
+// ability (CR 604.3, layer 7b) equal to the number of SNOW lands its controller
+// controls (CR 205.4a). Base 0/0; the `pt-cda` counts live snow lands via
+// `ctx.hasSupertype` (Melting / Arcum's Weathervane honored). Mirrors
+// Nightmare's Swamp-count CDA.
+export const driftOfTheDead: CardDefinition = {
+    id: "d8b65656-9f8c-4179-81aa-4b15d8280baa",
+    name: "Drift of the Dead",
+    rarity: "uncommon",
+    oracleText:
+        "Defender (This creature can't attack.)\nDrift of the Dead's power and toughness are each equal to the number of snow lands you control.",
+    manaCost: { X: 3, B: 1 },
+    types: ["Creature"],
+    subtypes: ["Wall"],
+    power: 0,
+    toughness: 0,
+    staticAbilities: ["defender"],
+    staticEffects: [
+        {
+            kind: "pt-cda",
+            applies: EFFECT_AFFECTS_SELF,
+            compute: (source, state, ctx) => {
+                let snow = 0;
+                for (const player of state.players) {
+                    for (const p of player.battlefield) {
+                        if (
+                            p.controllerId === source.controllerId &&
+                            p.types.includes("Land") &&
+                            ctx.hasSupertype(p, "Snow")
+                        ) {
+                            snow++;
+                        }
+                    }
+                }
+                return { power: snow, toughness: snow };
+            },
+        },
+    ],
+};
+// Fear — ICE reprint of the LEA original (ADR 0014). The fear-granting Aura
+// mechanics live on the existing LEA definition; this is a CardPrint.
+export const fearIce: CardPrint = {
+    printId: "5709398f-0744-4780-a1d2-eead96c8f348",
+    definitionId: "0cd927be-e63f-4371-a1d8-7a0489cb187e",
+    setCode: "ice",
+    rarity: "common",
+};
+// Flow of Maggots — "Cumulative upkeep {1}. This creature can't be blocked by
+// non-Wall creatures." (CR 702.24 cumulative upkeep via the shipped
+// `cumulativeUpkeepTrigger` template + CR 509.1b block-restriction.) The block
+// clause is a `block-restriction` static on the attacker side: a blocker
+// qualifies only if it is a Wall. CU core has shipped (ADR 0042), so this is
+// buildable today.
+export const flowOfMaggots: CardDefinition = {
+    id: "6880a4d3-5cbc-4a01-9190-3565617efcc9",
+    name: "Flow of Maggots",
+    rarity: "rare",
+    oracleText:
+        "Cumulative upkeep {1} (At the beginning of your upkeep, put an age counter on this permanent, then sacrifice it unless you pay its upkeep cost for each age counter on it.)\nThis creature can't be blocked by non-Wall creatures.",
+    manaCost: { X: 2, B: 1 },
+    types: ["Creature"],
+    subtypes: ["Insect"],
+    power: 2,
+    toughness: 2,
+    triggeredAbilities: [
+        cumulativeUpkeepTrigger({
+            id: "flow-of-maggots-cumulative-upkeep",
+            cost: { X: 1 },
+            costLabel: "{1}",
+        }),
+    ],
+    staticEffects: [
+        {
+            kind: "block-restriction",
+            id: "flow-of-maggots-walls-only",
+            side: "attacker" as const,
+            // CR 509.1b — can't be blocked by non-Wall creatures (only Walls
+            // may block it).
+            predicate: (_self, opponent) => opponent.subtypes.includes("Wall"),
+            oracleText:
+                "Flow of Maggots can't be blocked by non-Wall creatures.",
+        },
+    ],
+};
+// Foul Familiar — 3/1 that can't block (CR 509.1b block-restriction, ADR 0006)
+// with a "{B}, Pay 1 life: Return this creature to its owner's hand." dodge
+// (CR 119.4 life cost, CR 701.14 move-to-hand).
+export const foulFamiliar: CardDefinition = {
+    id: "8bad3541-8e40-4a2f-ac9d-f7b61f3d75a1",
+    name: "Foul Familiar",
+    rarity: "common",
+    oracleText:
+        "This creature can't block.\n{B}, Pay 1 life: Return this creature to its owner's hand.",
+    manaCost: { X: 2, B: 1 },
+    types: ["Creature"],
+    subtypes: ["Spirit"],
+    power: 3,
+    toughness: 1,
+    staticEffects: [
+        {
+            kind: "block-restriction",
+            id: "foul-familiar-cant-block",
+            side: "blocker",
+            predicate: () => false,
+            oracleText: "Foul Familiar can't block.",
+        },
+    ],
+    activatedAbilities: [
+        {
+            id: "foul-familiar-bounce",
+            oracleText:
+                "{B}, Pay 1 life: Return this creature to its owner's hand.",
+            cost: { mana: { B: 1 }, life: 1 },
+            useStack: true,
+            // Migrated resolve()→effects[] (ADR 0045, #839): return the source
+            // permanent to its owner's hand via the implicit $source binding
+            // (CR 400.7).
+            effects: [
+                { op: "moveZone", target: { ref: "$source" }, to: "hand" },
+            ],
+        },
+    ],
+};
+// Gangrenous Zombies — {T}, Sacrifice this creature: deal 1 (or 2 if you
+// control a snow Swamp — CR 205.4a) damage to each creature and each player
+// (`dealDamageToEach`). The sacrifice is a COST, so the snow-Swamp check reads
+// the controller's battlefield at resolution via `controlsSnowSubtype` (live
+// snow status). The dealing source is gone by resolve, so the damage is dealt
+// without a source-creature reference — `dealDamageToEach` handles this.
+export const gangrenousZombies: CardDefinition = {
+    id: "08be4d83-99be-4360-90f1-104dee1c3c2f",
+    name: "Gangrenous Zombies",
+    rarity: "common",
+    oracleText:
+        "{T}, Sacrifice this creature: This creature deals 1 damage to each creature and each player. If you control a snow Swamp, this creature deals 2 damage to each creature and each player instead.",
+    manaCost: { X: 1, B: 2 },
+    types: ["Creature"],
+    subtypes: ["Zombie"],
+    power: 2,
+    toughness: 2,
+    activatedAbilities: [
+        {
+            id: "gangrenous-zombies-blast",
+            oracleText:
+                "{T}, Sacrifice this creature: This creature deals 1 damage to each creature and each player. If you control a snow Swamp, this creature deals 2 damage to each creature and each player instead.",
+            cost: { tap: true, sacrifice: true },
+            useStack: true,
+            // Migrated resolve()→effects[] (ADR 0045, migration PRD #795):
+            // CR 205.4a — "a snow Swamp" is a `count` of the controller's
+            // battlefield filtered to Land+Swamp+Snow, `>= 1`; the two
+            // branches each repeat the Plague Spitter mass-damage shape
+            // (inv/black.cards.ts) with a literal amount (2 / 1).
+            effects: [
+                {
+                    op: "if",
+                    predicate: {
+                        left: {
+                            count: {
+                                zone: "battlefield",
+                                controller: "controller",
+                                filter: {
+                                    type: "Land",
+                                    subtype: "Swamp",
+                                    supertype: "Snow",
+                                },
+                            },
+                        },
+                        op: "ge",
+                        right: 1,
+                    },
+                    then: [
+                        {
+                            op: "forEach",
+                            select: {
+                                set: "permanents",
+                                zone: "battlefield",
+                                filter: { type: "Creature" },
+                            },
+                            effects: [
+                                {
+                                    op: "dealDamage",
+                                    amount: 2,
+                                    to: { ref: "$each" },
+                                },
+                            ],
+                        },
+                        {
+                            op: "forEach",
+                            select: { set: "players" },
+                            effects: [
+                                {
+                                    op: "dealDamage",
+                                    amount: 2,
+                                    to: { player: { ref: "$each" } },
+                                },
+                            ],
+                        },
+                    ],
+                    else: [
+                        {
+                            op: "forEach",
+                            select: {
+                                set: "permanents",
+                                zone: "battlefield",
+                                filter: { type: "Creature" },
+                            },
+                            effects: [
+                                {
+                                    op: "dealDamage",
+                                    amount: 1,
+                                    to: { ref: "$each" },
+                                },
+                            ],
+                        },
+                        {
+                            op: "forEach",
+                            select: { set: "players" },
+                            effects: [
+                                {
+                                    op: "dealDamage",
+                                    amount: 1,
+                                    to: { player: { ref: "$each" } },
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+    ],
+};
+// Gaze of Pain — {1}{B} Sorcery. "Until end of turn, whenever a creature you
+// control attacks and isn't blocked, you may choose to have it deal damage
+// equal to its power to a target creature. If you do, it assigns no combat
+// damage this turn." Modelled as a turn-scoped floating trigger (CR 603.7a):
+// the spell records an active rider for its controller
+// (`markGazeOfPainActive`, cleared at CLEANUP so it lasts "until end of turn"),
+// and a GRAVEYARD-zone triggered ability fires on each ATTACKER_UNBLOCKED by a
+// creature that controller controls while the flag is set. protocol card: the
+// trigger reads the event's attacker and installs the "assigns no combat
+// damage" combat seam — the DSL cannot reference the trigger event's attacker
+// (`$event.<field>`, gap #865), the same reason the twin Farrel's Zealot stays
+// a resolve() trigger; the "until end of turn" wrapper is a combat-state seam,
+// not a one-shot Op.
+export const gazeOfPain: CardDefinition = {
+    id: "48401643-ec4b-444a-8f9a-1a5ea471ff4a",
+    name: "Gaze of Pain",
+    rarity: "common",
+    oracleText:
+        "Until end of turn, whenever a creature you control attacks and isn't blocked, you may choose to have it deal damage equal to its power to a target creature. If you do, it assigns no combat damage this turn.",
+    manaCost: { X: 1, B: 1 },
+    types: ["Sorcery"],
+    resolve: (ctx: SpellContext) => {
+        // "Until end of turn, whenever a creature you control attacks and
+        // isn't blocked, …" — arm the rider for this turn.
+        ctx.markGazeOfPainActive(ctx.controller);
+    },
+    triggeredAbilities: [
+        {
+            id: "gaze-of-pain-unblocked",
+            zone: "graveyard",
+            oracleText:
+                "Whenever a creature you control attacks and isn't blocked, you may choose to have it deal damage equal to its power to a target creature. If you do, it assigns no combat damage this turn.",
+            event: "ATTACKER_UNBLOCKED",
+            matches: (event, self, state) =>
+                event.type === "ATTACKER_UNBLOCKED" &&
+                event.attackerControllerId === self.controllerId &&
+                (state?.gazeOfPainActiveThisTurn?.includes(self.controllerId) ??
+                    false),
+            resolve: (ctx: SpellContext, event) => {
+                if (event?.type !== "ATTACKER_UNBLOCKED") return;
+                const attacker = {
+                    type: "permanent" as const,
+                    id: event.attackerId,
+                };
+                const candidates = ctx.allPlayerIds.flatMap((p) =>
+                    ctx.getBattlefieldIds(p, { types: "Creature" })
+                );
+                if (candidates.length === 0) return;
+                const picks = ctx.requestChoice({
+                    playerId: ctx.controller,
+                    choiceId: `gaze-of-pain-${ctx.sourceInstanceId}-${event.attackerId}`,
+                    kind: "choose-permanents",
+                    zone: "battlefield",
+                    allControllers: true,
+                    candidateIds: candidates,
+                    count: { min: 0, max: 1 },
+                    prompt: "Gaze of Pain: have the attacker deal damage equal to its power to a target creature? (decline to assign normal combat damage)",
+                });
+                if (picks === undefined) return; // suspended
+                const targetId = picks[0];
+                if (!targetId) return; // declined — combat damage assigned normally
+                const power = ctx.getPower(attacker) ?? 0;
+                if (power > 0) {
+                    ctx.dealDamage({ type: "permanent", id: targetId }, power);
+                }
+                // CR 510.1c — "it assigns no combat damage this turn."
+                ctx.markAssignsNoCombatDamage(attacker);
+            },
+        },
+    ],
+};
+// Gravebind — {B} Instant. "Target creature can't be regenerated this turn"
+// (CR 701.19c regeneration lock, `preventRegeneration` Op) plus the
+// next-upkeep cantrip rider (`delayedTrigger` Op, ADR 0048).
+//
+// FREED 2026-08-25 (#1841 audit, migrated by #2761). The old marker read
+// "Blocked on: a delayed-trigger-with-draw-body Op skin" — WRONG at HEAD. The
+// `delayedTrigger` Op takes an inline `effects` body, and Krovikan Fetish IN
+// THIS FILE already ships exactly `{ op: "delayedTrigger", timing:
+// "next-upkeep", effects: [{ op: "draw" }] }`. The regeneration-lock half has
+// had its Op (`preventRegeneration`, CR 701.19c) since #1283. Both halves are
+// expressible; this was a migration, not a blocker. The shared
+// `scheduleNextUpkeepDraw` / `nextUpkeepDrawTrigger` helper this card was the
+// last consumer of is deleted along with it.
+export const gravebind: CardDefinition = {
+    id: "4782fd4f-2474-4d0d-8301-e0b52af93746",
+    name: "Gravebind",
+    rarity: "rare",
+    oracleText:
+        "Target creature can't be regenerated this turn.\nDraw a card at the beginning of the next turn's upkeep.",
+    manaCost: { B: 1 },
+    types: ["Instant"],
+    targetRequirement: { type: "Creature", count: 1 },
+    effects: [
+        { op: "preventRegeneration", target: { target: 0 } },
+        {
+            op: "delayedTrigger",
+            timing: "next-upkeep",
+            oracleText:
+                "Draw a card at the beginning of the next turn's upkeep.",
+            effects: [{ op: "draw", player: "controller", count: 1 }],
+        },
+    ],
+};
+// Hecatomb — ETB "sacrifice this enchantment unless you sacrifice four
+// creatures" (CR 603.6a ETB + CR 117.3a unless-cost + CR 701.21 sacrifice,
+// same shape as Mold Demon) plus an activated "Tap an untapped Swamp you
+// control: deal 1 damage to any target." The tap-a-Swamp leg is a
+// `tapOtherFilter` activation cost (CR 602.1 / 118.8) — the same generic
+// tap-another-permanent cost Hand of Justice / Vodalian War Machine use, here
+// pointed at a LAND subtype rather than a creature. The damage is a standard
+// `type: "any"` targeted ability (CR 115.4).
+export const hecatomb: CardDefinition = {
+    id: "8f59620f-ff9e-44d8-9c4e-be9de1a919e8",
+    name: "Hecatomb",
+    rarity: "rare",
+    oracleText:
+        "When this enchantment enters, sacrifice this enchantment unless you sacrifice four creatures.\nTap an untapped Swamp you control: This enchantment deals 1 damage to any target.",
+    manaCost: { X: 1, B: 2 },
+    types: ["Enchantment"],
+    triggeredAbilities: [
+        enteredTrigger({
+            id: "hecatomb-etb",
+            oracleText:
+                "When this enchantment enters, sacrifice this enchantment unless you sacrifice four creatures.",
+            scope: "self",
+            // NOT DSL-migratable (ADR 0045, re-assessed migration PRD #795):
+            // the `mayPay` Op's `cost` union DOES now support a sacrifice leg
+            // (a `{ filter: { type: "Creature" }, count: 4 }` "sacrifice four
+            // creatures" leg is expressible), but this closure gates the
+            // choice at RAISE time — `if (creatureIds.length < 4)` forces the
+            // self-sacrifice WITHOUT ever prompting the player — while the
+            // generic interpreter `mayPay` Op has no such affordability
+            // pre-check: it unconditionally raises a PendingChoice
+            // (`canPayMayPayCost` only gates at the submit boundary).
+            // Migrating would introduce an unwanted extra prompt in the
+            // fewer-than-four-creatures case, changing observable behaviour
+            // under the untouched per-card test. Same class as Yawgmoth Demon
+            // (atq/black.cards.ts).
+            // Blocked on: a raise-time affordability gate for `mayPay` (skip
+            // the Op entirely when the cost can't be paid at all).
+            resolve: (ctx) => {
+                const controller = ctx.controller;
+                const creatureIds = ctx.getBattlefieldIds(controller, {
+                    types: "Creature",
+                });
+                // CR 117.3a — an unpayable "unless" cost (fewer than four
+                // creatures, counting Hecatomb itself? No: Hecatomb is an
+                // Enchantment, not a creature) forces the consequence: sacrifice
+                // Hecatomb. No prompt with no real choice.
+                if (creatureIds.length < 4) {
+                    ctx.sacrifice(ctx.sourceInstanceId);
+                    return;
+                }
+                const accept = ctx.requestMayPay({
+                    playerId: controller,
+                    choiceId: `hecatomb-${ctx.sourceInstanceId}`,
+                    prompt: "Sacrifice four creatures to keep Hecatomb?",
+                });
+                if (accept === undefined) return; // suspended
+                if (!accept) {
+                    ctx.sacrifice(ctx.sourceInstanceId);
+                    return;
+                }
+                const picked = ctx.requestChoice({
+                    playerId: controller,
+                    choiceId: `hecatomb-${ctx.sourceInstanceId}-creatures`,
+                    kind: "sacrifice-permanents",
+                    zone: "battlefield",
+                    filter: { types: "Creature" },
+                    count: 4,
+                    prompt: "Sacrifice four creatures.",
+                });
+                if (picked === undefined) return; // suspended
+                if (picked.length < 4) {
+                    // Failed to pay the full cost → sacrifice Hecatomb.
+                    ctx.sacrifice(ctx.sourceInstanceId);
+                    return;
+                }
+                for (const id of picked) ctx.sacrifice(id);
+            },
+        }),
+    ],
+    activatedAbilities: [
+        {
+            id: "hecatomb-ping",
+            oracleText:
+                "Tap an untapped Swamp you control: This enchantment deals 1 damage to any target.",
+            // CR 602.1 / 118.8 — "Tap an untapped Swamp you control" is a
+            // tap-ANOTHER-permanent cost (not the source's own {T}). The Swamp
+            // is a land, exercising the tap-a-land seam of `tapOtherFilter`.
+            cost: {
+                tapOtherFilter: {
+                    filter: { subtypes: "Swamp", controllerRelation: "you" },
+                    count: 1,
+                },
+            },
+            useStack: true,
+            targetRequirement: { type: "any", count: 1 },
+            // Migrated resolve()→effects[] (ADR 0045, migration PRD #795): 1
+            // damage to the announced target (CR 120.1).
+            effects: [{ op: "dealDamage", amount: 1, to: { target: 0 } }],
+        },
+    ],
+};
+// Howl from Beyond — ICE reprint of the LEA original (ADR 0014). The +X/+0
+// pump mechanics live on the existing LEA definition; this is a CardPrint.
+export const howlFromBeyondIce: CardPrint = {
+    printId: "ca9d0d6b-056e-4b94-8de5-a325768f67b6",
+    definitionId: "67ec17e1-174b-4d07-a27f-91a333c4b2fb",
+    setCode: "ice",
+    rarity: "common",
+};
+// Hyalopterous Lemure — "{0}: This creature gets -1/-0 and gains flying until
+// end of turn." (CR 611.2a negative pump + CR 702.9 flying grant.) Pay {0} to
+// trade power for evasion.
+export const hyalopterousLemure: CardDefinition = {
+    id: "d2c9e037-f4d5-46fd-b439-56bee6fb2ad3",
+    name: "Hyalopterous Lemure",
+    rarity: "uncommon",
+    oracleText:
+        "{0}: This creature gets -1/-0 and gains flying until end of turn.",
+    manaCost: { X: 4, B: 1 },
+    types: ["Creature"],
+    subtypes: ["Spirit"],
+    power: 4,
+    toughness: 3,
+    activatedAbilities: [
+        {
+            id: "hyalopterous-lemure-fly",
+            oracleText:
+                "{0}: This creature gets -1/-0 and gains flying until end of turn.",
+            cost: { mana: { X: 0 } },
+            useStack: true,
+            // Migrated resolve()→effects[] (ADR 0045, #843): self -1/0 (CR 611.1)
+            // + self-grant flying until end of turn (CR 611.2a).
+            effects: [
+                {
+                    op: "pump",
+                    target: { ref: "$source" },
+                    power: -1,
+                    toughness: 0,
+                    duration: { phase: "end-of-turn" },
+                },
+                {
+                    op: "grantAbility",
+                    ability: "flying",
+                    target: { ref: "$source" },
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
+        },
+    ],
+};
+// Icequake — destroy target land; if that land WAS a snow land (CR 205.4a),
+// deal 1 damage to its controller. The snow status and controller are captured
+// BEFORE the destroy (CR 608.2g — last-known information): the target is
+// matched against its controller's live snow lands via the snow-aware
+// `getBattlefieldIds` supertype filter while still on the battlefield.
+export const icequake: CardDefinition = {
+    id: "14b4dd4d-c617-4603-8a87-761ec6fc6883",
+    name: "Icequake",
+    rarity: "uncommon",
+    oracleText:
+        "Destroy target land. If that land was a snow land, Icequake deals 1 damage to that land's controller.",
+    manaCost: { X: 1, B: 2 },
+    types: ["Sorcery"],
+    targetRequirement: { type: "Land", count: 1 },
+    // NOT DSL-migratable (ADR 0045): "if that land WAS a snow land" is a
+    // per-INSTANCE live-supertype check made BEFORE the destroy (CR 608.2g
+    // last-known information) — the `if` construct's `EffectComparisonPredicate`
+    // can express a `count` of matching permanents, but `EffectCardFilter` has
+    // no `instanceIds` field to scope that count down to ONE specific
+    // announced target, so there is no way to ask "does THIS target have the
+    // Snow supertype" declaratively; the amount+conditional-branch would also
+    // need the target's controller (a plain player ref, fine) gated on that
+    // per-instance check.
+    // Blocked on: a per-instance supertype/characteristic predicate over an
+    // announced target.
+    resolve: (ctx: SpellContext) => {
+        const target = ctx.targets[0];
+        if (target?.type !== "permanent") return;
+        const controller = ctx.getController(target);
+        const wasSnow = ctx
+            .getBattlefieldIds(controller, {
+                types: "Land",
+                supertypes: ["Snow"],
+                instanceIds: [target.id],
+            })
+            .includes(target.id);
+        ctx.destroy(target);
+        if (wasSnow) {
+            ctx.dealDamage({ type: "player", id: controller }, 1);
+        }
+    },
+};
+// Infernal Darkness — cumulative upkeep {B} and 1 life (CR 702.24, ADR 0042,
+// mixed mana+life cost so the scaled total repeats the {B} and sums the life)
+// plus a continuous land-mana colour substitution (CR 614): "If a land is
+// tapped for mana, it produces {B} instead of any other type." The
+// substitution is GLOBAL (every player's lands) and unconditional (any land),
+// so it's a single-`color` `landManaSubstitution` read live from the
+// battlefield by the `applyLandManaReplacement` mana funnel.
+export const infernalDarkness: CardDefinition = {
+    id: "f3475eb3-909d-450b-9597-b241b259b425",
+    name: "Infernal Darkness",
+    rarity: "rare",
+    oracleText:
+        "Cumulative upkeep—Pay {B} and 1 life. (At the beginning of your upkeep, put an age counter on this permanent, then sacrifice it unless you pay its upkeep cost for each age counter on it.)\nIf a land is tapped for mana, it produces {B} instead of any other type.",
+    manaCost: { X: 2, B: 2 },
+    types: ["Enchantment"],
+    landManaSubstitution: { color: "B" },
+    triggeredAbilities: [
+        cumulativeUpkeepTrigger({
+            id: "infernal-darkness-cumulative-upkeep",
+            cost: { mana: { B: 1 }, life: 1 },
+            costLabel: "{B} and 1 life",
+        }),
+    ],
+};
+// Infernal Denizen — "At the beginning of your upkeep, sacrifice two Swamps. If
+// you can't, tap this creature, and an opponent may gain control of a creature
+// you control of their choice for as long as this creature remains on the
+// battlefield. {T}: Gain control of target creature for as long as this creature
+// remains on the battlefield." (CR 603.6a upkeep trigger, CR 701.21 sacrifice,
+// CR 613.1b layer-2 control change.) The "sacrifice two Swamps" is the may-pay
+// sacrifice leg (count 2, subtype Swamp); on decline / inability the engine
+// collapses to the false branch (the affordability gate blocks an accept the
+// board can't cover), which taps the Denizen and lets the opponent steal a
+// creature of their choice. Both control changes use the
+// `controller-controls-source` condition (Aladdin pattern) — the closest shipped
+// "for as long as [the source] remains under its controller" semantics; the
+// control reverts when the Denizen leaves or changes controller.
+const INFERNAL_DENIZEN_ID = "b63ac9a6-aaa5-4659-97d1-c5f6b0d5ccfe";
+export const infernalDenizen: CardDefinition = {
+    id: INFERNAL_DENIZEN_ID,
+    name: "Infernal Denizen",
+    rarity: "rare",
+    oracleText:
+        "At the beginning of your upkeep, sacrifice two Swamps. If you can't, tap this creature, and an opponent may gain control of a creature you control of their choice for as long as this creature remains on the battlefield.\n{T}: Gain control of target creature for as long as this creature remains on the battlefield.",
+    manaCost: { X: 7, B: 1 },
+    types: ["Creature"],
+    subtypes: ["Demon"],
+    power: 5,
+    toughness: 7,
+    triggeredAbilities: [
+        phaseTrigger({
+            id: "infernal-denizen-upkeep",
+            oracleText:
+                "At the beginning of your upkeep, sacrifice two Swamps. If you can't, tap this creature, and an opponent may gain control of a creature you control of their choice for as long as this creature remains on the battlefield.",
+            phase: "UPKEEP",
+            scope: "your",
+            // NOT DSL-migratable (ADR 0045): although the gainControl Op (#848)
+            // is COVERED (the card's ACTIVATED ability migrated), this UPKEEP
+            // trigger also reads APNAP order (`ctx.apNapOrder()`) to pick the
+            // opponent who chooses, then drives an opponent choose-permanents +
+            // a per-pick gainControl. `apNapOrder` is an unimplemented (tracked-by: #2785) backlog
+            // Op and the choice-picked gainControl target is not expressible.
+            // Blocked on: the apNapOrder Op + a choice-picked object selector —
+            // stays resolve().
+            resolve: (ctx) => {
+                const accept = ctx.requestMayPay({
+                    playerId: ctx.controller,
+                    choiceId: ctx.controller,
+                    cost: {
+                        permanent: {
+                            action: "sacrifice",
+                            filter: {
+                                subtypes: "Swamp",
+                                controllerRelation: "you",
+                            },
+                            count: 2,
+                        },
+                    },
+                    prompt: "Sacrifice two Swamps, or let an opponent steal a creature (and tap Infernal Denizen)?",
+                });
+                if (accept === undefined) return;
+                if (accept) return;
+                // Can't / won't sacrifice two Swamps → tap self + opponent's
+                // choice steals one of the controller's creatures.
+                ctx.tap({ type: "permanent", id: ctx.sourceInstanceId });
+                const opp = ctx
+                    .apNapOrder()
+                    .filter((p) => p !== ctx.controller)[0];
+                if (!opp) return;
+                const creatures = ctx.getBattlefieldIds(ctx.controller, {
+                    types: "Creature",
+                });
+                if (creatures.length === 0) return;
+                const picks = ctx.requestChoice({
+                    playerId: opp,
+                    choiceId: `infernal-denizen-steal-${ctx.sourceInstanceId}`,
+                    kind: "choose-permanents",
+                    zone: "battlefield",
+                    zoneOwnerId: ctx.controller,
+                    filter: { types: "Creature" },
+                    count: 1,
+                    prompt: "Infernal Denizen: choose a creature to gain control of.",
+                });
+                if (picks === undefined) return;
+                for (const id of picks) {
+                    ctx.gainControl({ type: "permanent", id }, opp, {
+                        kind: "controller-controls-source",
+                        controllerId: opp,
+                    });
+                }
+            },
+        }),
+    ],
+    activatedAbilities: [
+        {
+            id: "infernal-denizen-steal",
+            oracleText:
+                "{T}: Gain control of target creature for as long as this creature remains on the battlefield.",
+            cost: { tap: true },
+            useStack: true,
+            targetRequirement: { type: "Creature", count: 1 },
+            // Migrated resolve()→effects[] (ADR 0045, #848): gain control of the
+            // targeted creature "for as long as this creature remains on the
+            // battlefield" — the controller-controls-source condition, which the
+            // conditional-control SBA reverts the instant Infernal Denizen leaves
+            // (CR 613.1b layer-2 control change; CR 611.2b). The card's upkeep
+            // TRIGGERED ability (the sacrifice-two-Swamps-or-be-stolen clause)
+            // stays resolve() — it is blocked on apNapOrder (a backlog Op).
+            effects: [
+                {
+                    op: "gainControl",
+                    target: { target: 0 },
+                    controller: "controller",
+                    duration: "while-you-control-source",
+                },
+            ],
+        },
+    ],
+};
+// Kjeldoran Dead — "When this creature enters, sacrifice a creature." (CR 603.6
+// ETB trigger + CR 701.21 sacrifice; the controller chooses which Creature they
+// control, and may choose Kjeldoran Dead itself.) Plus "{B}: Regenerate this
+// creature." (CR 701.19 regeneration shield.)
+export const kjeldoranDead: CardDefinition = {
+    id: "d3f7b614-6075-4b7c-acc7-ab63185b570b",
+    name: "Kjeldoran Dead",
+    rarity: "common",
+    oracleText:
+        "When this creature enters, sacrifice a creature.\n{B}: Regenerate this creature.",
+    manaCost: { B: 1 },
+    types: ["Creature"],
+    subtypes: ["Skeleton"],
+    power: 3,
+    toughness: 1,
+    triggeredAbilities: [
+        enteredTrigger({
+            id: "kjeldoran-dead-sac",
+            oracleText: "When this creature enters, sacrifice a creature.",
+            scope: "self",
+            // Migrated resolve()→effects[] (ADR 0045, migration PRD #795):
+            // choice(sacrifice-permanents) + sacrifice(picks) — the Innocent
+            // Blood shape (ody/black.cards.ts) — over the controller's own
+            // battlefield (CR 701.21). No exclusion, so Kjeldoran Dead itself
+            // is a legal pick, matching the original closure.
+            effects: [
+                {
+                    op: "choice",
+                    kind: "sacrifice-permanents",
+                    player: "controller",
+                    zone: "battlefield",
+                    filter: { type: "Creature" },
+                    count: 1,
+                    prompt: "Kjeldoran Dead: sacrifice a creature.",
+                    bind: "$sac",
+                },
+                { op: "sacrifice", permanents: { ref: "$sac" } },
+            ],
+        }),
+    ],
+    activatedAbilities: [
+        {
+            id: "kjeldoran-dead-regenerate",
+            oracleText: "{B}: Regenerate this creature.",
+            cost: { mana: { B: 1 } },
+            useStack: true,
+            // Migrated resolve()→effects[] (ADR 0045, #846): a self-regenerate
+            // shield on the source (CR 701.19a) via the implicit $source.
+            effects: [{ op: "regenerate", target: { ref: "$source" } }],
+        },
+    ],
+};
+// Knight of Stromgald — the black "Order" cycle shape: protection from white
+// (CR 702.16) plus a first-strike grant and a power pump (CR 611.2a).
+export const knightOfStromgald: CardDefinition = {
+    id: "2b87069b-ebaf-4705-b5da-446932af9b73",
+    name: "Knight of Stromgald",
+    rarity: "uncommon",
+    oracleText:
+        "Protection from white\n{B}: This creature gains first strike until end of turn.\n{B}{B}: This creature gets +1/+0 until end of turn.",
+    manaCost: { B: 2 },
+    types: ["Creature"],
+    subtypes: ["Human", "Knight"],
+    power: 2,
+    toughness: 1,
+    staticAbilities: ["protection from white"],
+    activatedAbilities: [
+        {
+            id: "knight-of-stromgald-first-strike",
+            oracleText:
+                "{B}: This creature gains first strike until end of turn.",
+            cost: { mana: { B: 1 } },
+            useStack: true,
+            // Migrated resolve()→effects[] (ADR 0045, #843): self-grant first
+            // strike until end of turn (CR 611.2a).
+            effects: [
+                {
+                    op: "grantAbility",
+                    ability: "first strike",
+                    target: { ref: "$source" },
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
+        },
+        {
+            id: "knight-of-stromgald-pump",
+            oracleText: "{B}{B}: This creature gets +1/+0 until end of turn.",
+            cost: { mana: { B: 2 } },
+            useStack: true,
+            // Migrated resolve()→effects[] (ADR 0045, issue #840): +1/+0 EOT
+            // on this creature (CR 611.2a) via the pump Op.
+            effects: [
+                {
+                    op: "pump",
+                    target: { ref: "$source" },
+                    power: 1,
+                    toughness: 0,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
+        },
+    ],
+};
+// Krovikan Elementalist — "{2}{R}: Target creature gets +1/+0 until end of turn.
+// {U}{U}: Target creature you control gains flying until end of turn. Sacrifice
+// it at the beginning of the next end step." (CR 611.2a temp buff + CR 702.9
+// flying grant + CR 603.7a delayed end-step sacrifice.) The second ability's
+// "sacrifice it at the next end step" is a delayed trigger carrying the buffed
+// creature's id.
+const KROVIKAN_ELEMENTALIST_ID = "bbedca18-a074-4441-b0a9-7b14fdb07412";
+export const krovikanElementalist: CardDefinition = {
+    id: KROVIKAN_ELEMENTALIST_ID,
+    name: "Krovikan Elementalist",
+    rarity: "uncommon",
+    oracleText:
+        "{2}{R}: Target creature gets +1/+0 until end of turn.\n{U}{U}: Target creature you control gains flying until end of turn. Sacrifice it at the beginning of the next end step.",
+    manaCost: { B: 2 },
+    types: ["Creature"],
+    subtypes: ["Human", "Wizard"],
+    power: 1,
+    toughness: 1,
+    activatedAbilities: [
+        {
+            id: "krovikan-elementalist-pump",
+            oracleText: "{2}{R}: Target creature gets +1/+0 until end of turn.",
+            cost: { mana: { X: 2, R: 1 } },
+            useStack: true,
+            targetRequirement: { type: "Creature", count: 1 },
+            // Migrated resolve()→effects[] (ADR 0045, issue #840): +1/+0 EOT
+            // on the announced target (CR 613.4c) via the pump Op.
+            effects: [
+                {
+                    op: "pump",
+                    target: { target: 0 },
+                    power: 1,
+                    toughness: 0,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
+        },
+        {
+            id: "krovikan-elementalist-fly",
+            oracleText:
+                "{U}{U}: Target creature you control gains flying until end of turn. Sacrifice it at the beginning of the next end step.",
+            cost: { mana: { U: 2 } },
+            useStack: true,
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                controller: "you",
+            },
+            // NOT DSL-migratable (ADR 0045, re-assessed migration PRD #795):
+            // the OLD blocker (`sacrifice` reads only a picks-LIST binding) is
+            // stale — it now also accepts a single snapshot-bound `target`
+            // (issue #1151), and the declarative `delayedTrigger` Op's
+            // `capture` shape (Phantasmal Mount, ice/blue.cards.ts) would otherwise
+            // fit this "grant flying, then sacrifice the SAME target at the
+            // next end step" pattern exactly. The remaining blocker is
+            // NEWLY-FOUND: the declarative `delayedTrigger` Op always
+            // schedules under a fixed internal id
+            // (`INLINE_DELAYED_TRIGGER_ID`, gre/effects/interpreter.ts) —
+            // there is no field to pin a stable, custom `triggerId` the way
+            // `ctx.scheduleDelayedTrigger`'s second argument does. This card's
+            // pre-existing test asserts the scheduled instance's
+            // `triggerId === "krovikan-elementalist-sacrifice"` (an untouched
+            // equivalence oracle), which the declarative Op cannot reproduce.
+            // Blocked on: a stable custom-id field on the `delayedTrigger` Op
+            // (the same migration-equivalence affordance the `choice` Op's
+            // `id` field already provides over `bind`, issue #1282).
+            resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                if (target?.type !== "permanent") return;
+                ctx.grantStaticAbility(target, "flying", {
+                    phase: "end-of-turn",
+                });
+                ctx.scheduleDelayedTrigger(
+                    KROVIKAN_ELEMENTALIST_ID,
+                    "krovikan-elementalist-sacrifice",
+                    "next-end-step",
+                    { targetId: target.id }
+                );
+            },
+        },
+    ],
+    delayedTriggers: [
+        {
+            id: "krovikan-elementalist-sacrifice",
+            oracleText:
+                "Sacrifice that creature at the beginning of the next end step.",
+            timing: "next-end-step",
+            // Migrated resolve()→effects[] (ADR 0045, migration PRD #795): the
+            // TEMPLATE-path `DelayedTriggerDef.effects` (issue #1280) is a
+            // separate site from the scheduling ability above (which stays
+            // resolve() — its own marker is unchanged), so this body migrates
+            // independently. `payload.targetId` re-binds as `$targetId`
+            // (`runDelayedTriggerBody`) and `sacrifice`'s `target` form
+            // re-checks battlefield presence (CR 608.2b), matching the
+            // original no-op-if-gone semantics.
+            effects: [{ op: "sacrifice", target: { ref: "$targetId" } }],
+        },
+    ],
+};
+// Krovikan Fetish — {2}{B} Aura. Static +1/+1 on the host (CR 611.2c layer 7c)
+// plus a self-ETB trigger (CR 603.6a) that arms the next-upkeep cantrip rider.
+// Unlike the instant cantrips the schedule rides an ENTERS trigger, not a spell
+// resolve — but the delayed-trigger template is identical.
+export const krovikanFetish: CardDefinition = {
+    id: "844e73e6-b201-4b2e-b46a-b719484fba0e",
+    name: "Krovikan Fetish",
+    rarity: "common",
+    oracleText:
+        "Enchant creature\nWhen this Aura enters, draw a card at the beginning of the next turn's upkeep.\nEnchanted creature gets +1/+1.",
+    manaCost: { X: 2, B: 1 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Creature", count: 1 },
+    staticEffects: [
+        { kind: "pt-buff", applies: AURA_AFFECTS_HOST, power: 1, toughness: 1 },
+    ],
+    triggeredAbilities: [
+        enteredTrigger({
+            id: "krovikan-fetish-etb",
+            oracleText:
+                "When this Aura enters, draw a card at the beginning of the next turn's upkeep.",
+            scope: "self",
+            // Migrated resolve()→effects[] (ADR 0045, issue #1264): schedules
+            // the next-upkeep draw cantrip via the ADR 0048 `delayedTrigger`
+            // Op with an inline `draw` body.
+            effects: [
+                {
+                    op: "delayedTrigger",
+                    timing: "next-upkeep",
+                    oracleText:
+                        "Draw a card at the beginning of the next turn's upkeep.",
+                    effects: [{ op: "draw", player: "controller", count: 1 }],
+                },
+            ],
+        }),
+    ],
+};
+// Krovikan Vampire — "At the beginning of each end step, if a creature dealt
+// damage by this creature this turn died, put that card onto the battlefield
+// under your control. Sacrifice it when you lose control of this creature."
+// (CR 603.2 death trigger keyed on `damagedBySources` — the Sengir Vampire
+// check — composed with a next-end-step delayed reanimation, CR 603.7c.) When
+// a creature this Vampire damaged this turn dies, a delayed trigger fires at
+// that turn's end step and reanimates the card under the Vampire's controller
+// via `returnToBattlefield(..., "graveyard")`.
+//
+// SIMPLIFICATION (tracked-by: #2785) (flagged, no engine change): the "sacrifice it when you lose
+// control of this creature" linkage requires per-permanent control-loss
+// tracking the engine doesn't model yet. The reanimation (the card's main
+// effect) is faithful; the sacrifice-on-loss-of-control clause — only reachable
+// via a control-change effect on the Vampire, which the current pool barely
+// exercises — is documented as deferred.
+const KROVIKAN_VAMPIRE_ID = "717c5dda-8e38-4c76-b241-685198402284";
+export const krovikanVampire: CardDefinition = {
+    id: KROVIKAN_VAMPIRE_ID,
+    name: "Krovikan Vampire",
+    rarity: "uncommon",
+    oracleText:
+        "At the beginning of each end step, if a creature dealt damage by this creature this turn died, put that card onto the battlefield under your control. Sacrifice it when you lose control of this creature.",
+    manaCost: { X: 3, B: 2 },
+    types: ["Creature"],
+    subtypes: ["Vampire"],
+    power: 3,
+    toughness: 3,
+    triggeredAbilities: [
+        diedTrigger({
+            id: "krovikan-vampire-mark",
+            oracleText:
+                "Whenever a creature dealt damage by this creature this turn dies, reanimate it under your control at the beginning of the end step.",
+            scope: "any-other",
+            condition: (event, self) =>
+                event.damagedBySources.includes(self.id),
+            // NOT DSL-migratable yet — RE-ASSESSED (issue #1403/#1600): the
+            // `$event.<field>` capture grammar gap this comment used to cite
+            // (ADR 0048) shipped via ADR 0049/issue #865, but the ACTUAL
+            // blocker is narrower and still open — `CREATURE_DIED` has no row
+            // in `EVENT_FIELD_REGISTRY` (`convex/cards/mechanicsRegistry.ts`)
+            // censusing the dying creature's instance id, so a
+            // `delayedTrigger` capture can't read `deadCreature.id` off the
+            // firing event declaratively yet (the "stop-and-issue on an
+            // uncensused mechanic" rule — `.claude/rules/gre-development.md`
+            // — applies; a migration PR does not invent the registry row
+            // inline). This is NOT the same idiom as Liberate/Flickerwisp's
+            // exile-based "blink" (#1401/#1403) — this is a CR 603.7c
+            // GRAVEYARD reanimation off a death trigger, a structurally
+            // different capture source. tracked-by: #1600. Stays resolve().
+            resolve: (ctx, _event, deadCreature) => {
+                ctx.scheduleDelayedTrigger(
+                    KROVIKAN_VAMPIRE_ID,
+                    "krovikan-vampire-reanimate",
+                    "next-end-step",
+                    {
+                        deadId: deadCreature.id,
+                        controllerId: ctx.controller,
+                    }
+                );
+            },
+        }),
+    ],
+    delayedTriggers: [
+        {
+            id: "krovikan-vampire-reanimate",
+            oracleText:
+                "Put that card onto the battlefield under your control at the beginning of the end step.",
+            timing: "next-end-step",
+            // NOT DSL-migratable (ADR 0045, re-assessed migration PRD #795;
+            // re-re-assessed issue #1600): the declarative `moveZone` Op's
+            // graveyard→battlefield leg auto-detects the reanimated card's
+            // ACTUAL graveyard owner (`getGraveyardCardOwner`) and passes it
+            // as `returnToBattlefield`'s pile-owner arg, with `controller` as
+            // a SEPARATE reanimating-player arg. This closure instead passes
+            // `payload.controllerId` (the Vampire's controller) as the
+            // pile-owner arg directly — a pre-existing call shape this
+            // migration must not silently change (an Op-based rewrite would
+            // search a DIFFERENT player's graveyard whenever the dead
+            // creature isn't the Vampire controller's own, the common case).
+            // Also still blocked upstream on the trigger-level capture gap
+            // above (no `CREATURE_DIED` `EVENT_FIELD_REGISTRY` row yet).
+            // tracked-by: #1600. Stays resolve() to avoid a hidden behaviour
+            // change; not re-verified as correct/buggy in this migration pass.
+            resolve: (ctx, payload) => {
+                if (!payload.deadId || !payload.controllerId) return;
+                ctx.returnToBattlefield(
+                    payload.controllerId,
+                    payload.deadId,
+                    "graveyard"
+                );
+            },
+        },
+    ],
+};
+// Legions of Lim-Dûl — snow swampwalk (CR 702.14 / 205.4a): can't be blocked
+// while the defending player controls a snow Swamp. Modeled as the
+// `snow swampwalk` keyword in `staticAbilities`; the combat registry's
+// `LANDWALK_SNOW_RULES` enforces it (`controlsSnowSubtype(..., "Swamp")`).
+export const legionsOfLimDL: CardDefinition = {
+    id: "75b67eb2-b60e-46b4-9d48-11c284957bec",
+    name: "Legions of Lim-Dûl",
+    rarity: "common",
+    oracleText:
+        "Snow swampwalk (This creature can't be blocked as long as defending player controls a snow Swamp.)",
+    manaCost: { X: 1, B: 2 },
+    types: ["Creature"],
+    subtypes: ["Zombie"],
+    power: 2,
+    toughness: 3,
+    staticAbilities: ["snow swampwalk"],
+};
+// Leshrac's Rite — Aura that grants swampwalk to its host (CR 702.14 landwalk,
+// CR 611 keyword grant via `keyword-grant` staticEffect on the host).
+export const leshracsRite: CardDefinition = {
+    id: "4e0a6b4e-95b4-40f6-bb19-568dbd908a2b",
+    name: "Leshrac's Rite",
+    rarity: "uncommon",
+    oracleText:
+        "Enchant creature\nEnchanted creature has swampwalk. (It can't be blocked as long as defending player controls a Swamp.)",
+    manaCost: { B: 1 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Creature", count: 1 },
+    staticEffects: [
+        {
+            kind: "keyword-grant",
+            applies: AURA_AFFECTS_HOST,
+            keyword: "swampwalk",
+        },
+    ],
+};
+// Leshrac's Sigil — "Whenever an opponent casts a green spell, you may pay
+// {B}{B}. If you do, look at that player's hand and choose a card from it. The
+// player discards that card. {B}{B}: Return this enchantment to its owner's
+// hand." (CR 603.2 spell-cast trigger filtered to green opponents' spells +
+// CR 117.3a may-pay + CR 701.9 discard chosen by the Sigil's controller.) The
+// chosen discard is a `discard-hand` requestChoice scoped to the caster's hand
+// (Mind Warp pattern); the Sigil's controller is the chooser.
+export const leshracsSigil: CardDefinition = {
+    id: "ad5ba7ee-d6df-4b62-a8a1-c81e6fca392a",
+    name: "Leshrac's Sigil",
+    rarity: "uncommon",
+    oracleText:
+        "Whenever an opponent casts a green spell, you may pay {B}{B}. If you do, look at that player's hand and choose a card from it. The player discards that card.\n{B}{B}: Return this enchantment to its owner's hand.",
+    manaCost: { B: 2 },
+    types: ["Enchantment"],
+    triggeredAbilities: [
+        spellCastTrigger({
+            id: "leshracs-sigil-green-discard",
+            oracleText:
+                "Whenever an opponent casts a green spell, you may pay {B}{B}. If you do, look at that player's hand and choose a card from it. The player discards that card.",
+            scope: "opponents",
+            filter: { colors: ["G"] },
+            // NOT DSL-migratable (ADR 0045, re-assessed migration PRD #795):
+            // `spellCastTrigger`'s `effects[]` site binds only `$source` and
+            // the source's controller (an event-independent effect only) —
+            // NOT the spell's caster, which this effect needs as BOTH the
+            // pay-or-not chooser's target (`getHandSize(caster)`) and the
+            // `discard-hand` choice's `zoneOwnerId`/discard target. There is
+            // no `$event.<field>` player-ref site for a spell-cast trigger.
+            // Blocked on: a caster selector reachable from a spellCastTrigger
+            // script.
+            resolve: (ctx, _event, spell) => {
+                const caster = spell.casterId;
+                const accept = ctx.requestMayPay({
+                    playerId: ctx.controller,
+                    choiceId: `leshracs-sigil-${ctx.sourceInstanceId}`,
+                    cost: { B: 2 },
+                    prompt: "Pay {B}{B} to make that player discard a card of your choice?",
+                });
+                if (accept === undefined) return;
+                if (!accept) return;
+                if (ctx.getHandSize(caster) === 0) return;
+                const picks = ctx.requestChoice({
+                    playerId: ctx.controller,
+                    choiceId: `leshracs-sigil-pick-${ctx.sourceInstanceId}`,
+                    kind: "discard-hand",
+                    zone: "hand",
+                    zoneOwnerId: caster,
+                    count: 1,
+                    prompt: "Leshrac's Sigil: choose a card for that player to discard.",
+                });
+                if (picks === undefined) return;
+                for (const id of picks) ctx.discardCard(caster, id);
+            },
+        }),
+    ],
+    activatedAbilities: [
+        {
+            id: "leshracs-sigil-return",
+            oracleText: "{B}{B}: Return this enchantment to its owner's hand.",
+            cost: { mana: { B: 2 } },
+            useStack: true,
+            // Migrated resolve()→effects[] (ADR 0045, #839): return the source
+            // permanent to its owner's hand via the implicit $source binding
+            // (CR 400.7).
+            effects: [
+                { op: "moveZone", target: { ref: "$source" }, to: "hand" },
+            ],
+        },
+    ],
+};
+// Lim-Dûl's Cohort — "Whenever this creature blocks or becomes blocked by a
+// creature, that creature can't be regenerated this turn." (CR 509.1h
+// blocks-or-becomes-blocked + CR 701.19c regeneration suppression.) The
+// combatPairKill family captures this exact "the other creature in the pair"
+// targeting, but it always *destroys* at end of combat — here the effect is an
+// immediate, no-destroy regeneration lock, so we declare the
+// BLOCKERS_CONFIRMED trigger directly. Fully declarative since issue #2762:
+// the `preventRegeneration` Op (CR 701.19c) acting on the censused
+// `$event.otherCombatant` pair complement (CR 509.1h).
+const LIM_DULS_COHORT_ID = "3d0006f6-2f96-453d-9145-eaefa588efbc";
+export const limDLsCohort: CardDefinition = {
+    id: LIM_DULS_COHORT_ID,
+    name: "Lim-Dûl's Cohort",
+    rarity: "common",
+    oracleText:
+        "Whenever this creature blocks or becomes blocked by a creature, that creature can't be regenerated this turn.",
+    manaCost: { X: 1, B: 2 },
+    types: ["Creature"],
+    subtypes: ["Zombie"],
+    power: 2,
+    toughness: 3,
+    triggeredAbilities: [
+        {
+            id: "lim-duls-cohort-no-regen",
+            oracleText:
+                "Whenever this creature blocks or becomes blocked by a creature, that creature can't be regenerated this turn.",
+            event: "BLOCKERS_CONFIRMED",
+            matches: (event: GameEvent, self: PermanentView) =>
+                event.type === "BLOCKERS_CONFIRMED" &&
+                (event.attackerId === self.id || event.blockerId === self.id),
+            // Migrated resolve()→effects[] (ADR 0045, issue #2762). "That
+            // creature" is the OTHER creature in the attacker/blocker pair
+            // (CR 509.1h), which the censused `$event.otherCombatant` row
+            // (ADR 0049, `cards/mechanicsRegistry.ts`) names relative to this
+            // ability's own source — so the trigger reads identically whether
+            // the Cohort attacked into a blocker or blocked an attacker. A
+            // creature that has left the battlefield before the trigger
+            // resolves makes the Op a clean no-op (CR 608.2h — the ability
+            // names no target, so it is last-known-information that governs,
+            // not target legality).
+            effects: [
+                {
+                    op: "preventRegeneration",
+                    target: { ref: "$event.otherCombatant" },
+                },
+            ],
+        },
+    ],
+};
+// Lim-Dûl's Hex — "At the beginning of your upkeep, for each player, this
+// enchantment deals 1 damage to that player unless they pay {B} or {3}."
+// (CR 603.6a upkeep trigger + CR 117.3a may-pay, once per player.) The "{B} or
+// {3}" alternative cost has no single `MayPayCost` shape (the union covers
+// mana+life+sacrifice, not "either-or"), so we compose it from two sequential
+// may-pays per player: offer {B} first; if declined, offer {3}; only if BOTH
+// are declined does the player take 1 damage. Each player's two prompts are
+// keyed by distinct choiceIds so stepped resolution (CR 608.2) keeps them apart.
+export const limDLsHex: CardDefinition = {
+    id: "af976f42-3d56-4e32-8294-970a276a4bf3",
+    name: "Lim-Dûl's Hex",
+    rarity: "uncommon",
+    oracleText:
+        "At the beginning of your upkeep, for each player, this enchantment deals 1 damage to that player unless they pay {B} or {3}.",
+    manaCost: { X: 1, B: 1 },
+    types: ["Enchantment"],
+    triggeredAbilities: [
+        phaseTrigger({
+            id: "lim-duls-hex-upkeep",
+            oracleText:
+                "At the beginning of your upkeep, for each player, this enchantment deals 1 damage to that player unless they pay {B} or {3}.",
+            phase: "UPKEEP",
+            scope: "your",
+            resolve: (ctx) => {
+                // CR 101.4 — resolve "for each player" in APNAP order. Collect
+                // every player's pay decision FIRST (the may-pays are idempotent
+                // on re-resolution), then apply damage in a single final pass.
+                // This keeps the side effect (`dealDamage`) from re-firing each
+                // time a later player's may-pay suspends and the resolve re-runs
+                // (CR 608.2 — the Balance "collect then apply" pattern).
+                const players = ctx.apNapOrder();
+                const takesDamage: string[] = [];
+                for (const playerId of players) {
+                    const paidB = ctx.requestMayPay({
+                        playerId,
+                        choiceId: `lim-duls-hex-b-${playerId}`,
+                        cost: { B: 1 },
+                        prompt: "Pay {B} to avoid 1 damage from Lim-Dûl's Hex? (Declining offers {3} next.)",
+                    });
+                    if (paidB === undefined) return; // suspended
+                    if (paidB) continue;
+                    const paid3 = ctx.requestMayPay({
+                        playerId,
+                        choiceId: `lim-duls-hex-3-${playerId}`,
+                        cost: { X: 3 },
+                        prompt: "Pay {3} to avoid 1 damage from Lim-Dûl's Hex?",
+                    });
+                    if (paid3 === undefined) return; // suspended
+                    if (!paid3) takesDamage.push(playerId);
+                }
+                // All decisions in — apply damage exactly once.
+                for (const playerId of takesDamage) {
+                    ctx.dealDamage({ type: "player", id: playerId }, 1);
+                }
+            },
+        }),
+    ],
+};
+// Mind Ravel — {2}{B} Sorcery. "Target player discards a card" (CR 701.9 —
+// chosen by the discarding player; Zuran Enchanter pattern) plus the next-upkeep
+// cantrip rider. The discard choice and the schedule live in separate resolve
+// steps so a suspension on the discard never double-schedules.
+export const mindRavel: CardDefinition = {
+    id: "61cf3ac5-985d-4b48-b230-d5ae4ab1ace8",
+    name: "Mind Ravel",
+    rarity: "common",
+    oracleText:
+        "Target player discards a card.\nDraw a card at the beginning of the next turn's upkeep.",
+    manaCost: { X: 2, B: 1 },
+    types: ["Sorcery"],
+    targetRequirement: { type: "player", count: 1 },
+    // Migrated resolve()→effects[] (ADR 0045, issue #1264): the target player
+    // discards one card of their own choosing (CR 701.9, `discard-hand`
+    // choice + `discard`), then the next-upkeep draw cantrip via the ADR 0048
+    // `delayedTrigger` Op with an inline `draw` body.
+    effects: [
+        {
+            op: "choice",
+            kind: "discard-hand",
+            player: { target: 0 },
+            zone: "hand",
+            count: { min: 0, max: 1 },
+            prompt: "Mind Ravel: discard a card.",
+            bind: "$picked",
+        },
+        { op: "discard", player: { target: 0 }, cards: { ref: "$picked" } },
+        {
+            op: "delayedTrigger",
+            timing: "next-upkeep",
+            oracleText:
+                "Draw a card at the beginning of the next turn's upkeep.",
+            effects: [{ op: "draw", player: "controller", count: 1 }],
+        },
+    ],
+};
+// Mind Warp — "Look at target player's hand and choose X cards from it. That
+// player discards those cards." (CR 702.x reveal-to-caster + CR 701.9 discard.)
+// The caster (not the target) chooses which X cards via a `discard-hand`
+// requestChoice scoped to the target's hand; the picks are then discarded.
+// Mana cost is {X}{3}{B} (MTGJSON ICE.json) — the fixed {3} generic pip
+// alongside the variable {X} uses `generic` (Soul Burn's `{X}{2}{B}` shape
+// just above), found missing by the widened data/json conformance guard.
+export const mindWarp: CardDefinition = {
+    id: "de150cd6-0bbc-47f7-a781-cd1aa10eabc6",
+    name: "Mind Warp",
+    rarity: "uncommon",
+    oracleText:
+        "Look at target player's hand and choose X cards from it. That player discards those cards.",
+    manaCost: { X: "X", generic: 3, B: 1 },
+    types: ["Sorcery"],
+    targetRequirement: { type: "player", count: 1 },
+    // NOT DSL-migratable (ADR 0045, #852): the discard count is min(X, hand
+    // size) — the `choice` Op's `count` is a positive-int LITERAL (not an
+    // EffectValue), so neither X nor the min-clamp is expressible there.
+    // Classifier over-count (folds requestChoice + discardCard + getX, blind to
+    // the choice-count value + arithmetic). Blocked on an EffectValue choice
+    // count and min arithmetic, not on X alone.
+    resolve: (ctx: SpellContext) => {
+        const target = ctx.targets[0];
+        if (target?.type !== "player") return;
+        const x = ctx.getX();
+        const handSize = ctx.getHandSize(target.id);
+        const count = Math.min(x, handSize);
+        if (count <= 0) return;
+        const picks = ctx.requestChoice({
+            playerId: ctx.controller,
+            choiceId: `mind-warp-${ctx.sourceInstanceId}`,
+            kind: "discard-hand",
+            zone: "hand",
+            zoneOwnerId: target.id,
+            count,
+            prompt: "Mind Warp: choose cards for that player to discard.",
+        });
+        if (picks === undefined) return; // suspended for the choice
+        for (const id of picks) ctx.discardCard(target.id, id);
+    },
+};
+// Mind Whip — "Enchant creature. At the beginning of the upkeep of enchanted
+// creature's controller, that player may pay {3}. If they don't, this Aura deals
+// 2 damage to that player and you tap that creature." (CR 303.4 aura, CR 603.6a
+// host-controller upkeep trigger, CR 117.3a may-pay — the Paralyze/Power Leak
+// host-controller pattern.) Decline → 2 damage to the host's controller + tap
+// the host.
+export const mindWhip: CardDefinition = {
+    id: "3f3ff5fb-4126-4a18-b540-2beaae382e59",
+    name: "Mind Whip",
+    rarity: "rare",
+    oracleText:
+        "Enchant creature\nAt the beginning of the upkeep of enchanted creature's controller, that player may pay {3}. If they don't, this Aura deals 2 damage to that player and you tap that creature.",
+    manaCost: { X: 2, B: 2 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Creature", count: 1 },
+    triggeredAbilities: [
+        phaseTrigger({
+            id: "mind-whip-upkeep",
+            oracleText:
+                "At the beginning of the upkeep of enchanted creature's controller, that player may pay {3}. If they don't, this Aura deals 2 damage to that player and you tap that creature.",
+            phase: "UPKEEP",
+            scope: "host-controller",
+            // NOT DSL-migratable (ADR 0045): on decline, taps the ENCHANTED host
+            // (`getAttachedTo` — no attached-object selector) on a
+            // `host-controller`-scoped trigger (scoped player ≠ controller, so
+            // `effects` is disallowed on the phaseTrigger).
+            // Blocked on: attached-object selector + non-"your" trigger effects.
+            resolve: (ctx, _event, hostController) => {
+                const hostId = ctx.getAttachedTo(ctx.sourceInstanceId);
+                if (!hostId) return;
+                const accept = ctx.requestMayPay({
+                    playerId: hostController,
+                    choiceId: hostController,
+                    cost: { X: 3 },
+                    prompt: "Pay {3} to avoid 2 damage and tapping from Mind Whip?",
+                });
+                if (accept === undefined) return;
+                if (!accept) {
+                    ctx.dealDamage({ type: "player", id: hostController }, 2);
+                    ctx.tap({ type: "permanent", id: hostId });
+                }
+            },
+        }),
+    ],
+};
+// Minion of Leshrac — "Protection from black. At the beginning of your upkeep,
+// this creature deals 5 damage to you unless you sacrifice a creature other than
+// this creature. If this creature deals damage to you this way, tap it. {T}:
+// Destroy target creature or land." (CR 702.16 protection, CR 603.6a upkeep
+// trigger, CR 117.3a may-pay with a typed-sacrifice cost, CR 701.8 destroy.) The
+// "sacrifice a creature other than this" is the may-pay sacrifice leg
+// (CR 701.21) filtered to creatures the controller controls; decline → 5 damage
+// to controller + tap self.
+const MINION_OF_LESHRAC_ID = "61278908-a1b4-4b4c-84f5-498ca41fc6b6";
+export const minionOfLeshrac: CardDefinition = {
+    id: MINION_OF_LESHRAC_ID,
+    name: "Minion of Leshrac",
+    rarity: "rare",
+    oracleText:
+        "Protection from black\nAt the beginning of your upkeep, this creature deals 5 damage to you unless you sacrifice a creature other than this creature. If this creature deals damage to you this way, tap it.\n{T}: Destroy target creature or land.",
+    manaCost: { X: 4, B: 3 },
+    types: ["Creature"],
+    subtypes: ["Demon", "Minion"],
+    power: 5,
+    toughness: 5,
+    staticAbilities: ["protection from black"],
+    triggeredAbilities: [
+        phaseTrigger({
+            id: "minion-of-leshrac-upkeep",
+            oracleText:
+                "At the beginning of your upkeep, this creature deals 5 damage to you unless you sacrifice a creature other than this creature. If this creature deals damage to you this way, tap it.",
+            phase: "UPKEEP",
+            scope: "your",
+            // NOT DSL-migratable (ADR 0045, re-assessed migration PRD #795):
+            // the `mayPay` Op's `cost` union DOES now support a sacrifice leg
+            // (MayPayCost.sacrifice) and `if !$paid` covers the declined
+            // branch (tap self + 5 damage) — the mayPay+if shape itself is no
+            // longer the blocker. What remains unexpressible is "a creature
+            // OTHER THAN this one": the sacrifice leg's `filter` is the
+            // engine's `PermanentFilter`, which DOES have
+            // `excludeInstanceIds`, but `EffectCardFilter`/the JSON-pure
+            // Effect Script has no way to inject the SOURCE's own (runtime,
+            // per-instance) id into that filter — same self-exclusion gap as
+            // Lord of the Pit (lea/black.cards.ts).
+            // Blocked on: an `excludeInstanceIds`/self-exclusion member
+            // reachable from a `mayPay` sacrifice-leg filter.
+            resolve: (ctx) => {
+                const accept = ctx.requestMayPay({
+                    playerId: ctx.controller,
+                    choiceId: ctx.controller,
+                    // CR 701.21 — sacrifice a creature OTHER than this one. The
+                    // sacrifice leg excludes the source by id so the player
+                    // can't feed Minion of Leshrac to its own upkeep.
+                    cost: {
+                        permanent: {
+                            action: "sacrifice",
+                            filter: {
+                                types: "Creature",
+                                controllerRelation: "you",
+                                excludeInstanceIds: [ctx.sourceInstanceId],
+                            },
+                            count: 1,
+                        },
+                    },
+                    prompt: "Sacrifice another creature, or take 5 damage from Minion of Leshrac (which then taps it)?",
+                });
+                if (accept === undefined) return;
+                if (!accept) {
+                    ctx.dealDamage({ type: "player", id: ctx.controller }, 5);
+                    ctx.tap({ type: "permanent", id: ctx.sourceInstanceId });
+                }
+            },
+        }),
+    ],
+    activatedAbilities: [
+        {
+            id: "minion-of-leshrac-destroy",
+            oracleText: "{T}: Destroy target creature or land.",
+            cost: { tap: true },
+            useStack: true,
+            targetRequirement: { type: ["Creature", "Land"], count: 1 },
+            // Migrated resolve()→effects[] (ADR 0045, migration PRD #795):
+            // destroy the announced target (CR 701.8).
+            effects: [{ op: "destroy", target: { target: 0 } }],
+        },
+    ],
+};
+// Minion of Tevesh Szat — "At the beginning of your upkeep, this creature deals
+// 2 damage to you unless you pay {B}{B}." (CR 603.6a upkeep trigger + CR 117.3a
+// may-pay; on decline it deals 2 to its controller.) Plus "{T}: Target creature
+// gets +3/-2 until end of turn." (CR 611.2a — pump power, drop toughness.)
+export const minionOfTeveshSzat: CardDefinition = {
+    id: "ea9f3ab5-6a31-47db-b8bf-4c56a7ff19d1",
+    name: "Minion of Tevesh Szat",
+    rarity: "rare",
+    oracleText:
+        "At the beginning of your upkeep, this creature deals 2 damage to you unless you pay {B}{B}.\n{T}: Target creature gets +3/-2 until end of turn.",
+    manaCost: { X: 4, B: 3 },
+    types: ["Creature"],
+    subtypes: ["Demon", "Minion"],
+    power: 4,
+    toughness: 4,
+    triggeredAbilities: [
+        phaseTrigger({
+            id: "minion-tevesh-szat-upkeep",
+            oracleText:
+                "At the beginning of your upkeep, this creature deals 2 damage to you unless you pay {B}{B}.",
+            phase: "UPKEEP",
+            scope: "your",
+            // Migrated resolve()→effects[] (ADR 0045, migration PRD #795):
+            // mayPay {B}{B} (CR 117.3a) then, on decline, 2 damage to the
+            // controller (`your`-scoped, so `"controller"` == the scoped
+            // player) — the same mayPay + if shape as Force Spike
+            // (leg/blue.cards.ts).
+            effects: [
+                {
+                    op: "mayPay",
+                    player: "controller",
+                    cost: { B: 2 },
+                    prompt: "Pay {B}{B} or take 2 damage from Minion of Tevesh Szat?",
+                    bind: "$paid",
+                },
+                {
+                    op: "if",
+                    predicate: { not: { binding: "$paid" } },
+                    then: [
+                        {
+                            op: "dealDamage",
+                            amount: 2,
+                            to: { player: "controller" },
+                        },
+                    ],
+                },
+            ],
+        }),
+    ],
+    activatedAbilities: [
+        {
+            id: "minion-tevesh-szat-pump",
+            oracleText: "{T}: Target creature gets +3/-2 until end of turn.",
+            cost: { tap: true },
+            useStack: true,
+            targetRequirement: { type: "Creature", count: 1 },
+            // Migrated resolve()→effects[] (ADR 0045, issue #840): +3/-2 EOT
+            // on the announced target (CR 613.4c; toughness is a signed value,
+            // -2 is a shrink) via the pump Op.
+            effects: [
+                {
+                    op: "pump",
+                    target: { target: 0 },
+                    power: 3,
+                    toughness: -2,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
+        },
+    ],
+};
+// Mole Worms — land-locking twin of Phyrexian Gremlins (CR 611.2 untap-lock
+// tied to the source's tapped state via `lockUntapWhileSourceTapped`; CR 502.3
+// untap step, whose "effects can keep one or more of a player's permanents
+// from untapping" is the clause this rides). "{T}: Tap target land. It doesn't untap ... for as long as
+// this creature remains tapped."
+export const moleWorms: CardDefinition = {
+    id: "4914f6fc-e3e7-426b-8688-12157c7df9e7",
+    name: "Mole Worms",
+    rarity: "uncommon",
+    oracleText:
+        "You may choose not to untap this creature during your untap step.\n{T}: Tap target land. It doesn't untap during its controller's untap step for as long as this creature remains tapped.",
+    manaCost: { X: 2, B: 1 },
+    types: ["Creature"],
+    subtypes: ["Worm"],
+    power: 1,
+    toughness: 1,
+    staticAbilities: ["may-choose-not-to-untap"],
+    activatedAbilities: [
+        {
+            id: "mole-worms-tap-lock",
+            oracleText:
+                "{T}: Tap target land. It doesn't untap during its controller's untap step for as long as this creature remains tapped.",
+            cost: { tap: true },
+            useStack: true,
+            targetRequirement: { type: "Land", count: 1 },
+            // NOT DSL-migratable (ADR 0045): the tap itself is a registered
+            // `tapUntap` Op, but "doesn't untap ... for as long as this
+            // creature remains tapped" is `SpellContext.lockUntapWhileSourceTapped`
+            // — a conditional untap-lock primitive with no Op skin in
+            // `EFFECT_OP_REGISTRY`.
+            // Blocked on: a `lockUntapWhileSourceTapped`-equivalent Op.
+            resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                if (target?.type === "permanent") {
+                    ctx.tap(target);
+                    ctx.lockUntapWhileSourceTapped(target);
+                }
+            },
+        },
+    ],
+};
+// Moor Fiend — 3/3 swampwalk (CR 702.14b landwalk evasion).
+export const moorFiend: CardDefinition = {
+    id: "57089dd4-e30d-498d-9341-43c104c6f3f9",
+    name: "Moor Fiend",
+    rarity: "common",
+    oracleText:
+        "Swampwalk (This creature can't be blocked as long as defending player controls a Swamp.)",
+    manaCost: { X: 3, B: 1 },
+    types: ["Creature"],
+    subtypes: ["Horror"],
+    power: 3,
+    toughness: 3,
+    staticAbilities: ["swampwalk"],
+};
+// Necropotence (#667) — the Ice Age card-advantage engine, composed from
+// shipped primitives plus the CARD_DISCARDED seam this slice added:
+//   1. "Skip your draw step." — CR 504 / 614 draw-step skip via the
+//      `drawStepReplacement` flag (Island Sanctuary precedent). Necropotence's
+//      skip is UNCONDITIONAL (no "may"), so the flag alone suffices — no DRAW
+//      phaseTrigger offers a choice (unlike Island Sanctuary / Fasting).
+//   2. "Whenever you discard a card, exile that card from your graveyard." —
+//      CR 701.9 discard event + CR 603 trigger via the new `discardTrigger`
+//      factory (CARD_DISCARDED). The card has already landed in the graveyard
+//      when the event fires, so the resolve moves it graveyard → exile.
+//   3. "Pay 1 life: Exile the top card of your library face down. Put that card
+//      into your hand at the beginning of your next end step." — a life-cost
+//      activated ability (CR 119.4) that exiles the top library card face down
+//      (`exileFaceDown` — the oracle says "face down" IN SO MANY WORDS, which
+//      is what earns this card the primitive, CR 406.3) and schedules a
+//      next-end-step
+//      delayed trigger (CR 603.7a) carrying that card's id; the delayed trigger
+//      moves it exile → hand. Each activation schedules its own delayed trigger,
+//      so any number of cards exiled this turn all return at the same next end
+//      step.
+const NECROPOTENCE_ID = "54d7a0c1-efb4-4a8d-ad92-a96d43835052";
+export const necropotence: CardDefinition = {
+    id: NECROPOTENCE_ID,
+    name: "Necropotence",
+    rarity: "rare",
+    oracleText:
+        "Skip your draw step.\nWhenever you discard a card, exile that card from your graveyard.\nPay 1 life: Exile the top card of your library face down. Put that card into your hand at the beginning of your next end step.",
+    manaCost: { B: 3 },
+    types: ["Enchantment"],
+    // 1. CR 504 / 614 — "Skip your draw step." Suppresses the turn-based draw
+    //    unconditionally (no DRAW phaseTrigger, unlike the "may skip" cards).
+    drawStepReplacement: true,
+    triggeredAbilities: [
+        // 2. CR 701.9 / 603 — "Whenever you discard a card, exile that card from
+        //    your graveyard." Fires off the CARD_DISCARDED choke point.
+        // NOT DSL-migratable (ADR 0045, migration PRD #795): the `discardTrigger`
+        // factory (convex/cards/abilities/triggers/discardTrigger.ts) has no
+        // `effects[]` alternative at all — `resolve` is its only site — so this
+        // trigger is structurally blocked regardless of how simple its body is
+        // (the body is a plain `moveCardById` graveyard→exile, an already-
+        // covered Op primitive).
+        // Blocked on: an `effects[]` site on the discardTrigger factory.
+        discardTrigger({
+            id: "necropotence-discard-exile",
+            oracleText:
+                "Whenever you discard a card, exile that card from your graveyard.",
+            scope: "your",
+            resolve: (ctx, _event, discardingPlayerId, discardedId) => {
+                // The discarded card is in the graveyard; exile it face up.
+                ctx.moveCardById(
+                    discardingPlayerId,
+                    discardedId,
+                    "graveyard",
+                    "exile"
+                );
+            },
+        }),
+    ],
+    activatedAbilities: [
+        // 3. CR 119.4 — "Pay 1 life: Exile the top card of your library face
+        //    down. Put that card into your hand at the beginning of your next
+        //    end step."
+        {
+            id: "necropotence-pay-life",
+            oracleText:
+                "Pay 1 life: Exile the top card of your library face down. Put that card into your hand at the beginning of your next end step.",
+            cost: { life: 1 },
+            useStack: true,
+            // NOT DSL-migratable (ADR 0045, re-assessed migration PRD #795):
+            // same blocker class as Krovikan Elementalist's fly ability — the
+            // declarative `delayedTrigger` Op always schedules under the fixed
+            // `INLINE_DELAYED_TRIGGER_ID`, with no field to pin a stable custom
+            // `triggerId`. This card's pre-existing test asserts
+            // `state.delayedTriggers[0].triggerId === "necropotence-return-to-hand"`
+            // (an untouched equivalence oracle), which the declarative Op
+            // cannot reproduce.
+            // Blocked on: a stable custom-id field on the `delayedTrigger` Op.
+            resolve: (ctx: SpellContext) => {
+                // CR 121.1 — the top card of the controller's library.
+                const topId = ctx.peekLibraryTop(ctx.controller, 1)[0];
+                if (topId === undefined) return; // empty library — nothing exiled
+                // CR 406.3 / ADR 0026 — exile FACE DOWN, known to the
+                // controller alone (opponents see a face-down card).
+                ctx.exileFaceDown(
+                    ctx.controller,
+                    topId,
+                    "library",
+                    ctx.controller,
+                    // Oracle says "face down" outright (issue #2904).
+                    "face-down-exile"
+                );
+                // CR 603.7a — schedule the return at the next end step. The
+                // exiled card's instance id rides in the payload; multiple
+                // activations queue independent delayed triggers.
+                ctx.scheduleDelayedTrigger(
+                    NECROPOTENCE_ID,
+                    "necropotence-return-to-hand",
+                    "next-end-step",
+                    { cardInstanceId: topId, ownerId: ctx.controller }
+                );
+            },
+        },
+    ],
+    delayedTriggers: [
+        {
+            id: "necropotence-return-to-hand",
+            oracleText:
+                "At the beginning of your next end step, put the exiled card into your hand.",
+            timing: "next-end-step",
+            // NOT DSL-migratable (ADR 0045, migration PRD #795): the exiled
+            // card's payload id is neither a player id nor a live battlefield
+            // permanent, so `runDelayedTriggerBody`'s payload rebinding
+            // (`ctx.allPlayerIds.includes` / `ctx.getOwnerId`, both scoped to
+            // players/battlefield) never captures it as a binding — no `ref`
+            // in an Op could name it. `moveZone`'s object-ref shape also has
+            // no exile-sourced branch (only battlefield-permanent and
+            // graveyard-card).
+            // Blocked on: a payload-rebinding path for an exile-zone card id.
+            resolve: (ctx: SpellContext, payload) => {
+                // CR 400.7 — move the exiled card to its owner's hand. No-op if
+                // it has since left exile (e.g. a graveyard-hate effect).
+                ctx.moveCardById(
+                    payload.ownerId,
+                    payload.cardInstanceId,
+                    "exile",
+                    "hand"
+                );
+            },
+        },
+    ],
+};
+// Norritt — "{T}: Untap target blue creature. {T}: Choose target non-Wall
+// creature the active player has controlled continuously since the beginning of
+// the turn. That creature attacks this turn if able. Destroy it at the beginning
+// of the next end step if it didn't attack this turn. Activate only before
+// attackers are declared." (CR 701.26b untap; CR 508.1d force-attack +
+// CR 603.7a delayed end-step destroy — the Nettling Imp shape.) The
+// "the active player has controlled continuously since the beginning of the
+// turn" clause is BOTH halves of a target filter (issue #1824): `controller:
+// "active"` (CR 102.1 — whose permanent it is) AND `controlledSinceTurnStart:
+// true` (CR 302.6 / 400.7 — the continuity window, via
+// `hasControlledSinceTurnStart`). `activationPhaseRestriction` enforces
+// "before attackers are declared".
+const NORRITT_ID = "35abefe6-c39b-4fe5-b2e3-d213f0c4f447";
+export const norritt: CardDefinition = {
+    id: NORRITT_ID,
+    name: "Norritt",
+    rarity: "common",
+    oracleText:
+        "{T}: Untap target blue creature.\n{T}: Choose target non-Wall creature the active player has controlled continuously since the beginning of the turn. That creature attacks this turn if able. Destroy it at the beginning of the next end step if it didn't attack this turn. Activate only before attackers are declared.",
+    manaCost: { X: 3, B: 1 },
+    types: ["Creature"],
+    subtypes: ["Imp"],
+    power: 1,
+    toughness: 1,
+    activatedAbilities: [
+        {
+            id: "norritt-untap-blue",
+            oracleText: "{T}: Untap target blue creature.",
+            cost: { tap: true },
+            useStack: true,
+            targetRequirement: { type: "Creature", count: 1, colorFilter: "U" },
+            // Migrated resolve()→effects[] (ADR 0045, #842): untap the announced
+            // blue-creature target (CR 701.26b).
+            effects: [
+                { op: "tapUntap", action: "untap", target: { target: 0 } },
+            ],
+        },
+        {
+            id: "norritt-force-attack",
+            oracleText:
+                "{T}: Choose target non-Wall creature the active player has controlled continuously since the beginning of the turn. That creature attacks this turn if able. Destroy it at the beginning of the next end step if it didn't attack this turn.",
+            cost: { tap: true },
+            useStack: true,
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                excludeSubtypes: "Wall",
+                // "…the ACTIVE PLAYER has controlled CONTINUOUSLY SINCE THE
+                // BEGINNING OF THE TURN" (issue #1824). Both halves are
+                // load-bearing: without them Norritt force-attacks and
+                // destroys ANY creature on the board on any turn — a narrow
+                // tempo tool acting as unconditional removal.
+                controller: "active",
+                controlledSinceTurnStart: true,
+            },
+            activationPhaseRestriction: [
+                "UPKEEP",
+                "DRAW",
+                "PRECOMBAT_MAIN",
+                "BEGINNING_OF_COMBAT",
+            ],
+            // NOT DSL-migratable (ADR 0045, migration PRD #795): same blocker
+            // class as Krovikan Elementalist's fly ability — the declarative
+            // `delayedTrigger` Op always schedules under the fixed
+            // `INLINE_DELAYED_TRIGGER_ID`, with no field to pin a stable
+            // custom `triggerId` ("norritt-destroy") for this closure's
+            // scheduling call.
+            // Blocked on: a stable custom-id field on the `delayedTrigger` Op.
+            resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                if (!target || target.type !== "permanent") return;
+                ctx.setMustAttackThisTurn(target);
+                ctx.scheduleDelayedTrigger(
+                    NORRITT_ID,
+                    "norritt-destroy",
+                    "next-end-step",
+                    { targetId: target.id }
+                );
+            },
+        },
+    ],
+    delayedTriggers: [
+        {
+            id: "norritt-destroy",
+            oracleText:
+                "Destroy that creature at the beginning of the next end step if it didn't attack this turn.",
+            timing: "next-end-step",
+            // NOT DSL-migratable (ADR 0045, migration PRD #795): the gate is
+            // "if it didn't attack this turn" (`ctx.hasAttackedThisTurn`) — the
+            // `if` construct's `EffectPredicate` union (binding / comparison /
+            // picksNonEmpty / targetIsAnother / picksMatchFilter) has no member
+            // reading a permanent's attacked-this-turn flag, and the `EffectValue`
+            // grammar has no way to read it as a 0/1 either.
+            // Blocked on: a has-attacked-this-turn predicate/value.
+            resolve: (ctx, payload) => {
+                const targetId = payload.targetId;
+                if (!targetId) return;
+                const target = { type: "permanent" as const, id: targetId };
+                if (ctx.hasAttackedThisTurn(target)) return;
+                ctx.destroy(target);
+            },
+        },
+    ],
+};
+// Oath of Lim-Dûl (#668) — the demonstration card for the LIFE_LOST seam.
+//   "Whenever you lose life, for each 1 life you lost, sacrifice a permanent
+//    other than this enchantment unless you discard a card. {B}{B}: Draw a
+//    card."
+// 1. CR 119.3 / 603 — the triggered ability listens to LIFE_LOST (the new seam
+//    emitted on every life-loss path: the `loseLife` primitive, paid life costs,
+//    and all damage-to-player sinks). The event carries the amount actually
+//    lost, so the resolve loops `amount` times (CR 603 — "for each 1 life you
+//    lost"). Each iteration is a punisher choice (CR 117.3a): the default is to
+//    sacrifice a permanent other than Oath itself; the player may instead
+//    discard a card. Per-iteration `choiceId`s (`oath-...-${i}`) keep the
+//    suspend/resume of `requestMayPay` / `requestChoice` stable across replays —
+//    on resume the answered iterations fast-forward to the next open point.
+// 2. CR 605 — the {B}{B} draw activated ability is plain.
+const OATH_OF_LIM_DUL_ID = "f16df768-06de-43a0-b548-44fb0887490b";
+export const oathOfLimDul: CardDefinition = {
+    id: OATH_OF_LIM_DUL_ID,
+    name: "Oath of Lim-Dûl",
+    rarity: "rare",
+    oracleText:
+        "Whenever you lose life, for each 1 life you lost, sacrifice a permanent other than this enchantment unless you discard a card. (Damage dealt to you causes you to lose life.)\n{B}{B}: Draw a card.",
+    manaCost: { X: 3, B: 1 },
+    types: ["Enchantment"],
+    triggeredAbilities: [
+        lifeLostTrigger({
+            id: "oath-of-lim-dul-life-loss",
+            oracleText:
+                "Whenever you lose life, for each 1 life you lost, sacrifice a permanent other than this enchantment unless you discard a card.",
+            scope: "your",
+            // NOT DSL-migratable (ADR 0045, migration PRD #795): the
+            // `lifeLostTrigger` factory (convex/cards/abilities/triggers/
+            // lifeLostTrigger.ts) has no `effects[]` alternative — `resolve` is
+            // its only site. Even setting that aside, the body repeats a
+            // punisher choice (may-pay discard, else sacrifice) `amount` times
+            // (an `$event`-derived numeric loop count) — the `forEach`
+            // construct only iterates a declaratively-selected SET (players or
+            // battlefield permanents), not a numeric repeat — and each
+            // iteration needs a per-i suspend/resume `choiceId` for replay
+            // stability, which the Pending Choice-backed `choice`/`mayPay` Ops
+            // don't parametrize per loop index.
+            // Blocked on: an effects[] site on lifeLostTrigger + a numeric
+            // repeat construct.
+            resolve: (ctx, _event, losingPlayerId, amount) => {
+                // CR 603 — repeat the punisher resolution once per point of
+                // life lost. The loop is replay-stable: each iteration's
+                // choices key under unique `choiceId`s, so a suspended
+                // (undefined) request that re-enters the body fast-forwards
+                // through already-answered points.
+                for (let i = 0; i < amount; i++) {
+                    const handIds = ctx.getHandIds(losingPlayerId);
+                    // CR 117.3a — the player may discard a card INSTEAD of
+                    // sacrificing. Only offer the opt-out when a card exists.
+                    if (handIds.length > 0) {
+                        const discardInstead = ctx.requestMayPay({
+                            playerId: losingPlayerId,
+                            choiceId: `oath-discard-may-${i}`,
+                            prompt: "Discard a card instead of sacrificing a permanent to Oath of Lim-Dûl?",
+                        });
+                        if (discardInstead === undefined) return; // suspended
+                        if (discardInstead) {
+                            const picked = ctx.requestChoice({
+                                playerId: losingPlayerId,
+                                choiceId: `oath-discard-${i}`,
+                                kind: "choose-hand-card",
+                                zone: "hand",
+                                count: 1,
+                                prompt: "Discard a card.",
+                            });
+                            if (picked === undefined) return; // suspended
+                            if (picked.length > 0) {
+                                ctx.discardCard(losingPlayerId, picked[0]);
+                            }
+                            continue;
+                        }
+                    }
+                    // Default: sacrifice a permanent other than Oath itself
+                    // (CR 701.21). If the only permanent is Oath (or none),
+                    // there is nothing to sacrifice — the clause does nothing.
+                    const sacCandidates = ctx
+                        .getBattlefieldIds(losingPlayerId)
+                        .filter((id) => id !== ctx.sourceInstanceId);
+                    if (sacCandidates.length === 0) continue;
+                    const chosen = ctx.requestChoice({
+                        playerId: losingPlayerId,
+                        choiceId: `oath-sacrifice-${i}`,
+                        kind: "choose-permanents",
+                        zone: "battlefield",
+                        count: 1,
+                        candidateIds: sacCandidates,
+                        prompt: "Sacrifice a permanent other than Oath of Lim-Dûl.",
+                    });
+                    if (chosen === undefined) return; // suspended
+                    if (chosen.length > 0) ctx.sacrifice(chosen[0]);
+                }
+            },
+        }),
+    ],
+    activatedAbilities: [
+        {
+            id: "oath-of-lim-dul-draw",
+            oracleText: "{B}{B}: Draw a card.",
+            cost: { mana: { B: 2 } },
+            useStack: true,
+            // Migrated resolve()→effects[] (ADR 0045, issue #1264): CR 121.1
+            // draw via the DSL `draw` Op.
+            effects: [{ op: "draw", player: "controller", count: 1 }],
+        },
+    ],
+};
+// Pestilence Rats — "Pestilence Rats's power is equal to the number of other
+// Rats on the battlefield." (CR 604.3 characteristic-defining ability; */3 with
+// the */ power supplied by a `pt-cda` that counts other Rats across both
+// battlefields — base power 0.)
+export const pestilenceRats: CardDefinition = {
+    id: "bff7f6a6-0e90-4eb4-b76e-d98454975fb6",
+    name: "Pestilence Rats",
+    rarity: "common",
+    oracleText:
+        "Pestilence Rats's power is equal to the number of other Rats on the battlefield. (For example, as long as there are two other Rats on the battlefield, Pestilence Rats's power and toughness are 2/3.)",
+    manaCost: { X: 2, B: 1 },
+    types: ["Creature"],
+    subtypes: ["Rat"],
+    power: 0,
+    toughness: 3,
+    staticEffects: [
+        {
+            kind: "pt-cda",
+            applies: (target, source) => target.id === source.id,
+            compute: (source, state) => {
+                let otherRats = 0;
+                for (const p of state.players) {
+                    for (const c of p.battlefield) {
+                        if (c.id === source.id) continue;
+                        if (c.subtypes.includes("Rat")) otherRats++;
+                    }
+                }
+                // CR 613.4 layer 7b: */3 — power = other Rats, toughness fixed.
+                return { power: otherRats, toughness: 0 };
+            },
+        },
+    ],
+};
+// Pox — "Each player loses a third of their life, rounds up, then discards a
+// third of the cards in their hand, rounds up, then sacrifices a third of the
+// creatures they control, rounds up, then sacrifices a third of the lands they
+// control, rounds up. (Each player chooses which cards to discard and which
+// permanents to sacrifice.)" — modern Oracle text (CR 119.3 life loss; CR 701.9 discard;
+// CR 701.21 sacrifice; CR 107.2 "round up"). The four phases happen in
+// APNAP order (CR 101.4) and each is a SEPARATE suspension point so a player's
+// choice in one phase doesn't leak into another; modeled as four `resolveSteps`.
+//
+// "A third, rounded up" of n is `Math.ceil(n / 3)`. For the permanent/hand
+// phases each player CHOOSES which to keep, so the engine prompts the player to
+// pick the KEEP set (count = n − ceil(n/3)) and sacrifices/discards the rest —
+// the same shrink-to-a-target-count primitive Balance uses.
+function poxThird(n: number): number {
+    return Math.ceil(n / 3); // CR 107.2 — "round up"
+}
+
+// Each player chooses which `loseCount = ceil(n/3)` permanents (matching
+// `filter`) to sacrifice — i.e. which `n − loseCount` to KEEP. Mirrors the
+// Balance equalize helper; the keep-pick is auto-resolved when there is no real
+// choice (lose all, or lose none).
+function poxSacrificeThird(
+    ctx: SpellContext,
+    filter: PermanentFilter,
+    label: { singular: string; plural: string }
+): void {
+    const players = ctx.apNapOrder();
+    const keepByPlayer: Record<string, string[] | undefined> = {};
+    for (const p of players) {
+        const ids = ctx.getBattlefieldIds(p, filter);
+        const n = ids.length;
+        const keep = n - poxThird(n);
+        if (keep <= 0) {
+            keepByPlayer[p] = []; // sacrifice everything — no choice
+            continue;
+        }
+        if (keep >= n) {
+            keepByPlayer[p] = ids; // sacrifice nothing — no choice
+            continue;
+        }
+        keepByPlayer[p] = ctx.requestChoice({
+            playerId: p,
+            choiceId: `pox-${label.plural}-${p}`,
+            kind: "keep-permanents",
+            zone: "battlefield",
+            filter,
+            count: keep,
+            prompt:
+                keep === 1
+                    ? `Pox: choose the ${label.singular} to keep`
+                    : `Pox: choose ${keep} ${label.plural} to keep`,
+        });
+    }
+    if (Object.values(keepByPlayer).some((v) => v === undefined)) return;
+    for (const p of players) {
+        const keep = new Set(keepByPlayer[p]);
+        for (const id of ctx.getBattlefieldIds(p, filter)) {
+            if (!keep.has(id)) ctx.sacrifice(id);
+        }
+    }
+}
+
+export const pox: CardDefinition = {
+    id: "a914138c-a593-414c-bbcb-83d3c1bc4f6f",
+    name: "Pox",
+    rarity: "rare",
+    oracleText:
+        "Each player loses a third of their life, rounds up, then discards a third of the cards in their hand, rounds up, then sacrifices a third of the creatures they control, rounds up, then sacrifices a third of the lands they control, rounds up.",
+    manaCost: { B: 3 },
+    types: ["Sorcery"],
+    resolveSteps: [
+        // 1) Each player loses a third of their life (round up). No choice.
+        (ctx: SpellContext) => {
+            for (const p of ctx.apNapOrder()) {
+                const loss = poxThird(ctx.getLife(p));
+                if (loss > 0) ctx.loseLife(p, loss);
+            }
+        },
+        // 2) Each player discards a third of their hand (round up), their choice.
+        (ctx: SpellContext) => {
+            const players = ctx.apNapOrder();
+            const keepByPlayer: Record<string, string[] | undefined> = {};
+            for (const p of players) {
+                const ids = ctx.getHandIds(p);
+                const n = ids.length;
+                const keep = n - poxThird(n);
+                if (keep <= 0) {
+                    keepByPlayer[p] = [];
+                    continue;
+                }
+                if (keep >= n) {
+                    keepByPlayer[p] = ids;
+                    continue;
+                }
+                keepByPlayer[p] = ctx.requestChoice({
+                    playerId: p,
+                    choiceId: `pox-hand-${p}`,
+                    kind: "keep-hand",
+                    zone: "hand",
+                    count: keep,
+                    prompt:
+                        keep === 1
+                            ? "Pox: choose 1 card to keep"
+                            : `Pox: choose ${keep} cards to keep`,
+                });
+            }
+            if (Object.values(keepByPlayer).some((v) => v === undefined))
+                return;
+            for (const p of players) {
+                const keep = new Set(keepByPlayer[p]);
+                for (const id of ctx.getHandIds(p)) {
+                    if (!keep.has(id)) ctx.discardCard(p, id);
+                }
+            }
+        },
+        // 3) Each player sacrifices a third of their creatures (round up).
+        (ctx: SpellContext) => {
+            poxSacrificeThird(
+                ctx,
+                { types: "Creature" },
+                { singular: "creature", plural: "creatures" }
+            );
+        },
+        // 4) Each player sacrifices a third of their lands (round up).
+        (ctx: SpellContext) => {
+            poxSacrificeThird(
+                ctx,
+                { types: "Land" },
+                { singular: "land", plural: "lands" }
+            );
+        },
+    ],
+};
+// Seizures (#668) — Aura demonstrating the host-scoped "becomes tapped"
+// trigger seam.
+//   "Enchant creature. Whenever enchanted creature becomes tapped, this Aura
+//    deals 3 damage to that creature's controller unless that player pays {3}."
+// CR 303.4 — an Aura with `targetRequirement: { type: "Creature" }`. CR 701.20a
+// / 603 — the trigger listens to PERMANENT_TAPPED with `scope: "host"` (the new
+// PermanentScope variant matching the Aura's `attachedTo` host), so it fires
+// only when the ENCHANTED creature becomes tapped. CR 117.3a — the host's
+// controller may pay {3} to avoid the 3 damage (CR 120.1).
+export const seizures: CardDefinition = {
+    id: "da369c86-7e17-43d8-b626-b6842e3d2d50",
+    name: "Seizures",
+    rarity: "common",
+    oracleText:
+        "Enchant creature\nWhenever enchanted creature becomes tapped, this Aura deals 3 damage to that creature's controller unless that player pays {3}.",
+    manaCost: { X: 1, B: 1 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Creature", count: 1 },
+    triggeredAbilities: [
+        tappedTrigger({
+            id: "seizures-tapped",
+            oracleText:
+                "Whenever enchanted creature becomes tapped, this Aura deals 3 damage to that creature's controller unless that player pays {3}.",
+            // CR 303.4b — keyed on the enchanted creature (the Aura's host).
+            scope: "host",
+            // NOT DSL-migratable (ADR 0045, re-assessed migration PRD #795):
+            // `tappedTrigger`'s `effects[]` site binds only `$source` and the
+            // ability's own controller — NOT the tapped permanent's
+            // controller, which is exactly what this effect needs ("that
+            // creature's controller" pays or takes the damage, and the
+            // enchanted host's controller need not be Seizures' own
+            // controller). Confirmed still blocked per the factory's own doc
+            // comment.
+            // Blocked on: a tapped-permanent-controller player selector
+            // reachable from a `tappedTrigger` script.
+            resolve: (ctx, _event, tapped) => {
+                // CR 117.3a — the controller of the enchanted creature may pay
+                // {3} to avoid the damage.
+                const controller = tapped.controllerId;
+                const accept = ctx.requestMayPay({
+                    playerId: controller,
+                    choiceId: controller,
+                    cost: { X: 3 },
+                    prompt: "Pay {3} or take 3 damage from Seizures?",
+                });
+                if (accept === undefined) return; // suspended
+                if (!accept) {
+                    ctx.dealDamage({ type: "player", id: controller }, 3);
+                }
+            },
+        }),
+    ],
+};
+// Songs of the Damned — "Add {B} for each creature card in your graveyard."
+// (CR 605/606 mana spell; counts Creature cards in the caster's graveyard at
+// resolution and adds that many {B}.)
+export const songsOfTheDamned: CardDefinition = {
+    id: "6cff3547-8c72-439a-91fe-ebe729dab748",
+    name: "Songs of the Damned",
+    rarity: "common",
+    oracleText: "Add {B} for each creature card in your graveyard.",
+    manaCost: { B: 1 },
+    types: ["Instant"],
+    // NOT DSL-migratable (ADR 0045): the produced {B} amount is COUNT-SCALED
+    // ("for each creature card in your graveyard"). The `addMana` Op's `mana`
+    // field is a FIXED per-colour amount map, not an EffectValue — it cannot
+    // carry a `count`. Planned-migratable. Blocked on: count-scaled produced
+    // mana (an EffectValue-valued addMana amount).
+    resolve: (ctx: SpellContext) => {
+        const creatures = ctx
+            .getGraveyardCards(ctx.controller)
+            .filter((c) => c.types.includes("Creature")).length;
+        if (creatures > 0) ctx.addMana({ B: creatures });
+    },
+};
+// Soul Burn — "{X}{2}{B}: Soul Burn deals X damage to any target. You gain life
+// equal to the damage dealt, but not more than the amount of {B} spent on X …"
+// (CR 107.3 X, CR 120 damage, CR 119 lifegain). The lifegain is capped by the
+// {B} actually spent on X: `noteManaSpent` records the per-colour pool delta
+// around payment, and the resolve reads it back via `getNotedManaSpent()` and
+// subtracts the one fixed {B} pip to isolate the black spent on the X portion.
+// The `{X}{2}{B}` cost uses the `generic` field (the `X` slot holds the
+// variable marker, so the fixed {2} lives in `generic`).
+//
+// "Spend only black and/or red mana on X." — CR 107.3a / 601.2h:
+// `xSpendColors: ["B", "R"]` owes the announced X as {B/R} hybrid pips, never
+// generic (issue #3811).
+//
+// DIVERGENCE (tracked-by: #974): the oracle's three OTHER lifegain sub-caps —
+// "but not more than … the player's life total / the planeswalker's loyalty /
+// the creature's toughness before the damage was dealt" — are dropped; only the
+// {B}-spent cap and X bound the gain. Needs the same damage-DEALT readback
+// Drain Life's identical clause waits on.
+const SOUL_BURN_FIXED_BLACK_PIPS = 1;
+export const soulBurn: CardDefinition = {
+    id: "eb8e00d2-2381-4d45-bed8-c9bf738a9419",
+    name: "Soul Burn",
+    rarity: "common",
+    oracleText:
+        "Spend only black and/or red mana on X.\nSoul Burn deals X damage to any target. You gain life equal to the damage dealt, but not more than the amount of {B} spent on X, the player's life total before the damage was dealt, the planeswalker's loyalty before the damage was dealt, or the creature's toughness.",
+    manaCost: { X: "X", generic: 2, B: 1, xSpendColors: ["B", "R"] },
+    types: ["Sorcery"],
+    targetRequirement: { type: "any", count: 1 },
+    noteManaSpent: true,
+    // NOT DSL-migratable (ADR 0045, #852): the life gain is
+    // min(X, {B} spent on X) — it reads runtime noted mana (getNotedManaSpent)
+    // and clamps with arithmetic (max/min), neither of which the value grammar
+    // expresses. `{ X: true }` supplies the X-damage half only. Classifier
+    // over-count (folds dealDamage + gainLife + getX, blind to the noted-mana
+    // read + clamp). Blocked on a noted-mana-spent value + arithmetic, not on X.
+    resolve: (ctx: SpellContext) => {
+        const x = ctx.getX();
+        const target = ctx.targets[0];
+        if (!target) return; // CR 608.2b (issue #2985) — blanked slot
+        ctx.dealDamage(target, x);
+        // CR 119 — gain life equal to the damage dealt, but not more than the
+        // {B} spent on X. `notedManaSpent.B` includes the one fixed {B} pip; the
+        // remainder is the black spent on the X portion (clamped to [0, X]). The
+        // damage-dealt amount is X here (the toughness / life-total sub-caps are
+        // the same secondary clause Drain Life also leaves unmodelled).
+        const blackSpent = ctx.getNotedManaSpent().B ?? 0;
+        const blackOnX = Math.max(
+            0,
+            Math.min(x, blackSpent - SOUL_BURN_FIXED_BLACK_PIPS)
+        );
+        if (blackOnX > 0) ctx.gainLife(ctx.caster, blackOnX);
+    },
+};
+// Soul Kiss — "Enchant creature. {B}, Pay 1 life: Enchanted creature gets +2/+2
+// until end of turn. Activate no more than three times each turn." (CR 303.4
+// aura, CR 611.2a temp buff on the host, CR 602.5 hard per-turn activation cap.)
+// The cap "no more than three times each turn" is a true activation restriction:
+// `canActivate` reads the per-turn tally (`activationsThisTurn`, surfaced on
+// PermanentView) and rejects the 4th activation. NOTE: this is exactly the
+// `getActivationCount`+`canActivate` cap the issue (#655) confirmed ships today —
+// the old "needs `maxActivationsPerTurn`" stub comment was stale.
+export const soulKiss: CardDefinition = {
+    id: "42fbf6a5-86fe-41a3-891e-f72f11ad0aee",
+    name: "Soul Kiss",
+    rarity: "common",
+    oracleText:
+        "Enchant creature\n{B}, Pay 1 life: Enchanted creature gets +2/+2 until end of turn. Activate no more than three times each turn.",
+    manaCost: { X: 2, B: 1 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Creature", count: 1 },
+    activatedAbilities: [
+        {
+            id: "soul-kiss-pump",
+            oracleText:
+                "{B}, Pay 1 life: Enchanted creature gets +2/+2 until end of turn. Activate no more than three times each turn.",
+            cost: { mana: { B: 1 }, life: 1 },
+            useStack: true,
+            // CR 602.5 — reject the 4th+ activation this turn. The tally is
+            // recorded before resolve runs, so checking `< 3` here caps it at 3.
+            canActivate: (source) =>
+                (source.activationsThisTurn?.["soul-kiss-pump"] ?? 0) < 3,
+            // NOT DSL-migratable (ADR 0045, issue #840): pumps the enchanted creature (getAttachedTo). Blocked on: an attached-object EffectObjectSelector, not pump.
+            resolve: (ctx: SpellContext) => {
+                const hostId = ctx.getAttachedTo(ctx.sourceInstanceId);
+                if (!hostId) return;
+                ctx.addTemporaryPTBuff(
+                    { type: "permanent", id: hostId },
+                    2,
+                    2,
+                    { phase: "end-of-turn" }
+                );
+            },
+        },
+    ],
+};
+// Spoils of Evil — "For each artifact or creature card in target opponent's
+// graveyard, add {C} and you gain 1 life." (CR 606 mana + CR 119 lifegain.)
+// Counts Artifact/Creature cards in the targeted opponent's graveyard; adds
+// that many {C} and gains that much life.
+export const spoilsOfEvil: CardDefinition = {
+    id: "fd368eb6-72f0-42d4-afa5-3daa7de949ff",
+    name: "Spoils of Evil",
+    rarity: "rare",
+    oracleText:
+        "For each artifact or creature card in target opponent's graveyard, add {C} and you gain 1 life.",
+    manaCost: { X: 2, B: 1 },
+    types: ["Instant"],
+    targetRequirement: { type: "player", count: 1, controller: "opponent" },
+    // NOT DSL-migratable (ADR 0045): the produced {C} (and the life gained) are
+    // COUNT-SCALED to "each artifact or creature card in the opponent's
+    // graveyard". Two gaps: the `addMana` amount is a fixed map (no EffectValue),
+    // and the count filter is an OR of two types ("Artifact or Creature") while
+    // EffectCountSpec.filter is a single type/subtype (AND). Planned-migratable.
+    // Blocked on: count-scaled produced mana + an OR-typed count filter.
+    resolve: (ctx: SpellContext) => {
+        const target = ctx.targets[0];
+        if (target?.type !== "player") return;
+        const n = ctx
+            .getGraveyardCards(target.id)
+            .filter(
+                (c) =>
+                    c.types.includes("Artifact") || c.types.includes("Creature")
+            ).length;
+        if (n > 0) {
+            ctx.addMana({ C: n });
+            ctx.gainLife(ctx.controller, n);
+        }
+    },
+};
+// Spoils of War is implemented below (divide-as-you-choose cluster, #664).
+// Stench of Evil — {2}{B} Sorcery. "Destroy all Plains. For each land destroyed
+// this way, Stench of Evil deals 1 damage to that land's controller unless they
+// pay {2}." A per-permanent pay-or-damage rider over a mass effect (#669):
+//   • step 0 — destroy every Plains, recording the controller of each one that
+//     actually reached a graveyard (CR 614.5 — `destroy` reports real movement,
+//     so an indestructible/regenerated Plains is not billed). The list persists
+//     on the stack item (`noteMassRiderTargets`) because the destroy is
+//     irreversible and step 1 may suspend on a may-pay.
+//   • step 1 — for each recorded entry, the controller MAY pay {2}; on decline
+//     (or inability) they take 1 damage. Decisions are collected FIRST and
+//     damage applied in a single final pass (CR 608.2 — the idempotent
+//     "collect then apply" pattern shared with Lim-Dûl's Hex), so a suspension
+//     on a later entry never re-fires an earlier entry's damage.
+export const stenchOfEvil: CardDefinition = {
+    id: "4c7065a2-f819-4cbe-b453-a55e904f0461",
+    name: "Stench of Evil",
+    rarity: "uncommon",
+    oracleText:
+        "Destroy all Plains. For each land destroyed this way, Stench of Evil deals 1 damage to that land's controller unless they pay {2}.",
+    manaCost: { X: 2, B: 2 },
+    types: ["Sorcery"],
+    resolveSteps: [
+        (ctx: SpellContext) => {
+            // CR 701.8 — destroy each Plains individually so the controller of
+            // every land that actually dies is captured for the rider. (A
+            // bulk `destroyAll` would not report which/whose lands moved.)
+            const billed: string[] = [];
+            ctx.forEachPlayer((playerId) => {
+                for (const id of ctx.getBattlefieldIds(playerId, {
+                    subtypes: "Plains",
+                })) {
+                    if (ctx.destroy({ type: "permanent", id })) {
+                        billed.push(playerId);
+                    }
+                }
+            });
+            ctx.noteMassRiderTargets(billed);
+        },
+        (ctx: SpellContext) => {
+            const billed = ctx.getMassRiderTargets();
+            const takesDamage: string[] = [];
+            for (let i = 0; i < billed.length; i++) {
+                const playerId = billed[i];
+                // CR 118 — the land's controller may pay {2} to avoid 1 damage.
+                // A distinct choiceId per destroyed land keeps the prompts apart
+                // under stepped resolution (CR 608.2).
+                const paid = ctx.requestMayPay({
+                    playerId,
+                    choiceId: `stench-of-evil-${i}`,
+                    cost: { X: 2 },
+                    prompt: "Pay {2} to avoid 1 damage from Stench of Evil?",
+                });
+                if (paid === undefined) return; // suspended — resumes on submit.
+                if (!paid) takesDamage.push(playerId);
+            }
+            // All decisions in — apply damage exactly once.
+            for (const playerId of takesDamage) {
+                ctx.dealDamage({ type: "player", id: playerId }, 1);
+            }
+        },
+    ],
+};
+// Stromgald Cabal — "{T}, Pay 1 life: Counter target white spell." (CR 602.1
+// tap + CR 119.4 life cost; CR 701.6 counter restricted to white spells via the
+// spell-target `colorFilter`.)
+export const stromgaldCabal: CardDefinition = {
+    id: "6ac6fa0c-753e-4fbc-8a70-0f956503cf4e",
+    name: "Stromgald Cabal",
+    rarity: "rare",
+    oracleText: "{T}, Pay 1 life: Counter target white spell.",
+    manaCost: { X: 1, B: 2 },
+    types: ["Creature"],
+    subtypes: ["Human", "Knight"],
+    power: 2,
+    toughness: 2,
+    activatedAbilities: [
+        {
+            id: "stromgald-cabal-counter",
+            oracleText: "{T}, Pay 1 life: Counter target white spell.",
+            cost: { tap: true, life: 1 },
+            useStack: true,
+            targetRequirement: { type: "spell", count: 1, colorFilter: "W" },
+            // Migrated resolve()→effects[] (ADR 0045): counter the announced
+            // target spell (CR 701.6a). Untouched per-card test is the
+            // equivalence harness.
+            effects: [{ op: "counter", target: { target: 0 } }],
+        },
+    ],
+};
+// Touch of Death — {2}{B} Sorcery. "Touch of Death deals 1 damage to target
+// player or planeswalker. You gain 1 life." (CR 120.1 damage, CR 119.3
+// lifegain) plus the next-upkeep cantrip rider.
+export const touchOfDeath: CardDefinition = {
+    id: "a49c658f-e657-490b-af1f-e67e48d0046e",
+    name: "Touch of Death",
+    rarity: "common",
+    oracleText:
+        "Touch of Death deals 1 damage to target player or planeswalker. You gain 1 life.\nDraw a card at the beginning of the next turn's upkeep.",
+    manaCost: { X: 2, B: 1 },
+    types: ["Sorcery"],
+    targetRequirement: { type: ["player", "Planeswalker"], count: 1 },
+    // Migrated resolve()→effects[] (ADR 0045, issue #1264): 1 damage to the
+    // announced target (CR 120.1), 1 life gain (CR 119.3), then the
+    // next-upkeep draw cantrip via the ADR 0048 `delayedTrigger` Op with an
+    // inline `draw` body.
+    effects: [
+        { op: "dealDamage", amount: 1, to: { target: 0 } },
+        { op: "gainLife", player: "controller", amount: 1 },
+        {
+            op: "delayedTrigger",
+            timing: "next-upkeep",
+            oracleText:
+                "Draw a card at the beginning of the next turn's upkeep.",
+            effects: [{ op: "draw", player: "controller", count: 1 }],
+        },
+    ],
+};
+// Withering Wisps — end-step self-sacrifice when no creatures are on the
+// battlefield (CR 603.6a phase trigger), plus "{B}: deal 1 to each creature and
+// each player" with a per-turn activation cap equal to the number of snow
+// Swamps you control (CR 205.4a / 602.5). The cap is enforced in `canActivate`
+// by counting the controller's snow Swamps and comparing to this turn's tally.
+export const witheringWisps: CardDefinition = {
+    id: "ad1e6ae5-c972-42c0-ae78-f203873aeeb1",
+    name: "Withering Wisps",
+    rarity: "uncommon",
+    oracleText:
+        "At the beginning of the end step, if no creatures are on the battlefield, sacrifice this enchantment.\n{B}: This enchantment deals 1 damage to each creature and each player. Activate no more times each turn than the number of snow Swamps you control.",
+    manaCost: { X: 1, B: 2 },
+    types: ["Enchantment"],
+    triggeredAbilities: [
+        phaseTrigger({
+            id: "withering-wisps-end-step-sacrifice",
+            oracleText:
+                "At the beginning of the end step, if no creatures are on the battlefield, sacrifice this enchantment.",
+            phase: "END_STEP",
+            scope: "each",
+            // CR 603.4 intervening-if — only sacrifice when the battlefield
+            // holds no creatures at all.
+            interveningIf: (_event, _self, state) =>
+                !(state?.players ?? []).some((p) =>
+                    p.battlefield.some((c) => c.types.includes("Creature"))
+                ),
+            // Migrated resolve()→effects[] (ADR 0045, migration PRD #795):
+            // self-sacrifice via `$source` (issue #807) — the `interveningIf`
+            // above already re-checks the "no creatures" condition (CR
+            // 603.4) — mirrors Drop of Honey's `stateTrigger` shape
+            // (arn/green.cards.ts).
+            effects: [{ op: "sacrifice", target: { ref: "$source" } }],
+        }),
+    ],
+    activatedAbilities: [
+        {
+            id: "withering-wisps-blast",
+            oracleText:
+                "{B}: This enchantment deals 1 damage to each creature and each player. Activate no more times each turn than the number of snow Swamps you control.",
+            cost: { mana: { B: 1 } },
+            useStack: true,
+            // CR 602.5 / 205.4a — capped at the controller's snow-Swamp count.
+            canActivate: (source, state) => {
+                const me = source.controllerId;
+                const controller = state.players.find((p) => p.id === me);
+                if (!controller) return false;
+                const snowSwamps = controller.battlefield.filter((c) =>
+                    controlsSnowSubtype([c], "Swamp")
+                ).length;
+                const used =
+                    source.activationsThisTurn?.["withering-wisps-blast"] ?? 0;
+                return used < snowSwamps;
+            },
+            // Migrated resolve()→effects[] (ADR 0045, migration PRD #795):
+            // 1 damage to each creature (forEach permanents) and each player
+            // (forEach players) — the Plague Spitter shape (inv/black.cards.ts).
+            effects: [
+                {
+                    op: "forEach",
+                    select: {
+                        set: "permanents",
+                        zone: "battlefield",
+                        filter: { type: "Creature" },
+                    },
+                    effects: [
+                        { op: "dealDamage", amount: 1, to: { ref: "$each" } },
+                    ],
+                },
+                {
+                    op: "forEach",
+                    select: { set: "players" },
+                    effects: [
+                        {
+                            op: "dealDamage",
+                            amount: 1,
+                            to: { player: { ref: "$each" } },
+                        },
+                    ],
+                },
+            ],
+        },
+    ],
+};
+
+// Spoils of War — {X}{B} Sorcery. "X is the number of artifact and/or creature
+// cards in an opponent's graveyard as you cast this spell. Distribute X +1/+1
+// counters among any number of target creatures." (CR 107.3 / 608.2g cast-time
+// derived X; CR 601.2d / 120.4 divide as you choose.) The engine computes X
+// from the opponent's graveyard at announcement (`xFromOpponentGraveyard`) — it
+// is NOT chosen or paid — and snapshots it so `getX()` returns it at resolve.
+// The {X} in the mana cost is the same derived value (it folds into generic at
+// cast). Counters are distributed ≥1-each among the chosen creatures.
+export const spoilsOfWar: CardDefinition = {
+    id: "b38af8bd-d927-46d0-a1b1-fb437ea9ea66",
+    name: "Spoils of War",
+    rarity: "rare",
+    oracleText:
+        "X is the number of artifact and/or creature cards in an opponent's graveyard as you cast this spell.\nDistribute X +1/+1 counters among any number of target creatures.",
+    manaCost: { X: "X", B: 1 },
+    types: ["Sorcery"],
+    additionalCosts: {
+        xFromOpponentGraveyard: { cardTypes: ["Artifact", "Creature"] },
+    },
+    targetRequirement: {
+        type: "Creature",
+        count: { min: 1 },
+        divideAsChosen: { total: "X" },
+    },
+    resolve: (ctx: SpellContext) => {
+        // CR 608.2b (issue #2985) — the division is announced per object;
+        // a blanked slot is simply not one of the recipients.
+        ctx.distributeCountersAsChosen(
+            legalTargetSlots(ctx.targets),
+            ctx.getX(),
+            "+1/+1"
+        );
+    },
+};

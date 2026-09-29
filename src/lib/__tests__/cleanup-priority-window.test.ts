@@ -31,8 +31,8 @@ import {
 import { projectPublicState } from "@convex/gameProjections";
 import { advancePhase } from "@convex/gre/phases";
 import { resolveTopOfStack, type GameState } from "@convex/gre/state";
-import { makePlayer, makeState } from "@convex/cards/__tests__/setup";
-import { cloakOfConfusion } from "@convex/cards/sets/ice/black";
+import { makePlayer, makeState } from "@convex/cards/__tests__/setup.helper";
+import { cloakOfConfusion } from "@convex/cards/sets/ice/black.cards";
 
 /** A game at END_STEP with a `next-cleanup-step` delayed trigger armed, so the
  *  very next `advancePhase` runs the real CR 514.1/514.2/514.3a sequence. */

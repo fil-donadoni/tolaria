@@ -49,7 +49,7 @@ type HasOpField<T> = true extends {
  *  `createToken` reaches an Op two levels down (its token's triggered
  *  abilities), and that script is the TOKEN's, never this Op's. A host that
  *  buried its own script deeper would need this widened, and the fixture test
- *  (`nestedOpShapes.ts`) is where it would first go missing. */
+ *  (`nestedOpShapes.fixture.ts`) is where it would first go missing. */
 type IsBranch<M> = M extends EffectOp
     ? false
     : M extends readonly (infer E)[]

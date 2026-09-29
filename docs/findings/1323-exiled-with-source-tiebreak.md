@@ -22,7 +22,7 @@ a selection method among several equally-valid options, is "the appropriate
 player chooses." Emperor's own printed Oracle text has no "your choice" or "at
 random" qualifier, and no Gatherer ruling clarifies the multi-candidate case
 either. This shape mirrors the FIFTH `moveZone` shape's own explicit
-precedent (`EffectZonePositionSelector` / Shallow Grave, `mir/black.ts`:
+precedent (`EffectZonePositionSelector` / Shallow Grave, `mir/black.cards.ts`:
 "Deliberately NOT a player choice: substituting one would diverge from the
 modern oracle text") — but that precedent is CR-clean because a graveyard
 genuinely has a defined order (CR 404.3); an exile zone does not, so applying
@@ -36,7 +36,7 @@ like-for-like reuse.
   the simplification explicitly.
 - `convex/gre/effects/interpreter.ts::resolveExiledWithSource` — the
   first-match loop with no suspend/choice path.
-- `convex/cards/sets/mh3/black.ts` (Emperor of Bones) — the only current
+- `convex/cards/sets/mh3/black.cards.ts` (Emperor of Bones) — the only current
   consumer; its own doc comment flags the same tradeoff.
 
 **Why it may not deserve its own issue.** Building genuine player-choice

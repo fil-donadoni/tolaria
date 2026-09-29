@@ -28,9 +28,9 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../cards/__tests__/setup";
-import { soulExchange } from "../../cards/sets/fem/black";
-import { voiceOfAll } from "../../cards/sets/pls/white";
+} from "../../cards/__tests__/setup.helper";
+import { soulExchange } from "../../cards/sets/fem/black.cards";
+import { voiceOfAll } from "../../cards/sets/pls/white.cards";
 
 // --- The shared body -------------------------------------------------------
 
@@ -561,7 +561,7 @@ describe("the exemption is site- AND shape-local (issue #2570)", () => {
 
 // --- One shipped census row: the GENERIC reanimation family -----------------
 
-describe("shipped producer: Soul Exchange (fem/black.ts) — issue #2570 census", () => {
+describe("shipped producer: Soul Exchange (fem/black.cards.ts) — issue #2570 census", () => {
     it("reanimates a card owing an as-enters choice without suspending the spell", () => {
         // The dangerous census class is the GENERIC one: a plain `resolve()`
         // that calls `returnToBattlefield` on a player-chosen graveyard card

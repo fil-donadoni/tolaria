@@ -6,7 +6,7 @@ import {
     makePlayer,
     makeState,
     resolveActivated,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import { applyPlayLand } from "../../../../gre/playLand";
 import { getPlayer } from "../../../../gre/state";
 import { getEffectivePower } from "../../../../gre/layers";
@@ -21,7 +21,7 @@ const tundra = getDefinition("a03e8c5b-f4ed-4fd7-ba05-db813ccc05eb");
 
 /** Pushes an activated ability onto the stack with its cost assumed already
  *  paid (mirrors post-`activateAbility` state), then resolves it. Mirrors the
- *  established `resolveActivated` shim (`sets/atq/__tests__/helpers.ts`). */
+ *  established `resolveActivated` shim (`sets/atq/__tests__/set.helper.ts`). */
 // Abandoned Air Temple — Land (CR 614.1c conditional tapped entry; CR 605.1a
 // mana ability; CR 122 mass counter placement). "This land enters tapped
 // unless you control a basic land.\n{T}: Add {W}.\n{3}{W}, {T}: Put a +1/+1
@@ -57,7 +57,7 @@ describe("Abandoned Air Temple (CR 614.1c conditional tapped entry; CR 605.1a ma
 
     it('enters TAPPED when you control only a Tundra — basic land TYPE (Plains/Island subtypes) without the Basic SUPERTYPE (CR 305.6) does not satisfy "control a basic land"', () => {
         // Regression for the review finding on #921: the ABUR dual lands
-        // (`makeDualLand`, `sets/lea/colorless.ts`) carry basic land subtypes
+        // (`makeDualLand`, `sets/lea/colorless.cards.ts`) carry basic land subtypes
         // (Tundra: "Plains", "Island") but never the "Basic" supertype. "You
         // control a basic land" (CR 305.6) means the supertype, not the
         // subtype — a subtype-only check would wrongly let a lone Tundra

@@ -7,7 +7,7 @@
 // function or the order calls are made in, so a kernel that folds these paths
 // leaves them green and a kernel that drops a cost leg turns them red.
 //
-// Harness: `gameMutationHarness.ts` — a stub `MutationCtx` driving each
+// Harness: `gameMutationHarness.fixture.ts` — a stub `MutationCtx` driving each
 // mutation's own `_handler` (this project has no convex-test package).
 //
 // Paths, one describe each:
@@ -39,14 +39,18 @@ import { WRENN_AND_SIX_EMBLEM_ID } from "../cards/emblems";
 import { turnFaceDown } from "../gre/faceDown";
 import { NO_BOARD_LAYER_VIEW } from "../gre/layers";
 import { getPlayer, type GameState } from "../gre/state";
-import { makeInstance, makePlayer, makeState } from "../cards/__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../cards/__tests__/setup.helper";
 import type { Id } from "../_generated/dataModel";
 import {
     gameStateSeed,
     makeMutationCtx,
     runMutation,
     type MutationStub,
-} from "./gameMutationHarness";
+} from "./gameMutationHarness.fixture";
 
 const GAME = "game-1" as Id<"games">;
 const idOf = (name: string) => getCardByName(name).id;

@@ -21,7 +21,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import { getCardByName } from "../../cards";
 import { getDefinition } from "../../cards/index";
 import type { CardInstanceState, GameState } from "../state";

@@ -31,22 +31,22 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
-import { underworldBreach } from "../../cards/sets/thb/red";
-import { uroTitanOfNaturesWrath } from "../../cards/sets/thb/multicolor";
-import { lavaDart } from "../../cards/sets/ons/red";
-import { flashOfInsight } from "../../cards/sets/jud/blue";
-import { treasureCruise } from "../../cards/sets/ktk/blue";
-import { nethergoyf } from "../../cards/sets/mh3/black";
+} from "../../cards/__tests__/setup.helper";
+import { underworldBreach } from "../../cards/sets/thb/red.cards";
+import { uroTitanOfNaturesWrath } from "../../cards/sets/thb/multicolor.cards";
+import { lavaDart } from "../../cards/sets/ons/red.cards";
+import { flashOfInsight } from "../../cards/sets/jud/blue.cards";
+import { treasureCruise } from "../../cards/sets/ktk/blue.cards";
+import { nethergoyf } from "../../cards/sets/mh3/black.cards";
 import { countDistinctCardTypes } from "../escape";
-import { blackLotus } from "../../cards/sets/lea/colorless";
+import { blackLotus } from "../../cards/sets/lea/colorless.cards";
 import {
     grizzlyBears,
     island,
     mountain,
     forest,
     swamp,
-} from "../../cards/sets/lea";
+} from "../../cards/sets/lea/index.cards";
 
 const ME = "p1";
 const OPP = "p2";

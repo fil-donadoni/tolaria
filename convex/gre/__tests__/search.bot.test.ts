@@ -45,7 +45,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import type { GameState } from "../state";
 import type { SearchStats } from "../ai/decisionTelemetry";
 

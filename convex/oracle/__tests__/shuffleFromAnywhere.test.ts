@@ -32,13 +32,13 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import { discardToGraveyard } from "../../gre/state";
 import { compileCard } from "../compile";
 import { sortKeys } from "../gates";
 import { routeLine } from "../grammar/router";
 import { staticSlot } from "../grammar/slots/staticSlot";
-import { oracleCard, parseContext } from "./fixtures";
+import { oracleCard, parseContext } from "./oracle.fixture";
 
 const DARKSTEEL_COLOSSUS = oracleCard({
     oracleId: "1b09d0cf-403c-4a15-aeee-602a1bdaf0c1",

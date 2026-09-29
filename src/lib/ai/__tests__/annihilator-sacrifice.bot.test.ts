@@ -24,7 +24,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "@convex/cards/__tests__/setup";
+} from "@convex/cards/__tests__/setup.helper";
 import type { CardDefinition, GameEvent } from "@convex/cards/types";
 import { resolveTopOfStack, type GameState } from "@convex/gre/state";
 import { collectTriggers, placeTriggersOnStack } from "@convex/gre/triggers";

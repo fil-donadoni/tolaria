@@ -6,8 +6,8 @@
 // The activation side won its picks first (issue #1209 / #2155 / #2297); the
 // cast side never did. A cast whose card declares `additionalCosts
 // .sacrificeFilter` (Natural Order's "sacrifice a green creature",
-// `pls/black.ts`, `arn/green.ts`, `fem/red.ts`) or `additionalCosts.exileFilter`
-// (Soul Exchange, `fem/black.ts`), or one subject to a board-wide static
+// `pls/black.cards.ts`, `arn/green.cards.ts`, `fem/red.cards.ts`) or `additionalCosts.exileFilter`
+// (Soul Exchange, `fem/black.cards.ts`), or one subject to a board-wide static
 // additional sacrifice (Drought, CR 118.8) parks a `pendingCast` at announcement
 // and blocks commit until the caster names the victim. The search sandboxes
 // (`applyMoveForSearch` / `applyMoveInSearch`) charged NOTHING for those parks —

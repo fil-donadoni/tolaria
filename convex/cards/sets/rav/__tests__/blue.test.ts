@@ -6,7 +6,11 @@
 // concealment of the hand does not un-reveal it. Same ADR 0026 `knownTo`
 // mechanism as Memory Lapse's library-top redirect, no parallel marker.
 import { describe, it, expect } from "vitest";
-import { makePlayer, makeState, pushSpell } from "../../../__tests__/setup";
+import {
+    makePlayer,
+    makeState,
+    pushSpell,
+} from "../../../__tests__/setup.helper";
 import { resolveTopOfStack, getPlayer } from "../../../../gre/state";
 import { projectPublicState } from "../../../../gameProjections";
 import { getDefinition } from "../../../index";

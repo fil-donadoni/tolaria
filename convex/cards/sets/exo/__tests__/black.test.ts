@@ -1,6 +1,6 @@
-// Per-card behavior tests for black cards in `convex/cards/sets/exo/black.ts`
+// Per-card behavior tests for black cards in `convex/cards/sets/exo/black.cards.ts`
 // (Exodus, split by colour per ADR 0043). Fixtures from
-// `convex/cards/__tests__/setup.ts`.
+// `convex/cards/__tests__/setup.helper.ts`.
 
 import { describe, it, expect } from "vitest";
 import {
@@ -8,7 +8,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import { resolveTopOfStack } from "../../../../gre/state";
 import {
     getEffectivePower,

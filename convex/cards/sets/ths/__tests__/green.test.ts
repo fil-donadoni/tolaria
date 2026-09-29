@@ -1,7 +1,11 @@
 // Theros (THS) — green behavior tests (ADR 0043 colour split).
 
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
 import type { TargetRequirement } from "../../../types";
 import { isGuardedAgainst } from "../../../../gre/permanentGuard";

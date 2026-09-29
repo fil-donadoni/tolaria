@@ -24,12 +24,15 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import { enumerateMoves, type Move } from "../moves";
 import { applyMoveInSearch } from "../search";
-import { dralnusCrusade, hullBreach } from "../../cards/sets/pls/multicolor";
-import { fumarole } from "../../cards/sets/ice/multicolor";
-import { prismaticWard } from "../../cards/sets/ice/white";
+import {
+    dralnusCrusade,
+    hullBreach,
+} from "../../cards/sets/pls/multicolor.cards";
+import { fumarole } from "../../cards/sets/ice/multicolor.cards";
+import { prismaticWard } from "../../cards/sets/ice/white.cards";
 import {
     blackLotus,
     forest,
@@ -37,14 +40,14 @@ import {
     mountain,
     plains,
     swamp,
-} from "../../cards/sets/lea";
+} from "../../cards/sets/lea/index.cards";
 import { announceCast, selectTargets, tapForPayment } from "../../game";
 import {
     gameStateSeed,
     makeMutationCtx,
     runMutation,
     type Handler,
-} from "../../__tests__/gameMutationHarness";
+} from "../../__tests__/gameMutationHarness.fixture";
 import type { Id } from "../../_generated/dataModel";
 import type { GameState } from "../state";
 

@@ -21,13 +21,13 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import { castTapPlans, enumerateMoves, planManaPayment } from "../moves";
 import type { Move } from "../moves";
 import { applyMoveForSearch } from "../applyMove";
 import { applyMoveInSearch } from "../search";
-import { arenaOfGlory } from "../../cards/sets/mh3/colorless";
-import { mountain, forest } from "../../cards/sets/lea";
+import { arenaOfGlory } from "../../cards/sets/mh3/colorless.cards";
+import { mountain, forest } from "../../cards/sets/lea/index.cards";
 import { getCardByName } from "../../cards";
 import type { CardDefinition } from "../../cards/types";
 import type { CardInstanceState, GameState } from "../state";

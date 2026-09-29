@@ -27,9 +27,9 @@ cast, and `announceCast`'s no-target branch then runs
 `applyCostModifiers(manaCost, getCostModifiers(state, cardInHand, "spell"))`
 over that empty cost.
 
-So with any `costIncrease` static on the board — Thalia (`dka/white.ts`),
-Gloom (`lea/black.ts`), Sapphire Leech (`inv/blue.ts`), Aura of Silence
-(`wth/white.ts`) — a "cast it without paying its mana cost" from exile is
+So with any `costIncrease` static on the board — Thalia (`dka/white.cards.ts`),
+Gloom (`lea/black.cards.ts`), Sapphire Leech (`inv/blue.cards.ts`), Aura of Silence
+(`wth/white.cards.ts`) — a "cast it without paying its mana cost" from exile is
 offered by the gate at zero and then owes real mana at the payment step. Since
 the executor announces FIRST and taps afterwards, the cast parks in
 `pendingCast` and the only exit is abort-announce-re-enumerate: the bot-freeze

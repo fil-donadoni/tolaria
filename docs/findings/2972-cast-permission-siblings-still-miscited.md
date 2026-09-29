@@ -20,7 +20,7 @@ qualities as though it had flash…") together with `601.3d`. Sites:
 `gre/phases.ts`, `gre/effects/interpreter.ts`, `gre/effects/validate.ts`,
 `gre/effects/scenarioGenerator.ts`, `cards/mechanicsRegistry.ts` (the Op's own
 `cr:` field), `cards/castRestrictions.ts`, `cards/types.ts`,
-`cards/sets/war/multicolor.ts` and the two test files. Already drafted twice
+`cards/sets/war/multicolor.cards.ts` and the two test files. Already drafted twice
 from the other direction: `2146-flash-grant-cites-601-3e.md` and
 `2392-teferi-flash-grant-cites-601-3e.md` — this is the same family, now the
 ONLY remaining `601.3e` block of any size.
@@ -38,10 +38,10 @@ a zone other than the hand_ has no single obvious id in the current numbering.
 
 **3. Six comments whose CLAIM is wrong, not just the id.** `601.3e` is cited for
 things that have nothing to do with casting at all: an "of an opponent's choice"
-target (`drk/white.ts`), a "you MAY put" optional pick (`drk/green.ts`), a
+target (`drk/white.cards.ts`), a "you MAY put" optional pick (`drk/green.cards.ts`), a
 "may pay {X}" gate and a "X = the creature's mana value" line
-(`ice/colorless.ts` ×2 and its test), and "You may exile a nonland card from
-your hand" (`ice/colorless.ts`). Per #2972's own scope note these are noted, not
+(`ice/colorless.cards.ts` ×2 and its test), and "You may exile a nonland card from
+your hand" (`ice/colorless.cards.ts`). Per #2972's own scope note these are noted, not
 edited: each needs its real rule looked up, which is per-site work, not a sweep.
 
 **Bonus 1 — `CR 117.6` rides along with many of the corrected sites, and the

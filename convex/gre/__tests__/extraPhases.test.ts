@@ -21,8 +21,8 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
-import { batteringRam } from "../../cards/sets/atq/colorless";
+} from "../../cards/__tests__/setup.helper";
+import { batteringRam } from "../../cards/sets/atq/colorless.cards";
 
 /** Walk `advancePhase` until `stop` is reached, returning every phase entered.
  *  Capped so a malformed position fails loudly instead of hanging. */

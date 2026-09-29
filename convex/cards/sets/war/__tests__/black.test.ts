@@ -38,8 +38,8 @@ import { buildActivationSacrificeSelection } from "../../../../gre/activationCos
 import { applySacrificeSelection } from "../../../../gre/sacrificeChoice";
 import { projectPublicState } from "../../../../gameProjections";
 import { locateCastSource, castRawManaCost } from "../../../../game";
-import { makeInstance } from "../../../__tests__/setup";
-import { citadelBoard } from "./citadelBoard";
+import { makeInstance } from "../../../__tests__/setup.helper";
+import { citadelBoard } from "./citadelBoard.fixture";
 import { getDefinition } from "../../../index";
 
 const bolassCitadel = getDefinition("d2124603-d20e-40eb-97f0-a66323397ac2");

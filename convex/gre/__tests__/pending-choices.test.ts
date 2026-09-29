@@ -6,13 +6,17 @@
 import { describe, it, expect } from "vitest";
 import type { GameState, StackItem } from "../state";
 import { resolveTopOfStack } from "../state";
-import { balance, grizzlyBears, plains } from "../../cards/sets/lea";
+import {
+    balance,
+    grizzlyBears,
+    plains,
+} from "../../cards/sets/lea/index.cards";
 import {
     makeInstance,
     makePlayer,
     makeState,
     pushSpell,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import { projectPublicState } from "../../gameProjections";
 
 /** Seeds a game with Balance on the stack (cast by p1) and given

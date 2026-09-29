@@ -20,12 +20,12 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import { projectPublicState } from "../../gameProjections";
-import { titaniasSong } from "../../cards/sets/atq/green";
-import { blackLotus, moxSapphire } from "../../cards/sets/lea/colorless";
-import { airElemental } from "../../cards/sets/lea/blue";
-import { wireCharacteristicsOf } from "../../cards/__tests__/setup";
+import { titaniasSong } from "../../cards/sets/atq/green.cards";
+import { blackLotus, moxSapphire } from "../../cards/sets/lea/colorless.cards";
+import { airElemental } from "../../cards/sets/lea/blue.cards";
+import { wireCharacteristicsOf } from "../../cards/__tests__/setup.helper";
 
 /** Titania's Song — "Each noncreature artifact … becomes an artifact
  *  creature". The source is a permanent OTHER than its targets, which is the

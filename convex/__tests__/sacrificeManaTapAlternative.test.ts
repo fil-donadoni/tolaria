@@ -9,7 +9,11 @@
 
 import { describe, it, expect } from "vitest";
 import { autoTapForPayment, tapSourceIntoPayment, tapUntap } from "../game";
-import { makeInstance, makePlayer, makeState } from "../cards/__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../cards/__tests__/setup.helper";
 import { getCardByName } from "../cards";
 import { getManaTapOptionsDetailed } from "../gre/constants";
 import { getProducibleManaSourceView } from "../gre/rules";
@@ -21,7 +25,7 @@ import {
     runMutation,
     gameStateSeed,
     type Handler,
-} from "./gameMutationHarness";
+} from "./gameMutationHarness.fixture";
 
 const GAME_ID = "game-1" as Id<"games">;
 const HAVENWOOD = "Havenwood Battleground";

@@ -10,7 +10,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import type { GameState } from "../state";
 import { enumerateMoves } from "../moves";
 import { opBeneficence } from "../ai/opValuers";

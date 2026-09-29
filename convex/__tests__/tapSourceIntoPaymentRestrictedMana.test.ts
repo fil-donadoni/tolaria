@@ -10,15 +10,19 @@
 //
 // Same harness discipline as `tapForPaymentBatch.test.ts` — drives the REAL
 // registered mutation `_handler`s end-to-end via the stub `MutationCtx`
-// (`gameMutationHarness.ts`).
+// (`gameMutationHarness.fixture.ts`).
 
 import { describe, it, expect } from "vitest";
 import { tapForPayment, untapForPayment } from "../game";
-import { makeInstance, makePlayer, makeState } from "../cards/__tests__/setup";
-import { delightedHalfling } from "../cards/sets/ltr";
-import { theOneRing } from "../cards/sets/ltr/colorless";
-import { mishrasWorkshop } from "../cards/sets/atq/colorless";
-import { grizzlyBears } from "../cards/sets/lea/green";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../cards/__tests__/setup.helper";
+import { delightedHalfling } from "../cards/sets/ltr/index.cards";
+import { theOneRing } from "../cards/sets/ltr/colorless.cards";
+import { mishrasWorkshop } from "../cards/sets/atq/colorless.cards";
+import { grizzlyBears } from "../cards/sets/lea/green.cards";
 import { buildAutoTapSources } from "../gre/autoTap";
 import type { GameState, PendingCast } from "../gre/state";
 import type { Id } from "../_generated/dataModel";
@@ -27,7 +31,7 @@ import {
     runMutation,
     gameStateSeed,
     type Handler,
-} from "./gameMutationHarness";
+} from "./gameMutationHarness.fixture";
 
 const GAME_ID = "game-1" as Id<"games">;
 

@@ -25,7 +25,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../../cards/__tests__/setup";
+} from "../../../cards/__tests__/setup.helper";
 import type { GameState } from "../../state";
 import { emitAttackersDeclaredEvents } from "../../phases";
 import { markAttacking } from "../../combat";
@@ -38,7 +38,7 @@ import { getDefinition } from "../../../cards";
 
 const SANGUINE_EVANGELIST_ID = "269ddd84-fdc4-4c94-b183-32ecec56967c";
 /** Sentinel of the Nameless City — "whenever this creature enters or attacks,
- *  create a Map token" (`sets/lci/green.ts`), the second attack trigger. */
+ *  create a Map token" (`sets/lci/green.cards.ts`), the second attack trigger. */
 const SENTINEL_ID = "eeeffc0b-dc92-458e-ad58-86ff6077a508";
 
 /** p1 attacks with `attackers`, declared the way the phase machine declares

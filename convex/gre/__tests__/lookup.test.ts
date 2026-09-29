@@ -25,7 +25,7 @@ import {
     getOpponentId,
     getPlayer,
 } from "../lookup";
-import { makePlayer, makeState } from "../../cards/__tests__/setup";
+import { makePlayer, makeState } from "../../cards/__tests__/setup.helper";
 
 const GRE_DIR = resolve(__dirname, "..");
 
@@ -204,7 +204,7 @@ describe("findings-1969 — an Op field read at module evaluation (issue #1969)"
             vi.resetModules();
             await import(/* @vite-ignore */ entry);
             const { figureOfFable } =
-                await import("../../cards/sets/ecl/multicolor");
+                await import("../../cards/sets/ecl/multicolor.cards");
             const grants: unknown[] = [];
             JSON.stringify(figureOfFable, (_k, v) => {
                 if (v && typeof v === "object" && v.op === "grantAbility") {

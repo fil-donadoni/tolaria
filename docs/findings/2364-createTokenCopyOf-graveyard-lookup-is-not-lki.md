@@ -18,7 +18,7 @@ card from your graveyard: …") removes the card from the graveyard as part of
 paying the cost, so by the time the ability resolves the source is
 guaranteed to be sitting in exile, exactly where the zone lookup expects it.
 
-Vaultborn Tyrant (`convex/cards/sets/big/green.ts`) reuses the same option
+Vaultborn Tyrant (`convex/cards/sets/big/green.cards.ts`) reuses the same option
 for a TRIGGERED ability with no such guarantee. Its dies trigger goes on the
 stack while the dead creature sits in the graveyard; any player with
 priority can legally move that card out of the graveyard before the trigger
@@ -36,10 +36,10 @@ creature's copiable values as it last existed on the battlefield.
 lastKnownFromGraveyardOrExile ? findCardInGraveyardOrExile(state, ...) :
 undefined)`. Both branches are live-zone searches; neither reads a
   last-known definition id captured at the moment the creature died.
-- `convex/cards/sets/big/green.ts` (`vaultbornTyrantDiesTrigger`) — the sole
+- `convex/cards/sets/big/green.cards.ts` (`vaultbornTyrantDiesTrigger`) — the sole
   shipped caller of `lastKnownFromGraveyardOrExile: true` outside Eternalize.
 - Reachable in the current catalogue: Krosan Reclamation
-  (`convex/cards/sets/jud/green.ts`) is an instant that shuffles graveyard
+  (`convex/cards/sets/jud/green.cards.ts`) is an instant that shuffles graveyard
   cards into the library — a legal response to Vaultborn Tyrant's dies
   trigger while it sits on the stack. Exile-based graveyard hate is fine
   (`findCardInGraveyardOrExile` searches exile too); a library shuffle is

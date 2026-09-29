@@ -71,10 +71,10 @@ type Classification =
     | "out-of-scope-structural"; // not a resolve()/resolveSteps closure at all
 
 interface AllowlistEntry {
-    /** Path relative to `convex/cards/sets` (e.g. "ice/blue.ts"). */
+    /** Path relative to `convex/cards/sets` (e.g. "ice/blue.cards.ts"). */
     readonly file: string;
     /** How many `ctx.drawCards(` occurrences in this file this entry accounts
-     *  for. Multiple entries may share a file (see ice/blue.ts below). */
+     *  for. Multiple entries may share a file (see ice/blue.cards.ts below). */
     readonly count: number;
     readonly cards: string;
     readonly reason: string;
@@ -90,7 +90,7 @@ interface AllowlistEntry {
 // comment for the full reasoning; this table is the enforcement mirror.
 const DRAW_PRIMITIVE_ALLOWLIST: readonly AllowlistEntry[] = [
     {
-        file: "drk/white.ts",
+        file: "drk/white.cards.ts",
         count: 1,
         cards: "Martyr's Cry",
         reason: '"all white creatures" needs a colour filter (EffectCardFilter is type/subtype only), and the per-controller draw count is a snapshot the value grammar can\'t express.',
@@ -98,28 +98,28 @@ const DRAW_PRIMITIVE_ALLOWLIST: readonly AllowlistEntry[] = [
         issue: 1283,
     },
     {
-        file: "lea/black.ts",
+        file: "lea/black.cards.ts",
         count: 1,
         cards: "Lich",
         reason: "this ctx.drawCards call lives in a REPLACEMENT EFFECT's synchronous replace callback (CR 614), not a resolve()/resolveSteps closure at all -- never a migration candidate.",
         classification: "out-of-scope-structural",
     },
     {
-        file: "nph/blue.ts",
+        file: "nph/blue.cards.ts",
         count: 1,
         cards: "Gitaxian Probe",
         reason: '"look at target player\'s hand" is a PRIVATE look (one knower); the DSL reveal Op is all-players-only -- a genuine protocol card, not a missing Op.',
         classification: "protocol",
     },
     {
-        file: "ulg/colorless.ts",
+        file: "ulg/colorless.cards.ts",
         count: 1,
         cards: "Memory Jar",
         reason: "compound protocol card (pre-existing): a WHOLE-hand exile now has an Op (issue #1279 moveZone bulk shape), but this is a FACE-DOWN exile, which that shape does not do; exileFaceDown has no Op skin, and the per-player list-valued delayedTrigger capture the return trigger needs has no capture shape.",
         classification: "protocol",
     },
     {
-        file: "usg/blue.ts",
+        file: "usg/blue.cards.ts",
         count: 1,
         cards: "Time Spiral",
         reason: 'the whole-zone move is shipped (#1279, Timetwister\'s script); the remaining step is "untap up to six lands" across both battlefields, whose DSL `choice` (allControllers) raises no candidateIds allow-list while the resolveSteps closure does -- the migration is not wire-equivalent yet.',
@@ -127,7 +127,7 @@ const DRAW_PRIMITIVE_ALLOWLIST: readonly AllowlistEntry[] = [
         issue: 1727,
     },
     {
-        file: "voc/blue.ts",
+        file: "voc/blue.cards.ts",
         count: 1,
         cards: "Occult Epiphany",
         reason: "discard-count arithmetic (min(X, hand size)) and a distinct-card-types tally over discard picks have no EffectValue construct (pre-existing, issue #852).",

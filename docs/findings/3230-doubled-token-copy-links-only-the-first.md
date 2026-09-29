@@ -12,7 +12,7 @@ Storm Slayer) can turn that request into two copies. Both are created and enter
 correctly, but only the first is returned (so an interpreter `bind` sees one) and
 only the first is written to the creator's `linkedTokenId`.
 
-**Evidence.** Dance of Many (`convex/cards/sets/drk/blue.ts`) is the one
+**Evidence.** Dance of Many (`convex/cards/sets/drk/blue.cards.ts`) is the one
 consumer of `linkedTokenId`: its "When the token leaves the battlefield,
 sacrifice Dance of Many" trigger matches `event.instanceId ===
 self.linkedTokenId`. With Elspeth out, Dance of Many resolves into two copies;

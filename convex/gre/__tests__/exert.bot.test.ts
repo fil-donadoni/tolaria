@@ -18,9 +18,9 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
-import { glorybringer } from "../../cards/sets/akh/red";
-import { grizzlyBears } from "../../cards/sets/lea/green";
+} from "../../cards/__tests__/setup.helper";
+import { glorybringer } from "../../cards/sets/akh/red.cards";
+import { grizzlyBears } from "../../cards/sets/lea/green.cards";
 import type { GameState } from "../state";
 
 function declareAttackersState(): GameState {

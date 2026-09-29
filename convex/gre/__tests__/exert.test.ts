@@ -11,7 +11,7 @@ import {
     payExertActivationCost,
 } from "../exert";
 import { advancePhase } from "../phases";
-import { makeInstance, makeState } from "../../cards/__tests__/setup";
+import { makeInstance, makeState } from "../../cards/__tests__/setup.helper";
 
 const GLORYBRINGER = "3277ad99-5682-4baa-b106-de15721876a6";
 const ARENA_OF_GLORY = "dd148edc-9e43-41aa-bb50-f912115d3e72";

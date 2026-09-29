@@ -23,7 +23,7 @@ import {
 } from "../state";
 import { advancePhase } from "../phases";
 import { compactState, expandState } from "../serialize";
-import { makePlayer, makeState } from "../../cards/__tests__/setup";
+import { makePlayer, makeState } from "../../cards/__tests__/setup.helper";
 
 function gyCard(id: string, ownerId: string): CardInstanceState {
     return {

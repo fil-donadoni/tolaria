@@ -3,7 +3,11 @@
 // cites the CR section it exercises.
 
 import { describe, it, expect } from "vitest";
-import { counterspellIce, powerSinkIce, sleightOfMindIce } from "../../ice";
+import {
+    counterspellIce,
+    powerSinkIce,
+    sleightOfMindIce,
+} from "../../ice/index.cards";
 import { matchesSpellFilter } from "../../../filters";
 import { getDefinition, getCardByName } from "../../../index";
 import {
@@ -57,7 +61,7 @@ import {
     pushSpell,
     resolveActivated,
     submitChoice,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import type { CardInstanceState } from "../../../../gre/state";
 import type { GameState, StackItem } from "../../../../gre/state";
 import type { CardType, ManaCost } from "../../../types";
@@ -76,7 +80,7 @@ import {
     PHASE_EVENT,
     ENTERED,
     LEFT,
-} from "./helpers";
+} from "./set.helper";
 import {
     applyLandManaReplacement,
     getBasicLandMana,
@@ -87,7 +91,7 @@ import {
 } from "../../../../game";
 import { checkStateBasedActions } from "../../../../gre/sba";
 import { continuousEffectsInLayer } from "../../../../gre/continuousEffects";
-import { grantedKeywordRows } from "../../../__tests__/setup";
+import { grantedKeywordRows } from "../../../__tests__/setup.helper";
 
 const balduvianBears = getDefinition("ef5297cb-e763-4871-9cd3-0e2dbcc52095");
 const hallowedGround = getDefinition("4b35c0f4-5633-4ea9-9bda-daaf787aebdd");
@@ -407,7 +411,7 @@ describe("Snow Devil (Aura grants flying + conditional first strike, CR 611/611.
     // read like `pt-buff`), so the "as long as" gate only stays live because
     // the real production SBA path (`checkStateBasedActions` →
     // `recomputeContinuousEffects`) re-runs `condition` every SBA pass —
-    // mirrors Kavu Runner's own coverage (inv/red.ts /
+    // mirrors Kavu Runner's own coverage (inv/red.cards.ts /
     // __tests__/red.test.ts). Exercised via `checkStateBasedActions` (not a
     // direct `recomputeContinuousEffects` call) so this test would go red if
     // that wiring were ever dropped.

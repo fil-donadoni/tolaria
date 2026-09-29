@@ -25,7 +25,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import { enumerateMoves, type Move } from "../moves";
 import { MORPH_CAST_ALT_COST_ID } from "../morph";
 import { adventureCastAltCostId } from "../adventure";
@@ -44,7 +44,7 @@ import { resolveTopOfStack } from "../state";
 import type { CardDefinition } from "../../cards/types";
 import type { CardInstanceState, GameState } from "../state";
 import { NO_BOARD_LAYER_VIEW } from "../layers";
-import { WARP_PROBE_ID } from "./fixtures/warpProbe";
+import { WARP_PROBE_ID } from "./fixtures/warpProbe.fixture";
 
 const FOREST = getCardByName("Forest").id;
 const PLAINS = getCardByName("Plains").id;
@@ -210,7 +210,7 @@ const MODE_FIXTURES: Record<CastMode, ModeFixture> = {
     // again at the end step (CR 400.7 — is this still the same object?).
     // Unstamped, the tree prices a warp cast as a permanent creature bought at
     // a discount — strictly better than the hard cast, which is never true.
-    // The probe ships no card (`fixtures/warpProbe.ts`): issue #1268 shipped
+    // The probe ships no card (`fixtures/warpProbe.fixture.ts`): issue #1268 shipped
     // the keyword, and Edge of Eternities is not in this pool.
     warp: {
         cardId: WARP_PROBE_ID,
@@ -613,7 +613,7 @@ describe("a cast mode is priced against its OWN characteristics (CR 601.2f)", ()
         // issue #2970's bug, not a new one, and nothing else here would catch
         // it (measured: removing the branch left the whole suite green).
         //
-        // Gloom ("White spells cost {3} more to cast", `lea/black.ts`) reads a
+        // Gloom ("White spells cost {3} more to cast", `lea/black.cards.ts`) reads a
         // COLOUR, and CR 702.37c strips it: a face-down spell is a colourless
         // nameless 2/2. Six Plains cover the {3} morph cost taxed to {6}, and
         // exactly cover the untaxed {3} with three to spare — so the tap plan's

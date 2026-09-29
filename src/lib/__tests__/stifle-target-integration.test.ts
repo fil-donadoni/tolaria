@@ -14,7 +14,7 @@
 
 import { describe, it, expect } from "vitest";
 import { pendingTargetFiltersFromRequirement } from "@convex/gre/rules";
-import { stifle } from "@convex/cards/sets/scg/blue";
+import { stifle } from "@convex/cards/sets/scg/blue.cards";
 import { matchesSpellPendingTarget, wantsSpellTarget } from "~/lib/card-utils";
 import type { PendingTarget } from "~/types/game";
 

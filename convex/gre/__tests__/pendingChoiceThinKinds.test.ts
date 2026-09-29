@@ -25,15 +25,15 @@ import {
     grizzlyBears,
     plains,
     unholyStrength,
-} from "../../cards/sets/lea";
-import { aladdinsLamp } from "../../cards/sets/arn";
-import { jasmineBoreal } from "../../cards/sets/leg";
+} from "../../cards/sets/lea/index.cards";
+import { aladdinsLamp } from "../../cards/sets/arn/index.cards";
+import { jasmineBoreal } from "../../cards/sets/leg/index.cards";
 import {
     makeInstance,
     makePlayer,
     makeState,
     pushSpell,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 
 /** Answers the queue head through the REAL submit seam — the one
  *  `submitResolutionChoice` and the bot driver take — echoing the head's own

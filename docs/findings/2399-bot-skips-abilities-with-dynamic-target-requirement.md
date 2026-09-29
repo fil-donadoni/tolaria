@@ -24,10 +24,10 @@ The four shipped consumers of the idiom, each with a static
 `targetRequirement` (used as the UI fallback) plus a
 `getTargetRequirement: (source) => ({ …, excludeInstanceIds: [source.id] })`:
 
-- `convex/cards/sets/mh1/white.ts:15` — Giver of Runes
-- `convex/cards/sets/ecl/green.ts:23` — Formidable Speaker
-- `convex/cards/sets/m20/colorless.ts:14` — Manifold Key
-- `convex/cards/sets/dka/multicolor.ts:47` — Sorin, Lord of Innistrad (−6)
+- `convex/cards/sets/mh1/white.cards.ts:15` — Giver of Runes
+- `convex/cards/sets/ecl/green.cards.ts:23` — Formidable Speaker
+- `convex/cards/sets/m20/colorless.cards.ts:14` — Manifold Key
+- `convex/cards/sets/dka/multicolor.cards.ts:47` — Sorin, Lord of Innistrad (−6)
 
 Issue #2399 shipped the alternative: `TargetRequirement.excludeSource` is now
 honoured for activated abilities too, through the shared `applySelfExclusion`

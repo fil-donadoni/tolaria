@@ -22,7 +22,7 @@
 // single-mode offer is a prompt with nothing to decide, and the project
 // convention is to auto-resolve a mandatory choice with no real option
 // (issue #2244) rather than show it. That is also the shape the hand-written
-// Kavu Recluse (sets/pls/red.ts) has shipped since issue #1083.
+// Kavu Recluse (sets/pls/red.cards.ts) has shipped since issue #1083.
 
 import type { DurationSpec, EffectObjectSelector, EffectOp } from "../types";
 

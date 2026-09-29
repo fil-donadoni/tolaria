@@ -13,9 +13,9 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
-import { deceiverExarch } from "../../cards/sets/nph/blue";
-import { grizzlyBears } from "../../cards/sets/lea/green";
+} from "../../cards/__tests__/setup.helper";
+import { deceiverExarch } from "../../cards/sets/nph/blue.cards";
+import { grizzlyBears } from "../../cards/sets/lea/green.cards";
 import type { GameState, StackItem } from "../state";
 import { raiseTriggerTargetSelection } from "../rules";
 import { enumerateMoves } from "../moves";

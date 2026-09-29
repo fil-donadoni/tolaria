@@ -15,7 +15,7 @@ import type { SmokeSkip } from "../../gre/effects/scenarioGenerator";
 import type { EffectOp } from "../../cards/types";
 import type { GoldenFixture } from "../grammar/fixtures";
 import type { CompileOutcome, CompiledDefinition, OracleCard } from "../types";
-import { oracleCard } from "./fixtures";
+import { oracleCard } from "./oracle.fixture";
 
 function compiled(card: OracleCard): CompiledDefinition {
     const outcome = compileCard(card);

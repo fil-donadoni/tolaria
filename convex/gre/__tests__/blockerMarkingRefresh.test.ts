@@ -45,11 +45,11 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
-import { vanilla, snowLand } from "../../cards/sets/ice/__tests__/helpers";
-import { snowDevil, snowCoveredIsland } from "../../cards/sets/ice";
-import { island, lightningBolt } from "../../cards/sets/lea";
-import { lurker } from "../../cards/sets/drk";
+} from "../../cards/__tests__/setup.helper";
+import { vanilla, snowLand } from "../../cards/sets/ice/__tests__/set.helper";
+import { snowDevil, snowCoveredIsland } from "../../cards/sets/ice/index.cards";
+import { island, lightningBolt } from "../../cards/sets/lea/index.cards";
+import { lurker } from "../../cards/sets/drk/index.cards";
 
 // ── Fixture ────────────────────────────────────────────────────────────────
 //
@@ -280,9 +280,9 @@ describe("confirmBlockers refreshes isBlocking-conditioned statics before draini
 // THREE of the seven declaration sites set it — the real `confirmBlockers`
 // mutation was NOT one of them, so a human-declared block never recorded
 // "this creature blocked this combat" at all. Three shipped cards read it:
-// Lurker (`drk/green.ts` — its spell shroud lifts once it attacked or
-// blocked), Clockwork Beast (`lea/colorless.ts`) and Clockwork Avian
-// (`atq/colorless.ts`), whose end-of-combat intervening-if sheds a +1/+0
+// Lurker (`drk/green.cards.ts` — its spell shroud lifts once it attacked or
+// blocked), Clockwork Beast (`lea/colorless.cards.ts`) and Clockwork Avian
+// (`atq/colorless.cards.ts`), whose end-of-combat intervening-if sheds a +1/+0
 // counter only if the creature attacked or blocked.
 //
 // The assertion is the OBSERVABLE, not the boolean: Lurker's `permanent-guard`

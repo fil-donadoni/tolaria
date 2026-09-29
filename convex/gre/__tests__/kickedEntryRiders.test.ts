@@ -18,7 +18,11 @@ import { describe, expect, it } from "vitest";
 import { withTemporaryDefinition } from "../../cards";
 import type { CardDefinition } from "../../cards/types";
 import { projectPublicState } from "../../gameProjections";
-import { makePlayer, makeState, pushSpell } from "../../cards/__tests__/setup";
+import {
+    makePlayer,
+    makeState,
+    pushSpell,
+} from "../../cards/__tests__/setup.helper";
 import { getEffectiveActivatedAbilities } from "../activatedAbilities";
 import {
     exileWithAttachments,

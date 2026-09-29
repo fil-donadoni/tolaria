@@ -20,7 +20,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import { NO_BOARD_LAYER_VIEW } from "../layers";
 
 const FRONT_ID = "test-transform-front";

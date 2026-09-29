@@ -407,7 +407,7 @@ export const EVENT_FIELD_REGISTRY: Record<
     // object a `counter` can act on. A triggered ability that counters the
     // spell that triggered it announces no target (CR 603.2), so `counter`'s
     // `EffectTargetRef` had nothing to name — this ref is what names it.
-    // Mana Vortex (`sets/drk/blue.ts`) asked for exactly this row by name.
+    // Mana Vortex (`sets/drk/blue.cards.ts`) asked for exactly this row by name.
     SPELL_CAST: {
         spell: {
             family: "stack-object",

@@ -203,26 +203,42 @@ export const CONVEX_MAX_USER_MODULES = 4096;
  * move on seeing the WARN line is to ask what is IN the bundle, not to move
  * the number. (Issue #4810's measurement: ~10 MiB of today's ~30 is
  * code-splitting glue from set and test files being Convex entry points.)
+ *
+ * THE WARN WAS ANSWERED THAT WAY (issue #4811). The base tip measured
+ * 31,464,045 B (30.01 MiB, 1,602 user modules), past the warning, and a third
+ * of it was not code: every card-set file (`cards/sets/**`, ADR 0043) and
+ * every single-dot `__tests__` helper was a Convex ENTRY POINT, so with
+ * `splitting: true` each of the ~450 real entries opened with ~1,300
+ * `import … from "./_deps/<hash>.js"` lines of chunk glue. Renaming them
+ * multi-dot (`<colour>.cards.ts`, `*.helper.ts`, `*.fixture.ts`) — which the
+ * CLI skips as an entry while still bundling it into whatever imports it —
+ * measured 20,808,233 B (19.84 MiB) and 459 user modules on the same tree:
+ * -10,655,812 B (10.16 MiB), with the compiled pool still emitted once.
+ * {@link nonFunctionEntryPoints} is what keeps them out
+ * (`convex/cards/__tests__/nonFunctionEntryPoints.test.ts`).
  */
 export const CONVEX_BUNDLE_WARNING_BYTES = 30 * 1024 * 1024;
 
 /**
  * `MAX_USER_MODULES` counts files under `convex/`, excluding `_deps/**`
  * chunks (`crates/application/src/lib.rs`: "Too many function files ({} >
- * maximum {}) in \"convex/\""). Every hand-written card definition is one
- * such file, so this is a SECOND ceiling the corpus grows into, on a
- * different axis from bytes. 3,072 is 75% of Convex's 4,096; at 1,455 today
- * there is no risk, and the point of the row is that the number is now
- * visible in a receipt.
+ * maximum {}) in \"convex/\"") — a SECOND ceiling, on a different axis
+ * from bytes. 3,072 is 75% of Convex's 4,096. It was 1,455 at
+ * issue #3051 and 1,602 at issue #4811, when card-set files (one per set
+ * colour) were still entry points; since that issue's multi-dot rename they
+ * are not, and the count is 459 — real function modules only, so card-corpus
+ * growth no longer moves it.
  */
 export const CONVEX_USER_MODULE_BUDGET = 3072;
 
 /**
- * Marginal bundled cost of one compiled-pool row — 597 B of source plus 416 B
- * of source map — re-measured at issue #3444 by re-bundling the real `convex/`
- * tree at +2,000 and +6,000 synthetic rows (uniquified `id` and `name`), linear
- * to FOUR digits across both deltas (1,012.9 and 1,012.7 B/row). Still ~3x the
- * 347 B/row of the raw definition: the bundled object literal is fatter than
+ * Marginal bundled cost of one compiled-pool row, re-measured at issue #4811
+ * by re-bundling the real `convex/` tree at +2,000 and +6,000 synthetic rows
+ * (uniquified `id` and `name`), linear to four digits across both deltas
+ * (1,384.7 and 1,384.5 B/row). It was 1,013 at issue #3444 (1,012.9 and
+ * 1,012.7); the rise is the rows, not the bundle layout — the mean raw row
+ * grew from 347 B to 527 B in between, and the pool is still one chunk.
+ * Still ~2.6x the raw definition: the bundled object literal is fatter than
  * the JSON it came from (Convex sets `minifyWhitespace: false` — it breaks
  * their source maps), and source maps count.
  *
@@ -241,7 +257,7 @@ export const CONVEX_USER_MODULE_BUDGET = 3072;
  * 236 B/row at +2,000 against 514 B/row at +6,000, measured, all of it
  * artefact.
  */
-export const MEASURED_BYTES_PER_POOL_ROW = 1013;
+export const MEASURED_BYTES_PER_POOL_ROW = 1385;
 
 function* walk(dir: string): Generator<string> {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -261,7 +277,7 @@ function* walk(dir: string): Generator<string> {
  * of `_generated/**`, dotfiles, `schema.*`, multi-dot filenames, paths with a
  * space, and TypeScript files carrying neither `import` nor `export`.
  */
-function discoverEntryPoints(convexDir: string): string[] {
+export function discoverEntryPoints(convexDir: string): string[] {
     const found: string[] = [];
     for (const fpath of walk(convexDir)) {
         const relPath = relative(convexDir, fpath);
@@ -280,6 +296,27 @@ function discoverEntryPoints(convexDir: string): string[] {
         found.push(fpath);
     }
     return found.sort();
+}
+
+/**
+ * Entry points in directories that hold no Convex function by construction:
+ * card-set data (`cards/sets/**`, ADR 0043) and test support
+ * (any `__tests__/` directory). Every such file the CLI discovers is a user module
+ * of its own, and with `splitting: true` every module shared between entries
+ * becomes a chunk that each importing entry opens with an `import` line — the
+ * ~1,100 set files alone cost ~9 MiB of that glue and 1,114 user modules
+ * (issue #4811). The fix is a multi-dot name (`<colour>.cards.ts`,
+ * `*.helper.ts`, `*.fixture.ts`): the CLI skips it, and it stays importable.
+ * Returns `convex/`-relative POSIX paths.
+ */
+export function nonFunctionEntryPoints(convexDir: string): string[] {
+    return discoverEntryPoints(convexDir)
+        .map((f) => relative(convexDir, f).split(sep).join("/"))
+        .filter(
+            (rel) =>
+                rel.startsWith("cards/sets/") ||
+                rel.split("/").slice(0, -1).includes("__tests__")
+        );
 }
 
 /** Options copied verbatim from the Convex CLI's `innerEsbuild`. */

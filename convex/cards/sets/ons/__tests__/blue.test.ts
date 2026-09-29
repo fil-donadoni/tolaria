@@ -2,7 +2,7 @@
 // is a resolveSteps (protocol) card, so it earns a dedicated describe block
 // exercising the bounce + the optional land-sacrifice "chain" copy end to end
 // (per the Card testing convention). Shared fixtures live in
-// convex/cards/__tests__/setup.ts.
+// convex/cards/__tests__/setup.helper.ts.
 
 import { describe, it, expect } from "vitest";
 import { applyMayPaySubmit } from "../../../../gre/pendingChoiceSubmit";
@@ -17,7 +17,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import { getDefinition } from "../../../index";
 
 const chainOfVapor = getDefinition("30f6b4a2-5780-46e9-b239-459d2cf37743");

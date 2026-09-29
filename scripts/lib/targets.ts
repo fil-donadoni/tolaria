@@ -582,7 +582,7 @@ export type ClusterKind = (typeof CLUSTER_KINDS)[number];
 
 /**
  * The set-file colours a hand-written card lives under
- * (`convex/cards/sets/<set>/<colour>.ts`, ADR 0043) — what a `hand-tail`
+ * (`convex/cards/sets/<set>/<colour>.cards.ts`, ADR 0043) — what a `hand-tail`
  * signature groups by, since a Hand Tail gap is one card by definition and
  * what its siblings share is the file they are written in.
  */

@@ -26,10 +26,14 @@ import {
     tryCommitAttackManaTax,
 } from "../game";
 import { projectPublicState } from "../gameProjections";
-import { makeInstance, makePlayer, makeState } from "../cards/__tests__/setup";
-import { arenaOfGlory } from "../cards/sets/mh3/colorless";
-import { grizzlyBears } from "../cards/sets/lea/green";
-import { lightningBolt } from "../cards/sets/lea/red";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../cards/__tests__/setup.helper";
+import { arenaOfGlory } from "../cards/sets/mh3/colorless.cards";
+import { grizzlyBears } from "../cards/sets/lea/green.cards";
+import { lightningBolt } from "../cards/sets/lea/red.cards";
 import {
     resolveTopOfStack,
     mayPayUnitIsEligible,
@@ -44,7 +48,7 @@ import {
     runMutation,
     gameStateSeed,
     type Handler,
-} from "./gameMutationHarness";
+} from "./gameMutationHarness.fixture";
 
 const GAME_ID = "game-1" as Id<"games">;
 

@@ -30,7 +30,7 @@ import {
 } from "../../game";
 import { refreshExpectedInput } from "../expectedInput";
 import type { GameState, PendingTarget, StackItem } from "../state";
-import { makeInstance, makeState } from "../../cards/__tests__/setup";
+import { makeInstance, makeState } from "../../cards/__tests__/setup.helper";
 
 // Grizzly Bears / Hill Giant — plain vanilla bodies, no abilities to perturb
 // targeting. Ids come from the registry via `makeInstance`'s card name lookup.

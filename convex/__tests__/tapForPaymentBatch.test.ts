@@ -5,7 +5,7 @@
 // Same harness discipline as `seatOwnership.test.ts` / `limitedPairingMatch.
 // test.ts` — this project has no convex-test harness, so the established
 // seam for `game.ts` mutation coverage is a stub `MutationCtx` driving the
-// REGISTERED mutation's own `_handler` (`gameMutationHarness.ts`). An earlier
+// REGISTERED mutation's own `_handler` (`gameMutationHarness.fixture.ts`). An earlier
 // revision of this file reimplemented the batch loop inline and asserted
 // against a hand-mutated clone — that never drove `saveGameState`, so the
 // issue's actual requirement (one `seq` bump per batched submission, no
@@ -14,9 +14,13 @@
 
 import { describe, it, expect } from "vitest";
 import { tapForPayment } from "../game";
-import { makeInstance, makePlayer, makeState } from "../cards/__tests__/setup";
-import { mountain, grizzlyBears } from "../cards/sets/lea";
-import { ancientTomb } from "../cards/sets/tmp/colorless";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../cards/__tests__/setup.helper";
+import { mountain, grizzlyBears } from "../cards/sets/lea/index.cards";
+import { ancientTomb } from "../cards/sets/tmp/colorless.cards";
 import type { GameState, PendingCast } from "../gre/state";
 import type { Id } from "../_generated/dataModel";
 import {
@@ -24,7 +28,7 @@ import {
     runMutation,
     gameStateSeed,
     type Handler,
-} from "./gameMutationHarness";
+} from "./gameMutationHarness.fixture";
 
 const GAME_ID = "game-1" as Id<"games">;
 

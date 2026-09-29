@@ -1,4 +1,4 @@
-// Per-card behavior tests for white cards in `convex/cards/sets/uds/white.ts`
+// Per-card behavior tests for white cards in `convex/cards/sets/uds/white.cards.ts`
 // (UDS, split by colour per ADR 0043). Assertions check external behavior only
 // (zone changes after resolution).
 
@@ -9,7 +9,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import { projectPublicState } from "../../../../gameProjections";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { getDefinition } from "../../../index";

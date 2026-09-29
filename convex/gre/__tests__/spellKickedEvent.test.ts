@@ -1,6 +1,6 @@
 // SPELL_KICKED — "a player kicks a spell" (CR 702.33d + CR 603.2, issue #1097).
 //
-// The event that backs Saproling Infestation (`cards/sets/inv/green.ts`). It is
+// The event that backs Saproling Infestation (`cards/sets/inv/green.cards.ts`). It is
 // the FIRST engine signal for a kicker PAYMENT — before this, kicker existed
 // only as a `kickerPayments` snapshot read back at resolution, never as
 // something a triggered ability could listen for.
@@ -52,19 +52,19 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import { registerTokenDefinition } from "../../cards";
 import type { CardDefinition } from "../../cards/types";
 import { getEventFieldRow } from "../../cards/mechanicsRegistry";
-import { burstLightning } from "../../cards/sets/zen/red";
-import { everflowingChalice } from "../../cards/sets/wwk/colorless";
-import { thornscapeBattlemage } from "../../cards/sets/pls/green";
-import { fork } from "../../cards/sets/lea/red";
-import { regrowth } from "../../cards/sets/lea/green";
-import { remand } from "../../cards/sets/rav/blue";
-import { memoryLapse } from "../../cards/sets/hml/blue";
-import { grizzlyBears } from "../../cards/sets/lea";
-import { saprolingInfestation } from "../../cards/sets/inv/green";
+import { burstLightning } from "../../cards/sets/zen/red.cards";
+import { everflowingChalice } from "../../cards/sets/wwk/colorless.cards";
+import { thornscapeBattlemage } from "../../cards/sets/pls/green.cards";
+import { fork } from "../../cards/sets/lea/red.cards";
+import { regrowth } from "../../cards/sets/lea/green.cards";
+import { remand } from "../../cards/sets/rav/blue.cards";
+import { memoryLapse } from "../../cards/sets/hml/blue.cards";
+import { grizzlyBears } from "../../cards/sets/lea/index.cards";
+import { saprolingInfestation } from "../../cards/sets/inv/green.cards";
 
 /** A stack-item shaped probe for the pure emitter. Only the fields
  *  `buildSpellKickedEvents` reads. */

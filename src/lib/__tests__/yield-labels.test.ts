@@ -6,7 +6,7 @@
 // (`projectPublicState`), never hand-written, so the label derivation is tested
 // against keys the client can actually hold.
 import { describe, it, expect } from "vitest";
-import { makeInstance, makeState } from "@convex/cards/__tests__/setup";
+import { makeInstance, makeState } from "@convex/cards/__tests__/setup.helper";
 import { getCardByName } from "@convex/cards";
 import { MONARCH_DESIGNATION } from "@convex/cards/designations";
 import { CHANDRA_TORCH_OF_DEFIANCE_EMBLEM_ID } from "@convex/cards/emblems";

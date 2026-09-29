@@ -31,9 +31,9 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import { refreshExpectedInput } from "../expectedInput";
-import { island, swamp, grizzlyBears } from "../../cards/sets/lea";
+import { island, swamp, grizzlyBears } from "../../cards/sets/lea/index.cards";
 
 const FALLEN_SHINOBI = "900c9dfd-ece1-4b09-a801-0fa05e1994b9";
 

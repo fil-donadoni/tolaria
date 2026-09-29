@@ -1,4 +1,4 @@
-// Per-card behavior tests for INV red cards (`convex/cards/sets/inv/red.ts`).
+// Per-card behavior tests for INV red cards (`convex/cards/sets/inv/red.cards.ts`).
 // Overload exercises the Kicker capability (CR 702.33) + the `manaValue` value
 // member (CR 202.3): the MV threshold for its destroy shifts from 2 to 5 when
 // kicked. The generic kicker/value mechanics are proven once in
@@ -7,7 +7,7 @@
 //
 // Pouncing Kavu exercises the kicker → entersWith-counters →
 // wasKicked-gated keyword-grant chain (issue #1716), the exact Duskwalker
-// template (inv/black.ts) — a novel-enough composition to warrant its own
+// template (inv/black.cards.ts) — a novel-enough composition to warrant its own
 // assertion, including revert-sensitive regressions for the two failure
 // modes the old counter-count proxy had.
 //
@@ -25,7 +25,7 @@ import {
     makeState,
     pushSpell,
     resolveActivated,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import {
     resolveTopOfStack,
     beginApplyingStaticEffects,

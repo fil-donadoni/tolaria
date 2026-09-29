@@ -20,7 +20,7 @@ import { describe, expect, it } from "vitest";
 import { compileCard } from "../compile";
 import { sortKeys } from "../gates";
 import { GOLDEN_FIXTURES } from "../grammar/fixtures";
-import { oracleCard } from "./fixtures";
+import { oracleCard } from "./oracle.fixture";
 
 const CLAUSE =
     "Search your library for a basic land card, reveal it, put it into your hand, then shuffle.";

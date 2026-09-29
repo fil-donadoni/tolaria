@@ -22,7 +22,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 
 const PLAINS_ID = "test-bot-cl-plains";
 registerTokenDefinition({

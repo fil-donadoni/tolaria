@@ -8,7 +8,7 @@
 // hand-assembled `StackItem` would not prove that (`.claude/rules/gre-development.md`
 // § Frontend wiring analysis).
 import { describe, it, expect } from "vitest";
-import { makeInstance, makeState } from "@convex/cards/__tests__/setup";
+import { makeInstance, makeState } from "@convex/cards/__tests__/setup.helper";
 import { getCardByName } from "@convex/cards";
 import { turnFaceDown } from "@convex/gre/faceDown";
 import { NO_BOARD_LAYER_VIEW } from "@convex/gre/layers";

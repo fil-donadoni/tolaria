@@ -21,7 +21,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "@convex/cards/__tests__/setup";
+} from "@convex/cards/__tests__/setup.helper";
 import { projectPublicState } from "@convex/gameProjections";
 import { getCardByName } from "@convex/cards";
 import { MORPH_CAST_ALT_COST_ID } from "@convex/gre/morph";

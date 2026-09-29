@@ -15,7 +15,7 @@ instance now that ADR 0094 lets a mode list choose several.
    without prompting. The copy keeps the original's targets (CR 700.2g copies
    the modes and their spans correctly; `modalCardinality.test.ts` pins that),
    but its controller is never asked whether to choose new ones.
-2. **Resolution-time casts.** Word of Command (`lea/black.ts`) and the
+2. **Resolution-time casts.** Word of Command (`lea/black.cards.ts`) and the
    cast-during-resolution Op (`effects/interpreter.ts`, the `cdr:mode` prompt)
    ask a single `requestOptionChoice` for the mode and pass
    `chosenModeIds: [id]` to `castChosenSpell`. A card whose `modeSelection`

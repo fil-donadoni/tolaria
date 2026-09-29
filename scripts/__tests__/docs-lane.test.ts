@@ -49,7 +49,7 @@ describe("docs-lane — what the lane will carry", () => {
         // The cheap gate is only defensible because none of these can ride it.
         for (const p of [
             "convex/gre/layers.ts",
-            "convex/cards/sets/lea/red.ts",
+            "convex/cards/sets/lea/red.cards.ts",
             "src/components/board/Hand.tsx",
             "scripts/gate.ts",
             ".claude/hooks/deny-guard.sh",

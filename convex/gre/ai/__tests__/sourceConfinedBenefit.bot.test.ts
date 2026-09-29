@@ -25,7 +25,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../../cards/__tests__/setup";
+} from "../../../cards/__tests__/setup.helper";
 import type { CardInstanceState, GameState, PlayerState } from "../../state";
 import {
     MAX_VICTIM_VARIANTS,

@@ -1,4 +1,4 @@
-// Per-card behaviour tests for mmq/blue.ts — Gush and Thwart, the two blue
+// Per-card behaviour tests for mmq/blue.cards.ts — Gush and Thwart, the two blue
 // alternative-cost cards (CR 118.9 "return N Islands rather than pay this
 // spell's mana cost"). The alt-cost payment happens at cast commit, so these
 // exercise the real commit path (`finalizeTargetSelection` for the targeted
@@ -22,7 +22,11 @@ import {
     isSacrificeSelectionComplete,
 } from "../../../../gre/sacrificeChoice";
 import { getLegalActions } from "../../../../gre/rules";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import { getDefinition } from "../../../index";
 
 const gush = getDefinition("e755bbef-bf34-49c0-ae72-d70e3599de52");

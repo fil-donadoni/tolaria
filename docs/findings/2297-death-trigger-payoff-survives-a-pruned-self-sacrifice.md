@@ -29,12 +29,12 @@ effect means sacrificing the SOURCE specifically, not the cheapest body.
 (`getAllCards()`, `triggeredAbilities[].event` containing `CREATURE_DIED`)
 returns **21** triggers, not zero. Four of them make the pruned line real:
 
-| Card             | Where                                 | Why it matters                                                                                                                                                        |
-| ---------------- | ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Enduring Renewal | `convex/cards/sets/ice/white.ts`      | "Whenever a creature is put into your graveyard from the battlefield, return it to your hand" — sacrificing Fallen Angel to its own ability RETURNS the Angel to hand |
-| Soul Net         | `convex/cards/sets/lea/colorless.ts`  | "Whenever a creature dies, you may pay {1}. If you do, you gain 1 life"                                                                                               |
-| Earthlink        | `convex/cards/sets/ice/multicolor.ts` | "Whenever a creature dies, that creature's controller sacrifices a land"                                                                                              |
-| Krovikan Vampire | `convex/cards/sets/ice/black.ts`      | reanimates a creature it damaged that dies this turn                                                                                                                  |
+| Card             | Where                                       | Why it matters                                                                                                                                                        |
+| ---------------- | ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Enduring Renewal | `convex/cards/sets/ice/white.cards.ts`      | "Whenever a creature is put into your graveyard from the battlefield, return it to your hand" — sacrificing Fallen Angel to its own ability RETURNS the Angel to hand |
+| Soul Net         | `convex/cards/sets/lea/colorless.cards.ts`  | "Whenever a creature dies, you may pay {1}. If you do, you gain 1 life"                                                                                               |
+| Earthlink        | `convex/cards/sets/ice/multicolor.cards.ts` | "Whenever a creature dies, that creature's controller sacrifices a land"                                                                                              |
+| Krovikan Vampire | `convex/cards/sets/ice/black.cards.ts`      | reanimates a creature it damaged that dies this turn                                                                                                                  |
 
 And **16** `gainControl` Op instances ship across 14 cards, so the denial line
 has real opponents to deny.

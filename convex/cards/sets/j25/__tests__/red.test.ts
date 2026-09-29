@@ -9,7 +9,11 @@ import { resolveTopOfStack } from "../../../../gre/state";
 import { collectTriggers } from "../../../../gre/triggers";
 import { projectPublicState } from "../../../../gameProjections";
 import { getEffectivePower } from "../../../../gre/layers";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import { getDefinition } from "../../../index";
 
 const ivora = getDefinition("2ba70366-b6ae-423a-a8d8-29d2b8afd939");

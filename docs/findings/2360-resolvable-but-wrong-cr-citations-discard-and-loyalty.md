@@ -27,9 +27,9 @@ large majority make one of those two claims. Representatives:
 `convex/gre/effects/interpreter.ts:1907` ("random discard: `count` cards chosen
 AT RANDOM"), `convex/cards/types.ts:3289` and `:12985` (both the `discardAtRandom`
 Op docs), `convex/gre/effects/__tests__/interpreter.test.ts:23516` (the Op's
-describe), `convex/cards/sets/p02/black.ts:10` ("the discarding player also
-chooses which card"), `convex/cards/sets/mh2/black.ts:18`,
-`convex/cards/sets/pls/black.ts:177`, `convex/cards/sets/fem/__tests__/black.test.ts:436`.
+describe), `convex/cards/sets/p02/black.cards.ts:10` ("the discarding player also
+chooses which card"), `convex/cards/sets/mh2/black.cards.ts:18`,
+`convex/cards/sets/pls/black.cards.ts:177`, `convex/cards/sets/fem/__tests__/black.test.ts:436`.
 
 **Class B — `CR 606.5` used for two different wrong things.** Printed:
 
@@ -47,9 +47,9 @@ chooses which card"), `convex/cards/sets/mh2/black.ts:18`,
 So `606.5` is wrong in both directions it is used:
 
 - **B1, wants 606.4** — "`+N` adds N counters / `-N` removes N counters", and the
-  cost-payment sites. ~9 sites: `convex/cards/sets/wwk/blue.ts:48,87,97`,
-  `convex/cards/sets/war/multicolor.ts:77,94`, `convex/cards/sets/war/blue.ts:54`,
-  `convex/cards/sets/isd/black.ts:73,94`,
+  cost-payment sites. ~9 sites: `convex/cards/sets/wwk/blue.cards.ts:48,87,97`,
+  `convex/cards/sets/war/multicolor.cards.ts:77,94`, `convex/cards/sets/war/blue.cards.ts:54`,
+  `convex/cards/sets/isd/black.cards.ts:73,94`,
   `convex/cards/sets/ori/__tests__/blue.test.ts:231`. The payment-path comments
   (`convex/game.ts:5677,6292,13543`,
   `convex/gre/__tests__/loyalty.test.ts:151`) describe paying that same cost and

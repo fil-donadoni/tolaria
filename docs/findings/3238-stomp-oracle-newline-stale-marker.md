@@ -5,7 +5,7 @@ status: draft
 confidence: high
 ---
 
-**What is wrong.** `convex/cards/sets/eld/red.ts` writes Bonecrusher Giant's
+**What is wrong.** `convex/cards/sets/eld/red.cards.ts` writes Bonecrusher Giant's
 Adventure half as `"Damage can't be prevented this turn.\nStomp deals 2 damage
 to any target."`. Scryfall prints that as ONE line —
 `"Damage can't be prevented this turn. Stomp deals 2 damage to any target."` —

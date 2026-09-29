@@ -1,0 +1,226 @@
+// war — multicolor cards (ADR 0043 colour split).
+
+import type { CardDefinition, GameEvent, PermanentView } from "../../types";
+import { tokenPrintIdFor } from "../../tokenPrintLookup";
+
+// TODO(issue #679 stub — still blocked, but on a NARROWER gap than before.
+// The categorized shared-window half of #1364 HAS since shipped as the
+// `revealAndCategorize` Op (reveal a fixed top-N window once, then at most one
+// card per category out of that same revealed set, each card claimable by only
+// one category — Atraxa, Grand Unifier, one/multicolor.cards.ts, now implemented on
+// it). What remains for Niv-Mizzet is the CATEGORY PREDICATE: its ten
+// categories are exact colour PAIRS ("a card that's EXACTLY those colors"),
+// and `EffectCardFilter.color` is only an OR-any-of-these-colours match with
+// no exact-colours mode — a Bant card would wrongly satisfy the WU category.
+// `excludeColor` cannot fix it either (excluding the other three colours does
+// not require BOTH of W and U to be present). Needs an exact-colours filter
+// field before the card can ship; stop-and-issue per gre-development.md.
+// tracked-by: #1364.
+// export const nivMizzetReborn: CardDefinition = {
+//     id: "56a2609d-b535-400b-81d9-72989a33c70f",
+//     name: "Niv-Mizzet Reborn",
+//     rarity: "mythic",
+//     manaCost: { W: 1, U: 1, B: 1, R: 1, G: 1 },
+//     types: ["Creature"],
+//     supertypes: ["Legendary"],
+//     subtypes: ["Dragon", "Avatar"],
+//     power: 6,
+//     toughness: 6,
+// };
+
+// ─────────────────────────────────────────────────────────────────────────
+// Teferi, Time Raveler — {1}{W}{U} Legendary Planeswalker — Teferi, starting
+// loyalty 4 (CR 306.5b). Vintage Cube (planeswalker umbrella #1222). Three
+// clauses, all on the per-player casting-timing subsystem built for this card:
+//   • STATIC — "Each opponent can cast spells only any time they could cast a
+//     sorcery." A `cast-timing-lock` StaticEffect (CR 601.3a): the timing
+//     analogue of Brand of Ill Omen's `cast-restriction` (a class forbid).
+//     `locks` returns true for every player who is NOT this permanent's
+//     controller, so the shared cast gate (`isCastTimingSorcerySpeedLocked`,
+//     castRestrictions.ts, read by `getLegalActions`'s `castTimingBaseLegal`)
+//     forces each opponent to sorcery timing for EVERY spell — instants and
+//     flash spells included. Read-time only; auto-reverts when Teferi leaves.
+//   • +1 — "Until your next turn, you may cast sorcery spells as though they
+//     had flash." A `grantCastTiming` Op (CR 601.3b) granting the controller a
+//     flash-timing permission scoped to `cardTypes: ["Sorcery"]`, cleared at
+//     the start of the controller's next turn (advanceTurn) — the "until your
+//     next turn" boundary. A no-target loyalty ability.
+//   • −3 — "Return up to one target artifact, creature, or enchantment to its
+//     owner's hand. Draw a card." A `moveZone`-to-hand of the up-to-one
+//     announced target (CR 400.7; `count { min: 0, max: 1 }` = "up to one", a
+//     no-op when none is chosen/legal, CR 608.2b) then `draw` 1.
+export const teferiTimeRaveler: CardDefinition = {
+    id: "5cb76266-ae50-4bbc-8f96-d98f309b02d3",
+    name: "Teferi, Time Raveler",
+    rarity: "rare",
+    manaCost: { generic: 1, W: 1, U: 1 },
+    types: ["Planeswalker"],
+    subtypes: ["Teferi"],
+    supertypes: ["Legendary"],
+    loyalty: 4,
+    oracleText:
+        "Each opponent can cast spells only any time they could cast a sorcery.\n+1: Until your next turn, you may cast sorcery spells as though they had flash.\n−3: Return up to one target artifact, creature, or enchantment to its owner's hand. Draw a card.",
+    // CR 601.3a — "Each OPPONENT can cast spells only any time they could cast a
+    // sorcery": a battlefield-scanned casting-TIMING lock on every player who is
+    // not Teferi's controller (see `castTimingBaseLegal`, gre/rules.ts).
+    staticEffects: [
+        {
+            kind: "cast-timing-lock",
+            id: "teferi-time-raveler-opponents-sorcery-speed",
+            locks: (caster, source) => caster !== source.controllerId,
+            oracleText:
+                "Each opponent can cast spells only any time they could cast a sorcery.",
+        },
+    ],
+    activatedAbilities: [
+        {
+            id: "teferi-time-raveler-plus1",
+            // CR 606.2 / 606.5 — loyalty ability; `+1` adds one counter.
+            cost: { loyalty: 1 },
+            useStack: true,
+            oracleText:
+                "+1: Until your next turn, you may cast sorcery spells as though they had flash.",
+            // CR 601.3b — grant the controller flash-timing for Sorcery spells
+            // until their next turn (grantCastTiming Op).
+            effects: [
+                {
+                    op: "grantCastTiming",
+                    player: "controller",
+                    cardTypes: ["Sorcery"],
+                },
+            ],
+        },
+        {
+            id: "teferi-time-raveler-minus3",
+            // CR 606.2 / 606.5 — `-3` removes three counters.
+            cost: { loyalty: -3 },
+            useStack: true,
+            oracleText:
+                "−3: Return up to one target artifact, creature, or enchantment to its owner's hand. Draw a card.",
+            // CR 115.1 / 603.3d — "up to one target artifact, creature, or
+            // enchantment": a real target chosen at announcement (min 0 = "up
+            // to one"); any controller's permanent is eligible (no controller
+            // restriction in the text).
+            targetRequirement: {
+                type: ["Artifact", "Creature", "Enchantment"],
+                count: { min: 0, max: 1 },
+            },
+            effects: [
+                // CR 400.7 — bounce the announced target to its owner's hand; a
+                // no-op when none was chosen/legal (CR 608.2b).
+                { op: "moveZone", target: { target: 0 }, to: "hand" },
+                // CR 121.1 — then draw a card (unconditional).
+                { op: "draw", player: "controller", count: 1 },
+            ],
+        },
+    ],
+};
+
+const SAHEELI_SUBLIME_ARTIFICER_ID = "5a10b543-d5d4-42a8-9ee8-dada59a2ad7e";
+
+// ─────────────────────────────────────────────────────────────────────────
+// Saheeli, Sublime Artificer — {1}{U/R}{U/R} Legendary Planeswalker — Saheeli,
+// starting loyalty 5 (CR 306.5b). Vintage Cube (issue #3236).
+//   • TRIGGER — "Whenever you cast a noncreature spell, create a 1/1 colorless
+//     Servo artifact creature token." A SPELL_CAST triggered ability (CR 603.2
+//     + 601.2i) gated on the caster and a noncreature spell — the Third Path
+//     Iconoclast shape (`bro/multicolor.cards.ts`); a planeswalker's non-loyalty
+//     triggered ability works like any other permanent's.
+//   • −2 — "Target artifact you control becomes a copy of another target
+//     artifact or creature you control until end of turn, except it's an
+//     artifact in addition to its other types." The `becomeCopy` Op: group 0
+//     is the recipient, group 1 the copied object, and "ANOTHER target" is
+//     `excludePriorTargets` (CR 115.3 — without it the same permanent could be
+//     chosen for both). The copy lasts until the cleanup step (CR 514.2) and
+//     then reverts while the artifact stays on the battlefield; the "except"
+//     clause is CR 707.9b's `additionalTypes`, so copying a creature yields an
+//     artifact creature.
+// compiler-gap: "Whenever you cast a noncreature spell, create a 1/1 colorless Servo artifact creature token." (#2693)
+// compiler-gap: "−2: Target artifact you control becomes a copy of another target artifact or creature you control until end of turn, except it's an artifact in addition to its other types." (#2693)
+export const saheeliSublimeArtificer: CardDefinition = {
+    id: SAHEELI_SUBLIME_ARTIFICER_ID, // WAR 234
+    name: "Saheeli, Sublime Artificer",
+    rarity: "uncommon",
+    manaCost: {
+        generic: 1,
+        hybrid: [
+            ["U", "R"],
+            ["U", "R"],
+        ],
+    },
+    types: ["Planeswalker"],
+    subtypes: ["Saheeli"],
+    supertypes: ["Legendary"],
+    loyalty: 5,
+    oracleText:
+        "Whenever you cast a noncreature spell, create a 1/1 colorless Servo artifact creature token.\n−2: Target artifact you control becomes a copy of another target artifact or creature you control until end of turn, except it's an artifact in addition to its other types.",
+    triggeredAbilities: [
+        {
+            id: "saheeli-sublime-artificer-servo",
+            oracleText:
+                "Whenever you cast a noncreature spell, create a 1/1 colorless Servo artifact creature token.",
+            event: "SPELL_CAST",
+            // CR 603.2 — fires only when this permanent's controller casts a
+            // spell that is NOT a creature spell (CR 601.2i).
+            matches: (event: GameEvent, self: PermanentView): boolean =>
+                event.type === "SPELL_CAST" &&
+                event.casterId === self.controllerId &&
+                !event.spellTypes.includes("Creature"),
+            effects: [
+                {
+                    op: "createToken",
+                    token: {
+                        name: "Servo",
+                        types: ["Artifact", "Creature"],
+                        subtypes: ["Servo"],
+                        power: 1,
+                        toughness: 1,
+                        imagePrintId: tokenPrintIdFor(
+                            SAHEELI_SUBLIME_ARTIFICER_ID,
+                            "Servo"
+                        ),
+                    },
+                    controller: "controller",
+                },
+            ],
+        },
+    ],
+    activatedAbilities: [
+        {
+            id: "saheeli-sublime-artificer-minus2",
+            // CR 606.2 / 606.4 — loyalty ability; `-2` removes two counters.
+            cost: { loyalty: -2 },
+            useStack: true,
+            oracleText:
+                "−2: Target artifact you control becomes a copy of another target artifact or creature you control until end of turn, except it's an artifact in addition to its other types.",
+            // Group 0 — "target artifact you control" (the recipient).
+            targetRequirement: {
+                type: "Artifact",
+                count: 1,
+                controller: "you",
+            },
+            // Group 1 — "ANOTHER target artifact or creature you control" (the
+            // copied object). CR 115.3 — distinct from group 0's pick.
+            additionalTargetRequirements: [
+                {
+                    type: ["Artifact", "Creature"],
+                    count: 1,
+                    controller: "you",
+                    excludePriorTargets: true,
+                },
+            ],
+            effects: [
+                {
+                    op: "becomeCopy",
+                    target: { target: 0 },
+                    source: { target: 1 },
+                    // CR 707.9b — "except it's an artifact in addition to its
+                    // other types".
+                    except: { additionalTypes: ["Artifact"] },
+                    // CR 611.2a / 514.2 — "until end of turn".
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
+        },
+    ],
+};

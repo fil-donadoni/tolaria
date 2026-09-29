@@ -33,7 +33,7 @@ import { compactState, expandState } from "../serialize";
 import { deriveWireCharacteristics } from "../wireCharacteristics";
 import { textChangesOf } from "../textChanges";
 import { applyIndefiniteSupertypeMutation, hasSupertypeLive } from "../snow";
-import { evilPresence } from "../../cards/sets/lea/black";
+import { evilPresence } from "../../cards/sets/lea/black.cards";
 import type {
     CardDefinition,
     PermanentView,
@@ -45,7 +45,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import { finalizeCleanup } from "../phases";
 import { projectPublicState } from "../../gameProjections";
 import {
@@ -53,9 +53,9 @@ import {
     withTemporaryDefinition,
 } from "../../cards/registry";
 import { getDefinition } from "../../cards";
-import { grizzlyBears } from "../../cards/sets/lea/green";
-import { mountain } from "../../cards/sets/lea/colorless";
-import { blackLotus } from "../../cards/sets/lea/colorless";
+import { grizzlyBears } from "../../cards/sets/lea/green.cards";
+import { mountain } from "../../cards/sets/lea/colorless.cards";
+import { blackLotus } from "../../cards/sets/lea/colorless.cards";
 
 const view = (state: GameState): LayerStateView =>
     state as unknown as LayerStateView;

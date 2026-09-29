@@ -14,7 +14,7 @@
 // Everything runs through the REAL primitives — `activateAbilityOnState`,
 // `buildPendingActivation` + `tryAutoCommitPendingActivation`, and
 // `finalizeTargetSelection` — the same trio `exileThisActivationCost.test.ts`
-// pins for the exile leg. The shipped card (Attunement, `sets/usg/blue.ts`)
+// pins for the exile leg. The shipped card (Attunement, `sets/usg/blue.cards.ts`)
 // reaches only the inline site, so the other two are proven with synthetic
 // definitions rather than left to the first card that happens to use them.
 
@@ -32,7 +32,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 
 const MANA_SELF_BOUNCE_ID = "00000000-0000-4000-8000-000032040001";
 const TARGETED_SELF_BOUNCE_ID = "00000000-0000-4000-8000-000032040002";

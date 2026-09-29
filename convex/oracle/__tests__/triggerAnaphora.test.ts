@@ -20,7 +20,7 @@ import { describe, expect, it } from "vitest";
 import { compileCard } from "../compile";
 import { sortKeys } from "../gates";
 import { GOLDEN_FIXTURES } from "../grammar/fixtures";
-import { oracleCard } from "./fixtures";
+import { oracleCard } from "./oracle.fixture";
 
 function refused(card: ReturnType<typeof oracleCard>): boolean {
     return compileCard(card).state === "unparsed";

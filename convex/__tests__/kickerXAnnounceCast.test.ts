@@ -11,15 +11,19 @@
 //   kicked cast without one is refused, and an unkicked cast carries none.
 
 import { describe, expect, it } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../cards/__tests__/setup";
-import { verdelothTheAncient } from "../cards/sets/inv/green";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../cards/__tests__/setup.helper";
+import { verdelothTheAncient } from "../cards/sets/inv/green.cards";
 import { announceCast } from "../game";
 import {
     gameStateSeed,
     makeMutationCtx,
     runMutation,
     type Handler,
-} from "./gameMutationHarness";
+} from "./gameMutationHarness.fixture";
 import type { Id } from "../_generated/dataModel";
 import { getPlayer, resolveTopOfStack, type GameState } from "../gre/state";
 

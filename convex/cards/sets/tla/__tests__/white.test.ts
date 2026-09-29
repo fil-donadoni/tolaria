@@ -1,5 +1,5 @@
 // tla (Avatar: The Last Airbender) — per-card behavior tests for white cards
-// in `convex/cards/sets/tla/white.ts` (set split by colour, ADR 0043).
+// in `convex/cards/sets/tla/white.cards.ts` (set split by colour, ADR 0043).
 
 import { describe, it, expect } from "vitest";
 import {
@@ -8,7 +8,7 @@ import {
     makeState,
     resolveActivated,
     submitChoice,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import {
     removePermanentTo,
     processPendingActionTriggers,

@@ -14,9 +14,9 @@ import { enumerateMoves, planManaPayment } from "../moves";
 import { getPlayer } from "../state";
 import { normalizeManaCost } from "../state";
 import type { ManaCost } from "../../cards/types";
-import { makeInstance } from "../../cards/__tests__/setup";
-import { forest } from "../../cards/sets/lea";
-import { board } from "./fixtures/manaSubstitutionScopeProbe";
+import { makeInstance } from "../../cards/__tests__/setup.helper";
+import { forest } from "../../cards/sets/lea/index.cards";
+import { board } from "./fixtures/manaSubstitutionScopeProbe.fixture";
 
 describe("Bot reachability — the planner sees the same permission", () => {
     it("plans a {R} ability cost off a Forest, and only for the scoped source", () => {

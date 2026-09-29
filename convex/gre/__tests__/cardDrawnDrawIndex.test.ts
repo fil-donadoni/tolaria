@@ -8,7 +8,7 @@
 // plumbing test (issue #1343).
 
 import { describe, it, expect } from "vitest";
-import { makeInstance, makeState } from "../../cards/__tests__/setup";
+import { makeInstance, makeState } from "../../cards/__tests__/setup.helper";
 import { getCardByName } from "../../cards/index";
 import { emitCardDrawn, commitDrawPlan, drawCard, getPlayer } from "../state";
 import { advancePhase } from "../phases";

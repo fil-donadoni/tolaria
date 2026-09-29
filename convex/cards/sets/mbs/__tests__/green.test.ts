@@ -1,5 +1,5 @@
 // MBS — per-card behavior tests for green cards in
-// `convex/cards/sets/mbs/green.ts` (set split by colour, ADR 0043).
+// `convex/cards/sets/mbs/green.cards.ts` (set split by colour, ADR 0043).
 //
 // Green Sun's Zenith reuses ALREADY-EXERCISED Ops (`choice`, `moveZone`,
 // `libraryLook`) plus the new `shuffleSelfIntoLibrary` Op and the new dynamic
@@ -19,7 +19,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { getDefinition } from "../../../index";

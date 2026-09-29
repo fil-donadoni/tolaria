@@ -12,7 +12,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import type { CardInstanceState, GameState, PlayerState } from "../state";
 import * as stateModule from "../state";
 import {
@@ -258,7 +258,7 @@ describe("planManaPayment (issue #110)", () => {
     // Issue #1754 — gate↔enumerator parity for an OPPONENT-SCANNING mana
     // chooser. Fellwar Stone's `getManaChoices` walks every OTHER player's
     // battlefield and explicitly skips entries matching `controllerId`
-    // (`convex/cards/sets/drk/colorless.ts`); a self-only `battlefields` view
+    // (`convex/cards/sets/drk/colorless.cards.ts`); a self-only `battlefields` view
     // (own controllerId + own battlefield alone) makes it see zero opponents
     // and return `[]`, so the OLD self-only planner dropped this source even
     // though the human castability gate (which gets the full board via
@@ -1620,7 +1620,7 @@ describe("gate ↔ planner board-dependent mana-source parity (issue #1751 findi
 // battlefield) so a self-referential board-dependent source (Mox Opal above)
 // agreed with the gate. That self-only view does NOT extend to an
 // OPPONENT-SCANNING chooser: Fellwar Stone's `getManaChoices`
-// (`convex/cards/sets/drk/colorless.ts`) walks every OTHER player's
+// (`convex/cards/sets/drk/colorless.cards.ts`) walks every OTHER player's
 // battlefield and explicitly skips entries matching `controllerId` — with a
 // self-only view it sees zero opponents and returns `[]`, so
 // `getProducibleManaOptions` reports no options, the source is skipped, and

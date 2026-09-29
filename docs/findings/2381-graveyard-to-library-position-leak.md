@@ -25,7 +25,7 @@ does not introduce it.
 return. `convex/gameProjections.ts:143` `PublicLibrary` = `{ count, known:
 KnownLibraryCard[] }` and each `KnownLibraryCard` carries its top-relative
 `index` alongside the identity. Pre-existing and engine-wide: e.g. Imperial Seal
-(`convex/cards/sets/ptk/black.ts:36`) moves the searched card `to:
+(`convex/cards/sets/ptk/black.cards.ts:36`) moves the searched card `to:
 "library-top"`, and any graveyard-sourced recursion into the library takes the
 same path.
 

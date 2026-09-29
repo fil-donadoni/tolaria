@@ -29,13 +29,13 @@ import {
 } from "../../game";
 import type { PendingTarget } from "../state";
 import { projectPublicState } from "../../gameProjections";
-import { smugglersCopter } from "../../cards/sets/kld";
-import { grizzlyBears, savannahLions } from "../../cards/sets/lea";
+import { smugglersCopter } from "../../cards/sets/kld/index.cards";
+import { grizzlyBears, savannahLions } from "../../cards/sets/lea/index.cards";
 import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import { refreshExpectedInput } from "../expectedInput";
 import { registerTokenDefinition } from "../../cards";
 import { makeVehicle } from "../../cards/abilities/vehicle";

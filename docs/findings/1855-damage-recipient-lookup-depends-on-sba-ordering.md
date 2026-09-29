@@ -27,9 +27,9 @@ afterwards (`convex/gre/__tests__/combat-planeswalker.test.ts:95-102`), so a
 the battlefield for the lookup.
 
 Three consumers ride this today: Kaldra Compleat's
-`filter: { types: "Creature" }` (`convex/cards/sets/mh2/colorless.ts:282`),
+`filter: { types: "Creature" }` (`convex/cards/sets/mh2/colorless.cards.ts:282`),
 Psychic Frog's new `"player-or-planeswalker"` kind
-(`convex/cards/sets/mh3/multicolor.ts`, this issue), and any future recipient
+(`convex/cards/sets/mh3/multicolor.cards.ts`, this issue), and any future recipient
 filter. `convex/cards/sets/mh3/__tests__/multicolor.test.ts` pins the lethal
 case for the Frog specifically ("fires even when the damage is lethal to the
 planeswalker"), but nothing pins the ORDERING itself — a refactor that moved

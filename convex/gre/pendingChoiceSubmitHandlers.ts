@@ -719,8 +719,8 @@ export function submitMidResolutionPick(
     // OPPONENT's library. `librarySearchedTrigger`'s scope gate requires the
     // two fields to be equal before applying scope, so this cross-library
     // shape never fires.
-    // `search-library` is overloaded: Expressive Iteration (stx/multicolor.ts)
-    // and Diabolic Vision (ice/multicolor.ts) reuse the SAME PendingChoice
+    // `search-library` is overloaded: Expressive Iteration (stx/multicolor.cards.ts)
+    // and Diabolic Vision (ice/multicolor.cards.ts) reuse the SAME PendingChoice
     // `kind` for a "look at the top N, pick one" prompt, which is NOT a CR
     // 701.23a search (that requires looking at the WHOLE zone) — gating on
     // `kind` alone fires a false `LIBRARY_SEARCHED` for both. `isSearch` is

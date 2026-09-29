@@ -14,7 +14,7 @@
 // id in either seat's real decklist must come back out of the real client
 // derivation, with no hand-built view in between. The project has no
 // convex-test harness, so the registered mutations' own `_handler`s are driven
-// against the shared in-memory `db` (`convex/__tests__/fixtures/inMemoryDb.ts`).
+// against the shared in-memory `db` (`convex/__tests__/fixtures/inMemoryDb.fixture.ts`).
 //
 // It lives on the CLIENT side of the crossing because that is the side that
 // breaks silently, and because `~`/`@convex` both resolve here — the convex
@@ -26,7 +26,7 @@ import type { Doc } from "@convex/_generated/dataModel";
 import {
     makeInMemoryDb,
     type InMemoryRow,
-} from "@convex/__tests__/fixtures/inMemoryDb";
+} from "@convex/__tests__/fixtures/inMemoryDb.fixture";
 import { createGame, joinGame, getGame } from "@convex/game";
 import { hydrateGameSeats } from "@convex/deckStore";
 import { gameArtCardIds } from "../game-card-ids";

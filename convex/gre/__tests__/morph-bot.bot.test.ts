@@ -20,7 +20,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import { getCardByName, FACE_DOWN_CARD_ID } from "../../cards";
 import { enumerateMoves, SPECIAL_ACTION_MOVE_KINDS } from "../moves";
 import { applyMoveForSearch } from "../applyMove";

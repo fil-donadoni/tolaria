@@ -25,7 +25,7 @@ than one routed through `gre/zoneCharacteristics.ts`
 is a set of call sites the census does not yet claim, not a missing capability.
 
 **Why it may not deserve its own issue.** Exactly one shipped card declares
-`offBattlefieldCharacteristics` (Grist, `convex/cards/sets/mh2/multicolor.ts`),
+`offBattlefieldCharacteristics` (Grist, `convex/cards/sets/mh2/multicolor.cards.ts`),
 and the interaction needs it cast with restricted creature mana on the same
 board. Defensible as a class — the census is meant to be exhaustive and this is
 a hole in it — but it may be worth one line on the zone-characteristics rollout

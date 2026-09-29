@@ -17,7 +17,7 @@ ability reads as free to the enumerator's mana planner: `planManaPayment`
 returns a tap plan and the move is emitted.
 
 **Evidence.** Verified independently on `fix/issue-1920`: Aladdin's Lamp
-(`convex/cards/sets/arn/colorless.ts`, `cost: { mana: { X: "X" }, tap: true }`)
+(`convex/cards/sets/arn/colorless.cards.ts`, `cost: { mana: { X: "X" }, tap: true }`)
 with five Islands, turn 5 `PRECOMBAT_MAIN` — `enumerateMoves` returns one
 activation whose `chosenX` is `undefined`, and `activateAbilityOnState` on that
 same move throws `This ability requires a chosen X value`.

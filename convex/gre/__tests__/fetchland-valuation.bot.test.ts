@@ -16,7 +16,7 @@
 // convergence at and above the production budget.
 
 import { describe, expect, it } from "vitest";
-import { makeInstance } from "../../cards/__tests__/setup";
+import { makeInstance } from "../../cards/__tests__/setup.helper";
 import { getCardByName } from "../../cards";
 import { isLand, hasManaAbility, isUntappedManaSource } from "../constants";
 import { evaluate } from "../evaluate";

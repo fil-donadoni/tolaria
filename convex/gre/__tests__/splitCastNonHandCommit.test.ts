@@ -22,19 +22,19 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import {
     makeMutationCtx,
     gameStateSeed,
     runMutation,
     type Handler,
-} from "../../__tests__/gameMutationHarness";
+} from "../../__tests__/gameMutationHarness.fixture";
 import type { Id } from "../../_generated/dataModel";
 import { getPlayer, type GameState } from "../state";
 import { splitCastAltCostId } from "../splitCast";
 import { splitHalfDefinitionId } from "../../cards/splitCard";
 import { getLegalActions } from "../rules";
-import { lifeDeath } from "../../cards/sets/apc/multicolor";
+import { lifeDeath } from "../../cards/sets/apc/multicolor.cards";
 
 const STAND_DELIVER = getCardByName("Stand // Deliver");
 const CITADEL = getCardByName("Bolas's Citadel").id;

@@ -56,16 +56,16 @@
 // not a negation of it) when a `not`/`no` sits within 24 characters before
 // them on the marker's own line or the line immediately above it (comments
 // wrap at ~76 columns, so a negation and its object can straddle one line
-// break — `neo/red.ts`'s "so this is not an\n// approximation of the
+// break — `neo/red.cards.ts`'s "so this is not an\n// approximation of the
 // clause" is exactly that shape). A repo-wide sweep of every `not|no …
 // approximat|divergence` occurrence confirmed this window catches all three
-// live confession-disclaiming sites (this one, `usg/red.ts`, `atq/black.ts`)
-// plus three PRE-EXISTING ones this PR never touched (`inv/green.ts`,
-// `ice/black.ts`, `pls/white.ts` — already correctly undisposed-free because
+// live confession-disclaiming sites (this one, `usg/red.cards.ts`, `atq/black.cards.ts`)
+// plus three PRE-EXISTING ones this PR never touched (`inv/green.cards.ts`,
+// `ice/black.cards.ts`, `pls/white.cards.ts` — already correctly undisposed-free because
 // they separately carry their own ref) and nothing else: a wider 3-line
 // window was tried and rejected because it also swallowed three GENUINE,
-// correctly-tracked markers (`mid/white.ts`, `pls/black.ts`,
-// `leg/black.ts`) whose nearby "no"/"not" belongs to unrelated prose ("no
+// correctly-tracked markers (`mid/white.cards.ts`, `pls/black.cards.ts`,
+// `leg/black.cards.ts`) whose nearby "no"/"not" belongs to unrelated prose ("no
 // engine event", "no legal choice"), not a negation of the confession.
 //
 // BLANK-AND-RETEST, not drop-the-hit (issue #1900 fixup round 3, finding 1).
@@ -142,7 +142,7 @@ const strip = (line: string) => line.replace(/^\s*\/\/\s?/, "");
  *  including an unrelated, un-negated confession elsewhere on the same
  *  line, untouched. Matches against `prevLine + " " + line` (comment
  *  prefixes stripped from both) so a negation split across the wrapped-
- *  comment boundary (`neo/red.ts`'s "so this is not an\n// approximation of
+ *  comment boundary (`neo/red.cards.ts`'s "so this is not an\n// approximation of
  *  the clause") is still caught, but only the portion of each match that
  *  actually lands on `line` gets blanked — the negation cue itself can live
  *  entirely on `prevLine` and still consume its object on `line`. Exported
@@ -203,10 +203,10 @@ export function isNegatedConfession(lines: string[], i: number): boolean {
 
 /** Anchor for the sanctioned `aiEffects`/AI-valuation shadow-script idiom
  *  (PRD #1423, issue #1431/#1519/#2364 — see any of the ~15 sites using it,
- *  e.g. `mh1/blue.ts`, `pls/blue.ts`). A shadow script is an intentional,
+ *  e.g. `mh1/blue.cards.ts`, `pls/blue.cards.ts`). A shadow script is an intentional,
  *  DOCUMENTED approximation of a card's effect for the bot's valuer only —
  *  it never changes actual game behaviour — so a confession word inside its
- *  own paragraph (`big/green.ts`'s "Approximates the real effect closely
+ *  own paragraph (`big/green.cards.ts`'s "Approximates the real effect closely
  *  enough for valuation") is not a Guard-B divergence at all, the same way a
  *  commented-out card stub is `check-stub-coverage.ts`'s domain and not
  *  Guard B's (issue #1900 fixup round 2, finding 2: the widened vocabulary
@@ -243,7 +243,7 @@ export function isParagraphBreak(line: string): boolean {
 }
 
 /** Collect every `.ts` source file under a colour-split set directory
- *  (`sets/<code>/<colour>.ts`, ADR 0043), excluding `__tests__` and
+ *  (`sets/<code>/<colour>.cards.ts`, ADR 0043), excluding `__tests__` and
  *  `*.test.ts` — recurses so it also picks up a legacy flat `sets/<code>.ts`
  *  file if one exists, mirroring `scripts/check-stub-coverage.ts`'s own
  *  file collector. */
@@ -314,7 +314,7 @@ export function paragraphAround(lines: string[], i: number): string {
  *  sitting in a different sentence of the same paragraph (a provenance
  *  citation, a separate deferral's own ref) no longer vouches for a marker
  *  it isn't attached to — issue #1900's "same-paragraph vouching" leak
- *  (`eld/colorless.ts`'s Fabled Passage, since fixed on its merits, was the
+ *  (`eld/colorless.cards.ts`'s Fabled Passage, since fixed on its merits, was the
  *  original repro). */
 function isDispositioned(lines: string[], i: number): boolean {
     if (DISPOSITION.test(lines[i])) return true;
@@ -364,9 +364,9 @@ export function scanDivergenceMarkers(lines: string[]): MarkerHit[] {
  *  Deliberately narrower than "every `#NNN` in the paragraph": a bare number
  *  is systematically overloaded in this codebase for things that are NOT a
  *  live tracking claim — a completion citation ("Sacred Boon — ACTIVE
- *  (#734)", `ice/white.ts`, where #734 is the issue that ALREADY SHIPPED the
+ *  (#734)", `ice/white.cards.ts`, where #734 is the issue that ALREADY SHIPPED the
  *  gap and is closed on purpose), a provenance/history note ("supersedes the
- *  closed #277", `atq/colorless.ts`), a cross-reference to a sibling card's
+ *  closed #277", `atq/colorless.cards.ts`), a cross-reference to a sibling card's
  *  own (possibly stale) ref. Guard B's own header already ranks these:
  *  "an issue ref (`#NNN`, PREFER `tracked-by: #NNN`)" — `tracked-by:` is the
  *  unambiguous form, so liveness only ever resolves that one. The cost is
@@ -444,7 +444,7 @@ export function scanFile(file: string): MarkerRecord[] {
 // break (`// … (tracked-by:\n// #675):`) — the same shape `cr:lint` names as
 // its own blind spot (CLAUDE.md § Rules Implementation Process: "a citation
 // wrapped across two comment lines"). Measured in fixup round 2 (issue
-// #2560): 6 real sites wrapped this way, one of them (`5dn/colorless.ts`)
+// #2560): 6 real sites wrapped this way, one of them (`5dn/colorless.cards.ts`)
 // naming a CLOSED issue that a per-line-only scan could not see — the exact
 // auto-close-a-still-referenced-umbrella failure this sweep exists to catch.
 // So a line whose OWN text ends in a bare `tracked-by:` is folded with the
@@ -452,7 +452,7 @@ export function scanFile(file: string): MarkerRecord[] {
 // prefix first (else the fold string still reads "tracked-by: // #675" and
 // the immediately-following-`#` match fails). `TRACKED_BY_G` also accepts an
 // optional, ANCHORED `tolaria` literal between the colon and the number — a
-// prefixed-repo-slug form (`woe/colorless.ts`'s `TODO(tracked-by: tolaria` +
+// prefixed-repo-slug form (`woe/colorless.cards.ts`'s `TODO(tracked-by: tolaria` +
 // `#1324)`) the plain `#NNN` shape missed even on a single line. Anchored,
 // not a bare word: every referenced issue in this sweep is same-repo (`gh
 // issue view` below resolves against this repo only), so a DIFFERENT
@@ -487,13 +487,13 @@ const TRACKED_BY_G = /tracked-by:\s*(?:tolaria)?#(\d+)/gi;
 
 // Issue #1841: a second live-ref SYNTAX, resolved by the SAME function and
 // filtered by the SAME `isStubContext` caller. A `TODO(issue #NNN…)` note
-// (`convex/cards/sets/dsk/red.ts`, `mh3/colorless.ts`, prior to this issue's
+// (`convex/cards/sets/dsk/red.cards.ts`, `mh3/colorless.cards.ts`, prior to this issue's
 // own fix) named a live-tracking disposition — Guard B's own `DISPOSITION`
 // regex already accepted it presence-only — but `scanTrackedByRefs` only
 // ever resolved `tracked-by:`, so a closed issue behind this syntax
 // satisfied `markers:lint` silently. 26 of the 29 sites using this syntax
 // sit inside commented-out card stubs (`check-stub-coverage.ts`'s domain,
-// e.g. `mh1/white.ts:79`'s own such note directly above a commented-out
+// e.g. `mh1/white.cards.ts:79`'s own such note directly above a commented-out
 // `export const windsOfAbandon…`) — those stay excluded exactly as before
 // via `isStubContext` in `scripts/check-marker-liveness.ts`, which walks the
 // contiguous `//` run independent of which regex produced the record. The

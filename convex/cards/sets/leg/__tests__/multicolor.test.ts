@@ -2,7 +2,7 @@
 // twin of arn/leb colour test files). Each non-trivial card gets a describe
 // block citing the CR section it exercises; assertions check external
 // behaviour only. Shared shims live in ./helpers; fixtures in
-// convex/cards/__tests__/setup.ts.
+// convex/cards/__tests__/setup.helper.ts.
 
 import { describe, it, expect } from "vitest";
 import {
@@ -13,7 +13,7 @@ import {
     fillManaPool,
     resolveTrigger,
     upkeepEvent487,
-} from "./helpers";
+} from "./set.helper";
 import { projectPublicState } from "../../../../gameProjections";
 import { validateBlockerEligibility } from "../../../../gre/combat";
 import {
@@ -46,7 +46,7 @@ import {
     makeState,
     pushSpell,
     resolveActivated,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import { getAllCards, getDefinition, getCardByName } from "../../../index";
 
 const adunOakenshield = getDefinition("60252226-a102-4d88-9b80-42d021b5184d");

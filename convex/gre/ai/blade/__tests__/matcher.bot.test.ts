@@ -18,12 +18,12 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../../../cards/__tests__/setup";
+} from "../../../../cards/__tests__/setup.helper";
 import type { TargetSelection } from "../../../../cards/types";
-import { counterspell } from "../../../../cards/sets/lea/blue";
-import { lightningBolt } from "../../../../cards/sets/lea/red";
-import { grizzlyBears } from "../../../../cards/sets/lea/green";
-import { forest, mountain } from "../../../../cards/sets/lea/colorless";
+import { counterspell } from "../../../../cards/sets/lea/blue.cards";
+import { lightningBolt } from "../../../../cards/sets/lea/red.cards";
+import { grizzlyBears } from "../../../../cards/sets/lea/green.cards";
+import { forest, mountain } from "../../../../cards/sets/lea/colorless.cards";
 import type { GameState } from "../../../state";
 import type { Move } from "../../../moves";
 import {

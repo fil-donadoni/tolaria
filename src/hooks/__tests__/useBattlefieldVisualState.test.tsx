@@ -31,7 +31,7 @@ const PLAIN_DEF = { id: "plain-def", name: "Grizzly Bears", staticEffects: [] };
 
 // Synthetic Chrome-Mox-shaped mana ability (CR 602.5b, issue #947): a
 // `canActivate` predicate gated on an imprint counter, mirroring
-// `convex/cards/sets/mrd/colorless.ts` without importing the real card —
+// `convex/cards/sets/mrd/colorless.cards.ts` without importing the real card —
 // this proves the fix is a general `canActivate` mechanism, not a
 // Chrome-Mox-specific special case.
 const MOX_DEF = {

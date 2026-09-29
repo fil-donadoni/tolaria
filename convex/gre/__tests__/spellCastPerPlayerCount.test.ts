@@ -11,11 +11,11 @@
 // tests the underlying counter/event plumbing in `gre/state.ts`.
 
 import { describe, it, expect } from "vitest";
-import { makeState, pushSpell } from "../../cards/__tests__/setup";
+import { makeState, pushSpell } from "../../cards/__tests__/setup.helper";
 import { emitSpellCastEvent } from "../state";
 import { advancePhase } from "../phases";
 import { compactState, expandState } from "../serialize";
-import { lightningBolt } from "../../cards/sets/lea";
+import { lightningBolt } from "../../cards/sets/lea/index.cards";
 
 describe("Per-player spell-cast counter (CR 601.2i, issue #1343)", () => {
     it("increments per-caster and carries casterSpellCountThisTurn (the caster's own prior count) on SPELL_CAST", () => {

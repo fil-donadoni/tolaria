@@ -1,10 +1,10 @@
-// Per-card behavior tests for blue cards in `convex/cards/sets/tmp/blue.ts`
+// Per-card behavior tests for blue cards in `convex/cards/sets/tmp/blue.cards.ts`
 // (Tempest, split by colour per ADR 0043). Each non-trivial card gets a
 // describe block citing the CR section it exercises. Shared stack/resolve
-// shims live in convex/cards/__tests__/setup.ts.
+// shims live in convex/cards/__tests__/setup.helper.ts.
 
 import { describe, it, expect } from "vitest";
-import { makeState, pushSpell } from "../../../__tests__/setup";
+import { makeState, pushSpell } from "../../../__tests__/setup.helper";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { projectPublicState } from "../../../../gameProjections";
 import { getDefinition } from "../../../index";

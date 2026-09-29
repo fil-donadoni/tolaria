@@ -15,9 +15,9 @@
 
 import { describe, expect, it } from "vitest";
 import { buildStateFromScenario } from "../scenarioBuilder";
-import { makeState } from "../../cards/__tests__/setup";
+import { makeState } from "../../cards/__tests__/setup.helper";
 import { candidateMoves } from "../ai/verdicts/candidates";
-import { giantGrowth, grizzlyBears } from "../../cards/sets/lea/green";
+import { giantGrowth, grizzlyBears } from "../../cards/sets/lea/green.cards";
 import type { GameState } from "../state";
 import type { ScenarioSpec } from "../../debugScenarioSpec";
 

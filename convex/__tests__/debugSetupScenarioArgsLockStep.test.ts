@@ -34,7 +34,7 @@ import {
     validatorJsonOf,
     validationErrors,
     type FieldJson,
-} from "./fixtures/validatorWalk";
+} from "./fixtures/validatorWalk.fixture";
 
 type ExportsArgs = { exportArgs: () => string };
 

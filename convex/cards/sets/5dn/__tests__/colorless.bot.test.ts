@@ -10,7 +10,11 @@
 // read would prove only that the definition equals itself.
 
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import { enumerateMoves } from "../../../../gre/moves";
 import type { GameState } from "../../../../gre/state";
 import { getDefinition } from "../../../index";

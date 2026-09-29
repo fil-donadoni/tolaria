@@ -2,7 +2,7 @@
 // twin of arn/leb colour test files). Each non-trivial card gets a describe
 // block citing the CR section it exercises; assertions check external
 // behaviour only. Shared shims live in ./helpers; fixtures in
-// convex/cards/__tests__/setup.ts.
+// convex/cards/__tests__/setup.helper.ts.
 
 import { describe, it, expect } from "vitest";
 import {
@@ -16,7 +16,7 @@ import {
     UPKEEP_C5,
     answerChoice,
     resolveTrigger,
-} from "./helpers";
+} from "./set.helper";
 import { projectPublicState } from "../../../../gameProjections";
 import {
     getDamageAssignerId,
@@ -70,7 +70,7 @@ import {
     makeState,
     pushSpell,
     resolveActivated,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import { entersTappedByReplacement } from "../../../entersTapped";
 import { continuousEffectsInLayer } from "../../../../gre/continuousEffects";
 import { getDefinition } from "../../../index";
@@ -147,7 +147,7 @@ const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
 const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 const hypnoticSpecter = getDefinition("b43b900f-2d9b-442b-9699-058483604ec9");
 const lightningBolt = getDefinition("d573ef03-4730-45aa-93dd-e45ac1dbaf4a");
-import { grantedKeywordRows } from "../../../__tests__/setup";
+import { grantedKeywordRows } from "../../../__tests__/setup.helper";
 
 // ---------------------------------------------------------------------------
 // White free tranche (#371)

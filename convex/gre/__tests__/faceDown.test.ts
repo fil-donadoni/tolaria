@@ -15,12 +15,12 @@ import {
 import { effectiveTriggeredAbilities } from "../copy";
 import { compactState, expandState } from "../serialize";
 import { projectPublicState } from "../../gameProjections";
-import { mahamotiDjinn } from "../../cards/sets/lea";
+import { mahamotiDjinn } from "../../cards/sets/lea/index.cards";
 import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import { NO_BOARD_LAYER_VIEW } from "../layers";
 
 describe("face-down characteristics (CR 708.2)", () => {

@@ -22,8 +22,8 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "@convex/cards/__tests__/setup";
-import { demonicTutor } from "@convex/cards/sets/lea/black";
+} from "@convex/cards/__tests__/setup.helper";
+import { demonicTutor } from "@convex/cards/sets/lea/black.cards";
 import type { CardInstanceState, GameState, PendingChoice } from "@convex/gre";
 import { projectedToGameState } from "../state-adapter";
 import { consultBrain, disposeBrain } from "../brain-client";

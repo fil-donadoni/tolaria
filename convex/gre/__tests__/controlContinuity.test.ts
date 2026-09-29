@@ -16,8 +16,8 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
-import { grizzlyBears, controlMagic } from "../../cards/sets/lea";
+} from "../../cards/__tests__/setup.helper";
+import { grizzlyBears, controlMagic } from "../../cards/sets/lea/index.cards";
 
 describe("hasControlledSinceTurnStart (CR 400.7 entry stamp + control ledger)", () => {
     it("is true for a permanent that was already there when the turn began", () => {

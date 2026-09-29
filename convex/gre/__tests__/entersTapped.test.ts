@@ -9,7 +9,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import { applyPlayLand } from "../playLand";
 
 describe("entersTapped / entersTappedUnless at land-play (CR 614.1c)", () => {

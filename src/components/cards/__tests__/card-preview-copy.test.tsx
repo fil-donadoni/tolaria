@@ -6,7 +6,7 @@
 // so both are asserted on the slim projected instance.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, cleanup, fireEvent, act } from "@testing-library/react";
-import { makeState, makeInstance } from "@convex/cards/__tests__/setup";
+import { makeState, makeInstance } from "@convex/cards/__tests__/setup.helper";
 import { getCardByName } from "@convex/cards";
 import { applyCopy } from "@convex/gre/copy";
 import { projectPublicState } from "@convex/gameProjections";

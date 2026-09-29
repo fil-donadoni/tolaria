@@ -1,8 +1,12 @@
 // blb (Bloomburrow) — per-card behavior tests for blue cards in
-// `convex/cards/sets/blb/blue.ts` (set split by colour, ADR 0043).
+// `convex/cards/sets/blb/blue.cards.ts` (set split by colour, ADR 0043).
 
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import {
     beginApplyingStaticEffects,
     removePermanentTo,

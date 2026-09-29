@@ -4058,7 +4058,7 @@ function isCastVariantOf(move: Move, ref: Move): boolean {
  *  ids. For a search of a HIDDEN zone the ids therefore need not exist in the
  *  root world at all: `determinize` re-deals the opponent's hand↔library, so a
  *  `search-library` whose `zoneOwnerId` is the opponent (Jester's Cap,
- *  `ice/colorless.ts`) can have the winning edge's cards sitting in the
+ *  `ice/colorless.cards.ts`) can have the winning edge's cards sitting in the
  *  opponent's HAND in the real state — an illegal submission. `iterate` already
  *  honours this on descent ("apply THIS world's move for the selected key"); so
  *  must the final root pick. Re-resolve the key against the root world's own

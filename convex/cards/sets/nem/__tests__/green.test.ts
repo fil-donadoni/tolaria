@@ -21,7 +21,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import { getDefinition } from "../../../index";
 
 const blastoderm = getDefinition("9db5d6c2-b11f-442a-b172-c0c99c9bec07");

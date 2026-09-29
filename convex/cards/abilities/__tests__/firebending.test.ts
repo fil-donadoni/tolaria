@@ -43,7 +43,11 @@ import { advancePhase } from "../../../gre/phases";
 import { collectTriggers, placeTriggersOnStack } from "../../../gre/triggers";
 import { projectPublicState } from "../../../gameProjections";
 import { isNamedMechanic, MECHANICS_REGISTRY } from "../../mechanicsRegistry";
-import { makeInstance, makePlayer, makeState } from "../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../__tests__/setup.helper";
 import {
     expandFirebending,
     firebendingOracleText,

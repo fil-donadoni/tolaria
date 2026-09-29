@@ -34,7 +34,11 @@ import {
 } from "../gre/state";
 import type { ManaCost } from "../cards/types";
 import { untapStep } from "../gre/phases";
-import { makeInstance, makePlayer, makeState } from "../cards/__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../cards/__tests__/setup.helper";
 import { buildStateFromScenario, specFromState } from "../gre/scenarioBuilder";
 import type { ScenarioCard } from "../debugScenarioSpec";
 

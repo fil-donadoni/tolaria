@@ -22,6 +22,6 @@ registry (issue #4443) ports it rather than dropping it silently.
 **Why it may not deserve its own issue.** Unlike `look-top`, the kind has a
 live, non-generic consumer branch and is the natural shape for a future
 `resolve()` card's "choose a player" clause (Blocked on a
-choose-player-and-store Op in `cards/sets/atq/colorless.ts`). Deleting it
+choose-player-and-store Op in `cards/sets/atq/colorless.cards.ts`). Deleting it
 could be premature; it might belong as one line on the registry's issue #4443,
 which will decide whether every kind in the union earns a handler.

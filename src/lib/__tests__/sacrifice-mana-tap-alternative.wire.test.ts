@@ -22,7 +22,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "@convex/cards/__tests__/setup";
+} from "@convex/cards/__tests__/setup.helper";
 
 function projectedBoard(cardName: string) {
     const instance = makeInstance(getCardByName(cardName).id, {

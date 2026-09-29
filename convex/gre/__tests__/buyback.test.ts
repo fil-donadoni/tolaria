@@ -33,12 +33,12 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import { registerTokenDefinition } from "../../cards";
 import type { CardDefinition } from "../../cards/types";
-import { grizzlyBears } from "../../cards/sets/lea";
-import { counterspell } from "../../cards/sets/lea/blue";
-import { regrowth } from "../../cards/sets/lea/green";
+import { grizzlyBears } from "../../cards/sets/lea/index.cards";
+import { counterspell } from "../../cards/sets/lea/blue.cards";
+import { regrowth } from "../../cards/sets/lea/green.cards";
 
 // A synthetic probe card carrying a Buyback cost (CR 702.27a — an ADDITIONAL
 // mana cost) and an empty effect body — the resolution-routing tests only

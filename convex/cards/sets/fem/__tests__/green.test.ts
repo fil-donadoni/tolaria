@@ -1,4 +1,4 @@
-// Per-card behavior tests for green cards in `convex/cards/sets/fem/green.ts`
+// Per-card behavior tests for green cards in `convex/cards/sets/fem/green.cards.ts`
 // (FEM, split by colour per ADR 0043). Each non-trivial card gets a describe
 // block citing the CR section it exercises; assertions check external behavior
 // only (definition shape, zone after resolution, projected wire-format).
@@ -22,8 +22,8 @@ import {
     makeState,
     pushSpell,
     resolveActivated,
-} from "../../../__tests__/setup";
-import { resolveTrigger, UPKEEP } from "./helpers";
+} from "../../../__tests__/setup.helper";
+import { resolveTrigger, UPKEEP } from "./set.helper";
 import { getDefinition } from "../../../index";
 
 const elvishFarmer = getDefinition("40a9710e-b2f8-4746-8640-d450f58a6e49");

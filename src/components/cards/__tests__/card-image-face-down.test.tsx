@@ -13,7 +13,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, cleanup } from "@testing-library/react";
 import { FACE_DOWN_CARD_ID, getCardByName } from "@convex/cards";
-import { makeInstance } from "@convex/cards/__tests__/setup";
+import { makeInstance } from "@convex/cards/__tests__/setup.helper";
 import { turnFaceDown } from "@convex/gre/faceDown";
 import type { CardInstance } from "~/types/game";
 

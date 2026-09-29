@@ -17,7 +17,7 @@ import { describe, expect, it } from "vitest";
 import type { CardInstanceState, GameState } from "../state";
 import type { CardType } from "../../cards/types";
 import { declaredBlockDelta } from "../evaluate";
-import { makePlayer, makeState } from "../../cards/__tests__/setup";
+import { makePlayer, makeState } from "../../cards/__tests__/setup.helper";
 
 function creature(
     id: string,

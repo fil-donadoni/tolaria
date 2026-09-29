@@ -87,7 +87,7 @@ export type ZonePickKind =
     // "Up to one" is expressed with `count: { min: 0, max: 1 }` — an empty
     // submission means "none". Players aren't in a zone, so the pick validates
     // against `candidatePlayerIds` (like `choose-damage-target`), not a zone
-    // membership check. Endurance (mh2/green.ts, #1207): "up to one target
+    // membership check. Endurance (mh2/green.cards.ts, #1207): "up to one target
     // player puts all the cards from their graveyard on the bottom of their
     // library in a random order."
     | "choose-player"

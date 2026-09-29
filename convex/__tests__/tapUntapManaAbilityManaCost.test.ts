@@ -12,16 +12,20 @@
 // Sprites — "{G}, {T}: Add {R}").
 //
 // Drives the REAL registered mutation `_handler` end-to-end through the stub
-// `MutationCtx` (`gameMutationHarness.ts`), the same discipline as
+// `MutationCtx` (`gameMutationHarness.fixture.ts`), the same discipline as
 // `tapUntapRestrictedManaAbility.test.ts` — not a reimplementation of the loop
 // body.
 
 import { describe, it, expect } from "vitest";
 import { tapUntap } from "../game";
-import { makeInstance, makePlayer, makeState } from "../cards/__tests__/setup";
-import { manaCylix } from "../cards/sets/pls/colorless";
-import { fireSprites } from "../cards/sets/leg/green";
-import { mountain } from "../cards/sets/lea";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../cards/__tests__/setup.helper";
+import { manaCylix } from "../cards/sets/pls/colorless.cards";
+import { fireSprites } from "../cards/sets/leg/green.cards";
+import { mountain } from "../cards/sets/lea/index.cards";
 import type { GameState } from "../gre/state";
 import type { Id } from "../_generated/dataModel";
 import {
@@ -29,7 +33,7 @@ import {
     runMutation,
     gameStateSeed,
     type Handler,
-} from "./gameMutationHarness";
+} from "./gameMutationHarness.fixture";
 
 const GAME_ID = "game-1" as Id<"games">;
 

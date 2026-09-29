@@ -1,9 +1,13 @@
-// Per-card behavior tests for white cards in `convex/cards/sets/mid/white.ts`
+// Per-card behavior tests for white cards in `convex/cards/sets/mid/white.cards.ts`
 // (MID, split by colour per ADR 0043). Fixture builders live in
-// convex/cards/__tests__/setup.ts.
+// convex/cards/__tests__/setup.helper.ts.
 
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import {
     resolveTopOfStack,
     type GameState,

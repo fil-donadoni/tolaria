@@ -17,7 +17,7 @@ import {
     makeState,
     makePlayer,
     pushSpell,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import { getDefinition } from "../../../index";
 
 const annul = getDefinition("3f8c73ff-be92-41ca-93a7-76f9823adb38");
@@ -176,7 +176,7 @@ describe("Show and Tell ({2}{U}: each player may put an artifact/creature/enchan
 // itself is blocked on (lea/__tests__/blue.test.ts covers Timetwister;
 // tracked-by: #1727). `resolveSteps` (not a bare `resolve`) because the
 // seven-card draws are irreversible and must run exactly once before the
-// untap choice can suspend (Sylvan Library precedent, leg/green.ts).
+// untap choice can suspend (Sylvan Library precedent, leg/green.cards.ts).
 describe("Time Spiral ({4}{U}{U}: exile self, Timetwister-shape shuffle+draw for each player, untap up to 6 lands, CR 608.2m / 400.7 / 701.26)", () => {
     it("exiles itself, shuffles hand+graveyard into library and draws 7 for each player, then untaps up to 6 chosen lands across both battlefields", () => {
         const makeLib = (owner: string, n: number, prefix: string) =>

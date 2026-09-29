@@ -25,7 +25,7 @@ import {
     makeState,
     pushSpell,
     submitChoice,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import {
     putReanimatedSetOnBattlefield,
     resolveTopOfStack,
@@ -41,7 +41,7 @@ import {
     makeMutationCtx,
     runMutation,
     type Handler,
-} from "../../../../__tests__/gameMutationHarness";
+} from "../../../../__tests__/gameMutationHarness.fixture";
 import { getDefinition } from "../../../index";
 
 const moxDiamond = getDefinition("28028830-83ed-45e2-b495-3b9ad9d3e988");
@@ -285,7 +285,7 @@ describe("Mox Diamond — as-enters discard (CR 614.1a / 614.12a, issue #2389)",
 });
 
 // Full-path coverage through the REAL registered mutation handlers — the
-// discipline `gameMutationHarness.ts` demands: a reducer-only test stays green
+// discipline `gameMutationHarness.fixture.ts` demands: a reducer-only test stays green
 // if `submitResolutionChoice`'s `assertExpectedInput` gate stops admitting a
 // STACKLESS as-enters head, which would be a hard freeze in the deployed game.
 describe("Mox Diamond — full path through convex/game.ts (issue #2389)", () => {

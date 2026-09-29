@@ -11,7 +11,7 @@ import type { GameState, PendingChoice, PendingChoiceKind } from "../state";
 import { applyPendingChoiceSubmit } from "../pendingChoiceSubmit";
 import { legalActions } from "../legalActions";
 import { PENDING_CHOICE_HANDLERS } from "../pendingChoiceHandlers";
-import { makeState } from "../../cards/__tests__/setup";
+import { makeState } from "../../cards/__tests__/setup.helper";
 
 /** The kinds the tests iterate are the registry's own rows. The registry is a
  *  `Record<PendingChoiceKind, …>`, so a kind added to the union without a row

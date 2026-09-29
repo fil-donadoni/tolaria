@@ -2,7 +2,7 @@
 //
 // Sentinel of the Nameless City is DSL-only over already-exercised Ops
 // (`createToken`) behind an already-exercised multi-event trigger shape (the
-// Sin, Spira's Punishment array `event`, `fin/multicolor.ts`), so the per-Op
+// Sin, Spira's Punishment array `event`, `fin/multicolor.cards.ts`), so the per-Op
 // regime would ordinarily cover it. Two things earn this file anyway:
 //
 //  * The Map token's own activated ability is the FIRST token-scoped ability
@@ -17,7 +17,11 @@
 import { describe, it, expect } from "vitest";
 import { MAP_TOKEN_SPEC } from "../../../abilities/tokens/mapToken";
 import { getDefinition } from "../../../index";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import {
     resolveTopOfStack,
     normalizeManaCost,

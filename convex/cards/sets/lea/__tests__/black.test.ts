@@ -1,7 +1,7 @@
-// Per-card behavior tests for black cards in `convex/cards/sets/lea/black.ts`
+// Per-card behavior tests for black cards in `convex/cards/sets/lea/black.cards.ts`
 // (LEA, split by colour per ADR 0043). Each non-trivial card gets a describe
 // block citing the CR section it exercises. Shared stack/resolve shims live in
-// ./helpers; fixture builders stay in convex/cards/__tests__/setup.ts.
+// ./helpers; fixture builders stay in convex/cards/__tests__/setup.helper.ts.
 
 import { describe, it, expect } from "vitest";
 // Cross-set: Blizzard is the shipped card carrying a card-level `castCondition`
@@ -45,8 +45,8 @@ import {
     makeState,
     pushSpell,
     submitChoice,
-} from "../../../__tests__/setup";
-import { activatePump, pushDelayedTrigger, runUntapForJ } from "./helpers";
+} from "../../../__tests__/setup.helper";
+import { activatePump, pushDelayedTrigger, runUntapForJ } from "./set.helper";
 import { getDefinition } from "../../../index";
 
 const animateDead = getDefinition("8fd7861d-925f-4b4c-a4ab-60be6f43d50b");

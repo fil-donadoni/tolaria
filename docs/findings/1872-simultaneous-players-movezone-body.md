@@ -12,9 +12,9 @@ happen simultaneously"). Two cards with the same `forEach{players}` + `choice`
 shape were deliberately left OUT of that widening because their terminal Op is a
 `moveZone` **to the battlefield**:
 
-- `convex/cards/sets/usg/black.ts:24` — Exhume, "Each player puts a creature
+- `convex/cards/sets/usg/black.cards.ts:24` — Exhume, "Each player puts a creature
   card from their graveyard onto the battlefield."
-- `convex/cards/sets/usg/blue.ts:93` — Show and Tell, "Each player may put an
+- `convex/cards/sets/usg/blue.cards.ts:93` — Show and Tell, "Each player may put an
   artifact, creature, enchantment, or land card from their hand onto the
   battlefield."
 

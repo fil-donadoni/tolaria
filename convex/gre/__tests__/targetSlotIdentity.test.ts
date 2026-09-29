@@ -25,7 +25,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 
 const GRIZZLY_BEARS = "ce2d603a-3231-4a8c-bf39-1617586ea870";
 

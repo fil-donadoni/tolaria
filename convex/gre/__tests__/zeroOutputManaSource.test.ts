@@ -32,12 +32,12 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
-import { everflowingChalice } from "../../cards/sets/wwk";
-import { icatianStore } from "../../cards/sets/fem";
-import { fellwarStone } from "../../cards/sets/drk";
-import { mountain, forest } from "../../cards/sets/lea";
-import { solRing } from "../../cards/sets/lea";
+} from "../../cards/__tests__/setup.helper";
+import { everflowingChalice } from "../../cards/sets/wwk/index.cards";
+import { icatianStore } from "../../cards/sets/fem/index.cards";
+import { fellwarStone } from "../../cards/sets/drk/index.cards";
+import { mountain, forest } from "../../cards/sets/lea/index.cards";
+import { solRing } from "../../cards/sets/lea/index.cards";
 
 const FIREBALL = "b7623c00-144b-4a8f-9c6c-f5e9e4f65ece"; // {X}{R}
 

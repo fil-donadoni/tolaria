@@ -1722,7 +1722,7 @@ function resolvingTargetRequirement(
            *  rechecking. The caller treats `true` here as "can't confidently
            *  recheck", the same fail-open answer as an unresolvable body; the
            *  cost is that a multi-group resolution — e.g. Plague Spores
-           *  (`convex/cards/sets/inv/multicolor.ts`), literally the CR
+           *  (`convex/cards/sets/inv/multicolor.cards.ts`), literally the CR
            *  608.2b Plague Spores worked example — gets NO CR 608.2b
            *  permanent-filter recheck at all, on either of its two targets,
            *  not merely the primary group's own. */
@@ -2701,7 +2701,7 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
                 //    it must stay live: a permanent that never left is the
                 //    same object, so counters or combat history it gained
                 //    AFTER the trigger went on the stack are legitimately
-                //    visible here (Living Artifact, `lea/green.ts`).
+                //    visible here (Living Artifact, `lea/green.cards.ts`).
                 // 3. The stack item itself — a source that was never on the
                 //    battlefield at all (graveyard-zone triggers like Nether
                 //    Shadow). Its `id` was reallocated, so pin the identity to
@@ -8533,7 +8533,7 @@ export function revertAnimation(card: CardInstanceState): void {
  *  reversal (`stopApplyingStaticEffects`) only fires when the SOURCE leaves
  *  the battlefield. Nothing reversed them when the TARGET left: a permanent
  *  whose type was added or suppressed by ANOTHER permanent's static (Titania's
- *  Song / Animate Artifact, `sets/atq/green.ts` / `sets/lea/blue.ts`) came
+ *  Song / Animate Artifact, `sets/atq/green.cards.ts` / `sets/lea/blue.cards.ts`) came
  *  back from hand still carrying the mutation, even though CR 400.7 makes it a
  *  NEW object. Every entry on the departing object dies with it, whatever its
  *  source — this only ever reads/writes `card`, so identical maps on OTHER
@@ -8731,7 +8731,7 @@ export function discardEntryTypeLine(card: CardInstanceState): void {
  *  and shows what it PRINTS.
  *
  *  Reachable the moment a card both LOSES a type indefinitely and can reach a
- *  graveyard, which Enduring Innocence (`sets/dsk/white.ts`) is the first
+ *  graveyard, which Enduring Innocence (`sets/dsk/white.cards.ts`) is the first
  *  shipped card to do — it returns from its own death as an Enchantment, and
  *  when THAT is later destroyed the card must sit in the graveyard as the
  *  Enchantment Creature — Sheep Glimmer card it prints. Otherwise every
@@ -10838,7 +10838,7 @@ function untilNextEndStepTurn(state: GameState, playerId: string): number {
  *  CR 202.1): those all return `undefined` here, which `matchesCardFilter`
  *  fails CLOSED on. `{}` is a DISTINCT, real encoding of the printed cost
  *  `{0}` some non-land cards use (Ornithopter writes `manaCost: {}` itself,
- *  `atq/colorless.ts` — note Mishra's Factory/Workshop, elsewhere in that
+ *  `atq/colorless.cards.ts` — note Mishra's Factory/Workshop, elsewhere in that
  *  same file, are the OPPOSITE branch: `types: ["Land"]`, correctly excluded
  *  by the carve-out below) — so `{}` is passed through
  *  unchanged for a non-land card, never collapsed to `undefined`. Without the
@@ -13201,7 +13201,7 @@ export function buildSpellContext(
             seededShuffle(state, library);
             clearKnowledge(library, null);
         },
-        // Endurance's ETB (mh2/green.ts, #1207): "put all the cards from their
+        // Endurance's ETB (mh2/green.cards.ts, #1207): "put all the cards from their
         // graveyard on the bottom of their library in a random order." Detach
         // the whole graveyard, randomize it among itself with the seeded PRNG
         // (deterministic under replay), then append after the existing library
@@ -18644,7 +18644,7 @@ function finishTokenEntry(
         //     the `includes("Creature")` gate that decides whether P/T is
         //     snapshotted at all — so a granted type that is not stamped yet
         //     is a type the entry never announces. Titania's Song
-        //     (`cards/sets/atq/green.ts`, shipped) is the live instance — a
+        //     (`cards/sets/atq/green.cards.ts`, shipped) is the live instance — a
         //     Treasure token entering under it must announce
         //     `["Artifact","Creature"]` WITH a P/T; emitted above these two
         //     passes it announces a bare `["Artifact"]` and no P/T, and every
@@ -19185,7 +19185,7 @@ export function moveCard(
  *  must NOT be stamped known to every player — that would over-reveal it.
  *  `projectExileCard` already treats a non-empty `knownTo` on an exiled card
  *  as the face-down marker (`gameProjections.ts`); reuse that same signal
- *  here rather than inventing a new one. Memory Jar (`ulg/colorless.ts`) is
+ *  here rather than inventing a new one. Memory Jar (`ulg/colorless.cards.ts`) is
  *  the shipped card that exercises this: it exiles every hand face down,
  *  then returns them via `moveCardById`. */
 /** issue #3242 — the general mover's library-entry emission. A card moved

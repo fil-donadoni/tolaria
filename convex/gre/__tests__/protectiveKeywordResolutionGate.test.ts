@@ -24,16 +24,16 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import { getPlayer, resolveTopOfStack, type GameState } from "../state";
-import { grizzlyBears } from "../../cards/sets/lea/green";
-import { terror } from "../../cards/sets/lea/black";
-import { lightningBolt } from "../../cards/sets/lea/red";
-import { ancestralRecall, unsummon } from "../../cards/sets/lea/blue";
-import { swordsToPlowshares } from "../../cards/sets/lea/white";
-import { ashesToAshes } from "../../cards/sets/drk/black";
-import { antiMagicAura } from "../../cards/sets/leg/blue";
-import { solitaryConfinement } from "../../cards/sets/jud/white";
+import { grizzlyBears } from "../../cards/sets/lea/green.cards";
+import { terror } from "../../cards/sets/lea/black.cards";
+import { lightningBolt } from "../../cards/sets/lea/red.cards";
+import { ancestralRecall, unsummon } from "../../cards/sets/lea/blue.cards";
+import { swordsToPlowshares } from "../../cards/sets/lea/white.cards";
+import { ashesToAshes } from "../../cards/sets/drk/black.cards";
+import { antiMagicAura } from "../../cards/sets/leg/blue.cards";
+import { solitaryConfinement } from "../../cards/sets/jud/white.cards";
 
 /** p2 controls one Grizzly Bears (`bear`); p1 controls nothing. */
 function boardWithBear(
@@ -190,7 +190,7 @@ describe("CR 608.2b — hexproof gained in response (CR 702.11b)", () => {
 });
 
 describe("CR 113.7a — the source's controller is the CASTER, not the card object", () => {
-    // Robber of the Rich (`cards/sets/eld/red.ts`) grants a cross-player cast:
+    // Robber of the Rich (`cards/sets/eld/red.cards.ts`) grants a cross-player cast:
     // p1 casts a card out of p2's exile. The cast commit spreads the card and
     // stamps `castById`, leaving the object's own `controllerId` pointing at
     // p2 — so a gate reading `controllerId` would call p1's own spell an

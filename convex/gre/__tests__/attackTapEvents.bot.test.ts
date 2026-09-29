@@ -9,7 +9,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import { applyMoveForSearch } from "../applyMove";
 import { emitAttackersDeclaredEvents } from "../phases";
 import { applyMoveInSearch } from "../search";

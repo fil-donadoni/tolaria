@@ -13,7 +13,7 @@ import {
     makeState,
     makePlayer,
     makeInstance,
-} from "../../../cards/__tests__/setup";
+} from "../../../cards/__tests__/setup.helper";
 import { getCardByName } from "../../../cards";
 import type { EffectValue } from "../../../cards/types";
 

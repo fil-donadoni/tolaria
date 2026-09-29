@@ -27,7 +27,7 @@ import {
     makeState,
     resolveActivated,
     submitChoice,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import {
     removePermanentTo,
     resolveTopOfStack,

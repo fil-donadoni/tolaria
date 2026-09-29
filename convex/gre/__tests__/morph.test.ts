@@ -15,7 +15,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import { getCardByName, FACE_DOWN_CARD_ID } from "../../cards";
 import {
     getAlternativeCost,

@@ -10,7 +10,11 @@ import {
 } from "../../../../gre/layers";
 import { projectPublicState } from "../../../../gameProjections";
 import type { StackItem } from "../../../../gre/state";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 
 const bloodtitheHarvester = getDefinition(
     "f0192cf7-3391-4720-b9c8-72dec5dde01e"

@@ -11,7 +11,7 @@ import type {
     PlayerState,
     StackItem,
 } from "../state";
-import { makeInstance } from "../../cards/__tests__/setup";
+import { makeInstance } from "../../cards/__tests__/setup.helper";
 import {
     ancestralRecall,
     armageddon,
@@ -24,10 +24,10 @@ import {
     mountain,
     plains,
     savannahLions,
-} from "../../cards/sets/lea";
-import { naturalOrder } from "../../cards/sets/vis";
-import { soulExchange } from "../../cards/sets/fem";
-import { subtlety } from "../../cards/sets/mh2/blue";
+} from "../../cards/sets/lea/index.cards";
+import { naturalOrder } from "../../cards/sets/vis/index.cards";
+import { soulExchange } from "../../cards/sets/fem/index.cards";
+import { subtlety } from "../../cards/sets/mh2/blue.cards";
 
 // ---------------------------------------------------------------------------
 // Test helpers

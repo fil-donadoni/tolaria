@@ -657,8 +657,8 @@ function projectBattlefieldCard(
  *  StackItem is built by `buildTriggerItem` spreading `...self` from the
  *  source permanent, so it inherits that permanent's `faceDown` /
  *  `faceDownOf`. A face-down permanent CAN have a trigger: a granted one
- *  (`grantedTriggeredAbilities`, layer 6 — leg/white.ts, ice/blue.ts,
- *  m12/blue.ts) survives the layer replay `turnFaceDown` performs, so the
+ *  (`grantedTriggeredAbilities`, layer 6 — leg/white.cards.ts, ice/blue.cards.ts,
+ *  m12/blue.cards.ts) survives the layer replay `turnFaceDown` performs, so the
  *  source's identity is NOT public and must be gated per viewer here too.
  *  `castById` is the source's controller (`buildTriggerItem`), so the
  *  controller keeps seeing their own card and the opponent does not. */

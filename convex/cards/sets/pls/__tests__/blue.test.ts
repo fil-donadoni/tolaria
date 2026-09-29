@@ -27,7 +27,7 @@ import {
     pushSpell,
     resolveTriggerOrder,
     submitChoice,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import {
     beginApplyingStaticEffects,
     getCostModifiers,
@@ -84,7 +84,7 @@ const opt = getDefinition("958262ec-8e52-40cf-a9fd-a60e42643e15");
 /** Pushes a triggered ability directly onto the stack (bypassing the real
  *  cast/announcement pipeline) and resolves it — the established shape
  *  every per-colour test file uses for a card-def `TriggeredAbility`
- *  (`inv/__tests__/helpers.ts`'s `resolveTrigger`, PLS red's `bmTrigger`,
+ *  (`inv/__tests__/set.helper.ts`'s `resolveTrigger`, PLS red's `bmTrigger`,
  *  issue #1951/PR #2005). `source` carries the ability; `targets` is
  *  pre-announced (CR 603.3d target ANNOUNCEMENT itself is a separate,
  *  already-tested engine concern — `raiseTriggerTargetSelection`,
@@ -110,7 +110,7 @@ function pushTrigger(
 
 /** Pushes an activated ability (the card's own, or a `grantTemplates[]`
  *  ability granted to a host via `grantedSourceCardId`) directly onto the
- *  stack and resolves it — mirrors `inv/__tests__/helpers.ts`'s
+ *  stack and resolves it — mirrors `inv/__tests__/set.helper.ts`'s
  *  `resolveActivated`. */
 function pushActivated(
     state: GameState,
@@ -131,7 +131,7 @@ function pushActivated(
 }
 
 /** Answers the head `pendingChoices` entry (mirrors
- *  `inv/__tests__/helpers.ts`'s `submitChoice`). */
+ *  `inv/__tests__/set.helper.ts`'s `submitChoice`). */
 /** Drains the stack, resolving every pending item (including any
  *  `trigger-order` PendingChoice a simultaneous same-controller batch
  *  raises — CR 603.3b, ADR 0058). Mirrors `rtr/__tests__/green.test.ts`'s

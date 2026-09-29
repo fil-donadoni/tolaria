@@ -17,7 +17,7 @@ import { describe, expect, it } from "vitest";
 import { compileCard } from "../compile";
 import { sortKeys } from "../gates";
 import type { OracleCard } from "../types";
-import { oracleCard } from "./fixtures";
+import { oracleCard } from "./oracle.fixture";
 
 const NOT_ON_MY_WATCH: OracleCard = {
     oracleId: "2d400c01-d2d0-442a-bc3d-cf106a754dab",

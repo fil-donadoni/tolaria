@@ -8,7 +8,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import type { GameState } from "../state";
 
 const LIONS = "d05b92bd-797e-413f-a8b0-32e0937a1ee0"; // Savannah Lions — {W}

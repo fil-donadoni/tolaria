@@ -14,7 +14,11 @@
 
 import { describe, it, expect } from "vitest";
 import { selectTarget } from "../game";
-import { makeInstance, makePlayer, makeState } from "../cards/__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../cards/__tests__/setup.helper";
 import {
     getLegalTargets,
     getPendingTargetSourceSupertypes,
@@ -31,7 +35,7 @@ import {
     runMutation,
     gameStateSeed,
     type Handler,
-} from "./gameMutationHarness";
+} from "./gameMutationHarness.fixture";
 
 const GAME_ID = "game-1" as Id<"games">;
 
@@ -295,7 +299,7 @@ describe("offered/accepted parity for a kind:'trigger' source", () => {
 // `targetingSourceFromCard`, so zeroing `subtypes` breaks them together and
 // they still agree — 556 tests stay green while Blessing (an Aura spell) flips
 // from cannot-target to CAN-target Bartel Runeaxe ("can't be the target of Aura
-// spells", `leg/multicolor.ts`, `targetSourceSubtypeFilter: ["Aura"]`).
+// spells", `leg/multicolor.cards.ts`, `targetSourceSubtypeFilter: ["Aura"]`).
 //
 // So these assert the VALUE, not just the agreement — and still drive both
 // sides, because a value that is right on one side and wrong on the other is

@@ -9,9 +9,9 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
-import { bloodfireInfusion } from "../../cards/sets/apc/red";
-import { grizzlyBears } from "../../cards/sets/lea";
+} from "../../cards/__tests__/setup.helper";
+import { bloodfireInfusion } from "../../cards/sets/apc/red.cards";
+import { grizzlyBears } from "../../cards/sets/lea/index.cards";
 import { enumerateMoves } from "../moves";
 
 function offered(attachedTo: string | undefined): boolean {

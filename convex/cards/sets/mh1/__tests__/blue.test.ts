@@ -10,7 +10,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import {
     resolveTopOfStack,
     getPlayer,
@@ -30,7 +30,7 @@ import {
     runMutation,
     gameStateSeed,
     type Handler,
-} from "../../../../__tests__/gameMutationHarness";
+} from "../../../../__tests__/gameMutationHarness.fixture";
 import type { Id } from "../../../../_generated/dataModel";
 import { FACE_DOWN_CARD_ID } from "../../../index";
 import { getDefinition } from "../../../index";
@@ -265,7 +265,7 @@ describe("Urza, Lord High Artificer — ETB Construct (CR 603.6a / 604.3 CDA)", 
 });
 
 // Full-path integration coverage for clause 2, driven through the REAL
-// registered `activateManaAbility` `_handler` (`gameMutationHarness.ts`) — the
+// registered `activateManaAbility` `_handler` (`gameMutationHarness.fixture.ts`) — the
 // discipline the harness's own header demands and its sibling
 // `convex/__tests__/tapUntapManaAbilityManaCost.test.ts` follows for the same
 // free-ramp bug class. The round-1 version of this block called the exported

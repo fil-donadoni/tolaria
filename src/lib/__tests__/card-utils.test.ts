@@ -77,46 +77,53 @@ import {
     crosissCatacombs,
     meteorCrater,
     starCompass,
-} from "@convex/cards/sets/pls/colorless";
-import { quirionExplorer } from "@convex/cards/sets/pls/green";
-import { guardDogs, pollenRemedy } from "@convex/cards/sets/pls/white";
-import { radiantKavu, rithsCharm } from "@convex/cards/sets/pls/multicolor";
+} from "@convex/cards/sets/pls/colorless.cards";
+import { quirionExplorer } from "@convex/cards/sets/pls/green.cards";
+import { guardDogs, pollenRemedy } from "@convex/cards/sets/pls/white.cards";
+import {
+    radiantKavu,
+    rithsCharm,
+} from "@convex/cards/sets/pls/multicolor.cards";
 import {
     forest as forestCard,
     island as islandCard,
     mountain as mountainCard,
     swamp as swampCard,
-} from "@convex/cards/sets/lea/colorless";
-import { crawWurm } from "@convex/cards/sets/lea/green";
-import { skyshipWeatherlight } from "@convex/cards/sets/pls/colorless";
+} from "@convex/cards/sets/lea/colorless.cards";
+import { crawWurm } from "@convex/cards/sets/lea/green.cards";
+import { skyshipWeatherlight } from "@convex/cards/sets/pls/colorless.cards";
 import {
     CHANDRA_TORCH_OF_DEFIANCE_EMBLEM_ID,
     SORIN_LORD_OF_INNISTRAD_EMBLEM_ID,
 } from "@convex/cards/emblems";
 import { CLUE_TOKEN_SPEC } from "@convex/cards/abilities/tokens/clueToken";
-import { dismember } from "@convex/cards/sets/nph/black";
-import { gitaxianProbe } from "@convex/cards/sets/nph/blue";
-import { dominate } from "@convex/cards/sets/nem";
-import { fellwarStone, deepWater, gaeasTouch } from "@convex/cards/sets/drk";
-import { disruptingScepter, forest } from "@convex/cards/sets/lea";
-import { powerArmor } from "@convex/cards/sets/inv";
-import { thopterFoundry } from "@convex/cards/sets/arb/multicolor";
-import { legionExtruder } from "@convex/cards/sets/big/red";
-import { bloodfireInfusion } from "@convex/cards/sets/apc/red";
-import { grizzlyBears } from "@convex/cards/sets/lea";
-import { ornithopter } from "@convex/cards/sets/atq/colorless";
-import { caribouRange } from "@convex/cards/sets/ice/white";
-import { norritt } from "@convex/cards/sets/ice/black";
-import { whiteout } from "@convex/cards/sets/ice/green";
-import { sorrowsPath } from "@convex/cards/sets/drk/colorless";
-import { dauthiVoidwalker } from "@convex/cards/sets/mh2/black";
-import { viviOrnitier } from "@convex/cards/sets/fin";
-import { metallicRebuke } from "@convex/cards/sets/aer/blue";
-import { millstone } from "@convex/cards/sets/atq/colorless";
-import { gateToPhyrexia } from "@convex/cards/sets/atq/black";
-import { moxOpal } from "@convex/cards/sets/som/colorless";
-import { everflowingChalice } from "@convex/cards/sets/wwk/colorless";
-import { icatianStore } from "@convex/cards/sets/fem/colorless";
+import { dismember } from "@convex/cards/sets/nph/black.cards";
+import { gitaxianProbe } from "@convex/cards/sets/nph/blue.cards";
+import { dominate } from "@convex/cards/sets/nem/index.cards";
+import {
+    fellwarStone,
+    deepWater,
+    gaeasTouch,
+} from "@convex/cards/sets/drk/index.cards";
+import { disruptingScepter, forest } from "@convex/cards/sets/lea/index.cards";
+import { powerArmor } from "@convex/cards/sets/inv/index.cards";
+import { thopterFoundry } from "@convex/cards/sets/arb/multicolor.cards";
+import { legionExtruder } from "@convex/cards/sets/big/red.cards";
+import { bloodfireInfusion } from "@convex/cards/sets/apc/red.cards";
+import { grizzlyBears } from "@convex/cards/sets/lea/index.cards";
+import { ornithopter } from "@convex/cards/sets/atq/colorless.cards";
+import { caribouRange } from "@convex/cards/sets/ice/white.cards";
+import { norritt } from "@convex/cards/sets/ice/black.cards";
+import { whiteout } from "@convex/cards/sets/ice/green.cards";
+import { sorrowsPath } from "@convex/cards/sets/drk/colorless.cards";
+import { dauthiVoidwalker } from "@convex/cards/sets/mh2/black.cards";
+import { viviOrnitier } from "@convex/cards/sets/fin/index.cards";
+import { metallicRebuke } from "@convex/cards/sets/aer/blue.cards";
+import { millstone } from "@convex/cards/sets/atq/colorless.cards";
+import { gateToPhyrexia } from "@convex/cards/sets/atq/black.cards";
+import { moxOpal } from "@convex/cards/sets/som/colorless.cards";
+import { everflowingChalice } from "@convex/cards/sets/wwk/colorless.cards";
+import { icatianStore } from "@convex/cards/sets/fem/colorless.cards";
 import {
     redManaBattery,
     greatWall,
@@ -125,21 +132,21 @@ import {
     livonyaSilone,
     clergyOfTheHolyNimbus,
     karakas,
-} from "@convex/cards/sets/leg";
-import { miracleWorker } from "@convex/cards/sets/drk";
-import { holyStrength } from "@convex/cards/sets/lea/white";
+} from "@convex/cards/sets/leg/index.cards";
+import { miracleWorker } from "@convex/cards/sets/drk/index.cards";
+import { holyStrength } from "@convex/cards/sets/lea/white.cards";
 import {
     pendingTargetFiltersFromRequirement,
     raiseTriggerTargetSelection,
 } from "@convex/gre/rules";
 import { collectTriggers } from "@convex/gre/triggers";
-import { fearOfMissingOut } from "@convex/cards/sets/dsk/red";
+import { fearOfMissingOut } from "@convex/cards/sets/dsk/red.cards";
 import { projectPublicState } from "@convex/gameProjections";
 import {
     makeInstance,
     makePlayer as makeServerPlayer,
     makeState,
-} from "@convex/cards/__tests__/setup";
+} from "@convex/cards/__tests__/setup.helper";
 import type { PendingTarget } from "~/types/game";
 import type { CardInstanceState } from "@convex/gre/state";
 import { NO_BOARD_LAYER_VIEW } from "../../../convex/gre/layers";
@@ -2065,7 +2072,7 @@ describe("getGraveyardStackAbilities vs LIVE snow status (Whiteout, issue #2235 
     /** A plain LEA Forest (NOT printed Snow) made snow ONLY via a
      *  `grantedSupertypes` marker — exactly the shape Arcum's Weathervane's
      *  `arcums-weathervane-snow` ability produces
-     *  (`convex/cards/sets/ice/colorless.ts`), and what `applyIndefiniteSupertypeMutation`
+     *  (`convex/cards/sets/ice/colorless.cards.ts`), and what `applyIndefiniteSupertypeMutation`
      *  (`convex/gre/snow.ts`) writes onto the target instance. */
     const weathervanedForest: CardInstance = {
         id: "forest-1",
@@ -4548,7 +4555,7 @@ describe("buildTriggerStateView — TRIGGER_STATE_VIEW_CENSUS (issue #1951 revie
     });
 
     it("MINOR 6 — Caribou Range's sibling: a token-only board correctly HIDES a nontoken-only sacrificeFilter ability (Thopter Foundry fail-OPEN direction)", () => {
-        // Thopter Foundry (`arb/multicolor.ts`): `sacrificeFilter: { types:
+        // Thopter Foundry (`arb/multicolor.cards.ts`): `sacrificeFilter: { types:
         // "Artifact", isToken: false }`. The sweep's catalogue test reports
         // this card as a self-referential skip (its OWN source already
         // matches its own filter, so a "zero candidates" break can't be
@@ -4807,7 +4814,7 @@ describe("buildTriggerStateView — TRIGGER_STATE_VIEW_CENSUS (issue #1951 revie
 // mayPaySacrificeCount / mayPaySacrificePower — controllerRelation regression
 // (issue #1938 fixup 2)
 //
-// Infernal Denizen (convex/cards/sets/ice/black.ts): "At the beginning of your
+// Infernal Denizen (convex/cards/sets/ice/black.cards.ts): "At the beginning of your
 // upkeep, sacrifice two Swamps." — a `may-pay` sacrifice leg with
 // `{ subtypes: "Swamp", controllerRelation: "you" }` (Minion of Leshrac's
 // creature-sacrifice leg is the same shape). Fixup 1's `toMatchablePermanent`

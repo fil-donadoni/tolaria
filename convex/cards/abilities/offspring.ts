@@ -71,7 +71,7 @@
 // check-time gate never runs for a copy and the resolution-time branch is the
 // only gate a copied offspring trigger passes through. Authority for the whole
 // rule is `additionalCostPaidCondition`'s doc block
-// (`cards/abilities/triggers/shared.ts`); Benalish Emissary (`inv/white.ts`)
+// (`cards/abilities/triggers/shared.ts`); Benalish Emissary (`inv/white.cards.ts`)
 // is the shipped card that settled it.
 //
 // Squad (CR 702.157a) needs no such branch only because its token COUNT is the

@@ -10,7 +10,7 @@ import {
     swampIce,
     mountainIce,
     forestIce,
-} from "../../ice";
+} from "../../ice/index.cards";
 import {
     applyLandManaReplacement,
     getManaTapOptionsDetailed,
@@ -96,7 +96,7 @@ import {
     pushSpell,
     resolveActivated,
     submitChoice,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import type {
     CardInstanceState,
     GameState,
@@ -115,7 +115,7 @@ import {
     BASIC_MANA,
     resolveActivatedNoting,
     answerMayPay,
-} from "./helpers";
+} from "./set.helper";
 
 const balduvianBears = getDefinition("ef5297cb-e763-4871-9cd3-0e2dbcc52095");
 const armorOfFaith = getDefinition("fccbbc47-99c6-4ba9-95c2-992d5d2a67b2");

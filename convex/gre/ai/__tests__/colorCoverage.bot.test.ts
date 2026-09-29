@@ -8,17 +8,17 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../../cards/__tests__/setup";
-import { grizzlyBears } from "../../../cards/sets/lea/green";
-import { darkRitual } from "../../../cards/sets/lea/black";
-import { lightningBolt } from "../../../cards/sets/lea/red";
+} from "../../../cards/__tests__/setup.helper";
+import { grizzlyBears } from "../../../cards/sets/lea/green.cards";
+import { darkRitual } from "../../../cards/sets/lea/black.cards";
+import { lightningBolt } from "../../../cards/sets/lea/red.cards";
 import {
     forest,
     island,
     mountain,
     plains,
     swamp,
-} from "../../../cards/sets/lea/colorless";
+} from "../../../cards/sets/lea/colorless.cards";
 import { manaCensusFor } from "../../manaAvailability";
 import type { GameState, PlayerState } from "../../state";
 import {

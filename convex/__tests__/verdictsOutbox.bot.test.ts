@@ -4,7 +4,7 @@
 //
 // The store is the in-memory fake (`verdictStoreMemory.ts`); the mutations are
 // the REGISTERED `submit` / `markStored` bindings driven through the shared stub
-// ctx (`gameMutationHarness.ts`), so the path under test is the one deployed:
+// ctx (`gameMutationHarness.fixture.ts`), so the path under test is the one deployed:
 // submit's stamps → the drain's upload and re-read → markStored's slimming.
 //
 // A `.bot.test.ts` because it derives the expected ids through
@@ -45,7 +45,7 @@ import {
     runMutation,
     type MutationStub,
     type Row,
-} from "./gameMutationHarness";
+} from "./gameMutationHarness.fixture";
 
 const CLOUD_URL = "https://jovial-guineapig-250.convex.cloud";
 const HERE: VerdictDeployment = { name: "jovial-guineapig-250", kind: "cloud" };

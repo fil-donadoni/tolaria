@@ -20,18 +20,22 @@ import { resolveTopOfStack, getPlayer, type GameState } from "../gre/state";
 import { maxAffordableX } from "../gre/rules";
 import { buildAutoTapSources, solveAutoTap } from "../gre/autoTap";
 import { getColorsFromCost } from "../cards/colors";
-import { drainLife } from "../cards/sets/lea/black";
-import { soulBurn } from "../cards/sets/ice/black";
-import { swamp, mountain } from "../cards/sets/lea/colorless";
+import { drainLife } from "../cards/sets/lea/black.cards";
+import { soulBurn } from "../cards/sets/ice/black.cards";
+import { swamp, mountain } from "../cards/sets/lea/colorless.cards";
 import { announceCast, selectTargets } from "../game";
-import { makeInstance, makePlayer, makeState } from "../cards/__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../cards/__tests__/setup.helper";
 import type { Id } from "../_generated/dataModel";
 import {
     makeMutationCtx,
     runMutation,
     gameStateSeed,
     type Handler,
-} from "./gameMutationHarness";
+} from "./gameMutationHarness.fixture";
 
 const POOL0 = { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 };
 

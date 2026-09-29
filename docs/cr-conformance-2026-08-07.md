@@ -62,8 +62,8 @@ sweep those verdicts rest on.
 
 - **#1865 — CR 508.4 / the `entersAttacking` attack-target choice.** Already
   open, `ready-for-agent`, and cited in-code as `DIVERGENCE (tracked-by: #1865)`
-  at `convex/cards/sets/mid/white.ts:96-107` and
-  `convex/cards/sets/m3c/multicolor.ts:40-48`. Recorded here as **DIVERGENT**
+  at `convex/cards/sets/mid/white.cards.ts:96-107` and
+  `convex/cards/sets/m3c/multicolor.cards.ts:40-48`. Recorded here as **DIVERGENT**
   and re-verified against the new text; see §C.2. **No ticket is cut from
   §C.2** — it would collide with #1865.
 - **#2430 — CR 605.1a / Chromatic Sphere.** Already diagnosed and ticketed.
@@ -107,14 +107,14 @@ The drift trap does not bite here because **no non-test source cites any of the
 shifted letters** — `grep -rn '603\.2[d-h]' convex src` (excluding `__tests__`)
 returns nothing. Every `603.2` citation under `convex/` and `src/` is to the
 bare parent rule, to `603.2b`, or to `603.2c`
-(`convex/cards/sets/leg/black.ts:88`, `:132` — "An ability triggers only once
+(`convex/cards/sets/leg/black.cards.ts:88`, `:132` — "An ability triggers only once
 each time its trigger event occurs"), and `a`–`c` are exactly the letters the
 merge left in place. The table below is a **sample**, not a census: `603.2b` is
 cited in 13 non-test files (also `convex/cards/abilities/ward.ts`,
 `convex/cards/mechanicsRegistry.ts`, `convex/cards/types.ts`,
-`convex/gre/rules.ts`, `convex/gre/state.ts`, `cn2/multicolor.ts`,
-`m12/blue.ts`, `mh3/multicolor.ts`, `pls/blue.ts`, `pls/multicolor.ts`,
-`wth/green.ts`). The verdict does not rest on the sample — it rests on the
+`convex/gre/rules.ts`, `convex/gre/state.ts`, `cn2/multicolor.cards.ts`,
+`m12/blue.cards.ts`, `mh3/multicolor.cards.ts`, `pls/blue.cards.ts`, `pls/multicolor.cards.ts`,
+`wth/green.cards.ts`). The verdict does not rest on the sample — it rests on the
 `d`–`h` grep being empty:
 
 | Cited                                                                                                                                                             | Site                                                                                                                                                                                                           |
@@ -143,13 +143,13 @@ Printed:
 
 The discriminating sweep is `"Do this only once"`, and it finds **exactly one
 hit**, a **commented-out stub**: Ancient Cornucopia,
-`convex/cards/sets/big/green.ts:234` (tracked-by #1841). Nothing shipped.
+`convex/cards/sets/big/green.cards.ts:234` (tracked-by #1841). Nothing shipped.
 
 The looser sweep `"only once each turn"` is **not** discriminating: it returns
 29 non-test hits in `convex/cards/`, and every one of them is CR 602.5's
 _activated_-ability restriction ("Activate … only once each turn" —
-`drk/green.ts:28`, `fin/multicolor.ts:46`, `fem/black.ts:197`,
-`atq/black.ts:162`, `ice/red.ts:1316`, `lea/green.ts:560`, …) plus the
+`drk/green.cards.ts:28`, `fin/multicolor.cards.ts:46`, `fem/black.cards.ts:197`,
+`atq/black.cards.ts:162`, `ice/red.cards.ts:1316`, `lea/green.cards.ts:560`, …) plus the
 `oncePerTurn` doc comment at `convex/cards/types.ts:1304`. Zero of them are
 603.2h.
 
@@ -162,7 +162,7 @@ action. Shipping a 603.2h card needs a new per-turn _action_ tally keyed on the
 instruction's verb, not a bigger `triggersThisTurn`.
 
 The frequently-shipped phrase **"Activate only once each turn"**
-(e.g. `convex/cards/sets/drk/red.ts:325`, `convex/cards/sets/lea/green.ts:560`)
+(e.g. `convex/cards/sets/drk/red.cards.ts:325`, `convex/cards/sets/lea/green.cards.ts:560`)
 is CR 602.5's activated-ability restriction — a different rule, served by
 `ActivatedAbility.oncePerTurn` (`convex/cards/types.ts:1304`) and
 `CardInstanceState.activationsThisTurn` (`convex/gre/state.ts:802-806`).
@@ -189,8 +189,8 @@ What is absent is the **predicate**: the engine has no notion of "were all of
 this ability's conditions met during period P". A sweep of shipped oracle text
 for `all of (those|these)` / `if all` / `each of those` returns only
 single-`event` abilities where the phrase refers to a set of chosen objects
-(`convex/cards/sets/drk/colorless.ts:877`, `ice/black.ts:633`,
-`ice/white.ts:1075`, `leg/green.ts:80`, `:567`), not to trigger conditions.
+(`convex/cards/sets/drk/colorless.cards.ts:877`, `ice/black.cards.ts:633`,
+`ice/white.cards.ts:1075`, `leg/green.cards.ts:80`, `:567`), not to trigger conditions.
 
 Shipping such a card requires a per-turn (or per-period) record of _which_
 conditions have fired, independent of whether the ability itself triggered —
@@ -431,13 +431,13 @@ The rule's window is genuinely reachable: `state.combat` is set on entry to
 `endCombatStep` (`convex/gre/phases.ts:3102`), which runs as END*OF_COMBAT
 \_exits* — so it is live through declare blockers, combat damage and end of
 combat, and the `entersAttacking` branch does fire in those steps. Three shipped
-cards use it: `convex/cards/sets/mid/white.ts:156`,
-`convex/cards/sets/m3c/multicolor.ts:142`, `convex/cards/sets/clb/red.ts:141`.
+cards use it: `convex/cards/sets/mid/white.cards.ts:156`,
+`convex/cards/sets/m3c/multicolor.cards.ts:142`, `convex/cards/sets/clb/red.cards.ts:141`.
 
 **506.3g.** No Battle card exists. `"Battle"` appears only as a `CardType` enum
 value (`convex/cards/types.ts:236`, `:247`, `:264`;
 `convex/gre/constants.ts:124`) consumed by generic type-matching, e.g. Atraxa
-(`convex/cards/sets/one/multicolor.ts:31`). No Siege subtype, no defence
+(`convex/cards/sets/one/multicolor.cards.ts:31`). No Siege subtype, no defence
 counters, no protector concept. Nothing can reach the rule.
 
 ### C.2 — CR 508.4 / 508.4a / 508.4d
@@ -482,8 +482,8 @@ writer of `hasAttackedThisTurn` / `creatureAttackedThisTurn`. The
 entersAttacking token should let controller choose to attack a defending
 planeswalker") is OPEN and `ready-for-agent`, and the two shipped consumers
 already carry it in-line as `DIVERGENCE (tracked-by: #1865)`
-(`convex/cards/sets/mid/white.ts:96-107`,
-`convex/cards/sets/m3c/multicolor.ts:40-48`). The diagnosis below is recorded
+(`convex/cards/sets/mid/white.cards.ts:96-107`,
+`convex/cards/sets/m3c/multicolor.cards.ts:40-48`). The diagnosis below is recorded
 so the audit's item set is complete and re-derived against this revision's
 printed text; the work belongs to #1865.
 
@@ -640,7 +640,7 @@ Printed:
 601.5 grants a permission, not an obligation: it lets a caster pick a target
 that only becomes legal given a cost-payment choice made later. No shipped card
 has a target whose legality depends on which objects pay its cost. The nearest
-shipped shape — `castCondition` (`convex/cards/sets/ice/green.ts:121`, Blizzard,
+shipped shape — `castCondition` (`convex/cards/sets/ice/green.cards.ts:121`, Blizzard,
 #2102) — is a _card-level_ cast restriction evaluated before announcement, not
 a target legality that a later choice unlocks.
 
@@ -690,13 +690,13 @@ The only conditional cast-timing permission shipped is player-scoped:
 `state.castTimingFlashGrants`, gated by `hasCastTimingFlashGrant`
 (`convex/cards/castRestrictions.ts:147-160`) and consumed in `castTimingBaseLegal`
 (`convex/gre/rules.ts:388-403`), powering Teferi, Time Raveler
-(`convex/cards/sets/war/multicolor.ts`). Its condition is a _duration_ ("until
+(`convex/cards/sets/war/multicolor.cards.ts`). Its condition is a _duration_ ("until
 your next turn"), cleared in `advanceTurn`, so it cannot lapse mid-cast — but
 the engine would handle it correctly if it could. Every _self_-granted
 conditional-flash card in the pool is commented out for an unrelated missing
-primitive: Breaking Wave (`convex/cards/sets/inv/blue.ts:784`), Saproling
-Symbiosis (`convex/cards/sets/inv/green.ts:1078`), Necromancy
-(`convex/cards/sets/vis/black.ts:92`), all tracked-by #1975 / #2146.
+primitive: Breaking Wave (`convex/cards/sets/inv/blue.cards.ts:784`), Saproling
+Symbiosis (`convex/cards/sets/inv/green.cards.ts:1078`), Necromancy
+(`convex/cards/sets/vis/black.cards.ts:92`), all tracked-by #1975 / #2146.
 
 ### D.3 — CR 601.7 / 601.7a / 601.7b (new): an opponent choosing during a cast
 
@@ -726,8 +726,8 @@ argument (`convex/game.ts:6810`). The Effect Script DSL's `chooser` field
 of an already-stacked effect — a different moment.
 
 A catalogue sweep for opponent-made choices finds only resolution-time ones:
-Forgotten Lore (`convex/cards/sets/ice/green.ts:566`, "Target opponent chooses a
-card in your graveyard…") and Preacher (`convex/cards/sets/drk/white.ts:246`,
+Forgotten Lore (`convex/cards/sets/ice/green.cards.ts:566`, "Target opponent chooses a
+card in your graveyard…") and Preacher (`convex/cards/sets/drk/white.cards.ts:246`,
 whose own comment records "on resolution that opponent chooses which of their
 creatures is taken"). Both are correct as resolution-time.
 
@@ -808,8 +808,8 @@ values is an explicit opt-in on a different path,
 that has deathtouch, lifelink or infect _and_ deals damage while its source has
 left its expected zone: nothing deals damage from a graveyard or exile, and no
 card pairs one of those keywords with a self-sacrificing damage ability. (The
-near misses — Phlage, `convex/cards/sets/mh3/multicolor.ts:168`, and Grim
-Lavamancer, `convex/cards/sets/tor/red.ts:19` — exile cards as a _cost_; the
+near misses — Phlage, `convex/cards/sets/mh3/multicolor.cards.ts:168`, and Grim
+Lavamancer, `convex/cards/sets/tor/red.cards.ts:19` — exile cards as a _cost_; the
 source stays put.) So the three rules are, today, not reached.
 
 It is recorded as DIVERGENT rather than N/A because the divergence is in the
@@ -883,8 +883,8 @@ counters, and the comment records the consequence — "a Saga entering under Blo
 Moon gets zero lore counters and never fires chapter I". A post-ETB add could
 not produce that.
 
-Shipped Sagas: `convex/cards/sets/dom/white.ts:17-28`,
-`convex/cards/sets/mh2/colorless.ts:84-188`.
+Shipped Sagas: `convex/cards/sets/dom/white.cards.ts:17-28`,
+`convex/cards/sets/mh2/colorless.cards.ts:84-188`.
 
 **CITATION-ONLY rider.** `convex/cards/entersWith.ts` (module header) and
 `convex/gre/state.ts:5204` cite **CR 121.6** for "enters the battlefield with
@@ -952,7 +952,7 @@ Printed:
 A sweep of shipped oracle text for cross-object X references
 (`where X is`, `X in its mana cost`, "equal to that spell's converted mana
 cost") finds one hit and it is a commented-out card
-(`convex/cards/sets/ice/blue.ts:623`), whose X is defined by an amount of mana
+(`convex/cards/sets/ice/blue.cards.ts:623`), whose X is defined by an amount of mana
 paid during its own resolution — CR 107.3f, not 107.3e.
 
 The engine's X plumbing serves a **different** rule and must not be mistaken for
@@ -1006,9 +1006,9 @@ Printed:
 **Verdict: N/A — no shipped card reduces a cost by a hybrid symbol.**
 
 Every shipped "costs {N} less to cast" reduces by pure generic mana — Urza's
-Filter (`convex/cards/sets/inv/colorless.ts:535`), Stone Calendar
-(`convex/cards/sets/drk/colorless.ts:451`), the affinity variants, the
-colour-restricted reducers (`convex/cards/sets/pls/red.ts:793`).
+Filter (`convex/cards/sets/inv/colorless.cards.ts:535`), Stone Calendar
+(`convex/cards/sets/drk/colorless.cards.ts:451`), the affinity variants, the
+colour-restricted reducers (`convex/cards/sets/pls/red.cards.ts:793`).
 
 The engine could not express the rule if a card needed it. `CostModifiers`
 (`convex/gre/state.ts:18293-18303`) carries a single scalar `reductionGeneric`
@@ -1048,7 +1048,7 @@ of which is an effect acting on a permanent:
 
 No spell or ability in the catalogue turns a permanent on the battlefield face
 down, so neither 712.16 nor the DFC carve-out is reachable. The one shipped
-double-faced card lives in `convex/cards/sets/ori/blue.ts`.
+double-faced card lives in `convex/cards/sets/ori/blue.cards.ts`.
 
 The _sibling_ rule 708.2b **is** already satisfied: `turnFaceDown` opens with
 `if (card.faceDown) return;` (`convex/gre/faceDown.ts:21`), a genuine no-op that
@@ -1133,20 +1133,20 @@ from it.
 Each entry records the reason, so the next set rollout inherits the answer
 instead of re-deriving it.
 
-| Rule(s)                                                                                    | Verdict | Reason (catalogue evidence)                                                                                                                                                                                                                                                           |
-| ------------------------------------------------------------------------------------------ | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `310.9`, `310.12`, `704.5v` — battles, Sieges                                              | **N/A** | No Battle card. `"Battle"` exists only as a `CardType` enum value (`convex/cards/types.ts:236`, `:247`, `:264`; `convex/gre/constants.ts:124`) used by generic type-matching (Atraxa, `convex/cards/sets/one/multicolor.ts:31`). No Siege subtype, no defence counters, no protector. |
-| `704.5aa` — speed / start your engines                                                     | **N/A** | Registry row `status: "out-of-scope"`, `convex/cards/mechanicsRegistry.ts:2288-2295`. No card.                                                                                                                                                                                        |
-| `702.124` — Commander partner variants                                                     | **N/A** | Registry row `status: "planned"`, `convex/cards/mechanicsRegistry.ts:1815-1820`. No card. Commander is not a supported format.                                                                                                                                                        |
-| `704.5z` — the Role SBA                                                                    | **N/A** | No Role token and no Role subtype anywhere in `convex/cards/`.                                                                                                                                                                                                                        |
-| `111.10v` — Mutagen token                                                                  | **N/A** | No card creates one.                                                                                                                                                                                                                                                                  |
-| `111.10w` — Vibranium token                                                                | **N/A** | No card creates one.                                                                                                                                                                                                                                                                  |
-| `122.1j` — hone counters                                                                   | **N/A** | No hits in `convex/cards/`.                                                                                                                                                                                                                                                           |
-| `701.65` — airbend                                                                         | **N/A** | No card, no registry row.                                                                                                                                                                                                                                                             |
-| `701.68` — blight                                                                          | **N/A** | No card, no registry row.                                                                                                                                                                                                                                                             |
-| `701.69` — heal                                                                            | **N/A** | No card, no registry row. (Note for whoever ships it: the engine already removes marked damage at `finalizeCleanup`, but has no targeted heal primitive.)                                                                                                                             |
-| `701.70` — recruit                                                                         | **N/A** | No card, no registry row.                                                                                                                                                                                                                                                             |
-| `702.189`–`702.195` — firebending, sneak, increment, paradigm, power-up, teamwork, storied | **N/A** | None appear in `SET_KEYWORDS` (`convex/cards/mechanicsRegistry.ts:2433-2454`) nor anywhere in `convex/cards/`.                                                                                                                                                                        |
+| Rule(s)                                                                                    | Verdict | Reason (catalogue evidence)                                                                                                                                                                                                                                                                 |
+| ------------------------------------------------------------------------------------------ | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `310.9`, `310.12`, `704.5v` — battles, Sieges                                              | **N/A** | No Battle card. `"Battle"` exists only as a `CardType` enum value (`convex/cards/types.ts:236`, `:247`, `:264`; `convex/gre/constants.ts:124`) used by generic type-matching (Atraxa, `convex/cards/sets/one/multicolor.cards.ts:31`). No Siege subtype, no defence counters, no protector. |
+| `704.5aa` — speed / start your engines                                                     | **N/A** | Registry row `status: "out-of-scope"`, `convex/cards/mechanicsRegistry.ts:2288-2295`. No card.                                                                                                                                                                                              |
+| `702.124` — Commander partner variants                                                     | **N/A** | Registry row `status: "planned"`, `convex/cards/mechanicsRegistry.ts:1815-1820`. No card. Commander is not a supported format.                                                                                                                                                              |
+| `704.5z` — the Role SBA                                                                    | **N/A** | No Role token and no Role subtype anywhere in `convex/cards/`.                                                                                                                                                                                                                              |
+| `111.10v` — Mutagen token                                                                  | **N/A** | No card creates one.                                                                                                                                                                                                                                                                        |
+| `111.10w` — Vibranium token                                                                | **N/A** | No card creates one.                                                                                                                                                                                                                                                                        |
+| `122.1j` — hone counters                                                                   | **N/A** | No hits in `convex/cards/`.                                                                                                                                                                                                                                                                 |
+| `701.65` — airbend                                                                         | **N/A** | No card, no registry row.                                                                                                                                                                                                                                                                   |
+| `701.68` — blight                                                                          | **N/A** | No card, no registry row.                                                                                                                                                                                                                                                                   |
+| `701.69` — heal                                                                            | **N/A** | No card, no registry row. (Note for whoever ships it: the engine already removes marked damage at `finalizeCleanup`, but has no targeted heal primitive.)                                                                                                                                   |
+| `701.70` — recruit                                                                         | **N/A** | No card, no registry row.                                                                                                                                                                                                                                                                   |
+| `702.189`–`702.195` — firebending, sneak, increment, paradigm, power-up, teamwork, storied | **N/A** | None appear in `SET_KEYWORDS` (`convex/cards/mechanicsRegistry.ts:2433-2454`) nor anywhere in `convex/cards/`.                                                                                                                                                                              |
 
 ### H.1 — Two entries in the "N/A unless the catalogue says otherwise" block are **not** N/A
 
@@ -1163,19 +1163,19 @@ Printed:
 > it. When that land dies or is put into exile, return it to the battlefield
 > tapped **under your control**."
 
-Shipped: Badgermole Cub, `convex/cards/sets/tla/green.ts:59-111`; registry row
+Shipped: Badgermole Cub, `convex/cards/sets/tla/green.cards.ts:59-111`; registry row
 `convex/cards/mechanicsRegistry.ts:2443-2453` (`status: "implemented"`). Two
 content divergences, both invisible until this revision gave the mechanic a rule
 number:
 
 1. **A creature subtype the rule does not grant.** The `animate` Op at
-   `convex/cards/sets/tla/green.ts:74-80` sets `subtype: "Elemental"`. 701.66a
+   `convex/cards/sets/tla/green.cards.ts:74-80` sets `subtype: "Elemental"`. 701.66a
    says "becomes a 0/0 **land creature** … in addition to its other types" — no
    creature subtype — and the card's own printed reminder text agrees ("becomes
    a 0/0 creature with haste that's still a land"). The engine is adding a
    creature type nothing granted, visible to any Elemental-typed effect.
 2. **Returns under the wrong player's control.** The delayed trigger's two
-   `moveZone` Ops (`convex/cards/sets/tla/green.ts:96-109`) carry no controller
+   `moveZone` Ops (`convex/cards/sets/tla/green.cards.ts:96-109`) carry no controller
    override, so the land returns under its **owner's** control; the registry
    note at `convex/cards/mechanicsRegistry.ts:2452` records this deliberately
    ("under the land's OWNER's control (earthbend has no controller-override
@@ -1214,12 +1214,12 @@ Printed:
 > 701.67a may be used only to pay for the amount of generic mana in the waterbend
 > cost, even if the total cost […] includes other generic mana components.
 
-Shipped: **Aang's Iceberg**, `convex/cards/sets/tla/white.ts:28-47`, whose oracle
+Shipped: **Aang's Iceberg**, `convex/cards/sets/tla/white.cards.ts:28-47`, whose oracle
 text reads "Waterbend {3}: Sacrifice this enchantment. If you do, scry 2." The
 ability is implemented as a **plain {3} generic activation cost**; the
 tap-an-artifact-or-creature alternative is not modelled at all. The divergence is
 already flagged in the card's own comment
-(`convex/cards/sets/tla/white.ts:28-33`: "no such cost-payment primitive exists
+(`convex/cards/sets/tla/white.cards.ts:28-33`: "no such cost-payment primitive exists
 yet"), and waterbend has **no registry row** — it is not in `SET_KEYWORDS`
 (`convex/cards/mechanicsRegistry.ts:2433-2454`), so Guard A never fired on it,
 because the mechanic lives in the ability's cost rather than in
@@ -1253,14 +1253,14 @@ Behaviour at each of these sites is **correct**; only the cited rule id is now
 wrong. They are listed here so #2429 has them and so no ticket cut from this
 audit edits the same comment.
 
-| Site(s)                                                                                                                                                                                | Cites                      | Should cite        | Why                                                                                                                                        |
-| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `convex/gre/phases.ts:3054`, `:3060`, `:3116`; `convex/gre/state.ts:1507`, `:2381`; `convex/gre/types.ts:256`; `convex/cards/types.ts:2969`; `convex/cards/sets/atq/colorless.ts:1383` | `500.4`                    | `500.5` (`703.4q`) | Mana emptying moved from 500.4 to 500.5. New 500.4 is about effects expiring as a step _begins_ — a different rule.                        |
-| `convex/gre/phases.ts:1898` (UNTAP entry tick)                                                                                                                                         | `502.1`                    | `500.4`            | 502.1 is the phasing turn-based action. The entry-expiry rule is new 500.4.                                                                |
-| `convex/gre/phases.ts:1908` (UPKEEP entry tick)                                                                                                                                        | `500.2`                    | `500.4`            | 500.2 is "a phase or step in which players receive priority ends when…". The entry-expiry rule is new 500.4.                               |
-| **20 sites, enumerated below the table** (`convex/gre/state.ts` ×8, `convex/cards/entersWith.ts` ×3, `fem/blue.ts` ×2, and seven singletons)                                           | `121.6`                    | `122.6` / `122.6a` | 121.6 is _"Some effects replace card draws."_ The enters-with-counters rule is 122.6.                                                      |
-| **6 sites, enumerated below the table** (`ncc/colorless.ts` ×3, `arn/colorless.ts` ×2, `dka/red.ts`)                                                                                   | `121.6`                    | `121.1`            | A second, distinct misuse of the same id: these cite it for a plain card draw. 121.1 is the draw rule; 121.6 is the _replacement_ subrule. |
-| `convex/cards/mechanicsRegistry.ts:2447` (earthbend row's `cr` field)                                                                                                                  | _"not a CR 701/702 entry"_ | `701.66`           | Earthbend now has a rule number. (The row also needs the §H.1 behaviour fix — coordinate.)                                                 |
+| Site(s)                                                                                                                                                                                      | Cites                      | Should cite        | Why                                                                                                                                        |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `convex/gre/phases.ts:3054`, `:3060`, `:3116`; `convex/gre/state.ts:1507`, `:2381`; `convex/gre/types.ts:256`; `convex/cards/types.ts:2969`; `convex/cards/sets/atq/colorless.cards.ts:1383` | `500.4`                    | `500.5` (`703.4q`) | Mana emptying moved from 500.4 to 500.5. New 500.4 is about effects expiring as a step _begins_ — a different rule.                        |
+| `convex/gre/phases.ts:1898` (UNTAP entry tick)                                                                                                                                               | `502.1`                    | `500.4`            | 502.1 is the phasing turn-based action. The entry-expiry rule is new 500.4.                                                                |
+| `convex/gre/phases.ts:1908` (UPKEEP entry tick)                                                                                                                                              | `500.2`                    | `500.4`            | 500.2 is "a phase or step in which players receive priority ends when…". The entry-expiry rule is new 500.4.                               |
+| **20 sites, enumerated below the table** (`convex/gre/state.ts` ×8, `convex/cards/entersWith.ts` ×3, `fem/blue.cards.ts` ×2, and seven singletons)                                           | `121.6`                    | `122.6` / `122.6a` | 121.6 is _"Some effects replace card draws."_ The enters-with-counters rule is 122.6.                                                      |
+| **6 sites, enumerated below the table** (`ncc/colorless.cards.ts` ×3, `arn/colorless.cards.ts` ×2, `dka/red.cards.ts`)                                                                       | `121.6`                    | `121.1`            | A second, distinct misuse of the same id: these cite it for a plain card draw. 121.1 is the draw rule; 121.6 is the _replacement_ subrule. |
+| `convex/cards/mechanicsRegistry.ts:2447` (earthbend row's `cr` field)                                                                                                                        | _"not a CR 701/702 entry"_ | `701.66`           | Earthbend now has a rule number. (The row also needs the §H.1 behaviour fix — coordinate.)                                                 |
 
 **The `121.6` sites in full.** `grep -rn '121\.6' convex src` (excluding
 `__tests__`) returns **26 hits across 13 files** — the id is the single most
@@ -1269,15 +1269,15 @@ above must be sized for all 26, not for a sample. Counters class (should cite
 `122.6` / `122.6a`): `convex/gre/state.ts:5168`, `:5204`, `:5522`, `:5704`,
 `:8695`, `:9996`, `:13321`, `:16658`; `convex/gre/playLand.ts:408`;
 `convex/gre/scenarioBuilder.ts:334`; `convex/cards/entersWith.ts:2`, `:4`,
-`:76`; `convex/cards/types.ts:13108`; `convex/cards/sets/inv/blue.ts:390`;
-`convex/cards/sets/fem/blue.ts:66`, `:768`; `convex/cards/sets/eld/black.ts:12`;
-`convex/cards/sets/ecl/black.ts:21`; `convex/cards/sets/onc/multicolor.ts:16`.
+`:76`; `convex/cards/types.ts:13108`; `convex/cards/sets/inv/blue.cards.ts:390`;
+`convex/cards/sets/fem/blue.cards.ts:66`, `:768`; `convex/cards/sets/eld/black.cards.ts:12`;
+`convex/cards/sets/ecl/black.cards.ts:21`; `convex/cards/sets/onc/multicolor.cards.ts:16`.
 That last one is about a **player**-scoped experience counter, so its correct
 target is `122.1` ("a marker placed on an object or player"), not `122.6` —
 check the sentence, not just the id. Draw class (should cite `121.1`):
-`convex/cards/sets/ncc/colorless.ts:75`, `:135`,
-`:141`; `convex/cards/sets/arn/colorless.ts:267`, `:268`;
-`convex/cards/sets/dka/red.ts:6`.
+`convex/cards/sets/ncc/colorless.cards.ts:75`, `:135`,
+`:141`; `convex/cards/sets/arn/colorless.cards.ts:267`, `:268`;
+`convex/cards/sets/dka/red.cards.ts:6`.
 
 Two further observations for #2429, not drift but gaps: **`115.7` has no citation
 anywhere in source** despite the retarget code implementing 115.7e correctly

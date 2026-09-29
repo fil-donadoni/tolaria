@@ -13,7 +13,7 @@ shape now also exiles the TARGET player's whole hand face down (Suppress,
 issue #3812), which is hand disruption: the Bot's script valuation sees nothing
 to gain from casting it at an opponent.
 
-**Evidence.** `suppress` (`convex/cards/sets/apc/black.ts`) — its only effect Op
+**Evidence.** `suppress` (`convex/cards/sets/apc/black.cards.ts`) — its only effect Op
 is `moveZone { player: { target: 0 }, from: "hand", to: "exile", faceDown }`,
 priced 0; the delayed return is priced by the same valuer at 0 too.
 `OP_BENEFICENCE.moveZone` is `"neutral"` by design (its comment explains why no

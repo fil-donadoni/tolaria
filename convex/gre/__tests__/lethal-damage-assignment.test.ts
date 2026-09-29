@@ -31,7 +31,7 @@ import {
 } from "../damageAssignment";
 import { lethalDamageThreshold } from "../lethalDamage";
 import { isProtectedFromSource } from "../protection";
-import { makePlayer, makeState } from "../../cards/__tests__/setup";
+import { makePlayer, makeState } from "../../cards/__tests__/setup.helper";
 import { projectPublicState } from "../../gameProjections";
 
 function creature(

@@ -22,7 +22,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "@convex/cards/__tests__/setup";
+} from "@convex/cards/__tests__/setup.helper";
 import { syncLayer6 } from "@convex/gre/layer6";
 
 const SORCERER = getCardByName("Prodigal Sorcerer").id;

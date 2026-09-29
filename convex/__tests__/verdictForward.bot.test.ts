@@ -3,7 +3,7 @@
 // deployment that does — re-validated there, read back there, origin intact.
 //
 // Both ends are the real code. The local end is the REGISTERED `submit` and
-// `markStored` driven through the shared stub ctx (`gameMutationHarness.ts`)
+// `markStored` driven through the shared stub ctx (`gameMutationHarness.fixture.ts`)
 // and the real `drainOutbox`; the writer end is `acceptForward` bound to the
 // REGISTERED `forwardAdmissible` and to the direct store over the in-memory
 // bucket. Between them the request goes through a JSON round-trip, as it would
@@ -66,7 +66,7 @@ import {
     runMutation,
     type MutationStub,
     type Row,
-} from "./gameMutationHarness";
+} from "./gameMutationHarness.fixture";
 
 type Handler = {
     _handler: (ctx: unknown, args: unknown) => Promise<unknown>;

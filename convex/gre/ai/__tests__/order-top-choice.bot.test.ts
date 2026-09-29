@@ -35,7 +35,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../../cards/__tests__/setup";
+} from "../../../cards/__tests__/setup.helper";
 import type { GameState, PendingChoice, StackItem } from "../../state";
 import { buildSpellContext, getPlayer, resolveTopOfStack } from "../../state";
 import type { LibraryDestination } from "../../types";
@@ -51,11 +51,11 @@ import {
     hasChoiceCandidateGenerator,
     isSearchableChoiceNode,
 } from "../choiceCandidates";
-import { ornithopter } from "../../../cards/sets/atq/colorless";
-import { crawWurm, grizzlyBears } from "../../../cards/sets/lea/green";
-import { island } from "../../../cards/sets/lea/colorless";
-import { preordain } from "../../../cards/sets/m11/blue";
-import { consider } from "../../../cards/sets/mid/blue";
+import { ornithopter } from "../../../cards/sets/atq/colorless.cards";
+import { crawWurm, grizzlyBears } from "../../../cards/sets/lea/green.cards";
+import { island } from "../../../cards/sets/lea/colorless.cards";
+import { preordain } from "../../../cards/sets/m11/blue.cards";
+import { consider } from "../../../cards/sets/mid/blue.cards";
 
 // Definition ids, the vocabulary `makeInstance` and the partition helper speak.
 const ORNITHOPTER = ornithopter.id; // 0/2 for {0} — a near-worthless draw

@@ -149,7 +149,7 @@ export function readSources(root = ROOT): { file: string; text: string }[] {
  *  disposition `scanText`'s narrower gate missed.
  *
  *  **Stub context is NOT a blanket drop** (narrowed, issue #1841 — a
- *  `clb/red.ts` colon-disposition ref (naming issue #925 — split from its
+ *  `clb/red.cards.ts` colon-disposition ref (naming issue #925 — split from its
  *  own `tracked-by` prefix right here so THIS prose does not itself register
  *  as a live marker, the same self-reference hazard `divergence-markers.ts`
  *  calls out for its own `#1324` example) sat inside a commented-out stub,
@@ -170,7 +170,7 @@ export function readSources(root = ROOT): { file: string; text: string }[] {
  *      only `rec.trackedByNumbers` (never the `TODO(issue`-derived numbers
  *      folded into the same line) — that syntax is an unambiguous, singular
  *      tracking promise wherever it appears, stub or not, and dropping it
- *      silently inside a stub is exactly the shape that let `clb/red.ts`
+ *      silently inside a stub is exactly the shape that let `clb/red.cards.ts`
  *      rot unnoticed for three weeks. Measured empirically the same way: on
  *      this branch every OTHER `tracked-by:`-colon stub site names an open
  *      issue, so admitting this syntax alone adds zero unrelated noise.

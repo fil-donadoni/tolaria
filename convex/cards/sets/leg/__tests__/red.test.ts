@@ -2,10 +2,10 @@
 // twin of arn/leb colour test files). Each non-trivial card gets a describe
 // block citing the CR section it exercises; assertions check external
 // behaviour only. Shared shims live in ./helpers; fixtures in
-// convex/cards/__tests__/setup.ts.
+// convex/cards/__tests__/setup.helper.ts.
 
 import { describe, it, expect } from "vitest";
-import { UPKEEP_C5, answerChoice, resolveTrigger } from "./helpers";
+import { UPKEEP_C5, answerChoice, resolveTrigger } from "./set.helper";
 import { projectPublicState } from "../../../../gameProjections";
 import { recordBlockedAttackers } from "../../../../gre/banding";
 import {
@@ -39,7 +39,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import { getDefinition } from "../../../index";
 
 const activeVolcano = getDefinition("ad402e65-6fac-4005-a2d4-592983df0c30");

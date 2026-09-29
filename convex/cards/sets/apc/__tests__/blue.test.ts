@@ -1,4 +1,4 @@
-// Per-card behaviour tests for APC blue cards (`convex/cards/sets/apc/blue.ts`).
+// Per-card behaviour tests for APC blue cards (`convex/cards/sets/apc/blue.cards.ts`).
 //
 // Whirlpool Warrior is a HAND-TAIL card (issue #4358): its activated half sits
 // below the grammar floor, so it is written by hand and owes the test the
@@ -27,7 +27,7 @@ import {
     makeState,
     pushSpell,
     submitChoice,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import {
     resolveTopOfStack,
     type CardInstanceState,
@@ -51,7 +51,7 @@ import {
     makeMutationCtx,
     runMutation,
     type Handler,
-} from "../../../../__tests__/gameMutationHarness";
+} from "../../../../__tests__/gameMutationHarness.fixture";
 import type { Id } from "../../../../_generated/dataModel";
 
 const GAME_ID = "game-1" as Id<"games">;

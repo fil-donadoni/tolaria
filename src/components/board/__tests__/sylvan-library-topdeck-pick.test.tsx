@@ -8,7 +8,7 @@ import {
     drawStepEvent,
     makeSylvanState,
     resolveTrigger,
-} from "@convex/cards/sets/leg/__tests__/helpers";
+} from "@convex/cards/sets/leg/__tests__/set.helper";
 
 // Same harness shape as put-back-picker.test.tsx: capture the picker props so
 // the mount contract can be asserted without the real drag surface.

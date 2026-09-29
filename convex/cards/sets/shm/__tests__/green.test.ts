@@ -5,7 +5,11 @@
 // (Urborg's kind), scoped to the controller.
 
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import { abilitiesSuppressed, hasManaAbility } from "../../../../gre/constants";
 import { getProducibleManaOptions } from "../../../../gre/rules";
 import {

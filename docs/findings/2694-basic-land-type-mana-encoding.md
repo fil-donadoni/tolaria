@@ -8,7 +8,7 @@ confidence: high
 **What is wrong.** The catalogue encodes the CR 305.6 intrinsic mana ability two
 incompatible ways, and both are load-bearing:
 
-- `Forest` (`convex/cards/sets/lea/colorless.ts:1573`) carries NO
+- `Forest` (`convex/cards/sets/lea/colorless.cards.ts:1573`) carries NO
   `activatedAbilities` at all. Its mana comes from the intrinsic path.
 - `Badlands` carries an explicit `{ id: "badlands-mana", cost: { tap: true },
 useStack: false, manaChoices: [{ B: 1 }, { R: 1 }] }`.
@@ -28,7 +28,7 @@ colour.
 
 **Evidence.** `convex/gre/constants.ts:282-288` (`getBasicLandMana`, early
 `return color`); `convex/gre/manaColors.ts:17` (`LAND_SUBTYPE_MANA`);
-`convex/cards/sets/lea/colorless.ts:1573` (Forest, no abilities) against the
+`convex/cards/sets/lea/colorless.cards.ts:1573` (Forest, no abilities) against the
 Badlands/Bayou/Plateau/Savannah/Scrubland/Taiga/Tundra/Underground Sea/Volcanic
 Island definitions, which all carry an explicit `manaChoices` ability.
 

@@ -21,7 +21,11 @@
 //     of the fold is that an admin can judge without granting the flag to
 //     themselves first.
 import { afterEach, beforeEach, describe, it, expect, vi } from "vitest";
-import { makeMutationCtx, runMutation, type Row } from "./gameMutationHarness";
+import {
+    makeMutationCtx,
+    runMutation,
+    type Row,
+} from "./gameMutationHarness.fixture";
 import { enqueueBulk, submit } from "../verdicts";
 import { listUserRoles, setTesterRole } from "../users";
 import type { Id } from "../_generated/dataModel";

@@ -2,7 +2,7 @@
 //
 // Day of Judgment's home set is Zendikar, its earliest paper printing (ADR
 // 0041); the M11 reprint it was first implemented against now rides along as a
-// `CardPrint` in `m11/white.ts`.
+// `CardPrint` in `m11/white.cards.ts`.
 
 import { describe, it, expect } from "vitest";
 import {
@@ -10,7 +10,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { validateEffectScript } from "../../../../gre/effects/validate";
 import { projectPublicState } from "../../../../gameProjections";

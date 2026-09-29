@@ -36,7 +36,7 @@ delete`. Contrast `:6078` (`wasKicked`) and `:6092` (`chosenXOnCast`), both of
   to hand and re-cast for a cost paying no coloured mana (or via a path whose
   cast-commit leaves `notedManaSpent` unset), would enter carrying the PREVIOUS
   cast's colours. Today that would read as "{R}{R} was spent" on a cast where it
-  was not — the Vibrance/Deceit/Wistfulness ETB clauses (`ecl/multicolor.ts`)
+  was not — the Vibrance/Deceit/Wistfulness ETB clauses (`ecl/multicolor.cards.ts`)
   are the live consumers.
 
 **Not a Sunburst bug.** Pentad Prism's counter placement reads the EPHEMERAL

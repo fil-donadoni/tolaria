@@ -1,4 +1,4 @@
-// Per-card test for mir/black.ts. Shallow Grave (issue #1967) is one of the
+// Per-card test for mir/black.cards.ts. Shallow Grave (issue #1967) is one of the
 // two consumers of the deterministic top-of-graveyard selector (`moveZone`'s
 // positional shape, CR 404.3); the canned smoke generator SKIPS it ("Op
 // moveZone changes zones on an object/zone the canned generator does not
@@ -19,7 +19,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import { getDefinition } from "../../../index";
 
 const shallowGrave = getDefinition("d5c782cc-c951-4c6f-a93f-774ae6c1c214");

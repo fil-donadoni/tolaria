@@ -3,7 +3,7 @@
 // cites the CR section it exercises.
 
 import { describe, it, expect } from "vitest";
-import { shatterIce, stoneRainIce } from "../../ice";
+import { shatterIce, stoneRainIce } from "../../ice/index.cards";
 import {
     validateDeclaredAttackers,
     validateDeclaredBlockers,
@@ -53,7 +53,7 @@ import {
     runMutation,
     gameStateSeed,
     type Handler,
-} from "../../../../__tests__/gameMutationHarness";
+} from "../../../../__tests__/gameMutationHarness.fixture";
 import type { Id } from "../../../../_generated/dataModel";
 import { applyMeleeUnblockedRider } from "../../../../gre/banding";
 import { castProhibitionReason } from "../../../castRestrictions";
@@ -64,7 +64,7 @@ import {
     pushSpell,
     resolveActivated,
     submitChoice,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import type { CardInstanceState, GameState } from "../../../../gre/state";
 import type { StackItem } from "../../../../gre/state";
 import type { CardType } from "../../../types";
@@ -79,7 +79,7 @@ import {
     snowLand,
     makeTargetCreature,
     makeLand,
-} from "./helpers";
+} from "./set.helper";
 
 const balduvianBears = getDefinition("ef5297cb-e763-4871-9cd3-0e2dbcc52095");
 const meteorShower = getDefinition("50b4851e-677b-468e-9baa-e47a3b4b8339");

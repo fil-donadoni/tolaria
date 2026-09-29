@@ -1632,7 +1632,7 @@ function countZoneForPlayer(
     //
     // CR 701.9c draws the lookup's boundary, and it is not "the graveyard".
     // A discard whose destination a replacement effect redirected (Dauthi
-    // Voidwalker, `mh2/black.ts`) was STILL a discard, and the rule withholds
+    // Voidwalker, `mh2/black.cards.ts`) was STILL a discard, and the rule withholds
     // the card's characteristics only when the redirect puts it in a HIDDEN
     // zone without revealing it — in which case "all values of that card's
     // characteristics are considered to be undefined", so it matches no
@@ -1750,7 +1750,7 @@ function resolvePlayerRef(
     // before the removal and read `{ ref: "$x.controller" }`, which is exactly
     // CR 608.2h last known information. For a SPELL slot, which is not
     // bindable, the equivalent is to order the reading Op before the removing
-    // one (Undermine, `sets/inv/multicolor.ts`).
+    // one (Undermine, `sets/inv/multicolor.cards.ts`).
     if ("controllerOf" in ref) {
         const target = ctx.targets[ref.controllerOf.target];
         return target ? ctx.findController(target) : undefined;
@@ -3730,8 +3730,8 @@ export const OP_EXECUTORS: {
                     // ONLY through an explicit `from: "hand"`. Declared rather
                     // than inferred on purpose: the three shipped cards that
                     // reanimate their own `$source` (Ashen Ghoul,
-                    // `ice/black.ts`; Sword of the Meek, `fut/colorless.ts`;
-                    // Otharri, Suns' Glory, `onc/multicolor.ts`) name no
+                    // `ice/black.cards.ts`; Sword of the Meek, `fut/colorless.cards.ts`;
+                    // Otharri, Suns' Glory, `onc/multicolor.cards.ts`) name no
                     // `from` at all, and a fallback that merely checked "not
                     // in a graveyard or exile" would find their card in HAND
                     // if it moved there while the ability was on the stack and
@@ -3904,7 +3904,7 @@ export const OP_EXECUTORS: {
             // i.e. bottoms the card (`library[0]` is the top), so the move is
             // followed by `putLibraryCardsOnTop` — the one primitive that can
             // address the top of a library, the same two-step Doomsday
-            // (`wth/black.ts`) performs imperatively.
+            // (`wth/black.cards.ts`) performs imperatively.
             if (op.to === "library-top") {
                 ctx.moveCardById(owner, target.id, recoveredZone, "library");
                 ctx.putLibraryCardsOnTop(owner, [target.id]);

@@ -13,7 +13,7 @@ import {
     akronLegionnaire,
     tundraWolves,
     azureDrake,
-} from "@convex/cards/sets/leg";
+} from "@convex/cards/sets/leg/index.cards";
 import type { CardInstance, Player } from "~/types/game";
 
 const CLAY_STATUE_ID = "64975352-8d35-4d02-94ac-fa0c6ee12409"; // artifact creature

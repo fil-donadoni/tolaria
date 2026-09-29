@@ -17,8 +17,8 @@ correct and must stay.
 **Evidence.** `grep -rn 'CR 117\.3a' convex src` gives about 150 hits. The
 may-pay cluster is `convex/gre/{legalActions,pendingChoiceSubmit,state}.ts`,
 `convex/cards/types.ts` (the may-pay cost union), and most counter-unless-pay
-cards: `leg/blue.ts` Force Spike, `ulg/blue.ts`, `zen/blue.ts`, `sth/blue.ts`
-and `mkm/multicolor.ts`. Issue #2100 fixed only its own new line in
+cards: `leg/blue.cards.ts` Force Spike, `ulg/blue.cards.ts`, `zen/blue.cards.ts`, `sth/blue.cards.ts`
+and `mkm/multicolor.cards.ts`. Issue #2100 fixed only its own new line in
 `mh2/blue.ts` (Lose Focus → CR 118.12a). `cr:lint` cannot catch this, because
 117.3a resolves and is not a 701/702 keyword id.
 

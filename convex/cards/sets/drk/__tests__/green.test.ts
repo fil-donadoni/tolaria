@@ -1,17 +1,17 @@
-// Per-card behavior tests for green cards in `convex/cards/sets/drk/green.ts`
+// Per-card behavior tests for green cards in `convex/cards/sets/drk/green.cards.ts`
 // (The Dark, split by colour per ADR 0043). Each non-trivial card gets a
 // describe block citing the CR section it exercises; set-wide registry-parity
 // checks live in colorless.test.ts. Shared stack/resolve shims live in
-// ./helpers; fixtures stay in convex/cards/__tests__/setup.ts.
+// ./helpers; fixtures stay in convex/cards/__tests__/setup.helper.ts.
 
 import { describe, it, expect } from "vitest";
-import { FOREST, ISLAND, answerChoice, resolveTrigger } from "./helpers";
+import { FOREST, ISLAND, answerChoice, resolveTrigger } from "./set.helper";
 import {
     makeInstance,
     makePlayer,
     makeState,
     resolveActivated,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import { projectPublicState } from "../../../../gameProjections";
 import {
     getEffectivePower,
@@ -674,7 +674,7 @@ describe("Savaen Elves — destroy target Aura on a land (CR 605 / 701.8)", () =
     // The reviewer's second probe (issue #1853 review, finding 1): a
     // LEGALLY-chosen target (Aura on a land) becomes illegal mid-stack when
     // an intervening effect re-attaches it to a creature before Savaen Elves
-    // resolves — reachable today via Crown of the Ages (`ice/colorless.ts`),
+    // resolves — reachable today via Crown of the Ages (`ice/colorless.cards.ts`),
     // whose own missing host filter (finding 3, fixed in this same PR) lets
     // it move an Aura off a land. Modeled here as a direct re-attach (the
     // observable effect of Crown of the Ages resolving), matching this

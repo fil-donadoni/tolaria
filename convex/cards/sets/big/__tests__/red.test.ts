@@ -17,7 +17,11 @@
 // (no real decision to offer), so the reflexive trigger is already targeted
 // by the time it lands on the stack; a plain `resolveTopOfStack` resolves it.
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import {
     type CardInstanceState,
     type GameState,
@@ -52,7 +56,7 @@ function boardWithPlunderer(): {
 }
 
 /** Pushes the upkeep triggered ability directly onto the stack (the
- *  `clu/red.ts` test convention — exercises the ability's `effects[]` body,
+ *  `clu/red.cards.ts` test convention — exercises the ability's `effects[]` body,
  *  not the generic `matches()` trigger-scan machinery already covered
  *  elsewhere). */
 function pushUpkeepTrigger(

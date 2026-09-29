@@ -16,7 +16,7 @@ import { describe, expect, it } from "vitest";
 import type { EffectOp } from "../../cards/types";
 import { activatedSlot } from "../grammar/slots/activated";
 import { lowerActivatedAbility } from "../lowerActivated";
-import { parseContext } from "./fixtures";
+import { parseContext } from "./oracle.fixture";
 
 /** The activated slot alone, through lowering — mirrors `kickersOf` in
  *  `kickerLine.test.ts`, one layer below a whole-card compile so the test

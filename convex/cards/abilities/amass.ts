@@ -31,7 +31,7 @@
 //      prompt; with 2+ Armies it raises the `choice` Op (kind
 //      `choose-permanents`) and iterates its picks binding, the exact
 //      `choice` → `forEach { set: "bound" }` shape Frantic Search ships
-//      (`sets/ulg/blue.ts`, issue #1284). A mandatory prompt over a single
+//      (`sets/ulg/blue.cards.ts`, issue #1284). A mandatory prompt over a single
 //      legal Army would be a zero-branch prompt, which this project treats as
 //      a UX regression, and `choose-permanents` has no single-candidate
 //      auto-resolve of its own (`requestChoice`, `gre/state.ts`, always

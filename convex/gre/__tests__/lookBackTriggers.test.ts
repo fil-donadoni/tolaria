@@ -41,11 +41,11 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
-import { grizzlyBears } from "../../cards/sets/lea";
-import { rukhEgg } from "../../cards/sets/arn/red";
-import { superShredder } from "../../cards/sets/tmt/black";
-import { masterOfDeath } from "../../cards/sets/mh2/multicolor";
+} from "../../cards/__tests__/setup.helper";
+import { grizzlyBears } from "../../cards/sets/lea/index.cards";
+import { rukhEgg } from "../../cards/sets/arn/red.cards";
+import { superShredder } from "../../cards/sets/tmt/black.cards";
+import { masterOfDeath } from "../../cards/sets/mh2/multicolor.cards";
 import type { CardDefinition, GameEvent } from "../../cards/types";
 
 /** A board with `battlefield` under p1. */

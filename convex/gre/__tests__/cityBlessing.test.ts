@@ -26,7 +26,11 @@ import {
     grantCityBlessingIfThreshold,
     hasCityBlessing,
 } from "../cityBlessing";
-import { makePlayer, makeState, pushSpell } from "../../cards/__tests__/setup";
+import {
+    makePlayer,
+    makeState,
+    pushSpell,
+} from "../../cards/__tests__/setup.helper";
 import { registerTokenDefinition } from "../../cards";
 import { projectFullState, projectPublicState } from "../../gameProjections";
 import { runEffectScript } from "../effects/interpreter";

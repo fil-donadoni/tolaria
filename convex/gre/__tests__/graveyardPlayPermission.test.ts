@@ -41,8 +41,8 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
-import { lightningBolt, mountain } from "../../cards/sets/lea";
+} from "../../cards/__tests__/setup.helper";
+import { lightningBolt, mountain } from "../../cards/sets/lea/index.cards";
 
 describe("Graveyard-cast/land-play permission (CR 305.1-analog / 601, issue #1149)", () => {
     describe("permission lookup (convex/gre/rules.ts)", () => {

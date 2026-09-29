@@ -1,9 +1,13 @@
 // BBD — per-card behavior tests for blue cards in
-// `convex/cards/sets/bbd/blue.ts` (set split by colour, ADR 0043).
+// `convex/cards/sets/bbd/blue.cards.ts` (set split by colour, ADR 0043).
 
 import { describe, it, expect } from "vitest";
 import { registerTokenDefinition } from "../../..";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { getDefinition } from "../../../index";

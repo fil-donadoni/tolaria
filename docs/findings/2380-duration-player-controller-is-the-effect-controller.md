@@ -28,7 +28,7 @@ different things for the two cards.)
   `untap` "combined with `player: "controller"` to scope to **the affected
   permanent's controller**, e.g. Orcish Farmer" — which is not what
   `resolveDuration` does.
-- `convex/cards/sets/ice/red.ts:1811` repeats the affected-permanent reading in
+- `convex/cards/sets/ice/red.cards.ts:1811` repeats the affected-permanent reading in
   the card comment.
 - `convex/cards/sets/ice/__tests__/red.test.ts:1768` only exercises the
   same-controller case (the Farmer and the land are both p1's), so the

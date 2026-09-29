@@ -6,7 +6,7 @@ import {
     makePlayer,
     makeState,
     submitChoice,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import {
     resolveTopOfStack,
     canPayMayPayCost,
@@ -58,7 +58,7 @@ function fireFormidableSpeakerEtb(
 
 /** Answers the head `pendingChoices` entry (the `search-library` suspension)
  *  with the given card instance ids (CR 608.2). Mirrors `submitChoice`
- *  (inv/__tests__/helpers.ts). */
+ *  (inv/__tests__/set.helper.ts). */
 /** The ETB may-pay's cost (the discard leg). */
 function speakerCost(): MayPayCost {
     const op = formidableSpeaker.triggeredAbilities![0].effects![0] as {

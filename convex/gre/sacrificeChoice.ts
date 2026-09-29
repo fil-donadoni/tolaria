@@ -67,7 +67,7 @@ export type SacrificeRequirement = {
      *
      *  A selection can carry legs that differ: Ninjutsu's CR 702.49a leg
      *  RETURNS its creature to hand, while a static additional-sacrifice tax
-     *  the same activation also owes (Drought, `ice/white.ts`) genuinely
+     *  the same activation also owes (Drought, `ice/white.cards.ts`) genuinely
      *  SACRIFICES. Before this existed the two could not share a selection at
      *  all, and the ninjutsu path returned early — which silently skipped the
      *  static tax entirely (an activation that owed a Swamp paid nothing).

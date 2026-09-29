@@ -56,23 +56,23 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import {
     makeMutationCtx,
     runMutation,
     gameStateSeed,
     type Handler,
-} from "../../__tests__/gameMutationHarness";
+} from "../../__tests__/gameMutationHarness.fixture";
 import type { Id } from "../../_generated/dataModel";
 import { WRENN_AND_SIX_EMBLEM_ID } from "../../cards/emblems";
-import { lightningBolt } from "../../cards/sets/lea/red";
-import { firebolt } from "../../cards/sets/ody/red";
+import { lightningBolt } from "../../cards/sets/lea/red.cards";
+import { firebolt } from "../../cards/sets/ody/red.cards";
 import {
     grizzlyBears,
     mountain,
     plains,
     wrathOfGod,
-} from "../../cards/sets/lea";
+} from "../../cards/sets/lea/index.cards";
 
 /** The Wrenn and Six emblem as it lives in `GameState.emblems` (CR 114) — the
  *  ONLY producer of a retrace grant in the pool. */
@@ -567,7 +567,7 @@ describe("Retrace capability (CR 702.81)", () => {
 // straight CR 702.81a violation, and it removed the only thing bounding the
 // no-exile recast loop (`canPayRetraceDiscard`'s doc).
 //
-// Wrath of God (`lea/white.ts`) is the shape: a Sorcery with NO
+// Wrath of God (`lea/white.cards.ts`) is the shape: a Sorcery with NO
 // `targetRequirement`, so the Wrenn and Six emblem grants it retrace and its
 // cast can only commit down this path. Driven through the REGISTERED mutation's
 // own `_handler` (`gameMutationHarness`, the established seam — this project has

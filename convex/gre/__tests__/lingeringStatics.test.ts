@@ -21,15 +21,15 @@ import {
 } from "../state";
 import { withTemporaryDefinition } from "../../cards";
 import type { CardDefinition } from "../../cards/types";
-import { grizzlyBears } from "../../cards/sets/lea/green";
+import { grizzlyBears } from "../../cards/sets/lea/green.cards";
 import { getEffectivePower, getEffectiveToughness } from "../layers";
 import { finalizeCleanup } from "../phases";
 import { hasManaAbility } from "../constants";
 import { projectPublicState } from "../../gameProjections";
 import { compactState, expandState } from "../serialize";
-import { makeInstance, makeState } from "../../cards/__tests__/setup";
-import { titaniasSong } from "../../cards/sets/atq/green";
-import { solRing } from "../../cards/sets/lea/colorless";
+import { makeInstance, makeState } from "../../cards/__tests__/setup.helper";
+import { titaniasSong } from "../../cards/sets/atq/green.cards";
+import { solRing } from "../../cards/sets/lea/colorless.cards";
 
 /** The Song and one Sol Ring on p1's battlefield, animated. */
 function withSong(): {

@@ -1,5 +1,5 @@
 // C21 — per-card behavior tests for red cards in
-// `convex/cards/sets/c21/red.ts` (set split by colour, ADR 0043).
+// `convex/cards/sets/c21/red.cards.ts` (set split by colour, ADR 0043).
 //
 // Laelia, the Blade Reforged (issue #1558): ability 1 is the shipped
 // impulse-draw protocol (Robber of the Rich / Headliner Scarlett idiom);
@@ -12,7 +12,11 @@
 // official once-per-occurrence ruling.
 
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import {
     buildSpellContext,
     exileWithAttachments,

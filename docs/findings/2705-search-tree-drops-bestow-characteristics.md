@@ -39,7 +39,7 @@ kinds (`mulligan-bottom`, `madness-decline`, `rebound-decline`, `name-card`),
 so making them exhaustive is a real decision about what those cases should do,
 not a one-line addition.
 
-**Why it may not deserve its own issue.** Springheart Nantuko (`mh3/green.ts`)
+**Why it may not deserve its own issue.** Springheart Nantuko (`mh3/green.cards.ts`)
 is the only shipped card with `bestow`, so the live blast radius today is one
 card's valuation, and the ISMCTS tree may never enumerate it in a position that
 matters. If a second bestow card ships — or if the exhaustiveness question is

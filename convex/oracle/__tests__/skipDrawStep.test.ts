@@ -22,13 +22,13 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import { advancePhase } from "../../gre/phases";
 import { compileCard } from "../compile";
 import { sortKeys } from "../gates";
 import { routeLine } from "../grammar/router";
 import { staticSlot } from "../grammar/slots/staticSlot";
-import { oracleCard, parseContext } from "./fixtures";
+import { oracleCard, parseContext } from "./oracle.fixture";
 
 const YAWGMOTHS_BARGAIN = oracleCard({
     oracleId: "f7f76f39-a0de-4bda-86b6-0f291892fcec",

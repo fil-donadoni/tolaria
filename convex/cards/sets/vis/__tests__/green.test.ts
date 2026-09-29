@@ -1,9 +1,13 @@
 // VIS — per-card behavior tests for green cards in
-// `convex/cards/sets/vis/green.ts` (set split by colour, ADR 0043).
+// `convex/cards/sets/vis/green.cards.ts` (set split by colour, ADR 0043).
 
 import { describe, it, expect } from "vitest";
-import { makePlayer, makeState, pushSpell } from "../../../__tests__/setup";
-import { makeInstance } from "../../../__tests__/setup";
+import {
+    makePlayer,
+    makeState,
+    pushSpell,
+} from "../../../__tests__/setup.helper";
+import { makeInstance } from "../../../__tests__/setup.helper";
 import {
     resolveTopOfStack,
     getManaSubstitutions,

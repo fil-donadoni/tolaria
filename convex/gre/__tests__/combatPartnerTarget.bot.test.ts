@@ -10,7 +10,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import { enumerateMoves } from "../moves";
 
 const CROMAT = "7d9e0a23-d2a8-40a6-9076-ed6fb539141b"; // Cromat, APC 94

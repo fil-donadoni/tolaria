@@ -1669,9 +1669,9 @@ const sacrificePermanentsCandidates: ChoiceCandidateGenerator = (
     // ADR 0016 heuristic declined; with the kind searchable and no empty
     // submission, the search has only sacrificing branches to pick from and
     // the bot can never say no. Measured on Gut, True Soul Zealot
-    // (`sets/clb/red.ts`, `count: { min: 0, max: 1 }`): the sole candidate was
+    // (`sets/clb/red.cards.ts`, `count: { min: 0, max: 1 }`): the sole candidate was
     // the 6/4 Craw Wurm, so the bot ate its best creature to make a 4/1
-    // Skeleton. Grist, the Hunger Tide's −2 (`sets/mh2/multicolor.ts`) is the
+    // Skeleton. Grist, the Hunger Tide's −2 (`sets/mh2/multicolor.cards.ts`) is the
     // other shipped shape. The driver's `chooseOwedChoiceAction` safety net
     // cannot cover it, because the search DOES yield a move.
     //

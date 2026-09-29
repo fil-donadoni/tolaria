@@ -30,7 +30,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import { resolveTopOfStack, type GameState } from "../state";
 
 const BOT = "p2";

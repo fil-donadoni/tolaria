@@ -9,7 +9,7 @@ import { describe, expect, it } from "vitest";
 import { compileCard } from "../compile";
 import { fixtureForms, sortKeys } from "../gates";
 import { GOLDEN_FIXTURES, type GoldenFixture } from "../grammar/fixtures";
-import { oracleCard } from "./fixtures";
+import { oracleCard } from "./oracle.fixture";
 
 /** Why `fixture` is not golden, or null when it is. */
 function goldenDefect(fixture: GoldenFixture): string | null {

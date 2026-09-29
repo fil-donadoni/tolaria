@@ -25,7 +25,7 @@ import {
     makePlayer,
     makeState,
     makeInstance,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import { cardValueById, latentValue } from "../cardValue";
 import { projectPublicState } from "../../gameProjections";
 import { dslSpellScriptValue } from "../ai/cardScriptValue";

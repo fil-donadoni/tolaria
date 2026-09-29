@@ -18,12 +18,12 @@
 // `convex/gre/__tests__/classLevel.bot.test.ts`.
 
 import { describe, it, expect } from "vitest";
-import { stormchasersTalent } from "@convex/cards/sets/blb/blue";
+import { stormchasersTalent } from "@convex/cards/sets/blb/blue.cards";
 import {
     makeInstance,
     makePlayer,
     makeState,
-} from "@convex/cards/__tests__/setup";
+} from "@convex/cards/__tests__/setup.helper";
 import { projectPublicState } from "@convex/gameProjections";
 import { getStackAbilities } from "../card-utils";
 import type { CardInstance } from "~/types/game";

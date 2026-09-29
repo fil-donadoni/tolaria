@@ -10,14 +10,14 @@
 // hand at cast commit through the ordinary hand-cost picker, and X is
 // snapshotted onto the stack item so `getX()` reads it back at resolve.
 //
-// Sickening Dreams (`tor/black.ts`) is the first card announcing an X with NO
+// Sickening Dreams (`tor/black.cards.ts`) is the first card announcing an X with NO
 // `{X}` pip in its mana cost at all, which is why this crosses every layer:
 //
 //  1. **Unit** — `additionalCostDiscardXCeiling` (the single authority on the
 //     largest legal X) and `additionalCostHandLeg` (the cost leg it prices)
 //     against the real catalogue definition.
 //  2. **Full path** — driven through the REGISTERED `announceCast` mutation
-//     via `gameMutationHarness.ts` (the established game.ts seam, ADR 0001 —
+//     via `gameMutationHarness.fixture.ts` (the established game.ts seam, ADR 0001 —
 //     never a hand-rolled reimplementation of the handler's body): the cards
 //     actually leave hand, the spell reaches the stack carrying its X, and an
 //     X above the ceiling is refused.
@@ -35,17 +35,21 @@ import {
     tryAutoCommitPendingCast,
 } from "../game";
 import { getPlayer, resolveTopOfStack } from "../gre/state";
-import { sickeningDreams } from "../cards/sets/tor";
-import { grizzlyBears, lightningBolt } from "../cards/sets/lea";
-import { swamp } from "../cards/sets/lea/colorless";
-import { makeInstance, makePlayer, makeState } from "../cards/__tests__/setup";
+import { sickeningDreams } from "../cards/sets/tor/index.cards";
+import { grizzlyBears, lightningBolt } from "../cards/sets/lea/index.cards";
+import { swamp } from "../cards/sets/lea/colorless.cards";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../cards/__tests__/setup.helper";
 import type { Id } from "../_generated/dataModel";
 import {
     makeMutationCtx,
     runMutation,
     gameStateSeed,
     type Handler,
-} from "./gameMutationHarness";
+} from "./gameMutationHarness.fixture";
 
 type AnnounceCastArgs = {
     gameId: Id<"games">;

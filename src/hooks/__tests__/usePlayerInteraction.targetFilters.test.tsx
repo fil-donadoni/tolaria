@@ -19,13 +19,13 @@
 import { describe, it, expect, vi } from "vitest";
 import { renderHook } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { makeState } from "@convex/cards/__tests__/setup";
+import { makeState } from "@convex/cards/__tests__/setup.helper";
 import { projectPublicState } from "@convex/gameProjections";
 import { pendingTargetFiltersFromRequirement } from "@convex/gre/rules";
 import type { TargetRequirement } from "@convex/cards/types";
 import type { PendingTarget, Player } from "~/types/game";
 import { GameContext } from "~/hooks/useGameContext";
-import { forgottenLore } from "@convex/cards/sets/ice/green";
+import { forgottenLore } from "@convex/cards/sets/ice/green.cards";
 import { usePlayerInteraction } from "../usePlayerInteraction";
 
 vi.mock("convex/react", () => ({

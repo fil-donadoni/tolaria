@@ -26,10 +26,10 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import { enumerateMoves, planManaPayment } from "../moves";
 import { applyMoveForSearch } from "../applyMove";
-import { hickoryWoodlot } from "../../cards/sets/mmq/colorless";
+import { hickoryWoodlot } from "../../cards/sets/mmq/colorless.cards";
 import type { CardInstanceState, GameState, PlayerState } from "../state";
 
 const BEARS = getCardByName("Grizzly Bears").id; // {1}{G}, 2/2

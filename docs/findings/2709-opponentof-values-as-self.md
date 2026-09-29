@@ -37,7 +37,7 @@ into it.
 
 Standstill (issue #2709) is the first shipped card to put `{ opponentOf }` in a
 VALUED player position, which is why nothing caught this earlier: the only other
-catalogue use (`convex/cards/sets/c17/multicolor.ts:54`) is a `gainControl`
+catalogue use (`convex/cards/sets/c17/multicolor.cards.ts:54`) is a `gainControl`
 `controller:` field, which no valuer signs on.
 
 **Why it is not a one-line sign flip.** Complementing the inner ref is right for

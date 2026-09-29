@@ -26,7 +26,7 @@ import { buildStateFromScenario } from "../gre/scenarioBuilder";
 import { createInitialGameState, type PlayerInput } from "../gre/setup";
 import { getCardByName, withTemporaryDefinition } from "../cards";
 import type { CardDefinition } from "../cards/types";
-import { umezawasJitte } from "../cards/sets/bok/colorless";
+import { umezawasJitte } from "../cards/sets/bok/colorless.cards";
 import {
     resolveTopOfStack,
     type CardInstanceState,

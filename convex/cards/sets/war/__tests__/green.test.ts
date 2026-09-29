@@ -14,7 +14,11 @@
 //     for mana (CR 205.1b), which is the whole point of the card.
 
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import type { GameState } from "../../../../gre/state";
 import {
     emitPermanentTapped,

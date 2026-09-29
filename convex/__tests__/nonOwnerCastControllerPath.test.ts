@@ -21,15 +21,19 @@ import { announceCast, passPriority } from "../game";
 import { projectPublicState } from "../gameProjections";
 import type { GameState } from "../gre/state";
 import type { Id } from "../_generated/dataModel";
-import { makeInstance, makePlayer, makeState } from "../cards/__tests__/setup";
-import { vodalianMerchant } from "../cards/sets/inv/blue";
-import { grizzlyBears } from "../cards/sets/lea/green";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../cards/__tests__/setup.helper";
+import { vodalianMerchant } from "../cards/sets/inv/blue.cards";
+import { grizzlyBears } from "../cards/sets/lea/green.cards";
 import {
     makeMutationCtx,
     runMutation,
     gameStateSeed,
     type Handler,
-} from "./gameMutationHarness";
+} from "./gameMutationHarness.fixture";
 
 const GAME_ID = "game-1" as Id<"games">;
 

@@ -8,7 +8,7 @@
  *   node scripts/fetch-token-prints.mjs --all
  *
  *   # Or refresh only specific set files (merged into the existing lockfile):
- *   node scripts/fetch-token-prints.mjs convex/cards/sets/lea/colorless.ts ...
+ *   node scripts/fetch-token-prints.mjs convex/cards/sets/lea/colorless.cards.ts ...
  *
  *   # Or refresh only the Oracle compiler's token producers (issue #4125):
  *   node scripts/fetch-token-prints.mjs --compiled

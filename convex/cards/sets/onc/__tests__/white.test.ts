@@ -1,9 +1,9 @@
 // ONC — per-card behavior tests for white cards in
-// `convex/cards/sets/onc/white.ts` (set split by colour, ADR 0043).
+// `convex/cards/sets/onc/white.cards.ts` (set split by colour, ADR 0043).
 //
 // Staff of the Storyteller's home set is ONC, its earliest paper printing
 // (ADR 0041); it was originally implemented against the far later SOC reprint,
-// which now rides along as a `CardPrint` in `soc/colorless.ts`.
+// which now rides along as a `CardPrint` in `soc/colorless.cards.ts`.
 //
 // Staff of the Storyteller (issue #1345 — residue of #1302, parent PRD #620)
 // is the FIRST card to consume the new `tokenCreatedTrigger` factory /
@@ -33,7 +33,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import { projectPublicState } from "../../../../gameProjections";
 import { tokenPrintIdFor } from "../../../tokenPrintLookup";
 

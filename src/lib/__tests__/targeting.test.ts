@@ -12,7 +12,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "@convex/cards/__tests__/setup";
+} from "@convex/cards/__tests__/setup.helper";
 import { projectPublicState } from "@convex/gameProjections";
 import { PROTECTION_FROM_COLORED_SPELLS } from "@convex/gre/protection";
 // The SERVER's accepted set, imported so the parity rows below compare the two

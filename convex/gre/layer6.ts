@@ -401,7 +401,7 @@ function collectLayer6Sources(state: LayerStateView): Layer6SourcePlan {
  *    there. Neither duration-bounded nor tied to a live source.
  *  - stored `state.continuousEffects` — the channel that is simultaneously
  *    source-INDEPENDENT and condition-GATED, which no pre-registry channel could
- *    be at once (Dread Wight, `cards/sets/ice/black.ts`).
+ *    be at once (Dread Wight, `cards/sets/ice/black.cards.ts`).
  */
 function layer6EffectsFor(
     state: LayerStateView,

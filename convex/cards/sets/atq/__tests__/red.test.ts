@@ -1,8 +1,8 @@
 // Antiquities (ATQ) — per-card behavior tests for red cards in
-// `convex/cards/sets/atq/red.ts` (set split by colour, ADR 0043). Each
+// `convex/cards/sets/atq/red.cards.ts` (set split by colour, ADR 0043). Each
 // non-trivial card gets a describe block citing the CR section it exercises;
 // assertions check external behavior only. Shared test shims live in
-// `./helpers`; fixtures in `convex/cards/__tests__/setup.ts`.
+// `./helpers`; fixtures in `convex/cards/__tests__/setup.helper.ts`.
 
 import { describe, it, expect } from "vitest";
 import {
@@ -11,7 +11,7 @@ import {
     makeState,
     pushSpell,
     resolveActivated,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import { projectPublicState } from "../../../../gameProjections";
 import { resolveTopOfStack, type GameState } from "../../../../gre/state";
 import { applyRandomRevealAck } from "../../../../gre/pendingChoiceSubmit";
@@ -20,7 +20,7 @@ import {
     getEffectiveToughness,
 } from "../../../../gre/layers";
 import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
-import { vanilla } from "./helpers";
+import { vanilla } from "./set.helper";
 import { getDefinition } from "../../../index";
 
 const ornithopter = getDefinition("59cc9bdb-7cf2-4795-bac7-ffff605c9eb0");

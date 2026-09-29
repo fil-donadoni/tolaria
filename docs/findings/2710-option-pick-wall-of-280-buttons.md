@@ -16,8 +16,8 @@ viewport that is a wall the player scrolls through to find "Goblin".
 
 **Evidence.** `convex/gre/state.ts`'s as-enters `"subtypes"` arm builds
 `options: choice.from.map(...)`, and both shipped cards pass
-`from: [...CREATURE_SUBTYPES]` (`convex/cards/sets/mmq/black.ts` Conspiracy,
-`convex/cards/sets/ulg/black.ts` Engineered Plague). The prompt is also
+`from: [...CREATURE_SUBTYPES]` (`convex/cards/sets/mmq/black.cards.ts` Conspiracy,
+`convex/cards/sets/ulg/black.cards.ts` Engineered Plague). The prompt is also
 generic — `Choose 1 as Engineered Plague enters.` never says _what_ is being
 chosen, because the raise site has no noun for the option space.
 

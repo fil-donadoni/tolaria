@@ -77,7 +77,7 @@ import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
 import { setPoolArrangementEntry } from "../limitedEvents";
 import { hydrateSeats } from "../limitedSeatStore";
-import { makeInMemoryDb } from "./fixtures/inMemoryDb";
+import { makeInMemoryDb } from "./fixtures/inMemoryDb.fixture";
 
 const resolveCardMeta: ResolveCardMeta = (scryfallId) => {
     const def = tryGetDefinition(scryfallId);
@@ -1505,7 +1505,7 @@ describe("setPoolArrangementEntry through the REAL mutation handler: a legacy ro
     // Unlike the block above — which mirrors the handler's body against pure
     // functions — this drives the mutation Convex itself would run: the
     // registered function's own `_handler`, against the shared in-memory ctx
-    // (`fixtures/inMemoryDb.ts`). So `getCurrentUser`, the seat-ownership
+    // (`fixtures/inMemoryDb.fixture.ts`). So `getCurrentUser`, the seat-ownership
     // derivation, the bounds check, `hydrateSeats`, `upsertPoolArrangementEntry`
     // and `saveSeatPayload` all run for real, in order, and what the assertions
     // read is what actually landed in the DB. A hand-built object could not

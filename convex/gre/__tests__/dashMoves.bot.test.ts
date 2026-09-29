@@ -33,12 +33,12 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import { enumerateMoves, type Move } from "../moves";
 import { applyMoveForSearch } from "../applyMove";
 import { evaluate } from "../evaluate";
 import type { GameState } from "../state";
-import { ragavanNimblePilferer } from "../../cards/sets/mh2/red";
+import { ragavanNimblePilferer } from "../../cards/sets/mh2/red.cards";
 import { dashTrigger } from "../../cards/abilities/dash";
 import type { CardDefinition } from "../../cards/types";
 

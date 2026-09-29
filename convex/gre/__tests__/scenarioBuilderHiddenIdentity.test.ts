@@ -10,7 +10,7 @@
 
 import { describe, expect, it } from "vitest";
 import { buildStateFromScenario, specFromState } from "../scenarioBuilder";
-import { makeInstance, makeState } from "../../cards/__tests__/setup";
+import { makeInstance, makeState } from "../../cards/__tests__/setup.helper";
 import {
     FACE_DOWN_CARD_ID,
     getCardByName,

@@ -5,14 +5,14 @@
 // clause — any other tapped source (Kismet) still applies (CR 616).
 
 import { describe, it, expect } from "vitest";
-import { steamVents } from "../../cards/sets/gpt/colorless";
-import { kismet } from "../../cards/sets/leg/white";
-import { seraph } from "../../cards/sets/ice/white";
+import { steamVents } from "../../cards/sets/gpt/colorless.cards";
+import { kismet } from "../../cards/sets/leg/white.cards";
+import { seraph } from "../../cards/sets/ice/white.cards";
 import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import {
     applyPlayLand,
     applyPlayLandFromExile,

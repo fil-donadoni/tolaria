@@ -6,7 +6,7 @@
  *   bun scripts/json-to-cards.mjs data/LEA.json
  *
  * Output: convex/cards/sets/<setCode>/ — one file per colour module
- *         (white|blue|black|red|green|multicolor|colorless) + an index.ts
+ *         (white|blue|black|red|green|multicolor|colorless) + an index.cards.ts
  *         barrel. Each card is routed to its module by the colour identity of
  *         its mana cost (CR 202.2; lands / colourless artifacts → colorless.ts).
  *         Runs under `bun` (not `node`) because it reuses the TypeScript colour
@@ -159,7 +159,7 @@ for (const card of cards) {
 const setsDir = resolve(
     process.env.JSON_TO_CARDS_OUT_DIR ?? "convex/cards/sets"
 );
-// Colour modules live at `sets/<code>/<colour>.ts`, two levels above `cards/`.
+// Colour modules live at `sets/<code>/<colour>.cards.ts`, two levels above `cards/`.
 const importLine = `import type { CardDefinition } from "../../types";`;
 const setDir = writeSetDirectory(setsDir, setCode, sources, importLine);
 console.log(

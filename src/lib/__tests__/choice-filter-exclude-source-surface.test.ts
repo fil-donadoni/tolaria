@@ -20,13 +20,13 @@
 // straight into the client mirror. Nothing is constructed by hand.
 
 import { describe, it, expect } from "vitest";
-import { gutTrueSoulZealot } from "../../../convex/cards/sets/clb/red";
-import { grizzlyBears } from "../../../convex/cards/sets/lea/green";
+import { gutTrueSoulZealot } from "../../../convex/cards/sets/clb/red.cards";
+import { grizzlyBears } from "../../../convex/cards/sets/lea/green.cards";
 import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../../convex/cards/__tests__/setup";
+} from "../../../convex/cards/__tests__/setup.helper";
 import { resolveTopOfStack, type GameState } from "../../../convex/gre/state";
 import { emitAttackersDeclaredEvents } from "../../../convex/gre/phases";
 import { projectPublicState } from "../../../convex/gameProjections";

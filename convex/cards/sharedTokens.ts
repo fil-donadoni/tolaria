@@ -13,7 +13,7 @@ import type {
 /** Treasure token (issue #778 / #1265). "Artifact — Treasure" with "{T},
  *  Sacrifice this artifact: Add one mana of any color." (CR 707.2.)
  *
- *  The mana ability is the Black Lotus shape (`sets/lea/colorless.ts`): a
+ *  The mana ability is the Black Lotus shape (`sets/lea/colorless.cards.ts`): a
  *  `useStack: false` mana ability (CR 605.1a) whose `cost: { tap: true,
  *  sacrifice: true }` taps AND sacrifices the source, with `manaChoices`
  *  offering one mana of each of the five colors — the color is chosen at
@@ -96,7 +96,7 @@ export const EFFECT_TREASURE_TOKEN: EffectTokenSpec = {
  *  605.3a), minus the tap leg and the color choice (a single fixed colorless
  *  mana). Typed `EffectTokenSpec` (JSON-pure, ADR 0046) rather than
  *  `TokenSpec` — its only consumer is Malevolent Rumble's DSL `createToken`
- *  Op (`sets/mh3/green.ts`), so the ability body is `effects: [{ op:
+ *  Op (`sets/mh3/green.cards.ts`), so the ability body is `effects: [{ op:
  *  "addMana" }]`, not an imperative closure. Any future Eldrazi Spawn
  *  producer shares this one spec/definition. */
 export const ELDRAZI_SPAWN_TOKEN: EffectTokenSpec = {
@@ -129,8 +129,8 @@ export const ELDRAZI_SPAWN_TOKEN: EffectTokenSpec = {
 };
 
 /** Goblin token (CR 111 / 707.2). "1/1 red Goblin creature token" — created
- *  today by Empty the Warrens (`sets/tsp/red.ts`) and Siege-Gang Commander
- *  (`sets/scg/red.ts`). Vanilla, so `EffectTokenSpec` (JSON-pure, ADR 0046)
+ *  today by Empty the Warrens (`sets/tsp/red.cards.ts`) and Siege-Gang Commander
+ *  (`sets/scg/red.cards.ts`). Vanilla, so `EffectTokenSpec` (JSON-pure, ADR 0046)
  *  rather than `TokenSpec`.
  *
  *  No pinned `imagePrintId`, the `RABBIT_TOKEN`/`KNIGHT_TOKEN` treatment:
@@ -148,7 +148,7 @@ export const GOBLIN_TOKEN: EffectTokenSpec = {
 
 /** Rabbit token (CR 111 / 707.2, issue #674). "1/1 white Rabbit creature
  *  token" — the Bloomburrow-block staple, created today by Jacked Rabbit
- *  (`sets/blc/white.ts`) once per point of its power when it attacks. A
+ *  (`sets/blc/white.cards.ts`) once per point of its power when it attacks. A
  *  vanilla token: no abilities, so `EffectTokenSpec` (JSON-pure, ADR 0046)
  *  rather than `TokenSpec`.
  *
@@ -174,7 +174,7 @@ export const RABBIT_TOKEN: EffectTokenSpec = {
 
 /** Knight token (CR 111 / 707.2, ADR 0078). "2/2 white Knight creature token
  *  with vigilance" — created today by History of Benalia's chapters I and II
- *  (`sets/dom/white.ts`). Vanilla apart from the keyword, so `EffectTokenSpec`
+ *  (`sets/dom/white.cards.ts`). Vanilla apart from the keyword, so `EffectTokenSpec`
  *  (JSON-pure, ADR 0046) rather than `TokenSpec`.
  *
  *  No pinned `imagePrintId`, the `RABBIT_TOKEN` treatment: Knight is a printed
@@ -196,7 +196,7 @@ export const KNIGHT_TOKEN: EffectTokenSpec = {
 
 /** Otter token (CR 111 / 707.2, issue #3234). "1/1 blue and red Otter creature
  *  token with prowess" — created today by Stormchaser's Talent's entry trigger
- *  and by its level-3 cast trigger (`sets/blb/blue.ts`). Vanilla apart from the
+ *  and by its level-3 cast trigger (`sets/blb/blue.cards.ts`). Vanilla apart from the
  *  keyword, so `EffectTokenSpec` (JSON-pure, ADR 0046) rather than `TokenSpec`.
  *
  *  Two colours, not a gold card: CR 202.2 — an object is every colour its
@@ -221,7 +221,7 @@ export const OTTER_TOKEN: EffectTokenSpec = {
 
 /** Human token (CR 111 / 707.2, issue #2370). "1/1 white Human creature
  *  token" — created today by Adeline, Resplendent Cathar's attack trigger
- *  (`sets/mid/white.ts`). Vanilla: no abilities, so `EffectTokenSpec`
+ *  (`sets/mid/white.cards.ts`). Vanilla: no abilities, so `EffectTokenSpec`
  *  (JSON-pure, ADR 0046) rather than `TokenSpec`. `entersTapped`/
  *  `entersAttacking` are per-ability flags (Adeline's own "that's tapped and
  *  attacking"), NOT baked into this shared spec — a future non-attacking
@@ -300,7 +300,7 @@ export const HERO_TOKEN: EffectTokenSpec = {
 
 /** Zombie token (CR 111 / 707.2, issue #2714). "2/2 black Zombie creature
  *  token" — the Odyssey-block staple, created today by Zombie Infestation
- *  (`sets/ody/black.ts`) once per activation of its discard-two ability.
+ *  (`sets/ody/black.cards.ts`) once per activation of its discard-two ability.
  *  Vanilla: no abilities, so `EffectTokenSpec` (JSON-pure, ADR 0046) rather
  *  than `TokenSpec`.
  *
@@ -321,7 +321,7 @@ export const ZOMBIE_TOKEN: EffectTokenSpec = {
 
 /** Skeleton token (CR 111 / 707.2, issue #2373). "4/1 black Skeleton creature
  *  token with menace" — created today by Gut, True Soul Zealot's attack
- *  trigger (`sets/clb/red.ts`). Vanilla apart from the keyword, the
+ *  trigger (`sets/clb/red.cards.ts`). Vanilla apart from the keyword, the
  *  `KNIGHT_TOKEN` shape: `EffectTokenSpec` (JSON-pure, ADR 0046) with a
  *  `staticAbilities` entry. `entersTapped`/`entersAttacking` are per-ability
  *  flags (Gut's own "that's tapped and attacking"), NOT baked into this
@@ -347,8 +347,8 @@ export const SKELETON_TOKEN: EffectTokenSpec = {
 /** Construct token (CR 111.1 / 707.2, issue #2371) — the "0/0 colorless
  *  Construct artifact creature token with 'This token gets +1/+1 for each
  *  artifact you control'" shape TWO cards create verbatim: Urza's Saga's
- *  chapter II grant (`sets/mh2/colorless.ts`, issue #1884) and Urza, Lord
- *  High Artificer's ETB (`sets/mh1/blue.ts`, issue #2371). Extracted here per
+ *  chapter II grant (`sets/mh2/colorless.cards.ts`, issue #1884) and Urza, Lord
+ *  High Artificer's ETB (`sets/mh1/blue.cards.ts`, issue #2371). Extracted here per
  *  CLAUDE.md primitive reuse ("two consumers earns extraction").
  *
  *  A FACTORY, not a bare constant — unlike every other shared spec in this
@@ -370,7 +370,7 @@ export const SKELETON_TOKEN: EffectTokenSpec = {
  *  recorded on each card).
  *
  *  BOTH consumers call it: Urza's Saga's `URZAS_SAGA_CONSTRUCT_TOKEN`
- *  (`sets/mh2/colorless.ts`) was retrofitted onto this factory in the same
+ *  (`sets/mh2/colorless.cards.ts`) was retrofitted onto this factory in the same
  *  change, so the duplication the extraction exists to remove is actually
  *  gone — "two consumers earns extraction" is a statement about the code, not
  *  an intention. */
@@ -410,8 +410,8 @@ export const SPIRIT_SPIRITS_ONLY_COMBAT_TOKEN: EffectTokenSpec = {
 
 /** Golem token (CR 111 / 707.2, issue #2367). "3/3 colorless Golem artifact
  *  creature token" — the vanilla Mirrodin-block staple. Created by Sandstorm
- *  Salvager's ETB (`sets/big/green.ts`) and by Legion Extruder's activated
- *  ability (`sets/big/red.ts`); extracted here on the SECOND consumer per
+ *  Salvager's ETB (`sets/big/green.cards.ts`) and by Legion Extruder's activated
+ *  ability (`sets/big/red.cards.ts`); extracted here on the SECOND consumer per
  *  CLAUDE.md primitive reuse.
  *
  *  `EffectTokenSpec` (JSON-pure, ADR 0046) rather than `TokenSpec`: a vanilla
@@ -436,8 +436,8 @@ export const GOLEM_TOKEN: EffectTokenSpec = {
 
 /** Pest token (CR 111 / 707.2, issue #2364 / #2369). "1/1 black and green
  *  Pest creature token with 'When this token dies, you gain 1 life.'" —
- *  shared between Pest Infestation (`sets/c21/green.ts`) and Sedgemoor Witch
- *  (`sets/stx/black.ts`, still stubbed on the unrelated Magecraft-"or copy"
+ *  shared between Pest Infestation (`sets/c21/green.cards.ts`) and Sedgemoor Witch
+ *  (`sets/stx/black.cards.ts`, still stubbed on the unrelated Magecraft-"or copy"
  *  gap, #2087). The FIRST card-shipped consumer of
  *  `EffectTokenSpec.triggeredAbilities` (issue #2364's shipped primitive,
  *  landed with zero card consumers until now): the dies-trigger is a
@@ -475,11 +475,11 @@ export const PEST_TOKEN: EffectTokenSpec = {
 
 /** Insect token (CR 111 / 707.2, issue #2391). "1/1 black and green Insect
  *  creature token" — created today by Grist, the Hunger Tide's `+1` loyalty
- *  ability (`sets/mh2/multicolor.ts`), once per iteration of its repeat loop.
+ *  ability (`sets/mh2/multicolor.cards.ts`), once per iteration of its repeat loop.
  *  Vanilla: no abilities, so the JSON-pure `EffectTokenSpec` shape (ADR 0046)
  *  rather than `TokenSpec`.
  *
- *  Distinct from The Hive's Wasp (`sets/lea/colorless.ts`), which is also an
+ *  Distinct from The Hive's Wasp (`sets/lea/colorless.cards.ts`), which is also an
  *  Insect but a COLORLESS artifact creature with flying and its own name — a
  *  different token, not a candidate for this spec.
  *
@@ -502,7 +502,7 @@ export const INSECT_TOKEN: EffectTokenSpec = {
 
 /** Green Insect token (CR 111, issue #2388). "1/1 green Insect creature
  *  token" — created today by Springheart Nantuko's landfall trigger
- *  (`sets/mh3/green.ts`) on the branch where no copy token was made.
+ *  (`sets/mh3/green.cards.ts`) on the branch where no copy token was made.
  *
  *  A SEPARATE spec from `INSECT_TOKEN` above rather than a colour override on
  *  it: `INSECT_TOKEN` is Grist's BLACK AND GREEN Insect (CR 105.2 — a
@@ -527,7 +527,7 @@ export const GREEN_INSECT_TOKEN: EffectTokenSpec = {
 };
 
 /** Cat token (CR 111 / 707.2, issue #3229). "2/2 green Cat creature token" —
- *  created today by Esika's Chariot's ETB trigger (`sets/khm/green.ts`, two of
+ *  created today by Esika's Chariot's ETB trigger (`sets/khm/green.cards.ts`, two of
  *  them). Vanilla: no abilities, so `EffectTokenSpec` (JSON-pure, ADR 0046)
  *  rather than `TokenSpec`.
  *
@@ -549,7 +549,7 @@ export const CAT_TOKEN: EffectTokenSpec = {
 
 /** Bat token (CR 111 / 707.2, issue #3222). "1/1 black Bat creature token with
  *  flying" — created today by Sanguine Evangelist's enters-or-dies trigger
- *  (`sets/lci/white.ts`). Vanilla apart from the keyword, so
+ *  (`sets/lci/white.cards.ts`). Vanilla apart from the keyword, so
  *  `EffectTokenSpec` (JSON-pure, ADR 0046) rather than `TokenSpec`.
  *
  *  Deliberately NO pinned `imagePrintId`, the `KNIGHT_TOKEN` / `CAT_TOKEN`
@@ -571,7 +571,7 @@ export const BAT_TOKEN: EffectTokenSpec = {
 
 /** Food token (CR 111.10b — "A Food token is a colorless Food artifact token
  *  with '{2}, {T}, Sacrifice this token: You gain 3 life.'"; issue #2361).
- *  Created today by Oko, Thief of Crowns' `+2` (`sets/eld/multicolor.ts`);
+ *  Created today by Oko, Thief of Crowns' `+2` (`sets/eld/multicolor.cards.ts`);
  *  every future Food producer shares THIS spec, so all Food tokens hash to one
  *  synthesized `tokenDefinitionId` and one client rehydration path.
  *

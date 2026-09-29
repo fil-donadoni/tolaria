@@ -21,7 +21,7 @@
 
 import { describe, expect, it } from "vitest";
 import { compileCard } from "../compile";
-import { oracleCard } from "./fixtures";
+import { oracleCard } from "./oracle.fixture";
 
 function spell(oracleText: string, overrides: { manaCost?: string } = {}) {
     return oracleCard({

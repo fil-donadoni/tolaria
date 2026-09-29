@@ -1,7 +1,11 @@
 // Urza's Legacy (ULG) — colorless behavior tests (ADR 0043 colour split).
 
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import { resolveTopOfStack, type StackItem } from "../../../../gre/state";
 import {
     getEffectivePower,
@@ -23,7 +27,7 @@ const DODECAPOD_ID = "ded8b992-a1c2-4e43-ad0a-ea3995a3c8b8";
 /** Drives the incoming player's UNTAP step by advancing from END_STEP:
  *  CLEANUP auto-resolves, turn flips, UNTAP auto-resolves, state settles in
  *  UPKEEP of the intended player. Mirrors `runUntapForJ`
- *  (`convex/cards/sets/lea/__tests__/helpers.ts`), inlined here since ULG's
+ *  (`convex/cards/sets/lea/__tests__/set.helper.ts`), inlined here since ULG's
  *  colour-split test module has no shared helpers file yet. */
 function runUntapStep(playerId: string, state: GameState): void {
     state.activePlayerId = playerId === "p1" ? "p2" : "p1";

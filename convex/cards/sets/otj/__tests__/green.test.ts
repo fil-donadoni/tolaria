@@ -1,4 +1,4 @@
-// Per-card test for otj/green.ts — Bristly Bill, Spine Sower, the first card of
+// Per-card test for otj/green.cards.ts — Bristly Bill, Spine Sower, the first card of
 // the Landfall CAP (issue #694). Bristly Bill's landfall clause is a targeted
 // triggered ability: per CR 603.3d the "target creature" is chosen when the
 // trigger is PUT ON THE STACK, modelled by a `targetRequirement` +
@@ -22,7 +22,7 @@ import {
     makePlayer,
     makeState,
     resolveActivated,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import type { GameState, StackItem } from "../../../../gre/state";
 import { getDefinition } from "../../../index";
 

@@ -4,14 +4,14 @@ import {
     pendingChoiceMin,
     pendingChoiceMax,
 } from "../pending-choice-confirm";
-import { planarOverlay } from "@convex/cards/sets/pls/blue";
-import { plains, tundra } from "@convex/cards/sets/lea";
+import { planarOverlay } from "@convex/cards/sets/pls/blue.cards";
+import { plains, tundra } from "@convex/cards/sets/lea/index.cards";
 import {
     makeInstance,
     makePlayer,
     makeState,
     pushSpell,
-} from "@convex/cards/__tests__/setup";
+} from "@convex/cards/__tests__/setup.helper";
 import { resolveTopOfStack } from "@convex/gre/state";
 import { projectPublicState } from "@convex/gameProjections";
 

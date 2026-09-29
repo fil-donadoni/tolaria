@@ -21,8 +21,8 @@ import { act, render, cleanup } from "@testing-library/react";
 import type { CardInstance, Player } from "~/types/game";
 import { GameContext } from "~/hooks/useGameContext";
 import { BattlefieldInteractionProvider } from "~/hooks/useBattlefieldInteractionContext";
-import { urzaLordHighArtificer } from "@convex/cards/sets/mh1/blue";
-import { millstone } from "@convex/cards/sets/atq/colorless";
+import { urzaLordHighArtificer } from "@convex/cards/sets/mh1/blue.cards";
+import { millstone } from "@convex/cards/sets/atq/colorless.cards";
 
 type MutArgs = Record<string, unknown>;
 type MutFn = (args?: MutArgs) => Promise<void>;

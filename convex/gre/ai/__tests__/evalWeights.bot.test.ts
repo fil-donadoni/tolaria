@@ -23,8 +23,8 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../../cards/__tests__/setup";
-import { island } from "../../../cards/sets/lea/colorless";
+} from "../../../cards/__tests__/setup.helper";
+import { island } from "../../../cards/sets/lea/colorless.cards";
 
 describe("DEFAULT_EVAL_WEIGHTS (issue #2683)", () => {
     it("a TAPPED source is worth strictly less than an untapped one (issue #3377)", () => {

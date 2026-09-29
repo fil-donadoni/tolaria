@@ -23,7 +23,7 @@ import { describe, expect, it } from "vitest";
 import type { CompiledTriggeredAbility } from "../../cards/compiledTriggers";
 import { compileCard } from "../compile";
 import { sortKeys } from "../gates";
-import { oracleCard } from "./fixtures";
+import { oracleCard } from "./oracle.fixture";
 
 function abilitiesOf(
     card: ReturnType<typeof oracleCard>

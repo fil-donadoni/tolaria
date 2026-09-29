@@ -16,7 +16,7 @@ reaches the two-zone drag picker (`isOrderTopPick`, line 113-123) when it is
 **not** `isLookDistributeGridPick` (line 88-95), which is true whenever
 `head.destination === "graveyard" || head.randomizeRest === true`. The one
 shipped `keepTo: "library-top"` card, Thassa's Oracle
-(`convex/cards/sets/thb/blue.ts:24-33`), sets `randomBottom: true`
+(`convex/cards/sets/thb/blue.cards.ts:24-33`), sets `randomBottom: true`
 unconditionally on its `lookDistribute` Op — mapped straight to
 `randomizeRest: true` on the `PendingChoice`
 (`convex/gre/effects/interpreter.ts:3297`). So Thassa's Oracle's ETB always

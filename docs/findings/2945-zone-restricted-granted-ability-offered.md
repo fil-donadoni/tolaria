@@ -11,7 +11,7 @@ qualifying card in the linked exile pile onto the recipient, with no
 zone-function gate. CR 113.6m — "An ability whose cost or effect specifies that
 it moves the object it's on out of a particular zone functions only in that
 zone." So Ashen Ghoul's `{B}: Return this card from your graveyard to the
-battlefield` (`convex/cards/sets/ice/black.ts`) is a graveyard-only ability, and
+battlefield` (`convex/cards/sets/ice/black.cards.ts`) is a graveyard-only ability, and
 a Cauldron-countered creature on the battlefield is offered it anyway.
 
 Real Magic GRANTS the ability too — the divergence is not the grant, it is that
@@ -25,7 +25,7 @@ in the UI, and a legal Move `enumerateMoves` will hand the Bot.
 - `convex/gre/layer6.ts::resolveActivatedGrant` — the copy loop reads
   `def.activatedAbilities` with no zone predicate. (The `types` narrowing added
   by issue #2945 is a CARD-type filter, orthogonal to this.)
-- `convex/cards/sets/ice/black.ts` — Ashen Ghoul, `ashen-ghoul-reanimate`, the
+- `convex/cards/sets/ice/black.cards.ts` — Ashen Ghoul, `ashen-ghoul-reanimate`, the
   one shipped card that reaches it: link it in the pile and
   `getEffectiveActivatedAbilities(recipient)` offers the row.
 - `convex/gre/effects/interpreter.ts` — the `moveZone` `$source` branch's

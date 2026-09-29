@@ -1,4 +1,4 @@
-// Per-card behaviour test for vis/red.ts — Fireblast, the red alternative-cost
+// Per-card behaviour test for vis/red.cards.ts — Fireblast, the red alternative-cost
 // card (CR 118.9 "sacrifice two Mountains rather than pay this spell's mana
 // cost", then deal 4 damage to any target). The alt-cost payment happens at
 // cast commit, so this exercises the real commit path
@@ -14,7 +14,11 @@ import {
 } from "../../../../game";
 import { isSacrificeSelectionComplete } from "../../../../gre/sacrificeChoice";
 import { getLegalActions } from "../../../../gre/rules";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import { getDefinition } from "../../../index";
 
 const fireblast = getDefinition("b1eb5b2c-1f02-48a6-a287-88eb189d6780");

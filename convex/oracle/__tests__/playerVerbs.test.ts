@@ -17,7 +17,7 @@ import { describe, expect, it } from "vitest";
 import type { CardDefinition } from "../../cards/types";
 import { compileCard } from "../compile";
 import { sortKeys } from "../gates";
-import { oracleCard } from "./fixtures";
+import { oracleCard } from "./oracle.fixture";
 
 /** Compile a card and return its definition, failing the test if refused. */
 function compiled(card: ReturnType<typeof oracleCard>) {

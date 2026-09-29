@@ -7,7 +7,7 @@ import {
     getDefinitionProducibleColors,
     getProducibleColors,
 } from "../constants";
-import { makeInstance } from "../../cards/__tests__/setup";
+import { makeInstance } from "../../cards/__tests__/setup.helper";
 import { getCardByName, getDefinition } from "../../cards";
 import type { ActivatedAbility, CardDefinition } from "../../cards/types";
 

@@ -8,7 +8,11 @@
 // file asserts the CARD — the three conditions of its scope, its ETB token, and
 // the token's own ability closing the loop back through the same seam.
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import type { GameState } from "../../../../gre/state";
 import {
     addCounterToCard,

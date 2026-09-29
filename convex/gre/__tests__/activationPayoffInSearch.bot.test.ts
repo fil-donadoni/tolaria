@@ -38,7 +38,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import type { CardInstanceState, GameState, StackItem } from "../state";
 
 const MOTHER = getCardByName("Mother of Runes").id;

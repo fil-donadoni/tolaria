@@ -26,7 +26,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "@convex/cards/__tests__/setup";
+} from "@convex/cards/__tests__/setup.helper";
 
 // Quantum Riddler (EOE) — the first shipping card with Warp {1}{U}.
 const QUANTUM_RIDDLER = "120be808-ff3b-4fca-96a1-4db6b9825856";

@@ -32,7 +32,7 @@ and parked (a third would follow, and so on).
 - `convex/gre/asEnters.ts` `resumeAfterStagedEntry` then takes the
   `resolveTopOfStack` branch, because `parkedStackItemId` really is still live.
 - The one shipped producer this reaches today is Sin, Spira's Punishment
-  (`convex/cards/sets/fin/multicolor.ts`), fixed IN #2558 with a per-body
+  (`convex/cards/sets/fin/multicolor.cards.ts`), fixed IN #2558 with a per-body
   run-to-completion marker (`ctx.recallChoice` / `ctx.noteChoice`) — the same
   idempotent-commit idiom the `createToken` / `createTokenCopy` Ops use.
 

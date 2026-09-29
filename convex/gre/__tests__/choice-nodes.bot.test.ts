@@ -63,16 +63,16 @@ import {
     makePlayer,
     makeInstance,
     pushSpell,
-} from "../../cards/__tests__/setup";
-import { crawWurm, grizzlyBears } from "../../cards/sets/lea/green";
-import { illusionaryTerrain } from "../../cards/sets/ice/blue";
-import { forest } from "../../cards/sets/lea/colorless";
-import { lightningBolt } from "../../cards/sets/lea/red";
-import { blackLotus } from "../../cards/sets/lea/colorless";
-import { mindStone } from "../../cards/sets/wth/colorless";
-import { mirrisGuile } from "../../cards/sets/tmp/green";
-import { kavuChameleon } from "../../cards/sets/inv/green";
-import { motherOfRunes } from "../../cards/sets/ulg/white";
+} from "../../cards/__tests__/setup.helper";
+import { crawWurm, grizzlyBears } from "../../cards/sets/lea/green.cards";
+import { illusionaryTerrain } from "../../cards/sets/ice/blue.cards";
+import { forest } from "../../cards/sets/lea/colorless.cards";
+import { lightningBolt } from "../../cards/sets/lea/red.cards";
+import { blackLotus } from "../../cards/sets/lea/colorless.cards";
+import { mindStone } from "../../cards/sets/wth/colorless.cards";
+import { mirrisGuile } from "../../cards/sets/tmp/green.cards";
+import { kavuChameleon } from "../../cards/sets/inv/green.cards";
+import { motherOfRunes } from "../../cards/sets/ulg/white.cards";
 
 afterEach(() => resetChoicePriorFn());
 

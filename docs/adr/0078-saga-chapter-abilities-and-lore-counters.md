@@ -202,7 +202,7 @@ counters must fire chapters 1..N) and the enters-with-zero case.
   separately. The divergence is one counter on an already-inert permanent: the
   other two gates are correctly ability-conditioned, so the Saga still ends up
   unsacrificed and non-advancing.
-- **Blood Moon's `subtype-set`** (`cards/sets/drk/red.ts:88`) replaces _all_
+- **Blood Moon's `subtype-set`** (`cards/sets/drk/red.cards.ts:88`) replaces _all_
   subtypes; CR 305.7 removes only the land types. "Saga" is an enchantment type
   and should survive. No effect on the sacrifice (both gates are closed without
   chapter abilities regardless), so filed separately rather than blocking.

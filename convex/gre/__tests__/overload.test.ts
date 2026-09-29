@@ -58,7 +58,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import { getCardByName, registerTokenDefinition } from "../../cards";
 import { spellCastTrigger } from "../../cards/abilities/triggers/spellCastTrigger";
 

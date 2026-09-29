@@ -27,10 +27,14 @@ import {
     selectBlocker,
     assignBlockerTarget,
 } from "../game";
-import { makeInstance, makePlayer, makeState } from "../cards/__tests__/setup";
-import { grizzlyBears } from "../cards/sets/lea/green";
-import { duelingGrounds } from "../cards/sets/inv/multicolor";
-import { serraAngel } from "../cards/sets/lea/white";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../cards/__tests__/setup.helper";
+import { grizzlyBears } from "../cards/sets/lea/green.cards";
+import { duelingGrounds } from "../cards/sets/inv/multicolor.cards";
+import { serraAngel } from "../cards/sets/lea/white.cards";
 import type { GameState, CardInstanceState } from "../gre/state";
 import type { Id } from "../_generated/dataModel";
 import {
@@ -39,7 +43,7 @@ import {
     gameStateSeed,
     type Handler,
     type MutationStub,
-} from "./gameMutationHarness";
+} from "./gameMutationHarness.fixture";
 
 const GAME_ID = "game-1" as Id<"games">;
 const SEED_SEQ = 1;

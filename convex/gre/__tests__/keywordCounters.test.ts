@@ -13,10 +13,10 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import { projectPublicState } from "../../gameProjections";
-import { grizzlyBears } from "../../cards/sets/lea/green";
-import { grantedKeywordRows } from "../../cards/__tests__/setup";
+import { grizzlyBears } from "../../cards/sets/lea/green.cards";
+import { grantedKeywordRows } from "../../cards/__tests__/setup.helper";
 
 function pushItem(state: ReturnType<typeof makeState>): StackItem {
     return pushSpell(state, grizzlyBears.id, "p1");

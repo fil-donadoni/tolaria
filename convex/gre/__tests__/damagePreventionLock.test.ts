@@ -5,7 +5,7 @@
 // tests below are organised around what separates it from the other two:
 //
 //   - SOURCE-scoped, continuous, combat-only: the
-//     `combat-damage-unpreventable` static (Questing Beast, `eld/green.ts`).
+//     `combat-damage-unpreventable` static (Questing Beast, `eld/green.cards.ts`).
 //   - TARGET-scoped, turn-scoped: Whippoorwill's `damageLockThisTurn` flag —
 //     `damageLock.test.ts` is its suite, and this file deliberately mirrors its
 //     per-sink structure so the two can be read side by side.
@@ -20,10 +20,10 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../cards/__tests__/setup";
-import { crawWurm } from "../../cards/sets/lea/green";
-import { lightningBolt } from "../../cards/sets/lea/red";
-import { harshJudgment } from "../../cards/sets/inv/white";
+} from "../../cards/__tests__/setup.helper";
+import { crawWurm } from "../../cards/sets/lea/green.cards";
+import { lightningBolt } from "../../cards/sets/lea/red.cards";
+import { harshJudgment } from "../../cards/sets/inv/white.cards";
 import { projectPublicState } from "../../gameProjections";
 import {
     dealDamageFromPermanentToPlayer,

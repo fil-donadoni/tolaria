@@ -18,7 +18,7 @@ import { compileCard } from "../compile";
 import { sortKeys } from "../gates";
 import { GOLDEN_FIXTURES } from "../grammar/fixtures";
 import type { OracleCard } from "../types";
-import { oracleCard } from "./fixtures";
+import { oracleCard } from "./oracle.fixture";
 
 const ASHEN_FIREBEAST: OracleCard = {
     oracleId: "7246e3a0-f8b7-4c1b-ae75-a1eb8990a728",

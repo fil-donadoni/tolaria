@@ -389,7 +389,8 @@ export interface LiveGapKey {
     readonly card?: CardMatch;
 }
 
-const HAND_TAIL_SET_FILE = /(?:^|[\\/])sets[\\/]([a-z0-9]+)[\\/](\w+)\.ts$/i;
+const HAND_TAIL_SET_FILE =
+    /(?:^|[\\/])sets[\\/]([a-z0-9]+)[\\/](\w+)\.cards\.ts$/i;
 
 /** The `{ set, colour }` a `hand-tail:` marker's own file is written in — the
  *  file IS the card's set file (ADR 0043), so no catalogue lookup is owed.

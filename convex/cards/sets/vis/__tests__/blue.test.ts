@@ -1,5 +1,5 @@
 // VIS — per-card behavior tests for blue cards in
-// `convex/cards/sets/vis/blue.ts` (set split by colour, ADR 0043).
+// `convex/cards/sets/vis/blue.cards.ts` (set split by colour, ADR 0043).
 
 import { describe, it, expect } from "vitest";
 import {
@@ -8,7 +8,7 @@ import {
     makeState,
     pushSpell,
     submitChoice,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import { resolveTopOfStack } from "../../../../gre/state";
 import type { GameState, StackItem } from "../../../../gre/state";
 import { advancePhase } from "../../../../gre/phases";

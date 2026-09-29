@@ -11,8 +11,8 @@ ability activated by a player who does not control the permanent
 (`activatableByAnyPlayer` / `activatableByOpponentsOnly`) sits on the stack
 with `controllerId` naming the permanent's controller rather than the
 activator. CR 113.7a: the controller of an activated ability on the stack is
-the player who activated it. Five shipped cards reach it (`arn/green.ts`,
-`atq/colorless.ts`, `ice/colorless.ts`, `ice/white.ts`, `leg/white.ts`).
+the player who activated it. Five shipped cards reach it (`arn/green.cards.ts`,
+`atq/colorless.cards.ts`, `ice/colorless.cards.ts`, `ice/white.cards.ts`, `leg/white.cards.ts`).
 
 This is the exact "two fields disagreeing about the same fact" shape issue
 #3000 closed for SPELLS, one object kind over.

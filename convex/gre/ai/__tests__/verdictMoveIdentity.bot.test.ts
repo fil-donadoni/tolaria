@@ -21,15 +21,15 @@ import {
     buildSetupFreeVerdictState,
     candidateMoves,
 } from "../verdicts/candidates";
-import { sealOfFire } from "../../../cards/sets/nem/red";
-import { grizzlyBears } from "../../../cards/sets/lea/green";
-import { hillGiant } from "../../../cards/sets/lea/red";
-import { wrennAndSix } from "../../../cards/sets/mh1/multicolor";
+import { sealOfFire } from "../../../cards/sets/nem/red.cards";
+import { grizzlyBears } from "../../../cards/sets/lea/green.cards";
+import { hillGiant } from "../../../cards/sets/lea/red.cards";
+import { wrennAndSix } from "../../../cards/sets/mh1/multicolor.cards";
 import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../../cards/__tests__/setup";
+} from "../../../cards/__tests__/setup.helper";
 import type { Move } from "../../moves";
 import type { GameState } from "../../state";
 import type { ScenarioSpec } from "../../../debugScenarioSpec";

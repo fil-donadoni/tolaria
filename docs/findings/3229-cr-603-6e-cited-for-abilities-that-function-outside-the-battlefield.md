@@ -32,8 +32,8 @@ models.
 - `convex/gre/triggers.ts:458` — the graveyard sweep
 - `convex/cards/abilities/triggers/spellCastTrigger.ts:165`
 - `convex/gre/__tests__/self-cast-trigger.test.ts:1`, `:118`
-- `convex/cards/sets/drk/blue.ts:367`, `:379` (Mana Vortex),
-  `convex/cards/sets/roe/colorless.ts:151` (Emrakul)
+- `convex/cards/sets/drk/blue.cards.ts:367`, `:379` (Mana Vortex),
+  `convex/cards/sets/roe/colorless.cards.ts:151` (Emrakul)
 
 A second sub-class uses it for a graveyard-COUNT clause
 (`convex/cards/graveyardOrder.ts:12`, `convex/gre/ai/grounding.ts:69`/`:238`/`:240`,

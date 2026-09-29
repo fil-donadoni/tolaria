@@ -3324,7 +3324,7 @@ function isModeList(value: unknown): boolean {
  *  outcome (Mana Crypt — "if you LOSE, deal 3 damage", the win branch does
  *  nothing at all) has no other way to express "nothing happens" under this
  *  frozen grammar, and padding it with a card-shaped placeholder Op is the
- *  workaround this relaxation replaces (`chaoticStrike`, `inv/red.ts`, still
+ *  workaround this relaxation replaces (`chaoticStrike`, `inv/red.cards.ts`, still
  *  padded pending its own cleanup). Each branch's Op-list deep validity
  *  (schema, refs, nesting) is checked by the recursive schema / ref passes,
  *  exactly like an `optionChoice` mode or an `if` branch — an empty list
@@ -8799,7 +8799,7 @@ export type AbilityEffectScriptHost = {
      *  (issue #1341) or TRIGGERED (issue #2461) ability. Read only to enforce
      *  its mutual exclusivity with an ability-level body below; the modes'
      *  own scripts are validated as separate synthetic sites
-     *  (`cards/__tests__/effectSites.ts`). */
+     *  (`cards/__tests__/effectSites.helper.ts`). */
     modes?: unknown;
 };
 

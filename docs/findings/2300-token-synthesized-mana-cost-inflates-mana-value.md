@@ -25,7 +25,7 @@ therefore mana value **0**.
 **Why this matters now.** Pre-existing, but issue #2300 widens its reach: tokens
 now flow through every `PERMANENT_ENTERED` consumer, so an ETB trigger filtering
 on `manaValueAtMost` / `manaValueEquals` (both shipped filter fields —
-`convex/cards/sets/mbs/green.ts:41`, `convex/cards/sets/inv/blue.ts:971`) will
+`convex/cards/sets/mbs/green.cards.ts:41`, `convex/cards/sets/inv/blue.cards.ts:971`) will
 now see tokens and score them wrong. No shipped ETB trigger uses a mana-value
 filter today, so nothing is currently miscounted through this path.
 

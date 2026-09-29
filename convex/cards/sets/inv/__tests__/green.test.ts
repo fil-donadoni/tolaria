@@ -1,4 +1,4 @@
-// Per-card behavior tests for INV green cards (`convex/cards/sets/inv/green.ts`).
+// Per-card behavior tests for INV green cards (`convex/cards/sets/inv/green.cards.ts`).
 //
 // First-printing audit (ADR 0041): some cards exercised below were first
 // implemented as part of this INV tranche but are REPRINTS — their
@@ -9,7 +9,7 @@
 import { describe, it, expect } from "vitest";
 // Quirion Elves — INV reprint (`quirionElvesInv`, a `CardPrint` in
 // `../green`); first printed in Mirage, so the mechanics live in
-// `mir/green.ts` (ADR 0041 home-set rule). This test stays with the INV
+// `mir/green.cards.ts` (ADR 0041 home-set rule). This test stays with the INV
 // tranche that authored it (issue #1097 gap 4).
 import {
     makeInstance,
@@ -17,7 +17,7 @@ import {
     makeState,
     pushSpell,
     submitChoice,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import { getDefinition, registerTokenDefinition } from "../../..";
 import {
     beginApplyingStaticEffects,
@@ -48,7 +48,7 @@ import { STATIC_EFFECT_CTX } from "../../../../gre/layers";
 import { isGuardedAgainst } from "../../../../gre/permanentGuard";
 import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
 import { getEffectivePower } from "../../../../gre/layers";
-import { resolveTrigger } from "./helpers";
+import { resolveTrigger } from "./set.helper";
 
 const blurredMongoose = getDefinition("4b073e3f-6a6f-495a-ab16-39d906b660f1");
 const canopySurge = getDefinition("2e19d68e-7554-4627-a316-beb1f75fa494");
@@ -1179,7 +1179,7 @@ describe("Saproling Infestation (CR 702.33d / 603.2)", () => {
 
 // Kavu Titan exercises the kicker → entersWith-counters →
 // wasKicked-gated keyword-grant chain — the exact Pouncing Kavu template
-// (inv/red.ts, issue #1716), corrected onto this card in place of the old
+// (inv/red.cards.ts, issue #1716), corrected onto this card in place of the old
 // marker's (wrong) `grantAbility`-on-a-conditional-ETB-trigger sketch (issue
 // #2761): that shape would reopen a stack window where the creature is on
 // the battlefield without trample before a trigger resolves, exactly the bug

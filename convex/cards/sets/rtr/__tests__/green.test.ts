@@ -7,7 +7,7 @@ import {
     makeState,
     pushSpell,
     resolveTriggerOrder,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import {
     removePermanentTo,
@@ -145,7 +145,7 @@ describe("Worldspine Wurm (CR 702.19 trample, CR 603.2 dies-trigger, CR 400.7/70
     });
 
     // The RESIDUAL graveyard entry (CR 603.6 / 603.2): "reveal the top four
-    // cards … put the rest into your graveyard" (Malevolent Rumble, mh3/green.ts)
+    // cards … put the rest into your graveyard" (Malevolent Rumble, mh3/green.cards.ts)
     // is NOT a mill (CR 701.17a), so it emits no CARD_MILLED — and before
     // CARD_PUT_INTO_GRAVEYARD existed nothing else either, so a Wurm binned that
     // way just sat in the graveyard and "from anywhere" quietly meant "from

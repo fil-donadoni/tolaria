@@ -9,7 +9,11 @@
 // the Chariot can copy the Cat it made last turn.
 
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import type { GameState } from "../../../../gre/state";
 import { resolveTopOfStack } from "../../../../gre/state";
 import {

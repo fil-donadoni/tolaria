@@ -1,11 +1,11 @@
 // Per-card behavior tests for colorless cards in
-// `convex/cards/sets/wwk/colorless.ts` (Worldwake, split by colour per ADR
+// `convex/cards/sets/wwk/colorless.cards.ts` (Worldwake, split by colour per ADR
 // 0043). The manland cycle (Creeping Tar Pit, Celestial Colonnade) mirrors
-// Mishra's Factory (`convex/cards/sets/atq/colorless.ts`) — see that card's
+// Mishra's Factory (`convex/cards/sets/atq/colorless.cards.ts`) — see that card's
 // test (`convex/cards/sets/atq/__tests__/colorless.test.ts`) for the
 // `resolveActivated` push-cost-already-paid idiom this file reproduces
 // locally (no shared `helpers.ts` exists yet for this set). Fixtures from
-// `convex/cards/__tests__/setup.ts`. Vintage Cube free tranche (issue #675,
+// `convex/cards/__tests__/setup.helper.ts`. Vintage Cube free tranche (issue #675,
 // ADR 0041).
 
 import { describe, it, expect } from "vitest";
@@ -14,7 +14,7 @@ import {
     makePlayer,
     makeState,
     resolveActivated,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import { applyPlayLand } from "../../../../gre/playLand";
 import { advancePhase } from "../../../../gre/phases";
 import {
@@ -210,7 +210,7 @@ describe("Celestial Colonnade (manland — CR 611.1 animate, CR 614.1c enters ta
 // and its {T} mana ability scales {C} with the live charge count via the
 // board-conditional `manaAmount` hook. Board-visible → a wire-format assertion
 // (projectPublicState) confirms the counters survive the projection.
-import { pushSpell } from "../../../__tests__/setup";
+import { pushSpell } from "../../../__tests__/setup.helper";
 import { getDynamicManaProduced } from "../../../../gre/constants";
 import { projectPublicState } from "../../../../gameProjections";
 

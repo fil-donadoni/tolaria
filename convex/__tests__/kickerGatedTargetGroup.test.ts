@@ -25,9 +25,13 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../cards/__tests__/setup";
-import { ankhOfMishra, plains } from "../cards/sets/lea/colorless";
-import { grizzlyBears } from "../cards/sets/lea/green";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../cards/__tests__/setup.helper";
+import { ankhOfMishra, plains } from "../cards/sets/lea/colorless.cards";
+import { grizzlyBears } from "../cards/sets/lea/green.cards";
 import { withTemporaryDefinitionAsync } from "../cards";
 import type { CardDefinition } from "../cards/types";
 import { announceCast, selectTargets } from "../game";
@@ -36,7 +40,7 @@ import {
     makeMutationCtx,
     runMutation,
     type Handler,
-} from "./gameMutationHarness";
+} from "./gameMutationHarness.fixture";
 import type { Id } from "../_generated/dataModel";
 import {
     getPlayer,

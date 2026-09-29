@@ -20,7 +20,11 @@ import { resolveTopOfStack } from "../../../gre/state";
 import { applyPendingChoiceSubmit } from "../../../gre/pendingChoiceSubmit";
 import { collectTriggers, placeTriggersOnStack } from "../../../gre/triggers";
 import { isNamedMechanic, MECHANICS_REGISTRY } from "../../mechanicsRegistry";
-import { makeInstance, makePlayer, makeState } from "../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../__tests__/setup.helper";
 import {
     annihilatorOracleText,
     annihilatorTrigger,

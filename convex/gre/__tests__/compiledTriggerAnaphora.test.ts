@@ -24,16 +24,16 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../cards/__tests__/setup";
-import { grizzlyBears } from "../../cards/sets/lea";
-import { terror } from "../../cards/sets/lea/black";
+} from "../../cards/__tests__/setup.helper";
+import { grizzlyBears } from "../../cards/sets/lea/index.cards";
+import { terror } from "../../cards/sets/lea/black.cards";
 import {
     forest,
     island,
     mountain,
     plains,
     swamp,
-} from "../../cards/sets/lea/colorless";
+} from "../../cards/sets/lea/colorless.cards";
 import type { CardDefinition } from "../../cards/types";
 import { compileCard } from "../../oracle/compile";
 import { GOLDEN_FIXTURES } from "../../oracle/grammar/fixtures";

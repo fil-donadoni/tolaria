@@ -3,7 +3,7 @@
 // The project has no convex-test harness (see `limitedChallenge.test.ts`), so
 // this drives the REAL registered mutation handlers — `createGame`,
 // `joinGame`, `joinGameByCode`, `listOpenGames` — against the shared in-memory
-// ctx (`fixtures/inMemoryDb.ts`). Real control flow, real guard order, fake
+// ctx (`fixtures/inMemoryDb.fixture.ts`). Real control flow, real guard order, fake
 // storage: the full createGame → mint → resolve → seat path, which is exactly
 // the seam a per-function test cannot see.
 //
@@ -31,7 +31,10 @@ import {
     listOpenGames,
 } from "../game";
 import { JOIN_CODE_REJECTED, mintJoinCode } from "../joinCodes";
-import { makeInMemoryDb, type InMemoryRow } from "./fixtures/inMemoryDb";
+import {
+    makeInMemoryDb,
+    type InMemoryRow,
+} from "./fixtures/inMemoryDb.fixture";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const run = (fn: unknown, ctx: MutationCtx, args: unknown): Promise<any> =>

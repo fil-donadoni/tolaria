@@ -28,11 +28,11 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../../convex/cards/__tests__/setup";
+} from "../../../convex/cards/__tests__/setup.helper";
 import { buildSpellContext } from "../../../convex/gre/state";
-import { grizzlyBears } from "../../../convex/cards/sets/lea/green";
+import { grizzlyBears } from "../../../convex/cards/sets/lea/green.cards";
 import { projectPublicState } from "../../../convex/gameProjections";
-import { pushSpell } from "../../../convex/cards/__tests__/setup";
+import { pushSpell } from "../../../convex/cards/__tests__/setup.helper";
 
 vi.mock("~/hooks/usePendingChoiceBuffer", () => ({
     usePendingChoiceBuffer: () => ({

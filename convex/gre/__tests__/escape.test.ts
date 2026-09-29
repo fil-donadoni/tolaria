@@ -46,18 +46,18 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
-import { uroTitanOfNaturesWrath } from "../../cards/sets/thb/multicolor";
-import { underworldBreach } from "../../cards/sets/thb/red";
-import { phlageTitanOfFiresFury } from "../../cards/sets/mh3/multicolor";
-import { nethergoyf } from "../../cards/sets/mh3/black";
+} from "../../cards/__tests__/setup.helper";
+import { uroTitanOfNaturesWrath } from "../../cards/sets/thb/multicolor.cards";
+import { underworldBreach } from "../../cards/sets/thb/red.cards";
+import { phlageTitanOfFiresFury } from "../../cards/sets/mh3/multicolor.cards";
+import { nethergoyf } from "../../cards/sets/mh3/black.cards";
 import {
     grizzlyBears,
     mountain,
     ancestralRecall,
     disenchant,
     lightningBolt,
-} from "../../cards/sets/lea";
+} from "../../cards/sets/lea/index.cards";
 
 /** Five filler cards to pay a "exile five other cards" escape cost. */
 function fiveFiller(owner: string): CardInstanceState[] {

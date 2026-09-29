@@ -35,7 +35,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 
 const REDUCER_ID = "00000000-0000-4000-8000-000022880001";
 const HAND_REDUCER_ID = "00000000-0000-4000-8000-000022880002";

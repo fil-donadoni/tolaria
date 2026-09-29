@@ -20,9 +20,9 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import { getCardByName } from "../../cards";
-import { verdelothTheAncient } from "../../cards/sets/inv/green";
+import { verdelothTheAncient } from "../../cards/sets/inv/green.cards";
 
 const FOREST = getCardByName("Forest").id;
 const VERDELOTH = "verdeloth";

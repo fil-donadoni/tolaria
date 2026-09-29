@@ -20,9 +20,9 @@ import { act, render, fireEvent, cleanup } from "@testing-library/react";
 import type { ReactNode } from "react";
 import type { CardInstance, Player } from "~/types/game";
 import { GameContext } from "~/hooks/useGameContext";
-import { urzaLordHighArtificer } from "@convex/cards/sets/mh1/blue";
-import { ornithopter, millstone } from "@convex/cards/sets/atq/colorless";
-import { grizzlyBears } from "@convex/cards/sets/lea";
+import { urzaLordHighArtificer } from "@convex/cards/sets/mh1/blue.cards";
+import { ornithopter, millstone } from "@convex/cards/sets/atq/colorless.cards";
+import { grizzlyBears } from "@convex/cards/sets/lea/index.cards";
 
 type MutArgs = Record<string, unknown>;
 type MutFn = (args?: MutArgs) => Promise<void>;

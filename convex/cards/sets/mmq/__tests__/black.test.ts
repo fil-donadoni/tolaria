@@ -5,7 +5,7 @@ import {
     makeState,
     pushSpell,
     submitChoice,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import {
     beginApplyingStaticEffects,
     resolveTopOfStack,

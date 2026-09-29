@@ -1,9 +1,9 @@
-// Per-card behavior tests for ZEN red cards (`convex/cards/sets/zen/red.ts`).
+// Per-card behavior tests for ZEN red cards (`convex/cards/sets/zen/red.cards.ts`).
 // Burst Lightning exercises the Kicker capability (CR 702.33) + the
 // `kickerCount` value member: 2 damage, or 4 when kicked.
 
 import { describe, it, expect } from "vitest";
-import { makeState, pushSpell } from "../../../__tests__/setup";
+import { makeState, pushSpell } from "../../../__tests__/setup.helper";
 import { resolveTopOfStack, type StackItem } from "../../../../gre/state";
 import { getDefinition } from "../../../index";
 

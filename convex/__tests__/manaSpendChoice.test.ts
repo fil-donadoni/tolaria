@@ -30,7 +30,11 @@ import {
     type PendingActivation,
 } from "../gre/state";
 import { getCardByName } from "../cards";
-import { makeInstance, makePlayer, makeState } from "../cards/__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../cards/__tests__/setup.helper";
 
 const ORNITHOPTER = getCardByName("Ornithopter").id; // artifact; cost set below
 const LION_SASH = getCardByName("Lion Sash").id; // {2} unattach ability, no target

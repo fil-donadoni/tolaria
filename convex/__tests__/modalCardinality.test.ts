@@ -8,10 +8,14 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../cards/__tests__/setup";
-import { hullBreach } from "../cards/sets/pls/multicolor";
-import { grizzlyBears, plains } from "../cards/sets/lea";
-import { fork, hillGiant } from "../cards/sets/lea/red";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../cards/__tests__/setup.helper";
+import { hullBreach } from "../cards/sets/pls/multicolor.cards";
+import { grizzlyBears, plains } from "../cards/sets/lea/index.cards";
+import { fork, hillGiant } from "../cards/sets/lea/red.cards";
 import {
     withTemporaryDefinition,
     withTemporaryDefinitionAsync,
@@ -23,7 +27,7 @@ import {
     makeMutationCtx,
     runMutation,
     type Handler,
-} from "./gameMutationHarness";
+} from "./gameMutationHarness.fixture";
 import type { Id } from "../_generated/dataModel";
 import {
     resolveTopOfStack,

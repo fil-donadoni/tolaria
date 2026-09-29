@@ -3,7 +3,11 @@
 // cites the CR section it exercises.
 
 import { describe, it, expect } from "vitest";
-import { darkRitualIce, fearIce, howlFromBeyondIce } from "../../ice";
+import {
+    darkRitualIce,
+    fearIce,
+    howlFromBeyondIce,
+} from "../../ice/index.cards";
 import { applyLandManaReplacement, manaValue } from "../../../../gre/constants";
 import {
     getDefinition,
@@ -56,7 +60,7 @@ import {
     pushSpell,
     resolveActivated,
     submitChoice,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import type {
     CardInstanceState,
     GameState,
@@ -79,7 +83,7 @@ import {
     BASIC_MANA,
     answerMayPayHead,
     collectAndStack,
-} from "./helpers";
+} from "./set.helper";
 
 const balduvianBears = getDefinition("ef5297cb-e763-4871-9cd3-0e2dbcc52095");
 const abyssalSpecter = getDefinition("fc26f19c-bcf7-4bd8-af42-4757dbe47fb1");

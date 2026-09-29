@@ -11,7 +11,7 @@
 import { describe, expect, it } from "vitest";
 import { parseProtectionQuality } from "../../gre/protection";
 import { compileCard } from "../compile";
-import { oracleCard } from "./fixtures";
+import { oracleCard } from "./oracle.fixture";
 
 function creature(name: string, manaCost: string, oracleText: string) {
     return oracleCard({ name, manaCost, oracleText, typeLine: "Creature" });

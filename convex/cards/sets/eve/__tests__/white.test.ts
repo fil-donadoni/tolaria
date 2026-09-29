@@ -1,8 +1,12 @@
 // eve (Eventide) — per-card behavior tests for white cards in
-// `convex/cards/sets/eve/white.ts` (set split by colour, ADR 0043).
+// `convex/cards/sets/eve/white.cards.ts` (set split by colour, ADR 0043).
 
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { raiseTriggerTargetSelection } from "../../../../gre/rules";
 import { finalizeTargetSelection } from "../../../../game";

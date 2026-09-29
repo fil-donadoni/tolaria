@@ -41,16 +41,16 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import {
     clone,
     copyArtifact,
     vesuvanDoppelganger,
-} from "../../cards/sets/lea/blue";
-import { grizzlyBears, serraAngel } from "../../cards/sets/lea";
-import { phantasmalImage } from "../../cards/sets/m12/blue";
-import { phyrexianMetamorph } from "../../cards/sets/nph/blue";
-import { reanimate } from "../../cards/sets/tmp/black";
+} from "../../cards/sets/lea/blue.cards";
+import { grizzlyBears, serraAngel } from "../../cards/sets/lea/index.cards";
+import { phantasmalImage } from "../../cards/sets/m12/blue.cards";
+import { phyrexianMetamorph } from "../../cards/sets/nph/blue.cards";
+import { reanimate } from "../../cards/sets/tmp/black.cards";
 
 /** "As this creature enters, pay any amount of life, up to 2." The CR 707.6
  *  fixture: a copy SOURCE whose own definition owes a NON-copy as-enters

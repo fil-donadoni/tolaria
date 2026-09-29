@@ -1,0 +1,252 @@
+// ulg (Urza's Legacy) — colorless cards (ADR 0043 colour split). Modern
+// Scryfall oracle text is authoritative (ADR 0004). Lands and colourless
+// artifacts (no coloured cost) live here per the colour-split convention.
+
+import type { CardDefinition, SpellContext } from "../../types";
+import { makeTapForMana } from "../../abilities";
+
+// Faerie Conclave — the ULG "manland" cycle's blue member, the same three
+// lines as Treetop Village below with a different animated body:
+//  • "This land enters tapped." (`entersTapped`.)
+//  • "{T}: Add {U}." (CR 605.1a/605.3a mana ability, `useStack: false`.)
+//  • "{1}{U}: This land becomes a 2/1 blue Faerie creature with flying until
+//    end of turn. It's still a land." (CR 611.1 animate.) The `animate` Op
+//    sets the 2/1 base P/T and the Faerie subtype, grants flying (CR 702.9a)
+//    and applies the layer-5 colour set (CR 613.1e — blue REPLACES the land's
+//    colourlessness, CR 105.3), all on the SAME end-of-turn duration so the
+//    whole animation reverts together. No `additionalTypes`: like Treetop
+//    Village and unlike Mishra's Factory this becomes a plain creature, and
+//    "It's still a land" is exactly what `animate` already does by ADDING the
+//    Creature type rather than setting it.
+//
+// hand-tail: {1}{U}: This land becomes a 2/1 blue Faerie creature with flying until end of turn. It's still a land. (#4195)
+export const faerieConclave: CardDefinition = {
+    id: "ae3ede87-b026-4781-81ab-8652664f8e41",
+    name: "Faerie Conclave",
+    rarity: "uncommon",
+    oracleText:
+        "This land enters tapped.\n{T}: Add {U}.\n{1}{U}: This land becomes a 2/1 blue Faerie creature with flying until end of turn. It's still a land.",
+    manaCost: {},
+    types: ["Land"],
+    entersTapped: true,
+    activatedAbilities: [
+        makeTapForMana({
+            id: "faerie-conclave-mana",
+            oracleText: "{T}: Add {U}.",
+            produces: { U: 1 },
+        }),
+        {
+            id: "faerie-conclave-animate",
+            oracleText:
+                "{1}{U}: This land becomes a 2/1 blue Faerie creature with flying until end of turn. It's still a land.",
+            cost: { mana: { X: 1, U: 1 } },
+            useStack: true,
+            animatesSelf: true,
+            effects: [
+                {
+                    op: "animate",
+                    target: { ref: "$source" },
+                    power: 2,
+                    toughness: 1,
+                    subtype: "Faerie",
+                    colors: ["U"],
+                    grantedAbilities: ["flying"],
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
+        },
+    ],
+};
+
+// Grim Monolith — "This artifact doesn't untap during your untap step.
+// {T}: Add {C}{C}{C}. {4}: Untap this artifact." (CR 502.1 untap
+// restriction, CR 605.1a/605.3a mana ability `useStack: false`.) Identical
+// shape to LEA's Basalt Monolith (`convex/cards/sets/lea/colorless.cards.ts`) — the
+// `{4}: Untap this artifact` ability reuses the same `tapUntap` Op pattern.
+// Vintage Cube free tranche (issue #675, ADR 0041).
+export const grimMonolith: CardDefinition = {
+    id: "9ddc9fe1-17c8-4e1d-aeb8-c4214e881280",
+    rarity: "rare",
+    name: "Grim Monolith",
+    oracleText:
+        "This artifact doesn't untap during your untap step.\n{T}: Add {C}{C}{C}.\n{4}: Untap this artifact.",
+    manaCost: { X: 2 },
+    types: ["Artifact"],
+    staticAbilities: ["does-not-untap"],
+    activatedAbilities: [
+        makeTapForMana({
+            id: "grim-monolith-mana",
+            oracleText: "{T}: Add {C}{C}{C}.",
+            produces: { C: 3 },
+        }),
+        {
+            id: "grim-monolith-untap",
+            oracleText: "{4}: Untap this artifact.",
+            cost: { mana: { X: 4 } },
+            useStack: true,
+            effects: [
+                { op: "tapUntap", action: "untap", target: { ref: "$source" } },
+            ],
+        },
+    ],
+};
+
+// Memory Jar — {5} Artifact (Vintage Cube FREE: edict/discard/hand
+// disruption, issue #682). "{T}, Sacrifice this artifact: Each player exiles
+// all cards from their hand face down and draws seven cards. At the
+// beginning of the next end step, each player discards their hand and
+// returns to their hand each card they exiled this way." (CR 400.7 zone
+// changes, CR 701.20a reveal-adjacent face-down exile, CR 603.7a delayed trigger.)
+//
+// PROTOCOL (`resolve()` — no Op vocabulary gap, a genuine per-player linked-
+// state capability the frozen Effect Script grammar doesn't carry, ADR 0045):
+// (1) [CLOSED by #1279] a WHOLE-ZONE "exile every hand card" now HAS an Op —
+// `moveZone`'s bulk whole-zone shape (no target/cards, issue #1279) moves an
+// entire hand with no selection — but that alone doesn't unblock this card:
+// this is a FACE-DOWN exile — [CLOSED by #3812] the whole-zone shape now
+// takes `faceDown` + `bindAll`, and a `{ select: { set: "bound" } }` capture
+// freezes the exiled ids (Suppress, apc/black.cards.ts); (2) [CLOSED by #3812, same
+// skin]; (3) STILL OPEN, and the reason this stays `resolve()`: the
+// `delayedTrigger` Op's `capture` map resolves ONCE at
+// scheduling (a flat map), but this card needs a DIFFERENT list of exiled ids
+// PER PLAYER, re-associated with that same player at fire time — the
+// list-valued capture grammar (issue #866) has no per-`forEach`-member
+// capture shape. The template `resolve()` path composes only already-shipped
+// primitives
+// (`getHandIds`, `exileFaceDown`, `drawCards`, `moveZone`, `moveCardById`,
+// `scheduleDelayedTrigger`) with a plain comma-joined-ids payload encoding —
+// the legacy template payload is scalar-only (`Record<string, string>`, see
+// `gre/state.ts`'s `resolveTopOfStack`), so a per-player id list is carried as
+// one joined string under a per-player key (`exiled:<playerId>`), the same
+// "note a value for the resume" idiom Jester's Mask uses
+// (`convex/cards/sets/ice/colorless.cards.ts`). `exileFaceDown` gets NO knower
+// (issue #3812): CR 406.3 — a card exiled face down "can't be examined by any
+// player except when instructions allow it", and this one's never do, so not
+// even its owner may look until it comes back.
+const MEMORY_JAR_RETURN_TRIGGER_ID = "memory-jar-return";
+
+export const memoryJar: CardDefinition = {
+    id: "a15d33d6-7213-4482-a1be-ac0a73644af6",
+    name: "Memory Jar",
+    rarity: "rare",
+    oracleText:
+        "{T}, Sacrifice this artifact: Each player exiles all cards from their hand face down and draws seven cards. At the beginning of the next end step, each player discards their hand and returns to their hand each card they exiled this way.",
+    manaCost: { X: 5 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "memory-jar-activate",
+            oracleText:
+                "{T}, Sacrifice this artifact: Each player exiles all cards from their hand face down and draws seven cards. At the beginning of the next end step, each player discards their hand and returns to their hand each card they exiled this way.",
+            cost: { tap: true, sacrifice: true },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                const payload: Record<string, string> = {};
+                for (const pid of ctx.allPlayerIds) {
+                    const handIds = ctx.getHandIds(pid);
+                    for (const id of handIds) {
+                        // Oracle: "exiles all cards from their hand FACE
+                        // DOWN" (CR 406.3) — genuinely face down, and no
+                        // instruction lets anyone look: no knower (#3812).
+                        ctx.exileFaceDown(
+                            pid,
+                            id,
+                            "hand",
+                            null,
+                            "face-down-exile"
+                        );
+                    }
+                    payload[`exiled:${pid}`] = handIds.join(",");
+                    ctx.drawCards(pid, 7);
+                }
+                ctx.scheduleDelayedTrigger(
+                    memoryJar.id,
+                    MEMORY_JAR_RETURN_TRIGGER_ID,
+                    "next-end-step",
+                    payload
+                );
+            },
+        },
+    ],
+    delayedTriggers: [
+        {
+            id: MEMORY_JAR_RETURN_TRIGGER_ID,
+            oracleText:
+                "At the beginning of the next end step, each player discards their hand and returns to their hand each card they exiled this way.",
+            timing: "next-end-step",
+            resolve: (ctx, payload) => {
+                // Oracle order: discard the (drawn) hand FIRST, then return
+                // the exiled cards — a player who exiled nothing and drew
+                // nothing (empty library) simply discards an empty hand.
+                // CR 701.9a — each card goes through the discard chokepoint
+                // (issue #3814), so discard replacements (Library of Leng,
+                // an opponent's Dodecapod) and "whenever you discard"
+                // triggers see it; the cause is this ability's controller.
+                for (const pid of ctx.allPlayerIds) {
+                    for (const id of ctx.getHandIds(pid)) {
+                        ctx.discardCard(pid, id);
+                    }
+                }
+                for (const pid of ctx.allPlayerIds) {
+                    const raw = payload[`exiled:${pid}`];
+                    if (!raw) continue;
+                    for (const id of raw.split(",").filter(Boolean)) {
+                        ctx.moveCardById(pid, id, "exile", "hand");
+                    }
+                }
+            },
+        },
+    ],
+};
+
+// Treetop Village — the ULG "manland" cycle's green member. Three lines:
+//  • "This land enters tapped." (`entersTapped`, the FEM sacrifice-land shape.)
+//  • "{T}: Add {G}." (CR 605.1a/605.3a mana ability, `useStack: false`.)
+//  • "{1}{G}: This land becomes a 3/3 green Ape creature with trample until
+//    end of turn. It's still a land." (CR 611.1 animate — the Mishra's Factory
+//    shape, `atq/colorless.cards.ts`.) The `animate` Op sets the 3/3 base P/T and the
+//    Ape subtype, grants trample (CR 702.19a) and applies the layer-5 colour
+//    set (CR 613.1e — green REPLACES the land's colourlessness, CR 105.3), all
+//    on the same end-of-turn duration so the whole animation reverts together.
+//    No `additionalTypes`: unlike Mishra's Factory this becomes a plain
+//    creature, and "It's still a land" is exactly what `animate` already does
+//    by ADDING the Creature type rather than setting it.
+//
+// hand-tail: {1}{G}: This land becomes a 3/3 green Ape creature with trample until end of turn. It's still a land. (#4195)
+export const treetopVillage: CardDefinition = {
+    id: "02212bd8-0c0f-4e8e-99f1-a8477476c03a",
+    name: "Treetop Village",
+    rarity: "uncommon",
+    oracleText:
+        "This land enters tapped.\n{T}: Add {G}.\n{1}{G}: This land becomes a 3/3 green Ape creature with trample until end of turn. It's still a land.",
+    manaCost: {},
+    types: ["Land"],
+    entersTapped: true,
+    activatedAbilities: [
+        makeTapForMana({
+            id: "treetop-village-mana",
+            oracleText: "{T}: Add {G}.",
+            produces: { G: 1 },
+        }),
+        {
+            id: "treetop-village-animate",
+            oracleText:
+                "{1}{G}: This land becomes a 3/3 green Ape creature with trample until end of turn. It's still a land.",
+            cost: { mana: { X: 1, G: 1 } },
+            useStack: true,
+            animatesSelf: true,
+            effects: [
+                {
+                    op: "animate",
+                    target: { ref: "$source" },
+                    power: 3,
+                    toughness: 3,
+                    subtype: "Ape",
+                    colors: ["G"],
+                    grantedAbilities: ["trample"],
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
+        },
+    ],
+};

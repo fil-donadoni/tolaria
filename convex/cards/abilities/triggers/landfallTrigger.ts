@@ -10,7 +10,7 @@
 // (CR 109.2 — the entering permanent shares the source's controller) and the
 // Land type filter baked in, so every landfall card declares only its id,
 // oracle text and effect. Live consumers: Bristly Bill, Spine Sower
-// (`sets/otj/green.ts`) and Icetill Explorer (`sets/eoe/green.ts`, issue
+// (`sets/otj/green.cards.ts`) and Icetill Explorer (`sets/eoe/green.cards.ts`, issue
 // #1190 — its landfall-mill half; the "play lands from graveyard" half is a
 // separate `graveyardPlayPermission` static declaration, not part of this
 // factory). Other Landfall cards from issue #694 remain tracked stubs

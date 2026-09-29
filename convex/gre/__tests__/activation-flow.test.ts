@@ -20,9 +20,12 @@ import {
     type StackItem,
 } from "../state";
 import { getDefinition, getCardByName, tryGetDefinition } from "../../cards";
-import { tracker } from "../../cards/sets/drk";
+import { tracker } from "../../cards/sets/drk/index.cards";
 import { checkStateBasedActions } from "../sba";
-import { circleOfProtectionRed, lightningBolt } from "../../cards/sets/lea";
+import {
+    circleOfProtectionRed,
+    lightningBolt,
+} from "../../cards/sets/lea/index.cards";
 import {
     oasis,
     pyramids,
@@ -31,10 +34,10 @@ import {
     birdMaiden,
     jandorsRing,
     bazaarOfBaghdad,
-} from "../../cards/sets/arn";
+} from "../../cards/sets/arn/index.cards";
 import type { CardType } from "../../cards/types";
-import { clergyOfTheHolyNimbus } from "../../cards/sets/leg";
-import { ashnodsBattleGear } from "../../cards/sets/atq";
+import { clergyOfTheHolyNimbus } from "../../cards/sets/leg/index.cards";
+import { ashnodsBattleGear } from "../../cards/sets/atq/index.cards";
 import { getEffectivePower, getEffectiveToughness } from "../layers";
 import { untapStep } from "../phases";
 import { applyPendingChoiceSubmit } from "../pendingChoiceSubmit";

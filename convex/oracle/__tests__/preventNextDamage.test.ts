@@ -24,7 +24,7 @@ import { describe, expect, it } from "vitest";
 import { compileCard } from "../compile";
 import { sortKeys } from "../gates";
 import type { OracleCard } from "../types";
-import { oracleCard } from "./fixtures";
+import { oracleCard } from "./oracle.fixture";
 
 const SAMITE_HEALER: OracleCard = {
     oracleId: "95a0ca48-d924-47f4-86ed-42c673ee778c",

@@ -8,7 +8,7 @@
 // creature", "every creature and every player"). Lowered to a PAIR of
 // `forEach` sweeps (one over battlefield creatures, one over players)
 // because `dealDamage.to` / `preventDamage.to` each name ONE recipient, the
-// same shape the hand-written Pestilence writes by hand (`sets/lea/black.ts`).
+// same shape the hand-written Pestilence writes by hand (`sets/lea/black.cards.ts`).
 //
 // Two layers:
 //
@@ -28,7 +28,7 @@ import { compileCard } from "../compile";
 import { sortKeys } from "../gates";
 import { GOLDEN_FIXTURES } from "../grammar/fixtures";
 import type { OracleCard } from "../types";
-import { oracleCard } from "./fixtures";
+import { oracleCard } from "./oracle.fixture";
 
 const THRASHING_WUMPUS: OracleCard = {
     oracleId: "ef220824-fab4-4d8e-9ba4-65ff5ba1db66",
@@ -145,8 +145,8 @@ describe("each creature and each player (CR 120.3) — goldens", () => {
     // dealer and lowers it to `$source`, nothing more. Whether `$source` still
     // resolves once the sacrifice cost has moved the creature off the
     // battlefield is a GRE question, already exercised by the hand-written
-    // cards that print the same shape (`sets/ice/black.ts`, `fem/black.ts`,
-    // `sets/lea/black.ts`) — claiming it here would be a test whose docstring
+    // cards that print the same shape (`sets/ice/black.cards.ts`, `fem/black.cards.ts`,
+    // `sets/lea/black.cards.ts`) — claiming it here would be a test whose docstring
     // covers more than the test does.
     it("dealDamage, 'It' dealer behind a sacrifice cost: Bloodfire Colossus deals 6 (CR 120.1)", () => {
         expect(sortKeys(compiled(BLOODFIRE_COLOSSUS))).toEqual(

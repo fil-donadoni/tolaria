@@ -770,7 +770,7 @@ const colorFilterAnyDescriptor = defineFilter<ReadonlyArray<Color>>({
                 : `Target must be ${value.join(" or ")}`,
         // CR 202.2 / 400.7 (issue #1950 review round 2, MAJOR 4) — the
         // CARD-kind twin: a graveyard-zone "target white or black creature
-        // card" (Dreams of the Dead, `ice/blue.ts`) needs the SAME
+        // card" (Dreams of the Dead, `ice/blue.cards.ts`) needs the SAME
         // OR-over-colors gate a battlefield target already has. Before this,
         // `colorFilterAny` had no `card` check and no `CARD_FILTER_KEYS`
         // entry, so it was silently ignored for a graveyard requirement —
@@ -1889,7 +1889,7 @@ export function lowerPlayerFilters(
 // registered by `PERMANENT_FILTER_KEYS`. `subtypeFilter` / `excludeSubtypes`
 // (issue #1950 review, BLOCKER 2 — Lord of the Undead's "target Zombie card")
 // and `colorFilterAny` (issue #1950 review round 2, MAJOR 4 — Dreams of the
-// Dead's "target white or black creature card", `ice/blue.ts`) close the
+// Dead's "target white or black creature card", `ice/blue.cards.ts`) close the
 // same fail-open class: before each, a `zone: "graveyard"` requirement's
 // filter was silently dropped by BOTH `getLegalTargets` and `selectTarget`
 // (the offered set was wider than the Oracle text and the accepted set

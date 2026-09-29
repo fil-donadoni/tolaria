@@ -888,7 +888,7 @@ function graduate(
     return {
         oracleId: `g-${name}`,
         name,
-        module: "convex/cards/sets/lea/white.ts",
+        module: "convex/cards/sets/lea/white.cards.ts",
         tests: [],
         slots,
         ...over,
@@ -937,7 +937,7 @@ describe("the migration kind — graduates cluster by the rule that unlocked the
             }),
         ]);
         const body = filings[0]!.body(1);
-        expect(body).toContain("convex/cards/sets/lea/white.ts");
+        expect(body).toContain("convex/cards/sets/lea/white.cards.ts");
         expect(body).toContain("convex/cards/__tests__/atqArtifacts.test.ts");
         expect(body).toContain("oracle:retire");
         expect(body).toContain("ADR 0114");

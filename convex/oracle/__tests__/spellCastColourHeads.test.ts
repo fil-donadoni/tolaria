@@ -22,7 +22,7 @@ import type { CompiledTriggeredAbility } from "../../cards/compiledTriggers";
 import { compileCard } from "../compile";
 import { sortKeys } from "../gates";
 import { OTHER_HEADS } from "../grammar/shared/triggerHead";
-import { oracleCard } from "./fixtures";
+import { oracleCard } from "./oracle.fixture";
 
 function abilitiesOf(
     card: ReturnType<typeof oracleCard>

@@ -1,4 +1,4 @@
-// Per-card behavior tests for green cards in `convex/cards/sets/tor/green.ts`
+// Per-card behavior tests for green cards in `convex/cards/sets/tor/green.cards.ts`
 // (Torment, split by colour per ADR 0043). The Madness capability itself is
 // exercised once in `convex/gre/__tests__/madness.test.ts`; here we pin
 // Basking Rootwalla's definition + its once-per-turn pump.
@@ -9,7 +9,7 @@ import {
     makePlayer,
     makeState,
     resolveActivated,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import {
     getEffectivePower,
     getEffectiveToughness,

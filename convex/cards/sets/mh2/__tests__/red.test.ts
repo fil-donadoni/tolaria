@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import type {
     CardInstanceState,
     GameState,
@@ -129,7 +133,7 @@ describe("Fury — targeted triggered ability with divide-as-you-choose (CR 603.
 // Until end of turn, you may cast that card. Dash {1}{R}." The
 // impulse-draw-off-an-opponent protocol (Robber of the Rich precedent) +
 // Dash (already proven by the synthetic probe in gre/__tests__/dash.test.ts
-// and reused by Death-Greeter's Champion, moc/red.ts) — no new Op, so only
+// and reused by Death-Greeter's Champion, moc/red.cards.ts) — no new Op, so only
 // the resolve() closure itself is pinned here per the card testing
 // convention.
 describe("Ragavan, Nimble Pilferer (combat-damage impulse + Dash, CR 702.109a)", () => {

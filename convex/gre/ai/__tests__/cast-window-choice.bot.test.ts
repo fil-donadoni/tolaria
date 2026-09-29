@@ -27,7 +27,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../../cards/__tests__/setup";
+} from "../../../cards/__tests__/setup.helper";
 import {
     discardToGraveyard,
     getPlayer,
@@ -40,10 +40,10 @@ import { enumerateMoves, type Move } from "../../moves";
 import { applyMoveInSearch } from "../../search";
 import { applyMoveForSearch } from "../../applyMove";
 import { CHOICE_TOP_K, choiceCandidates } from "../choiceCandidates";
-import { anjesRavager } from "../../../cards/sets/c19/red";
-import { ephemerate } from "../../../cards/sets/mh1/white";
-import { grizzlyBears } from "../../../cards/sets/lea";
-import { mountain } from "../../../cards/sets/lea";
+import { anjesRavager } from "../../../cards/sets/c19/red.cards";
+import { ephemerate } from "../../../cards/sets/mh1/white.cards";
+import { grizzlyBears } from "../../../cards/sets/lea/index.cards";
+import { mountain } from "../../../cards/sets/lea/index.cards";
 
 /** Discards `cardId` from `playerId`, fires the reflexive madness trigger
  *  through the real post-action trigger scan, and resolves it — leaving the

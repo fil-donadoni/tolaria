@@ -28,7 +28,7 @@ This fails in the dangerous direction only for `isToken: false`.
   5 `landfallTrigger()` call sites under `convex/cards/sets/**` found no
   `filter.isToken` at any of them. The only `isToken: false` uses in the
   catalogue are on `copySourceFilter` / `targetRequirement` / `sacrificeFilter`
-  (`convex/cards/sets/drk/blue.ts:869,882`), which are different filter sites
+  (`convex/cards/sets/drk/blue.cards.ts:869,882`), which are different filter sites
   with correctly-populated subjects.
 
 **Why this matters now.** Before issue #2300 the trap was _unreachable_: token
@@ -39,7 +39,7 @@ every one of these predicates for the first time, so the next card that writes
 
 The four cards that DO need characteristics the payload lacks all work around it
 today by reading the live instance off `state` in a `condition` closure
-(`inv/red.ts:503`, `inv/green.ts:367`, `fem/green.ts:638`, `fem/black.ts:780`)
+(`inv/red.cards.ts:503`, `inv/green.cards.ts:367`, `fem/green.cards.ts:638`, `fem/black.cards.ts:780`)
 — which is exactly the workaround a future author would have to rediscover.
 
 **Why it may not deserve its own issue.** No shipped card is wrong, so this is a

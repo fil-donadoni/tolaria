@@ -1,9 +1,13 @@
-// Per-card behavior tests for black cards in `convex/cards/sets/dmu/black.ts`
+// Per-card behavior tests for black cards in `convex/cards/sets/dmu/black.cards.ts`
 // (Dominaria United, split by colour per ADR 0043). Fixtures stay in
-// `convex/cards/__tests__/setup.ts` — do not duplicate them here.
+// `convex/cards/__tests__/setup.helper.ts` — do not duplicate them here.
 
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import { projectPublicState } from "../../../../gameProjections";
 import {
     type GameState,
@@ -25,7 +29,7 @@ const sheoldredTheApocalypse = getDefinition(
 // CARD_DRAWN event scoped relative to Sheoldred's controller: the "your"
 // clause is an Effect Script (ADR 0045), the "opponents" clause stays
 // imperative because it must act on the DRAWING player, not the controller
-// (see the card-file comment in dmu/black.ts). Both halves need coverage —
+// (see the card-file comment in dmu/black.cards.ts). Both halves need coverage —
 // this describe block is that coverage.
 // ---------------------------------------------------------------------------
 describe("Sheoldred, the Apocalypse (CR 121.1 draw-triggered life swing)", () => {

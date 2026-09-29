@@ -15,7 +15,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import {
     buildDrawEvent,
     drawPlanForOutcome,
@@ -27,8 +27,8 @@ import { applyMayPaySubmit } from "../pendingChoiceSubmit";
 import { advancePhase } from "../phases";
 import { compactState, expandState } from "../serialize";
 import { projectPublicState } from "../../gameProjections";
-import { zursWeirding } from "../../cards/sets/ice/blue";
-import { enduringRenewal } from "../../cards/sets/ice/white";
+import { zursWeirding } from "../../cards/sets/ice/blue.cards";
+import { enduringRenewal } from "../../cards/sets/ice/white.cards";
 import { TREASURE_TOKEN } from "../../cards/sharedTokens";
 
 const bearsId = getCardByName("Balduvian Bears").id;

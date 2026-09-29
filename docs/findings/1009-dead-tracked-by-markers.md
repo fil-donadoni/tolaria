@@ -15,16 +15,16 @@ of every issue any marker cites — 119 distinct numbers across `convex/` and
 `grep -rhoE "tracked-by:? *#[0-9]+" convex/ src/ | grep -oE "[0-9]+" | sort -u`,
 then `gh issue view <n>` per hit:
 
-| Closed issue                                               | Marker sites                                                                                     |
-| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| #782 — hybrid mana residual                                | `convex/cards/sets/iko/multicolor.ts:21`, `:119`                                                 |
-| #1086 — INV White capability gaps                          | `convex/cards/sets/inv/multicolor.ts:1765`                                                       |
-| #1097 — INV Green capability gaps                          | `convex/cards/sets/znr/blue.ts:20`                                                               |
-| #1301 — Emrakul PRD                                        | `convex/limited/capabilityRegistry.ts:92`                                                        |
-| #1435 — resolve()→effects migration gate                   | `convex/cards/sets/atq/colorless.ts:598`, `:1308`, `:1855`, `convex/cards/sets/leg/green.ts:524` |
-| #1980 — land played from exile skips the shock-land choice | `convex/gre/state.ts:12800`, `:13170`                                                            |
-| #2064 — Continuous Effects Registry PRD                    | `convex/cards/sets/atq/colorless.ts:1225`, `convex/cards/sets/atq/green.ts:342`, `:353`          |
-| #2390 — Ninjutsu / Fallen Shinobi                          | `convex/cards/types.ts:13202`                                                                    |
+| Closed issue                                               | Marker sites                                                                                                 |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| #782 — hybrid mana residual                                | `convex/cards/sets/iko/multicolor.cards.ts:21`, `:119`                                                       |
+| #1086 — INV White capability gaps                          | `convex/cards/sets/inv/multicolor.cards.ts:1765`                                                             |
+| #1097 — INV Green capability gaps                          | `convex/cards/sets/znr/blue.cards.ts:20`                                                                     |
+| #1301 — Emrakul PRD                                        | `convex/limited/capabilityRegistry.ts:92`                                                                    |
+| #1435 — resolve()→effects migration gate                   | `convex/cards/sets/atq/colorless.cards.ts:598`, `:1308`, `:1855`, `convex/cards/sets/leg/green.cards.ts:524` |
+| #1980 — land played from exile skips the shock-land choice | `convex/gre/state.ts:12800`, `:13170`                                                                        |
+| #2064 — Continuous Effects Registry PRD                    | `convex/cards/sets/atq/colorless.cards.ts:1225`, `convex/cards/sets/atq/green.cards.ts:342`, `:353`          |
+| #2390 — Ninjutsu / Fallen Shinobi                          | `convex/cards/types.ts:13202`                                                                                |
 
 Three further hits (#123, #999, #1213) are fixture strings inside
 `convex/cards/__tests__/divergenceMarkers.test.ts` and are not real markers.

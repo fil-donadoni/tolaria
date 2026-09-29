@@ -27,13 +27,13 @@ import { tapSourceIntoPayment } from "../../game";
 import { getLegalActions } from "../rules";
 import { getPlayer, createTokenPermanents } from "../state";
 import { ELDRAZI_SPAWN_TOKEN } from "../../cards/sharedTokens";
-import { basalThrull } from "../../cards/sets/fem";
+import { basalThrull } from "../../cards/sets/fem/index.cards";
 import { getCardByName } from "../../cards";
 import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import type { GameState } from "../state";
 
 /** A board with one Eldrazi Spawn token under p1's control, created through the

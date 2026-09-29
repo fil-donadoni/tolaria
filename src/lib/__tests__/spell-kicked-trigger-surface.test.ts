@@ -23,9 +23,9 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "@convex/cards/__tests__/setup";
-import { saprolingInfestation } from "@convex/cards/sets/inv/green";
-import { everflowingChalice } from "@convex/cards/sets/wwk/colorless";
+} from "@convex/cards/__tests__/setup.helper";
+import { saprolingInfestation } from "@convex/cards/sets/inv/green.cards";
+import { everflowingChalice } from "@convex/cards/sets/wwk/colorless.cards";
 
 describe("Saproling Infestation's kicked trigger on the stack (CR 702.33d)", () => {
     it("keeps its ability id and Oracle text through projectPublicState", () => {

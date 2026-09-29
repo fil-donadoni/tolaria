@@ -28,8 +28,8 @@ import {
     makeInstance,
     makePlayer,
     pushSpell,
-} from "../../cards/__tests__/setup";
-import { makeState as makeBareState } from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
+import { makeState as makeBareState } from "../../cards/__tests__/setup.helper";
 import { getCardByName } from "../../cards";
 import { resolveTopOfStack } from "../state";
 import { applyPendingChoiceSubmit } from "../pendingChoiceSubmit";

@@ -28,7 +28,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 
 const COURSER = getCardByName("Courser of Kruphix").id;
 const ICETILL = getCardByName("Icetill Explorer").id;

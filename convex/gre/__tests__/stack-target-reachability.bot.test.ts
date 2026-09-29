@@ -27,15 +27,15 @@
 import { describe, expect, it } from "vitest";
 import { enumerateMoves } from "../moves";
 import { buildActivatedAbilityStackItem } from "../activationCommit";
-import { island } from "../../cards/sets/lea/colorless";
-import { forest } from "../../cards/sets/lea/colorless";
-import { teferisResponse } from "../../cards/sets/inv/blue";
-import { grizzlyBears } from "../../cards/sets/lea/green";
+import { island } from "../../cards/sets/lea/colorless.cards";
+import { forest } from "../../cards/sets/lea/colorless.cards";
+import { teferisResponse } from "../../cards/sets/inv/blue.cards";
+import { grizzlyBears } from "../../cards/sets/lea/green.cards";
 import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import type { GameState } from "../state";
 
 /** p1 (the bot) holds Teferi's Response and priority; p2's Icy Manipulator

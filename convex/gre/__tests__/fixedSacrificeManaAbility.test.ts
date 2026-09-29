@@ -20,7 +20,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import { tapSourceIntoPayment } from "../../game";
 import { getCardByName } from "../../cards";
 import { createTokenPermanents } from "../state";

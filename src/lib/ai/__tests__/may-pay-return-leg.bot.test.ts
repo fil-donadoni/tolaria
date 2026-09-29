@@ -15,14 +15,14 @@
 // This suite proves the whole path actually runs.
 
 import { describe, expect, it } from "vitest";
-import { makePlayer, makeState } from "@convex/cards/__tests__/setup";
+import { makePlayer, makeState } from "@convex/cards/__tests__/setup.helper";
 import type { GameState } from "@convex/gre/state";
 import { projectPublicState } from "@convex/gameProjections";
 import {
     fireReturnLegEtb,
     returnLegLand,
     returnLegProbeInstance,
-} from "@convex/gre/__tests__/fixtures/mayPayReturnLegProbe";
+} from "@convex/gre/__tests__/fixtures/mayPayReturnLegProbe.fixture";
 import { applyMayPaySubmit } from "@convex/gre/pendingChoiceSubmit";
 import { botActionRealisation, chooseOwedChoiceAction } from "../brain";
 import { buildBotView, botActionToMove } from "../bot-view";

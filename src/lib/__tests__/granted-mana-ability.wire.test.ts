@@ -27,9 +27,9 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "@convex/cards/__tests__/setup";
+} from "@convex/cards/__tests__/setup.helper";
 import type { GameState } from "@convex/gre/state";
-import { forest } from "@convex/cards/sets/lea/colorless";
+import { forest } from "@convex/cards/sets/lea/colorless.cards";
 
 // Distinct ids from the GRE-side suite: the two files register into the same
 // process-wide registry when vitest reuses a worker.

@@ -24,8 +24,8 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../cards/__tests__/setup";
-import { grizzlyBears } from "../../cards/sets/lea/green";
+} from "../../cards/__tests__/setup.helper";
+import { grizzlyBears } from "../../cards/sets/lea/green.cards";
 import { compactState, expandState } from "../serialize";
 
 // `sourceId` param is unused by buildSpellContext itself — every call site

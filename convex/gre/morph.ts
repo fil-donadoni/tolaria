@@ -111,7 +111,7 @@ export function isMorphCastId(
  *  def-derived reader (`getColors`, `getPrintedTypes`, `getName`) and every
  *  live-array reader (`types`, `subtypes`) sees the vanilla 2/2.
  *
- *  Without it, Gloom ("White spells cost {3} more to cast", `lea/black.ts`)
+ *  Without it, Gloom ("White spells cost {3} more to cast", `lea/black.cards.ts`)
  *  taxes a face-down Exalted Angel — a colourless spell — and Sapphire Leech /
  *  Aura of Silence are the same shape on colour and card type. The card itself
  *  is NOT mutated: it is still face up in its zone, and only turns face down

@@ -1421,7 +1421,7 @@ function deckOutDelta(
     // mill deck produces and though whose draw comes next really does decide it
     // (CR 504.1). A terminal verdict for it was tried and withdrawn, for two
     // measured reasons: every hand-built fixture in the suite has `library: []`
-    // for both seats (`cards/__tests__/setup.ts`), so it fired on essentially
+    // for both seats (`cards/__tests__/setup.helper.ts`), so it fired on essentially
     // every synthetic board; and terminal bands STACK — a position already lost
     // to `lethalUnblockedDelta` scored −2 × winScore, the exact doubling that
     // term's own history records fighting once already.

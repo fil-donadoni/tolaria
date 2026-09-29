@@ -8,7 +8,11 @@
 // sacrifice layer the mutation runs.
 
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import { finalizeConfirmAttackers } from "../../../../game";
 import type { GameState } from "../../../../gre/state";
 import { getPlayer, resolveTopOfStack } from "../../../../gre/state";

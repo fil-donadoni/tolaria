@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { getAllCards, getDefinition } from "../index";
-import { volcanicIsland } from "../sets/leb";
-import { badlands } from "../sets/lea";
+import { volcanicIsland } from "../sets/leb/index.cards";
+import { badlands } from "../sets/lea/index.cards";
 import type { Rarity } from "../types";
 
 // Per-card Rarity (CR 206) was added to the card model in issue #511 and
@@ -17,8 +17,8 @@ const FOREST_LEA = "6f1c8cb0-38eb-408b-94e8-16db83999b3b";
 
 // "mythic" (CR 206 mythic rare, introduced with Shards of Alara in 2008)
 // joined the `Rarity` union alongside common/uncommon/rare but had no active
-// card exercising it until #674's Griselbrand (avr/black.ts) and Sheoldred,
-// the Apocalypse (dmu/black.ts) — both genuinely Scryfall-mythic.
+// card exercising it until #674's Griselbrand (avr/black.cards.ts) and Sheoldred,
+// the Apocalypse (dmu/black.cards.ts) — both genuinely Scryfall-mythic.
 const VALID_RARITIES: ReadonlySet<Rarity> = new Set([
     "common",
     "uncommon",

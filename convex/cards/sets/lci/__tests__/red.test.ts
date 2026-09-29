@@ -1,13 +1,17 @@
 // LCI red — per-colour card behavior tests (ADR 0043 parallel test file).
 //
 // Inti, Seneschal of the Sun composes ONLY already-exercised constructs
-// (reflexiveTrigger — Minsc & Boo, clb/multicolor.ts; the impulse-draw
+// (reflexiveTrigger — Minsc & Boo, clb/multicolor.cards.ts; the impulse-draw
 // protocol — Ragavan/Robber of the Rich), so this file exists to pin the
 // CARD (both abilities wired together, driven through the real stack), not
 // to re-prove the underlying machinery.
 
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import {
     resolveTopOfStack,
     discardToGraveyard,

@@ -17,11 +17,11 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
-import { scatheZombies } from "../../cards/sets/lea/black";
-import { grizzlyBears } from "../../cards/sets/lea/green";
-import { plains, swamp } from "../../cards/sets/lea/colorless";
-import { jasmineBoreal } from "../../cards/sets/leg/multicolor";
+} from "../../cards/__tests__/setup.helper";
+import { scatheZombies } from "../../cards/sets/lea/black.cards";
+import { grizzlyBears } from "../../cards/sets/lea/green.cards";
+import { plains, swamp } from "../../cards/sets/lea/colorless.cards";
+import { jasmineBoreal } from "../../cards/sets/leg/multicolor.cards";
 import {
     deckColorEvidence,
     deckColorsFor,

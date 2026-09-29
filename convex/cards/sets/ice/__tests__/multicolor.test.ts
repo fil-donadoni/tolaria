@@ -3,7 +3,7 @@
 // cites the CR section it exercises.
 
 import { describe, it, expect } from "vitest";
-import { islandIce, forestIce } from "../../ice";
+import { islandIce, forestIce } from "../../ice/index.cards";
 import { collectAttackSacrificeTax } from "../../../../gre/combat";
 import {
     sacrificeCandidates,
@@ -44,7 +44,7 @@ import {
     pushSpell,
     resolveActivated,
     submitChoice,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import type { GameState } from "../../../../gre/state";
 import type { StackItem } from "../../../../gre/state";
 import type { PendingTarget } from "../../../../gre/state";
@@ -56,7 +56,7 @@ import {
     PHASE_EVENT_EOC,
     makeTargetCreature,
     library,
-} from "./helpers";
+} from "./set.helper";
 
 const balduvianBears = getDefinition("ef5297cb-e763-4871-9cd3-0e2dbcc52095");
 const fireCovenant = getDefinition("6a0139c2-ad86-4c71-ab6d-4840c37d5d20");

@@ -25,7 +25,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../../cards/__tests__/setup";
+} from "../../../cards/__tests__/setup.helper";
 
 /** Build a position from a bare `ScenarioSpec`, reusing the blade harness so
  *  these tests and the blade registry entries describe boards the same way. */

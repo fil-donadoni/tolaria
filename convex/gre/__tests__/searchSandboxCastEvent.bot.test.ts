@@ -24,9 +24,9 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
-import { lightningBolt, mountain } from "../../cards/sets/lea";
-import { grapeshot } from "../../cards/sets/tsp";
+} from "../../cards/__tests__/setup.helper";
+import { lightningBolt, mountain } from "../../cards/sets/lea/index.cards";
+import { grapeshot } from "../../cards/sets/tsp/index.cards";
 import { registerTokenDefinition } from "../../cards";
 import type { CardDefinition } from "../../cards/types";
 

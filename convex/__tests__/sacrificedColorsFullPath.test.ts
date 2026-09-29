@@ -34,7 +34,11 @@ import {
     type PendingTarget,
 } from "../gre/state";
 import { getDefinition } from "../cards/index";
-import { makeInstance, makePlayer, makeState } from "../cards/__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../cards/__tests__/setup.helper";
 import type { Color } from "../cards/types";
 
 const MIND_EXTRACTION = getDefinition("7d77ddcc-e66b-4036-8a55-ec42953918d1");

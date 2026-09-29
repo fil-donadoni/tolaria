@@ -7,7 +7,11 @@
 // shape (enters tapped, dual mana, self-ETB trigger) and one end-to-end
 // surveil resolution through the real trigger → PendingChoice path.
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import type { CardDefinition } from "../../../types";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";

@@ -25,7 +25,7 @@ import type { SlotIR } from "../grammar/ir";
 import { activatedSlot } from "../grammar/slots/activated";
 import { spellSlot } from "../grammar/slots/spell";
 import { triggeredSlot } from "../grammar/slots/triggered";
-import { oracleCard, parseContext } from "./fixtures";
+import { oracleCard, parseContext } from "./oracle.fixture";
 
 /** Compile a card and return its definition, failing the test if refused. */
 function compiled(card: ReturnType<typeof oracleCard>) {

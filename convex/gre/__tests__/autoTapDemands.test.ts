@@ -13,7 +13,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import type { Phase } from "../types";
 
 // Card instance ids → definitions (verified in the set files).

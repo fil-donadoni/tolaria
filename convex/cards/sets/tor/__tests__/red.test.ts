@@ -21,7 +21,11 @@ import {
 } from "../../../../gre/state";
 import type { TargetSelection } from "../../../types";
 import { projectPublicState } from "../../../../gameProjections";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import { getDefinition } from "../../../index";
 
 const grimLavamancer = getDefinition("5dd72697-24be-42c7-a6d9-a837bdbd4662");

@@ -20,7 +20,7 @@
 //      via a bare `abilitiesSuppressedBy.length > 0` check: a grant NEWER
 //      than the suppression survives, one OLDER does not.
 //
-// Splinter Twin (`convex/cards/sets/roe/red.ts`) supplies the grant template
+// Splinter Twin (`convex/cards/sets/roe/red.cards.ts`) supplies the grant template
 // (`grantTemplates: [{ id: "splinter-twin-copy", cost: { tap: true },
 // useStack: true, ... }]`), materialized directly onto
 // `grantedActivatedAbilities` exactly as the `activated-grant` static-effect
@@ -37,7 +37,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import type { CardInstanceState, GameState } from "../state";
 
 const BEAR = getCardByName("Grizzly Bears").id;

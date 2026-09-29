@@ -1,7 +1,7 @@
-// Per-card behavior tests for blue cards in `convex/cards/sets/lea/blue.ts`
+// Per-card behavior tests for blue cards in `convex/cards/sets/lea/blue.cards.ts`
 // (LEA, split by colour per ADR 0043). Each non-trivial card gets a describe
 // block citing the CR section it exercises. Shared stack/resolve shims live in
-// ./helpers; fixture builders stay in convex/cards/__tests__/setup.ts.
+// ./helpers; fixture builders stay in convex/cards/__tests__/setup.helper.ts.
 
 import { describe, it, expect } from "vitest";
 import {
@@ -50,7 +50,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import {
     BEARS,
     SERRA,
@@ -59,7 +59,7 @@ import {
     driveCopyChoiceAnswer,
     grizzlyBearsId,
     runUntapForJ,
-} from "./helpers";
+} from "./set.helper";
 import { getDefinition } from "../../../index";
 const animateArtifact = getDefinition("664b46f5-0424-4f4e-9f26-6bd2cf5e0357");
 const badMoon = getDefinition("43572906-ea74-4411-a549-5dc401591d2a");
@@ -129,7 +129,7 @@ const volcanicEruption = getDefinition("a80582b1-09db-45f8-b362-0e5207a5a8e6");
 const wallOfSwords = getDefinition("99ec4723-b36c-4015-b361-736a6523e8f5");
 const wallOfWater = getDefinition("41faed1a-ded8-49ee-8e2a-c60d377775d7");
 const wildGrowth = getDefinition("fd896dfa-66c0-4327-8e5b-489bbe350c95");
-import { wireCharacteristicsOf } from "../../../__tests__/setup";
+import { wireCharacteristicsOf } from "../../../__tests__/setup.helper";
 import { textChangesOf } from "../../../../gre/textChanges";
 
 describe("Volcanic Eruption ({X}{U}{U}{U} — destroy X target Mountains, deal that many to each creature/player, CR 107.3 / 205.3 / 614.5 / 120.3)", () => {

@@ -20,13 +20,16 @@ import {
     getDefinition,
     registerTokenDefinition,
 } from "../../../cards";
-import { blizzard, snowCoveredForest } from "../../../cards/sets/ice";
+import {
+    blizzard,
+    snowCoveredForest,
+} from "../../../cards/sets/ice/index.cards";
 import {
     makeInstance,
     makePlayer,
     makeState,
     pushSpell,
-} from "../../../cards/__tests__/setup";
+} from "../../../cards/__tests__/setup.helper";
 import {
     resolveTopOfStack,
     moveCard,
@@ -96,9 +99,9 @@ import type { GameEvent } from "../../../cards/types";
 import { backupTrigger } from "../../../cards/abilities/triggers/backupTrigger";
 import { counterAddedTrigger } from "../../../cards/abilities/triggers/counterAddedTrigger";
 import { spellCastTrigger } from "../../../cards/abilities/triggers/spellCastTrigger";
-import { flight } from "../../../cards/sets/lea/blue";
+import { flight } from "../../../cards/sets/lea/blue.cards";
 import { continuousEffectsInLayer } from "../../continuousEffects";
-import { grantedKeywordRows } from "../../../cards/__tests__/setup";
+import { grantedKeywordRows } from "../../../cards/__tests__/setup.helper";
 
 /** Registers a synthetic DSL-only sorcery under a stable test id. Uses the
  *  registry's injection seam (`registerTokenDefinition` — idempotent
@@ -1019,7 +1022,7 @@ describe("Effect Script construct: forEach { set: 'graveyard' }, simultaneous (C
     // ONE call — every reanimated permanent stages onto the battlefield (and
     // a reanimated Aura resolves its CR 303.4c host) BEFORE any of them runs
     // its grant-application / ETB pass. This is Replenish's REAL shape
-    // (`convex/cards/sets/uds/white.ts`). New construct combination → full
+    // (`convex/cards/sets/uds/white.cards.ts`). New construct combination → full
     // test regime (interpreter unit + wire-format assertion).
     const ENCH_ID = "test-effects-simul-enchantment";
     registerTokenDefinition({
@@ -10182,7 +10185,7 @@ describe("EffectCardFilter.hasAbility (CR 702, issue #1097)", () => {
     // apply time (`beginApplyingStaticEffects`, `gre/state.ts`) rather than
     // computed at read time, so no separate "effective abilities" helper is
     // needed. Per the per-Op regime, this is the FIELD's own test (a new
-    // `EffectCardFilter` clause); Canopy Surge (issue #1097, `inv/green.ts`)
+    // `EffectCardFilter` clause); Canopy Surge (issue #1097, `inv/green.cards.ts`)
     // reuses it for free.
     const FLYER_ID = "test-effects-flyer";
     registerTokenDefinition({
@@ -10428,7 +10431,7 @@ describe("EffectCardFilter.excludeAbility (CR 702.9a, issue #4310)", () => {
 // EffectCardFilter.isAttacking (CR 508.1, issue #1097) — `hasAbility`'s
 // combat-role sibling above, but paired with a genuinely NEW construct
 // combination (`forEach` + `isAttacking` feeding `skipNextUntap` via `{ ref:
-// "$each" }`, Tangle, `inv/green.ts`) — the per-Op regime's own permanent
+// "$each" }`, Tangle, `inv/green.cards.ts`) — the per-Op regime's own permanent
 // test for that combination, distinct from a hand-written per-card test.
 describe("EffectCardFilter.isAttacking (CR 508.1, issue #1097)", () => {
     it('arms skipNextUntap on a creature that IS attacking but NOT one that is not ("forEach" construct)', () => {
@@ -10549,7 +10552,7 @@ describe("EffectCardFilter.isAttacking (CR 508.1, issue #1097)", () => {
 
 describe("Effect Script Op: animate (CR 208.2 / 611.1, issue #1317)", () => {
     // A LAND (not the BEAR_ID creature fixture) becomes a creature — the
-    // canonical Earthbend N shape (Badgermole Cub, tla/green.ts): base 0/0,
+    // canonical Earthbend N shape (Badgermole Cub, tla/green.cards.ts): base 0/0,
     // subtype "Elemental", haste granted, no `duration` (CR 611.2b —
     // indefinite). Effective P/T is asserted AFTER a follow-up `counters` Op
     // (issue #841, already-exercised) puts a +1/+1 counter on it, mirroring
@@ -12116,7 +12119,7 @@ describe("Effect Script Op: createToken (CR 111 / 701.7, issue #847)", () => {
 // `activatedAbilities[]` (Investigate's Clue: "{2}, Sacrifice this token:
 // Draw a card."). New capability of the EXISTING `createToken` Op, not a new
 // Op — see `convex/cards/abilities/tokens/clueToken.ts` for the shared spec
-// Tireless Tracker (soi/green.ts) uses.
+// Tireless Tracker (soi/green.cards.ts) uses.
 describe("Effect Script Op: createToken with token.activatedAbilities (CR 707.2, issue #1191)", () => {
     const clueSpec = (): EffectOp => ({
         op: "createToken",
@@ -12227,7 +12230,7 @@ describe("Effect Script Op: createToken with token.activatedAbilities (CR 707.2,
 // (CR 601.2b). New capability of the EXISTING `createToken` Op (mirrors
 // `destroy`/`exile`/`moveZone`'s own `bind`, "generalize, don't add"), not a
 // new Op — Cori-Steel Cutter's "create a 1/1 white Monk creature token with
-// prowess. You may attach this Equipment to it." (tdm/red.ts).
+// prowess. You may attach this Equipment to it." (tdm/red.cards.ts).
 describe("Effect Script Op: createToken bind + attach (CR 111 / 701.3, issue #1202)", () => {
     const EQUIP_ID = "test-op-createtoken-bind-equip";
     registerTokenDefinition({
@@ -16207,7 +16210,7 @@ describe("Effect Script Op: mayPay dynamic ENERGY cost (energyEqualTo, issue #11
 // Op: mayPay with a dynamically-derived GENERIC MANA cost (the FOURTH cost
 // shape, `DynamicMayPayGenericManaCost`: `{ genericEqualTo: EffectValue }`) —
 // "pay {1} for each <runtime tally>". Circular Logic's exact shape
-// (`tor/blue.ts`): the tally reuses the EXISTING `count` EffectValue member,
+// (`tor/blue.cards.ts`): the tally reuses the EXISTING `count` EffectValue member,
 // resolved through the SAME `resolveValue` every other numeric Op parameter
 // uses. Its reason to be its own shape rather than a `reducedBy` is that the
 // amount is BUILT, not reduced — `reduceGenericMana` only ever subtracts.
@@ -18811,7 +18814,7 @@ describe("Effect Script Op: delayedTrigger LIST capture (combatPartners, CR 509.
 // snapshot binding is produced the same way regardless of which family
 // supplied the member set. This test drives the pattern the widened validator
 // unblocks — Frantic Search's "untap up to three lands" (`convex/cards/sets/
-// ulg/blue.ts`) — through the REAL resolution path: a `choice(kind:
+// ulg/blue.cards.ts`) — through the REAL resolution path: a `choice(kind:
 // "choose-permanents")` picks a subset of the caster's lands, and the
 // following `forEach { set: "bound" }` consumes that PICKS binding directly
 // (no intervening list-family capture) to untap each pick.
@@ -33248,7 +33251,7 @@ describe("Effect Script Op: moveZone — positional graveyard shape (CR 404.3, i
 // `moveZone` shape — `target: { exiledWithSource: true }` (the existing
 // `EffectExiledWithSourceSelector`, previously wired only into
 // `castDuringResolution`) plus its sibling `filter`. Emperor of Bones
-// (`mh3/black.ts`) is the first card consumer.
+// (`mh3/black.cards.ts`) is the first card consumer.
 describe("Effect Script Op: moveZone — linkToSource + exiledWithSource shape (CR 607, issue #1319/#1323)", () => {
     it("linkToSource stamps the exiled card as findable via getCardsExiledWith", () => {
         const id = registerScript("test-op-movezone-link-target", [
@@ -33476,7 +33479,7 @@ describe("Effect Script Op: moveZone — linkToSource + exiledWithSource shape (
     });
 
     // The `filter` on this shape is LOAD-BEARING on the shipped consumer:
-    // Emperor of Bones' exile clause (`mh3/black.ts`) exiles "up to one
+    // Emperor of Bones' exile clause (`mh3/black.cards.ts`) exiles "up to one
     // target CARD from a graveyard" — ANY card, not just a creature — so a
     // fail-open filter here would put a linked Lightning Bolt onto the
     // battlefield instead of skipping past it. Mirrors the FIFTH

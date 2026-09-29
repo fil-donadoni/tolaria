@@ -37,7 +37,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import { getDefinition } from "../../../index";
 
 const dackFayden = getDefinition("3fcb7810-1054-4001-855c-6e17939b3d3f");

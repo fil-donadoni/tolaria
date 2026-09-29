@@ -11,7 +11,7 @@ import { getLegalTargets, NO_TARGETING_SOURCE } from "../../gre/rules";
 import { projectPublicState } from "../../gameProjections";
 import { excludeHandWritten } from "../compiledCatalogue";
 import type { CardDefinition } from "../types";
-import { makeInstance, makePlayer, makeState, pushSpell } from "./setup";
+import { makeInstance, makePlayer, makeState, pushSpell } from "./setup.helper";
 
 /**
  * Compiled-card hydration through the single registry seam (issue #2702,

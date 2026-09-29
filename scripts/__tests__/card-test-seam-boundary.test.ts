@@ -37,8 +37,8 @@ import { tryGetDefinition } from "../../convex/cards";
  * that starts doing so needs this test taught about it, not an allowlist row.
  *
  * The scan covers every `.ts` under a set `__tests__` directory, not only
- * `*.test.ts`: `mh2/__tests__/urzasSagaFixtures.ts`, `bng/__tests__/courserBoard.ts`
- * and `war/__tests__/citadelBoard.ts` each build the board for the card their
+ * `*.test.ts`: `mh2/__tests__/urzasSagaFixtures.fixture.ts`, `bng/__tests__/courserBoard.fixture.ts`
+ * and `war/__tests__/citadelBoard.fixture.ts` each build the board for the card their
  * sibling test file is ABOUT, so an import there dies on retirement exactly
  * like an import in the test file itself.
  *

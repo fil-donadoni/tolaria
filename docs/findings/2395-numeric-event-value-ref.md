@@ -7,7 +7,7 @@ confidence: medium
 
 **What is wrong.** Questing Beast's fourth clause — "it deals **that much** damage to target
 planeswalker that player controls" — could not be authored as an Effect Script
-and shipped as `resolve()` instead (`convex/cards/sets/eld/green.ts`, with the
+and shipped as `resolve()` instead (`convex/cards/sets/eld/green.cards.ts`, with the
 `// protocol card:` justification the rules require).
 
 **Evidence.** The blocker is not a missing Op. `dealDamage` exists; what is missing is a way
@@ -26,9 +26,9 @@ for `dealDamage.amount` to read the **firing event's damage amount**:
 
 **Why it may not deserve its own issue.** Three shipped cards already sit in exactly this hole and are explicitly
 documented as "planned-migratable pending a triggering-event value ref" —
-Jackal Pup (`convex/cards/sets/tmp/red.ts:80-88`, which states the gap in so
-many words), El-Hajjâj (`convex/cards/sets/arn/black.ts`) and Living Artifact
-(`convex/cards/sets/lea/green.ts`). So this is a **known** gap with a working
+Jackal Pup (`convex/cards/sets/tmp/red.cards.ts:80-88`, which states the gap in so
+many words), El-Hajjâj (`convex/cards/sets/arn/black.cards.ts`) and Living Artifact
+(`convex/cards/sets/lea/green.cards.ts`). So this is a **known** gap with a working
 escape hatch, not a surprise, and the population it unblocks is small.
 Closing it
 means a new `EffectValue` member plus a family widening across

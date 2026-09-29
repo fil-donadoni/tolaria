@@ -8,7 +8,11 @@
 // `activateAbilityOnState`, `projectPublicState`); none reads definition
 // fields back at itself.
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import type {
     CardInstanceState,
     GameState,

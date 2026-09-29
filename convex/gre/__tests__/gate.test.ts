@@ -10,7 +10,7 @@
 
 import { describe, expect, it } from "vitest";
 import { assertExpectedInput, refreshExpectedInput } from "../expectedInput";
-import { makeState } from "../../cards/__tests__/setup";
+import { makeState } from "../../cards/__tests__/setup.helper";
 import { projectPublicState } from "../../gameProjections";
 import type { GameState, PendingChoice } from "../state";
 

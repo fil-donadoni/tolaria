@@ -9,7 +9,7 @@
 // the stack item here comes out of the real projection.
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, cleanup, fireEvent, act } from "@testing-library/react";
-import { makeInstance, makeState } from "@convex/cards/__tests__/setup";
+import { makeInstance, makeState } from "@convex/cards/__tests__/setup.helper";
 import { getCardByName } from "@convex/cards";
 import { projectPublicState } from "@convex/gameProjections";
 import type {

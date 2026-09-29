@@ -29,9 +29,9 @@ import {
     makeState,
     makePlayer,
     makeInstance,
-} from "../../cards/__tests__/setup";
-import { phyrexianDreadnought } from "../../cards/sets/mir/colorless";
-import { stifle } from "../../cards/sets/scg/blue";
+} from "../../cards/__tests__/setup.helper";
+import { phyrexianDreadnought } from "../../cards/sets/mir/colorless.cards";
+import { stifle } from "../../cards/sets/scg/blue.cards";
 import { applyBladeSetup } from "../ai/blade";
 
 const SEED = 0xc0ffee;

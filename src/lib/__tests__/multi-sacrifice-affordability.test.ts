@@ -16,9 +16,9 @@
 
 import { describe, it, expect } from "vitest";
 import type { CardDefinition } from "@convex/cards/types";
-import { bolassCitadel } from "@convex/cards/sets/war/black";
-import { grizzlyBears } from "@convex/cards/sets/lea";
-import { mountain } from "@convex/cards/sets/lea/colorless";
+import { bolassCitadel } from "@convex/cards/sets/war/black.cards";
+import { grizzlyBears } from "@convex/cards/sets/lea/index.cards";
+import { mountain } from "@convex/cards/sets/lea/colorless.cards";
 import type { CardInstance } from "../../types/game";
 import { buildTriggerStateView, getStackAbilities } from "../card-utils";
 

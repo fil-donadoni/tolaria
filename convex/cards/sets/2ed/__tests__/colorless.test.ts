@@ -15,7 +15,7 @@ import {
     lightningBolt2ed,
     volcanicIsland2ed,
     circleOfProtectionBlack2ed,
-} from "..";
+} from "../index.cards";
 import {
     getDefinition,
     getPrintingsForCard,

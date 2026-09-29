@@ -14,20 +14,24 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../cards/__tests__/setup";
-import { plains } from "../cards/sets/lea/colorless";
-import { crawWurm } from "../cards/sets/lea/green";
-import { lightningBolt } from "../cards/sets/lea/red";
-import { captainsManeuver } from "../cards/sets/apc/multicolor";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../cards/__tests__/setup.helper";
+import { plains } from "../cards/sets/lea/colorless.cards";
+import { crawWurm } from "../cards/sets/lea/green.cards";
+import { lightningBolt } from "../cards/sets/lea/red.cards";
+import { captainsManeuver } from "../cards/sets/apc/multicolor.cards";
 import { announceCast, selectTargets } from "../game";
 import {
     gameStateSeed,
     makeMutationCtx,
     runMutation,
     type Handler,
-} from "./gameMutationHarness";
+} from "./gameMutationHarness.fixture";
 import type { Id } from "../_generated/dataModel";
-import { pushSpell } from "../cards/__tests__/setup";
+import { pushSpell } from "../cards/__tests__/setup.helper";
 import { resolveTopOfStack, type GameState } from "../gre/state";
 import { projectPublicState } from "../gameProjections";
 

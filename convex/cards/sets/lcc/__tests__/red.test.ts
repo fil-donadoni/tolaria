@@ -19,7 +19,11 @@
 // with the interpreter, per the per-Op regime.
 
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import { assertActivationTimingLegal } from "../../../../game";
 import { applyActivationCostsForSearch } from "../../../../gre/applyMove";
 import { buildActivatedAbilityStackItem } from "../../../../gre/activationCommit";

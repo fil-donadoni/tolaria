@@ -609,9 +609,9 @@ Regole non negoziabili:
   `no-restricted-imports` lo impone; i test sono esenti;
 - **lo split per colore** (ADR 0043) esiste per rendere parallelizzabile il lavoro
   su un set senza conflitti di merge;
-- il file di test di un colore è **parallelo** al modulo: `sets/lea/red.ts` →
+- il file di test di un colore è **parallelo** al modulo: `sets/lea/red.cards.ts` →
   `sets/lea/__tests__/red.test.ts`;
-- le fixture condivise stanno in `convex/cards/__tests__/setup.ts`
+- le fixture condivise stanno in `convex/cards/__tests__/setup.helper.ts`
   (`makeInstance`, `makePlayer`, `makeState`, `pushSpell`). Non si duplicano.
 
 ### 6.5 Art di token ed emblemi
@@ -1204,7 +1204,7 @@ convex/
 │   ├── types.ts            CardDefinition, SpellContext, EffectOp, …
 │   ├── mechanicsRegistry.ts autorità sui nomi di meccaniche e Op
 │   ├── emblems.ts sharedTokens.ts filters.ts
-│   └── sets/<code>/<colour>.ts
+│   └── sets/<code>/<colour>.cards.ts
 ├── gre/
 │   ├── state.ts            GameState + la maggior parte delle primitive (~17k righe)
 │   ├── activation.ts       CR 602 puro: attivazione + pagamento costi (#3479)

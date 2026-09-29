@@ -17,20 +17,20 @@ one and not the other silently misses half the shields.
   `:2009` (`{ sourceInstanceId, playerId, duration }`), written by
   `SpellContext.preventNextDamageFromSource` (`convex/cards/types.ts:4860`,
   impl `convex/gre/state.ts:15574`). Consumers: the Circle of Protection
-  mechanism — `convex/cards/sets/ice/colorless.ts:1290`,
-  `convex/cards/sets/ice/white.ts:1725`, shared template
+  mechanism — `convex/cards/sets/ice/colorless.cards.ts:1290`,
+  `convex/cards/sets/ice/white.cards.ts:1725`, shared template
   `convex/cards/abilities/index.ts:543`.
 - `playerDamagePrevention?: PlayerDamagePreventionShield[]` —
   `convex/gre/state.ts:4762`, type at `:2048`, written by
   `SpellContext.addPlayerDamagePreventionShield`
   (`convex/cards/types.ts:4898`, impl `convex/gre/state.ts:15694`). Consumers:
-  Dark Sphere and Scarecrow — `convex/cards/sets/drk/colorless.ts:127-160`,
+  Dark Sphere and Scarecrow — `convex/cards/sets/drk/colorless.cards.ts:127-160`,
   `:349-380`.
 
 `PreventionEffect` is exactly
 `addPlayerDamagePreventionShield(playerId, { sourceInstanceId }, "all", duration, 1)`.
 The narrower field predates the general one: the DRK batch note
-(`convex/cards/sets/drk/colorless.ts:16-18`) records the general shield arriving
+(`convex/cards/sets/drk/colorless.cards.ts:16-18`) records the general shield arriving
 as one of "four small, orthogonal engine primitives … added for this batch",
 with no pass to fold the older field into it.
 

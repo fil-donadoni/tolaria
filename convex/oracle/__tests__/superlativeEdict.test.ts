@@ -26,14 +26,14 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import { projectPublicState } from "../../gameProjections";
 import { applyPendingChoiceSubmit } from "../../gre/pendingChoiceSubmit";
 import { getPlayer, resolveTopOfStack } from "../../gre/state";
 import { compileCard } from "../compile";
 import { sortKeys } from "../gates";
 import type { OracleCard } from "../types";
-import { oracleCard } from "./fixtures";
+import { oracleCard } from "./oracle.fixture";
 
 const SOUL_SHATTER: OracleCard = {
     oracleId: "615927c2-3fb0-4e64-a1a7-55fb56de1423",

@@ -60,7 +60,7 @@ const appliesToBestowedSelf = (
  *  printed bestow card is an Enchantment Creature (CR 702.103b's "it becomes an
  *  Aura enchantment" has nothing to add to a card that is already an
  *  enchantment), and because layer 4's static-effect vocabulary has a type
- *  removal — the one the reconfigure cards already use (`neo/white.ts`) — while
+ *  removal — the one the reconfigure cards already use (`neo/white.cards.ts`) — while
  *  a wholesale type SET is a resolved-spell ledger (`typeLineHolds`), not a
  *  static ability's to declare. */
 export const BESTOW_STATIC_EFFECTS: readonly StaticEffect[] = [

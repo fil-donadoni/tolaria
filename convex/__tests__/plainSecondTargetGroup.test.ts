@@ -20,8 +20,12 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../cards/__tests__/setup";
-import { grizzlyBears } from "../cards/sets/lea/green";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../cards/__tests__/setup.helper";
+import { grizzlyBears } from "../cards/sets/lea/green.cards";
 import { withTemporaryDefinitionAsync } from "../cards";
 import type { CardDefinition } from "../cards/types";
 import { announceCast, confirmTargets, selectTargets } from "../game";
@@ -30,13 +34,13 @@ import {
     makeMutationCtx,
     runMutation,
     type Handler,
-} from "./gameMutationHarness";
+} from "./gameMutationHarness.fixture";
 import type { Id } from "../_generated/dataModel";
 import { resolveTopOfStack, type GameState } from "../gre/state";
 import { getEffectivePower, getEffectiveToughness } from "../gre/layers";
 import { projectPublicState } from "../gameProjections";
 import { compileCard } from "../oracle/compile";
-import { oracleCard } from "../oracle/__tests__/fixtures";
+import { oracleCard } from "../oracle/__tests__/oracle.fixture";
 
 const SPELL = "warp-1";
 const BASE = { gameId: "game-1" as Id<"games">, playerId: "p1" };

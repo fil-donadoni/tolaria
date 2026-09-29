@@ -19,7 +19,7 @@ supplied only by `applyActivationCostsForSearch`'s exile branch
 sacrifice branch immediately above it (`activationSacrificeVictims` →
 `removePermanentTo(state, id, "graveyard", "sacrifice")`) records nothing, and
 the comment at the push site now says so explicitly. Affected shipped cards:
-Priest of Yawgmoth (`convex/cards/sets/atq/black.ts` — "add {B} equal to the
+Priest of Yawgmoth (`convex/cards/sets/atq/black.cards.ts` — "add {B} equal to the
 sacrificed artifact's mana value") and Freyalise Supplicant, which reads
 `getAdditionalSacrificePower()`.
 

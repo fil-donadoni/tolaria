@@ -25,10 +25,10 @@ object (three wrapped methods, `requestMayPay` absent); `recallChoice` in
 `convex/gre/state.ts` (first-suffix-match fallback). Ten shipped card sites put
 a `mayPay` inside a `forEach` body:
 
-- `convex/cards/sets/inv/multicolor.ts`, `convex/cards/sets/inv/green.ts` (x2)
-- `convex/cards/sets/ulg/blue.ts`
-- `convex/cards/sets/atq/colorless.ts`
-- `convex/cards/sets/lea/colorless.ts` (x3), `convex/cards/sets/lea/green.ts` (x2)
+- `convex/cards/sets/inv/multicolor.cards.ts`, `convex/cards/sets/inv/green.cards.ts` (x2)
+- `convex/cards/sets/ulg/blue.cards.ts`
+- `convex/cards/sets/atq/colorless.cards.ts`
+- `convex/cards/sets/lea/colorless.cards.ts` (x3), `convex/cards/sets/lea/green.cards.ts` (x2)
 
 Each needs checking individually: a body whose mayPay is offered to the SAME
 player every iteration is unaffected, and one whose `if` happens to be

@@ -16,7 +16,7 @@ cross-player cast permission is the OWNER:
   "only during an opponent's turn") against `card.controllerId`, so a card cast
   from an opponent's zone is gated on the OWNER's turn — exactly inverted for
   the two "only during an opponent's turn" subjects. Four shipped cards declare
-  it (`ice/red.ts`, `lea/blue.ts` ×2, `leg/blue.ts`).
+  it (`ice/red.cards.ts`, `lea/blue.cards.ts` ×2, `leg/blue.cards.ts`).
 - **Cost reduction.** `getCostModifiers`' SPELL arm resolves
   `selfCostReduction` ("costs {1} less to cast for each X you control", 14
   shipped cards) against `card.controllerId`, so the discount counts the

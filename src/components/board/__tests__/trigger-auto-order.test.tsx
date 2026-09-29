@@ -10,7 +10,7 @@
 // actually handed.
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { render, cleanup, fireEvent, act } from "@testing-library/react";
-import { makeInstance, makeState } from "@convex/cards/__tests__/setup";
+import { makeInstance, makeState } from "@convex/cards/__tests__/setup.helper";
 import { getCardByName } from "@convex/cards";
 import { turnFaceDown } from "@convex/gre/faceDown";
 import { NO_BOARD_LAYER_VIEW } from "@convex/gre/layers";

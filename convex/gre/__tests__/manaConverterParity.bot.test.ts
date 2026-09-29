@@ -56,7 +56,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import { planManaPayment, type ManaTap } from "../moves";
 import { getLegalActions } from "../rules";
 import { getInstanceManaCost } from "../../cards";
@@ -75,10 +75,10 @@ import {
     moxSapphire,
     plains,
     solRing,
-} from "../../cards/sets/lea";
-import { ornithopter } from "../../cards/sets/atq";
-import { farrelitePriest } from "../../cards/sets/fem";
-import { urzaLordHighArtificer } from "../../cards/sets/mh1";
+} from "../../cards/sets/lea/index.cards";
+import { ornithopter } from "../../cards/sets/atq/index.cards";
+import { farrelitePriest } from "../../cards/sets/fem/index.cards";
+import { urzaLordHighArtificer } from "../../cards/sets/mh1/index.cards";
 
 /** Mixed pool: the converter (Urza), artifacts it can and cannot usefully tap
  *  (a blue Mox, an off-colour Mox, a colourless rock, a 0/2 with no mana

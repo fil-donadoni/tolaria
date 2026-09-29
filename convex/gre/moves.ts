@@ -3954,7 +3954,7 @@ function enumerateCastMovesFromZone(
         // `announceCast` and `getLegalActions` price against, so the tap plan
         // and the charged total cannot disagree. This was previously written
         // off as unreachable in the shipped pool; it is not — Gloom
-        // (`lea/black.ts`) keys on colour, which a face-down spell loses, and
+        // (`lea/black.cards.ts`) keys on colour, which a face-down spell loses, and
         // taxed a face-down Exalted Angel {3}.
         const morphModifiers = getCostModifiers(
             state,

@@ -15,9 +15,9 @@ convention is closure-on-card-#1, shared helper on card-#2 (CLAUDE.md /
 
 **Evidence.**
 
-- `convex/cards/sets/rtr/green.ts:99-155` — `worldspineWurmShuffleFromGraveyard`
-- `convex/cards/sets/mbs/colorless.ts:48-99` — `blightsteelColossusShuffleFromGraveyard`
-- `convex/cards/sets/roe/colorless.ts` — `emrakulShuffleGraveyardFromAnywhere` (this PR)
+- `convex/cards/sets/rtr/green.cards.ts:99-155` — `worldspineWurmShuffleFromGraveyard`
+- `convex/cards/sets/mbs/colorless.cards.ts:48-99` — `blightsteelColossusShuffleFromGraveyard`
+- `convex/cards/sets/roe/colorless.cards.ts` — `emrakulShuffleGraveyardFromAnywhere` (this PR)
 
 The duplication is the CONDITION half only. A
 `graveyardFromAnywhereTrigger({ id, oracleText, effects })` factory in

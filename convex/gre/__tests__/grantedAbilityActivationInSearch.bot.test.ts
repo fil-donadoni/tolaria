@@ -35,7 +35,7 @@
 // enumeration, exactly like the mana-ability fixture in
 // `activationPayoffInSearch.bot.test.ts`.
 //
-// Splinter Twin (`convex/cards/sets/roe/red.ts`) is the fixture: a real
+// Splinter Twin (`convex/cards/sets/roe/red.cards.ts`) is the fixture: a real
 // `grantTemplates` card, granted via the `activated-grant` static-effect
 // mechanism (CR 113.1). Nothing under test reads the card's name — the grant
 // is materialized directly onto the permanent's `grantedActivatedAbilities`
@@ -52,7 +52,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import type { CardInstanceState, GameState } from "../state";
 
 const BEAR = getCardByName("Grizzly Bears").id;

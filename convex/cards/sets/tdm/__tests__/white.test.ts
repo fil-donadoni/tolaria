@@ -13,7 +13,11 @@
 // her +1 knows about her static — the doubling has to fall out of the shared
 // seam, and a test that hand-built the doubled count would prove nothing.
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import type { GameState } from "../../../../gre/state";
 import {
     createTokenPermanents,

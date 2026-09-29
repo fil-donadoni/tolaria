@@ -27,7 +27,7 @@ the lockfile and each fix changes a card's behaviour.
 
 **Evidence.**
 
-1. **Northern Paladin** (`convex/cards/sets/lea/white.ts`) — Oracle:
+1. **Northern Paladin** (`convex/cards/sets/lea/white.cards.ts`) — Oracle:
    `"{W}{W}, {T}: Destroy target black permanent."` The hand-written
    `targetRequirement` is `{ colorFilter: "B", count: 1, type: "Creature" }`.
    CR 109.1 / 300.1: a permanent is any of the six permanent card types, so the
@@ -48,7 +48,7 @@ the lockfile and each fix changes a card's behaviour.
    ability and must not use the stack (CR 605.3a).
 
     **This one is a DELIBERATE, documented deviation, not a defect — do NOT
-    "fix" it by flipping `useStack`.** `convex/cards/sets/atq/red.ts:163-180`
+    "fix" it by flipping `useStack`.** `convex/cards/sets/atq/red.cards.ts:163-180`
     carries a box comment naming the exact reason: the engine's non-stack mana
     path has no step that pays a `sacrificeFilter`, so the card is modelled on
     the stack to reuse the sacrifice-choice machinery, at the known price that

@@ -14,7 +14,7 @@ move list is `["pass"]` only, at every priority window.
 **Evidence.** `convex/gre/moves.ts:1239` (inside the ability-enumeration
 loop): `if (ability.canActivate || ability.getTargetRequirement) continue;` —
 any activated ability declaring a `getTargetRequirement` closure is skipped
-outright. Giver of Runes (`convex/cards/sets/mh1/white.ts`) declares exactly
+outright. Giver of Runes (`convex/cards/sets/mh1/white.cards.ts`) declares exactly
 that (`getTargetRequirement: (source) => ({ ..., excludeInstanceIds:
 [source.id] })`, for CR 109.2's "another" exclusion), so it is
 structurally invisible to the search. The skip is documented as deliberate
@@ -29,7 +29,7 @@ a SECOND card built on the shared `protectionColorModes` seam to prove the fix
 lives at the seam and not in a Mother-of-Runes-shaped patch. Giver of Runes
 was the natural second pick — the map's own producer census named it — but it
 turned out unusable as a test fixture for an unrelated reason. Thornscape
-Master (`convex/cards/sets/inv/green.ts`, static `targetRequirement`, no
+Master (`convex/cards/sets/inv/green.cards.ts`, static `targetRequirement`, no
 `getTargetRequirement`) was substituted instead; see the blade entry
 `protection colour choice: Thornscape Master picks the opponent's shown
 colour (shared seam)` in `convex/gre/ai/blade/registry.ts`.

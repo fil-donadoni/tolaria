@@ -17,7 +17,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../../cards/__tests__/setup";
+} from "../../../cards/__tests__/setup.helper";
 import { evaluateBreakdown, permanentRealisedValue } from "../../evaluate";
 import { DEFAULT_EVAL_WEIGHTS } from "../evalWeights";
 import {
@@ -25,22 +25,26 @@ import {
     representativeVictimLoss,
     targetSlotRequirements,
 } from "../latentBoard";
-import { shivanDragon, stoneRain } from "../../../cards/sets/lea/red";
+import { shivanDragon, stoneRain } from "../../../cards/sets/lea/red.cards";
 import {
     armageddon,
     disenchant,
     swordsToPlowshares,
-} from "../../../cards/sets/lea/white";
+} from "../../../cards/sets/lea/white.cards";
 import {
     crawWurm,
     grizzlyBears,
     llanowarElves,
-} from "../../../cards/sets/lea/green";
-import { blackLotus, forest, plains } from "../../../cards/sets/lea/colorless";
-import { flashfires } from "../../../cards/sets/lea/red";
-import { pyroclasm } from "../../../cards/sets/ice/red";
-import { hibernation } from "../../../cards/sets/usg/blue";
-import { forceOfVigor } from "../../../cards/sets/mh1/green";
+} from "../../../cards/sets/lea/green.cards";
+import {
+    blackLotus,
+    forest,
+    plains,
+} from "../../../cards/sets/lea/colorless.cards";
+import { flashfires } from "../../../cards/sets/lea/red.cards";
+import { pyroclasm } from "../../../cards/sets/ice/red.cards";
+import { hibernation } from "../../../cards/sets/usg/blue.cards";
+import { forceOfVigor } from "../../../cards/sets/mh1/green.cards";
 
 /** A two-player state where `p1` holds exactly `handCardId` and `p2`'s
  *  battlefield is `oppBoard` (card ids). Everything else is the shared

@@ -44,8 +44,16 @@ import {
 import { getBasicLandMana, getFixedManaAmount } from "../gre/constants";
 import { compactState, expandState } from "../gre/serialize";
 import { projectPublicState } from "../gameProjections";
-import { forest, wildGrowth, grizzlyBears } from "../cards/sets/lea";
-import { makeInstance, makePlayer, makeState } from "../cards/__tests__/setup";
+import {
+    forest,
+    wildGrowth,
+    grizzlyBears,
+} from "../cards/sets/lea/index.cards";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../cards/__tests__/setup.helper";
 
 /** A Forest enchanted with Wild Growth, plus a fresh state. */
 function wildGrowthForest(overrides: Partial<PlayerState> = {}) {

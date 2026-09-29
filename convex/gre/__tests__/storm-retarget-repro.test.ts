@@ -10,12 +10,12 @@ import {
     makePlayer,
     makeInstance,
     pushSpell,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import { emitSpellCastEvent, resolveTopOfStack } from "../state";
 import { drainAutoPasses } from "../phases";
 import { finalizeTargetSelection } from "../../game";
-import { lightningBolt, grizzlyBears } from "../../cards/sets/lea";
-import { brainFreeze } from "../../cards/sets/scg";
+import { lightningBolt, grizzlyBears } from "../../cards/sets/lea/index.cards";
+import { brainFreeze } from "../../cards/sets/scg/index.cards";
 import type { GameState } from "../state";
 
 function fillLibrary(count: number, controllerId: string) {

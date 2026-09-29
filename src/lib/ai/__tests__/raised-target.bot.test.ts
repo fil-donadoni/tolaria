@@ -20,7 +20,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "@convex/cards/__tests__/setup";
+} from "@convex/cards/__tests__/setup.helper";
 import { projectPublicState } from "@convex/gameProjections";
 import { refreshExpectedInput } from "@convex/gre/expectedInput";
 import { applyRaisedTargetFinalization } from "@convex/gre/pendingTargetOrigin";

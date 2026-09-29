@@ -9,7 +9,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import { getDefinition } from "../../../index";
 
 const animateDead = getDefinition("8fd7861d-925f-4b4c-a4ab-60be6f43d50b");

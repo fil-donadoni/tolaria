@@ -23,7 +23,7 @@ import {
     type PendingChoiceBuffer,
 } from "~/hooks/usePendingChoiceBuffer";
 import { projectPublicState } from "@convex/gameProjections";
-import { makeState, pushSpell } from "@convex/cards/__tests__/setup";
+import { makeState, pushSpell } from "@convex/cards/__tests__/setup.helper";
 import { resolveTopOfStack } from "@convex/gre/state";
 import { getCardByName } from "@convex/cards";
 

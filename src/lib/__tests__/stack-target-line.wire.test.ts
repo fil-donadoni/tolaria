@@ -12,8 +12,8 @@
 
 import { describe, it, expect } from "vitest";
 import { stackTargetNames } from "../stack-target-line";
-import { mahamotiDjinn } from "@convex/cards/sets/lea/blue";
-import { lightningBolt } from "@convex/cards/sets/lea/red";
+import { mahamotiDjinn } from "@convex/cards/sets/lea/blue.cards";
+import { lightningBolt } from "@convex/cards/sets/lea/red.cards";
 import { turnFaceDown } from "@convex/gre/faceDown";
 import { projectPublicState } from "@convex/gameProjections";
 import {
@@ -21,7 +21,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "@convex/cards/__tests__/setup";
+} from "@convex/cards/__tests__/setup.helper";
 import type { Player, StackItem } from "~/types/game";
 import { NO_BOARD_LAYER_VIEW } from "../../../convex/gre/layers";
 

@@ -44,15 +44,15 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import { projectPublicState } from "../../gameProjections";
-import { grizzlyBears } from "../../cards/sets/lea/green";
-import { airElemental, flight } from "../../cards/sets/lea/blue";
-import { gravitySphere } from "../../cards/sets/leg/red";
+import { grizzlyBears } from "../../cards/sets/lea/green.cards";
+import { airElemental, flight } from "../../cards/sets/lea/blue.cards";
+import { gravitySphere } from "../../cards/sets/leg/red.cards";
 import {
     grantedKeywordRows,
     removedKeywordRows,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 
 const UNTIL_EOT = { phase: "end-of-turn" } as const;
 

@@ -1,4 +1,4 @@
-// Per-card behavior tests for CON white cards (`convex/cards/sets/con/white.ts`).
+// Per-card behavior tests for CON white cards (`convex/cards/sets/con/white.cards.ts`).
 // Path to Exile is a `resolve()` card (search-to-battlefield), so the full
 // per-card regime applies. The regression this file locks down: "search your
 // library for a BASIC land card" is the `Basic` SUPERTYPE (CR 205.4a), not a
@@ -11,7 +11,7 @@ import {
     makeState,
     pushSpell,
     submitChoice,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import { resolveTopOfStack, type GameState } from "../../../../gre/state";
 import { getDefinition } from "../../../index";
 

@@ -1,4 +1,4 @@
-// Per-card behavior tests for green cards in `convex/cards/sets/plc/green.ts`
+// Per-card behavior tests for green cards in `convex/cards/sets/plc/green.cards.ts`
 // (Planar Chaos, split by colour per ADR 0043).
 //
 // Life and Limb is one Oracle line spread across three CR 613 layers — layer 4
@@ -8,7 +8,11 @@
 // contribution or a 7c buff of 1/1 would read 2/2 on it.
 
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import { projectPublicState } from "../../../../gameProjections";
 import { getDefinition, tokenDefinitionId } from "../../../index";
 import { getEffectiveColors } from "../../../effectiveColors";

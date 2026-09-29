@@ -4,7 +4,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "@convex/cards/__tests__/setup";
+} from "@convex/cards/__tests__/setup.helper";
 import { getCounterDisplays, isPTCounter } from "../counters";
 import type { CardInstance } from "~/types/game";
 

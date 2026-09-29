@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import { payableAdditionalCostLegs } from "../../../../gre/additionalCost";
 import { getLegalActions } from "../../../../gre/rules";
 import { registerTokenDefinition } from "../../../index";

@@ -22,11 +22,11 @@ import {
     specFromState,
     STACK_DROPPED_PREFIX,
 } from "../scenarioBuilder";
-import { counterspell } from "../../cards/sets/lea/blue";
-import { grizzlyBears } from "../../cards/sets/lea/green";
-import { lightningBolt } from "../../cards/sets/lea/red";
+import { counterspell } from "../../cards/sets/lea/blue.cards";
+import { grizzlyBears } from "../../cards/sets/lea/green.cards";
+import { lightningBolt } from "../../cards/sets/lea/red.cards";
 import { getDefinition } from "../../cards";
-import { gristTheHungerTide } from "../../cards/sets/mh2/multicolor";
+import { gristTheHungerTide } from "../../cards/sets/mh2/multicolor.cards";
 
 const prodigalSorcerer = getDefinition("e4dc1103-7bf1-47f6-9006-d3ed9ccd7a6a");
 import type { BladeSetupStep } from "../ai/blade/types";

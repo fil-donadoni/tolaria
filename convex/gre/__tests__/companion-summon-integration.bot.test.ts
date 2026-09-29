@@ -11,7 +11,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import { canSummonCompanion, COMPANION_SUMMON_COST } from "../companion";
 import {
     getManaSubstitutions,
@@ -27,7 +27,7 @@ import { MANA_COLORS } from "../constants";
 import { enumerateMoves } from "../moves";
 import { applyMoveForSearch } from "../applyMove";
 import { applyMoveInSearch } from "../search";
-import { lutri } from "../../cards/sets/iko/multicolor";
+import { lutri } from "../../cards/sets/iko/multicolor.cards";
 import { getCardByName } from "../../cards";
 import type { GameState, PlayerState } from "../state";
 

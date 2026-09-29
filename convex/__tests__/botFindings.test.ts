@@ -4,7 +4,11 @@
 // through the registered handlers over the shared stub ctx — the project has
 // no convex-test harness.
 import { describe, expect, it } from "vitest";
-import { makeMutationCtx, runMutation, type Row } from "./gameMutationHarness";
+import {
+    makeMutationCtx,
+    runMutation,
+    type Row,
+} from "./gameMutationHarness.fixture";
 import {
     latestMeasurement,
     listClasses,

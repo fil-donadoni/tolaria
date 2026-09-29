@@ -35,14 +35,14 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "@convex/cards/__tests__/setup";
-import { bolassCitadel } from "@convex/cards/sets/war/black";
-import { forest } from "@convex/cards/sets/lea/colorless";
-import { grizzlyBears } from "@convex/cards/sets/lea/green";
+} from "@convex/cards/__tests__/setup.helper";
+import { bolassCitadel } from "@convex/cards/sets/war/black.cards";
+import { forest } from "@convex/cards/sets/lea/colorless.cards";
+import { grizzlyBears } from "@convex/cards/sets/lea/green.cards";
 import {
     makeMutationCtx,
     gameStateSeed,
-} from "@convex/__tests__/gameMutationHarness";
+} from "@convex/__tests__/gameMutationHarness.fixture";
 import { buildLibraryPileModel } from "~/lib/library-knowledge";
 import type { PublicLibrary } from "~/types/game";
 

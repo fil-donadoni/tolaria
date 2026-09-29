@@ -1,6 +1,6 @@
-// Per-card behavior tests for red cards in `convex/cards/sets/dsk/red.ts`
+// Per-card behavior tests for red cards in `convex/cards/sets/dsk/red.cards.ts`
 // (Duskmourn: House of Horror, split by colour per ADR 0043). Fixtures from
-// convex/cards/__tests__/setup.ts.
+// convex/cards/__tests__/setup.helper.ts.
 //
 // Fear of Missing Out (issue #2421): the "when this creature enters, discard
 // a card, then draw a card" clause was previously wired as CardDefinition-
@@ -15,7 +15,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import {
     resolveTopOfStack,
     processPendingActionTriggers,

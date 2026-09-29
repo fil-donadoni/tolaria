@@ -15,7 +15,7 @@ import type { CardInstanceState, GameState } from "../state";
 import type { CardType } from "../../cards/types";
 import { dealDamageFromPermanentToPlayer, gainLifeEmitting } from "../state";
 import { applyAllCombatDamage } from "../phases";
-import { makePlayer, makeState } from "../../cards/__tests__/setup";
+import { makePlayer, makeState } from "../../cards/__tests__/setup.helper";
 
 function creature(
     id: string,

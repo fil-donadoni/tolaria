@@ -5,7 +5,7 @@ import {
     planSmokeTest,
     SMOKE_SKIP_CLASS,
 } from "../../convex/gre/effects/scenarioGenerator";
-import { collectDslSites } from "../../convex/cards/__tests__/smokeSites";
+import { collectDslSites } from "../../convex/cards/__tests__/smokeSites.helper";
 import type { CardFact, CardFacts } from "./identity-test-classifier";
 
 /**

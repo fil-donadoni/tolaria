@@ -28,7 +28,7 @@ card-owned additional cost dropped on the alt-cost no-target branch), but for
 the LIFE leg instead of the SACRIFICE leg — and, like #1985's board-wide
 sacrifice case before this fix, it is provably unreachable today: every
 repo comment consistently asserts "alt-cost cards carry no additional cost of
-their own" (mmq/black.ts, kicker.ts, and the no-target branch's own comments
+their own" (mmq/black.cards.ts, kicker.ts, and the no-target branch's own comments
 all repeat this), and I found no shipped card with both `alternativeCosts`
 and a life-based `additionalCosts` entry. Unlike Drought's sacrifice (which
 IS board-wide and therefore reachable via any alt-cost card), there is no

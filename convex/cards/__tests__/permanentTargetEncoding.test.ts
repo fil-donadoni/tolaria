@@ -12,7 +12,7 @@ import { describe, expect, it } from "vitest";
 import { getAllCatalogueCards } from "../catalogue";
 import { getLegalTargets, NO_TARGETING_SOURCE } from "../../gre/rules";
 import type { CardDefinition, TargetRequirement } from "../types";
-import { makeInstance, makePlayer, makeState } from "./setup";
+import { makeInstance, makePlayer, makeState } from "./setup.helper";
 
 // Northern Paladin retired in issue #4027 (ADR 0114) — it is no longer in
 // `getAllCards()` (hand-written only), but the catalogue-wide sweep below
