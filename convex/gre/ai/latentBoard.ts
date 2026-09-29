@@ -80,12 +80,17 @@ export function representativeVictimLoss(weights: EvalWeights): number {
 export type RealisedLoss = (perm: CardInstanceState) => number;
 
 /** Issue #4874 — how one player's zones change when a sweep resolves:
- *  `leaving` go off their battlefield, `returned` come back to their hand,
- *  and `spent` (the caster only) is the sweep card itself leaving the hand. */
+ *  `leaving` go off their battlefield, `returned` come back to their hand.
+ *
+ *  The sweep card itself stays in the caster's hand on both sides (issue
+ *  #4880): what the hand price reads is what the MEMBERS move, in the demand
+ *  context the leaf actually holds. Taking the card out as well priced the
+ *  relief of unloading it — an Armageddon held over Forests alone, which no
+ *  cast can ever unload, was worth the `colorCoverage` its white pip costs
+ *  the hand, so finding the Plains that fixes the colour bought nothing. */
 export type SweepZoneChange = {
     leaving: ReadonlySet<string>;
     returned: readonly CardInstanceState[];
-    spent?: string;
 };
 
 /** Issue #4874 — what the caster's opponents lose, net of what the caster
@@ -284,7 +289,6 @@ export function makeLatentBoardLens(
             const net = sweptNetLoss(
                 state,
                 casterId,
-                card.id,
                 select,
                 lossOf,
                 aggregateLoss,
@@ -328,12 +332,10 @@ export function makeLatentBoardLens(
  *  resolution realised: the caster's `manaDevelopment` fell to zero with its
  *  lands and nothing in the price said so, so holding the card beat casting
  *  it at every leaf and the Bot never cast it. The hand worth of a sweep must
- *  not exceed what resolving it moves the margin by — the spent card's own
- *  demand included, since the resolution takes that out of the hand too. */
+ *  not exceed what resolving it moves the margin by. */
 function sweptNetLoss(
     state: GameState,
     casterId: string,
-    spent: string,
     select: EffectForEachSelector,
     lossOf: MemberLoss,
     aggregateLoss: AggregateLoss,
@@ -388,21 +390,16 @@ function sweptNetLoss(
             }
         }
     }
-    const allChanges = zoneChanges(state, casterId, spent, [
-        fixed,
-        recoverable,
-    ]);
-    const aggregateAll = aggregateLoss(allChanges);
+    const aggregateAll = aggregateLoss(
+        zoneChanges(state, [fixed, recoverable])
+    );
     const fraction = weights.recoverableSweepFraction;
     if (recoverable.empty() || fraction === 1) {
         return fixed.net + recoverable.net + aggregateAll;
     }
-    // The aggregate the FIXED members move alone (the spent card included —
-    // a card cast is never recovered); the rest of `aggregateAll` is what
-    // the recoverable members move, and it regrows with them.
-    const aggregateFixed = aggregateLoss(
-        zoneChanges(state, casterId, spent, [fixed])
-    );
+    // The aggregate the FIXED members move alone; the rest of `aggregateAll`
+    // is what the recoverable members move, and it regrows with them.
+    const aggregateFixed = aggregateLoss(zoneChanges(state, [fixed]));
     return (
         fixed.net +
         aggregateFixed +
@@ -434,12 +431,9 @@ class SweepLedger {
     }
 }
 
-/** The per-player `SweepZoneChange`s of `ledgers` together, with the spent
- *  sweep card out of the caster's hand. */
+/** The per-player `SweepZoneChange`s of `ledgers` together. */
 function zoneChanges(
     state: GameState,
-    casterId: string,
-    spent: string,
     ledgers: readonly SweepLedger[]
 ): Map<string, SweepZoneChange> {
     const changes = new Map<string, SweepZoneChange>();
@@ -452,13 +446,7 @@ function zoneChanges(
             }
             returned.push(...(ledger.returned.get(player.id) ?? []));
         }
-        changes.set(player.id, {
-            leaving,
-            returned,
-            // The resolution takes the card itself out of the caster's hand,
-            // and with it whatever curve and colour demand it carried.
-            spent: player.id === casterId ? spent : undefined,
-        });
+        changes.set(player.id, { leaving, returned });
     }
     return changes;
 }

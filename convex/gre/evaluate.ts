@@ -1281,11 +1281,11 @@ function sweptAggregateNetLoss(
         players: state.players.map((p) => {
             const change = changes.get(p.id);
             if (!change) return p;
-            const { leaving, returned, spent } = change;
+            const { leaving, returned } = change;
             return {
                 ...p,
                 battlefield: p.battlefield.filter((c) => !leaving.has(c.id)),
-                hand: [...p.hand.filter((c) => c.id !== spent), ...returned],
+                hand: [...p.hand, ...returned],
             };
         }),
     };

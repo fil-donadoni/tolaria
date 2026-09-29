@@ -19,7 +19,7 @@ import {
     makeState,
 } from "../../../cards/__tests__/setup.helper";
 import { evaluateBreakdown, permanentRealisedValue } from "../../evaluate";
-import { DEFAULT_EVAL_WEIGHTS } from "../evalWeights";
+import { DEFAULT_EVAL_WEIGHTS, type EvalWeights } from "../evalWeights";
 import {
     openEndedSlotRequirement,
     representativeVictimLoss,
@@ -40,7 +40,10 @@ import {
     blackLotus,
     forest,
     plains,
+    solRing,
 } from "../../../cards/sets/lea/colorless.cards";
+import { fellwarStone } from "../../../cards/sets/drk/colorless.cards";
+import { mindStone } from "../../../cards/sets/wth/colorless.cards";
 import { flashfires } from "../../../cards/sets/lea/red.cards";
 import { pyroclasm } from "../../../cards/sets/ice/red.cards";
 import { hibernation } from "../../../cards/sets/usg/blue.cards";
@@ -246,11 +249,25 @@ describe("latent removal value follows the board (issue #3398)", () => {
     });
 });
 
+/** The committed vector with the two axes issue #4874 and issue #4880 added
+ *  to a sweep's price switched off: the per-player aggregate terms its
+ *  members move (`manaDevelopment`, `colorCoverage`) and the discount on its
+ *  recoverable members. What is left is the MEMBER surplus issue #4773 and
+ *  issue #4781 price, which the blocks below pin; each added axis has its own
+ *  block further down. */
+const MEMBERS_ONLY: EvalWeights = {
+    ...DEFAULT_EVAL_WEIGHTS,
+    manaDevWeight: 0,
+    colorCoverageWeight: 0,
+    recoverableSweepFraction: 1,
+};
+
 /** p1 holds `handCardId` and controls `ownBoard`; p2 controls `oppBoard`. */
 function latentAgainst(
     handCardId: string,
     ownBoard: readonly string[],
-    oppBoard: readonly string[]
+    oppBoard: readonly string[],
+    weights: EvalWeights = MEMBERS_ONLY
 ): number {
     const on = (pid: string, ids: readonly string[]) =>
         ids.map((id) => makeInstance(id, { controllerId: pid, ownerId: pid }));
@@ -268,7 +285,7 @@ function latentAgainst(
             makePlayer("p2", { battlefield: on("p2", oppBoard) }),
         ],
     });
-    return evaluateBreakdown(state, "p1").self.hand;
+    return evaluateBreakdown(state, "p1", weights).self.hand;
 }
 
 describe("a sweep's latent value is the surplus it takes (issue #4773)", () => {
@@ -418,7 +435,7 @@ describe("bounce, damage and filtered sweeps read the board (issue #4781)", () =
                 ],
             });
             return {
-                latent: evaluateBreakdown(state, "p1").self.hand,
+                latent: evaluateBreakdown(state, "p1", MEMBERS_ONLY).self.hand,
                 realised: permanentRealisedValue(state, victim),
             };
         };
@@ -538,5 +555,239 @@ describe("bounce, damage and filtered sweeps read the board (issue #4781)", () =
             0
         );
         expect(latentAgainst(flashfires.id, [plains.id], [plains.id])).toBe(0);
+    });
+});
+
+/** The `hand` term per unit of a sweep's net realised loss: what
+ *  `sweepUnits` scales `boardRemoval` by. */
+const PER_POINT =
+    DEFAULT_EVAL_WEIGHTS.latent.boardRemoval /
+    representativeVictimLoss(DEFAULT_EVAL_WEIGHTS);
+
+describe("a sweep's price counts the aggregate terms its members move (issue #4874)", () => {
+    // Summed per permanent alone, Armageddon over a board of mana rocks priced
+    // above what its resolution realised: the caster's `manaDevelopment`
+    // falls to zero with its lands and nothing in the price said so.
+    const own = [
+        plains.id,
+        plains.id,
+        solRing.id,
+        mindStone.id,
+        fellwarStone.id,
+    ];
+    const opp = [
+        forest.id,
+        forest.id,
+        forest.id,
+        forest.id,
+        forest.id,
+        forest.id,
+    ];
+    const noDiscount = { ...DEFAULT_EVAL_WEIGHTS, recoverableSweepFraction: 1 };
+
+    /** Both players' `manaDevelopment + colorCoverage` from p1's side, with
+     *  Armageddon in p1's hand, on the given boards. */
+    function aggregates(
+        ownBoard: readonly string[],
+        oppBoard: readonly string[]
+    ) {
+        const on = (pid: string, ids: readonly string[]) =>
+            ids.map((id) =>
+                makeInstance(id, { controllerId: pid, ownerId: pid })
+            );
+        const b = evaluateBreakdown(
+            makeState({
+                players: [
+                    makePlayer("p1", {
+                        hand: [
+                            makeInstance(armageddon.id, {
+                                controllerId: "p1",
+                                ownerId: "p1",
+                                zone: "hand",
+                            }),
+                        ],
+                        battlefield: on("p1", ownBoard),
+                    }),
+                    makePlayer("p2", { battlefield: on("p2", oppBoard) }),
+                ],
+            }),
+            "p1",
+            noDiscount
+        );
+        return {
+            self: b.self.manaDevelopment + b.self.colorCoverage,
+            opp: b.opp.manaDevelopment + b.opp.colorCoverage,
+        };
+    }
+
+    it("adds what the resolution moves in them, read on the board it leaves", () => {
+        const before = aggregates(own, opp);
+        // CR 701.8a — every land goes; the rocks and the card in hand stay.
+        const after = aggregates(
+            [solRing.id, mindStone.id, fellwarStone.id],
+            []
+        );
+        const moved = before.opp - after.opp - (before.self - after.self);
+        expect(before.self - after.self).toBeGreaterThan(0);
+        expect(
+            latentAgainst(armageddon.id, own, opp, noDiscount) -
+                latentAgainst(armageddon.id, own, opp, {
+                    ...noDiscount,
+                    manaDevWeight: 0,
+                    colorCoverageWeight: 0,
+                })
+        ).toBeCloseTo(PER_POINT * moved, 6);
+    });
+
+    it("never prices the relief of unloading a card no cast can unload", () => {
+        // Pyroclasm over a Forest is uncastable ({R}, CR 202.1a): its red pip
+        // costs the hand `colorCoverage` whatever the sweep takes. Taking the
+        // card out of the hand in the "after" board read that cost back as
+        // the sweep's worth, so a sweep that kills nothing — the Craw Wurm
+        // survives two damage (CR 704.5g) — was worth the colour it lacks.
+        expect(
+            latentAgainst(pyroclasm.id, [forest.id], [crawWurm.id], noDiscount)
+        ).toBe(0);
+    });
+});
+
+describe("a recoverable sweep's swing is credited in part (issue #4880)", () => {
+    // A land is replaced by its owner's next land drop (CR 305.2) and a card
+    // bounced to hand is recast, so the swing such a sweep realises decays
+    // from the turn it resolves, while its price in hand is read off each
+    // leaf's board. `recoverableSweepFraction` of the recoverable part is what
+    // the hand is credited; what is gone for good is credited in full.
+    const at = (fraction: number) => ({
+        ...MEMBERS_ONLY,
+        recoverableSweepFraction: fraction,
+    });
+
+    it("scales a land sweep's surplus by the fraction", () => {
+        const full = latentAgainst(
+            armageddon.id,
+            [forest.id],
+            [forest.id, forest.id, forest.id],
+            at(1)
+        );
+        expect(full).toBeGreaterThan(0);
+        expect(
+            latentAgainst(
+                armageddon.id,
+                [forest.id],
+                [forest.id, forest.id, forest.id],
+                at(0.5)
+            )
+        ).toBeCloseTo(0.5 * full, 6);
+    });
+
+    it("scales the aggregate terms the lands move with them", () => {
+        // Committed weights, aggregates on: an all-land sweep is recoverable
+        // whole, so its WHOLE price scales.
+        const own = [
+            plains.id,
+            plains.id,
+            solRing.id,
+            mindStone.id,
+            fellwarStone.id,
+        ];
+        const opp = [
+            forest.id,
+            forest.id,
+            forest.id,
+            forest.id,
+            forest.id,
+            forest.id,
+        ];
+        const withAggregates = (fraction: number) =>
+            latentAgainst(armageddon.id, own, opp, {
+                ...DEFAULT_EVAL_WEIGHTS,
+                recoverableSweepFraction: fraction,
+            });
+        expect(withAggregates(1)).toBeGreaterThan(0);
+        expect(withAggregates(0.25)).toBeCloseTo(0.25 * withAggregates(1), 6);
+    });
+
+    it("scales a bounce, but not a bounced token (CR 111.7)", () => {
+        const bounced = latentAgainst(
+            hibernation.id,
+            [],
+            [grizzlyBears.id],
+            at(1)
+        );
+        expect(
+            latentAgainst(hibernation.id, [], [grizzlyBears.id], at(0.5))
+        ).toBeCloseTo(0.5 * bounced, 6);
+        const handCard = makeInstance(hibernation.id, {
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const token = makeInstance(grizzlyBears.id, {
+            controllerId: "p2",
+            ownerId: "p2",
+            isToken: true,
+        });
+        const worth = (fraction: number) =>
+            evaluateBreakdown(
+                makeState({
+                    players: [
+                        makePlayer("p1", { hand: [handCard] }),
+                        makePlayer("p2", { battlefield: [token] }),
+                    ],
+                }),
+                "p1",
+                at(fraction)
+            ).self.hand;
+        expect(worth(1)).toBeGreaterThan(0);
+        expect(worth(0.5)).toBe(worth(1));
+    });
+
+    it("leaves a sweep of what is gone for good unchanged", () => {
+        // Pyroclasm's dead creatures and a creature wrath do not regrow.
+        for (const fraction of [1, 0.5, 0]) {
+            expect(
+                latentAgainst(
+                    pyroclasm.id,
+                    [],
+                    [grizzlyBears.id, llanowarElves.id],
+                    at(fraction)
+                )
+            ).toBeCloseTo(
+                latentAgainst(
+                    pyroclasm.id,
+                    [],
+                    [grizzlyBears.id, llanowarElves.id],
+                    at(1)
+                ),
+                6
+            );
+        }
+    });
+
+    it("discounts only the land half of a sweep that takes both", () => {
+        const everything: CardDefinition = {
+            id: "latent-board-test:everything",
+            name: "Latent Board everything",
+            rarity: "common",
+            manaCost: { R: 1, generic: 3 },
+            types: ["Sorcery"],
+            effects: [
+                {
+                    op: "forEach",
+                    select: { set: "permanents", zone: "battlefield" },
+                    effects: [{ op: "destroy", target: { ref: "$each" } }],
+                },
+            ],
+        };
+        withTemporaryDefinition(everything, () => {
+            const board = (f: number, opp: readonly string[]) =>
+                latentAgainst(everything.id, [], opp, at(f));
+            const creature = board(1, [grizzlyBears.id]);
+            const land = board(1, [forest.id]);
+            expect(board(0.5, [grizzlyBears.id, forest.id])).toBeCloseTo(
+                creature + 0.5 * land,
+                6
+            );
+        });
     });
 });
