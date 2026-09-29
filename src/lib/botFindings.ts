@@ -11,6 +11,7 @@ import {
     MECHANISM_SENTENCES,
 } from "@/lib/ai/decision-phrases";
 import { EVAL_TERM_LABELS, EVAL_TERM_ORDER } from "@/lib/ai/eval-term-labels";
+import type { FindingStatus } from "@convex/gre/ai/botFindingState";
 
 export type BotFindingRow = FunctionReturnType<
     typeof api.botFindings.listFindings
@@ -261,4 +262,80 @@ export function findingTraceText(trace: BotFindingTrace): string {
         lines.push(`  terms (self/opp): ${traceTermLine(c)}`);
     }
     return lines.join("\n");
+}
+
+/** Distinct, sorted values present in a column — the options an "all/…"
+ *  filter select offers, so the list never names a Target/cause/blame this
+ *  deployment's own rows do not carry. */
+export function distinctSorted<T>(
+    rows: readonly T[],
+    pick: (row: T) => string | undefined
+): string[] {
+    return [
+        ...new Set(rows.map(pick).filter((v): v is string => v !== undefined)),
+    ].sort();
+}
+
+/** The Cards tab's filter state (issue #4177). Every field `""` means "all" —
+ *  never a magic `"all"` string a real Target/cause/blame could collide with. */
+export interface FindingFilterState {
+    readonly target: string;
+    readonly cause: string;
+    readonly blame: string;
+    readonly status: FindingStatus | "";
+    readonly query: string;
+}
+export const EMPTY_FINDING_FILTERS: FindingFilterState = {
+    target: "",
+    cause: "",
+    blame: "",
+    status: "",
+    query: "",
+};
+
+export function matchesFindingFilters(
+    row: BotFindingRow,
+    filters: FindingFilterState
+): boolean {
+    if (filters.target !== "" && !row.targets.includes(filters.target))
+        return false;
+    if (filters.cause !== "" && row.cause !== filters.cause) return false;
+    if (filters.blame !== "" && row.blame !== filters.blame) return false;
+    if (filters.status !== "" && row.status !== filters.status) return false;
+    const q = filters.query.trim().toLowerCase();
+    if (q !== "" && !row.name.toLowerCase().includes(q)) return false;
+    return true;
+}
+
+/** The Classes tab's filter state. `query` searches the class KEY — the Ops
+ *  and keywords a Bot Gap key carries (`never-chosen › Sorcery › draw`). */
+export interface ClassFilterState {
+    readonly target: string;
+    readonly cause: string;
+    readonly blame: string;
+    readonly query: string;
+}
+export const EMPTY_CLASS_FILTERS: ClassFilterState = {
+    target: "",
+    cause: "",
+    blame: "",
+    query: "",
+};
+
+export function matchesClassFilters(
+    row: BotFindingClassRow,
+    filters: ClassFilterState
+): boolean {
+    if (
+        filters.target !== "" &&
+        !row.targetCounts.some(
+            (t) => t.target === filters.target && t.count > 0
+        )
+    )
+        return false;
+    if (filters.cause !== "" && row.cause !== filters.cause) return false;
+    if (filters.blame !== "" && row.blame !== filters.blame) return false;
+    const q = filters.query.trim().toLowerCase();
+    if (q !== "" && !row.key.toLowerCase().includes(q)) return false;
+    return true;
 }

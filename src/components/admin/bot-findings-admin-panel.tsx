@@ -1,37 +1,30 @@
 import { useState } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
-import { Panel, PanelHeader, PanelBody } from "@/components/ui/panel";
-import { Banner } from "@/components/ui/banner";
-import SegmentedControl from "@/components/ui/segmented-control";
 import SurfaceReadyMarker from "@/components/ui/surface-ready-marker";
-import {
-    filterByStaleness,
-    isStaleFinding,
-    measurementSummary,
-    STALENESS_FILTERS,
-    stalenessSummary,
-    type StalenessFilter,
-} from "@/lib/botFindings";
-import BotFindingRow from "./bot-finding-row";
+import BotFindingsCardsPanel from "./bot-findings-cards-panel";
+import BotFindingsClassesPanel from "./bot-findings-classes-panel";
+
+type BotFindingsTab = "cards" | "classes";
+
+const TABS: { id: BotFindingsTab; label: string }[] = [
+    { id: "cards", label: "Cards" },
+    { id: "classes", label: "Classes" },
+];
 
 /**
- * `/admin/bot-findings` — the Cards tab: one row per card the play Bot is
- * known to struggle with (ADR 0141, PRD #4174, issue #4176), over the tables
- * `bun run seed:bot-findings` writes from the committed measurement.
+ * `/admin/bot-findings` — the two tabs over the same measurement (ADR 0141,
+ * PRD #4174, issue #4177): Cards (one row per card the Bot does not play) and
+ * Classes (one row per Bot Gap class, ranked by leverage).
  *
- * The header states measured vs total before anything else: the rows cover
- * the measured Target Lists only, and the hand-written cards outside them
- * were never played at all — a small count here is not "few Bot problems".
- *
- * The header also says how current the page is (issue #4181): when the
- * measurement ran, and — when the Bot has moved since — how many rows were
- * measured under an older Bot hash. Those rows carry a stale flag and can be
- * filtered to; the filter narrows the list, staleness never removes a row.
- *
- * Every query is `assertIsAdmin`-gated server-side; the route gate is cosmetic.
+ * The page's ready marker lives HERE, not in either tab: it must survive a tab
+ * switch, and `check:ui`'s route guard reads only the route and its direct
+ * imports (`ui-gate-surface-ready.test.ts`). The three queries are the same
+ * calls, with the same args, the tabs make — Convex serves them from one
+ * subscription each, so this subscribes to nothing new.
  */
 export default function BotFindingsAdminPanel() {
+    const [tab, setTab] = useState<BotFindingsTab>("cards");
     const findings = useQuery(api.botFindings.listFindings, {});
     const classes = useQuery(api.botFindings.listClasses, {});
     const measurement = useQuery(api.botFindings.latestMeasurement, {});
@@ -39,79 +32,39 @@ export default function BotFindingsAdminPanel() {
         findings !== undefined &&
         classes !== undefined &&
         measurement !== undefined;
-    const classByKey = new Map((classes ?? []).map((c) => [c.key, c]));
-    const [staleness, setStaleness] = useState<StalenessFilter>("all");
-    const shown = loaded
-        ? filterByStaleness(findings, staleness, measurement)
-        : [];
-    const staleNote =
-        loaded && measurement !== null
-            ? stalenessSummary(findings, measurement)
-            : null;
 
     return (
-        <Panel>
+        <div className="flex flex-col gap-4">
             {loaded && <SurfaceReadyMarker />}
-            <PanelHeader
-                title="Cards"
-                subtitle={
-                    !loaded
-                        ? "Loading…"
-                        : `${findings.filter((f) => f.outcome !== "played").length} cards the Bot does not play`
-                }
-            />
-            <PanelBody className="flex flex-col gap-3">
-                {loaded && (
-                    <p
-                        data-bot-findings-measurement=""
-                        className="text-sm text-text-muted"
+            <div
+                role="tablist"
+                aria-label="Bot Findings"
+                data-bot-findings-tabs=""
+                className="flex gap-1 border-b border-border-subtle/40"
+            >
+                {TABS.map((t) => (
+                    <button
+                        key={t.id}
+                        type="button"
+                        role="tab"
+                        aria-selected={tab === t.id}
+                        data-bot-findings-tab={t.id}
+                        onClick={() => setTab(t.id)}
+                        className={`px-3 py-1.5 text-sm font-semibold transition-colors ${
+                            tab === t.id
+                                ? "border-b-2 border-accent text-text"
+                                : "text-text-muted hover:text-text"
+                        }`}
                     >
-                        {measurement === null
-                            ? "No measurement seeded on this deployment — run bun run seed:bot-findings."
-                            : `${measurementSummary(measurement)} Measured ${measurement.measuredAt} at ${measurement.sha.slice(0, 9)}.`}
-                    </p>
-                )}
-                {staleNote !== null && (
-                    <Banner tone="danger" data-bot-findings-stale-banner="">
-                        {staleNote}
-                    </Banner>
-                )}
-                {loaded && measurement !== null && findings.length > 0 && (
-                    <SegmentedControl
-                        ariaLabel="Filter by measurement staleness"
-                        options={STALENESS_FILTERS}
-                        value={staleness}
-                        onChange={setStaleness}
-                    />
-                )}
-                {!loaded ? (
-                    <span className="text-xs text-text-disabled">Loading…</span>
-                ) : findings.length === 0 ? (
-                    <span className="text-xs text-text-disabled">
-                        No findings on this deployment
-                    </span>
-                ) : shown.length === 0 ? (
-                    <span className="text-xs text-text-disabled">
-                        No {staleness} rows
-                    </span>
-                ) : (
-                    shown.map((finding) => (
-                        <BotFindingRow
-                            key={finding._id}
-                            finding={finding}
-                            stale={
-                                measurement !== null &&
-                                isStaleFinding(finding, measurement)
-                            }
-                            cls={
-                                finding.gap === undefined
-                                    ? undefined
-                                    : classByKey.get(finding.gap)
-                            }
-                        />
-                    ))
-                )}
-            </PanelBody>
-        </Panel>
+                        {t.label}
+                    </button>
+                ))}
+            </div>
+            {tab === "cards" ? (
+                <BotFindingsCardsPanel />
+            ) : (
+                <BotFindingsClassesPanel />
+            )}
+        </div>
     );
 }

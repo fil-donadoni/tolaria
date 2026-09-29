@@ -20,8 +20,52 @@ import {
     seedPayloadValidator,
     storedClassValidator,
 } from "./botFindingsCore";
+import {
+    computeFindingStatus,
+    findingStatusValidator,
+    mustBladeEntryFor,
+    rankFindingClasses,
+    type BladeCardIndex,
+} from "./gre/ai/botFindingState";
+import bladeCardIndexJson from "../data/blade-card-index.json";
+import targetsConfig from "../data/targets.json";
 
-/** A finding as the page reads it: measured fields, human fields, id. */
+const BLADE_CARD_INDEX = bladeCardIndexJson as BladeCardIndex;
+
+/** Target ids in PRIORITY order (`data/targets.json`) — a class's own
+ *  `targetCounts` is written sorted by target ID (`buildBotFindingsPayload`),
+ *  never by priority, so the Classes tab's ranking reads the order here
+ *  rather than the artifact's. */
+const PRIORITY_TARGETS: readonly string[] = targetsConfig.targets
+    .filter(
+        (
+            t
+        ): t is (typeof targetsConfig.targets)[number] & { priority: number } =>
+            t.priority !== undefined
+    )
+    .sort((a, b) => a.priority - b.priority)
+    .map((t) => t.id);
+
+/** Card names carrying an ACTIVE finding under each Bot Gap key — the join
+ *  {@link mustBladeEntryFor} needs, built once per read so a class's proof and
+ *  every one of its cards' statuses agree on the same set (ADR 0141 § 3). A
+ *  played row keeps its `gap` (`classKeysKeptByPlayed`), so it is exactly the
+ *  set of names a `resolved` verdict needs its class's proof checked against. */
+function namesByGap(
+    rows: readonly { readonly gap?: string; readonly name: string }[]
+): Map<string, string[]> {
+    const byGap = new Map<string, string[]>();
+    for (const row of rows) {
+        if (row.gap === undefined) continue;
+        const names = byGap.get(row.gap) ?? [];
+        names.push(row.name);
+        byGap.set(row.gap, names);
+    }
+    return byGap;
+}
+
+/** A finding as the page reads it: measured fields, human fields, id, and the
+ *  DERIVED status (ADR 0141 § 3) — computed on every read, never stored. */
 const findingRowValidator = v.object({
     _id: v.id("botFindings"),
     ...measuredFindingValidator.fields,
@@ -35,6 +79,7 @@ const findingRowValidator = v.object({
     linkedIssue: v.optional(v.number()),
     snoozedAt: v.optional(v.number()),
     snoozeReason: v.optional(v.string()),
+    status: findingStatusValidator,
 });
 
 /** Every ACTIVE finding, by card name. A deactivated row is a record, not a
@@ -45,52 +90,81 @@ export const listFindings = query({
     handler: async (ctx) => {
         await assertIsAdmin(ctx);
         const rows = await ctx.db.query("botFindings").collect();
-        return rows
-            .filter((row) => row.active)
-            .map((row) => ({
-                _id: row._id,
-                oracleId: row.oracleId,
-                source: row.source,
-                name: row.name,
-                targets: row.targets,
-                outcome: row.outcome,
-                botHash: row.botHash,
-                measuredAt: row.measuredAt,
-                ...(row.printId === undefined ? {} : { printId: row.printId }),
-                ...(row.cause === undefined ? {} : { cause: row.cause }),
-                ...(row.form === undefined ? {} : { form: row.form }),
-                ...(row.gap === undefined ? {} : { gap: row.gap }),
-                ...(row.blame === undefined ? {} : { blame: row.blame }),
-                ...(row.compileSource === undefined
-                    ? {}
-                    : { compileSource: row.compileSource }),
-                ...(row.trace === undefined ? {} : { trace: row.trace }),
-                ...(row.note === undefined ? {} : { note: row.note }),
-                ...(row.reproducers === undefined
-                    ? {}
-                    : { reproducers: row.reproducers }),
-                ...(row.linkedIssue === undefined
-                    ? {}
-                    : { linkedIssue: row.linkedIssue }),
-                ...(row.snoozedAt === undefined
-                    ? {}
-                    : { snoozedAt: row.snoozedAt }),
-                ...(row.snoozeReason === undefined
-                    ? {}
-                    : { snoozeReason: row.snoozeReason }),
-            }))
+        const active = rows.filter((row) => row.active);
+        const byGap = namesByGap(active);
+        return active
+            .map((row) => {
+                const provingEntry =
+                    row.gap === undefined
+                        ? undefined
+                        : mustBladeEntryFor(
+                              byGap.get(row.gap) ?? [],
+                              BLADE_CARD_INDEX
+                          );
+                return {
+                    _id: row._id,
+                    oracleId: row.oracleId,
+                    source: row.source,
+                    name: row.name,
+                    targets: row.targets,
+                    outcome: row.outcome,
+                    botHash: row.botHash,
+                    measuredAt: row.measuredAt,
+                    ...(row.printId === undefined
+                        ? {}
+                        : { printId: row.printId }),
+                    ...(row.cause === undefined ? {} : { cause: row.cause }),
+                    ...(row.form === undefined ? {} : { form: row.form }),
+                    ...(row.gap === undefined ? {} : { gap: row.gap }),
+                    ...(row.blame === undefined ? {} : { blame: row.blame }),
+                    ...(row.compileSource === undefined
+                        ? {}
+                        : { compileSource: row.compileSource }),
+                    ...(row.trace === undefined ? {} : { trace: row.trace }),
+                    ...(row.note === undefined ? {} : { note: row.note }),
+                    ...(row.reproducers === undefined
+                        ? {}
+                        : { reproducers: row.reproducers }),
+                    ...(row.linkedIssue === undefined
+                        ? {}
+                        : { linkedIssue: row.linkedIssue }),
+                    ...(row.snoozedAt === undefined
+                        ? {}
+                        : { snoozedAt: row.snoozedAt }),
+                    ...(row.snoozeReason === undefined
+                        ? {}
+                        : { snoozeReason: row.snoozeReason }),
+                    status: computeFindingStatus({
+                        outcome: row.outcome,
+                        cause: row.cause,
+                        classHasMustBladeEntry: provingEntry !== undefined,
+                    }),
+                };
+            })
             .sort((a, b) => a.name.localeCompare(b.name));
     },
 });
 
-/** Every ACTIVE Bot Gap class, by key. */
+/** A class row plus its DERIVED proof — the `must` blade entry naming any
+ *  card currently carrying the key (ADR 0141 § 3), never stored. */
+const findingClassRowValidator = v.object({
+    ...storedClassValidator.fields,
+    provingEntry: v.optional(v.string()),
+});
+
+/** Every ACTIVE Bot Gap class, ranked by per-Target leverage in Target
+ *  priority order — the same ranking the Grammar Gaps use (issue #3869). */
 export const listClasses = query({
     args: {},
-    returns: v.array(storedClassValidator),
+    returns: v.array(findingClassRowValidator),
     handler: async (ctx) => {
         await assertIsAdmin(ctx);
-        const rows = await ctx.db.query("botFindingClasses").collect();
-        return rows
+        const [classRows, findingRows] = await Promise.all([
+            ctx.db.query("botFindingClasses").collect(),
+            ctx.db.query("botFindings").collect(),
+        ]);
+        const byGap = namesByGap(findingRows.filter((row) => row.active));
+        const active = classRows
             .filter((row) => row.active)
             .map((row) => ({
                 key: row.key,
@@ -103,8 +177,12 @@ export const listClasses = query({
                     ? {}
                     : { previousCardCount: row.previousCardCount }),
                 ...(row.issue === undefined ? {} : { issue: row.issue }),
-            }))
-            .sort((a, b) => a.key.localeCompare(b.key));
+                provingEntry: mustBladeEntryFor(
+                    byGap.get(row.key) ?? [],
+                    BLADE_CARD_INDEX
+                ),
+            }));
+        return rankFindingClasses(active, PRIORITY_TARGETS);
     },
 });
 

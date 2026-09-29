@@ -6,6 +6,7 @@ import {
     type BotFindingClassRow,
     type BotFindingRow as FindingRow,
 } from "@/lib/botFindings";
+import BotFindingStatusBadge from "./bot-finding-status-badge";
 import BotFindingTrace from "./bot-finding-trace";
 
 /**
@@ -48,9 +49,12 @@ export default function BotFindingRow({
                 />
             )}
             <div className="flex min-w-0 flex-col gap-1.5">
-                <h3 className="text-sm font-semibold text-text">
-                    {finding.name}
-                </h3>
+                <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="text-sm font-semibold text-text">
+                        {finding.name}
+                    </h3>
+                    <BotFindingStatusBadge status={finding.status} />
+                </div>
                 <p className="text-xs text-text-muted">
                     <span className="font-semibold">{finding.outcome}</span>
                     {finding.blame !== undefined && (

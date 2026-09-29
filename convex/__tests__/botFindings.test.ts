@@ -549,3 +549,116 @@ describe("botFindings reads are admin-gated", () => {
         expect(m).toEqual(measurement("m"));
     });
 });
+
+describe("botFindings — derived status and class ranking (ADR 0141 § 3, issue #4177)", () => {
+    const BOLT_GAP = "never-chosen › Instant › (no Ops)";
+
+    it("names Lightning Bolt's own must blade entry as the class's proof, and marks the row class-fixed", async () => {
+        const { ctx } = makeMutationCtx("u-admin", [
+            ADMIN,
+            storedFinding("f-bolt", "o-bolt", {
+                name: "Lightning Bolt",
+                gap: BOLT_GAP,
+                outcome: "ignored",
+            }),
+            {
+                _id: "c-bolt",
+                __table: "botFindingClasses",
+                ...CLASS,
+                key: BOLT_GAP,
+                active: true,
+            },
+        ]);
+        const findings = await runMutation<unknown, Row[]>(
+            listFindings,
+            ctx,
+            {}
+        );
+        expect(findings[0]!.status).toBe("class-fixed");
+        const classes = await runMutation<unknown, Row[]>(listClasses, ctx, {});
+        expect(typeof classes[0]!.provingEntry).toBe("string");
+        expect((classes[0]!.provingEntry as string).length).toBeGreaterThan(0);
+    });
+
+    it("reads resolved once the same card plays, and open for a card no must entry names", async () => {
+        const { ctx } = makeMutationCtx("u-admin", [
+            ADMIN,
+            storedFinding("f-bolt", "o-bolt", {
+                name: "Lightning Bolt",
+                gap: BOLT_GAP,
+                outcome: "played",
+            }),
+            storedFinding("f-plain", "o-plain", {
+                name: "Some Unindexed Test Card",
+                gap: "other-gap",
+                outcome: "ignored",
+            }),
+        ]);
+        const findings = await runMutation<unknown, Row[]>(
+            listFindings,
+            ctx,
+            {}
+        );
+        const byId = new Map(findings.map((f) => [f.oracleId, f]));
+        expect(byId.get("o-bolt")!.status).toBe("resolved");
+        expect(byId.get("o-plain")!.status).toBe("open");
+    });
+
+    it("marks harness-bound over a class proof, since the sweep's own harness owes the fix", async () => {
+        const { ctx } = makeMutationCtx("u-admin", [
+            ADMIN,
+            storedFinding("f-bolt", "o-bolt", {
+                name: "Lightning Bolt",
+                gap: BOLT_GAP,
+                outcome: "ignored",
+                cause: "no-progress",
+            }),
+        ]);
+        const findings = await runMutation<unknown, Row[]>(
+            listFindings,
+            ctx,
+            {}
+        );
+        expect(findings[0]!.status).toBe("harness-bound");
+    });
+
+    it("ranks by PRIORITY order, not by key or cardCount — premodern-metagame (priority 1) beats format-premodern (priority 3) despite a higher key and a higher cardCount", async () => {
+        const { ctx } = makeMutationCtx("u-admin", [
+            ADMIN,
+            {
+                _id: "c-format",
+                __table: "botFindingClasses",
+                ...CLASS,
+                key: "aaa-format-only",
+                cardCount: 9,
+                targetCounts: [
+                    { target: "premodern-metagame", count: 0 },
+                    { target: "format-premodern", count: 9 },
+                ],
+                active: true,
+            },
+            {
+                _id: "c-premodern",
+                __table: "botFindingClasses",
+                ...CLASS,
+                key: "zzz-premodern-only",
+                cardCount: 1,
+                targetCounts: [
+                    { target: "premodern-metagame", count: 1 },
+                    { target: "format-premodern", count: 0 },
+                ],
+                active: true,
+            },
+        ]);
+        const classes = await runMutation<unknown, Row[]>(listClasses, ctx, {});
+        // Sorting by key ASCENDING or by cardCount DESCENDING would both put
+        // "aaa-format-only" first — it wins neither way here. Only comparing
+        // premodern-metagame's count before format-premodern's (priority 1
+        // before priority 3) puts "zzz-premodern-only" first, despite its
+        // higher key and its lower cardCount.
+        expect(classes.map((c) => c.key)).toEqual([
+            "zzz-premodern-only",
+            "aaa-format-only",
+        ]);
+    });
+});
