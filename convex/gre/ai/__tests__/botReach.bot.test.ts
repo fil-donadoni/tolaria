@@ -290,10 +290,17 @@ const OPPONENT_DRAW_SORCERY: CardDefinition = {
 };
 
 /** CR 702.33a (Kicker) / 603.6a — a mono-red creature whose enters trigger
- *  destroys the holder's OWN other creatures, and every player's other creatures instead
- *  when kicked with WHITE mana its printed cost never names. Unkicked it is
- *  strictly a loss in the generated position (two bodies for one), so it is
- *  cast only if the kicked branch is payable. */
+ *  destroys the holder's OWN other creatures, and the OPPONENT's creatures
+ *  instead when kicked with WHITE mana its printed cost never names. Unkicked
+ *  it is strictly a loss in the generated position (two bodies for one), so
+ *  it is cast only if the kicked branch is payable.
+ *
+ *  The kicked branch is one-sided since issue #4758. It used to destroy
+ *  every other creature, which in the generated position (the same creatures
+ *  on both sides) trades evenly — and once an ETB Ability counts only as
+ *  potential in hand, an even trade is rightly worth less than holding the
+ *  card. The claim here is reachability of the kicked branch, so its payoff
+ *  has to be real. */
 const KICKED_SWEEP_CREATURE: CardDefinition = {
     id: "bot-reach-test:kicked-sweep",
     name: "Bot Reach Kicked Sweeper",
@@ -308,7 +315,7 @@ const KICKED_SWEEP_CREATURE: CardDefinition = {
         {
             id: "bot-reach-test:kicked-sweep:trigger",
             oracleText:
-                "When this creature enters, destroy all other creatures you control. If it was kicked, destroy all other creatures instead.",
+                "When this creature enters, destroy all other creatures you control. If it was kicked, destroy all creatures your opponents control instead.",
             head: { kind: "entered", scope: "self" },
             effects: [
                 {
@@ -324,8 +331,8 @@ const KICKED_SWEEP_CREATURE: CardDefinition = {
                             select: {
                                 set: "permanents",
                                 zone: "battlefield",
+                                controller: "opponent",
                                 filter: { type: "Creature" },
-                                excludeSource: true,
                             },
                             effects: [
                                 { op: "destroy", target: { ref: "$each" } },
