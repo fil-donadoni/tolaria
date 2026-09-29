@@ -741,6 +741,11 @@
         },
         {
             "kind": "bot",
+            "key": "position-unmodelled › Instant target:Artifact|Enchantment",
+            "issue": 4873
+        },
+        {
+            "kind": "bot",
             "key": "position-unmodelled › Instant target:Creature",
             "issue": 4259
         },
@@ -758,6 +763,16 @@
             "kind": "bot",
             "key": "position-unmodelled › Sorcery target:Creature",
             "issue": 4265
+        },
+        {
+            "kind": "bot",
+            "key": "position-unmodelled › Sorcery target:Instant|Sorcery",
+            "issue": 4871
+        },
+        {
+            "kind": "bot",
+            "key": "position-unmodelled › Sorcery target:Sorcery",
+            "issue": 4872
         },
         {
             "kind": "grammar",
