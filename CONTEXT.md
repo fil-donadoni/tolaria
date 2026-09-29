@@ -926,6 +926,10 @@ _Avoid_: Skip type, soft quarantine, whitelist
 The `ready` slice of the **Oracle Lockfile**, in the shape the runtime consumes, minus every card that already has a hand-written **Card Definition**. It is what is actually delivered to a running client or server — the lockfile is the record, the pool is the payload.
 _Avoid_: Compiled cards, the JSON, ready set
 
+**Definition Index**:
+The small, generated, eagerly loaded table of every **Card Definition** the runtime can serve — its Card ID, name, **Set** and where the definition itself lives (a block of the packed **Compiled Pool**, or a hand-written export). It is the only part of the catalogue built at load; a definition is decoded or built from it on first request, so what a call costs grows with the cards of the game, never with the catalogue (ADR 0113 Amendment IV). Whole-catalogue features (search, name lists) read the index, never the definitions.
+_Avoid_: Registry (the lookup API over it), manifest, card list
+
 **Oracle Compiler**:
 The translation of a card's printed Oracle text into an **Effect Script** plus its declarative ability slots. It compiles, it never authors: a clause it has no grammar for stops the card rather than being approximated, so what it emits is either the whole card or nothing (ADR 0105). Runs ahead of time, never while a game is in progress.
 _Avoid_: Parser (that's one stage of it), card generator, importer
