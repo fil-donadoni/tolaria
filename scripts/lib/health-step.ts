@@ -74,6 +74,13 @@ export const DEFAULT_LIVENESS_MS = 60_000;
  * DRIFT, and that is the error a reader must see, not a census computed off a
  * stale file.
  *
+ * `blade:robustness` (issue #4875) runs LAST: the blade `must` tier re-run
+ * over a wide seed list and jittered weight vectors, redding on an entry that
+ * passes by seed noise and is not in its shrink-only baseline. Minutes of
+ * search per batch — a health cost by the same rule, never `check:pr` /
+ * `check:lane` / `land` — and after `test`, so a `must` entry that is plainly
+ * red reports as the suite's failure first.
+ *
  * Exported so `check-gaps.test.ts` can assert the membership rather than
  * re-derive it from a regex over `health-main.ts` (which carries the gate's
  * zero-import constraint and cannot be imported by a test — it runs `main()`
@@ -86,6 +93,7 @@ export const HEALTH_SCRIPTS: readonly string[] = [
     "check:targets",
     "check:test-hygiene",
     "test",
+    "blade:robustness",
 ];
 
 /**

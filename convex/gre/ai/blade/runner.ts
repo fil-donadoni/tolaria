@@ -39,6 +39,7 @@ import { computeOwedPlayerIds } from "../../expectedInput";
 import type { DeckKnowledgeBySeat } from "../../deckKnowledge";
 import type { GameState } from "../../state";
 import type { Move } from "../../moves";
+import type { RootDecisionMechanism } from "../decisionTelemetry";
 import {
     describeChosenMove,
     describeMatcher,
@@ -331,6 +332,11 @@ export type BladeSeedResult = {
     ok: boolean;
     /** Why it failed — empty when `ok`. */
     reason: string;
+    /** Which root rule settled the pick (the trace's `mechanism`, issue
+     *  #3388) — `null` for the greedy pick, which runs no search, and for a
+     *  search that returned no trace. The robustness audit (issue #4875) reads
+     *  it: `material-tiebreak` on a near-tie is the noise signature. */
+    mechanism: RootDecisionMechanism | null;
 };
 
 /** Result of running one blade scenario across all its seeds. */
@@ -494,9 +500,9 @@ function runBladeScenarioInner(
                 decider
             );
         }
-        const move =
+        const searched =
             pick === "greedy"
-                ? greedyRootPick(state, botId, seed)
+                ? null
                 : searchWithTrace(
                       state,
                       botId,
@@ -504,7 +510,10 @@ function runBladeScenarioInner(
                       seed,
                       bladeDeckKnowledge(state, scenario),
                       repetition
-                  ).move;
+                  );
+        const move = searched
+            ? searched.move
+            : greedyRootPick(state, botId, seed);
         const reason = checkExpectation(scenario, state, move);
         seeds.push({
             seed,
@@ -512,6 +521,7 @@ function runBladeScenarioInner(
             moveDescription: describeChosenMove(state, move),
             ok: reason === "",
             reason,
+            mechanism: searched?.trace?.mechanism ?? null,
         });
     }
 

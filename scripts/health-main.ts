@@ -8,7 +8,8 @@
  * 0136 §6), and `bun run health` runs it by hand. It runs the FULL offline gate
  * (`HEALTH_SCRIPTS` in `lib/health-step.ts`: `check:all`, the derived Op census
  * `check:gaps`, the Coverage Invariant `check:targets`, the test-suite
- * hygiene census `check:test-hygiene`, and all three test suites) against the
+ * hygiene census `check:test-hygiene`, all three test suites, and the blade
+ * robustness audit `blade:robustness`) against the
  * merged tip, in a throwaway worktree, and leaves a durable verdict in
  * `.claude/telemetry/health/`:
  *
