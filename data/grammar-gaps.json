@@ -356,6 +356,16 @@
         },
         {
             "kind": "bot",
+            "key": "never-chosen › Artifact [trample] › if+mayPay+sacrifice",
+            "issue": 4825
+        },
+        {
+            "kind": "bot",
+            "key": "never-chosen › Artifact › (no Ops)",
+            "issue": 4836
+        },
+        {
+            "kind": "bot",
             "key": "never-chosen › Artifact › draw",
             "issue": 4279
         },
@@ -411,6 +421,11 @@
         },
         {
             "kind": "bot",
+            "key": "never-chosen › Creature [menace] › counters",
+            "issue": 4837
+        },
+        {
+            "kind": "bot",
             "key": "never-chosen › Creature › (no Ops)",
             "issue": 4069
         },
@@ -446,6 +461,11 @@
         },
         {
             "kind": "bot",
+            "key": "never-chosen › Creature › destroy+forEach+pump",
+            "issue": 4826
+        },
+        {
+            "kind": "bot",
             "key": "never-chosen › Creature › discardAtRandom",
             "issue": 4285
         },
@@ -471,6 +491,11 @@
         },
         {
             "kind": "bot",
+            "key": "never-chosen › Creature › sacrifice",
+            "issue": 4838
+        },
+        {
+            "kind": "bot",
             "key": "never-chosen › Enchantment target:Creature [flash] › (no Ops)",
             "issue": 4260
         },
@@ -488,6 +513,11 @@
             "kind": "bot",
             "key": "never-chosen › Instant target:Artifact|Battle|Creature|Enchantment|Land|Planeswalker › tapUntap",
             "issue": 4288
+        },
+        {
+            "kind": "bot",
+            "key": "never-chosen › Instant target:Creature [rebound] › exile+moveZone",
+            "issue": 4839
         },
         {
             "kind": "bot",
@@ -531,8 +561,43 @@
         },
         {
             "kind": "bot",
+            "key": "never-chosen › Instant target:player › (no Ops)",
+            "issue": 4827
+        },
+        {
+            "kind": "bot",
+            "key": "never-chosen › Instant › addMana",
+            "issue": 4822
+        },
+        {
+            "kind": "bot",
+            "key": "never-chosen › Instant › addMana+if",
+            "issue": 4823
+        },
+        {
+            "kind": "bot",
+            "key": "never-chosen › Instant › choice+delayedTrigger+grantAbility+moveZone+sacrifice",
+            "issue": 4840
+        },
+        {
+            "kind": "bot",
+            "key": "never-chosen › Instant › choice+if+mayPay+moveZone+sacrifice",
+            "issue": 4834
+        },
+        {
+            "kind": "bot",
+            "key": "never-chosen › Instant › dealDamage+forEach",
+            "issue": 4828
+        },
+        {
+            "kind": "bot",
             "key": "never-chosen › Instant › forEach+tapUntap",
             "issue": 4293
+        },
+        {
+            "kind": "bot",
+            "key": "never-chosen › Planeswalker › choice+createToken+destroy+if+loseLife+mill+reflexiveTrigger+sacrifice",
+            "issue": 4841
         },
         {
             "kind": "bot",
@@ -543,6 +608,11 @@
             "kind": "bot",
             "key": "never-chosen › Sorcery target:Creature › pump",
             "issue": 4270
+        },
+        {
+            "kind": "bot",
+            "key": "never-chosen › Sorcery target:Creature|Planeswalker › destroy",
+            "issue": 4842
         },
         {
             "kind": "bot",
@@ -576,8 +646,38 @@
         },
         {
             "kind": "bot",
+            "key": "never-chosen › Sorcery target:player › forEach+libraryLook+moveZone",
+            "issue": 4829
+        },
+        {
+            "kind": "bot",
+            "key": "never-chosen › Sorcery › (no Ops)",
+            "issue": 4831
+        },
+        {
+            "kind": "bot",
+            "key": "never-chosen › Sorcery › armGraveyardRedirect+grantGraveyardPlay",
+            "issue": 4835
+        },
+        {
+            "kind": "bot",
+            "key": "never-chosen › Sorcery › choice+forEach+moveZone",
+            "issue": 4824
+        },
+        {
+            "kind": "bot",
             "key": "never-chosen › Sorcery › choice+forEach+sacrifice",
             "issue": 4255
+        },
+        {
+            "kind": "bot",
+            "key": "never-chosen › Sorcery › choice+libraryLook+loseLife+moveZone",
+            "issue": 4843
+        },
+        {
+            "kind": "bot",
+            "key": "never-chosen › Sorcery › choice+libraryLook+moveZone",
+            "issue": 4832
         },
         {
             "kind": "bot",
@@ -596,8 +696,23 @@
         },
         {
             "kind": "bot",
+            "key": "never-chosen › Sorcery › discard+draw+forEach",
+            "issue": 4844
+        },
+        {
+            "kind": "bot",
             "key": "never-chosen › Sorcery › draw",
             "issue": 4266
+        },
+        {
+            "kind": "bot",
+            "key": "never-chosen › Sorcery › draw+forEach+libraryLook+moveZone",
+            "issue": 4833
+        },
+        {
+            "kind": "bot",
+            "key": "never-chosen › Sorcery › forEach+moveZone",
+            "issue": 4830
         },
         {
             "kind": "bot",
@@ -621,8 +736,18 @@
         },
         {
             "kind": "bot",
+            "key": "position-unmodelled › Creature [convoke,delve,trample]",
+            "issue": 4845
+        },
+        {
+            "kind": "bot",
             "key": "position-unmodelled › Instant target:Creature",
             "issue": 4259
+        },
+        {
+            "kind": "bot",
+            "key": "position-unmodelled › Instant target:spell",
+            "issue": 4821
         },
         {
             "kind": "bot",
