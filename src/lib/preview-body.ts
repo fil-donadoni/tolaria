@@ -469,7 +469,7 @@ export function buildPreviewBody(
         bodyAbilities.triggered.length > 0;
     const displayName = def?.name ?? fallbackName ?? defId;
     // An instance-level pin — the printing a player chose for the card (ADR
-    // 0140 §6), or a copy token's own frame (CR 707.2) — wins over the
+    // 0140 §6), or a copy token's own frame (CR 707.9) — wins over the
     // definition's art, exactly as it does on the board (`card-image.tsx`), so
     // the preview never shows a different printing from the card it enlarges.
     const imageId =
