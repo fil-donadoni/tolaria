@@ -4,6 +4,7 @@
 // (`botCauseText`, `scripts/lib/gap-kinds.ts`), never written here.
 import type { FunctionReturnType } from "convex/server";
 import type { api } from "@convex/_generated/api";
+import { isStaleMeasurement } from "@convex/botFindingsCore";
 import type { EvalTerms, PositionBreakdown } from "@convex/gre";
 import {
     comparePositions,
@@ -20,6 +21,74 @@ export type BotFindingClassRow = FunctionReturnType<
 export type BotFindingMeasurement = NonNullable<
     FunctionReturnType<typeof api.botFindings.latestMeasurement>
 >;
+
+// ── Staleness and the per-class delta (issue #4181) ───────────────────────
+
+/** Is the finding's verdict stale — measured under a Bot hash other than the
+ *  current one? Marks the row; never removes it. The rule is
+ *  `isStaleMeasurement`, shared with the seed that stamps the current hash. */
+export function isStaleFinding(
+    finding: Pick<BotFindingRow, "botHash">,
+    measurement: BotFindingMeasurement
+): boolean {
+    return isStaleMeasurement(finding.botHash, measurement);
+}
+
+export type StalenessFilter = "all" | "current" | "stale";
+
+export const STALENESS_FILTERS: readonly {
+    value: StalenessFilter;
+    label: string;
+}[] = [
+    { value: "all", label: "All" },
+    { value: "current", label: "Current" },
+    { value: "stale", label: "Stale" },
+];
+
+/** Narrow rows by staleness. Without a measurement nothing can be judged
+ *  stale, so every row passes — a filter never hides what it cannot judge. */
+export function filterByStaleness<T extends Pick<BotFindingRow, "botHash">>(
+    rows: readonly T[],
+    filter: StalenessFilter,
+    measurement: BotFindingMeasurement | null
+): T[] {
+    if (filter === "all" || measurement === null) return [...rows];
+    return rows.filter(
+        (row) => isStaleFinding(row, measurement) === (filter === "stale")
+    );
+}
+
+/** The header line naming how current the page is: when the measurement ran
+ *  and, when the Bot has moved since, how many rows that leaves stale. */
+export function stalenessSummary(
+    rows: readonly Pick<BotFindingRow, "botHash">[],
+    measurement: BotFindingMeasurement
+): string | null {
+    const stale = rows.filter((r) => isStaleFinding(r, measurement)).length;
+    if (stale === 0) return null;
+    return (
+        `${stale} of ${rows.length} rows were measured under an older Bot ` +
+        `than the current one — treat them as stale until the next health ` +
+        `batch that touches the Bot re-measures.`
+    );
+}
+
+/**
+ * A class's size now against its size at the measurement before the current
+ * one — the effect of a landed Bot fix, read off the page instead of inferred.
+ * Absent baseline (the first measurement) is said, not rendered as `0`.
+ */
+export function classDeltaText(cls: BotFindingClassRow): string {
+    const now = `${cls.cardCount} ${cls.cardCount === 1 ? "card" : "cards"} now`;
+    if (cls.previousCardCount === undefined)
+        return `${now}, no earlier measurement to compare`;
+    const delta = cls.cardCount - cls.previousCardCount;
+    const change =
+        delta === 0
+            ? "no change"
+            : `${delta > 0 ? "+" : "−"}${Math.abs(delta)}`;
+    return `${now}, ${cls.previousCardCount} at the previous measurement (${change})`;
+}
 
 /**
  * The header's honesty line: how many cards were measured out of how many

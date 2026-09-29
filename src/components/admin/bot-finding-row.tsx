@@ -1,6 +1,7 @@
 import { getImageFallbackUrl, getImageUrl } from "@/lib/images";
 import {
     BLAME_LABEL,
+    classDeltaText,
     proseSegments,
     type BotFindingClassRow,
     type BotFindingRow as FindingRow,
@@ -12,18 +13,23 @@ import BotFindingTrace from "./bot-finding-trace";
  * print, its name, the Bot Gap class it is blocked by, that class's prose —
  * the filer's own words, carried on the class row — and who owes the fix.
  * A `never-chosen` card also carries the search decision that refused it
- * (issue #4179).
+ * (issue #4179). A row measured under an older Bot hash than the current one
+ * carries a `stale` flag (issue #4181) — marked, never hidden — and its class
+ * line says what the class held at the previous measurement.
  */
 export default function BotFindingRow({
     finding,
     cls,
+    stale,
 }: {
     finding: FindingRow;
     cls: BotFindingClassRow | undefined;
+    stale: boolean;
 }) {
     return (
         <article
             data-bot-finding-row={finding.oracleId}
+            data-stale={stale ? "" : undefined}
             className="flex gap-4 rounded-sm border border-border-subtle/40 p-3"
         >
             {finding.printId !== undefined && (
@@ -53,10 +59,30 @@ export default function BotFindingRow({
                     {finding.compileSource !== undefined && (
                         <> · {finding.compileSource}</>
                     )}
+                    {stale && (
+                        <>
+                            {" "}
+                            ·{" "}
+                            <span
+                                data-bot-finding-stale=""
+                                className="font-semibold text-danger-strong"
+                            >
+                                stale — measured under an older Bot
+                            </span>
+                        </>
+                    )}
                 </p>
                 {finding.gap !== undefined && (
                     <p className="break-words font-mono text-xs text-text">
                         {finding.gap}
+                    </p>
+                )}
+                {cls !== undefined && (
+                    <p
+                        data-bot-finding-class-delta=""
+                        className="text-xs text-text-muted"
+                    >
+                        {classDeltaText(cls)}
                     </p>
                 )}
                 {cls !== undefined && (

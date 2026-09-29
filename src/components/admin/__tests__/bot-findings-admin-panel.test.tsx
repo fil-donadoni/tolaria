@@ -6,7 +6,7 @@
 // `gaps-sync.test.ts`) — and who owes the fix. And from the header: measured
 // vs total, with the unmeasured hand-written count named.
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import BotFindingsAdminPanel from "../bot-findings-admin-panel";
 import { findingTraceText, type BotFindingTrace } from "@/lib/botFindings";
 
@@ -46,6 +46,7 @@ const FINDINGS = [
         gap: NEVER,
         blame: "bot",
         compileSource: "hand-written",
+        botHash: "sha256:25ee",
         measuredAt: "2026-09-23T13:17:56.829Z",
         trace: {
             cardMove: "weighed",
@@ -85,6 +86,7 @@ const FINDINGS = [
         cause: "position-unmodelled",
         gap: UNMODELLED,
         blame: "harness",
+        botHash: "sha256:25ee",
         measuredAt: "2026-09-23T13:17:56.829Z",
     },
 ];
@@ -214,6 +216,92 @@ describe("BotFindingsAdminPanel — the Cards tab (issue #4176)", () => {
         expect(findingTraceText({ cardMove: "pruned" })).toBe(
             "Its move was pruned before the search: dominance proved using it changes nothing.\nNo search ran: a single move was left to make."
         );
+    });
+
+    // Issue #4181 — a page that stays current on its own says plainly when it
+    // is not: rows measured under an older Bot are FLAGGED and filterable,
+    // never hidden, and each class shows its delta.
+    describe("staleness and the class delta (issue #4181)", () => {
+        const rowIds = () =>
+            [...document.querySelectorAll("[data-bot-finding-row]")].map((el) =>
+                el.getAttribute("data-bot-finding-row")
+            );
+
+        it("flags nothing while every row was measured under the current Bot", () => {
+            render(<BotFindingsAdminPanel />);
+            expect(
+                document.querySelector("[data-bot-finding-stale]")
+            ).toBeNull();
+            expect(
+                document.querySelector("[data-bot-findings-stale-banner]")
+            ).toBeNull();
+        });
+
+        it("flags a row measured under an older Bot, says so in the header, and still renders EVERY row", () => {
+            answers.latestMeasurement = {
+                ...MEASUREMENT,
+                currentBotHash: "sha256:new",
+            };
+            answers.listFindings = [
+                FINDINGS[0],
+                { ...FINDINGS[1]!, botHash: "sha256:new" },
+            ];
+            render(<BotFindingsAdminPanel />);
+            expect(rowIds()).toEqual(["o-grist", "o-spell"]);
+            const stale = document.querySelectorAll("[data-bot-finding-stale]");
+            expect(stale).toHaveLength(1);
+            expect(
+                stale[0]!
+                    .closest("[data-bot-finding-row]")!
+                    .getAttribute("data-bot-finding-row")
+            ).toBe("o-grist");
+            expect(
+                document.querySelector("[data-bot-findings-stale-banner]")!
+                    .textContent
+            ).toContain("1 of 2 rows were measured under an older Bot");
+            // The date the measurement ran is in the header either way.
+            expect(
+                document.querySelector("[data-bot-findings-measurement]")!
+                    .textContent
+            ).toContain("2026-09-23T13:17:56.829Z");
+        });
+
+        it("filters to stale rows and to current ones — and back to all", () => {
+            answers.latestMeasurement = {
+                ...MEASUREMENT,
+                currentBotHash: "sha256:new",
+            };
+            answers.listFindings = [
+                FINDINGS[0],
+                { ...FINDINGS[1]!, botHash: "sha256:new" },
+            ];
+            render(<BotFindingsAdminPanel />);
+            fireEvent.click(screen.getByRole("radio", { name: "Stale" }));
+            expect(rowIds()).toEqual(["o-grist"]);
+            fireEvent.click(screen.getByRole("radio", { name: "Current" }));
+            expect(rowIds()).toEqual(["o-spell"]);
+            fireEvent.click(screen.getByRole("radio", { name: "All" }));
+            expect(rowIds()).toEqual(["o-grist", "o-spell"]);
+        });
+
+        it("shows each class's cards now against the previous measurement", () => {
+            answers.listClasses = [
+                { ...CLASSES[0]!, cardCount: 3, previousCardCount: 5 },
+                CLASSES[1],
+            ];
+            render(<BotFindingsAdminPanel />);
+            const delta = (id: string) =>
+                document
+                    .querySelector(`[data-bot-finding-row="${id}"]`)!
+                    .querySelector("[data-bot-finding-class-delta]")!
+                    .textContent;
+            expect(delta("o-grist")).toBe(
+                "3 cards now, 5 at the previous measurement (−2)"
+            );
+            expect(delta("o-spell")).toBe(
+                "1 card now, no earlier measurement to compare"
+            );
+        });
     });
 
     it("says so when the deployment was never seeded, rather than rendering nothing", () => {

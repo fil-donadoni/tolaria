@@ -320,6 +320,113 @@ describe("botFindings.seed — measured fields rewritten, human fields untouched
         ).toEqual([]);
     });
 
+    // Issue #4181 — the per-class delta: cards now vs cards at the measurement
+    // this seed replaces.
+    describe("the class delta (issue #4181)", () => {
+        const stored = (extra: Row = {}): Row => ({
+            _id: "c-1",
+            __table: "botFindingClasses",
+            ...CLASS,
+            cardCount: 5,
+            active: true,
+            ...extra,
+        });
+        const oldMeasurement: Row = {
+            _id: "m-1",
+            __table: "botFindingMeasurements",
+            ...measurement("old"),
+        };
+        const seedClasses = (
+            rows: Row[],
+            sha: string,
+            classes: SeedPayload["classes"]
+        ) => {
+            const stub = makeMutationCtx(null, rows);
+            return runMutation(seed, stub.ctx, {
+                payload: {
+                    measurement: measurement(sha),
+                    findings: [],
+                    played: [],
+                    classes,
+                },
+            }).then(() => stub);
+        };
+
+        it("records the count the class held at the measurement it replaces", async () => {
+            const stub = await seedClasses([stored(), oldMeasurement], "new", [
+                { ...CLASS, cardCount: 7 },
+            ]);
+            expect(stub.doc("c-1")).toMatchObject({
+                cardCount: 7,
+                previousCardCount: 5,
+            });
+        });
+
+        it("gives a class the previous measurement did not carry a baseline of 0", async () => {
+            const stub = await seedClasses([oldMeasurement], "new", [
+                { ...CLASS, cardCount: 2 },
+            ]);
+            const inserted = stub.writes.find(
+                (w) => w.table === "botFindingClasses"
+            )!;
+            expect(stub.doc(inserted.id)).toMatchObject({
+                key: NEVER,
+                cardCount: 2,
+                previousCardCount: 0,
+            });
+        });
+
+        it("writes no baseline on the very first measurement — nothing to compare against", async () => {
+            const stub = await seedClasses([], "first", [CLASS]);
+            const inserted = stub.writes.find(
+                (w) => w.table === "botFindingClasses"
+            )!;
+            expect(stub.doc(inserted.id).previousCardCount).toBeUndefined();
+        });
+
+        it("leaves the baseline alone when the SAME measurement is seeded again", async () => {
+            const stub = await seedClasses(
+                [
+                    stored({ cardCount: 7, previousCardCount: 5 }),
+                    { ...oldMeasurement, ...measurement("same") },
+                ],
+                "same",
+                [{ ...CLASS, cardCount: 7 }]
+            );
+            expect(stub.doc("c-1")).toMatchObject({
+                cardCount: 7,
+                previousCardCount: 5,
+            });
+        });
+
+        it("stamps the current Bot hash on the measurement, and clears it when a seed carries none", async () => {
+            const stub = makeMutationCtx(null, [
+                { ...oldMeasurement, currentBotHash: "bot-stale" },
+            ]);
+            await runMutation(seed, stub.ctx, {
+                payload: {
+                    measurement: {
+                        ...measurement("new"),
+                        currentBotHash: "bot-now",
+                    },
+                    findings: [],
+                    played: [],
+                    classes: [],
+                },
+            });
+            expect(stub.doc("m-1").currentBotHash).toBe("bot-now");
+            await runMutation(seed, stub.ctx, {
+                payload: {
+                    measurement: measurement("newer"),
+                    findings: [],
+                    played: [],
+                    classes: [],
+                },
+            });
+            expect(stub.doc("m-1").currentBotHash).toBeUndefined();
+        });
+    });
+
     it("keeps the class a now-played finding names, even when no other card carries it", async () => {
         const stub = makeMutationCtx(null, [
             storedFinding("f-1", "o-a"),
@@ -372,7 +479,13 @@ describe("botFindings reads are admin-gated", () => {
         PLAIN,
         storedFinding("f-1", "o-a"),
         storedFinding("f-2", "o-b", { active: false }),
-        { _id: "c-1", __table: "botFindingClasses", ...CLASS, active: true },
+        {
+            _id: "c-1",
+            __table: "botFindingClasses",
+            ...CLASS,
+            previousCardCount: 4,
+            active: true,
+        },
         { _id: "m-1", __table: "botFindingMeasurements", ...measurement("m") },
     ];
 
@@ -395,8 +508,11 @@ describe("botFindings reads are admin-gated", () => {
         );
         expect(findings.map((f) => f.oracleId)).toEqual(["o-a"]);
         expect(findings[0]).toMatchObject(HUMAN);
+        // The stale flag compares this against the measurement's hash.
+        expect(findings[0]!.botHash).toBe("bot-old");
         const classes = await runMutation<unknown, Row[]>(listClasses, ctx, {});
         expect(classes.map((c) => c.key)).toEqual([NEVER]);
+        expect(classes[0]!.previousCardCount).toBe(4);
         const m = await runMutation<unknown, Row>(latestMeasurement, ctx, {});
         expect(m).toEqual(measurement("m"));
     });

@@ -40,12 +40,23 @@
  * a step is long — and the per-sha log still receives the full child output.
  * `lib/health-step.ts` owns that.
  *
- * Zero imports beyond node builtins, `lib/branches.ts` and
- * `lib/health-step.ts` (both builtins only) — same constraint as
- * bootstrap-worktree.
+ * A batch whose diff touched the Bot's globs (`lib/bot-globs.ts`) also
+ * re-measures the Bot Findings page (`lib/health-bot-refresh.ts`, ADR 0141 § 5,
+ * issue #4181) AFTER the gates pass: `bot:reach`, then `seed:bot-findings`.
+ * Those two steps NEVER fail the batch — a stale page is marked stale, not a
+ * red tip — and neither `land` nor `check:pr` runs them.
+ *
+ * Zero imports beyond node builtins, `lib/branches.ts`, `lib/health-step.ts`
+ * and `lib/health-bot-refresh.ts` (builtins and the import-free
+ * `lib/bot-globs.ts` only) — same constraint as bootstrap-worktree.
  */
 import { spawnSync } from "node:child_process";
 import { BASE_BRANCH, ORIGIN_BASE, RELEASE_BRANCH } from "./lib/branches";
+import {
+    batchTouchesBot,
+    botRefreshSteps,
+    REFRESHED_ARTIFACT_NAME,
+} from "./lib/health-bot-refresh";
 import {
     healthGateEnv,
     runHealthStep,
@@ -53,6 +64,7 @@ import {
     type HealthStep,
 } from "./lib/health-step";
 import {
+    copyFileSync,
     existsSync,
     mkdirSync,
     readFileSync,
@@ -100,6 +112,28 @@ function readLast(dir: string): LastRun | null {
 
 function writeLast(dir: string, run: LastRun): void {
     writeFileSync(join(dir, "last.json"), JSON.stringify(run, null, 2));
+}
+
+/** Repo-relative paths that changed between the last GREEN tip and `tip` —
+ *  the batch's diff. `null` when it cannot be taken: no green tip recorded, or
+ *  it is no longer an ancestor-reachable object here. */
+function batchChangedFiles(root: string, tip: string): string[] | null {
+    let green: string;
+    try {
+        green = readFileSync(
+            join(root, ".claude/telemetry/green-sha"),
+            "utf8"
+        ).trim();
+    } catch {
+        return null;
+    }
+    if (green === "") return null;
+    const r = spawnSync("git", ["diff", "--name-only", `${green}..${tip}`], {
+        encoding: "utf8",
+        cwd: root,
+    });
+    if (r.status !== 0) return null;
+    return r.stdout.split("\n").filter((line) => line !== "");
 }
 
 /** Worktrees whose checked-out branch is already merged into origin/main —
@@ -219,6 +253,14 @@ async function main(): Promise<void> {
         args: ["run", name],
     }));
 
+    const refreshBot = batchTouchesBot(batchChangedFiles(root, tip));
+    const refreshSteps = refreshBot ? botRefreshSteps(steps.length) : [];
+    if (refreshBot) {
+        // The gates' own "[n/total]" lines must already count the refresh.
+        for (const step of steps)
+            step.total = steps.length + refreshSteps.length;
+    }
+
     let failedStep: string | undefined;
     try {
         git(["worktree", "add", "--detach", wt, tip], root);
@@ -228,6 +270,27 @@ async function main(): Promise<void> {
                 failedStep = step.name;
                 break;
             }
+        }
+        // Only a batch that passed re-measures, and a refresh that fails or
+        // is cut short leaves the page stale (marked so) instead of the tip
+        // red: the measurement is a view of the Bot, not a gate on it.
+        if (failedStep === undefined) {
+            let refreshed = refreshSteps.length > 0;
+            for (const step of refreshSteps) {
+                const r = await runHealthStep(step, { cwd: wt, env, logPath });
+                if (!r.ok) {
+                    refreshed = false;
+                    console.error(
+                        `health-main: ${step.name} failed — Bot Findings stay stale (${logPath})`
+                    );
+                    break;
+                }
+            }
+            // Kept beside `last.json`: the worktree is removed below, and the
+            // artifact is what a PR commits (`bun run bot:reach`).
+            const artifact = join(wt, "data/bot-reach-findings.json");
+            if (refreshed && existsSync(artifact))
+                copyFileSync(artifact, join(dir, REFRESHED_ARTIFACT_NAME));
         }
     } finally {
         spawnSync("git", ["worktree", "remove", "--force", wt], { cwd: root });
