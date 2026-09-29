@@ -1156,7 +1156,12 @@ function main(): void {
     // compiler runs (`mergeBotVerdicts`'s own doc).
     const botMerge = mergeBotVerdicts(findings, lock.cards, botHash(root));
     if (botMerge.stale.length > 0) {
-        const nameOf = new Map(lock.cards.map((c) => [c.oracleId, c.name]));
+        const nameOf = new Map([
+            ...(findings?.findings ?? []).map(
+                (r) => [r.oracleId, r.name] as const
+            ),
+            ...lock.cards.map((c) => [c.oracleId, c.name] as const),
+        ]);
         const names = botMerge.stale
             .map((id) => nameOf.get(id) ?? id)
             .slice(0, 20);

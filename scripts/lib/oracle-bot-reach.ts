@@ -785,15 +785,19 @@ export function mergeBotVerdicts(
     }
     // A card the report measured and the lockfile has no row for — a
     // hand-written definition with no compiled shadow — is a second input, not
-    // noise: its Bot Gap class exists nowhere else. A `compiled` row with no
-    // lockfile row has no current def hash to be checked against, so it is
-    // stale, never trusted.
+    // noise: its Bot Gap class exists nowhere else. Only a `hand-written` row
+    // counts: a `compiled` row with no lockfile row is an orphan of a card
+    // that left the corpus, so it is ignored — never stale, or one orphan
+    // would hold every `bot` claim open until `bot:reach` rewrote the report.
     const lockIds = new Set(lockCards.map((row) => row.oracleId));
     for (const report of findings?.findings ?? []) {
-        if (lockIds.has(report.oracleId) || report.outcome === "unplayable")
+        if (
+            lockIds.has(report.oracleId) ||
+            report.outcome === "unplayable" ||
+            report.source !== "hand-written"
+        )
             continue;
-        if (globallyStale || report.source === "compiled")
-            stale.push(report.oracleId);
+        if (globallyStale) stale.push(report.oracleId);
         else
             merged.set(report.oracleId, {
                 outcome: report.outcome,

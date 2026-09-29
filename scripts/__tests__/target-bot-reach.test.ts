@@ -692,7 +692,7 @@ describe("mergeBotVerdicts — the report over the lockfile (issue #4406)", () =
         });
     });
 
-    it("a findings-only row is stale under a moved Bot hash, and a findings-only `compiled` row is always stale", () => {
+    it("a findings-only row is stale under a moved Bot hash, and a findings-only `compiled` orphan is ignored, never stale", () => {
         const hand = row({
             oracleId: "h-1",
             source: "hand-written",
@@ -716,6 +716,6 @@ describe("mergeBotVerdicts — the report over the lockfile (issue #4406)", () =
             BOT_HASH
         );
         expect([...orphan.merged.keys()]).toEqual([]);
-        expect(orphan.stale).toEqual(["c-1"]);
+        expect(orphan.stale).toEqual([]);
     });
 });
