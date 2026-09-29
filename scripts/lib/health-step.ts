@@ -89,6 +89,34 @@ export const HEALTH_SCRIPTS: readonly string[] = [
 ];
 
 /**
+ * Gates a batch owes ONLY when its diff touched the Bot's globs
+ * (`batchTouchesBot`, the decision the Bot Findings refresh already makes) —
+ * run after `HEALTH_SCRIPTS`, and red like any of them, unlike the refresh.
+ *
+ * `blade:robustness` (issue #4875): the blade `must` tier re-run over a wide
+ * seed list and jittered weight vectors, redding on an entry that passes by
+ * seed noise and is not in its shrink-only baseline. ~15 min of search on a
+ * loaded machine, so a health cost by the issue-#4490 rule (never `check:pr` /
+ * `check:lane` / `land`), and only for a batch that can have moved it: a pin
+ * appears when the search, the evaluator, the weights or the registry change —
+ * every one of them under the Bot's globs.
+ */
+export const BOT_HEALTH_SCRIPTS: readonly string[] = ["blade:robustness"];
+
+/** The gates one health run executes, in order: `base` (the caller passes
+ *  `HEALTH_SCRIPTS`), then `BOT_HEALTH_SCRIPTS` iff the batch touched the Bot.
+ *
+ *  Known blind spot, accepted for the cost: a batch OUTSIDE the Bot's globs
+ *  (an engine or card change that shifts RNG consumption) can create or clear
+ *  a pin without running the audit, and the next Bot batch reds for it. */
+export function healthGates(
+    base: readonly string[],
+    touchesBot: boolean
+): readonly string[] {
+    return touchesBot ? [...base, ...BOT_HEALTH_SCRIPTS] : base;
+}
+
+/**
  * The environment every health step runs under. The health gate must queue on
  * the machine mutex like any other heavy gate — so the hold `land`'s locked
  * shell exported is scrubbed — and it must prove every pure drift guard from
