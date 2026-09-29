@@ -81,6 +81,7 @@ function payload() {
             { oracleId: "o-c", firstPrintId: "p-c" },
         ],
         handWritten: new Set(["o-played", "o-a", "o-c", "o-far-1", "o-far-2"]),
+        currentBotHash: "bot-1",
     });
 }
 
@@ -123,6 +124,7 @@ describe("buildBotFindingsPayload (issue #4176)", () => {
             claims: [],
             cardIndex: [],
             handWritten: new Set(),
+            currentBotHash: "bot-1",
         });
         expect(p.findings.find((f) => f.oracleId === "o-a")!.trace).toEqual(
             trace
@@ -155,12 +157,27 @@ describe("buildBotFindingsPayload (issue #4176)", () => {
         expect(payload().measurement).toEqual({
             sha: "sha-1",
             botHash: "bot-1",
+            currentBotHash: "bot-1",
             measuredAt: "2026-09-23T00:00:00Z",
             targets: ["cube", "premodern"],
             targetCardCount: 5,
             measuredCount: 4,
             unmeasuredHandWrittenCount: 2,
         });
+    });
+});
+
+describe("buildBotFindingsPayload — the current Bot hash (issue #4181)", () => {
+    it("stamps the seeding checkout's Bot hash beside the artifact's own, so a Bot that moved since marks rows stale", () => {
+        const p = buildBotFindingsPayload({
+            artifact: ARTIFACT,
+            claims: [],
+            cardIndex: [],
+            handWritten: new Set(),
+            currentBotHash: "bot-2",
+        });
+        expect(p.measurement.botHash).toBe("bot-1");
+        expect(p.measurement.currentBotHash).toBe("bot-2");
     });
 });
 

@@ -13,12 +13,12 @@ import { assertIsAdmin } from "./auth";
 import {
     SWEEP_SOURCE,
     classKeysKeptByPlayed,
-    findingClassValidator,
     measuredFindingValidator,
     measurementValidator,
     planClassWrites,
     planFindingWrites,
     seedPayloadValidator,
+    storedClassValidator,
 } from "./botFindingsCore";
 
 /** A finding as the page reads it: measured fields, human fields, id. */
@@ -26,6 +26,9 @@ const findingRowValidator = v.object({
     _id: v.id("botFindings"),
     ...measuredFindingValidator.fields,
     source: v.string(),
+    /** The Bot hash the verdict was produced under — compared against the
+     *  measurement's `currentBotHash` for the stale flag (issue #4181). */
+    botHash: v.string(),
     measuredAt: v.string(),
     note: v.optional(v.string()),
     reproducers: v.optional(v.array(v.string())),
@@ -51,6 +54,7 @@ export const listFindings = query({
                 name: row.name,
                 targets: row.targets,
                 outcome: row.outcome,
+                botHash: row.botHash,
                 measuredAt: row.measuredAt,
                 ...(row.printId === undefined ? {} : { printId: row.printId }),
                 ...(row.cause === undefined ? {} : { cause: row.cause }),
@@ -82,7 +86,7 @@ export const listFindings = query({
 /** Every ACTIVE Bot Gap class, by key. */
 export const listClasses = query({
     args: {},
-    returns: v.array(findingClassValidator),
+    returns: v.array(storedClassValidator),
     handler: async (ctx) => {
         await assertIsAdmin(ctx);
         const rows = await ctx.db.query("botFindingClasses").collect();
@@ -95,6 +99,9 @@ export const listClasses = query({
                 causeText: row.causeText,
                 cardCount: row.cardCount,
                 targetCounts: row.targetCounts,
+                ...(row.previousCardCount === undefined
+                    ? {}
+                    : { previousCardCount: row.previousCardCount }),
                 ...(row.issue === undefined ? {} : { issue: row.issue }),
             }))
             .sort((a, b) => a.key.localeCompare(b.key));
@@ -112,6 +119,9 @@ export const latestMeasurement = query({
         return {
             sha: row.sha,
             botHash: row.botHash,
+            ...(row.currentBotHash === undefined
+                ? {}
+                : { currentBotHash: row.currentBotHash }),
             measuredAt: row.measuredAt,
             targets: row.targets,
             targetCardCount: row.targetCardCount,
@@ -163,11 +173,41 @@ export const seed = internalMutation({
             }
         }
 
+        // Read BEFORE it is rewritten below: the class delta is "cards now vs
+        // cards at the measurement this seed replaces" (issue #4181).
+        const [current] = await ctx.db
+            .query("botFindingMeasurements")
+            .collect();
         const classes = await ctx.db.query("botFindingClasses").collect();
         for (const write of planClassWrites(
-            classes.map((row) => ({ id: row._id, key: row.key })),
+            classes.map((row) => ({
+                id: row._id,
+                key: row.key,
+                active: row.active,
+                cardCount: row.cardCount,
+                targetCounts: row.targetCounts,
+                ...(row.previousCardCount === undefined
+                    ? {}
+                    : { previousCardCount: row.previousCardCount }),
+            })),
             payload.classes,
-            classKeysKeptByPlayed(existing, payload)
+            classKeysKeptByPlayed(existing, payload),
+            {
+                previous:
+                    current === undefined
+                        ? null
+                        : {
+                              sha: current.sha,
+                              botHash: current.botHash,
+                              measuredAt: current.measuredAt,
+                              targets: current.targets,
+                              targetCardCount: current.targetCardCount,
+                              measuredCount: current.measuredCount,
+                              unmeasuredHandWrittenCount:
+                                  current.unmeasuredHandWrittenCount,
+                          },
+                next: payload.measurement,
+            }
         )) {
             if (write.kind === "insert")
                 await ctx.db.insert("botFindingClasses", write.fields);
@@ -178,13 +218,17 @@ export const seed = internalMutation({
                 );
         }
 
-        // ONE row, rewritten in place: every field is measured and required.
-        const [current] = await ctx.db
-            .query("botFindingMeasurements")
-            .collect();
+        // ONE row, rewritten in place: every field is measured.
         if (current === undefined)
             await ctx.db.insert("botFindingMeasurements", payload.measurement);
-        else await ctx.db.patch(current._id, payload.measurement);
+        else
+            await ctx.db.patch(current._id, {
+                ...payload.measurement,
+                // Named even when absent: a seed that carries no current hash
+                // must not keep the previous one, which would flag rows stale
+                // against a Bot nobody measured.
+                currentBotHash: payload.measurement.currentBotHash,
+            });
 
         return {
             inserted,

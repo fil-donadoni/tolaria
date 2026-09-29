@@ -33,6 +33,9 @@ export interface SeedInputs {
     readonly cardIndex: readonly CardIndexEntry[];
     /** `handWrittenPrintIds`' keys (`hand-written-catalogue.ts`). */
     readonly handWritten: ReadonlySet<string>;
+    /** `botHash(ROOT)` of the checkout that seeds — the hash the rows'
+     *  `botHash` is compared against for the stale flag (issue #4181). */
+    readonly currentBotHash: string;
 }
 
 export function buildBotFindingsPayload(inputs: SeedInputs): SeedPayload {
@@ -108,6 +111,7 @@ export function buildBotFindingsPayload(inputs: SeedInputs): SeedPayload {
     return {
         measurement: {
             ...artifact.header,
+            currentBotHash: inputs.currentBotHash,
             targets: [...artifact.targets],
             targetCardCount: artifact.findings.length,
             measuredCount: artifact.findings.filter(

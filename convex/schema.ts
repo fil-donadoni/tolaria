@@ -23,9 +23,9 @@ import {
     botReachTraceValidator,
     compileSourceValidator,
     findingBlameValidator,
-    findingClassValidator,
     findingOutcomeValidator,
     measurementValidator,
+    storedClassValidator,
 } from "./botFindingsCore";
 
 // Typed, immutable deck Format (PRD #509, ADR 0036). `userDecks` and
@@ -1164,7 +1164,7 @@ export default defineSchema({
     // measured (artifact + the committed `gaps:sync` claims), so a seed
     // upserts it whole; a class the artifact drops is deactivated.
     botFindingClasses: defineTable({
-        ...findingClassValidator.fields,
+        ...storedClassValidator.fields,
         active: v.boolean(),
     }),
     // The measurement the rows above came from — ONE row, replaced by every

@@ -1,8 +1,18 @@
+import { useState } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { Panel, PanelHeader, PanelBody } from "@/components/ui/panel";
+import { Banner } from "@/components/ui/banner";
+import SegmentedControl from "@/components/ui/segmented-control";
 import SurfaceReadyMarker from "@/components/ui/surface-ready-marker";
-import { measurementSummary } from "@/lib/botFindings";
+import {
+    filterByStaleness,
+    isStaleFinding,
+    measurementSummary,
+    STALENESS_FILTERS,
+    stalenessSummary,
+    type StalenessFilter,
+} from "@/lib/botFindings";
 import BotFindingRow from "./bot-finding-row";
 
 /**
@@ -13,6 +23,11 @@ import BotFindingRow from "./bot-finding-row";
  * The header states measured vs total before anything else: the rows cover
  * the measured Target Lists only, and the hand-written cards outside them
  * were never played at all — a small count here is not "few Bot problems".
+ *
+ * The header also says how current the page is (issue #4181): when the
+ * measurement ran, and — when the Bot has moved since — how many rows were
+ * measured under an older Bot hash. Those rows carry a stale flag and can be
+ * filtered to; the filter narrows the list, staleness never removes a row.
  *
  * Every query is `assertIsAdmin`-gated server-side; the route gate is cosmetic.
  */
@@ -25,6 +40,14 @@ export default function BotFindingsAdminPanel() {
         classes !== undefined &&
         measurement !== undefined;
     const classByKey = new Map((classes ?? []).map((c) => [c.key, c]));
+    const [staleness, setStaleness] = useState<StalenessFilter>("all");
+    const shown = loaded
+        ? filterByStaleness(findings, staleness, measurement)
+        : [];
+    const staleNote =
+        loaded && measurement !== null
+            ? stalenessSummary(findings, measurement)
+            : null;
 
     return (
         <Panel>
@@ -48,17 +71,38 @@ export default function BotFindingsAdminPanel() {
                             : `${measurementSummary(measurement)} Measured ${measurement.measuredAt} at ${measurement.sha.slice(0, 9)}.`}
                     </p>
                 )}
+                {staleNote !== null && (
+                    <Banner tone="danger" data-bot-findings-stale-banner="">
+                        {staleNote}
+                    </Banner>
+                )}
+                {loaded && measurement !== null && findings.length > 0 && (
+                    <SegmentedControl
+                        ariaLabel="Filter by measurement staleness"
+                        options={STALENESS_FILTERS}
+                        value={staleness}
+                        onChange={setStaleness}
+                    />
+                )}
                 {!loaded ? (
                     <span className="text-xs text-text-disabled">Loading…</span>
                 ) : findings.length === 0 ? (
                     <span className="text-xs text-text-disabled">
                         No findings on this deployment
                     </span>
+                ) : shown.length === 0 ? (
+                    <span className="text-xs text-text-disabled">
+                        No {staleness} rows
+                    </span>
                 ) : (
-                    findings.map((finding) => (
+                    shown.map((finding) => (
                         <BotFindingRow
                             key={finding._id}
                             finding={finding}
+                            stale={
+                                measurement !== null &&
+                                isStaleFinding(finding, measurement)
+                            }
                             cls={
                                 finding.gap === undefined
                                     ? undefined

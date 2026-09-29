@@ -118,6 +118,18 @@ export const findingClassValidator = v.object({
 });
 export type FindingClass = Infer<typeof findingClassValidator>;
 
+/** A class as it is STORED and read: the seed's fields plus the delta the seed
+ *  derives (issue #4181). `previousCardCount` is the class's `cardCount` at the
+ *  measurement BEFORE the current one — `0` for a class that measurement did
+ *  not carry, absent only before a second measurement exists. Derived by
+ *  {@link planClassWrites} from what is already stored, never sent by the
+ *  script: the payload cannot name it. */
+export const storedClassValidator = v.object({
+    ...findingClassValidator.fields,
+    previousCardCount: v.optional(v.number()),
+});
+export type StoredClass = Infer<typeof storedClassValidator>;
+
 /** The measurement's header, and the honesty numbers the page states. */
 export const measurementValidator = v.object({
     sha: v.string(),
@@ -129,6 +141,14 @@ export const measurementValidator = v.object({
     targetCardCount: v.number(),
     /** Of them, the ones that ship a definition and were played. */
     measuredCount: v.number(),
+    /** The Bot's hash at the checkout that SEEDED this measurement — what the
+     *  rows' own `botHash` is compared against (issue #4181). It moves the
+     *  moment the Bot does, while the header's `botHash` moves only when a
+     *  sweep replays: a row measured under another hash than this one was
+     *  produced by a Bot that no longer exists. Optional for the rows seeded
+     *  before it existed; {@link isStaleMeasurement} reads its absence as
+     *  "the header's own hash is current". */
+    currentBotHash: v.optional(v.string()),
     /** Hand-written catalogue cards outside every measured Target — never
      *  played by the Bot at all, and therefore absent from the page. */
     unmeasuredHandWrittenCount: v.number(),
@@ -176,6 +196,35 @@ export interface ExistingFinding {
 export interface ExistingClass {
     readonly id: string;
     readonly key: string;
+    readonly active: boolean;
+    readonly cardCount: number;
+    readonly targetCounts: FindingClass["targetCounts"];
+    readonly previousCardCount?: number;
+}
+
+/** Is a row measured under `rowBotHash` stale — produced by a Bot other than
+ *  the one the measurement was seeded against? Staleness marks a row, it never
+ *  hides one (issue #4181). */
+export function isStaleMeasurement(
+    rowBotHash: string,
+    m: Pick<Measurement, "botHash" | "currentBotHash">
+): boolean {
+    return rowBotHash !== (m.currentBotHash ?? m.botHash);
+}
+
+/** Did `next` come from another measurement than `previous`? A re-seed of the
+ *  SAME artifact must not advance the delta baseline, or a second run of
+ *  `seed:bot-findings` would erase the very change it is there to show. */
+export function isNewMeasurement(
+    previous: Measurement | null,
+    next: Measurement
+): boolean {
+    return (
+        previous === null ||
+        previous.sha !== next.sha ||
+        previous.botHash !== next.botHash ||
+        previous.measuredAt !== next.measuredAt
+    );
 }
 
 /** Every measured field of a finding row, as a seed writes it. */
@@ -214,12 +263,12 @@ export type FindingWrite =
 export type ClassWrite =
     | {
           readonly kind: "insert";
-          readonly fields: FindingClass & { active: true };
+          readonly fields: StoredClass & { active: true };
       }
     | {
           readonly kind: "patch";
           readonly id: string;
-          readonly fields: Partial<FindingClass> & { active: boolean };
+          readonly fields: Partial<StoredClass> & { active: boolean };
       };
 
 /** The provenance every measured row is stamped with. */
@@ -332,39 +381,98 @@ export function classKeysKeptByPlayed(
     return kept;
 }
 
-/** One seed's writes to `botFindingClasses`: every class the artifact carries
- *  upserted whole (all its fields are measured); a stored class it no longer
- *  carries deactivated — unless a played finding still names it
- *  ({@link classKeysKeptByPlayed}), which leaves its last measurement standing. */
+/** What a seed knows about the measurements around it: the one stored before
+ *  it (`null` on the first seed ever) and the one it carries. */
+export interface SeedMeasurements {
+    readonly previous: Measurement | null;
+    readonly next: Measurement;
+}
+
+/**
+ * One seed's writes to `botFindingClasses`: every class the artifact carries
+ * upserted whole (all its fields are measured); a stored class it no longer
+ * carries deactivated — unless a played finding still names it
+ * ({@link classKeysKeptByPlayed}), which leaves its last measurement standing.
+ *
+ * The per-class DELTA (issue #4181): when the seed carries a NEW measurement
+ * ({@link isNewMeasurement}) a class's stored `cardCount` becomes its
+ * `previousCardCount` — so the page can say what the last Bot fix moved. A
+ * class the previous measurement did not carry (new, or deactivated) had `0`
+ * cards there. Re-seeding the same measurement leaves the baseline alone, and
+ * the first measurement ever has nothing to compare against, so it writes no
+ * baseline at all.
+ */
 export function planClassWrites(
     existing: readonly ExistingClass[],
     classes: readonly FindingClass[],
-    keptByPlayed: ReadonlySet<string> = new Set()
+    keptByPlayed: ReadonlySet<string>,
+    measurements: SeedMeasurements
 ): ClassWrite[] {
-    const stored = new Map(existing.map((row) => [row.key, row.id]));
+    const stored = new Map(existing.map((row) => [row.key, row]));
+    const advanced = isNewMeasurement(measurements.previous, measurements.next);
     const writes: ClassWrite[] = [];
     const seen = new Set<string>();
     for (const cls of classes) {
         seen.add(cls.key);
-        const id = stored.get(cls.key);
-        writes.push(
-            id === undefined
-                ? { kind: "insert", fields: { ...cls, active: true } }
-                : {
-                      kind: "patch",
-                      id,
-                      // `issue` named even when absent, so a released claim
-                      // does not keep linking its old issue.
-                      fields: { ...cls, issue: cls.issue, active: true },
-                  }
-        );
+        const row = stored.get(cls.key);
+        if (row === undefined) {
+            writes.push({
+                kind: "insert",
+                fields: {
+                    ...cls,
+                    ...(measurements.previous === null
+                        ? {}
+                        : { previousCardCount: 0 }),
+                    active: true,
+                },
+            });
+            continue;
+        }
+        // A deactivated row's `cardCount` is a record of a class the previous
+        // measurement did not carry.
+        const baseline = row.active ? row.cardCount : 0;
+        writes.push({
+            kind: "patch",
+            id: row.id,
+            fields: {
+                ...cls,
+                // `issue` named even when absent, so a released claim
+                // does not keep linking its old issue.
+                issue: cls.issue,
+                ...(advanced && measurements.previous !== null
+                    ? { previousCardCount: baseline }
+                    : {}),
+                active: true,
+            },
+        });
     }
     for (const row of existing) {
-        if (!seen.has(row.key) && !keptByPlayed.has(row.key))
+        if (seen.has(row.key)) continue;
+        if (!keptByPlayed.has(row.key)) {
             writes.push({
                 kind: "patch",
                 id: row.id,
                 fields: { active: false },
+            });
+            continue;
+        }
+        // Kept for a played finding, carried by no non-played card: on a NEW
+        // measurement it holds 0 cards now, and what it held before is the
+        // baseline — otherwise a class whose last card just started playing
+        // (the very effect of a Bot fix) would keep showing its old count.
+        if (advanced && measurements.previous !== null && row.active)
+            writes.push({
+                kind: "patch",
+                id: row.id,
+                fields: {
+                    cardCount: 0,
+                    targetCounts: row.targetCounts.map((t) => ({
+                        target: t.target,
+                        count: 0,
+                    })),
+                    previousCardCount: row.cardCount,
+                    active: true,
+                },
             });
     }
     return writes;

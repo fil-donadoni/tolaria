@@ -15,6 +15,12 @@
  * none), and it is NOT a gate — the rows are deployment-local, the artifact
  * is the source of truth. `--dry-run` builds the payload and prints its
  * summary, touching no deployment.
+ *
+ * The seed also stamps the Bot's hash AT THIS CHECKOUT on the measurement, so
+ * re-seeding after the Bot moved flags every row measured under the old hash
+ * as stale — rows are marked, never hidden (issue #4181). The health batch
+ * runs `bot:reach` then this, when — and only when — its diff touched the Bot
+ * (`lib/health-bot-refresh.ts`).
  */
 
 import { spawnSync } from "node:child_process";
@@ -28,7 +34,7 @@ import {
     type CardIndexEntry,
 } from "./lib/hand-written-catalogue";
 import { convexRunErrorMessage } from "./lib/convex-run-error";
-import { FINDINGS_PATH, parseFindings } from "./lib/oracle-bot-reach";
+import { botHash, FINDINGS_PATH, parseFindings } from "./lib/oracle-bot-reach";
 import { POOL_PROJECTION_SOURCE } from "./lib/oracle-lockfile";
 import { resolveSeedTarget } from "./lib/seed-preset-run";
 import type { ClaimRow } from "./lib/targets";
@@ -42,6 +48,9 @@ function readJson<T>(path: string): T {
 const cardIndex = readJson<CardIndexEntry[]>(POOL_PROJECTION_SOURCE);
 const payload = buildBotFindingsPayload({
     artifact: parseFindings(readFileSync(join(ROOT, FINDINGS_PATH), "utf8")),
+    // Hashed HERE, at the checkout that seeds: a Bot that moved since the
+    // artifact was measured marks its rows stale on the page (issue #4181).
+    currentBotHash: botHash(ROOT),
     claims: readJson<{ claims: ClaimRow[] }>("data/grammar-gaps.json").claims,
     cardIndex,
     handWritten: new Set(
@@ -57,7 +66,8 @@ console.log(
     `bot findings: ${payload.findings.length} finding(s), ${payload.classes.length} class(es), ` +
         `${payload.played.length} played — measured ${m.measuredCount} of ${m.targetCardCount} ` +
         `Target card(s) (${m.targets.join(", ")}), ${m.unmeasuredHandWrittenCount} hand-written ` +
-        `card(s) unmeasured; sha ${m.sha.slice(0, 9)}, measured ${m.measuredAt}`
+        `card(s) unmeasured; sha ${m.sha.slice(0, 9)}, measured ${m.measuredAt}` +
+        (m.botHash === m.currentBotHash ? "" : " — STALE: the Bot moved since")
 );
 
 if (process.argv.includes("--dry-run")) process.exit(0);
