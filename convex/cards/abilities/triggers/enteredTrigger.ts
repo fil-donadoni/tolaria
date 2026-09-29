@@ -156,7 +156,7 @@ function schedulesDelayedTrigger(args: EnteredTriggerArgs): boolean {
     const bodies: unknown[] = [
         args.effects,
         args.aiEffects,
-        ...(args.modes ?? []).map((m) => [m.effects, m.aiEffects]),
+        ...(args.modes ?? []).map((m) => m.effects),
     ];
     const walk = (node: unknown): boolean => {
         if (Array.isArray(node)) return node.some(walk);

@@ -578,6 +578,39 @@ export function dslLatentAbilityScriptOpValue(
     return etb ? mergeOpValue(discounted, etb) : discounted;
 }
 
+/** Issue #4758 — how surely a creature's body is gone the moment it enters:
+ *  the largest gate weight (`gateWeight`, no instance — the card is not in
+ *  play) of an ETB Ability whose script sacrifices its own source ("When this
+ *  creature enters, sacrifice it unless it escaped", an evoke sacrifice).
+ *  0 when no ETB Ability does. Context-free like the rest of the latent
+ *  reading: an `if` around the sacrifice counts as taken, exactly as the `if`
+ *  walker takes its `then` branch.
+ *
+ *  The latent body is scaled by what survives this (`latentValue`). Without
+ *  it, a card in hand kept the full discounted body its own ETB sacrifices,
+ *  and once the search saw the sacrifice resolve (`policyProbeState`) casting
+ *  it read as throwing that body away — so the Bot held a Titan whose
+ *  hard-cast is a burn spell, forever. */
+export function etbSelfSacrificeWeight(def: CardDefinition): number {
+    let weight = 0;
+    for (const ability of def.triggeredAbilities ?? []) {
+        if (ability.etbAbility !== true) continue;
+        const script = effectiveScript(ability);
+        if (!script || !sacrificesSource(script)) continue;
+        weight = Math.max(weight, gateWeight(ability, undefined));
+    }
+    return weight;
+}
+
+/** Does this script sacrifice `$source`, at any nesting depth? */
+function sacrificesSource(node: unknown): boolean {
+    if (Array.isArray(node)) return node.some(sacrificesSource);
+    if (node === null || typeof node !== "object") return false;
+    const op = node as { op?: unknown; target?: { ref?: unknown } };
+    if (op.op === "sacrifice" && op.target?.ref === "$source") return true;
+    return Object.values(node).some(sacrificesSource);
+}
+
 /** The DSL ability-script value of a card's activated + triggered abilities
  *  (context-free by default), discounted and summed — the LATENT (in-hand)
  *  ability worth added to a creature's body by the `latentValue` precedence.

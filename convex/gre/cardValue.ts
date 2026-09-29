@@ -23,6 +23,7 @@ import { manaValue } from "./constants";
 import {
     dslAbilityScriptValue,
     dslLatentDelayedTemplateValue,
+    etbSelfSacrificeWeight,
     dslRealizedAbilityScriptValue,
     dslSpellScriptValue,
 } from "./ai";
@@ -158,6 +159,11 @@ export function latentValue(chars: {
      *  is what left Stone Rain worth 38 in hand against a 17-point land —
      *  still a net loss to announce, so still never announced. */
     dslSpellValueMeasured?: boolean;
+    /** Issue #4758 — the share of the creature body its own ETB Ability
+     *  sacrifices on entering (`etbSelfSacrificeWeight`): 1 for "sacrifice it
+     *  unless it escaped", the gate's weight for an evoke sacrifice, 0 for
+     *  every creature that keeps its body. */
+    etbSelfSacrificeWeight?: number;
 }): number {
     if (chars.isCreature) {
         // A creature's `aiValue` overrides its WHOLE computed worth (body +
@@ -166,13 +172,23 @@ export function latentValue(chars: {
         if (chars.aiValue !== undefined) return chars.aiValue;
         const body =
             LATENT_DISCOUNT *
+            (1 - (chars.etbSelfSacrificeWeight ?? 0)) *
             creatureValueRaw(
                 Math.max(0, chars.power),
                 Math.max(0, chars.toughness),
                 chars.manaValue,
                 chars.staticAbilities
             );
-        return body + (chars.dslAbilityValue ?? 0);
+        // Issue #4758 — the same `MAX_LATENT_SCRIPT_VALUE` bound the
+        // non-creature branch applies (issue #1508), now that an ETB Ability
+        // is latent-only: a creature ETB whose context-free `if` assumes an
+        // alternate win (`winGame`, Thassa's Oracle) was worth 100000 in hand
+        // and nothing on the battlefield, which pins the reward band and
+        // makes the card uncastable. Before, the realized face carried the
+        // same number and the two cancelled.
+        return (
+            body + Math.min(chars.dslAbilityValue ?? 0, MAX_LATENT_SCRIPT_VALUE)
+        );
     }
     // A non-creature: an explicit `aiValue` override wins outright (issue
     // #1512 — PRD #1423's order applied to this branch too, matching the
@@ -233,6 +249,7 @@ export function dslLatentPieces(
     dslAbilityValue?: number;
     dslDelayedTemplateValue?: number;
     dslSpellValueMeasured?: boolean;
+    etbSelfSacrificeWeight?: number;
 } {
     const dslSpellValue = dslSpellScriptValue(def, board, latent);
     return {
@@ -251,6 +268,7 @@ export function dslLatentPieces(
             def,
             contextFreeGrounding(latent)
         ),
+        etbSelfSacrificeWeight: etbSelfSacrificeWeight(def),
         // Only a value the lens actually ANSWERED counts as measured — a
         // board that could not resolve the card's target slots leaves the
         // pre-#3398 representative valuation, floor included.
@@ -275,6 +293,7 @@ export function dslLatentPiecesById(
     dslAbilityValue?: number;
     dslDelayedTemplateValue?: number;
     dslSpellValueMeasured?: boolean;
+    etbSelfSacrificeWeight?: number;
 } {
     const def = tryGetDefinition(cardId);
     return def ? dslLatentPieces(def, board, latent) : {};
