@@ -7,6 +7,7 @@ import {
     matchesClassFilters,
     EMPTY_CLASS_FILTERS,
 } from "@/lib/botFindings";
+import type { FindingLaunchActions } from "@/lib/ai/bot-finding-launch";
 import BotFindingClassRow from "./bot-finding-class-row";
 import BotFindingsFilterSelect from "./bot-findings-filter-select";
 
@@ -16,9 +17,18 @@ import BotFindingsFilterSelect from "./bot-findings-filter-select";
  * Target priority order (the server's `listClasses` — the same ranking the
  * Grammar Gaps use).
  */
-export default function BotFindingsClassesPanel() {
+export default function BotFindingsClassesPanel({
+    actions,
+}: {
+    actions: FindingLaunchActions;
+}) {
     const classes = useQuery(api.botFindings.listClasses, {});
-    const loaded = classes !== undefined;
+    const findings = useQuery(api.botFindings.listFindings, {});
+    const measurement = useQuery(api.botFindings.latestMeasurement, {});
+    const loaded =
+        classes !== undefined &&
+        findings !== undefined &&
+        measurement !== undefined;
     const [filters, setFilters] = useState(EMPTY_CLASS_FILTERS);
 
     const targets = useMemo(
@@ -116,7 +126,13 @@ export default function BotFindingsClassesPanel() {
                     </span>
                 ) : (
                     filtered.map((cls) => (
-                        <BotFindingClassRow key={cls.key} cls={cls} />
+                        <BotFindingClassRow
+                            key={cls.key}
+                            cls={cls}
+                            findings={findings}
+                            measurement={measurement}
+                            actions={actions}
+                        />
                     ))
                 )}
             </PanelBody>

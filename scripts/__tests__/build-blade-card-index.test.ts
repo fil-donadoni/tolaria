@@ -6,6 +6,7 @@
 import { describe, it, expect } from "vitest";
 import {
     buildBladeCardIndex,
+    buildBladeReproducers,
     type IndexableBladeScenario,
 } from "../lib/blade-card-index";
 
@@ -153,5 +154,44 @@ describe("buildBladeCardIndex", () => {
             "Ape",
             "Zombie",
         ]);
+    });
+});
+
+describe("buildBladeReproducers (issue #4178)", () => {
+    const expect_ = { moves: [{ card: "X" }] };
+
+    it("keeps the spec of a plain-board entry and nulls one that needs setup or revisit", () => {
+        expect(
+            buildBladeReproducers([
+                {
+                    label: "plain",
+                    tier: "must",
+                    expect: expect_,
+                    spec: { a: 1 },
+                },
+                {
+                    label: "setup",
+                    tier: "must",
+                    expect: expect_,
+                    spec: { a: 2 },
+                    setup: [{}],
+                },
+                {
+                    label: "revisit",
+                    tier: "stretch",
+                    expect: expect_,
+                    spec: { a: 3 },
+                    revisit: [{}],
+                },
+            ])
+        ).toEqual({ plain: { a: 1 }, setup: null, revisit: null });
+    });
+
+    it("covers exactly the entries the card index covers — no `moves`, no reproducer", () => {
+        expect(
+            buildBladeReproducers([
+                { label: "forbidden only", tier: "must", expect: {}, spec: {} },
+            ])
+        ).toEqual({});
     });
 });

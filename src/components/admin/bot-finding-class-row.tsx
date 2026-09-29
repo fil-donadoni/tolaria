@@ -2,7 +2,13 @@ import {
     BLAME_LABEL,
     classDeltaText,
     type BotFindingClassRow,
+    type BotFindingMeasurement,
+    type BotFindingRow,
 } from "@/lib/botFindings";
+import { classPayload } from "@/lib/ai/bot-finding-payload";
+import type { FindingLaunchActions } from "@/lib/ai/bot-finding-launch";
+import BotFindingCopyButton from "./bot-finding-copy-button";
+import BotFindingReproducers from "./bot-finding-reproducers";
 
 /**
  * One Bot Gap class (ADR 0141, issue #4177): the key, who owes the fix, how
@@ -13,8 +19,14 @@ import {
  */
 export default function BotFindingClassRow({
     cls,
+    findings,
+    measurement,
+    actions,
 }: {
     cls: BotFindingClassRow;
+    findings: readonly BotFindingRow[];
+    measurement: BotFindingMeasurement | null;
+    actions: FindingLaunchActions;
 }) {
     return (
         <article
@@ -68,6 +80,18 @@ export default function BotFindingClassRow({
                         no proof yet
                     </span>
                 )}
+            </div>
+            <BotFindingReproducers
+                labels={
+                    cls.provingEntry === undefined ? [] : [cls.provingEntry]
+                }
+                {...actions}
+            />
+            <div>
+                <BotFindingCopyButton
+                    label={`Copy one Claude Code brief for every card of ${cls.key}`}
+                    text={() => classPayload(cls, findings, measurement)}
+                />
             </div>
         </article>
     );

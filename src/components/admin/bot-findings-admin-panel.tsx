@@ -2,6 +2,10 @@ import { useState } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import SurfaceReadyMarker from "@/components/ui/surface-ready-marker";
+import { Banner } from "@/components/ui/banner";
+import type { FindingLaunchActions } from "@/lib/ai/bot-finding-launch";
+import { useScenarioTestGame } from "~/hooks/useScenarioTestGame";
+import ScenarioActiveGameDialog from "./scenario-active-game-dialog";
 import BotFindingsCardsPanel from "./bot-findings-cards-panel";
 import BotFindingsClassesPanel from "./bot-findings-classes-panel";
 
@@ -28,6 +32,15 @@ export default function BotFindingsAdminPanel() {
     const findings = useQuery(api.botFindings.listFindings, {});
     const classes = useQuery(api.botFindings.listClasses, {});
     const measurement = useQuery(api.botFindings.latestMeasurement, {});
+    const savedScenarios = useQuery(api.debugScenarios.listDebugScenarios, {});
+    // One launcher for the whole page: a Reproducer launches through the same
+    // path `/admin/scenarios` "Test" uses (issue #4178).
+    const testGame = useScenarioTestGame();
+    const actions: FindingLaunchActions = {
+        savedScenarios: savedScenarios ?? [],
+        launchingId: testGame.launchingId,
+        onLaunch: testGame.test,
+    };
     const loaded =
         findings !== undefined &&
         classes !== undefined &&
@@ -60,10 +73,23 @@ export default function BotFindingsAdminPanel() {
                     </button>
                 ))}
             </div>
+            {testGame.error && (
+                <Banner tone="danger" data-bot-findings-launch-error="">
+                    {testGame.error}
+                </Banner>
+            )}
+            {testGame.blockingActiveGame && (
+                <ScenarioActiveGameDialog
+                    activeGame={testGame.blockingActiveGame.activeGame}
+                    busy={testGame.resolvingActiveGame}
+                    onCancel={testGame.cancelBlockingActiveGame}
+                    onConfirm={testGame.resolveBlockingActiveGame}
+                />
+            )}
             {tab === "cards" ? (
-                <BotFindingsCardsPanel />
+                <BotFindingsCardsPanel actions={actions} />
             ) : (
-                <BotFindingsClassesPanel />
+                <BotFindingsClassesPanel actions={actions} />
             )}
         </div>
     );

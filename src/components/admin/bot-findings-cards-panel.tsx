@@ -19,6 +19,7 @@ import {
     FINDING_STATUS_LABEL,
     type FindingStatus,
 } from "@convex/gre/ai/botFindingState";
+import type { FindingLaunchActions } from "@/lib/ai/bot-finding-launch";
 import BotFindingRow from "./bot-finding-row";
 import BotFindingsFilterSelect from "./bot-findings-filter-select";
 
@@ -42,7 +43,11 @@ const STATUS_OPTIONS = (
  *
  * Every query is `assertIsAdmin`-gated server-side; the route gate is cosmetic.
  */
-export default function BotFindingsCardsPanel() {
+export default function BotFindingsCardsPanel({
+    actions,
+}: {
+    actions: FindingLaunchActions;
+}) {
     const findings = useQuery(api.botFindings.listFindings, {});
     const classes = useQuery(api.botFindings.listClasses, {});
     const measurement = useQuery(api.botFindings.latestMeasurement, {});
@@ -185,6 +190,8 @@ export default function BotFindingsCardsPanel() {
                         <BotFindingRow
                             key={finding._id}
                             finding={finding}
+                            measurement={measurement}
+                            actions={actions}
                             stale={
                                 measurement !== null &&
                                 isStaleFinding(finding, measurement)

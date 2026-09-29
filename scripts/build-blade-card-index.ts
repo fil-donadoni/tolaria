@@ -18,7 +18,9 @@ import { fileURLToPath } from "node:url";
 import { BLADE_SCENARIOS } from "../convex/gre/ai/blade/registry";
 import {
     BLADE_CARD_INDEX_PATH,
+    BLADE_REPRODUCERS_PATH,
     buildBladeCardIndex,
+    buildBladeReproducers,
 } from "./lib/blade-card-index";
 
 if (import.meta.main) {
@@ -27,6 +29,10 @@ if (import.meta.main) {
     writeFileSync(
         join(ROOT, BLADE_CARD_INDEX_PATH),
         `${JSON.stringify(index, null, 2)}\n`
+    );
+    writeFileSync(
+        join(ROOT, BLADE_REPRODUCERS_PATH),
+        `${JSON.stringify(buildBladeReproducers(BLADE_SCENARIOS), null, 2)}\n`
     );
     console.log(
         `blade:card-index: ${Object.keys(index).length} card(s) over ${BLADE_SCENARIOS.length} scenario(s)`
