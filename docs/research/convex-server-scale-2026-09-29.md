@@ -1,6 +1,6 @@
 # Convex server scale: the per-call heap is the first wall (2026-09-29)
 
-Analysis done right after issue #4811 (the multi-dot rename that took the
+PRD: issue #4849. Analysis done right after issue #4811 (the multi-dot rename that took the
 bundle from 30.01 to 19.84 MiB). The question was what else limits the engine
 on its way to the target scale of ~35k cards / ~80k printings, so that the
 platform never has to change. The decisions it led to are ADR 0113
