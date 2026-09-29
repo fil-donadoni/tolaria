@@ -63,7 +63,7 @@ The registry consumes sets via namespace import — `import * as ice from
 - `index.ts` — re-exports every module (`export * from "./white"`, …)
 
 The registry import is **unchanged**: `import * as ice from "./sets/ice"`
-resolves to `ice/index.cards.ts`, which re-exports the same flat set of consts. No
+resolves to `ice/index.ts`, which re-exports the same flat set of consts. No
 churn in `convex/cards/index.ts`.
 
 Test files mirror the split: `sets/ice/__tests__/white.test.ts`, etc., replacing
@@ -133,7 +133,10 @@ entry point. The ~1,100 set files were ~1,100 user modules, and with
 ~1,300 chunk imports — a third of the pushed bundle was that glue. The CLI
 skips a multi-dot name as an entry and still bundles it into its importers:
 30.01 MiB / 1,602 modules measured before, 19.84 MiB / 459 after, on the same
-tree (`scripts/lib/convex-bundle-size.ts`). The suffix lives in
+tree, −10.16 MiB (`scripts/lib/convex-bundle-size.ts`). The suffix lives in
 `scripts/lib/set-module-suffix.ts`, which the importers emit with, and
-`scripts/__tests__/convex-bundle-size.test.ts` reds on any entry point under
+`convex/cards/__tests__/nonFunctionEntryPoints.test.ts` reds on any entry point under
 `convex/cards/sets/**` or a `__tests__/` directory.
+
+The Decision and Consequences above are kept as originally written; read their
+file names through this amendment.

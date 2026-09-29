@@ -222,9 +222,8 @@ export const CONVEX_BUNDLE_WARNING_BYTES = 30 * 1024 * 1024;
 /**
  * `MAX_USER_MODULES` counts files under `convex/`, excluding `_deps/**`
  * chunks (`crates/application/src/lib.rs`: "Too many function files ({} >
- * maximum {}) in \"convex/\""). Every hand-written card definition is one
- * such file, so this is a SECOND ceiling the corpus grows into, on a
- * different axis from bytes. 3,072 is 75% of Convex's 4,096. It was 1,455 at
+ * maximum {}) in \"convex/\"") — a SECOND ceiling, on a different axis
+ * from bytes. 3,072 is 75% of Convex's 4,096. It was 1,455 at
  * issue #3051 and 1,602 at issue #4811, when card-set files (one per set
  * colour) were still entry points; since that issue's multi-dot rename they
  * are not, and the count is 459 — real function modules only, so card-corpus

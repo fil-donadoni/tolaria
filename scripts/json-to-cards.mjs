@@ -6,7 +6,7 @@
  *   bun scripts/json-to-cards.mjs data/LEA.json
  *
  * Output: convex/cards/sets/<setCode>/ — one file per colour module
- *         (white|blue|black|red|green|multicolor|colorless) + an index.ts
+ *         (white|blue|black|red|green|multicolor|colorless) + an index.cards.ts
  *         barrel. Each card is routed to its module by the colour identity of
  *         its mana cost (CR 202.2; lands / colourless artifacts → colorless.ts).
  *         Runs under `bun` (not `node`) because it reuses the TypeScript colour
