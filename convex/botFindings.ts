@@ -5,20 +5,33 @@
 // Every read is `assertIsAdmin`-gated: the page sits behind `AdminRouteGate`,
 // and hiding a route is cosmetic — the query is the boundary. The one writer
 // is `seed`, an INTERNAL mutation `bun run seed:bot-findings` reaches through
-// `convex run`; no public mutation can write a measured field.
-import { v } from "convex/values";
+// `convex run`; no public mutation can write a measured field. The public
+// mutations (issue #4182) write HUMAN fields only — a report, a note, a linked
+// issue, Reproducer labels, a snooze — and are `assertIsAdmin`-gated too.
+import { ConvexError, v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
-import { internalMutation, query } from "./_generated/server";
+import {
+    internalMutation,
+    mutation,
+    query,
+    type QueryCtx,
+} from "./_generated/server";
 import { assertIsAdmin } from "./auth";
 import {
+    HUMAN_SOURCE,
+    HUMAN_STAMP,
     SWEEP_SOURCE,
+    checkedNote,
     classKeysKeptByPlayed,
     measuredFindingValidator,
     measurementValidator,
+    normalizeReproducers,
     planClassWrites,
     planFindingWrites,
+    requireSnoozeReason,
     seedPayloadValidator,
     storedClassValidator,
+    unknownReproducers,
 } from "./botFindingsCore";
 import {
     computeFindingStatus,
@@ -314,5 +327,165 @@ export const seed = internalMutation({
             deactivated,
             classes: payload.classes.length,
         };
+    },
+});
+
+// ── Human findings (issue #4182, ADR 0141 § 7 and § 10) ───────────────────
+
+/** Every label a Reproducer may name: a blade entry (the committed registry's
+ *  index) or a saved scenario (`debugScenarios`, deployment-local). */
+async function knownReproducerLabels(ctx: QueryCtx): Promise<Set<string>> {
+    const labels = new Set<string>();
+    for (const entries of Object.values(BLADE_CARD_INDEX))
+        for (const entry of entries) labels.add(entry.label);
+    for (const scenario of await ctx.db.query("debugScenarios").collect())
+        labels.add(scenario.label);
+    return labels;
+}
+
+/** Normalise and validate Reproducer labels: each must resolve to a blade
+ *  entry or a saved scenario, or the report is refused. */
+async function checkedReproducers(
+    ctx: QueryCtx,
+    labels: readonly string[]
+): Promise<string[]> {
+    const normalised = normalizeReproducers(labels);
+    if (normalised.length === 0) return normalised;
+    const unknown = unknownReproducers(
+        normalised,
+        await knownReproducerLabels(ctx)
+    );
+    if (unknown.length > 0)
+        throw new ConvexError(
+            `Unknown reproducer label${unknown.length > 1 ? "s" : ""}: ${unknown.join("; ")}`
+        );
+    return normalised;
+}
+
+/**
+ * Report a finding a human noticed. Keyed `(oracleId, "human")`, so the
+ * measured row on the same card is untouched; one report per card. With a
+ * Reproducer it is an ordinary row; without one it waits in triage.
+ */
+export const reportFinding = mutation({
+    args: {
+        oracleId: v.string(),
+        name: v.string(),
+        printId: v.optional(v.string()),
+        note: v.optional(v.string()),
+        reproducers: v.optional(v.array(v.string())),
+    },
+    returns: v.id("botFindings"),
+    handler: async (ctx, args) => {
+        await assertIsAdmin(ctx);
+        const oracleId = args.oracleId.trim();
+        const name = args.name.trim();
+        if (oracleId === "" || name === "")
+            throw new ConvexError(
+                "A report needs a card name and an oracle id"
+            );
+        const existing = await ctx.db
+            .query("botFindings")
+            .withIndex("by_source_oracle", (q) =>
+                q.eq("source", HUMAN_SOURCE).eq("oracleId", oracleId)
+            )
+            .first();
+        if (existing !== null)
+            throw new ConvexError(`${name} already has a human report`);
+        const reproducers = await checkedReproducers(
+            ctx,
+            args.reproducers ?? []
+        );
+        const note = checkedNote(args.note ?? "");
+        const printId = args.printId?.trim();
+        return await ctx.db.insert("botFindings", {
+            oracleId,
+            source: HUMAN_SOURCE,
+            name,
+            targets: [],
+            outcome: "ignored",
+            sha: HUMAN_STAMP,
+            botHash: "",
+            measuredAt: new Date().toISOString(),
+            active: true,
+            ...(printId ? { printId } : {}),
+            ...(note ? { note } : {}),
+            ...(reproducers.length > 0 ? { reproducers } : {}),
+        });
+    },
+});
+
+/** Replace a finding's note and linked issue — the only free-form fields; an
+ *  empty note / a `null` issue clears them. There is no workflow state: the
+ *  GitHub issue already carries it (ADR 0141 § 10). */
+export const annotateFinding = mutation({
+    args: {
+        id: v.id("botFindings"),
+        note: v.string(),
+        linkedIssue: v.union(v.number(), v.null()),
+    },
+    returns: v.null(),
+    handler: async (ctx, { id, note, linkedIssue }) => {
+        await assertIsAdmin(ctx);
+        if (
+            linkedIssue !== null &&
+            (!Number.isInteger(linkedIssue) || linkedIssue <= 0)
+        )
+            throw new ConvexError("A linked issue is a positive issue number");
+        if ((await ctx.db.get(id)) === null)
+            throw new ConvexError("No such finding");
+        const trimmed = checkedNote(note);
+        await ctx.db.patch(id, {
+            note: trimmed === "" ? undefined : trimmed,
+            linkedIssue: linkedIssue ?? undefined,
+        });
+        return null;
+    },
+});
+
+/** Replace a finding's Reproducer labels — how a triage row is admitted. */
+export const setFindingReproducers = mutation({
+    args: { id: v.id("botFindings"), reproducers: v.array(v.string()) },
+    returns: v.null(),
+    handler: async (ctx, { id, reproducers }) => {
+        await assertIsAdmin(ctx);
+        if ((await ctx.db.get(id)) === null)
+            throw new ConvexError("No such finding");
+        const checked = await checkedReproducers(ctx, reproducers);
+        await ctx.db.patch(id, {
+            reproducers: checked.length > 0 ? checked : undefined,
+        });
+        return null;
+    },
+});
+
+/** Snooze a finding: out of every count, still on the record and reachable by
+ *  filter. The reason is mandatory (ADR 0141 § 10). */
+export const snoozeFinding = mutation({
+    args: { id: v.id("botFindings"), reason: v.string() },
+    returns: v.null(),
+    handler: async (ctx, { id, reason }) => {
+        await assertIsAdmin(ctx);
+        const snoozeReason = requireSnoozeReason(reason);
+        if ((await ctx.db.get(id)) === null)
+            throw new ConvexError("No such finding");
+        await ctx.db.patch(id, { snoozedAt: Date.now(), snoozeReason });
+        return null;
+    },
+});
+
+/** Bring a snoozed finding back into the counts. */
+export const unsnoozeFinding = mutation({
+    args: { id: v.id("botFindings") },
+    returns: v.null(),
+    handler: async (ctx, { id }) => {
+        await assertIsAdmin(ctx);
+        if ((await ctx.db.get(id)) === null)
+            throw new ConvexError("No such finding");
+        await ctx.db.patch(id, {
+            snoozedAt: undefined,
+            snoozeReason: undefined,
+        });
+        return null;
     },
 });

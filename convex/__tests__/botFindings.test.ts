@@ -10,11 +10,17 @@ import {
     type Row,
 } from "./gameMutationHarness.fixture";
 import {
+    annotateFinding,
     latestMeasurement,
     listClasses,
     listFindings,
+    reportFinding,
     seed,
+    setFindingReproducers,
+    snoozeFinding,
+    unsnoozeFinding,
 } from "../botFindings";
+import bladeCardIndexJson from "../../data/blade-card-index.json";
 import type { SeedPayload } from "../botFindingsCore";
 
 const ADMIN: Row = {
@@ -660,5 +666,294 @@ describe("botFindings — derived status and class ranking (ADR 0141 § 3, issue
             "zzz-premodern-only",
             "aaa-format-only",
         ]);
+    });
+});
+
+// ── Human findings: report, reproducer gate, annotate, snooze (issue #4182) ──
+
+/** A real blade entry label — a Reproducer must resolve to one (or a saved
+ *  scenario), so the test reads it from the committed index, never invents it. */
+const BLADE_LABEL = Object.values(
+    bladeCardIndexJson as Record<string, { label: string }[]>
+)[0]![0]!.label;
+
+const SCENARIO: Row = {
+    _id: "s-1",
+    __table: "debugScenarios",
+    label: "saved: stuck Grist board",
+    spec: {},
+};
+
+const EMPTY_SEED: SeedPayload = {
+    measurement: measurement("new"),
+    findings: [],
+    played: [],
+    classes: [],
+};
+
+describe("botFindings.reportFinding — human source beside the measured row", () => {
+    it("inserts under its own source and leaves the measured row on the card untouched", async () => {
+        const stub = makeMutationCtx("u-admin", [
+            ADMIN,
+            storedFinding("f-1", "o-a"),
+        ]);
+        const id = await runMutation<unknown, string>(reportFinding, stub.ctx, {
+            oracleId: "o-a",
+            name: "Alpha",
+            note: "  plays it wrong  ",
+        });
+        expect(stub.doc(id)).toMatchObject({
+            oracleId: "o-a",
+            source: "human",
+            name: "Alpha",
+            note: "plays it wrong",
+            active: true,
+        });
+        expect(stub.doc(id).reproducers).toBeUndefined();
+        expect(stub.doc("f-1")).toMatchObject({
+            source: "sweep",
+            name: "old o-a",
+            ...HUMAN,
+        });
+    });
+
+    it("refuses a second human report on the same card", async () => {
+        const stub = makeMutationCtx("u-admin", [ADMIN]);
+        const args = { oracleId: "o-a", name: "Alpha" };
+        await runMutation(reportFinding, stub.ctx, args);
+        await expect(
+            runMutation(reportFinding, stub.ctx, args)
+        ).rejects.toThrow("already has a human report");
+    });
+
+    it("refuses a reproducer label that names no blade entry and no saved scenario", async () => {
+        const stub = makeMutationCtx("u-admin", [ADMIN]);
+        await expect(
+            runMutation(reportFinding, stub.ctx, {
+                oracleId: "o-a",
+                name: "Alpha",
+                reproducers: ["a made-up label"],
+            })
+        ).rejects.toThrow("Unknown reproducer label: a made-up label");
+    });
+
+    it("accepts a blade entry label and a saved scenario label", async () => {
+        const stub = makeMutationCtx("u-admin", [ADMIN, SCENARIO]);
+        const id = await runMutation<unknown, string>(reportFinding, stub.ctx, {
+            oracleId: "o-a",
+            name: "Alpha",
+            reproducers: [BLADE_LABEL, ` ${SCENARIO.label as string} `],
+        });
+        expect(stub.doc(id).reproducers).toEqual([BLADE_LABEL, SCENARIO.label]);
+    });
+
+    it("survives a re-seed of the SAME card's sweep row, and the seed never writes it", async () => {
+        const stub = makeMutationCtx("u-admin", [
+            ADMIN,
+            SCENARIO,
+            storedFinding("f-1", "o-a"),
+        ]);
+        const id = await runMutation<unknown, string>(reportFinding, stub.ctx, {
+            oracleId: "o-a",
+            name: "Alpha",
+            reproducers: [SCENARIO.label as string],
+        });
+        // A newer artifact that no longer carries the card deactivates the
+        // SWEEP row; the human row is a different key and is not in the plan.
+        await runMutation(seed, stub.ctx, { payload: EMPTY_SEED });
+        expect(stub.doc("f-1").active).toBe(false);
+        expect(stub.doc(id)).toMatchObject({
+            source: "human",
+            active: true,
+            reproducers: [SCENARIO.label],
+        });
+        expect(stub.writes.filter((w) => w.id === id).length).toBe(1);
+    });
+});
+
+describe("botFindings human fields — note, issue, reproducers, snooze", () => {
+    const seeds = [
+        ADMIN,
+        SCENARIO,
+        storedFinding("f-1", "o-a", { note: "old" }),
+    ];
+
+    it("annotate replaces the note and issue, and clears them when emptied", async () => {
+        const stub = makeMutationCtx("u-admin", seeds);
+        await runMutation(annotateFinding, stub.ctx, {
+            id: "f-1",
+            note: " new note ",
+            linkedIssue: 4300,
+        });
+        expect(stub.doc("f-1")).toMatchObject({
+            note: "new note",
+            linkedIssue: 4300,
+        });
+        await runMutation(annotateFinding, stub.ctx, {
+            id: "f-1",
+            note: "  ",
+            linkedIssue: null,
+        });
+        expect(stub.doc("f-1").note).toBeUndefined();
+        expect(stub.doc("f-1").linkedIssue).toBeUndefined();
+    });
+
+    it("annotate and report refuse a note past the cap and write nothing", async () => {
+        const stub = makeMutationCtx("u-admin", seeds);
+        const long = "x".repeat(2001);
+        await expect(
+            runMutation(annotateFinding, stub.ctx, {
+                id: "f-1",
+                note: long,
+                linkedIssue: null,
+            })
+        ).rejects.toThrow("at most 2000 characters");
+        await expect(
+            runMutation(reportFinding, stub.ctx, {
+                oracleId: "o-n",
+                name: "N",
+                note: long,
+            })
+        ).rejects.toThrow("at most 2000 characters");
+        expect(stub.writes).toEqual([]);
+    });
+
+    it("annotate refuses a linked issue that is not a positive integer", async () => {
+        const stub = makeMutationCtx("u-admin", seeds);
+        for (const linkedIssue of [0, -3, 1.5])
+            await expect(
+                runMutation(annotateFinding, stub.ctx, {
+                    id: "f-1",
+                    note: "",
+                    linkedIssue,
+                })
+            ).rejects.toThrow("positive issue number");
+    });
+
+    it("setFindingReproducers admits a label and clears the list when emptied", async () => {
+        const stub = makeMutationCtx("u-admin", seeds);
+        await runMutation(setFindingReproducers, stub.ctx, {
+            id: "f-1",
+            reproducers: [` ${SCENARIO.label as string}`, ""],
+        });
+        expect(stub.doc("f-1").reproducers).toEqual([SCENARIO.label]);
+        await runMutation(setFindingReproducers, stub.ctx, {
+            id: "f-1",
+            reproducers: [],
+        });
+        expect(stub.doc("f-1").reproducers).toBeUndefined();
+    });
+
+    it("snooze stores the trimmed reason and a time; a blank reason is refused and writes nothing", async () => {
+        const stub = makeMutationCtx("u-admin", [
+            ADMIN,
+            storedFinding("f-1", "o-a", {
+                snoozedAt: undefined,
+                snoozeReason: undefined,
+            }),
+        ]);
+        for (const reason of ["", "   "])
+            await expect(
+                runMutation(snoozeFinding, stub.ctx, { id: "f-1", reason })
+            ).rejects.toThrow("A snooze needs a reason");
+        expect(stub.writes).toEqual([]);
+        await runMutation(snoozeFinding, stub.ctx, {
+            id: "f-1",
+            reason: "  out of scope: Un-card  ",
+        });
+        expect(stub.doc("f-1")).toMatchObject({
+            snoozeReason: "out of scope: Un-card",
+        });
+        expect(typeof stub.doc("f-1").snoozedAt).toBe("number");
+    });
+
+    it("unsnooze clears both snooze fields", async () => {
+        const stub = makeMutationCtx("u-admin", seeds);
+        await runMutation(unsnoozeFinding, stub.ctx, { id: "f-1" });
+        expect(stub.doc("f-1").snoozedAt).toBeUndefined();
+        expect(stub.doc("f-1").snoozeReason).toBeUndefined();
+    });
+
+    it("human fields persist across a re-seed of the same row", async () => {
+        const stub = makeMutationCtx("u-admin", [
+            ADMIN,
+            storedFinding("f-1", "o-a", {
+                snoozedAt: undefined,
+                snoozeReason: undefined,
+                note: undefined,
+                linkedIssue: undefined,
+                reproducers: undefined,
+            }),
+        ]);
+        await runMutation(snoozeFinding, stub.ctx, {
+            id: "f-1",
+            reason: "deliberately out of scope",
+        });
+        await runMutation(annotateFinding, stub.ctx, {
+            id: "f-1",
+            note: "kept",
+            linkedIssue: 4300,
+        });
+        await runMutation(seed, stub.ctx, {
+            payload: {
+                ...EMPTY_SEED,
+                findings: [
+                    {
+                        oracleId: "o-a",
+                        name: "Alpha",
+                        targets: ["cube"],
+                        outcome: "ignored",
+                    },
+                ],
+            },
+        });
+        expect(stub.doc("f-1")).toMatchObject({
+            name: "Alpha",
+            note: "kept",
+            linkedIssue: 4300,
+            snoozeReason: "deliberately out of scope",
+        });
+    });
+
+    it("every human write is admin-only", async () => {
+        for (const user of ["u-plain", null]) {
+            const { ctx } = makeMutationCtx(user, [
+                ADMIN,
+                PLAIN,
+                storedFinding("f-1", "o-a"),
+            ]);
+            const calls: [unknown, Row][] = [
+                [reportFinding, { oracleId: "o", name: "n" }],
+                [annotateFinding, { id: "f-1", note: "", linkedIssue: null }],
+                [setFindingReproducers, { id: "f-1", reproducers: [] }],
+                [snoozeFinding, { id: "f-1", reason: "r" }],
+                [unsnoozeFinding, { id: "f-1" }],
+            ];
+            for (const [fn, args] of calls)
+                await expect(runMutation(fn, ctx, args)).rejects.toThrow(
+                    "Forbidden: admin only"
+                );
+        }
+    });
+
+    it("listFindings serves a human row with its source and human fields", async () => {
+        const stub = makeMutationCtx("u-admin", [ADMIN, SCENARIO]);
+        await runMutation(reportFinding, stub.ctx, {
+            oracleId: "o-h",
+            name: "Human",
+            reproducers: [SCENARIO.label as string],
+        });
+        const rows = await runMutation<unknown, Row[]>(
+            listFindings,
+            stub.ctx,
+            {}
+        );
+        expect(rows).toHaveLength(1);
+        expect(rows[0]).toMatchObject({
+            source: "human",
+            name: "Human",
+            reproducers: [SCENARIO.label],
+            status: "open",
+        });
     });
 });

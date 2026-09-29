@@ -4,7 +4,14 @@
 // (`botCauseText`, `scripts/lib/gap-kinds.ts`), never written here.
 import type { FunctionReturnType } from "convex/server";
 import type { api } from "@convex/_generated/api";
-import { isStaleMeasurement } from "@convex/botFindingsCore";
+import { ConvexError } from "convex/values";
+import {
+    SWEEP_SOURCE,
+    countsTowardTotals,
+    isSnoozed,
+    isTriage,
+    isStaleMeasurement,
+} from "@convex/botFindingsCore";
 import type { EvalTerms, PositionBreakdown } from "@convex/gre";
 import {
     comparePositions,
@@ -25,14 +32,79 @@ export type BotFindingMeasurement = NonNullable<
 
 // ── Staleness and the per-class delta (issue #4181) ───────────────────────
 
+/** What staleness reads off a row: its Bot hash, and its source — only a sweep
+ *  row was measured under a Bot. */
+export type StalenessRow = Pick<BotFindingRow, "botHash"> & {
+    readonly source?: string;
+};
+
 /** Is the finding's verdict stale — measured under a Bot hash other than the
  *  current one? Marks the row; never removes it. The rule is
  *  `isStaleMeasurement`, shared with the seed that stamps the current hash. */
 export function isStaleFinding(
-    finding: Pick<BotFindingRow, "botHash">,
+    finding: StalenessRow,
     measurement: BotFindingMeasurement
 ): boolean {
+    // A human report has no measurement behind it, so no Bot hash to compare
+    // (issue #4182) — only a sweep row can be "measured under an older Bot".
+    if (finding.source !== undefined && finding.source !== SWEEP_SOURCE)
+        return false;
     return isStaleMeasurement(finding.botHash, measurement);
+}
+
+// ── Human findings: triage, snooze, visibility (issue #4182) ──────────────
+
+/** Rows the page counts: admitted (measured, or human with a Reproducer) and
+ *  not snoozed. Triage and snoozed rows stay visible, outside every number. */
+export function countedFindings<T extends BotFindingRow>(
+    rows: readonly T[]
+): T[] {
+    return rows.filter(countsTowardTotals);
+}
+
+/** The triage bucket: human reports still without a Reproducer. A snoozed
+ *  report has left the counts on purpose and lives with the snoozed rows. */
+export function triageFindings<T extends BotFindingRow>(
+    rows: readonly T[]
+): T[] {
+    return rows.filter((row) => isTriage(row) && !isSnoozed(row));
+}
+
+export type FindingVisibility = "active" | "snoozed" | "all";
+
+export const VISIBILITY_FILTERS: readonly {
+    value: FindingVisibility;
+    label: string;
+}[] = [
+    { value: "active", label: "Active" },
+    { value: "snoozed", label: "Snoozed" },
+    { value: "all", label: "Both" },
+];
+
+/** The main list: everything but the triage bucket, narrowed by snooze. */
+export function filterByVisibility<T extends BotFindingRow>(
+    rows: readonly T[],
+    visibility: FindingVisibility
+): T[] {
+    const listed = rows.filter((row) => !(isTriage(row) && !isSnoozed(row)));
+    if (visibility === "all") return listed;
+    return listed.filter(
+        (row) => isSnoozed(row) === (visibility === "snoozed")
+    );
+}
+
+/** Only an admitted row is handed to a session: a triage row has no
+ *  Reproducer to hand over (ADR 0141 § 7). */
+export function isCopyable(row: BotFindingRow): boolean {
+    return !isTriage(row);
+}
+
+/** A refusal the server raised on purpose (`ConvexError`) reads as its own
+ *  words; anything else is not the admin's to interpret. */
+export function adminErrorText(error: unknown): string {
+    return error instanceof ConvexError && typeof error.data === "string"
+        ? error.data
+        : "Something went wrong — the change was not saved.";
 }
 
 export type StalenessFilter = "all" | "current" | "stale";
@@ -48,7 +120,7 @@ export const STALENESS_FILTERS: readonly {
 
 /** Narrow rows by staleness. Without a measurement nothing can be judged
  *  stale, so every row passes — a filter never hides what it cannot judge. */
-export function filterByStaleness<T extends Pick<BotFindingRow, "botHash">>(
+export function filterByStaleness<T extends StalenessRow>(
     rows: readonly T[],
     filter: StalenessFilter,
     measurement: BotFindingMeasurement | null
@@ -62,7 +134,7 @@ export function filterByStaleness<T extends Pick<BotFindingRow, "botHash">>(
 /** The header line naming how current the page is: when the measurement ran
  *  and, when the Bot has moved since, how many rows that leaves stale. */
 export function stalenessSummary(
-    rows: readonly Pick<BotFindingRow, "botHash">[],
+    rows: readonly StalenessRow[],
     measurement: BotFindingMeasurement
 ): string | null {
     const stale = rows.filter((r) => isStaleFinding(r, measurement)).length;

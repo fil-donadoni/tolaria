@@ -1,7 +1,9 @@
+import { SWEEP_SOURCE, isTriage } from "@convex/botFindingsCore";
 import { getImageFallbackUrl, getImageUrl } from "@/lib/images";
 import {
     BLAME_LABEL,
     classDeltaText,
+    isCopyable,
     proseSegments,
     type BotFindingClassRow,
     type BotFindingMeasurement,
@@ -12,7 +14,10 @@ import {
     findingReproducers,
 } from "@/lib/ai/bot-finding-payload";
 import type { FindingLaunchActions } from "@/lib/ai/bot-finding-launch";
+import BotFindingAnnotationForm from "./bot-finding-annotation-form";
 import BotFindingCopyButton from "./bot-finding-copy-button";
+import BotFindingReproducerForm from "./bot-finding-reproducer-form";
+import BotFindingSnoozeControl from "./bot-finding-snooze-control";
 import BotFindingReproducers from "./bot-finding-reproducers";
 import BotFindingStatusBadge from "./bot-finding-status-badge";
 import BotFindingTrace from "./bot-finding-trace";
@@ -25,6 +30,10 @@ import BotFindingTrace from "./bot-finding-trace";
  * (issue #4179). A row measured under an older Bot hash than the current one
  * carries a `stale` flag (issue #4181) — marked, never hidden — and its class
  * line says what the class held at the previous measurement.
+ *
+ * Human fields (issue #4182): the admin's note, linked issue and snooze reason
+ * show on the row and the admin controls sit behind a disclosure. A triage
+ * row — a human report with no Reproducer — says so and has no copy button.
  */
 export default function BotFindingRow({
     finding,
@@ -43,6 +52,8 @@ export default function BotFindingRow({
         <article
             data-bot-finding-row={finding.oracleId}
             data-stale={stale ? "" : undefined}
+            data-triage={isTriage(finding) ? "" : undefined}
+            data-snoozed={finding.snoozedAt !== undefined ? "" : undefined}
             className="flex gap-4 rounded-sm border border-border-subtle/40 p-3"
         >
             {finding.printId !== undefined && (
@@ -68,7 +79,9 @@ export default function BotFindingRow({
                     <BotFindingStatusBadge status={finding.status} />
                 </div>
                 <p className="text-xs text-text-muted">
-                    <span className="font-semibold">{finding.outcome}</span>
+                    {finding.source === SWEEP_SOURCE && (
+                        <span className="font-semibold">{finding.outcome}</span>
+                    )}
                     {finding.blame !== undefined && (
                         <> · {BLAME_LABEL[finding.blame]}</>
                     )}
@@ -121,15 +134,60 @@ export default function BotFindingRow({
                     labels={findingReproducers(finding, cls)}
                     {...actions}
                 />
-                <div>
-                    <BotFindingCopyButton
-                        label={`Copy a Claude Code brief for ${finding.name}`}
-                        text={() => findingPayload(finding, cls, measurement)}
-                    />
-                </div>
+                {isCopyable(finding) && (
+                    <div>
+                        <BotFindingCopyButton
+                            label={`Copy a Claude Code brief for ${finding.name}`}
+                            text={() =>
+                                findingPayload(finding, cls, measurement)
+                            }
+                        />
+                    </div>
+                )}
                 {finding.trace !== undefined && (
                     <BotFindingTrace trace={finding.trace} />
                 )}
+                {finding.source !== SWEEP_SOURCE && (
+                    <p
+                        data-bot-finding-source=""
+                        className="text-xs font-semibold text-text-muted"
+                    >
+                        Reported by a human
+                        {isTriage(finding) &&
+                            " — in triage until it names a reproducer"}
+                    </p>
+                )}
+                {finding.note !== undefined && (
+                    <p data-bot-finding-note="" className="text-xs text-text">
+                        {finding.note}
+                    </p>
+                )}
+                {finding.linkedIssue !== undefined && (
+                    <p
+                        data-bot-finding-linked-issue=""
+                        className="text-xs text-text-muted"
+                    >
+                        Linked: issue #{finding.linkedIssue}
+                    </p>
+                )}
+                {finding.snoozedAt !== undefined && (
+                    <p
+                        data-bot-finding-snoozed=""
+                        className="text-xs font-semibold text-text-muted"
+                    >
+                        Snoozed — {finding.snoozeReason}
+                    </p>
+                )}
+                <details data-bot-finding-admin="" className="text-xs">
+                    <summary className="cursor-pointer text-text-muted">
+                        Note, issue, reproducers and snooze
+                    </summary>
+                    <div className="mt-2 flex flex-col gap-3">
+                        <BotFindingAnnotationForm finding={finding} />
+                        <BotFindingReproducerForm finding={finding} />
+                        <BotFindingSnoozeControl finding={finding} />
+                    </div>
+                </details>
             </div>
         </article>
     );

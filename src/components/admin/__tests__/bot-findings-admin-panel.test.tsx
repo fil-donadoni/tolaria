@@ -13,6 +13,7 @@ const answers: Record<string, unknown> = {};
 
 vi.mock("convex/react", () => ({
     useQuery: (query: { _name: string }) => answers[query._name],
+    useMutation: () => () => Promise.resolve(null),
 }));
 
 vi.mock("@convex/_generated/api", () => {
