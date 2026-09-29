@@ -169,24 +169,28 @@ export const getByPrintIds = query({
     args: { printIds: v.array(v.string()) },
     returns: v.array(cardPrintRowValidator),
     handler: async (ctx, { printIds }) => {
-        const rows = [];
-        for (const printId of new Set(printIds.slice(0, MAX_PRINT_IDS))) {
-            const row = await ctx.db
-                .query("cardPrints")
-                .withIndex("by_printId", (q) => q.eq("printId", printId))
-                .unique();
-            if (row) {
-                rows.push({
-                    printId: row.printId,
-                    cardId: row.cardId,
-                    set: row.set,
-                    rarity: row.rarity,
-                    digital: row.digital,
-                    promo: row.promo,
-                    tokenPrints: row.tokenPrints,
-                });
-            }
-        }
-        return rows;
+        const rows = await Promise.all(
+            [...new Set(printIds.slice(0, MAX_PRINT_IDS))].map((printId) =>
+                ctx.db
+                    .query("cardPrints")
+                    .withIndex("by_printId", (q) => q.eq("printId", printId))
+                    .unique()
+            )
+        );
+        return rows.flatMap((row) =>
+            row
+                ? [
+                      {
+                          printId: row.printId,
+                          cardId: row.cardId,
+                          set: row.set,
+                          rarity: row.rarity,
+                          digital: row.digital,
+                          promo: row.promo,
+                          tokenPrints: row.tokenPrints,
+                      },
+                  ]
+                : []
+        );
     },
 });

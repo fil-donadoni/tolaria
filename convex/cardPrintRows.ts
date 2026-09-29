@@ -28,16 +28,18 @@ export async function loadPrintRows(
     ctx: Pick<QueryCtx, "db">,
     ids: Iterable<string>
 ): Promise<PrintRowIndex> {
-    const rows: PrintRow[] = [];
-    for (const id of new Set(ids)) {
-        if (isDefinitionId(id)) continue;
-        const row = await ctx.db
-            .query("cardPrints")
-            .withIndex("by_printId", (q) => q.eq("printId", id))
-            .unique();
-        if (row) rows.push(row);
-    }
-    return indexPrintRows(rows);
+    const wanted = [...new Set(ids)].filter((id) => !isDefinitionId(id));
+    const rows = await Promise.all(
+        wanted.map((id) =>
+            ctx.db
+                .query("cardPrints")
+                .withIndex("by_printId", (q) => q.eq("printId", id))
+                .unique()
+        )
+    );
+    return indexPrintRows(
+        rows.flatMap((row): PrintRow[] => (row ? [row] : []))
+    );
 }
 
 interface DeckLike {
