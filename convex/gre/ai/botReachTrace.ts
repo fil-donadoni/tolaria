@@ -26,7 +26,8 @@
  */
 
 import type { EvalTerms } from "../evaluate";
-import type { CandidateTrace, DecisionTrace } from "../search";
+import type { Move } from "../moves";
+import { moveKey, type CandidateTrace, type DecisionTrace } from "../search";
 import type { RootDecisionMechanism } from "./decisionTelemetry";
 
 /** The chosen move, the card's own move and at most three alternatives. */
@@ -139,28 +140,37 @@ function project(
     };
 }
 
-/** Does the root candidate use the card instance? */
-function usesInstance(c: CandidateTrace, instanceId: string): boolean {
-    return "cardInstanceId" in c.move && c.move.cardInstanceId === instanceId;
+/** Does `move` use the card instance `instanceId`? The sweep's one test
+ *  for "this move is the card's" — `botReach.ts` reads it too. */
+export function usesCard(move: Move, instanceId: string): boolean {
+    return "cardInstanceId" in move && move.cardInstanceId === instanceId;
 }
 
 /**
  * The bounded projection of a decision that refused the card `instanceId`.
- * `trace` is `searchWithTrace`'s (null when no search ran); `fate` is what
- * root enumeration did to the card's move before the search, when it dropped
- * it. `trace.candidates` is most-visited first; the chosen move is the one
- * whose label matches `trace.chosen` (the first such, so a label shared by two
- * root moves resolves deterministically), falling back to the most-visited.
+ *
+ * `trace` is `searchWithTrace`'s (null when no search ran) and `chosenMove`
+ * the move it returned: the chosen candidate is the root edge whose move KEY
+ * is that move's, never a label match — `describeMove` labels are not unique
+ * (two targets that are both "Grizzly Bears" read the same), and a tie-break
+ * may pick the less-visited of two same-label edges. A pick that is no root
+ * edge (none today) records no chosen candidate rather than a wrong one.
+ *
+ * `fate` is what root enumeration did when it dropped EVERY one of the card's
+ * moves; a card candidate found in the trace outranks it — the search weighed
+ * the card, and that is the answer.
  */
 export function projectBotReachTrace(
     trace: DecisionTrace | null,
+    chosenMove: Move | null,
     instanceId: string,
     fate?: "pruned" | "collapsed"
 ): BotReachTrace {
     if (trace === null) return { cardMove: fate ?? "unexpanded" };
     const all = trace.candidates;
-    const chosen = all.find((c) => c.label === trace.chosen) ?? all[0];
-    const card = all.find((c) => c !== chosen && usesInstance(c, instanceId));
+    const chosenKey = chosenMove === null ? undefined : moveKey(chosenMove);
+    const chosen = all.find((c) => moveKey(c.move) === chosenKey);
+    const card = all.find((c) => c !== chosen && usesCard(c.move, instanceId));
     const picked: BotReachTraceCandidate[] = [];
     if (chosen !== undefined) picked.push(project(chosen, "chosen"));
     if (card !== undefined) picked.push(project(card, "card"));
@@ -170,7 +180,7 @@ export function projectBotReachTrace(
         picked.push(project(c, "alternative"));
     }
     return {
-        cardMove: fate ?? (card !== undefined ? "weighed" : "unexpanded"),
+        cardMove: card !== undefined ? "weighed" : (fate ?? "unexpanded"),
         search: {
             mechanism: trace.mechanism,
             iterations: trace.iterationsCompleted,

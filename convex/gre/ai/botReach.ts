@@ -44,7 +44,12 @@ import { applyMoveForSearch } from "../applyMove";
 import { cloneGameState } from "../clone";
 import { buildBladeBaseState } from "./blade/baseState";
 import { buildStateFromScenario } from "../scenarioBuilder";
-import { applyMoveInSearch, decidingPlayer, searchWithTrace } from "../search";
+import {
+    applyMoveInSearch,
+    decidingPlayer,
+    enumerateRootMoves,
+    searchWithTrace,
+} from "../search";
 import { enumerateMoves, type Move } from "../moves";
 import { getLegalActions } from "../rules";
 import { allocInstanceId, type GameState } from "../state";
@@ -59,7 +64,11 @@ import { tryGetCardByName } from "../../cards";
 import { matchesPermanentFilter } from "../../cards/filters";
 import { sweepPermanentFilter, UNREADABLE_SWEEP_FILTER } from "./latentBoard";
 import { castShape } from "./botReachForm";
-import { projectBotReachTrace, type BotReachTrace } from "./botReachTrace";
+import {
+    projectBotReachTrace,
+    usesCard,
+    type BotReachTrace,
+} from "./botReachTrace";
 import {
     attackEdictPosition,
     combatTrickPosition,
@@ -929,11 +938,6 @@ export function botReachSpec(
     };
 }
 
-/** Does `move` use the card instance `instanceId`? */
-function usesCard(move: Move, instanceId: string): boolean {
-    return "cardInstanceId" in move && move.cardInstanceId === instanceId;
-}
-
 /** Is the card still in flight — on the stack, or a choice still pending? */
 function unsettled(state: GameState, instanceId: string): boolean {
     if ((state.pendingChoices?.length ?? 0) > 0) return true;
@@ -1156,29 +1160,35 @@ export function classifyNoMove(
 }
 
 /**
- * Did root enumeration drop the card's move before the search could weigh
- * it? The SAME options `searchWithTrace` enumerates its root with (dominance
- * pruning, issue #1887; interchangeable collapse, issue #3593), read on the
- * same state — pure, so asking costs the search nothing. Evidence for the
- * finding's trace only (issue #4179); never an input to the verdict.
+ * What root enumeration did to the card's moves before the search could weigh
+ * them — read through {@link enumerateRootMoves}, the search's own root list,
+ * on the same state. Pure, so asking costs the search nothing. Evidence for
+ * the finding's trace only (issue #4179); never an input to the verdict.
+ *
+ * `undefined` whenever ANY of the card's moves survived: a card can lose one
+ * target to a collapse or one mode to dominance and still be weighed through
+ * the others, and then what the search did is the answer. Only a card with no
+ * surviving move was dropped before the search — `pruned` when dominance
+ * dropped at least one of them (the stronger claim: proved a no-op), else
+ * `collapsed`.
  */
-function rootFate(
+function rootMoveFate(
     state: GameState,
     holderId: string,
     instanceId: string
 ): "pruned" | "collapsed" | undefined {
-    let fate: "pruned" | "collapsed" | undefined;
-    enumerateMoves(state, holderId, {
-        pruneDominatedNoOps: true,
+    let pruned = false;
+    let collapsed = false;
+    const kept = enumerateRootMoves(state, holderId, {
         onPruned: (m) => {
-            if (usesCard(m, instanceId)) fate ??= "pruned";
+            if (usesCard(m, instanceId)) pruned = true;
         },
-        collapseInterchangeable: true,
         onCollapsed: (m) => {
-            if (usesCard(m, instanceId)) fate ??= "collapsed";
+            if (usesCard(m, instanceId)) collapsed = true;
         },
     });
-    return fate;
+    if (kept.some((m) => usesCard(m, instanceId))) return undefined;
+    return pruned ? "pruned" : collapsed ? "collapsed" : undefined;
 }
 
 function playFrom(
@@ -1220,8 +1230,9 @@ function playFrom(
         if (move === null || !usesCard(move, instanceId)) {
             refusal ??= projectBotReachTrace(
                 trace,
+                move,
                 instanceId,
-                rootFate(state, holderId, instanceId)
+                rootMoveFate(state, holderId, instanceId)
             );
             continue;
         }

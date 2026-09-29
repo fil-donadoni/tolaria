@@ -460,7 +460,7 @@ describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
         });
     });
 
-    it("played and harness verdicts carry no trace", () => {
+    it("a harness verdict carries no trace", () => {
         withTemporaryDefinition(UNTARGETABLE_INSTANT, () => {
             expect(playBotReach(UNTARGETABLE_INSTANT).trace).toBeUndefined();
         });

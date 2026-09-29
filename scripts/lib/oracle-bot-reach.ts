@@ -538,12 +538,16 @@ function reusableVerdict(
     } else if (row.cause === undefined || !BOT_REACH_CAUSES.has(row.cause)) {
         return undefined;
     }
+    // A `never-chosen` play always records its refusal's trace (issue #4179),
+    // so a row without one was written by another tree: replay it.
+    const traced = row.cause === "never-chosen";
+    if (traced && typeof row.trace?.cardMove !== "string") return undefined;
     return {
         ...definition,
         outcome: row.outcome,
         ...(row.cause !== undefined ? { cause: row.cause } : {}),
         ...(row.form !== undefined ? { form: row.form } : {}),
-        ...(row.trace !== undefined ? { trace: row.trace } : {}),
+        ...(traced ? { trace: row.trace } : {}),
     };
 }
 

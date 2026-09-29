@@ -205,14 +205,14 @@ describe("BotFindingsAdminPanel — the Cards tab (issue #4176)", () => {
         const text = findingTraceText(FINDINGS[0]!.trace as BotFindingTrace);
         expect(text.split("\n")).toEqual([
             "The search weighed its move and preferred another.",
-            "Search: 48 iterations, 3 root moves weighed, mechanism `mean-reward` — The search preferred it — it won more of the games it played out.",
+            "Search: 48 iterations, 3 root moves weighed, mechanism `mean-reward`: The search preferred it — it won more of the games it played out.",
             "- [chosen] Pass — visits 40, reward 0.5, eval 10",
             "  terms (self/opp): L20/20 H300/300",
             "- [this card] Cast Grist, the Hunger Tide — visits 8, reward 0.3, eval 4; vs chosen: spends a card",
             "  terms (self/opp): L20/20 H200/300",
         ]);
         expect(findingTraceText({ cardMove: "pruned" })).toBe(
-            "Its move was pruned before the search: dominance proved casting it changes nothing.\nNo search ran: a single move was left to make."
+            "Its move was pruned before the search: dominance proved using it changes nothing.\nNo search ran: a single move was left to make."
         );
     });
 

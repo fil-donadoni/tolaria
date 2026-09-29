@@ -77,13 +77,17 @@ export type BotFindingTraceCandidate =
 
 /** What happened to the card's own move, in words (`BotReachCardMove`). */
 export const CARD_MOVE_SENTENCE: Record<BotFindingTrace["cardMove"], string> = {
-    pruned: "Its move was pruned before the search: dominance proved casting it changes nothing.",
+    pruned: "Its move was pruned before the search: dominance proved using it changes nothing.",
     collapsed:
         "Its move was folded into an interchangeable copy before the search.",
     unexpanded:
         "Its move was offered to the search but never expanded inside the budget.",
     weighed: "The search weighed its move and preferred another.",
 };
+
+/** A refusal with no search behind it: pruning left one move to make. */
+export const NO_SEARCH_SENTENCE =
+    "No search ran: a single move was left to make.";
 
 /** Why the root rule picked what it picked — the SAME sentence the in-game
  *  decision box shows (`MECHANISM_SENTENCES`), so a finding and a live trace
@@ -105,7 +109,11 @@ function sideTerms(c: BotFindingTraceCandidate, side: 0 | 1): EvalTerms {
 }
 
 /** The candidate's recorded terms as the `PositionBreakdown` the phrase
- *  helpers read — a term the projection dropped for being zero reads zero. */
+ *  helpers read — a term the projection dropped for being zero reads zero.
+ *  Only `self`, `opp` and `total` are MEASURED: `margin` is the unweighted sum
+ *  of the rounded terms and `danger` is not recorded at all (0). Sound for
+ *  `comparePositions`, which reads the per-term deltas and `total` only; a
+ *  reader of `margin` or `danger` would be reading numbers nobody measured. */
 export function traceBreakdown(c: BotFindingTraceCandidate): PositionBreakdown {
     const self = sideTerms(c, 0);
     const opp = sideTerms(c, 1);
@@ -169,11 +177,11 @@ export function findingTraceText(trace: BotFindingTrace): string {
     const lines = [CARD_MOVE_SENTENCE[trace.cardMove]];
     const { search } = trace;
     if (search === undefined) {
-        lines.push("No search ran: a single move was left to make.");
+        lines.push(NO_SEARCH_SENTENCE);
         return lines.join("\n");
     }
     lines.push(
-        `Search: ${search.iterations} iterations, ${search.weighed} root moves weighed, mechanism \`${search.mechanism}\` — ${traceMechanismSentence(search.mechanism)}`
+        `Search: ${search.iterations} iterations, ${search.weighed} root moves weighed, mechanism \`${search.mechanism}\`: ${traceMechanismSentence(search.mechanism)}`
     );
     for (const c of search.candidates) {
         const reading = traceComparison(search, c);

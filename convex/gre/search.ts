@@ -5595,6 +5595,38 @@ export function rootDecisionSettled(
     return mean(top) - runnerUpMean > weights.outcomeEps;
 }
 
+/**
+ * The ROOT's move list, exactly as every root decision enumerates it — the
+ * search, the greedy root pick, and the Bot Findings trace (`botReach.ts`,
+ * issue #4179) that must say what happened to a card's move before the search
+ * weighed anything. ONE definition, so a root filter added here reaches all of
+ * them.
+ *
+ * Dominance pruning (issue #1887) drops moves proved to be no-ops; issue
+ * #3593's collapse drops a move the engine cannot tell apart from a twin
+ * (two copies of a card are ONE option). The search turns both into a deny-set
+ * for the tree's root layer: without that, `selectRootMove` picks among the
+ * root's CHILD EDGES and a collapsed-away copy would still be opened, still
+ * collect visits, and still split them with its twin.
+ */
+export function enumerateRootMoves(
+    state: GameState,
+    playerId: string,
+    hooks: {
+        onTruncated?: (t: ModeCombinationTruncation) => void;
+        onPruned?: (move: Move) => void;
+        onCollapsed?: (move: Move) => void;
+    } = {}
+): Move[] {
+    return enumerateMoves(state, playerId, {
+        onTruncated: hooks.onTruncated,
+        pruneDominatedNoOps: true,
+        onPruned: hooks.onPruned,
+        collapseInterchangeable: true,
+        onCollapsed: hooks.onCollapsed,
+    });
+}
+
 /** Choose a move for `playerId` by ISMCTS, and surface a DecisionTrace of what
  *  was weighed. Deterministic given `seed` and an iteration budget — the trace
  *  is built only after the move is chosen, so it never perturbs selection. The
@@ -5703,17 +5735,9 @@ function runSearchWithTrace(
     // proof is paid for once and honoured everywhere it matters.
     const deniedAtRoot: Move[] = [];
     const truncations: ModeCombinationTruncation[] = [];
-    let moves = enumerateMoves(state, playerId, {
+    let moves = enumerateRootMoves(state, playerId, {
         onTruncated: (t) => truncations.push(t),
-        pruneDominatedNoOps: true,
         onPruned: (m) => deniedAtRoot.push(m),
-        // Issue #3593 — two copies of a card the engine cannot tell apart are
-        // ONE option. Like the dominance verdict above, it is proved once here
-        // and carried into the tree's root layer as a deny-set: without that,
-        // `selectRootMove` picks among the root's CHILD EDGES and a
-        // collapsed-away copy would still be opened, still collect visits, and
-        // still split them with its twin.
-        collapseInterchangeable: true,
         onCollapsed: (m) => deniedAtRoot.push(m),
     });
     if (moves.length === 0) return { move: null, trace: null };
@@ -5911,10 +5935,7 @@ export function greedyRootPick(
     if (decidingPlayer(state) !== playerId) return null;
     beginDominanceDecision();
     try {
-        const moves = enumerateMoves(state, playerId, {
-            pruneDominatedNoOps: true,
-            collapseInterchangeable: true,
-        });
+        const moves = enumerateRootMoves(state, playerId);
         if (moves.length === 0) return null;
         if (moves.length === 1 || state.phase === "MULLIGAN") return moves[0];
         return selectRolloutMove(

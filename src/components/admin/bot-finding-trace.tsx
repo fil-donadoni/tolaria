@@ -1,5 +1,6 @@
 import {
     CARD_MOVE_SENTENCE,
+    NO_SEARCH_SENTENCE,
     traceComparison,
     traceMechanismSentence,
     traceRoleLabel,
@@ -26,7 +27,7 @@ export default function BotFindingTrace({ trace }: { trace: Trace }) {
                     {CARD_MOVE_SENTENCE[trace.cardMove]}
                 </p>
                 {search === undefined ? (
-                    <p>No search ran: a single move was left to make.</p>
+                    <p>{NO_SEARCH_SENTENCE}</p>
                 ) : (
                     <>
                         <p>

@@ -262,7 +262,11 @@ const TRACE = {
 } satisfies NonNullable<FindingRow["trace"]>;
 
 describe("findingsCache", () => {
-    const previous = buildFindings(header(), ["t"], [row({ oracleId: "o-1" })]);
+    const previous = buildFindings(
+        header(),
+        ["t"],
+        [row({ oracleId: "o-1", trace: TRACE })]
+    );
     const key = { source: "hand-written", defHash: "sha256:def" } as const;
     const fresh = (): MeasuredVerdict => ({
         ...key,
@@ -276,7 +280,34 @@ describe("findingsCache", () => {
             outcome: "ignored",
             cause: "never-chosen",
             form: "instant",
+            trace: TRACE,
         });
+        expect(cache.replayed()).toBe(0);
+    });
+
+    // A `never-chosen` play always records its trace, so a row without one
+    // was written by another tree (review of issue #4179, finding 5).
+    it("replays a never-chosen row that carries no decision trace", () => {
+        const bare = buildFindings(header(), ["t"], [row({ oracleId: "o-1" })]);
+        const cache = findingsCache(bare, "sha256:bot");
+        expect(cache.verdictFor("o-1", key, fresh)).toEqual(fresh());
+        expect(cache.replayed()).toBe(1);
+    });
+
+    it("never carries a trace onto a verdict other than never-chosen", () => {
+        const odd = buildFindings(
+            header(),
+            ["t"],
+            [
+                row({
+                    oracleId: "o-1",
+                    cause: "position-unmodelled",
+                    trace: TRACE,
+                }),
+            ]
+        );
+        const cache = findingsCache(odd, "sha256:bot");
+        expect(cache.verdictFor("o-1", key, fresh).trace).toBeUndefined();
         expect(cache.replayed()).toBe(0);
     });
 
