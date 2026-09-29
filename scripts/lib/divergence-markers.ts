@@ -243,7 +243,7 @@ export function isParagraphBreak(line: string): boolean {
 }
 
 /** Collect every `.ts` source file under a colour-split set directory
- *  (`sets/<code>/<colour>.ts`, ADR 0043), excluding `__tests__` and
+ *  (`sets/<code>/<colour>.cards.ts`, ADR 0043), excluding `__tests__` and
  *  `*.test.ts` — recurses so it also picks up a legacy flat `sets/<code>.ts`
  *  file if one exists, mirroring `scripts/check-stub-coverage.ts`'s own
  *  file collector. */

@@ -159,7 +159,7 @@ for (const card of cards) {
 const setsDir = resolve(
     process.env.JSON_TO_CARDS_OUT_DIR ?? "convex/cards/sets"
 );
-// Colour modules live at `sets/<code>/<colour>.ts`, two levels above `cards/`.
+// Colour modules live at `sets/<code>/<colour>.cards.ts`, two levels above `cards/`.
 const importLine = `import type { CardDefinition } from "../../types";`;
 const setDir = writeSetDirectory(setsDir, setCode, sources, importLine);
 console.log(

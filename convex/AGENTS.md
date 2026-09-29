@@ -157,7 +157,7 @@ the subject is a finding — fix it before proceeding.
 
 ## Card testing convention (resolve() cards and new Ops)
 
-Sets are colour-split directories (`sets/<code>/<colour>.ts`, ADR 0043); each
+Sets are colour-split directories (`sets/<code>/<colour>.cards.ts`, ADR 0043); each
 non-trivial card gets a `describe` block in the parallel per-colour test file
 (`sets/lea/red.cards.ts` → `sets/lea/__tests__/red.test.ts`). Shared fixtures:
 `convex/cards/__tests__/setup.helper.ts` (`makeInstance`, `makePlayer`, `makeState`,

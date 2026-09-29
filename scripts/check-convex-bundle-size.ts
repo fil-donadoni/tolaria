@@ -33,8 +33,9 @@
  *
  * The receipt prints the per-row headroom because that is the number ADR 0113
  * actually turns on. Marginal cost of one compiled-pool row, re-measured at
- * issue #3444 by re-bundling at +2,000 and +6,000 synthetic rows:
- * **1,013 B/row** (597 source + 416 source map), linear to four digits. It was
+ * issue #4811 by re-bundling at +2,000 and +6,000 synthetic rows:
+ * **1,385 B/row**, linear to four digits (1,013 at issue #3444; the rows grew,
+ * see `MEASURED_BYTES_PER_POOL_ROW`). It was
  * 2,086 while the pool was inlined TWICE — once into the shared isolate chunk,
  * once into the `"use node"` graph esbuild bundles separately; #3444 cut the
  * second copy and the doubling with it.

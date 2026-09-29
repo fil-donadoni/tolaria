@@ -1204,7 +1204,7 @@ convex/
 │   ├── types.ts            CardDefinition, SpellContext, EffectOp, …
 │   ├── mechanicsRegistry.ts autorità sui nomi di meccaniche e Op
 │   ├── emblems.ts sharedTokens.ts filters.ts
-│   └── sets/<code>/<colour>.ts
+│   └── sets/<code>/<colour>.cards.ts
 ├── gre/
 │   ├── state.ts            GameState + la maggior parte delle primitive (~17k righe)
 │   ├── activation.ts       CR 602 puro: attivazione + pagamento costi (#3479)

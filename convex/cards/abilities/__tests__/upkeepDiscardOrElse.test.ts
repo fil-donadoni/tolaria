@@ -9,7 +9,7 @@
 // LIFE_LOST-triggered, not an upkeep trigger, and its own test never
 // exercises the discard branch). Rather than fabricate a fake entry inside a
 // real MTGJSON-backed set file (which would break the "every card in
-// sets/<code>/<colour>.ts is a real printing" invariant those files
+// sets/<code>/<colour>.cards.ts is a real printing" invariant those files
 // document), this test registers a synthetic fixture definition via
 // `registerTokenDefinition` — the same mechanism `fadingVanishing.test.ts`
 // uses to test a shared ability factory directly, in isolation from any

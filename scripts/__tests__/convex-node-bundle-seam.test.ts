@@ -25,7 +25,7 @@ import {
  *
  *   - by CAUSE — the node graph does not reach the card registry at all;
  *   - by EFFECT — the node half stays under a budget a single re-entry of the
- *     pool (~2.4 MB at the measured 1,013 B/row) cannot fit beneath.
+ *     pool (~6 MB at the measured 1,385 B/row, issue #4811) cannot fit beneath.
  *
  * It runs in the light lane: one esbuild pass over one entry point, ~1 s.
  */

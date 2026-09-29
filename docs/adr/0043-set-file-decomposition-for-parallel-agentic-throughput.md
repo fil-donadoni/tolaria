@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted
+accepted — file names amended by issue #4811 (§ Amendment)
 
 ## Context
 
@@ -118,3 +118,22 @@ unit; colour remains the _file_ unit — the two axes are deliberately decoupled
 - **CPU contention on the local gate** when N subagents finish together and each
   runs the ~150 s suite. Reasoning (the dominant cost) overlaps cleanly; gates
   queue. Net throughput still scales with parallelism.
+
+## Amendment (issue #4811, 2026-09-29) — every module is multi-dot
+
+The directory layout stands; the file NAMES change. Each module is
+`<colour>.cards.ts`, the barrel `index.cards.ts`, and the catalogue imports
+`./sets/<code>/index.cards` explicitly (a directory import no longer resolves
+without an `index.ts`). Single-dot test support under any `__tests__/` becomes
+`*.helper.ts` or `*.fixture.ts` for the same reason.
+
+Why: the Convex CLI makes every single-dot `.ts` under `convex/` a function
+entry point. The ~1,100 set files were ~1,100 user modules, and with
+`splitting: true` each real entry that reaches the catalogue opened with
+~1,300 chunk imports — a third of the pushed bundle was that glue. The CLI
+skips a multi-dot name as an entry and still bundles it into its importers:
+30.01 MiB / 1,602 modules measured before, 19.84 MiB / 459 after, on the same
+tree (`scripts/lib/convex-bundle-size.ts`). The suffix lives in
+`scripts/lib/set-module-suffix.ts`, which the importers emit with, and
+`scripts/__tests__/convex-bundle-size.test.ts` reds on any entry point under
+`convex/cards/sets/**` or a `__tests__/` directory.

@@ -23,7 +23,7 @@
  *   bun scripts/list-to-cards.mjs data/worklists/vintage-cube.txt
  *
  * Output: a staging directory `data/worklists/<slug>.out/` with one colour-split
- * set DIRECTORY per home set (`<set>/<colour>.ts` + an `index.ts` barrel, the
+ * set DIRECTORY per home set (`<set>/<colour>.cards.ts` + an `index.cards.ts` barrel, the
  * same ADR 0043 layout as `convex/cards/sets/<code>/`) plus `report.md`, and an
  * updated `data/card-index.json`. Staging already in final shape means wiring is
  * a directory move; wiring the staged sources into `convex/cards/sets/<code>/` +
@@ -450,7 +450,7 @@ async function main() {
     const outDir = resolve("data/worklists", `${slug}.out`);
     if (existsSync(outDir)) rmSync(outDir, { recursive: true, force: true });
     mkdirSync(outDir, { recursive: true });
-    // Colour modules sit at `<slug>.out/<set>/<colour>.ts`, four levels deep, so
+    // Colour modules sit at `<slug>.out/<set>/<colour>.cards.ts`, four levels deep, so
     // the type import reaches the repo's convex/ via four `..` segments.
     const importLine = `import type { CardDefinition } from "../../../../convex/cards/types";`;
     for (const [set, cards] of [...bySet].sort()) {

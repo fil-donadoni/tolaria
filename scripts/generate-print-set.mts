@@ -27,7 +27,7 @@
  * it is derived per run from the lockfile `data/card-index.json`.
  *
  * Usage:  npx tsx scripts/generate-print-set.mts <code>     # e.g. 3ed, 4ed
- * Output: convex/cards/sets/<code>/{white,blue,…,colorless}.ts + index.ts
+ * Output: convex/cards/sets/<code>/{white,blue,…,colorless}.cards.ts + index.cards.ts
  */
 
 import { mkdirSync, writeFileSync, readFileSync, existsSync } from "node:fs";

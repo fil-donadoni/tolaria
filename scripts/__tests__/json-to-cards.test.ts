@@ -13,7 +13,7 @@ import { join } from "node:path";
 // The card generator (`scripts/json-to-cards.mjs`) must emit a `rarity` field
 // for every card (CR 206, issue #511) and refuse to generate a card whose
 // MTGJSON rarity is not one of the three modelled values. It also emits a
-// colour-split set DIRECTORY (`sets/<code>/<colour>.ts` + index.ts barrel,
+// colour-split set DIRECTORY (`sets/<code>/<colour>.cards.ts` + index.ts barrel,
 // ADR 0043), never a single file. These tests drive the script over synthetic
 // MTGJSON fixtures and assert on the emitted directory.
 
