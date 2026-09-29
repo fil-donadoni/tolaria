@@ -630,7 +630,7 @@ function buildCompanionInstance(
     // The sideboard entry the companion came from, for its chosen printing
     // (ADR 0140 §6) — `selectCompanion` answers with the definition only.
     const entry = (player.deck.sideboard ?? []).find(
-        (c) => getDefinition(c.cardId).id === def.id
+        (c) => tryGetDefinition(c.cardId)?.id === def.id
     );
     // CR 702.139 — `exile` is a nominal tag only; the companion slot is not a
     // real zone (see the `PlayerState.companion` / serialize.ts doc).
