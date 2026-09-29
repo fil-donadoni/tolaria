@@ -1002,9 +1002,11 @@ async function projectEventForViewer(
         isAdmin
     );
     const resolveBasicLand = resolveBasicLandFor(event.packSlots[0] ?? "");
+    // Pools exist only once dealt; an `open` event (the lobby list's common
+    // case) has nothing to resolve, so it pays no table reads.
     const { getAutoBuildCardMeta } = await loadEventCardResolvers(
         ctx,
-        event.packSlots
+        arePoolsDealt(event.status) ? event.packSlots : []
     );
     // Challenges (issue #1577) only exist once Pools do — skip the games read
     // entirely for `open` events (the lobby list's common case).

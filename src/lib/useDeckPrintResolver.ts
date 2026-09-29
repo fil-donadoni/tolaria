@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { ResolveCard } from "@convex/formats";
@@ -37,8 +37,13 @@ export function useDeckPrintResolver(
         api.cardPrints.getByPrintIds,
         printIds.length > 0 ? { printIds } : "skip"
     );
+    // Keep the last loaded rows while a changed id set re-queries, so the
+    // verdict does not flash back to the fallback on every printing change.
+    const lastRows = useRef(rows);
+    if (rows !== undefined) lastRows.current = rows;
+    const shown = rows ?? lastRows.current;
     return useMemo(
-        () => makeResolveCardFromRows(indexPrintRows(rows ?? [])),
-        [rows]
+        () => makeResolveCardFromRows(indexPrintRows(shown ?? [])),
+        [shown]
     );
 }
