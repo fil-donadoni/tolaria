@@ -550,6 +550,21 @@ function projectLibrary(
     return { count: library.length, known };
 }
 
+/** Strips from a slimmed face-down object the two fields that would name the
+ *  card underneath, for a viewer the rules do not let look at it (CR 708.5 on
+ *  the battlefield and stack, CR 406.3 in exile): `faceDownOf`, the real id,
+ *  and `imagePrintId`, the chosen printing (ADR 0140 §6, issue #4119) — a
+ *  print id is a Scryfall id, so it identifies the card as surely as the
+ *  definition id does. ONE helper for all three face-down legs, so a field
+ *  added here is hidden everywhere at once. */
+function hideFaceDownIdentity(slimmed: {
+    faceDownOf?: string;
+    imagePrintId?: string;
+}): void {
+    delete slimmed.faceDownOf;
+    delete slimmed.imagePrintId;
+}
+
 /** Projects one battlefield permanent for a given viewer. The battlefield is
  *  public EXCEPT for the identity of a face-down permanent (CR 708.2,
  *  ADR 0013): `card.card.id` stays the face-down sentinel for EVERY viewer,
@@ -634,7 +649,7 @@ function projectBattlefieldCard(
         return decorate({ ...slimmed, knownCardId: card.faceDownOf });
     }
     // Opponents/spectators: hide the true identity entirely.
-    delete (slimmed as { faceDownOf?: string }).faceDownOf;
+    hideFaceDownIdentity(slimmed);
     return decorate(slimmed);
 }
 
@@ -671,7 +686,7 @@ function projectStackItem(item: StackItem, viewerId: string): SlimStackItem {
         // the same value under the name id-derived filters never read.
         return { ...slimmed, knownCardId: item.faceDownOf };
     }
-    delete (slimmed as { faceDownOf?: string }).faceDownOf;
+    hideFaceDownIdentity(slimmed);
     return slimmed;
 }
 
@@ -800,7 +815,7 @@ function projectExileCard(
         subtypes: [],
         staticAbilities: [],
     });
-    delete (slimmed as { faceDownOf?: string }).faceDownOf;
+    hideFaceDownIdentity(slimmed);
     delete (slimmed as { power?: number }).power;
     delete (slimmed as { toughness?: number }).toughness;
     // issue #2904 — the same explicit marker the entitled leg gets, so ONE

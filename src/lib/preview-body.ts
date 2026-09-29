@@ -382,11 +382,17 @@ type PreviewGameCtx = {
 //   and no `gameCtx` every live override falls back to the printed definition,
 //   so the result is the original card's pure printed identity (name, art,
 //   type line, oracle text, printed P/T) — CR 707.2 copiable-values snapshot.
+//
+// `imagePrintId` pins the art of a face built WITHOUT an instance: the real
+// card behind a face-down object its viewer may look at, shown in the printing
+// its owner chose (ADR 0140 §6, issue #4119). A face built WITH an instance
+// reads the instance's own pin instead.
 export function buildPreviewBody(
     defId: string,
     cardInstance?: CardInstance,
     gameCtx?: PreviewGameCtx | null,
-    fallbackName?: string
+    fallbackName?: string,
+    imagePrintId?: string
 ): PreviewBodyContent {
     const def = tryGetDefinition(defId);
     const abilities = def
@@ -462,7 +468,12 @@ export function buildPreviewBody(
         bodyAbilities.activated.length > 0 ||
         bodyAbilities.triggered.length > 0;
     const displayName = def?.name ?? fallbackName ?? defId;
-    const imageId = resolveCardImageId(defId);
+    // An instance-level pin — the printing a player chose for the card (ADR
+    // 0140 §6), or a copy token's own frame (CR 707.2) — wins over the
+    // definition's art, exactly as it does on the board (`card-image.tsx`), so
+    // the preview never shows a different printing from the card it enlarges.
+    const imageId =
+        imagePrintId ?? cardInstance?.imagePrintId ?? resolveCardImageId(defId);
     // A transformed permanent's `defId` is the registered back-face
     // definition (CR 712); resolve its rendered CDN face (issue #1595) so the
     // hover/zoom preview matches the board art.
