@@ -3850,6 +3850,10 @@
     "cutsNote": "Cluster Cut ticket rows (ADR 0146 § Decision 7, issue #4681): one row per kind, { kind, issue } — gaps:sync's own \"clusters-adjacent record\" of the ONE standing Cluster Cut ticket it opened for that kind past `clusterCutThreshold` (data/targets.json), how it finds the ticket again without a title search. Never written by `/cluster-gaps`, unlike `clusters`. Parsed fail-closed by `parseCutRows` (`scripts/lib/targets.ts`).",
     "cuts": [
         {
+            "kind": "bot",
+            "issue": 4846
+        },
+        {
             "kind": "mechanic",
             "issue": 4747
         },
