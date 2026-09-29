@@ -174,6 +174,7 @@ const FITTABLE_TERM_WEIGHTS = [
     "deckingWeight",
     "graveyardEngineWeight",
     "graveyardReachFraction",
+    "recoverableSweepFraction",
 ] as const;
 
 export type FittableTermWeight = (typeof FITTABLE_TERM_WEIGHTS)[number];

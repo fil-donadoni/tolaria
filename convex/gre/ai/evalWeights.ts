@@ -202,6 +202,22 @@ export type EvalWeights = {
      *  use it run out, and this term models neither — so an enormous graveyard
      *  cannot dominate the leaf. */
     graveyardReachCap: number;
+    /** Issue #4880 — fraction of the RECOVERABLE part of a sweep's swing a
+     *  card in hand is credited with (`LatentLens.sweepUnits`,
+     *  `ai/latentBoard.ts`). A member is recoverable when its owner wins it
+     *  back in the ordinary course of the game: a land is replaced by the
+     *  next land drop (CR 305.2), a nontoken card returned to hand is recast.
+     *
+     *  The realised swing of such a sweep DECAYS once it resolves — the
+     *  opponent redraws lands, recasts what was bounced — while its price in
+     *  hand, read off each leaf's board, never does. Credited in full, a held
+     *  Armageddon is worth its whole sweep at every leaf of the horizon, the
+     *  line that cast it watches the opponent recover, and holding dominates
+     *  at any depth: the Bot never casts the sweep it should. A FRACTION below
+     *  1 makes the swing worth most when taken now. The members that are gone
+     *  for good (a creature destroyed, a token bounced) are credited in full:
+     *  their loss does not decay, and their pricing is unchanged. */
+    recoverableSweepFraction: number;
 
     // --- search.ts: tree selection + reward-mapping weights ----------------
     /** UCB1 exploration constant (`UCB_C`). The SOLE override path for this
@@ -297,6 +313,7 @@ export const FIT_BASE_EVAL_WEIGHTS: Readonly<EvalWeights> = Object.freeze({
     graveyardEngineCap: 5,
     graveyardReachFraction: 0.15,
     graveyardReachCap: 2,
+    recoverableSweepFraction: 1,
     permanentWeight: 5,
     manaWeight: 12,
     // 10.5 since issue #4761 (was 9): the prior must sit inside the fit's own
@@ -409,6 +426,7 @@ export const DEFAULT_EVAL_WEIGHTS: Readonly<EvalWeights> = Object.freeze({
     deckingWeight: 1.5,
     graveyardEngineWeight: 62.595435,
     graveyardReachFraction: 0.169137,
+    recoverableSweepFraction: 1,
     latent: Object.freeze({
         damage: 22.11586,
         cardAdvantage: 44.134311,
