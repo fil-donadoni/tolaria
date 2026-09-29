@@ -21,7 +21,7 @@ import { equipAbility, forMirrodin } from "../../abilities/equipment";
 //
 // Three DSL pieces, all Op-expressible (no resolve() needed):
 //   - ETB (`enteredTrigger` scope: "self") — plain `createToken` (CR 111 /
-//     701.7), the exact 1/1 white flying Spirit shape `dka/white.cards.ts`'s
+//     701.7), the exact 1/1 white flying Spirit shape `dka/white.ts`'s
 //     Lingering Souls already exercises.
 //   - The middle trigger — `tokenCreatedTrigger` (issue #1345's new factory)
 //     scoped "you", filtered to creature tokens (`filter: { types:
