@@ -206,7 +206,7 @@ dev` listening on some port — this measurement used `--port 5199`.
 
 ## Re-measure of the live `medium` budget — issue #4458 (2026-09-29)
 
-Commit `8e8654a77` (branch `feat/issue-4458`). Live `medium`
+Commit `8e8654a77` (pre-rebase tip of PR #4868, so the hash may not survive `land`). Live `medium`
 (`{ iterations: 400, timeMs: 1500 }`, seed `0xb1ade`) through
 `searchWithTrace` on the first 60 blade `must` positions, in-process (vitest,
 no browser). Counter side of the story: `search.perf.test.ts`.
@@ -237,3 +237,8 @@ even by CPU time, and up to ~13 % (8 / 60) are cut under load 12; the
 remaining ~87 % finish or settle well inside the cap (median 653 ms). The
 iteration count, not the clock, is the binding budget for the typical decision.
 An honest idle figure (load < 3) is still owed: re-run when the box is quiet.
+
+Reproduce: loop `bladeScenariosForTier("must").slice(0, 60)` through
+`buildBladeState` + `searchWithTrace(state, botId, DIFFICULTY_BUDGETS.medium, 0xb1ade)`,
+record `trace.stoppedBy` / `iterationsCompleted` and `loadavg()` per row; the
+CPU figure repeats it with `timeMs: 1e9` around `process.cpuUsage()`.

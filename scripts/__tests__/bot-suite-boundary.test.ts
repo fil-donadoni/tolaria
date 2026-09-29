@@ -130,7 +130,7 @@ function appTestFiles(): string[] {
             if (/\.bot\.test\.tsx?$/.test(f)) continue;
             // `*.perf.test.ts` runs in the `perf` project (vitest.config.ts
             // PERF_GLOB), in neither the app nor the bot suite (issue #4458).
-            if (/\.perf\.test\.tsx?$/.test(f)) continue;
+            if (/\.perf\.test\.ts$/.test(f)) continue;
             files.push(path.relative(REPO_ROOT, f));
         }
     }

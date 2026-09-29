@@ -31,9 +31,10 @@ import type { GameState } from "../state";
  * sweep (CR 704.3). It is a proxy for applications, named for what it counts.
  *
  * `rngDraws` is the total `rngCounter` advance over every clone the search
- * made (CR-agnostic: the seeded stream `rngSeed`/`rngCounter` is the engine's
- * only randomness), so a change that draws more from the game PRNG per
- * iteration is seen even when the call counts are unchanged.
+ * made: game-PRNG draws only (in-game random effects). The search's own
+ * stream (`makeRng(seed)`, determinization shuffles) is a private closure and
+ * NOT observable here, so 0 on these positions means "no in-game random effect
+ * fired", and a search that starts triggering one goes red.
  */
 
 const counts = vi.hoisted(() => ({
@@ -191,9 +192,9 @@ describe("search cost counters (issue #4458)", () => {
             );
             const elapsedMs = performance.now() - t0;
 
-            // Every counter below is only meaningful if the run was the full,
-            // fixed-iteration one — an early "settled" stop is deterministic
-            // too, but the per-iteration division needs the completed count.
+            // Some positions stop early (`settled`: 95/97 of 100). That stop
+            // reads visit counts only, so it is deterministic; the count is
+            // asserted and the per-iteration figure divides by it.
             const completed = trace?.iterationsCompleted ?? 0;
             expect(completed).toBeGreaterThan(0);
 
