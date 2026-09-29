@@ -7996,7 +7996,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         budget: { iterations: 400 },
         // Seed 2 → 5 (issue #4756): the cast/pass pick here sits on a
         // knife-edge — base weights pass 20/20 seeds, the issue-#4756 refit
-        // (every weight moved < 0.05%) passes 17/20 (2, 11, 14 pass). A pin
+        // (every weight moved < 0.05%) passes 17/20 (2, 11, 14 fail). A pin
         // that flips on that movement is rollout noise, not a valuation
         // (the issue-#4764/#4773 precedent); seed 5 passes under both.
         seeds: [0xb1ade, 1, 3, 4, 5],
