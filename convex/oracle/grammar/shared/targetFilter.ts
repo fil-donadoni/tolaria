@@ -347,7 +347,7 @@ function readAdjective(
 }
 
 /** The ONE card type a type word names, or `undefined` ("permanent" names
- *  six, CR 300.1, and is never an adjective). */
+ *  every permanent type, CR 110.4, and is never an adjective). */
 function singleType(word: string): CardType | undefined {
     const types = TYPE_NOUNS.get(word);
     return types !== undefined && types.length === 1 ? types[0] : undefined;
