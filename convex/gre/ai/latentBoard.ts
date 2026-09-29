@@ -78,6 +78,27 @@ export function representativeVictimLoss(weights: EvalWeights): number {
  *  back into `evaluate.ts` (which imports this one). */
 export type RealisedLoss = (perm: CardInstanceState) => number;
 
+/** Issue #4874 — how one player's zones change when a sweep resolves:
+ *  `leaving` go off their battlefield, `returned` come back to their hand,
+ *  and `spent` (the caster only) is the sweep card itself leaving the hand. */
+export type SweepZoneChange = {
+    leaving: ReadonlySet<string>;
+    returned: readonly CardInstanceState[];
+    spent?: string;
+};
+
+/** Issue #4874 — what the caster's opponents lose, net of what the caster
+ *  loses, in the PER-PLAYER aggregate terms when every player's zones change
+ *  as `changes` (keyed by player id) says: the terms
+ *  `permanentRealisedValue` deliberately leaves out because no single
+ *  permanent owns them (`manaDevelopment`, `colorCoverage`). A SWEEP names
+ *  its whole member set, so the aggregate it moves is a fact of the board,
+ *  not a double count. Supplied by `evaluate.ts` for the same reason
+ *  `RealisedLoss` is. */
+export type AggregateLoss = (
+    changes: ReadonlyMap<string, SweepZoneChange>
+) => number;
+
 /** How many flat slots a requirement group fills, when the DEFINITION states
  *  a ceiling. A fixed `count: N` fills N; the object form's numeric `max` is
  *  an authored ceiling too (Force of Vigor's `{ min: 0, max: 2 }`), and every
@@ -172,6 +193,8 @@ export interface LatentBoardInputs {
     /** Issue #4781 — the worth `evaluate`'s hand term gives the permanent's
      *  card back in its owner's hand: what a bounce hands back. */
     returnedWorth: RealisedLoss;
+    /** Issue #4874 — see `AggregateLoss`. */
+    aggregateLoss: AggregateLoss;
 }
 
 /** A lens that prices a card in hand against THIS board (issue #3398).
@@ -194,8 +217,16 @@ export function makeLatentBoardLens(
     inputs: LatentBoardInputs,
     base: LatentLens
 ): LatentLens {
-    const { state, casterId, card, def, weights, realisedLoss, returnedWorth } =
-        inputs;
+    const {
+        state,
+        casterId,
+        card,
+        def,
+        weights,
+        realisedLoss,
+        returnedWorth,
+        aggregateLoss,
+    } = inputs;
     // A cast-time modal card declares its targets PER MODE (CR 700.2d), and
     // which mode will be chosen is not a fact this valuation has. Fall back
     // to the representative victim for every slot rather than pricing the
@@ -249,7 +280,14 @@ export function makeLatentBoardLens(
         },
         sweepUnits(select, outcome = LEAVES) {
             const lossOf = memberLoss(outcome, realisedLoss, returnedWorth);
-            const net = sweptNetLoss(state, casterId, select, lossOf);
+            const net = sweptNetLoss(
+                state,
+                casterId,
+                card.id,
+                select,
+                lossOf,
+                aggregateLoss
+            );
             if (net === undefined) return undefined;
             measured = true;
             return net / denominator;
@@ -280,12 +318,23 @@ export function makeLatentBoardLens(
  *
  *  Issue #4781 — each member's outcome is `lossOf` it, per the sweep's
  *  `SweepOutcome` (`memberLoss`): what it takes is its controller's loss,
- *  what it hands back its owner's gain. */
+ *  what it hands back its owner's gain.
+ *
+ *  Issue #4874 — plus, per player, what the member set moves in the
+ *  per-player aggregate terms (`aggregateLoss`). Summed per permanent alone,
+ *  the hand price of Armageddon over a board of mana rocks exceeded what the
+ *  resolution realised: the caster's `manaDevelopment` fell to zero with its
+ *  lands and nothing in the price said so, so holding the card beat casting
+ *  it at every leaf and the Bot never cast it. The hand worth of a sweep must
+ *  not exceed what resolving it moves the margin by — the spent card's own
+ *  demand included, since the resolution takes that out of the hand too. */
 function sweptNetLoss(
     state: GameState,
     casterId: string,
+    spent: string,
     select: EffectForEachSelector,
-    lossOf: MemberLoss
+    lossOf: MemberLoss,
+    aggregateLoss: AggregateLoss
 ): number | undefined {
     if (select.set !== "permanents") return undefined;
     const filter = sweepPermanentFilter(select.filter);
@@ -299,10 +348,14 @@ function sweptNetLoss(
         return undefined;
     }
     let net = 0;
+    const leaving = new Map<string, Set<string>>();
+    const returned = new Map<string, CardInstanceState[]>();
     for (const player of state.players) {
         const own = player.id === casterId;
         if (controller === "controller" && !own) continue;
         if (controller === "opponent" && own) continue;
+        const gone = new Set<string>();
+        leaving.set(player.id, gone);
         for (const perm of player.battlefield) {
             // The same live view the resolution's `getBattlefieldIds` matches
             // against (layer-5 colours, layer-7 toughness, live supertypes).
@@ -315,12 +368,31 @@ function sweptNetLoss(
             ) {
                 continue;
             }
-            const { taken, handedBack } = lossOf(perm, view);
+            const { taken, handedBack, leaves } = lossOf(perm, view);
             net += own ? -taken : taken;
             net += perm.ownerId === casterId ? handedBack : -handedBack;
+            if (!leaves) continue;
+            gone.add(perm.id);
+            // CR 111.7 — a token hands nothing back; any other card lands in
+            // its OWNER's hand (CR 400.3).
+            if (handedBack > 0) {
+                const back = returned.get(perm.ownerId) ?? [];
+                back.push(asReturnedToHand(perm));
+                returned.set(perm.ownerId, back);
+            }
         }
     }
-    return net;
+    const changes = new Map<string, SweepZoneChange>();
+    for (const player of state.players) {
+        changes.set(player.id, {
+            leaving: leaving.get(player.id) ?? new Set<string>(),
+            returned: returned.get(player.id) ?? [],
+            // The resolution takes the card itself out of the caster's hand,
+            // and with it whatever curve and colour demand it carried.
+            spent: player.id === casterId ? spent : undefined,
+        });
+    }
+    return net + aggregateLoss(changes);
 }
 
 const LEAVES: SweepOutcome = { kind: "leaves" };
@@ -352,6 +424,8 @@ export function asReturnedToHand(perm: CardInstanceState): CardInstanceState {
 interface MemberOutcome {
     taken: number;
     handedBack: number;
+    /** Issue #4874 — the member goes off the battlefield. */
+    leaves: boolean;
 }
 
 /** One member's outcome, given the raw permanent and its
@@ -379,16 +453,25 @@ function memberLoss(
 ): MemberLoss {
     switch (outcome.kind) {
         case "leaves":
-            return (perm) => ({ taken: realisedLoss(perm), handedBack: 0 });
-        case "lethalDamage":
-            return (perm, view) => ({
-                taken: diesTo(view, outcome.amount) ? realisedLoss(perm) : 0,
+            return (perm) => ({
+                taken: realisedLoss(perm),
                 handedBack: 0,
+                leaves: true,
             });
+        case "lethalDamage":
+            return (perm, view) => {
+                const dies = diesTo(view, outcome.amount);
+                return {
+                    taken: dies ? realisedLoss(perm) : 0,
+                    handedBack: 0,
+                    leaves: dies,
+                };
+            };
         case "returnsToHand":
             return (perm) => ({
                 taken: realisedLoss(perm),
                 handedBack: perm.isToken ? 0 : returnedWorth(perm),
+                leaves: true,
             });
     }
 }
