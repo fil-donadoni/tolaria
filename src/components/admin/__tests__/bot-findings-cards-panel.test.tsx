@@ -9,8 +9,15 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, within, fireEvent } from "@testing-library/react";
 import BotFindingsCardsPanel from "../bot-findings-cards-panel";
 import { findingTraceText, type BotFindingTrace } from "@/lib/botFindings";
+import type { FindingLaunchActions } from "@/lib/ai/bot-finding-launch";
 
 const answers: Record<string, unknown> = {};
+const onLaunch = vi.fn();
+const ACTIONS: FindingLaunchActions = {
+    savedScenarios: [],
+    launchingId: null,
+    onLaunch,
+};
 
 vi.mock("convex/react", () => ({
     useQuery: (query: { _name: string }) => answers[query._name],
@@ -132,7 +139,7 @@ beforeEach(() => {
 
 describe("BotFindingsCardsPanel — the Cards tab (issue #4176/#4177)", () => {
     it("states measured vs total and names the unmeasured hand-written count", () => {
-        render(<BotFindingsCardsPanel />);
+        render(<BotFindingsCardsPanel actions={ACTIONS} />);
         const line = document.querySelector("[data-bot-findings-measurement]")!;
         expect(line.textContent).toContain(
             "Measured 644 of 810 cards in premodern-metagame + vintage-cube (166 ship no definition)"
@@ -141,7 +148,7 @@ describe("BotFindingsCardsPanel — the Cards tab (issue #4176/#4177)", () => {
     });
 
     it("renders one row per finding: image, name, class, the class's prose and blame", () => {
-        render(<BotFindingsCardsPanel />);
+        render(<BotFindingsCardsPanel actions={ACTIONS} />);
         const grist = document.querySelector(
             '[data-bot-finding-row="o-grist"]'
         ) as HTMLElement;
@@ -177,7 +184,7 @@ describe("BotFindingsCardsPanel — the Cards tab (issue #4176/#4177)", () => {
     // card's own move beside the chosen one, their terms, and the difference
     // in words from the in-game decision box's phrase table.
     it("renders the decision behind a refusal, and only where one was recorded", () => {
-        render(<BotFindingsCardsPanel />);
+        render(<BotFindingsCardsPanel actions={ACTIONS} />);
         const grist = document.querySelector(
             '[data-bot-finding-row="o-grist"]'
         ) as HTMLElement;
@@ -230,7 +237,7 @@ describe("BotFindingsCardsPanel — the Cards tab (issue #4176/#4177)", () => {
             );
 
         it("flags nothing while every row was measured under the current Bot", () => {
-            render(<BotFindingsCardsPanel />);
+            render(<BotFindingsCardsPanel actions={ACTIONS} />);
             expect(
                 document.querySelector("[data-bot-finding-stale]")
             ).toBeNull();
@@ -248,7 +255,7 @@ describe("BotFindingsCardsPanel — the Cards tab (issue #4176/#4177)", () => {
                 FINDINGS[0],
                 { ...FINDINGS[1]!, botHash: "sha256:new" },
             ];
-            render(<BotFindingsCardsPanel />);
+            render(<BotFindingsCardsPanel actions={ACTIONS} />);
             expect(rowIds()).toEqual(["o-grist", "o-spell"]);
             const stale = document.querySelectorAll("[data-bot-finding-stale]");
             expect(stale).toHaveLength(1);
@@ -277,7 +284,7 @@ describe("BotFindingsCardsPanel — the Cards tab (issue #4176/#4177)", () => {
                 FINDINGS[0],
                 { ...FINDINGS[1]!, botHash: "sha256:new" },
             ];
-            render(<BotFindingsCardsPanel />);
+            render(<BotFindingsCardsPanel actions={ACTIONS} />);
             fireEvent.click(screen.getByRole("radio", { name: "Stale" }));
             expect(rowIds()).toEqual(["o-grist"]);
             fireEvent.click(screen.getByRole("radio", { name: "Current" }));
@@ -291,7 +298,7 @@ describe("BotFindingsCardsPanel — the Cards tab (issue #4176/#4177)", () => {
                 { ...CLASSES[0]!, cardCount: 3, previousCardCount: 5 },
                 CLASSES[1],
             ];
-            render(<BotFindingsCardsPanel />);
+            render(<BotFindingsCardsPanel actions={ACTIONS} />);
             const delta = (id: string) =>
                 document
                     .querySelector(`[data-bot-finding-row="${id}"]`)!
@@ -310,7 +317,7 @@ describe("BotFindingsCardsPanel — the Cards tab (issue #4176/#4177)", () => {
         answers.listFindings = [];
         answers.listClasses = [];
         answers.latestMeasurement = null;
-        render(<BotFindingsCardsPanel />);
+        render(<BotFindingsCardsPanel actions={ACTIONS} />);
         expect(
             document.querySelector("[data-bot-findings-measurement]")!
                 .textContent
@@ -319,7 +326,7 @@ describe("BotFindingsCardsPanel — the Cards tab (issue #4176/#4177)", () => {
     });
 
     it("renders a distinct status badge per row (issue #4177)", () => {
-        render(<BotFindingsCardsPanel />);
+        render(<BotFindingsCardsPanel actions={ACTIONS} />);
         const grist = document.querySelector(
             '[data-bot-finding-row="o-grist"]'
         )!;
@@ -335,7 +342,7 @@ describe("BotFindingsCardsPanel — the Cards tab (issue #4176/#4177)", () => {
     });
 
     it("narrows the rows by card name, Target List, cause, blame and status (issue #4177)", () => {
-        render(<BotFindingsCardsPanel />);
+        render(<BotFindingsCardsPanel actions={ACTIONS} />);
         expect(screen.getByLabelText("Filter by card name")).toBeTruthy();
 
         fireEvent.change(screen.getByLabelText("Filter by card name"), {
@@ -360,5 +367,78 @@ describe("BotFindingsCardsPanel — the Cards tab (issue #4176/#4177)", () => {
         expect(
             document.querySelector('[data-bot-finding-row="o-spell"]')
         ).toBeTruthy();
+    });
+});
+
+describe("BotFindingsCardsPanel — copy and launch (issue #4178)", () => {
+    // Real committed blade labels: one plain board, one needing setup steps.
+    const PLAIN =
+        "symmetric sweep: casts Armageddon when the opponent holds the land surplus and the Bot the board";
+    const SETUP =
+        "keep mana open: casts Accumulated Knowledge at the opponent's end step";
+    const writeText = vi.fn(() => Promise.resolve());
+
+    beforeEach(() => {
+        onLaunch.mockClear();
+        writeText.mockClear();
+        Object.defineProperty(navigator, "clipboard", {
+            value: { writeText },
+            configurable: true,
+        });
+        answers.listFindings = [
+            {
+                ...FINDINGS[1],
+                reproducers: [PLAIN, SETUP, "saved position"],
+            },
+        ];
+        answers.listClasses = [{ ...CLASSES[1], issue: 4400 }];
+    });
+
+    const rowOf = () =>
+        document.querySelector('[data-bot-finding-row="o-spell"]')!;
+
+    it("a plain-board blade entry and a saved scenario each launch in one click", () => {
+        const saved = { _id: "s1", label: "saved position", spec: {} };
+        render(
+            <BotFindingsCardsPanel
+                actions={{ ...ACTIONS, savedScenarios: [saved] }}
+            />
+        );
+        const rows = rowOf().querySelectorAll(
+            '[data-bot-finding-reproducer="launch"]'
+        );
+        expect(rows).toHaveLength(2);
+        for (const li of rows)
+            fireEvent.click(li.querySelector("[data-bot-finding-launch]")!);
+        expect(onLaunch.mock.calls.map(([l]) => l._id)).toEqual([
+            `blade:${PLAIN}`,
+            "s1",
+        ]);
+    });
+
+    it("a blade entry with setup steps shows a copy-command and NO launch button", () => {
+        render(<BotFindingsCardsPanel actions={ACTIONS} />);
+        const li = rowOf().querySelector(
+            '[data-bot-finding-reproducer="command"]'
+        )!;
+        expect(li.textContent).toContain(SETUP);
+        expect(li.querySelector("[data-bot-finding-launch]")).toBeNull();
+        fireEvent.click(li.querySelector("[data-bot-finding-copy]")!);
+        expect(writeText).toHaveBeenCalledWith(
+            expect.stringContaining("vitest.blade.config.ts -t '")
+        );
+    });
+
+    it("the card's copy button puts the /next-issue payload on the clipboard", () => {
+        render(<BotFindingsCardsPanel actions={ACTIONS} />);
+        fireEvent.click(
+            rowOf().querySelector(
+                '[aria-label="Copy a Claude Code brief for Mystic Denial"]'
+            )!
+        );
+        expect(writeText).toHaveBeenCalledTimes(1);
+        const text = (writeText.mock.calls[0] as unknown as [string])[0];
+        expect(text.startsWith("/next-issue 4400\n")).toBe(true);
+        expect(text).toContain("Mystic Denial");
     });
 });

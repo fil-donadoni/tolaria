@@ -4,8 +4,14 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import BotFindingsClassesPanel from "../bot-findings-classes-panel";
+import type { FindingLaunchActions } from "@/lib/ai/bot-finding-launch";
 
 const answers: Record<string, unknown> = {};
+const ACTIONS: FindingLaunchActions = {
+    savedScenarios: [],
+    launchingId: null,
+    onLaunch: vi.fn(),
+};
 
 vi.mock("convex/react", () => ({
     useQuery: (query: { _name: string }) => answers[query._name],
@@ -55,11 +61,13 @@ const CLASSES = [
 
 beforeEach(() => {
     answers.listClasses = CLASSES;
+    answers.listFindings = [];
+    answers.latestMeasurement = null;
 });
 
 describe("BotFindingsClassesPanel", () => {
     it("renders one row per class: key, blame, per-Target counts, issue and its proof", () => {
-        render(<BotFindingsClassesPanel />);
+        render(<BotFindingsClassesPanel actions={ACTIONS} />);
         const row = document.querySelector(
             '[data-bot-finding-class-row="never-chosen › Sorcery › draw"]'
         )!;
@@ -80,7 +88,7 @@ describe("BotFindingsClassesPanel", () => {
     });
 
     it("narrows by Target List — requires a positive count on that Target", () => {
-        render(<BotFindingsClassesPanel />);
+        render(<BotFindingsClassesPanel actions={ACTIONS} />);
         fireEvent.change(screen.getByLabelText("Filter by Target List"), {
             target: { value: "vintage-cube" },
         });
@@ -97,7 +105,7 @@ describe("BotFindingsClassesPanel", () => {
     });
 
     it("narrows by the Ops/keywords substring carried in the class key", () => {
-        render(<BotFindingsClassesPanel />);
+        render(<BotFindingsClassesPanel actions={ACTIONS} />);
         fireEvent.change(
             screen.getByLabelText("Filter by Ops or keywords in the class key"),
             { target: { value: "draw" } }
@@ -119,7 +127,7 @@ describe("BotFindingsClassesPanel", () => {
             { ...CLASSES[0]!, previousCardCount: CLASSES[0]!.cardCount + 2 },
             CLASSES[1],
         ];
-        render(<BotFindingsClassesPanel />);
+        render(<BotFindingsClassesPanel actions={ACTIONS} />);
         const deltas = [
             ...document.querySelectorAll("[data-bot-finding-class-delta]"),
         ].map((el) => el.textContent);
@@ -132,9 +140,39 @@ describe("BotFindingsClassesPanel", () => {
 
     it("says so when the deployment carries no classes", () => {
         answers.listClasses = [];
-        render(<BotFindingsClassesPanel />);
+        render(<BotFindingsClassesPanel actions={ACTIONS} />);
         expect(
             screen.getByText("No Bot Gap classes on this deployment")
         ).toBeTruthy();
+    });
+});
+
+describe("BotFindingsClassesPanel — copy (issue #4178)", () => {
+    it("copying a class yields ONE brief naming every card of that class", () => {
+        const writeText = vi.fn(() => Promise.resolve());
+        Object.defineProperty(navigator, "clipboard", {
+            value: { writeText },
+            configurable: true,
+        });
+        const key = CLASSES[0]!.key;
+        answers.listFindings = ["Alpha Card", "Beta Card"].map((name, i) => ({
+            _id: `f-${i}`,
+            oracleId: `o-${i}`,
+            name,
+            gap: key,
+            outcome: "ignored",
+            targets: [],
+        }));
+        answers.latestMeasurement = null;
+        render(<BotFindingsClassesPanel actions={ACTIONS} />);
+        const row = document.querySelector(
+            `[data-bot-finding-class-row="${key}"]`
+        )!;
+        fireEvent.click(row.querySelector("[data-bot-finding-copy]")!);
+        expect(writeText).toHaveBeenCalledTimes(1);
+        const text = (writeText.mock.calls[0] as unknown as [string])[0];
+        expect(text.startsWith("/next-issue 4279\n")).toBe(true);
+        expect(text).toContain("Alpha Card");
+        expect(text).toContain("Beta Card");
     });
 });

@@ -40,6 +40,39 @@ export interface IndexableBladeScenario {
     readonly revisit?: readonly unknown[];
 }
 
+export const BLADE_REPRODUCERS_PATH = "data/blade-reproducers.json";
+
+/** One blade entry the Bot Findings page can offer as a Reproducer: its
+ *  `spec` when the position is a plain board (launchable through the scenario
+ *  path), `null` when it needs `setup`/`revisit` steps to exist — those offer
+ *  a copy-command, never a launch button (issue #4178, PRD #4174 story 35). */
+export type BladeReproducers = Readonly<Record<string, unknown>>;
+
+/** A blade scenario with a spec, for the reproducer artifact. */
+export interface ReproducibleBladeScenario extends IndexableBladeScenario {
+    readonly spec: unknown;
+}
+
+/** PURE over the registry: label → `spec` (setup-free) or `null` (needs
+ *  setup), for exactly the entries {@link buildBladeCardIndex} indexes — the
+ *  labels a class's proof or a finding's reproducer can name. Kept out of the
+ *  card index so the Convex bundle that reads the index never carries specs. */
+export function buildBladeReproducers(
+    scenarios: readonly ReproducibleBladeScenario[]
+): BladeReproducers {
+    const out: Record<string, unknown> = {};
+    for (const scenario of [...scenarios].sort((a, b) =>
+        a.label.localeCompare(b.label)
+    )) {
+        if (scenario.expect.moves === undefined) continue;
+        const needsSetup =
+            (scenario.setup?.length ?? 0) > 0 ||
+            (scenario.revisit?.length ?? 0) > 0;
+        out[scenario.label] = needsSetup ? null : scenario.spec;
+    }
+    return out;
+}
+
 /** PURE over the registry: every card a `moves` expectation names as part of
  *  the CORRECT play, mapped to the entries proving it, sorted for a stable
  *  diff. */

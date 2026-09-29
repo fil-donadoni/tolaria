@@ -4,8 +4,16 @@ import {
     classDeltaText,
     proseSegments,
     type BotFindingClassRow,
+    type BotFindingMeasurement,
     type BotFindingRow as FindingRow,
 } from "@/lib/botFindings";
+import {
+    findingPayload,
+    findingReproducers,
+} from "@/lib/ai/bot-finding-payload";
+import type { FindingLaunchActions } from "@/lib/ai/bot-finding-launch";
+import BotFindingCopyButton from "./bot-finding-copy-button";
+import BotFindingReproducers from "./bot-finding-reproducers";
 import BotFindingStatusBadge from "./bot-finding-status-badge";
 import BotFindingTrace from "./bot-finding-trace";
 
@@ -22,10 +30,14 @@ export default function BotFindingRow({
     finding,
     cls,
     stale,
+    measurement,
+    actions,
 }: {
     finding: FindingRow;
     cls: BotFindingClassRow | undefined;
     stale: boolean;
+    measurement: BotFindingMeasurement | null;
+    actions: FindingLaunchActions;
 }) {
     return (
         <article
@@ -105,6 +117,16 @@ export default function BotFindingRow({
                         )}
                     </p>
                 )}
+                <BotFindingReproducers
+                    labels={findingReproducers(finding, cls)}
+                    {...actions}
+                />
+                <div>
+                    <BotFindingCopyButton
+                        label={`Copy a Claude Code brief for ${finding.name}`}
+                        text={() => findingPayload(finding, cls, measurement)}
+                    />
+                </div>
                 {finding.trace !== undefined && (
                     <BotFindingTrace trace={finding.trace} />
                 )}

@@ -17,12 +17,22 @@ import { useMutation, useQuery } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
 import { useNavigate } from "@tanstack/react-router";
 import { api } from "@convex/_generated/api";
-import type { Doc, Id } from "@convex/_generated/dataModel";
+import type { Id } from "@convex/_generated/dataModel";
 import { normalizeScenarioSpec } from "@convex/debugScenarioSpec";
 import { useCurrentUser } from "~/hooks/useCurrentUser";
 import { deckPayload, toPresetLobbyDeck } from "@/lib/deckTypes";
 import { getStoredDeckPresetId, storeSession } from "@/lib/session";
 import { activeGameExit } from "@/lib/activeGameExit";
+
+/** What a launch needs of a scenario: a stable key for the per-row busy label,
+ *  a name for the game, and the spec. A saved `debugScenarios` row is one; so
+ *  is a blade entry's plain-board position (Bot Findings, issue #4178) — both
+ *  go through this one path rather than growing a second launcher. */
+export type ScenarioLaunch = {
+    readonly _id: string;
+    readonly label: string;
+    readonly spec: unknown;
+};
 
 /** The user's active game as reported by `myActiveGame` — the exact shape a
  *  blocked `test()` reads to decide whether (and how) to offer a concede. */
@@ -45,13 +55,13 @@ export type ActiveGameInfo = NonNullable<
  *  (that failure must keep surfacing as the plain error banner, not this
  *  dialog — see the two separate try/catch blocks in `launch` below). */
 export type BlockingActiveGame = {
-    row: Doc<"debugScenarios">;
+    row: ScenarioLaunch;
     activeGame: ActiveGameInfo;
 };
 
 export interface ScenarioTestGame {
     /** Start a game on this scenario. No-op while another launch is running. */
-    test: (row: Doc<"debugScenarios">) => void;
+    test: (row: ScenarioLaunch) => void;
     /** The row currently being launched, if any — for a per-row busy label. */
     launchingId: string | null;
     /** Last failure, e.g. a `debugSetupScenario` error unrelated to an
@@ -121,7 +131,7 @@ export function useScenarioTestGame(): ScenarioTestGame {
     // try/catch below exists to prevent. `isRetry` short-circuits that
     // regardless of how stale (or fresh) the closure happens to be.
     const launch = async (
-        row: Doc<"debugScenarios">,
+        row: ScenarioLaunch,
         opts: { isRetry?: boolean } = {}
     ) => {
         // Point-free `.map(toPresetLobbyDeck)` would pass the array index
@@ -173,7 +183,7 @@ export function useScenarioTestGame(): ScenarioTestGame {
         }
     };
 
-    const test = (row: Doc<"debugScenarios">) => {
+    const test = (row: ScenarioLaunch) => {
         if (launchingId !== null || !user) return;
         setError(null);
         setBlockingActiveGame(null);

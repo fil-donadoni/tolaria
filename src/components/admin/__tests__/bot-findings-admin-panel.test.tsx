@@ -29,10 +29,26 @@ vi.mock("@convex/_generated/api", () => {
     return { api: leaf("") };
 });
 
+// The launcher is the same hook `/admin/scenarios` uses (issue #4178); its
+// own behaviour is pinned by its tests, this page only mounts it.
+vi.mock("~/hooks/useScenarioTestGame", () => ({
+    useScenarioTestGame: () => ({
+        test: vi.fn(),
+        launchingId: null,
+        error: null,
+        clearError: vi.fn(),
+        blockingActiveGame: null,
+        cancelBlockingActiveGame: vi.fn(),
+        resolveBlockingActiveGame: vi.fn(),
+        resolvingActiveGame: false,
+    }),
+}));
+
 beforeEach(() => {
     answers.listFindings = [];
     answers.listClasses = [];
     answers.latestMeasurement = null;
+    answers.listDebugScenarios = [];
 });
 
 describe("BotFindingsAdminPanel — the tab switch", () => {
