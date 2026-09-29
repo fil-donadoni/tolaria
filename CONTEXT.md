@@ -1624,7 +1624,7 @@ One answer the **Rules Consultant** gives inside a **Consultation**: the questio
 _Avoid_: Verdict, ruling, judgement, opinion, answer
 
 **Ruling**:
-A note about one card published by Wizards or by Scryfall, carrying its source and date. Wizards' are official; Scryfall's are that site's own commentary and are never presented as official. The **Rules Consultant** cites Rulings; it never produces one.
+A note about one card published by Wizards or by Scryfall, carrying its source and date. Wizards' are official; Scryfall's are that site's own commentary and are never presented as official. The **Rules Consultant** cites Rulings; it never produces one. Tolaria shows a card's Rulings in the **Card Preview Overlay** only when a player asks for them, and never holds them at rest: they are Scryfall's to serve, not part of the **Card Corpus**.
 _Avoid_: Errata, FAQ, clarification, official answer
 
 **Rendered Citation**:
