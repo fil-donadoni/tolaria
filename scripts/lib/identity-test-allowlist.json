@@ -625,6 +625,11 @@
         "reason": "Membership + ordering invariant: check:targets is a health step after check:gaps/check:all."
     },
     {
+        "file": "scripts/__tests__/convex-bundle-size.test.ts",
+        "test": "Convex bundle verdict: warning vs hard bound (issue #4810, ADR 0113 Amendment III) > keeps the lines ordered: warning < documented < hard bound < enforced",
+        "reason": "Ordering census over four independently defined bundle bounds (warning, documented, hard bound, enforced ceiling)."
+    },
+    {
         "file": "scripts/__tests__/dashboard-now-port.test.ts",
         "test": "mirrored constants — the ported modules restate three server numbers > the activity chart's window equals the server's",
         "reason": "Drift guard: dashboard's ACTIVITY_WINDOW_HOURS matches the independently maintained server constant."
@@ -658,6 +663,11 @@
         "file": "scripts/__tests__/generated-artifact-merge.test.ts",
         "test": "generated-artifact class — wiring > the corpus path has one authority",
         "reason": "Drift guard: CORPUS_PATH must end with the independently-defined CORPUS_CACHE_REL"
+    },
+    {
+        "file": "scripts/__tests__/health-bot-refresh.test.ts",
+        "test": "where the refresh runs > is not one of the health GATES — it never reds a tip",
+        "reason": "Partition check: no HEALTH_SCRIPTS gate matches the Bot Findings refresh, so the refresh never reds a tip."
     },
     {
         "file": "scripts/__tests__/ladder-plan.test.ts",
