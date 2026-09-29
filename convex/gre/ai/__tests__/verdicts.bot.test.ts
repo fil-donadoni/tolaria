@@ -430,7 +430,11 @@ describe("the incumbent is defended on the ORDERING, not the loss (issue #3406)"
             );
         committed = at(DEFAULT_EVAL_WEIGHTS);
         prior = at(FIT_BASE_EVAL_WEIGHTS);
-    });
+        // The bot project's 60 s testTimeout, not vitest's 10 s hookTimeout
+        // default: this hook rebuilds every verdict position twice — a test's
+        // worth of work — and at 104 locked verdicts (issue #4761) it timed
+        // out inside the parallel bot lane under load (issue #4810's `land`).
+    }, 60_000);
 
     it("prefers the vector that orders more verdicts of the same corpus", () => {
         // Same corpus on both sides — otherwise the comparison is meaningless.
