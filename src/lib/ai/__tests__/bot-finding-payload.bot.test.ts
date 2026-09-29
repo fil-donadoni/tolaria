@@ -30,7 +30,8 @@ function cls(over: Partial<BotFindingClassRow> = {}): BotFindingClassRow {
     } as BotFindingClassRow;
 }
 
-function finding(over: Partial<BotFindingRow> = {}): BotFindingRow {
+// `_id` is a Convex `Id` brand; a fixture writes the plain string.
+function finding(over: Record<string, unknown> = {}): BotFindingRow {
     return {
         _id: "f-1",
         oracleId: "o-grist",
