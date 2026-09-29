@@ -103,6 +103,19 @@ export const HEALTH_SCRIPTS: readonly string[] = [
  */
 export const BOT_HEALTH_SCRIPTS: readonly string[] = ["blade:robustness"];
 
+/** The gates one health run executes, in order: `base` (the caller passes
+ *  `HEALTH_SCRIPTS`), then `BOT_HEALTH_SCRIPTS` iff the batch touched the Bot.
+ *
+ *  Known blind spot, accepted for the cost: a batch OUTSIDE the Bot's globs
+ *  (an engine or card change that shifts RNG consumption) can create or clear
+ *  a pin without running the audit, and the next Bot batch reds for it. */
+export function healthGates(
+    base: readonly string[],
+    touchesBot: boolean
+): readonly string[] {
+    return touchesBot ? [...base, ...BOT_HEALTH_SCRIPTS] : base;
+}
+
 /**
  * The environment every health step runs under. The health gate must queue on
  * the machine mutex like any other heavy gate — so the hold `land`'s locked

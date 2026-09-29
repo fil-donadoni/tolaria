@@ -14,6 +14,9 @@
  * classification line and reds on that entry's own findings against the
  * baseline (`compareRobustness` over one row). Shard 0 also checks the
  * baseline's shape once.
+ *
+ * By hand inside an issue worktree the heavy gate refuses (`gate.ts`'s
+ * issue-worktree guard): `TOLARIA_ALLOW_FULL_SUITE=1 bun run blade:robustness`.
  */
 
 import { describe, expect, it } from "vitest";

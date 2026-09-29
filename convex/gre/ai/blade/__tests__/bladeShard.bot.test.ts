@@ -55,22 +55,32 @@ describe("blade shard partition (issue #4482)", () => {
         }
     });
 
-    it("there is one blade.shard-N.spec.ts per shard, each registering its own index", async () => {
-        const dir = __dirname;
-        const files = readdirSync(dir)
-            .filter((f) => /^blade\.shard-\d+\.spec\.ts$/.test(f))
-            .sort();
-        expect(files).toEqual(
-            Array.from(
-                { length: BLADE_SHARDS },
-                (_, shard) => `blade.shard-${shard}.spec.ts`
-            )
-        );
-        const { readFileSync } = await import("node:fs");
-        files.forEach((file, shard) => {
-            expect(readFileSync(path.join(dir, file), "utf8")).toContain(
-                `registerBladeShard(${shard});`
+    // The robustness audit (issue #4875) shards the same tier through the same
+    // partition: a shard file missing there skips its entries silently.
+    it.each([
+        ["blade", "registerBladeShard"],
+        ["robustness", "registerRobustnessShard"],
+    ])(
+        "there is one %s.shard-N.spec.ts per shard, each registering its own index",
+        async (prefix, register) => {
+            const dir = __dirname;
+            const files = readdirSync(dir)
+                .filter((f) =>
+                    new RegExp(`^${prefix}\\.shard-\\d+\\.spec\\.ts$`).test(f)
+                )
+                .sort();
+            expect(files).toEqual(
+                Array.from(
+                    { length: BLADE_SHARDS },
+                    (_, shard) => `${prefix}.shard-${shard}.spec.ts`
+                )
             );
-        });
-    });
+            const { readFileSync } = await import("node:fs");
+            files.forEach((file, shard) => {
+                expect(readFileSync(path.join(dir, file), "utf8")).toContain(
+                    `${register}(${shard});`
+                );
+            });
+        }
+    );
 });

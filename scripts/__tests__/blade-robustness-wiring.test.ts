@@ -7,7 +7,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { BOT_HEALTH_SCRIPTS, HEALTH_SCRIPTS } from "../lib/health-step";
+import { HEALTH_SCRIPTS, healthGates } from "../lib/health-step";
 
 const ROOT = join(__dirname, "..", "..");
 const pkg = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8")) as {
@@ -22,13 +22,15 @@ describe("blade:robustness wiring (issue #4875)", () => {
         expect(body).toContain("robustness.shard");
     });
 
-    it("health-main runs the Bot gates after the rest, only on a Bot batch", () => {
-        const src = readFileSync(join(ROOT, "scripts/health-main.ts"), "utf8");
-        expect(BOT_HEALTH_SCRIPTS).toContain("blade:robustness");
+    it("health runs it after the every-batch gates, only on a Bot batch", () => {
         expect(HEALTH_SCRIPTS).not.toContain("blade:robustness");
-        expect(src).toContain(
-            "const gates = refreshBot ? [...scripts, ...BOT_HEALTH_SCRIPTS] : scripts;"
-        );
+        expect(healthGates(HEALTH_SCRIPTS, false)).toEqual(HEALTH_SCRIPTS);
+        expect(healthGates(HEALTH_SCRIPTS, true)).toEqual([
+            ...HEALTH_SCRIPTS,
+            "blade:robustness",
+        ]);
+        const src = readFileSync(join(ROOT, "scripts/health-main.ts"), "utf8");
+        expect(src).toContain("healthGates(scripts, refreshBot)");
     });
 
     it("no other package script invokes it", () => {

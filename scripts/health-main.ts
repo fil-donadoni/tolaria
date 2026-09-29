@@ -43,8 +43,9 @@
  * A batch whose diff touched the Bot's globs (`lib/bot-globs.ts`) also
  * re-measures the Bot Findings page (`lib/health-bot-refresh.ts`, ADR 0141 § 5,
  * issue #4181) AFTER the gates pass: `bot:reach`, then `seed:bot-findings`.
- * Such a batch also owes `BOT_HEALTH_SCRIPTS` first — the blade robustness
- * audit, issue #4875 — which red it like any gate.
+ * Such a batch also owes `BOT_HEALTH_SCRIPTS` (the blade robustness audit,
+ * issue #4875), run after the other gates and before the refresh, and red
+ * like any gate.
  * The two refresh steps NEVER fail the batch — a stale page is marked stale, not a
  * red tip — and neither `land` nor `check:pr` runs them.
  *
@@ -62,7 +63,7 @@ import {
 import {
     healthGateEnv,
     runHealthStep,
-    BOT_HEALTH_SCRIPTS,
+    healthGates,
     HEALTH_SCRIPTS,
     type HealthStep,
 } from "./lib/health-step";
@@ -250,7 +251,7 @@ async function main(): Promise<void> {
     const refreshBot = batchTouchesBot(batchChangedFiles(root, tip));
     // A Bot batch also owes the Bot-only gates (issue #4875), after the rest.
     const scripts = HEALTH_SCRIPTS;
-    const gates = refreshBot ? [...scripts, ...BOT_HEALTH_SCRIPTS] : scripts;
+    const gates = healthGates(scripts, refreshBot);
     const steps: HealthStep[] = gates.map((name, i) => ({
         ordinal: i + 1,
         total: gates.length,

@@ -153,5 +153,8 @@ describe("auditBladeScenario — a real audit (issue #4875)", () => {
         expect(result.verdict).toBe("robust");
         expect(result.legs[0].seeds).toBe(ROBUSTNESS_SEEDS.length);
         expect(result.legs[0].mechanisms.none).toBeUndefined();
+        expect(
+            Object.values(result.legs[0].mechanisms).reduce((a, b) => a + b, 0)
+        ).toBe(ROBUSTNESS_SEEDS.length);
     });
 });
