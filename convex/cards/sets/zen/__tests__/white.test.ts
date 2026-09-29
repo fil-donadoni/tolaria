@@ -10,7 +10,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { validateEffectScript } from "../../../../gre/effects/validate";
 import { projectPublicState } from "../../../../gameProjections";

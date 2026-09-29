@@ -12,10 +12,10 @@ import type {
     PlayerState,
 } from "@convex/gre/state";
 import { pendingTargetFiltersFromRequirement } from "@convex/gre/rules";
-import { lordOfTheUndead } from "@convex/cards/sets/pls/black";
-import { dreamsOfTheDead } from "@convex/cards/sets/ice/blue";
-import { kjeldoranWarrior } from "@convex/cards/sets/ice/white";
-import { balduvianBears } from "@convex/cards/sets/ice/green";
+import { lordOfTheUndead } from "@convex/cards/sets/pls/black.cards";
+import { dreamsOfTheDead } from "@convex/cards/sets/ice/blue.cards";
+import { kjeldoranWarrior } from "@convex/cards/sets/ice/white.cards";
+import { balduvianBears } from "@convex/cards/sets/ice/green.cards";
 import {
     checkCardTargetFilters,
     type CardFilterValues,

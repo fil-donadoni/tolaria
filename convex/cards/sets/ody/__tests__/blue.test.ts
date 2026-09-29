@@ -6,7 +6,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { checkStateBasedActions } from "../../../../gre/sba";
 import { validateEffectScript } from "../../../../gre/effects/validate";

@@ -155,7 +155,7 @@ The end-to-end behaviour this ticket makes work, from the user's perspective —
 - `path/or/glob/one`
 - `path/or/glob/two`
 
-Scheduling metadata, NOT implementation spec (exception to the no-file-paths rule above): the module/glob-level set of files this ticket will touch, used by the `/process-gh-issues` loop to batch file-disjoint tickets for parallel execution. Coarse is fine (`convex/cards/sets/ice/red.ts`, `src/components/debug/**`); staleness is acceptable — the implementing agent is not bound by it. **Omit append-only registration points** (registry index re-exports, scenario/key lists every ticket appends to) — the loop excludes them from overlap by convention. Always include this section; if the ticket genuinely touches everything (broad refactor), write `- *` so the loop schedules it solo.
+Scheduling metadata, NOT implementation spec (exception to the no-file-paths rule above): the module/glob-level set of files this ticket will touch, used by the `/process-gh-issues` loop to batch file-disjoint tickets for parallel execution. Coarse is fine (`convex/cards/sets/ice/red.cards.ts`, `src/components/debug/**`); staleness is acceptable — the implementing agent is not bound by it. **Omit append-only registration points** (registry index re-exports, scenario/key lists every ticket appends to) — the loop excludes them from overlap by convention. Always include this section; if the ticket genuinely touches everything (broad refactor), write `- *` so the loop schedules it solo.
 
 </issue-template>
 

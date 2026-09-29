@@ -10,7 +10,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "@convex/cards/__tests__/setup";
+} from "@convex/cards/__tests__/setup.helper";
 import { enumerateMoves, PLACEHOLDER_CARD_ID } from "@convex/gre";
 import { projectedToGameState } from "../state-adapter";
 

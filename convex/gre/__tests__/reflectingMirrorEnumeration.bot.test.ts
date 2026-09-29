@@ -21,7 +21,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import type { GameState } from "../state";
 
 const BOT = "p2";

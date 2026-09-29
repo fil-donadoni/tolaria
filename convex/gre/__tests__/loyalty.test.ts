@@ -17,7 +17,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import { resolveTopOfStack, type GameState } from "../state";
 import { checkStateBasedActions, checkZeroLoyaltySBA } from "../sba";
 import { assertLoyaltyActivationLegal, payLoyaltyCost } from "../../game";
@@ -27,8 +27,8 @@ import {
 } from "../loyalty";
 import { withTemporaryDefinition } from "../../cards/registry";
 import { projectPublicState } from "../../gameProjections";
-import { lightningBolt } from "../../cards/sets/lea/red";
-import { lilianaOfTheVeil } from "../../cards/sets/isd/black";
+import { lightningBolt } from "../../cards/sets/lea/red.cards";
+import { lilianaOfTheVeil } from "../../cards/sets/isd/black.cards";
 
 const LILIANA = lilianaOfTheVeil.id;
 

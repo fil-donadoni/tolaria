@@ -33,7 +33,7 @@ real headless Chromium tab (Playwright, already vendored as a devDependency),
 pointed at the live Vite dev server. Vite's dev server transforms and serves
 any project TS module as real ESM on request, so the harness `import()`s
 `convex/gre/search.ts`, `convex/gre/difficulty.ts`, `convex/cards/index.ts`
-and the shared test fixture builders (`convex/cards/__tests__/setup.ts`)
+and the shared test fixture builders (`convex/cards/__tests__/setup.helper.ts`)
 DIRECTLY from the browser tab — no bundling step, no mock, and critically:
 **no injected clock**. `SearchBudget.now` is left `undefined`, so
 `runSearchWithTrace` falls back to the browser's real `performance.now()`.
@@ -74,7 +74,7 @@ async function run() {
   const { DIFFICULTY_BUDGETS } = await import("${BASE}/convex/gre/difficulty.ts");
   const { getCardByName } = await import("${BASE}/convex/cards/index.ts");
   const { makeInstance, makePlayer, makeState } =
-    await import("${BASE}/convex/cards/__tests__/setup.ts");
+    await import("${BASE}/convex/cards/__tests__/setup.helper.ts");
   // ...build a GameState fixture with makeState/makePlayer/makeInstance...
   const { trace } = searchWithTrace(state, "p1", DIFFICULTY_BUDGETS.medium, seed);
   return trace; // { iterationsCompleted, iterationsRequested, elapsedMs, stoppedBy, ... }

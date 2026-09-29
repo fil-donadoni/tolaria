@@ -1,11 +1,15 @@
-// Per-card behavior tests for colorless cards in `convex/cards/sets/plc/colorless.ts`
+// Per-card behavior tests for colorless cards in `convex/cards/sets/plc/colorless.cards.ts`
 // (Planar Chaos, split by colour per ADR 0043). Urborg, Tomb of Yawgmoth
 // exercises the `subtype-add` static-effect kind (issue #675) — the additive
 // sibling of `subtype-set`: it ADDS "Swamp" to every land's subtypes without
 // clobbering the printed ones (CR 305.7, 611).
 
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import { projectPublicState } from "../../../../gameProjections";
 import { getBasicLandMana } from "../../../../gre/constants";
 import {

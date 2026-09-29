@@ -40,17 +40,22 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../cards/__tests__/setup";
-import { gaeasBalance } from "../cards/sets/apc/green";
-import { guidedPassage } from "../cards/sets/apc/multicolor";
-import { forest, island, plains, grizzlyBears } from "../cards/sets/lea";
+} from "../cards/__tests__/setup.helper";
+import { gaeasBalance } from "../cards/sets/apc/green.cards";
+import { guidedPassage } from "../cards/sets/apc/multicolor.cards";
+import {
+    forest,
+    island,
+    plains,
+    grizzlyBears,
+} from "../cards/sets/lea/index.cards";
 import type { Id } from "../_generated/dataModel";
 import {
     makeMutationCtx,
     runMutation,
     gameStateSeed,
     type Handler,
-} from "./gameMutationHarness";
+} from "./gameMutationHarness.fixture";
 
 const GAME_ID = "game-1" as Id<"games">;
 

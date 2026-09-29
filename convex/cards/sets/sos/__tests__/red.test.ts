@@ -1,5 +1,5 @@
 // SOS — per-card behavior tests for red cards in
-// `convex/cards/sets/sos/red.ts` (set split by colour, ADR 0043).
+// `convex/cards/sets/sos/red.cards.ts` (set split by colour, ADR 0043).
 
 import { describe, it, expect } from "vitest";
 import {
@@ -7,7 +7,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
 

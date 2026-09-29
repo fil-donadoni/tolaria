@@ -29,7 +29,11 @@
 
 import { describe, it, expect } from "vitest";
 import { tapUntap } from "../game";
-import { makeState, makePlayer, pushSpell } from "../cards/__tests__/setup";
+import {
+    makeState,
+    makePlayer,
+    pushSpell,
+} from "../cards/__tests__/setup.helper";
 import { resolveTopOfStack, type CardInstanceState } from "../gre/state";
 import { getManaTapOptions } from "../gre/constants";
 import { projectPublicState } from "../gameProjections";
@@ -44,7 +48,7 @@ import {
     runMutation,
     gameStateSeed,
     type Handler,
-} from "./gameMutationHarness";
+} from "./gameMutationHarness.fixture";
 
 const GAME_ID = "game-1" as Id<"games">;
 

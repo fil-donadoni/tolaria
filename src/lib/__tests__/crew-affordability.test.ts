@@ -11,8 +11,12 @@ import { describe, it, expect, beforeAll } from "vitest";
 import { registerTokenDefinition } from "@convex/cards";
 import { makeVehicle } from "@convex/cards/abilities/vehicle";
 import type { CardDefinition } from "@convex/cards/types";
-import { smugglersCopter } from "@convex/cards/sets/kld";
-import { crusade, grizzlyBears, savannahLions } from "@convex/cards/sets/lea";
+import { smugglersCopter } from "@convex/cards/sets/kld/index.cards";
+import {
+    crusade,
+    grizzlyBears,
+    savannahLions,
+} from "@convex/cards/sets/lea/index.cards";
 import type { CardInstance } from "../../types/game";
 import { buildTriggerStateView, getStackAbilities } from "../card-utils";
 

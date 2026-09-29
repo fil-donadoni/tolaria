@@ -8,7 +8,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import { getDefinition } from "../../../index";
 
 const counterspell = getDefinition("0df55e3f-14de-46ef-b6b1-616618724d9e");

@@ -25,14 +25,14 @@ import {
     buildPendingActivation,
     tryAutoCommitPendingActivation,
 } from "../../game";
-import { survivalOfTheFittest } from "../../cards/sets/exo/green";
-import { grizzlyBears } from "../../cards/sets/lea/green";
-import { forest } from "../../cards/sets/lea/colorless";
+import { survivalOfTheFittest } from "../../cards/sets/exo/green.cards";
+import { grizzlyBears } from "../../cards/sets/lea/green.cards";
+import { forest } from "../../cards/sets/lea/colorless.cards";
 import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 
 const ABILITY_ID = "survival-of-the-fittest-tutor";
 

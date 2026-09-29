@@ -13,16 +13,20 @@
 // simply re-adds the `games` read is invisible to every result-shaped test and
 // shows up only as a bill. The repo has no convex-test harness, so this drives
 // the registered query's own `_handler` against the shared stub ctx
-// (`gameMutationHarness.ts`).
+// (`gameMutationHarness.fixture.ts`).
 import { describe, it, expect } from "vitest";
 import * as fs from "fs";
 import * as path from "path";
 import type { Id } from "../_generated/dataModel";
 import type { GameState } from "../gre/state";
 import { getPublicState } from "../game";
-import { makePlayer, makeState } from "../cards/__tests__/setup";
+import { makePlayer, makeState } from "../cards/__tests__/setup.helper";
 import type { CardInstanceState } from "../gre/state";
-import { makeMutationCtx, runMutation, type Row } from "./gameMutationHarness";
+import {
+    makeMutationCtx,
+    runMutation,
+    type Row,
+} from "./gameMutationHarness.fixture";
 
 const GAME_ID = "game-1" as Id<"games">;
 

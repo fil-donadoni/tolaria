@@ -6,7 +6,7 @@ import {
     makePlayer,
     makeState,
     resolveActivated,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import { getDefinition } from "../../../index";
 
 const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");

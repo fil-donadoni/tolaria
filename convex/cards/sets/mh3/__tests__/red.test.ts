@@ -10,7 +10,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import type { GameState } from "../../../../gre/state";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { checkStateBasedActions } from "../../../../gre/sba";

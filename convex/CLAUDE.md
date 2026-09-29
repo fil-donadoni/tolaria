@@ -153,8 +153,8 @@ the subject is a finding — fix it before proceeding.
 
 Sets are colour-split directories (`sets/<code>/<colour>.ts`, ADR 0043); each
 non-trivial card gets a `describe` block in the parallel per-colour test file
-(`sets/lea/red.ts` → `sets/lea/__tests__/red.test.ts`). Shared fixtures:
-`convex/cards/__tests__/setup.ts` (`makeInstance`, `makePlayer`, `makeState`,
+(`sets/lea/red.cards.ts` → `sets/lea/__tests__/red.test.ts`). Shared fixtures:
+`convex/cards/__tests__/setup.helper.ts` (`makeInstance`, `makePlayer`, `makeState`,
 `pushSpell`) — never duplicate them.
 
 | Card has                     | GRE test                                               | Wire format test                                |
@@ -272,7 +272,7 @@ round-trip test with a non-empty value). Every optional `CardInstanceState`
 field is ONE row of `CARD_FIELD_LIFECYCLE` (`gre/state/cardFieldLifecycle.ts`,
 issue #4453: `codec` + `reset` — the row IS the compact/expand branch and the
 reset-ladder line; never hand-write either) plus its value in
-`__tests__/fixtures/everyOptionalCardField.ts`; `check:ts` names what you
+`__tests__/fixtures/everyOptionalCardField.fixture.ts`; `check:ts` names what you
 forgot. Derivation: the module's doc comment.
 
 ## Code patterns

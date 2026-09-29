@@ -29,22 +29,31 @@ import {
     type GameState,
 } from "../gre/state";
 import { finalizeCleanup } from "../gre/phases";
-import { makeInstance, makePlayer, makeState } from "../cards/__tests__/setup";
-import { northStar } from "../cards/sets/leg";
-import { darkRitual, forest, mountain, savannahLions } from "../cards/sets/lea";
-import { earthquake } from "../cards/sets/lea/red";
-import { howlFromBeyond } from "../cards/sets/lea/black";
-import { faerieSquadron } from "../cards/sets/inv";
-import { hogaakArisenNecropolis } from "../cards/sets/mh1";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../cards/__tests__/setup.helper";
+import { northStar } from "../cards/sets/leg/index.cards";
+import {
+    darkRitual,
+    forest,
+    mountain,
+    savannahLions,
+} from "../cards/sets/lea/index.cards";
+import { earthquake } from "../cards/sets/lea/red.cards";
+import { howlFromBeyond } from "../cards/sets/lea/black.cards";
+import { faerieSquadron } from "../cards/sets/inv/index.cards";
+import { hogaakArisenNecropolis } from "../cards/sets/mh1/index.cards";
 import { getLegalActions } from "../gre/rules";
-import { robberOfTheRich } from "../cards/sets/eld";
+import { robberOfTheRich } from "../cards/sets/eld/index.cards";
 import type { Id } from "../_generated/dataModel";
 import {
     makeMutationCtx,
     runMutation,
     gameStateSeed,
     type Handler,
-} from "./gameMutationHarness";
+} from "./gameMutationHarness.fixture";
 
 const NORTH_STAR_ABILITY = "north-star-any-type-mana";
 const ROBBER_TRIGGER = "robber-of-the-rich-attack";

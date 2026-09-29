@@ -29,7 +29,11 @@
 // it (issue #3377 review finding 1).
 
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import { resolveTopOfStack, type GameState } from "../../../../gre/state";
 import { emitAttackersDeclaredEvents } from "../../../../gre/phases";
 import { enumerateMoves } from "../../../../gre/moves";

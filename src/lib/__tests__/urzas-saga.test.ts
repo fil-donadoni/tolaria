@@ -18,12 +18,12 @@ import {
     getStackAbilities,
     hasManaAbility,
 } from "../card-utils";
-import { urzasSaga } from "@convex/cards/sets/mh2/colorless";
+import { urzasSaga } from "@convex/cards/sets/mh2/colorless.cards";
 import {
     makeInstance,
     makePlayer,
     makeState,
-} from "@convex/cards/__tests__/setup";
+} from "@convex/cards/__tests__/setup.helper";
 import {
     processPendingActionTriggers,
     resolveTopOfStack,
@@ -31,7 +31,7 @@ import {
 import type { GameState } from "@convex/gre/state";
 import { advanceSagasAtPrecombatMain, LORE_COUNTER } from "@convex/gre/sagas";
 import { projectPublicState } from "@convex/gameProjections";
-import { bloodMoon } from "@convex/cards/sets/drk/red";
+import { bloodMoon } from "@convex/cards/sets/drk/red.cards";
 import { beginApplyingStaticEffects } from "@convex/gre/state";
 import { buildPreviewBody } from "../preview-body";
 import type { CardInstance } from "~/types/game";

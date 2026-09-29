@@ -1,6 +1,6 @@
-// Per-card behaviour tests for black cards in `convex/cards/sets/dsk/black.ts`
+// Per-card behaviour tests for black cards in `convex/cards/sets/dsk/black.cards.ts`
 // (Duskmourn: House of Horror, split by colour per ADR 0043). Fixtures from
-// convex/cards/__tests__/setup.ts.
+// convex/cards/__tests__/setup.helper.ts.
 //
 // Enduring Tenacity (issue #2085) is the catalogue's FIRST `LIFE_GAINED`
 // trigger AND a `resolve()` body, so the per-Op regime covers none of it: what
@@ -10,7 +10,11 @@
 // covered once on Enduring Innocence (`white.test.ts`).
 
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import {
     beginApplyingStaticEffects,
     gainLifeEmitting,

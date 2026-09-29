@@ -5,7 +5,11 @@
 // as a `CardPrint` in `m11/red.ts`.
 
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { projectPublicState } from "../../../../gameProjections";
 import { getAbilityEffectFn } from "../../../effectRegistry";

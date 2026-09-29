@@ -13,7 +13,7 @@ protection". So a White Ward on a creature that also has printed protection
 from white stays attached, when it should fall off (CR 704.5m).
 
 **Evidence.** `convex/gre/sba.ts:308`. The hand-written Ward cycle
-(`convex/cards/sets/lea/white.ts`, `makeColorWard`) already ships this way.
+(`convex/cards/sets/lea/white.cards.ts`, `makeColorWard`) already ships this way.
 Since issue #3833 the compiler emits the same field for every "This effect
 doesn't remove this Aura" line: the Wards, and any future card that prints
 the rider.

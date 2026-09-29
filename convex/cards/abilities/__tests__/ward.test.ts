@@ -27,7 +27,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../__tests__/setup";
+} from "../../__tests__/setup.helper";
 import type { GameEvent, PermanentView, TargetRequirement } from "../../types";
 
 // A synthetic 1/1 with Ward {2} (a plain generic cost — the common printed

@@ -19,7 +19,7 @@
 import { describe, it, expect } from "vitest";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
-import { makeInMemoryDb } from "./fixtures/inMemoryDb";
+import { makeInMemoryDb } from "./fixtures/inMemoryDb.fixture";
 import { getLimitedEvent, selectDraftPick } from "../limitedEvents";
 import {
     deleteCubePool,

@@ -16,7 +16,7 @@ whole merge protocol — `land`'s rebase, `check:lane` under the machine mutex,
 merge through the API, the one-commit advance check — is opt-in by habit.
 
 **Evidence.** `18a0d25f8` ("feat(cards): update Aluren oracle text for clarity")
-edited `convex/cards/sets/tmp/green.ts` and `docs/qa-issues.md`, landed on
+edited `convex/cards/sets/tmp/green.cards.ts` and `docs/qa-issues.md`, landed on
 `staging`, and left four tests red across two files
 (`scripts/__tests__/catalogue-artifact.test.ts` ×3,
 `src/components/board/__tests__/hand-card-cast-permission-picker.test.tsx` ×1).

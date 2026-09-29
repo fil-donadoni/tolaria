@@ -32,7 +32,7 @@ import {
     makePlayer,
     makeState,
     resolveTriggerOrder,
-} from "../../__tests__/setup";
+} from "../../__tests__/setup.helper";
 import { getDefinition, withTemporaryDefinition } from "../../registry";
 import {
     additionalCostPaidCount,

@@ -35,14 +35,14 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../cards/__tests__/setup";
-import { voiceOfAll } from "../../cards/sets/pls/white";
-import { prismaticWard } from "../../cards/sets/ice/white";
-import { quirionElves } from "../../cards/sets/mir/green";
-import { jihad, repentantBlacksmith } from "../../cards/sets/arn/white";
-import { mijaeDjinn } from "../../cards/sets/arn/red";
-import { visionCharm } from "../../cards/sets/vis/blue";
-import { grizzlyBears } from "../../cards/sets/lea";
+} from "../../cards/__tests__/setup.helper";
+import { voiceOfAll } from "../../cards/sets/pls/white.cards";
+import { prismaticWard } from "../../cards/sets/ice/white.cards";
+import { quirionElves } from "../../cards/sets/mir/green.cards";
+import { jihad, repentantBlacksmith } from "../../cards/sets/arn/white.cards";
+import { mijaeDjinn } from "../../cards/sets/arn/red.cards";
+import { visionCharm } from "../../cards/sets/vis/blue.cards";
+import { grizzlyBears } from "../../cards/sets/lea/index.cards";
 import type { CardDefinition } from "../../cards/types";
 
 // --- Helpers ---------------------------------------------------------------

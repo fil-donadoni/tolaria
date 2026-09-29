@@ -28,8 +28,8 @@ extending that test past `answer(state, ["1"])`.
 **Why it may not deserve its own issue.** No shipped card reaches it. The census
 run for #2570 found exactly two `resolveSteps` bodies that touch a
 battlefield-entry primitive — Sevinne's Reclamation
-(`convex/cards/sets/c19/white.ts:41`) and Transmute Artifact
-(`convex/cards/sets/atq/blue.ts:436`) — and both isolate the entry as the sole
+(`convex/cards/sets/c19/white.cards.ts:41`) and Transmute Artifact
+(`convex/cards/sets/atq/blue.cards.ts:436`) — and both isolate the entry as the sole
 content of its own step, which makes the replay harmless (the source zone no
 longer holds the card, so the primitive fizzles). Both say so in their own
 comments, i.e. the safe pattern is already the convention. So this is a latent

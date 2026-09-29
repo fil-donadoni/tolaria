@@ -1360,7 +1360,7 @@ export type CardInstanceState = {
      *  514.2 / 608.2g), mirroring {@link castableFromExileUntilTurn}'s
      *  exile-zone twin. Set when the grant is an impulse "this turn" window
      *  (Malcolm, Alluring Scoundrel — see the card's own doc comment,
-     *  `convex/cards/sets/lci/blue.ts`, for the documented simplification
+     *  `convex/cards/sets/lci/blue.cards.ts`, for the documented simplification
      *  vs. the stricter Oracle ruling) and revoked at the CLEANUP step of a
      *  turn whose number is `>=` this value, while the card stays in the
      *  graveyard. ABSENT means an open-ended grant (parity with the exile
@@ -1608,7 +1608,7 @@ export type CardInstanceState = {
      *  safe to read from a materialized `keyword-grant` `applies` predicate
      *  without `dependsOnCounters`, where the `+1/+1`-counter-count PROXY it
      *  replaces (issue #1716, Pouncing Kavu / Duskwalker,
-     *  `cards/sets/inv/red.ts` / `cards/sets/inv/black.ts`) was not: an
+     *  `cards/sets/inv/red.cards.ts` / `cards/sets/inv/black.cards.ts`) was not: an
      *  unkicked creature later pumped to 2+ counters would spuriously read as
      *  kicked, and a kicked one whose counters were later wiped would
      *  spuriously read as unkicked. This field is not mutated by anything
@@ -1677,7 +1677,7 @@ export type CardInstanceState = {
      *
      *  Needed by any predicate that runs AFTER the spell has finished
      *  resolving and must still know what X was — Ravenous (CR 702.156a,
-     *  Jacked Rabbit, `cards/sets/blc/white.ts`): "When this permanent enters,
+     *  Jacked Rabbit, `cards/sets/blc/white.cards.ts`): "When this permanent enters,
      *  if X is 5 or greater, draw a card" is a triggered ability whose CR
      *  603.4 intervening-if is re-checked when the TRIGGER resolves, long
      *  after the creature spell's stack item is gone. Three reasons the raw

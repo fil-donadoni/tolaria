@@ -16,13 +16,13 @@
 // rejects, and a rejected target submission is an ADR 0047 freeze, not a retry.
 
 import { describe, it, expect } from "vitest";
-import { fableOfTheMirrorBreaker } from "../../cards/sets/neo/red";
-import { elvishArchers } from "../../cards/sets/lea/green";
+import { fableOfTheMirrorBreaker } from "../../cards/sets/neo/red.cards";
+import { elvishArchers } from "../../cards/sets/lea/green.cards";
 import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import type { CardInstanceState, GameState } from "../state";
 import { processPendingActionTriggers, resolveTopOfStack } from "../state";
 import { advanceSagasAtPrecombatMain } from "../sagas";

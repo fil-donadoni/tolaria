@@ -23,7 +23,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import { getCardByName } from "../../cards";
 import { announcedTargetRoleFields, applyOneTargetSelection } from "../../game";
 import { projectPublicState } from "../../gameProjections";

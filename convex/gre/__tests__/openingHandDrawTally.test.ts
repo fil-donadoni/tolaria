@@ -13,7 +13,7 @@
 import { describe, expect, it } from "vitest";
 import { getCardByName } from "../../cards";
 import { nthDrawThisTurn } from "../../cards/abilities/triggers/drawTrigger";
-import { leovoldEmissaryOfTrest } from "../../cards/sets/cn2/multicolor";
+import { leovoldEmissaryOfTrest } from "../../cards/sets/cn2/multicolor.cards";
 import type { CardDrawnEvent } from "../../cards/types";
 import { applyMulliganBottomChoice, recordDeclaration } from "../mulligan";
 import { createInitialGameState, type PlayerInput } from "../setup";

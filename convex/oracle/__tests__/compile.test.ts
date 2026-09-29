@@ -11,7 +11,7 @@ import { compileCard } from "../compile";
 import { collectOps, runGates, sortKeys } from "../gates";
 import { slugify } from "../lower";
 import { declareTargets } from "../lowerActivated";
-import { oracleCard } from "./fixtures";
+import { oracleCard } from "./oracle.fixture";
 
 describe("compileCard — states", () => {
     it("a vanilla creature is ready with power, toughness and types", () => {

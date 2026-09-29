@@ -15,7 +15,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import type { GameEvent } from "../../cards/types";
 import type { GameState } from "../state";
 import { collectTriggers } from "../triggers";

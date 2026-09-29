@@ -23,11 +23,11 @@
 
 import { describe, it, expect } from "vitest";
 import { getAllCards } from "../index";
-// The SHARED site enumeration (`effectSites.ts`) — not a second hand-rolled
+// The SHARED site enumeration (`effectSites.helper.ts`) — not a second hand-rolled
 // walker. A private one shipped omitting `modes[].effects` and `aiEffects`,
 // which is exactly how a `{ additionalCostPaid }` inside a modal card's mode script
 // would escape the fail-closed trap below.
-import { allEffectScriptValues } from "./effectSites";
+import { allEffectScriptValues } from "./effectSites.helper";
 import { additionalCostPrintedLabel } from "../../gre/kicker";
 import type { KickerCost } from "../types";
 

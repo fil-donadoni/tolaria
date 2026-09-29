@@ -34,10 +34,10 @@ import {
     makePlayer,
     makeState,
     resolveTriggerOrder,
-} from "../../cards/__tests__/setup";
-import { verdelothTheAncient } from "../../cards/sets/inv/green";
-import { burstLightning } from "../../cards/sets/zen/red";
-import { fireball } from "../../cards/sets/lea";
+} from "../../cards/__tests__/setup.helper";
+import { verdelothTheAncient } from "../../cards/sets/inv/green.cards";
+import { burstLightning } from "../../cards/sets/zen/red.cards";
+import { fireball } from "../../cards/sets/lea/index.cards";
 
 function verdelothInHand(id: string) {
     return makeInstance(verdelothTheAncient.id, {

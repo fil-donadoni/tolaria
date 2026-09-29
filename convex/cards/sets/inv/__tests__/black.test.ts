@@ -31,7 +31,7 @@ import {
     makeState,
     pushSpell,
     resolveActivated,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import {
     resolveTopOfStack,
     getCostModifiers,

@@ -15,7 +15,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import { enumerateMoves } from "../moves";
 import { getDefinition, withTemporaryDefinition } from "../../cards";
 import type { CardDefinition } from "../../cards/types";

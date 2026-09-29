@@ -47,11 +47,11 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import { registerTokenDefinition } from "../../cards";
 import type { CardDefinition } from "../../cards/types";
 import { dashTrigger } from "../../cards/abilities/dash";
-import { ragavanNimblePilferer } from "../../cards/sets/mh2/red";
+import { ragavanNimblePilferer } from "../../cards/sets/mh2/red.cards";
 
 // A dash creature: printed cost is a steep {X:5}{R} (6 mana value), its dash
 // cost is a cheap {R} (1 mana value) — the contrast the "cast legal via dash

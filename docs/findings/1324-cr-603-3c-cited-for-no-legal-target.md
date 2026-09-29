@@ -26,7 +26,7 @@ non-modal trigger dropped for want of a legal target, so the id should be
 - `convex/cards/sets/inv/__tests__/black.test.ts:506` — _"removes the trigger with no life loss when your graveyard has no creature to return (CR 603.3c)"_
 - `convex/cards/sets/isd/__tests__/blue.test.ts:150`, `convex/cards/sets/mh3/__tests__/white.test.ts:240`, `convex/cards/sets/tla/__tests__/green.test.ts:134`, `convex/cards/sets/arn/__tests__/green.test.ts:270`, `convex/cards/sets/mh2/__tests__/red.test.ts:171`, `convex/cards/sets/leg/__tests__/multicolor.test.ts:1493`, `convex/cards/sets/ice/__tests__/colorless.test.ts:1582`
 - `convex/gre/rules.ts:3619` — _"required target(s), none legal: remove from the stack"_
-- `convex/gre/__tests__/protectionQuality.test.ts:687`, `convex/cards/sets/j25/green.ts:55`, `convex/cards/sets/m3c/red.ts:122`
+- `convex/gre/__tests__/protectionQuality.test.ts:687`, `convex/cards/sets/j25/green.cards.ts:55`, `convex/cards/sets/m3c/red.cards.ts:122`
 
 A second, smaller sub-class cites `CR 603.3c` for a **delayed** trigger's inline
 body, where the rule is `CR 603.7`: `src/lib/__tests__/stack-ability-oracle-text.test.ts:8`,

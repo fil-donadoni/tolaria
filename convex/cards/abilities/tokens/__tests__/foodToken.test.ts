@@ -18,7 +18,11 @@ import {
     tryAutoCommitPendingActivation,
 } from "../../../../game";
 import { projectPublicState } from "../../../../gameProjections";
-import { makePlayer, makeState, pushSpell } from "../../../__tests__/setup";
+import {
+    makePlayer,
+    makeState,
+    pushSpell,
+} from "../../../__tests__/setup.helper";
 
 const ABILITY_ID = "sacrifice-gain-life";
 

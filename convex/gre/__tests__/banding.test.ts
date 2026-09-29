@@ -12,7 +12,7 @@ import {
     makeInstance,
     makeState,
     makePlayer,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import type { CardInstanceState } from "../state";
 
 // Card ids used for quality matching (registry-backed):

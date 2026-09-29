@@ -14,7 +14,11 @@ import type { Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
 import { mill, getGameTick } from "../game";
 import type { GameState } from "../gre/state";
-import { makeInstance, makePlayer, makeState } from "../cards/__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../cards/__tests__/setup.helper";
 
 type Row = Record<string, unknown>;
 

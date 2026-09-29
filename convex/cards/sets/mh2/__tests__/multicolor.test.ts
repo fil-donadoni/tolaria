@@ -16,7 +16,11 @@ import type { StackItem } from "../../../../gre/state";
 import { resolveTopOfStack, type GameState } from "../../../../gre/state";
 import { collectTriggers } from "../../../../gre/triggers";
 import { applyMayPaySubmit } from "../../../../gre/pendingChoiceSubmit";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import { getDefinition } from "../../../index";
 
 const masterOfDeath = getDefinition("b9775175-6763-4826-afc8-dc520a235c36");

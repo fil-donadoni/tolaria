@@ -33,11 +33,15 @@ import {
     activateAbilityOnState,
     applyOneTargetSelection,
 } from "../../../../game";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import { getDefinition } from "../../../index";
 
 const oko = getDefinition("3462a3d0-5552-49fa-9eb7-100960c55891");
-import { removedKeywordRows } from "../../../__tests__/setup";
+import { removedKeywordRows } from "../../../__tests__/setup.helper";
 
 const PLUS2 = "oko-thief-of-crowns-plus2";
 const PLUS1 = "oko-thief-of-crowns-plus1";

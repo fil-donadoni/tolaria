@@ -688,9 +688,9 @@ describe("resolveTopOfStack", () => {
 // Spell resolution with effects — SpellContext primitives
 // ---------------------------------------------------------------------------
 
-import { lightningBolt } from "../../cards/sets/lea";
-import { giantGrowth } from "../../cards/sets/lea";
-import { ancestralRecall } from "../../cards/sets/lea";
+import { lightningBolt } from "../../cards/sets/lea/index.cards";
+import { giantGrowth } from "../../cards/sets/lea/index.cards";
+import { ancestralRecall } from "../../cards/sets/lea/index.cards";
 import { drawCard } from "../state";
 import { getEffectivePower, getEffectiveToughness } from "../layers";
 

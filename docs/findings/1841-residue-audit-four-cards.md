@@ -13,18 +13,18 @@ work belonging in its own slice, not this PR.
 
 **Evidence.**
 
-- **Rooting Kavu** (`convex/cards/sets/inv/green.ts:1059-1073`) — its marker
+- **Rooting Kavu** (`convex/cards/sets/inv/green.cards.ts:1059-1073`) — its marker
   reads as blocked, but the `{ set: "graveyard" }` `forEach` selector this
   card needs already shipped; the card looks freeable now.
-- **Ancient Cornucopia** (`convex/cards/sets/big/green.ts:227-247`) — same
+- **Ancient Cornucopia** (`convex/cards/sets/big/green.cards.ts:227-247`) — same
   shape: `maxTriggersPerTurn` already exists and looks like it frees this
   card's marker.
-- **Gravebind** (`convex/cards/sets/ice/black.ts:1065-1090`) — its
+- **Gravebind** (`convex/cards/sets/ice/black.cards.ts:1065-1090`) — its
   `tracked-by: #1841` marker is stale. The `delayedTrigger`/`next-upkeep` Op
   it names as missing shipped in #660, and Krovikan Fetish
-  (`convex/cards/sets/ice/black.ts:1683-1690`, same file) already uses the
+  (`convex/cards/sets/ice/black.cards.ts:1683-1690`, same file) already uses the
   exact pattern this card needs.
-- **Lim-Dûl's Cohort** (`convex/cards/sets/ice/black.ts:1917-1937`) — the one
+- **Lim-Dûl's Cohort** (`convex/cards/sets/ice/black.cards.ts:1917-1937`) — the one
   of the four that is **genuinely still blocked**: no declarative "pick
   whichever creature ≠ self" combat-pair selector exists in the DSL today.
 

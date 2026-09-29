@@ -19,22 +19,26 @@
 // discipline as `distinctTargets.test.ts` / `delveCastCost.test.ts`: no
 // convex-test harness in this project, so the established seam for `game.ts`
 // integration coverage is a stub `MutationCtx` driving the REGISTERED
-// mutation's own `_handler` (`gameMutationHarness.ts`) — never a hand-rolled
+// mutation's own `_handler` (`gameMutationHarness.fixture.ts`) — never a hand-rolled
 // reimplementation of `announceCast`'s loop body.
 
 import { describe, it, expect } from "vitest";
 import { announceCast } from "../game";
-import { pestInfestation } from "../cards/sets/c21/green";
-import { forceOfVigor } from "../cards/sets/mh1/green";
-import { forest, ankhOfMishra } from "../cards/sets/lea/colorless";
-import { makeInstance, makePlayer, makeState } from "../cards/__tests__/setup";
+import { pestInfestation } from "../cards/sets/c21/green.cards";
+import { forceOfVigor } from "../cards/sets/mh1/green.cards";
+import { forest, ankhOfMishra } from "../cards/sets/lea/colorless.cards";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../cards/__tests__/setup.helper";
 import type { Id } from "../_generated/dataModel";
 import {
     makeMutationCtx,
     runMutation,
     gameStateSeed,
     type Handler,
-} from "./gameMutationHarness";
+} from "./gameMutationHarness.fixture";
 
 const GAME_ID = "game-1" as Id<"games">;
 

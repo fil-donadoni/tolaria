@@ -16,7 +16,7 @@ import {
     type Side,
 } from "~/lib/skip-phase-prefs";
 import { PHASE_GROUPS } from "~/lib/phase-labels";
-import { makeState } from "@convex/cards/__tests__/setup";
+import { makeState } from "@convex/cards/__tests__/setup.helper";
 import { projectPublicState } from "@convex/gameProjections";
 import type { Phase } from "@convex/gre/types";
 

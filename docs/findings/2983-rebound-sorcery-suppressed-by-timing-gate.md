@@ -18,7 +18,7 @@ would be refused too. Contrast the Madness branch a few lines above, which
 deliberately applies no timing gate at all and says so — the madness window is
 instant-speed for exactly the analogous reason.
 
-Nothing is reachable today: Ephemerate (`convex/cards/sets/mh1/white.ts`) is
+Nothing is reachable today: Ephemerate (`convex/cards/sets/mh1/white.cards.ts`) is
 the only shipped card with rebound and it is an Instant. Distortion Strike is
 the real-world card that would hit it.
 

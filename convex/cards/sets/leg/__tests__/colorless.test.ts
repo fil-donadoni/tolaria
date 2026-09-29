@@ -2,7 +2,7 @@
 // twin of arn/leb colour test files). Each non-trivial card gets a describe
 // block citing the CR section it exercises; assertions check external
 // behaviour only. Shared shims live in ./helpers; fixtures in
-// convex/cards/__tests__/setup.ts.
+// convex/cards/__tests__/setup.helper.ts.
 
 import { describe, it, expect } from "vitest";
 import {
@@ -12,7 +12,7 @@ import {
     makeSylvanState,
     resolveTrigger,
     withTabernacle,
-} from "./helpers";
+} from "./set.helper";
 import { tapSourceIntoPayment } from "../../../../game";
 import { projectPublicState } from "../../../../gameProjections";
 import { isLegalBandComposition } from "../../../../gre/banding";
@@ -45,7 +45,7 @@ import {
     makePlayer,
     makeState,
     resolveActivated,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import { getDefinition } from "../../../index";
 
 const adventurersGuildhouse = getDefinition(

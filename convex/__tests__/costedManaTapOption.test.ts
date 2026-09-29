@@ -15,20 +15,24 @@
 //      the haste rider the card exists for, were unreachable automatically.
 //
 // Both halves are walked through the REAL registered mutation handlers
-// (`gameMutationHarness.ts`), the GRE resolution, and the wire projection the
+// (`gameMutationHarness.fixture.ts`), the GRE resolution, and the wire projection the
 // client is the only consumer of.
 
 import { describe, it, expect } from "vitest";
 import { tapUntap, autoTapForPayment } from "../game";
 import { projectPublicState } from "../gameProjections";
-import { makeInstance, makePlayer, makeState } from "../cards/__tests__/setup";
-import { arenaOfGlory } from "../cards/sets/mh3/colorless";
-import { springheartNantuko } from "../cards/sets/mh3/green";
-import { mountain, forest as forestCard } from "../cards/sets/lea";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../cards/__tests__/setup.helper";
+import { arenaOfGlory } from "../cards/sets/mh3/colorless.cards";
+import { springheartNantuko } from "../cards/sets/mh3/green.cards";
+import { mountain, forest as forestCard } from "../cards/sets/lea/index.cards";
 import { getCardByName } from "../cards";
 import { buildAutoTapSources, solveSmartAutoTap } from "../gre/autoTap";
-import { grizzlyBears } from "../cards/sets/lea/green";
-import { lightningBolt } from "../cards/sets/lea/red";
+import { grizzlyBears } from "../cards/sets/lea/green.cards";
+import { lightningBolt } from "../cards/sets/lea/red.cards";
 import { resolveTopOfStack } from "../gre/state";
 import type { GameState, ManaSubstitution, PendingCast } from "../gre/state";
 import type { Id } from "../_generated/dataModel";
@@ -37,7 +41,7 @@ import {
     runMutation,
     gameStateSeed,
     type Handler,
-} from "./gameMutationHarness";
+} from "./gameMutationHarness.fixture";
 
 const GAME_ID = "game-1" as Id<"games">;
 

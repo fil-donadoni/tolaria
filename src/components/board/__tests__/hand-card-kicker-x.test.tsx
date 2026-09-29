@@ -62,8 +62,8 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "@convex/cards/__tests__/setup";
-import { verdelothTheAncient } from "@convex/cards/sets/inv/green";
+} from "@convex/cards/__tests__/setup.helper";
+import { verdelothTheAncient } from "@convex/cards/sets/inv/green.cards";
 
 /** Verdeloth in `me`'s hand in its own main phase, through the REAL wire
  *  projection; `allPlayers` is what the hook prices the Kicker rows from. */

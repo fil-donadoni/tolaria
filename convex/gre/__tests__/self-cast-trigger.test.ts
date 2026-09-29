@@ -20,13 +20,13 @@ import { describe, it, expect } from "vitest";
 import { preloadDefinitions } from "../../cards";
 import type { CardDefinition } from "../../cards/types";
 import { spellCastTrigger } from "../../cards/abilities/triggers/spellCastTrigger";
-import { manaVortex } from "../../cards/sets/drk/blue";
+import { manaVortex } from "../../cards/sets/drk/blue.cards";
 import {
     makeInstance,
     makeState,
     makePlayer,
     pushSpell,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import { finalizeTargetSelection } from "../../game";
 import { drainAutoPasses } from "../phases";
 import {

@@ -22,7 +22,11 @@ import {
     tryAutoCommitPendingActivation,
 } from "../../../../game";
 import { projectPublicState } from "../../../../gameProjections";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import { getDefinition } from "../../../index";
 
 const sealOfFire = getDefinition("37eaf1f6-4bdc-4669-9a15-50b65e016ccf");

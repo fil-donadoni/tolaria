@@ -20,7 +20,7 @@ So an untargeted alternative-cost spell is cast at exactly its alternative
 cost, with every CR 601.2f increase and reduction on the board ignored.
 
 **Scenario.** Elite Spellbinder (issue #2383) exiles the opponent's **Gush**
-(`convex/cards/sets/mmq/blue.ts`, alt cost "return two Islands you control",
+(`convex/cards/sets/mmq/blue.cards.ts`, alt cost "return two Islands you control",
 untargeted). The owner casts it from exile choosing the alt cost: the
 object-scoped `{2}` tax never joins the total. **Foil** (`pcy/blue.ts`) is the
 same shape. The asymmetry is the tell — Force of Will, Daze, Thwart and

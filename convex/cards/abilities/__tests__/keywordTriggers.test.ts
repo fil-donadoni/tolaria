@@ -12,7 +12,11 @@
 // wire-format survival of the resulting until-end-of-turn buff.
 
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../__tests__/setup.helper";
 import type { CardDefinition, GameEvent, PermanentView } from "../../types";
 import type {
     CardInstanceState,
@@ -25,7 +29,7 @@ import { projectPublicState } from "../../../gameProjections";
 import { getCardByName, getDefinition } from "../..";
 import { getEventFieldRow } from "../../mechanicsRegistry";
 import { expandKeywordTriggers } from "../keywordTriggers";
-import { nobleHierarch } from "../../sets/con/green";
+import { nobleHierarch } from "../../sets/con/green.cards";
 
 /** Minimal synthetic creature def carrying the given keyword, run through the
  *  expander so we can inspect the injected triggered ability. */

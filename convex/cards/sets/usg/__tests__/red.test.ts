@@ -13,7 +13,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import { projectPublicState } from "../../../../gameProjections";
 import { raiseTriggerTargetSelection } from "../../../../gre/rules";
 import {

@@ -1,5 +1,5 @@
 // MBS — per-card behavior tests for colorless cards in
-// `convex/cards/sets/mbs/colorless.ts` (set split by colour, ADR 0043).
+// `convex/cards/sets/mbs/colorless.cards.ts` (set split by colour, ADR 0043).
 //
 // Blightsteel Colossus's "If ~ would be put into a graveyard from anywhere,
 // reveal ~ and shuffle it into its owner's library instead" is a TRUE CR
@@ -18,7 +18,7 @@ import {
     makeState,
     pushSpell,
     resolveTriggerOrder,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import {
     removePermanentTo,
     discardToGraveyard,

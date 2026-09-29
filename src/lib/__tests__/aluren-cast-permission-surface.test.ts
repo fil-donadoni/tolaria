@@ -20,10 +20,10 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "@convex/cards/__tests__/setup";
-import { aluren } from "@convex/cards/sets/tmp/green";
-import { grizzlyBears } from "@convex/cards/sets/lea/green";
-import { shivanDragon } from "@convex/cards/sets/lea/red";
+} from "@convex/cards/__tests__/setup.helper";
+import { aluren } from "@convex/cards/sets/tmp/green.cards";
+import { grizzlyBears } from "@convex/cards/sets/lea/green.cards";
+import { shivanDragon } from "@convex/cards/sets/lea/red.cards";
 import { projectPublicState } from "@convex/gameProjections";
 import { affordableAltCostsForCard } from "../card-utils";
 import type { CardInstance, Player } from "~/types/game";

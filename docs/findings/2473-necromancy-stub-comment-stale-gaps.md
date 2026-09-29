@@ -5,7 +5,7 @@ status: draft
 confidence: high
 ---
 
-**What is wrong.** `convex/cards/sets/vis/black.ts:45-105`'s block comment
+**What is wrong.** `convex/cards/sets/vis/black.cards.ts:45-105`'s block comment
 above the commented-out `necromancy` stub enumerates four blocking engine
 gaps — (a) per-instance Aura enchant restriction, (b) cleanup-step
 delayed-trigger boundary, (c) cast-timing memory, (d) self-granted-flash
@@ -26,7 +26,7 @@ two still reads as if the capabilities don't exist:
   `DelayedTriggerTiming` has "ten members and none is a cleanup one" and
   that the `CLEANUP` arm "never calls `fireDelayedTriggers` at all".
 
-**Evidence.** `convex/cards/sets/vis/black.ts:69-90` (the full four-gap
+**Evidence.** `convex/cards/sets/vis/black.cards.ts:69-90` (the full four-gap
 enumeration); `convex/gre/sba.ts:139` (grantedEnchantRestriction consumer);
 `convex/gre/phases.ts:2085,2296` (`next-cleanup-step` fire sites);
 `gh issue view 2471` / `gh issue view 2472` (both `state: CLOSED`, parent

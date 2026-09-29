@@ -14,7 +14,11 @@
 
 import { describe, it, expect } from "vitest";
 import { registerTokenDefinition } from "../../..";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import {
     type CardInstanceState,
     type GameState,

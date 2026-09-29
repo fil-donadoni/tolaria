@@ -17,7 +17,7 @@ import { describe, expect, it } from "vitest";
 import { compileCard } from "../compile";
 import { sortKeys } from "../gates";
 import type { OracleCard } from "../types";
-import { oracleCard } from "./fixtures";
+import { oracleCard } from "./oracle.fixture";
 
 const ZOMBIFY: OracleCard = {
     oracleId: "bb95db4d-5017-4121-bf79-d68476602d8c",

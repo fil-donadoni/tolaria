@@ -13,7 +13,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "@convex/cards/__tests__/setup";
+} from "@convex/cards/__tests__/setup.helper";
 import { type GameState } from "@convex/gre/state";
 import { applyPlayLand } from "@convex/gre/playLand";
 import { applyLandEntrySubmit } from "@convex/gre/pendingChoiceSubmit";

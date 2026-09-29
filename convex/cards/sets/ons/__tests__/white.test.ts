@@ -1,11 +1,15 @@
-// Per-card behavior tests for white cards in `convex/cards/sets/ons/white.ts`
+// Per-card behavior tests for white cards in `convex/cards/sets/ons/white.cards.ts`
 // (ONS, split by colour per ADR 0043). Morph itself — the face-down cast, the
 // turn-face-up special action, the wire redaction — is covered mechanic-wide
 // in `convex/gre/__tests__/morph.test.ts`; this file covers Exalted Angel's
 // own `resolve()` clause, which morph never touches.
 
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import { resolveTopOfStack, type StackItem } from "../../../../gre/state";
 import { turnFaceDown } from "../../../../gre/faceDown";
 import { collectTriggers } from "../../../../gre/triggers";

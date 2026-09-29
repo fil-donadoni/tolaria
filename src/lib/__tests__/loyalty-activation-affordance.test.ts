@@ -17,11 +17,11 @@
 
 import { describe, it, expect } from "vitest";
 import type { CardDefinition } from "@convex/cards/types";
-import { tezzeretCruelCaptain } from "@convex/cards/sets/eoe";
-import { uginEyeOfTheStorms } from "@convex/cards/sets/tdm";
-import { nissaWhoShakesTheWorld } from "@convex/cards/sets/war";
-import { forest, grizzlyBears } from "@convex/cards/sets/lea";
-import { ornithopter } from "@convex/cards/sets/atq";
+import { tezzeretCruelCaptain } from "@convex/cards/sets/eoe/index.cards";
+import { uginEyeOfTheStorms } from "@convex/cards/sets/tdm/index.cards";
+import { nissaWhoShakesTheWorld } from "@convex/cards/sets/war/index.cards";
+import { forest, grizzlyBears } from "@convex/cards/sets/lea/index.cards";
+import { ornithopter } from "@convex/cards/sets/atq/index.cards";
 import { withTemporaryDefinition } from "@convex/cards/registry";
 import type { CardInstance } from "../../types/game";
 import { buildTriggerStateView, getStackAbilities } from "../card-utils";

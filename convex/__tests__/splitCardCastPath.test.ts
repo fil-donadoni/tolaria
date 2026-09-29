@@ -12,14 +12,18 @@
 // Same harness discipline as `alurenCastPath.test.ts` / `bolassCitadelCastPath.test.ts`:
 // no convex-test harness exists in this project, so the established seam for
 // `game.ts` integration coverage is a stub `MutationCtx` driving the
-// REGISTERED mutation's own `_handler` (`gameMutationHarness.ts`).
+// REGISTERED mutation's own `_handler` (`gameMutationHarness.fixture.ts`).
 
 import { describe, expect, it } from "vitest";
 import { announceCast, selectTarget, tapForPayment } from "../game";
-import { standDeliver } from "../cards/sets/inv/multicolor";
-import { hillGiant } from "../cards/sets/lea/red";
-import { plains, island } from "../cards/sets/lea/colorless";
-import { makeInstance, makePlayer, makeState } from "../cards/__tests__/setup";
+import { standDeliver } from "../cards/sets/inv/multicolor.cards";
+import { hillGiant } from "../cards/sets/lea/red.cards";
+import { plains, island } from "../cards/sets/lea/colorless.cards";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../cards/__tests__/setup.helper";
 import { splitHalfDefinitionId } from "../cards/splitCard";
 import { splitCastAltCostId } from "../gre/splitCast";
 import { projectPublicState } from "../gameProjections";
@@ -30,7 +34,7 @@ import {
     makeMutationCtx,
     runMutation,
     type Handler,
-} from "./gameMutationHarness";
+} from "./gameMutationHarness.fixture";
 
 const GAME_ID = "game-1" as Id<"games">;
 const LEFT_ALT = splitCastAltCostId(standDeliver, "left");

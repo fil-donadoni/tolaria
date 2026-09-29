@@ -21,10 +21,10 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "@convex/cards/__tests__/setup";
+} from "@convex/cards/__tests__/setup.helper";
 import { projectPublicState } from "@convex/gameProjections";
-import { springheartNantuko } from "@convex/cards/sets/mh3/green";
-import { grizzlyBears } from "@convex/cards/sets/lea";
+import { springheartNantuko } from "@convex/cards/sets/mh3/green.cards";
+import { grizzlyBears } from "@convex/cards/sets/lea/index.cards";
 import { affordableAltCostsForCard } from "../card-utils";
 import type { CardInstance, Player } from "~/types/game";
 

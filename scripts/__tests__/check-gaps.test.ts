@@ -479,7 +479,9 @@ describe("hand-tail markers name their claim (issue #4514)", () => {
 
 describe("handTailCardMatch (ADR 0146, issue #4682)", () => {
     it("reads set and colour off the card's own set file", () => {
-        expect(handTailCardMatch("convex/cards/sets/inv/blue.ts")).toEqual({
+        expect(
+            handTailCardMatch("convex/cards/sets/inv/blue.cards.ts")
+        ).toEqual({
             set: "inv",
             colour: "blue",
         });
@@ -613,14 +615,17 @@ describe("liveClusterKeys (ADR 0146, issue #4682)", () => {
         const markers = [
             ...handTailMarker(
                 "Arena of Glory",
-                "convex/cards/sets/inv/blue.ts"
+                "convex/cards/sets/inv/blue.cards.ts"
             ),
             ...scanCompilerGapMarkers([
                 "// compiler-gap: some fragment (#1)",
                 `export const Only: CardDefinition = {`,
                 '    name: "Some Other Card",',
                 "};",
-            ]).map((m) => ({ ...m, file: "convex/cards/sets/inv/red.ts" })),
+            ]).map((m) => ({
+                ...m,
+                file: "convex/cards/sets/inv/red.cards.ts",
+            })),
         ];
         const keys = liveClusterKeys(
             { cards: [], fragments: [] },

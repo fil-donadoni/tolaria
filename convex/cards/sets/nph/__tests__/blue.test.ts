@@ -4,8 +4,12 @@
 // in convex/gre/__tests__/phyrexian.test.ts. Deceiver Exarch's MODAL ETB
 // trigger (CR 603.3c — untap yours / tap an opponent's) is covered here too.
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
-import { driveCopyChoice } from "../../lea/__tests__/helpers";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
+import { driveCopyChoice } from "../../lea/__tests__/set.helper";
 import { finalizeTargetSelection } from "../../../../game";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { raiseTriggerTargetSelection } from "../../../../gre/rules";

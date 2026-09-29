@@ -10,7 +10,7 @@ confidence: low
 turn, whenever a creature attacks you or a planeswalker you control, it
 gets -1/-0 until end of turn") as `delayedTrigger` with a new
 `until-next-turn-creature-attacks-you` timing, whose inline body is a plain
-`pump -1/-0` (`convex/cards/sets/mh3/blue.ts`). The dedicated bot valuer
+`pump -1/-0` (`convex/cards/sets/mh3/blue.cards.ts`). The dedicated bot valuer
 (`ATTACKER_DEBUFF_WINDOW_VALUE = 15`, `convex/gre/ai/opValuers.ts`) was
 removed along with the Op — the ability is now valued through the generic
 `delayedTrigger` valuer, which recurses into the nested script

@@ -5,7 +5,7 @@ import {
     makePlayer,
     makeState,
     submitChoice,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import {
     type CardInstanceState,
     type GameState,

@@ -12,7 +12,11 @@ import {
 import { collectTriggers } from "../../../../gre/triggers";
 import { advancePhase } from "../../../../gre/phases";
 import { projectPublicState } from "../../../../gameProjections";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 
 // The registry seam (ADR 0046): the card is reached by ID through
 // `makeInstance`, never by importing its definition out of the set module.

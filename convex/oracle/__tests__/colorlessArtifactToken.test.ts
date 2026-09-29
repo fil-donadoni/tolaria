@@ -10,11 +10,15 @@
 
 import { describe, expect, it } from "vitest";
 import { getDefinition, registerTokenDefinition } from "../../cards";
-import { makePlayer, makeState, pushSpell } from "../../cards/__tests__/setup";
+import {
+    makePlayer,
+    makeState,
+    pushSpell,
+} from "../../cards/__tests__/setup.helper";
 import { projectPublicState } from "../../gameProjections";
 import { resolveTopOfStack } from "../../gre/state";
 import { compileCard } from "../compile";
-import { oracleCard } from "./fixtures";
+import { oracleCard } from "./oracle.fixture";
 
 const ORACLE =
     "Create two 1/1 colorless Thopter artifact creature tokens with flying.";

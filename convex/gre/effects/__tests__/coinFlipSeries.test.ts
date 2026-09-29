@@ -12,14 +12,14 @@
 import { describe, it, expect } from "vitest";
 import type { EffectOp } from "../../../cards/types";
 import { registerTokenDefinition } from "../../../cards";
-import { grizzlyBears } from "../../../cards/sets/lea/green";
-import { squeesRevenge } from "../../../cards/sets/apc/multicolor";
+import { grizzlyBears } from "../../../cards/sets/lea/green.cards";
+import { squeesRevenge } from "../../../cards/sets/apc/multicolor.cards";
 import {
     makeInstance,
     makePlayer,
     makeState,
     pushSpell,
-} from "../../../cards/__tests__/setup";
+} from "../../../cards/__tests__/setup.helper";
 import { resolveTopOfStack } from "../../state";
 import type { GameState } from "../../state";
 import { applyNumberChoiceSubmit } from "../../pendingChoiceSubmit";

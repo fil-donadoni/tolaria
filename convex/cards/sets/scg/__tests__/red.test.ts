@@ -1,6 +1,6 @@
-// Per-card behavior tests for red cards in `convex/cards/sets/scg/red.ts`
+// Per-card behavior tests for red cards in `convex/cards/sets/scg/red.cards.ts`
 // (Scourge, split by colour per ADR 0043). Fixtures come from
-// convex/cards/__tests__/setup.ts; stack/resolve shims are inlined here (this
+// convex/cards/__tests__/setup.helper.ts; stack/resolve shims are inlined here (this
 // is the first behavioral card in the SCG red module).
 
 import { describe, it, expect } from "vitest";
@@ -13,7 +13,11 @@ import {
     resolveTopOfStack,
 } from "../../../../gre/state";
 import { projectPublicState } from "../../../../gameProjections";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import { getDefinition } from "../../../index";
 
 const sulfuricVortex = getDefinition("79955e27-eef7-43bd-9895-e9209ed1537f");

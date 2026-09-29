@@ -17,7 +17,11 @@ import {
     tryAutoCommitPendingActivation,
 } from "../../../../game";
 import { projectPublicState } from "../../../../gameProjections";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import { getDefinition } from "../../../index";
 
 const maraudingMako = getDefinition("9efbfd67-e0f5-43e0-9fff-1eb4a2bed0d8");

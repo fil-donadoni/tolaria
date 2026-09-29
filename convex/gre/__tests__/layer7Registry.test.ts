@@ -25,9 +25,9 @@ import {
 import type { CardDefinition, StaticEffect } from "../../cards/types";
 import type { ContinuousEffect } from "../continuousEffects";
 import type { CardInstanceState, GameState } from "../state";
-import { makePlayer, makeState } from "../../cards/__tests__/setup";
+import { makePlayer, makeState } from "../../cards/__tests__/setup.helper";
 import { removePermanentTo, resetBattlefieldTransientState } from "../state";
-import { crusade } from "../../cards/sets/lea";
+import { crusade } from "../../cards/sets/lea/index.cards";
 
 /** A vanilla creature with no registry entry — every effect in this file
  *  arrives as a registry entry, so no card definition is needed. */

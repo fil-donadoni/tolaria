@@ -15,12 +15,12 @@
 // ("Counter target spell unless its controller pays {1}.") resolves against
 // p1's spell and suspends on the may-pay owed to p1. Both mutations are driven
 // through their REGISTERED `_handler` over the stub `MutationCtx`
-// (`gameMutationHarness.ts`), so the guard ordering under test is the deployed
+// (`gameMutationHarness.fixture.ts`), so the guard ordering under test is the deployed
 // one — not a reimplementation of the loop body.
 
 import { describe, it, expect } from "vitest";
 import { activatePlayerAbility, submitMayPay } from "../game";
-import { makeState, pushSpell } from "../cards/__tests__/setup";
+import { makeState, pushSpell } from "../cards/__tests__/setup.helper";
 import { resolveTopOfStack } from "../gre/state";
 import { getCardByName } from "../cards";
 import type { GameState, GrantedAbilityInstance } from "../gre/state";
@@ -30,7 +30,7 @@ import {
     runMutation,
     gameStateSeed,
     type Handler,
-} from "./gameMutationHarness";
+} from "./gameMutationHarness.fixture";
 
 const GAME_ID = "game-1" as Id<"games">;
 const CHANNEL = getCardByName("Channel").id;

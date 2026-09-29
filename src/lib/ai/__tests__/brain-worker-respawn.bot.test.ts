@@ -32,7 +32,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "@convex/cards/__tests__/setup";
+} from "@convex/cards/__tests__/setup.helper";
 import { DIFFICULTY_BUDGETS } from "@convex/gre/difficulty";
 import {
     consultBrain,

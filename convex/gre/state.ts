@@ -1722,7 +1722,7 @@ function resolvingTargetRequirement(
            *  rechecking. The caller treats `true` here as "can't confidently
            *  recheck", the same fail-open answer as an unresolvable body; the
            *  cost is that a multi-group resolution — e.g. Plague Spores
-           *  (`convex/cards/sets/inv/multicolor.ts`), literally the CR
+           *  (`convex/cards/sets/inv/multicolor.cards.ts`), literally the CR
            *  608.2b Plague Spores worked example — gets NO CR 608.2b
            *  permanent-filter recheck at all, on either of its two targets,
            *  not merely the primary group's own. */
@@ -8533,7 +8533,7 @@ export function revertAnimation(card: CardInstanceState): void {
  *  reversal (`stopApplyingStaticEffects`) only fires when the SOURCE leaves
  *  the battlefield. Nothing reversed them when the TARGET left: a permanent
  *  whose type was added or suppressed by ANOTHER permanent's static (Titania's
- *  Song / Animate Artifact, `sets/atq/green.ts` / `sets/lea/blue.ts`) came
+ *  Song / Animate Artifact, `sets/atq/green.cards.ts` / `sets/lea/blue.cards.ts`) came
  *  back from hand still carrying the mutation, even though CR 400.7 makes it a
  *  NEW object. Every entry on the departing object dies with it, whatever its
  *  source — this only ever reads/writes `card`, so identical maps on OTHER
@@ -8731,7 +8731,7 @@ export function discardEntryTypeLine(card: CardInstanceState): void {
  *  and shows what it PRINTS.
  *
  *  Reachable the moment a card both LOSES a type indefinitely and can reach a
- *  graveyard, which Enduring Innocence (`sets/dsk/white.ts`) is the first
+ *  graveyard, which Enduring Innocence (`sets/dsk/white.cards.ts`) is the first
  *  shipped card to do — it returns from its own death as an Enchantment, and
  *  when THAT is later destroyed the card must sit in the graveyard as the
  *  Enchantment Creature — Sheep Glimmer card it prints. Otherwise every
@@ -18644,7 +18644,7 @@ function finishTokenEntry(
         //     the `includes("Creature")` gate that decides whether P/T is
         //     snapshotted at all — so a granted type that is not stamped yet
         //     is a type the entry never announces. Titania's Song
-        //     (`cards/sets/atq/green.ts`, shipped) is the live instance — a
+        //     (`cards/sets/atq/green.cards.ts`, shipped) is the live instance — a
         //     Treasure token entering under it must announce
         //     `["Artifact","Creature"]` WITH a P/T; emitted above these two
         //     passes it announces a bare `["Artifact"]` and no P/T, and every

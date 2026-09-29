@@ -35,15 +35,15 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
-import { rout } from "../../cards/sets/inv/white";
-import { ghituFire } from "../../cards/sets/inv/red";
-import { twilightsCall } from "../../cards/sets/inv/black";
-import { saprolingSymbiosis } from "../../cards/sets/inv/green";
-import { braingeyser } from "../../cards/sets/lea/blue";
-import { lightningBolt } from "../../cards/sets/lea/red";
-import { plains } from "../../cards/sets/lea/colorless";
-import { teferiTimeRaveler } from "../../cards/sets/war/multicolor";
+} from "../../cards/__tests__/setup.helper";
+import { rout } from "../../cards/sets/inv/white.cards";
+import { ghituFire } from "../../cards/sets/inv/red.cards";
+import { twilightsCall } from "../../cards/sets/inv/black.cards";
+import { saprolingSymbiosis } from "../../cards/sets/inv/green.cards";
+import { braingeyser } from "../../cards/sets/lea/blue.cards";
+import { lightningBolt } from "../../cards/sets/lea/red.cards";
+import { plains } from "../../cards/sets/lea/colorless.cards";
+import { teferiTimeRaveler } from "../../cards/sets/war/multicolor.cards";
 import type { GameState } from "../state";
 
 function handCard(cardId: string, id: string, controllerId = "p1") {

@@ -27,7 +27,11 @@ import {
 import { checkZeroToughnessSBA } from "../sba";
 import { registerTokenDefinition } from "../../cards";
 import type { CardDefinition } from "../../cards/types";
-import { makePlayer, makeState, pushSpell } from "../../cards/__tests__/setup";
+import {
+    makePlayer,
+    makeState,
+    pushSpell,
+} from "../../cards/__tests__/setup.helper";
 import { projectPublicState } from "../../gameProjections";
 
 // "If a card would be put into YOUR graveyard from anywhere, exile that

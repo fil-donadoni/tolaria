@@ -10,7 +10,7 @@
 // optimises and live play never reproduces. This file pins the record for
 // the three shapes the issue names — an X cast, an alternative-cost cast and
 // a kicked cast — on the same position, driven through the REGISTERED
-// `announceCast` mutation on the server side (`gameMutationHarness.ts`) and
+// `announceCast` mutation on the server side (`gameMutationHarness.fixture.ts`) and
 // through the search kernel on the Bot side.
 //
 // Mana is compared through the pool the server DRAINS; the search keeps a
@@ -24,14 +24,18 @@ import { commitCastInSearch } from "../gre/applyMove";
 import type { Move } from "../gre/moves";
 import { getPlayer, type GameState, type StackItem } from "../gre/state";
 import { getCardByName } from "../cards";
-import { makeInstance, makePlayer, makeState } from "../cards/__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../cards/__tests__/setup.helper";
 import type { Id } from "../_generated/dataModel";
 import {
     gameStateSeed,
     makeMutationCtx,
     runMutation,
     type MutationStub,
-} from "./gameMutationHarness";
+} from "./gameMutationHarness.fixture";
 
 const GAME = "game-1" as Id<"games">;
 const idOf = (name: string) => getCardByName(name).id;

@@ -19,7 +19,7 @@ validation even runs.
 
 **Evidence.** `convex/gre/pendingChoiceSubmit.ts:638-642` (the shared
 `count`-validated as-enters branch) vs. Illusionary Terrain's declaration
-(`convex/cards/sets/ice/blue.ts`, `entersWith.asEnters`, `{ kind: "subtypes",
+(`convex/cards/sets/ice/blue.cards.ts`, `entersWith.asEnters`, `{ kind: "subtypes",
 from: [...BASIC_LAND_SUBTYPES], count: 2 }`) — no per-kind override exists to
 admit a repeated id for `subtypes` specifically.
 

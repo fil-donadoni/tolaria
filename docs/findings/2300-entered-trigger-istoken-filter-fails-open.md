@@ -28,7 +28,7 @@ This fails in the dangerous direction only for `isToken: false`.
   5 `landfallTrigger()` call sites under `convex/cards/sets/**` found no
   `filter.isToken` at any of them. The only `isToken: false` uses in the
   catalogue are on `copySourceFilter` / `targetRequirement` / `sacrificeFilter`
-  (`convex/cards/sets/drk/blue.ts:869,882`), which are different filter sites
+  (`convex/cards/sets/drk/blue.cards.ts:869,882`), which are different filter sites
   with correctly-populated subjects.
 
 **Why this matters now.** Before issue #2300 the trap was _unreachable_: token

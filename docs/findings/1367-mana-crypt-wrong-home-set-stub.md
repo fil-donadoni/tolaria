@@ -7,7 +7,7 @@ confidence: high
 
 **What is wrong.** The pre-existing commented stub for Mana Crypt (left by an
 earlier pass under PRD #620 / the #1306 residue tranche) named
-`convex/cards/sets/ema/colorless.ts` and Scryfall id
+`convex/cards/sets/ema/colorless.cards.ts` and Scryfall id
 `0cb33b46-4d1b-4f97-bfdc-d815aee111da` (the Eternal Masters print) as the
 card's home. That id fails `scripts/check-card-index.ts`'s ADR 0041 check:
 Mana Crypt's actual earliest PAPER printing is `phpr` (HarperPrism Book

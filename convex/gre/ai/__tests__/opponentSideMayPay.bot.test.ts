@@ -36,7 +36,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../../cards/__tests__/setup";
+} from "../../../cards/__tests__/setup.helper";
 import { getCardByName } from "../../../cards";
 
 /** Deterministic: fixed iterations (never wall-clock) and explicit seeds. */

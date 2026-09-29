@@ -20,9 +20,9 @@ neither its cost nor its effect moves a card to or from a library. Three
 shipped sacrifice outlets satisfy every clause and are nonetheless declared
 `useStack: true`:
 
-- `Ashnod's Altar` — `convex/cards/sets/atq/colorless.ts` (`effects: [{ op: "addMana", … }]`)
-- `Phyrexian Altar` — `convex/cards/sets/inv/colorless.ts`
-- `Priest of Yawgmoth` — `convex/cards/sets/atq/black.ts`
+- `Ashnod's Altar` — `convex/cards/sets/atq/colorless.cards.ts` (`effects: [{ op: "addMana", … }]`)
+- `Phyrexian Altar` — `convex/cards/sets/inv/colorless.cards.ts`
+- `Priest of Yawgmoth` — `convex/cards/sets/atq/black.cards.ts`
 
 So they go on the stack, can be responded to, and can be countered — none of
 which a mana ability permits (CR 605.3a). The engine's own convention is

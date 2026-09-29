@@ -22,8 +22,8 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../../__tests__/setup";
-import { resolveTrigger } from "./helpers";
+} from "../../../__tests__/setup.helper";
+import { resolveTrigger } from "./set.helper";
 import {
     applyCostModifiers,
     getCostModifiers,

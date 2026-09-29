@@ -10,8 +10,8 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
-import { crusade } from "../../cards/sets/lea/white";
+} from "../../cards/__tests__/setup.helper";
+import { crusade } from "../../cards/sets/lea/white.cards";
 
 /** Minimal layer-6 registry entry; every field an assertion cares about is
  *  overridden at the call site so the defaults never carry meaning. */

@@ -7,7 +7,11 @@
 import { describe, it, expect } from "vitest";
 import type { CardInstanceState, GameState } from "../../../../gre/state";
 import { entersTappedByReplacement } from "../../../entersTapped";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import { getDefinition } from "../../../index";
 
 const spiderWoman = getDefinition("bc9b2a76-3cce-4fd0-a4ef-932747cb11b2");

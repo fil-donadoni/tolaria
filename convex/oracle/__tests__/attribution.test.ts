@@ -40,7 +40,7 @@ import {
     type Rule,
 } from "../rule";
 import type { Attribution, OracleCard } from "../types";
-import { oracleCard } from "./fixtures";
+import { oracleCard } from "./oracle.fixture";
 
 /** The attribution of the card's ONE refused line. */
 function attributionOf(card: Partial<OracleCard>): Attribution | undefined {

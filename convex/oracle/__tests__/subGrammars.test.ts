@@ -25,7 +25,7 @@ import {
     targetRequirementFromDescriptor,
 } from "../grammar/shared/targetFilter";
 import { zoneRefRule } from "../grammar/shared/zoneRef";
-import { parseContext } from "./fixtures";
+import { parseContext } from "./oracle.fixture";
 
 const ctx = parseContext();
 

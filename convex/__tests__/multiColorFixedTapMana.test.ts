@@ -32,7 +32,11 @@ import {
     untapForPayment,
     autoTapForPayment,
 } from "../game";
-import { makeInstance, makePlayer, makeState } from "../cards/__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../cards/__tests__/setup.helper";
 import { getCardByName } from "../cards";
 import { preloadDefinitions } from "../cards/registry";
 import { getFixedMultiColorTapManaAbility } from "../gre/constants";
@@ -44,7 +48,7 @@ import {
     runMutation,
     gameStateSeed,
     type Handler,
-} from "./gameMutationHarness";
+} from "./gameMutationHarness.fixture";
 
 const GAME_ID = "game-1" as Id<"games">;
 

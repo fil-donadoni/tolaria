@@ -31,11 +31,11 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import { resolveTopOfStack, type GameState } from "../../gre/state";
 import { compileCard } from "../compile";
 import { sortKeys } from "../gates";
-import { oracleCard } from "./fixtures";
+import { oracleCard } from "./oracle.fixture";
 
 function sorcery(name: string, manaCost: string, oracleText: string) {
     return oracleCard({

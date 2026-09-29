@@ -51,30 +51,30 @@ import {
     forest,
     swamp,
     grizzlyBears,
-} from "../../cards/sets/lea";
-import { snuffOut } from "../../cards/sets/mmq/black";
-import { gush } from "../../cards/sets/mmq/blue";
-import { thaliaGuardianOfThraben } from "../../cards/sets/dka/white";
-import { planarGate } from "../../cards/sets/leg/colorless";
-import { ragavanNimblePilferer } from "../../cards/sets/mh2/red";
-import { exaltedAngel } from "../../cards/sets/ons/white";
-import { gloom } from "../../cards/sets/lea/black";
+} from "../../cards/sets/lea/index.cards";
+import { snuffOut } from "../../cards/sets/mmq/black.cards";
+import { gush } from "../../cards/sets/mmq/blue.cards";
+import { thaliaGuardianOfThraben } from "../../cards/sets/dka/white.cards";
+import { planarGate } from "../../cards/sets/leg/colorless.cards";
+import { ragavanNimblePilferer } from "../../cards/sets/mh2/red.cards";
+import { exaltedAngel } from "../../cards/sets/ons/white.cards";
+import { gloom } from "../../cards/sets/lea/black.cards";
 import { MORPH_CAST_ALT_COST_ID } from "../morph";
 import { getLegalActions } from "../rules";
-import { drought } from "../../cards/sets/ice/white";
-import { onceUponATime } from "../../cards/sets/eld/green";
+import { drought } from "../../cards/sets/ice/white.cards";
+import { onceUponATime } from "../../cards/sets/eld/green.cards";
 import {
     makeMutationCtx,
     gameStateSeed,
     runMutation,
     type Handler,
-} from "../../__tests__/gameMutationHarness";
+} from "../../__tests__/gameMutationHarness.fixture";
 import type { Id } from "../../_generated/dataModel";
 import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 
 const returnTwoIslands: AlternativeCost = {
     id: "return-two-islands",
@@ -604,7 +604,7 @@ describe("Alternative cost — the no-target commit branch pays the board-wide s
 // own local variables together downstream (e.g. a consumer reading the alt
 // cost's own leg instead of the composed `castSac`). This project HAS a
 // harness for driving a registered `game.ts` mutation's own `_handler`
-// (`gameMutationHarness.ts`, issue #944) — `retrace.test.ts`'s
+// (`gameMutationHarness.fixture.ts`, issue #944) — `retrace.test.ts`'s
 // "announceCast — a NON-targeting retrace cast…" block already drives this
 // SAME no-target alt-cost/additional-cost branch through it. The three
 // scenarios below drive `announceCast` (and, for the parked case,

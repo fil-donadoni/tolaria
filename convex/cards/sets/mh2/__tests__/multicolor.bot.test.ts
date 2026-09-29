@@ -23,7 +23,11 @@
 // See `docs/findings/2391-bot-skips-loyalty-abilities.md`.
 
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import { cardValue } from "../../../../gre/evaluate";
 import { isCreature } from "../../../../gre/constants";
 import { checkStateBasedActions } from "../../../../gre/sba";

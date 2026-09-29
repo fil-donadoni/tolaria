@@ -22,12 +22,12 @@ import {
     type StackItem,
 } from "../state";
 import { getDefinition } from "../../cards";
-import { grizzlyBears } from "../../cards/sets/lea";
+import { grizzlyBears } from "../../cards/sets/lea/index.cards";
 import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 
 /** Mirror of activateAbility's mana-covered immediate-commit path for an
  *  ability with `cost.discardAtRandom` and a target. Includes the up-front

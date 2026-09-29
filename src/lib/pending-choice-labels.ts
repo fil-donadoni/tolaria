@@ -160,7 +160,7 @@ export function pendingChoiceRoutesToBattlefield(
  *  pick — a mana leg never sets it) — Echo
  *  (`convex/cards/abilities/echo.ts`), cumulative upkeep
  *  (`convex/cards/abilities/cumulativeUpkeep.ts`), and "unless you pay
- *  {mana}" triggers (Sunken City, `convex/cards/sets/drk/blue.ts`) all land
+ *  {mana}" triggers (Sunken City, `convex/cards/sets/drk/blue.cards.ts`) all land
  *  here. Critically, there is NO auto-tap for these: the Pay button only
  *  enables once the mana pool already covers the cost
  *  (`usePendingChoicePrimaryAction.ts`'s `mayPayCanAfford` gate), so the

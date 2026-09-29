@@ -24,7 +24,7 @@ import {
     SLOTS,
 } from "../grammar/router";
 import { ok, rule } from "../rule";
-import { oracleCard, parseContext } from "./fixtures";
+import { oracleCard, parseContext } from "./oracle.fixture";
 
 describe("keyword line slot (CR 702.1)", () => {
     const ctx = parseContext();

@@ -29,15 +29,19 @@
 //
 // Same harness discipline as `combatDeclarationCap.test.ts`: this project has
 // no convex-test harness, so the seam is a stub `MutationCtx` driving the
-// registered mutation's own `_handler` (`gameMutationHarness.ts`) — never a
+// registered mutation's own `_handler` (`gameMutationHarness.fixture.ts`) — never a
 // reimplementation of the mutation body, which would share the bug's premise.
 
 import { describe, it, expect } from "vitest";
 import { setDamageAssignment } from "../game";
-import { makeInstance, makePlayer, makeState } from "../cards/__tests__/setup";
-import { twoHeadedGiantOfForiys, hillGiant } from "../cards/sets/lea/red";
-import { grizzlyBears } from "../cards/sets/lea/green";
-import { lilianaOfTheVeil } from "../cards/sets/isd/black";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../cards/__tests__/setup.helper";
+import { twoHeadedGiantOfForiys, hillGiant } from "../cards/sets/lea/red.cards";
+import { grizzlyBears } from "../cards/sets/lea/green.cards";
+import { lilianaOfTheVeil } from "../cards/sets/isd/black.cards";
 import type { GameState, CardInstanceState } from "../gre/state";
 import type { Id } from "../_generated/dataModel";
 import {
@@ -45,7 +49,7 @@ import {
     runMutation,
     gameStateSeed,
     type Handler,
-} from "./gameMutationHarness";
+} from "./gameMutationHarness.fixture";
 
 const GAME_ID = "game-1" as Id<"games">;
 

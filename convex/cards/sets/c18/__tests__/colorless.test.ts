@@ -15,8 +15,12 @@
 // inv/__tests__/colorless.test.ts).
 
 import { describe, expect, it } from "vitest";
-import { resolveTrigger } from "./helpers";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import { resolveTrigger } from "./set.helper";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import { getDefinition } from "../../../index";
 
 const covetedJewel = getDefinition("f83ed433-fae3-4fa5-acad-bb8a5b535ce3");

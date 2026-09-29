@@ -10,7 +10,11 @@
 // ultimate actually reaches it.
 
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import { resolveTopOfStack, getPlayer } from "../../../../gre/state";
 import type { GameState, StackItem } from "../../../../gre/state";
 import { projectPublicState } from "../../../../gameProjections";

@@ -1,6 +1,6 @@
-// Per-card behavior tests for red cards in `convex/cards/sets/exo/red.ts`
+// Per-card behavior tests for red cards in `convex/cards/sets/exo/red.cards.ts`
 // (Exodus, split by colour per ADR 0043). Fixtures from
-// `convex/cards/__tests__/setup.ts`.
+// `convex/cards/__tests__/setup.helper.ts`.
 import { describe, it, expect } from "vitest";
 import {
     getPlayer,
@@ -13,7 +13,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import { getDefinition } from "../../../index";
 
 const priceOfProgress = getDefinition("8e5283db-3e22-4862-9d95-56d03d09c2ae");

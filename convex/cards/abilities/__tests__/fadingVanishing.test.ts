@@ -20,7 +20,11 @@ import type {
     StackItem,
 } from "../../../gre/state";
 import type { CardDefinition, GameEvent, PermanentView } from "../../types";
-import { makeInstance, makePlayer, makeState } from "../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../__tests__/setup.helper";
 
 const UPKEEP = (activePlayerId: string): StackItem["triggerEvent"] =>
     ({

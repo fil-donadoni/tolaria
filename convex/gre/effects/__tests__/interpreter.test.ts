@@ -20,13 +20,16 @@ import {
     getDefinition,
     registerTokenDefinition,
 } from "../../../cards";
-import { blizzard, snowCoveredForest } from "../../../cards/sets/ice";
+import {
+    blizzard,
+    snowCoveredForest,
+} from "../../../cards/sets/ice/index.cards";
 import {
     makeInstance,
     makePlayer,
     makeState,
     pushSpell,
-} from "../../../cards/__tests__/setup";
+} from "../../../cards/__tests__/setup.helper";
 import {
     resolveTopOfStack,
     moveCard,
@@ -96,9 +99,9 @@ import type { GameEvent } from "../../../cards/types";
 import { backupTrigger } from "../../../cards/abilities/triggers/backupTrigger";
 import { counterAddedTrigger } from "../../../cards/abilities/triggers/counterAddedTrigger";
 import { spellCastTrigger } from "../../../cards/abilities/triggers/spellCastTrigger";
-import { flight } from "../../../cards/sets/lea/blue";
+import { flight } from "../../../cards/sets/lea/blue.cards";
 import { continuousEffectsInLayer } from "../../continuousEffects";
-import { grantedKeywordRows } from "../../../cards/__tests__/setup";
+import { grantedKeywordRows } from "../../../cards/__tests__/setup.helper";
 
 /** Registers a synthetic DSL-only sorcery under a stable test id. Uses the
  *  registry's injection seam (`registerTokenDefinition` — idempotent
@@ -1019,7 +1022,7 @@ describe("Effect Script construct: forEach { set: 'graveyard' }, simultaneous (C
     // ONE call — every reanimated permanent stages onto the battlefield (and
     // a reanimated Aura resolves its CR 303.4c host) BEFORE any of them runs
     // its grant-application / ETB pass. This is Replenish's REAL shape
-    // (`convex/cards/sets/uds/white.ts`). New construct combination → full
+    // (`convex/cards/sets/uds/white.cards.ts`). New construct combination → full
     // test regime (interpreter unit + wire-format assertion).
     const ENCH_ID = "test-effects-simul-enchantment";
     registerTokenDefinition({

@@ -13,9 +13,9 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "@convex/cards/__tests__/setup";
-import { grizzlyBears } from "@convex/cards/sets/lea/green";
-import { hullBreach } from "@convex/cards/sets/pls/multicolor";
+} from "@convex/cards/__tests__/setup.helper";
+import { grizzlyBears } from "@convex/cards/sets/lea/green.cards";
+import { hullBreach } from "@convex/cards/sets/pls/multicolor.cards";
 import type { CardInstance, Player } from "~/types/game";
 import { buildTriggerStateView } from "../card-utils";
 import {

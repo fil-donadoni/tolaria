@@ -4,7 +4,11 @@
 // the shared `IS_NONBASIC_LAND` predicate (`convex/cards/types.ts`).
 
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import {
     abilitiesSuppressed,
     getActivatedManaAbility,

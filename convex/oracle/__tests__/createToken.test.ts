@@ -22,7 +22,7 @@ import { describe, expect, it } from "vitest";
 import { compileCard } from "../compile";
 import { sentenceRule } from "../grammar/shared/effectClause";
 import type { OracleCard } from "../types";
-import { oracleCard, parseContext } from "./fixtures";
+import { oracleCard, parseContext } from "./oracle.fixture";
 
 /** Compile a card and return its definition, failing the test if refused. */
 function compiled(card: OracleCard) {

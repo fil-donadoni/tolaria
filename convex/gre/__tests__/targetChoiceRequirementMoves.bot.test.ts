@@ -23,15 +23,15 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import {
     withTemporaryDefinition,
     withTemporaryDefinitionAsync,
 } from "../../cards";
 import type { CardDefinition } from "../../cards/types";
-import { standardBearer } from "../../cards/sets/apc/white";
-import { grizzlyBears } from "../../cards/sets/lea/green";
-import { mountain } from "../../cards/sets/lea/colorless";
+import { standardBearer } from "../../cards/sets/apc/white.cards";
+import { grizzlyBears } from "../../cards/sets/lea/green.cards";
+import { mountain } from "../../cards/sets/lea/colorless.cards";
 import { enumerateMoves, type Move } from "../moves";
 import { announceCast, confirmTargets, selectTargets } from "../../game";
 import {
@@ -39,7 +39,7 @@ import {
     makeMutationCtx,
     runMutation,
     type Handler,
-} from "../../__tests__/gameMutationHarness";
+} from "../../__tests__/gameMutationHarness.fixture";
 import type { Id } from "../../_generated/dataModel";
 import type { GameState } from "../state";
 

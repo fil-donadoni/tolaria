@@ -8,19 +8,19 @@
 
 import { describe, it, expect } from "vitest";
 import { getStackModeLines } from "../card-utils";
-import { visionCharm } from "@convex/cards/sets/vis/blue";
-import { deceiverExarch } from "@convex/cards/sets/nph/blue";
-import { grizzlyBears } from "@convex/cards/sets/lea/green";
+import { visionCharm } from "@convex/cards/sets/vis/blue.cards";
+import { deceiverExarch } from "@convex/cards/sets/nph/blue.cards";
+import { grizzlyBears } from "@convex/cards/sets/lea/green.cards";
 import { raiseTriggerTargetSelection } from "@convex/gre/rules";
 import { applyPendingChoiceSubmit } from "@convex/gre/pendingChoiceSubmit";
-import { blackLotus } from "@convex/cards/sets/lea/colorless";
+import { blackLotus } from "@convex/cards/sets/lea/colorless.cards";
 import { projectPublicState } from "@convex/gameProjections";
 import {
     makeInstance,
     makePlayer,
     makeState,
     pushSpell,
-} from "@convex/cards/__tests__/setup";
+} from "@convex/cards/__tests__/setup.helper";
 
 /** Vision Charm on the stack with mode "mill" locked in at cast, as
  *  `announceCast` would leave it (chosenModeId + announced target). */

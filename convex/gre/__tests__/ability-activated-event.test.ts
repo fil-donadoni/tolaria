@@ -27,12 +27,16 @@ import {
     type StackItem,
 } from "../state";
 import { getDefinition } from "../../cards";
-import { hauntingWind, triskelion, feldonsCane } from "../../cards/sets/atq";
+import {
+    hauntingWind,
+    triskelion,
+    feldonsCane,
+} from "../../cards/sets/atq/index.cards";
 import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 
 /** Mirrors game.ts `activateAbility` immediate-commit branch for a stack
  *  ability: pay the non-mana cost (tap / removeCounter), push the ability on

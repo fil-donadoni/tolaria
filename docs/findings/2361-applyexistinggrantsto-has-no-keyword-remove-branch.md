@@ -17,7 +17,7 @@ battlefield therefore keeps the keyword the source is supposed to strip, and no
 **Evidence.** `convex/gre/state.ts:7361-7556` is the branch chain; the last
 branch is `effect.kind === "ability-loss"` at `convex/gre/state.ts:7538`, and
 the loop ends without a `keyword-remove` arm. The only shipped producer today is
-Gravity Sphere (`convex/cards/sets/leg/red.ts:18`, "All creatures lose flying").
+Gravity Sphere (`convex/cards/sets/leg/red.cards.ts:18`, "All creatures lose flying").
 Measured on this branch: with a Gravity Sphere already on the battlefield, a
 Serra Angel entering through `applyExistingGrantsTo` keeps `staticAbilities`
 `["flying","vigilance"]` with `removedKeywords` undefined — flying is never

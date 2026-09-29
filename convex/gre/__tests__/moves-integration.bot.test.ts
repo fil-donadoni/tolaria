@@ -13,7 +13,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import type { CardInstanceState } from "../state";
 import {
     getBasicLandMana,
@@ -36,8 +36,12 @@ import {
     validateMinimumBlockers,
     getRequiredBlockerAssignments,
 } from "../combat";
-import { goblinWarDrums, merseine, seasinger } from "../../cards/sets/fem";
-import { trollOfKhazadDum } from "../../cards/sets/ltr/black";
+import {
+    goblinWarDrums,
+    merseine,
+    seasinger,
+} from "../../cards/sets/fem/index.cards";
+import { trollOfKhazadDum } from "../../cards/sets/ltr/black.cards";
 import { untapStep } from "../phases";
 import { applyLandManaReplacement } from "../constants";
 import { activateAbilityOnState, resolveAbilityManaCost } from "../../game";

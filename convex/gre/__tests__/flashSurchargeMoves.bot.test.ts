@@ -25,12 +25,12 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import { enumerateMoves, type Move } from "../moves";
 import { getLegalActions } from "../rules";
 import type { GameState } from "../state";
-import { rout } from "../../cards/sets/inv/white";
-import { ghituFire } from "../../cards/sets/inv/red";
+import { rout } from "../../cards/sets/inv/white.cards";
+import { ghituFire } from "../../cards/sets/inv/red.cards";
 
 const PLAINS = getCardByName("Plains").id;
 const MOUNTAIN = getCardByName("Mountain").id;

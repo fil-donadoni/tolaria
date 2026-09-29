@@ -29,10 +29,10 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
-import { naturalOrder } from "../../cards/sets/vis";
-import { soulExchange } from "../../cards/sets/fem";
-import { grizzlyBears } from "../../cards/sets/lea";
+} from "../../cards/__tests__/setup.helper";
+import { naturalOrder } from "../../cards/sets/vis/index.cards";
+import { soulExchange } from "../../cards/sets/fem/index.cards";
+import { grizzlyBears } from "../../cards/sets/lea/index.cards";
 
 describe("announceCast — unpayable additional-cost sacrifice (issue #944)", () => {
     it("Natural Order: assertLegalAction rejects cleanly with no green creature (no crash)", () => {

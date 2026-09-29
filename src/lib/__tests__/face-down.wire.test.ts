@@ -6,7 +6,7 @@
 // `faceDownBy`), and a hand-built view would prove nothing about whether the
 // projection actually carries them.
 import { describe, it, expect } from "vitest";
-import { makeState, makeInstance } from "@convex/cards/__tests__/setup";
+import { makeState, makeInstance } from "@convex/cards/__tests__/setup.helper";
 import { getCardByName, FACE_DOWN_CARD_ID } from "@convex/cards";
 import { turnFaceDown } from "@convex/gre/faceDown";
 import { exileFaceDownCard, moveCard } from "@convex/gre/state";

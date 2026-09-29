@@ -54,7 +54,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 
 /** The two fixed seats every generated scenario uses: p1 casts, p2 is the
  *  opponent / target owner. CR 102.2 — a two-player game. */

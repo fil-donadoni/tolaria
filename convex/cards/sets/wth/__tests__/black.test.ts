@@ -7,7 +7,7 @@ import {
     makeState,
     pushSpell,
     submitChoice,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import {
     type CardInstanceState,
     type GameState,
@@ -21,7 +21,7 @@ const doomsday = getDefinition("5b3c6d87-9383-450b-bba5-33435b6b0d08");
 const FOREST = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b").id;
 
 /** Submit the head pending choice (the per-set shim every colour-split test
- *  file carries — see `sets/atq/__tests__/helpers.ts`). */
+ *  file carries — see `sets/atq/__tests__/set.helper.ts`). */
 const card = (id: string): CardInstanceState =>
     makeInstance(FOREST, {
         id,

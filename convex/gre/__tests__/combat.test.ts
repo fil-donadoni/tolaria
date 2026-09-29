@@ -15,7 +15,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import {
     grizzlyBears,
     hypnoticSpecter,
@@ -25,16 +25,16 @@ import {
     juggernaut,
     savannahLions,
     wallOfSwords,
-} from "../../cards/sets/lea";
-import { mightstone } from "../../cards/sets/atq/colorless";
-import { duelingGrounds as duelingGroundsDef } from "../../cards/sets/inv/multicolor";
-import { cavernsOfDespair as cavernsOfDespairDef } from "../../cards/sets/leg/red";
-import { lure } from "../../cards/sets/lea/green";
-import { goblinMutant } from "../../cards/sets/ice/red";
+} from "../../cards/sets/lea/index.cards";
+import { mightstone } from "../../cards/sets/atq/colorless.cards";
+import { duelingGrounds as duelingGroundsDef } from "../../cards/sets/inv/multicolor.cards";
+import { cavernsOfDespair as cavernsOfDespairDef } from "../../cards/sets/leg/red.cards";
+import { lure } from "../../cards/sets/lea/green.cards";
+import { goblinMutant } from "../../cards/sets/ice/red.cards";
 import { drainAutoPasses } from "../phases";
-import { hobble as hobbleAuraDef } from "../../cards/sets/pls/white";
+import { hobble as hobbleAuraDef } from "../../cards/sets/pls/white.cards";
 import { buildSpellContext, resolveTopOfStack } from "../state";
-import { pushSpell } from "../../cards/__tests__/setup";
+import { pushSpell } from "../../cards/__tests__/setup.helper";
 import { getEffectivePower } from "../layers";
 import { getLegalTargets, NO_TARGETING_SOURCE } from "../rules";
 

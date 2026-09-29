@@ -35,7 +35,7 @@ active card** can be documented in prose and pass every gate — precisely the
 hole Guard B exists to close (#962).
 
 **Evidence — mutation on this branch, both directions.** Inserting into
-`convex/cards/sets/vis/black.ts`, as its own paragraph above the _active_
+`convex/cards/sets/vis/black.cards.ts`, as its own paragraph above the _active_
 `vampiricTutor` def (no `#NNN`, no `out of scope`):
 
 ```
@@ -84,11 +84,11 @@ and reads as tracked.
 `#925`, `#1086`, `#1097`, `#1328` — plus `#920` in a historical
 "was `tracked-by`" note (`sos/multicolor.ts:260`, already marked UNBLOCKED):
 
-- `convex/cards/sets/clb/red.ts:14` — `// tracked-by: #925` (CLOSED)
-- `convex/cards/sets/inv/white.ts:20,1079,1089,1134,1142,1148,1153,1171,1179,1188`
+- `convex/cards/sets/clb/red.cards.ts:14` — `// tracked-by: #925` (CLOSED)
+- `convex/cards/sets/inv/white.cards.ts:20,1079,1089,1134,1142,1148,1153,1171,1179,1188`
   and `inv/multicolor.ts:3650` — `tracked-by: #1086` (CLOSED)
-- `convex/cards/sets/inv/multicolor.ts:547` — `tracked-by: #1097` (CLOSED)
-- `convex/cards/sets/pls/white.ts:860,894` — `tracked-by: #1328` (CLOSED)
+- `convex/cards/sets/inv/multicolor.cards.ts:547` — `tracked-by: #1097` (CLOSED)
+- `convex/cards/sets/pls/white.cards.ts:860,894` — `tracked-by: #1328` (CLOSED)
 
 `check:stubs` is green on all of them. Mutation confirming the mechanism:
 rewriting `vis/black.ts`'s `// tracked-by: #1975` to a nonexistent

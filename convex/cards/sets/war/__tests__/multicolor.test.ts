@@ -12,7 +12,11 @@
 //   • −3 bounce-up-to-one + draw — reused Ops (moveZone + draw).
 
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import { resolveTopOfStack } from "../../../../gre/state";
 import type { CardInstanceState, GameState } from "../../../../gre/state";
 import {

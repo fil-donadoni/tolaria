@@ -13,7 +13,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import { checkGameOverSBA } from "../sba";
 
 // Synthetic permanent carrying a "you don't lose the game from life-zero"

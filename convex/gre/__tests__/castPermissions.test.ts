@@ -10,15 +10,15 @@
 // permission ceasing the instant its source leaves the battlefield.
 
 import { describe, expect, it } from "vitest";
-import { aluren } from "../../cards/sets/tmp/green";
-import { grizzlyBears } from "../../cards/sets/lea/green";
-import { lightningBolt, shivanDragon } from "../../cards/sets/lea/red";
-import { forest } from "../../cards/sets/lea/colorless";
+import { aluren } from "../../cards/sets/tmp/green.cards";
+import { grizzlyBears } from "../../cards/sets/lea/green.cards";
+import { lightningBolt, shivanDragon } from "../../cards/sets/lea/red.cards";
+import { forest } from "../../cards/sets/lea/colorless.cards";
 import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import { withTemporaryDefinition } from "../../cards/registry";
 import { getAllCards } from "../../cards";
 import type { CardDefinition } from "../../cards/types";

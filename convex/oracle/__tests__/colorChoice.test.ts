@@ -27,7 +27,7 @@
 import { describe, expect, it } from "vitest";
 import { compileCard } from "../compile";
 import { sortKeys } from "../gates";
-import { oracleCard } from "./fixtures";
+import { oracleCard } from "./oracle.fixture";
 
 /** The five modes a colour pick offers (CR 105.1 — never colourless). */
 const COLOURS: ReadonlyArray<[string, string]> = [

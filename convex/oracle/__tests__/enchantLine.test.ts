@@ -23,7 +23,7 @@ import { routeLine } from "../grammar/router";
 import { keywordLineSlot } from "../grammar/slots/keywordLine";
 import { lowerCard } from "../lower";
 import { readTypeLine } from "../typeLine";
-import { oracleCard, parseContext } from "./fixtures";
+import { oracleCard, parseContext } from "./oracle.fixture";
 
 const AURA = "Enchantment — Aura";
 

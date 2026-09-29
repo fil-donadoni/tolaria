@@ -22,18 +22,21 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
-import { coalitionFlag, standardBearer } from "../../cards/sets/apc/white";
-import { grizzlyBears } from "../../cards/sets/lea/green";
-import { lightningBolt, stoneRain } from "../../cards/sets/lea/red";
-import { mountain } from "../../cards/sets/lea/colorless";
+} from "../../cards/__tests__/setup.helper";
+import {
+    coalitionFlag,
+    standardBearer,
+} from "../../cards/sets/apc/white.cards";
+import { grizzlyBears } from "../../cards/sets/lea/green.cards";
+import { lightningBolt, stoneRain } from "../../cards/sets/lea/red.cards";
+import { mountain } from "../../cards/sets/lea/colorless.cards";
 import { activateAbility, announceCast, selectTarget } from "../../game";
 import {
     gameStateSeed,
     makeMutationCtx,
     runMutation,
     type Handler,
-} from "../../__tests__/gameMutationHarness";
+} from "../../__tests__/gameMutationHarness.fixture";
 import type { Id } from "../../_generated/dataModel";
 import { beginApplyingStaticEffects, type GameState } from "../state";
 import { projectPublicState } from "../../gameProjections";

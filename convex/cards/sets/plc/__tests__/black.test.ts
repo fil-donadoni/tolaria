@@ -1,4 +1,4 @@
-// Per-card behavior tests for black cards in `convex/cards/sets/plc/black.ts`
+// Per-card behavior tests for black cards in `convex/cards/sets/plc/black.cards.ts`
 // (Planar Chaos, split by colour per ADR 0043). Damnation is a `resolve()`
 // card (NOT DSL-migratable — see the justification comment on the card
 // itself): it mirrors Wrath of God's "destroy all creatures, can't be
@@ -12,7 +12,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { getDefinition } from "../../../index";
 

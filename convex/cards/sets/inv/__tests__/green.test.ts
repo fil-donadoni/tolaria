@@ -1,4 +1,4 @@
-// Per-card behavior tests for INV green cards (`convex/cards/sets/inv/green.ts`).
+// Per-card behavior tests for INV green cards (`convex/cards/sets/inv/green.cards.ts`).
 //
 // First-printing audit (ADR 0041): some cards exercised below were first
 // implemented as part of this INV tranche but are REPRINTS — their
@@ -17,7 +17,7 @@ import {
     makeState,
     pushSpell,
     submitChoice,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import { getDefinition, registerTokenDefinition } from "../../..";
 import {
     beginApplyingStaticEffects,
@@ -48,7 +48,7 @@ import { STATIC_EFFECT_CTX } from "../../../../gre/layers";
 import { isGuardedAgainst } from "../../../../gre/permanentGuard";
 import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
 import { getEffectivePower } from "../../../../gre/layers";
-import { resolveTrigger } from "./helpers";
+import { resolveTrigger } from "./set.helper";
 
 const blurredMongoose = getDefinition("4b073e3f-6a6f-495a-ab16-39d906b660f1");
 const canopySurge = getDefinition("2e19d68e-7554-4627-a316-beb1f75fa494");

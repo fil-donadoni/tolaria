@@ -23,16 +23,16 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../cards/__tests__/setup";
-import { grizzlyBears } from "../cards/sets/lea/green";
-import { squeesRevenge } from "../cards/sets/apc/multicolor";
+} from "../cards/__tests__/setup.helper";
+import { grizzlyBears } from "../cards/sets/lea/green.cards";
+import { squeesRevenge } from "../cards/sets/apc/multicolor.cards";
 import type { Id } from "../_generated/dataModel";
 import {
     makeMutationCtx,
     runMutation,
     gameStateSeed,
     type Handler,
-} from "./gameMutationHarness";
+} from "./gameMutationHarness.fixture";
 
 const GAME_ID = "game-1" as Id<"games">;
 

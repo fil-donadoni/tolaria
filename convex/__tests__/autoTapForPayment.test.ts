@@ -42,7 +42,11 @@ import {
     type PendingCast,
     type PendingActivation,
 } from "../gre/state";
-import { makeInstance, makePlayer, makeState } from "../cards/__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../cards/__tests__/setup.helper";
 
 const MOUNTAIN = "eace2c85-976c-425e-9800-5a6ccbd91b56"; // {T}: R
 const FIREBALL = "b7623c00-144b-4a8f-9c6c-f5e9e4f65ece"; // {X}{R}

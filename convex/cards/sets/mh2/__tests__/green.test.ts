@@ -17,7 +17,11 @@ import {
 import { collectTriggers } from "../../../../gre/triggers";
 import { raiseTriggerTargetSelection } from "../../../../gre/rules";
 import { finalizeTargetSelection } from "../../../../game";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import { projectPublicState } from "../../../../gameProjections";
 import { getDefinition } from "../../../index";
 

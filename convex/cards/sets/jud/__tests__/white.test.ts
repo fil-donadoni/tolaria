@@ -27,7 +27,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import { getDefinition } from "../../../index";
 
 const solitaryConfinement = getDefinition(

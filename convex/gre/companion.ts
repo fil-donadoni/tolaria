@@ -102,7 +102,7 @@ export const permanentHasActivatedAbility: CompanionCondition =
     everyPermanent(hasActivatedAbility);
 
 /** Lutri, the Spellchaser's card id (IKO). NOT imported by the card
- *  definition (`convex/cards/sets/iko/multicolor.ts`) — that would form a
+ *  definition (`convex/cards/sets/iko/multicolor.cards.ts`) — that would form a
  *  real import CYCLE (multicolor.ts → this module → `../cards` registry →
  *  multicolor.ts, since `selectCompanion` below needs `tryGetDefinition`),
  *  and a circular-load object-literal property snapshot can freeze at
@@ -116,7 +116,7 @@ export const LUTRI_ID = "fb1189c9-7842-466e-8238-1e02677d8494";
 
 /** Lurrus of the Dream-Den's card id (IKO). Same anti-cycle rationale as
  *  `LUTRI_ID` above — NOT imported by the card definition
- *  (`convex/cards/sets/iko/multicolor.ts`); the card file keeps its own
+ *  (`convex/cards/sets/iko/multicolor.cards.ts`); the card file keeps its own
  *  literal copy of this SAME id, cross-referenced and kept in sync by
  *  `companion.test.ts`'s `selectCompanion` tests (round-tripping the real
  *  `lurrus` `CardDefinition` through the sideboard→slot selector) plus the
@@ -125,7 +125,7 @@ export const LURRUS_ID = "5ad36fb2-c44e-4085-ba0d-54277841ad3a";
 
 /** Zirda, the Dawnwaker's card id (IKO). Same anti-cycle rationale as
  *  `LUTRI_ID` above — NOT imported by the card definition
- *  (`convex/cards/sets/iko/multicolor.ts`); the card file keeps its own
+ *  (`convex/cards/sets/iko/multicolor.cards.ts`); the card file keeps its own
  *  literal copy of this SAME id, cross-referenced and kept in sync by
  *  `companion.test.ts`'s `selectCompanion` tests plus the Mechanics Registry
  *  catalogue sweep. */

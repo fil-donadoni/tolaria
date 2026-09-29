@@ -11,7 +11,7 @@ import {
 } from "../normalize";
 import { readManaCost, tokenizeManaSymbols } from "../manaCost";
 import { readTypeLine } from "../typeLine";
-import { oracleCard } from "./fixtures";
+import { oracleCard } from "./oracle.fixture";
 
 describe("reminder text (CR 207.2a)", () => {
     it("removes a parenthesised summary and keeps the rules text", () => {

@@ -23,7 +23,11 @@ import { selectRolloutMove } from "../../../../gre/search";
 import { cloneGameState } from "../../../../gre/clone";
 import { refreshExpectedInput } from "../../../../gre/expectedInput";
 import type { GameState, PendingTarget } from "../../../../gre/state";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import { getDefinition } from "../../../index";
 
 const TWIDDLE = getDefinition("576e811f-26a3-4a7c-bd13-3b1cc3e184eb").id;

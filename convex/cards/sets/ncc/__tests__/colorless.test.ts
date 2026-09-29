@@ -1,5 +1,5 @@
 // NCC — per-card behavior tests for colourless cards in
-// `convex/cards/sets/ncc/colorless.ts` (set split by colour, ADR 0043).
+// `convex/cards/sets/ncc/colorless.cards.ts` (set split by colour, ADR 0043).
 //
 // Currency Converter (issue #791) is the concrete vehicle for the per-source
 // exile linkage capability (`linkExileToSource` / `getCardsExiledWith`, CR 111)
@@ -14,8 +14,8 @@ import {
     makePlayer,
     makeState,
     resolveActivated,
-} from "../../../__tests__/setup";
-import { resolveTrigger, answerChoice } from "./helpers";
+} from "../../../__tests__/setup.helper";
+import { resolveTrigger, answerChoice } from "./set.helper";
 import {
     resolveTopOfStack,
     removePermanentTo,

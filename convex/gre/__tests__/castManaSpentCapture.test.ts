@@ -13,8 +13,8 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
-import { pentadPrism } from "../../cards/sets/5dn/colorless";
+} from "../../cards/__tests__/setup.helper";
+import { pentadPrism } from "../../cards/sets/5dn/colorless.cards";
 
 /**
  * Cast-time mana-spent capture across EVERY spell cast-commit path

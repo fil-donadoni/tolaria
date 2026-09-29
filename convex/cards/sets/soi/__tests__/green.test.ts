@@ -21,7 +21,11 @@ import {
 } from "../../../../gre/state";
 import { collectTriggers } from "../../../../gre/triggers";
 import { projectPublicState } from "../../../../gameProjections";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 
 const tirelessTracker = getDefinition("ee8e9928-d9b2-4570-adb8-44b34115decd");
 

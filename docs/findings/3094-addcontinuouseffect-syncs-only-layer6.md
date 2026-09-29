@@ -20,7 +20,7 @@ Every other writer in that file pairs the two (`convex/gre/state.ts:8031-8032`,
 documents why: CR 613.1 recomputes over one board, so both halves run together.
 
 Unreachable today — the only caller is Dread Wight
-(`convex/cards/sets/ice/black.ts:704,715`) and both of its entries are layer 6.
+(`convex/cards/sets/ice/black.cards.ts:704,715`) and both of its entries are layer 6.
 It is, however, the one seam that can produce the state PRD #2064 S5 leaves
 unguarded: a permanent whose derived `controllerId` (CR 613.1b) disagrees with
 the battlefield array it sits in. The wire now carries the derived controller

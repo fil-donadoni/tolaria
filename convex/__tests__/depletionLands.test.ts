@@ -37,7 +37,11 @@ import {
     tapUntap,
     untapForPayment,
 } from "../game";
-import { makeInstance, makePlayer, makeState } from "../cards/__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../cards/__tests__/setup.helper";
 import { applyPlayLand } from "../gre/playLand";
 import { projectPublicState } from "../gameProjections";
 import {
@@ -53,8 +57,8 @@ import {
     remoteFarm,
     sandstoneNeedle,
     saprazzanSkerry,
-} from "../cards/sets/mmq/colorless";
-import { titaniaProtectorOfArgoth } from "../cards/sets/c14/green";
+} from "../cards/sets/mmq/colorless.cards";
+import { titaniaProtectorOfArgoth } from "../cards/sets/c14/green.cards";
 import type { CardDefinition } from "../cards/types";
 import type { CardInstanceState, GameState, PlayerState } from "../gre/state";
 import type { Id } from "../_generated/dataModel";
@@ -63,7 +67,7 @@ import {
     runMutation,
     gameStateSeed,
     type Handler,
-} from "./gameMutationHarness";
+} from "./gameMutationHarness.fixture";
 
 const GAME_ID = "game-1" as Id<"games">;
 const DEPLETION = "depletion";

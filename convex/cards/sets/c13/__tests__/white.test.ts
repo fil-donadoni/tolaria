@@ -1,4 +1,4 @@
-// C13 — per-card behaviour tests for white cards in `convex/cards/sets/c13/white.ts`
+// C13 — per-card behaviour tests for white cards in `convex/cards/sets/c13/white.cards.ts`
 // (set split by colour, ADR 0043).
 //
 // Unexpectedly Absent (issue #3242): "just beneath the top X cards" is the
@@ -12,7 +12,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { getDefinition } from "../../../index";
 

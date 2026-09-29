@@ -9,7 +9,7 @@
 // #700's loyalty-removal path + 0-loyalty SBA (reused, not re-implemented).
 
 import { describe, it, expect } from "vitest";
-import { makePlayer, makeState } from "../../cards/__tests__/setup";
+import { makePlayer, makeState } from "../../cards/__tests__/setup.helper";
 import type { CardInstanceState, GameState } from "../state";
 import type { CardType } from "../../cards/types";
 import { applyAllCombatDamage, buildAutoDamageAssignments } from "../phases";

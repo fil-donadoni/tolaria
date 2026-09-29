@@ -24,7 +24,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import {
     getPlayer,
     removeFromZone,
@@ -46,8 +46,8 @@ import {
     consumeReboundCastChoice,
     openReboundWindowCard,
 } from "../rebound";
-import { ephemerate } from "../../cards/sets/mh1/white";
-import { grizzlyBears } from "../../cards/sets/lea";
+import { ephemerate } from "../../cards/sets/mh1/white.cards";
+import { grizzlyBears } from "../../cards/sets/lea/index.cards";
 
 /** Advances `state` one step at a time (the raw engine transition, bypassing
  *  priority-pass gating — the same helper used across `phases.test.ts`)

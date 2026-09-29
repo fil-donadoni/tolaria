@@ -19,7 +19,7 @@ import {
     volcanicIsland3ed,
     circleOfProtectionBlack3ed,
     mountain3ed,
-} from "..";
+} from "../index.cards";
 import {
     getDefinition,
     getPrintingsForCard,
@@ -29,7 +29,7 @@ import {
 import { setName } from "../../../setMeta";
 import { validateDeck } from "../../../../formats";
 import type { ValidatableDeck } from "../../../../formats";
-import * as revised from "..";
+import * as revised from "../index.cards";
 import type { CardPrint } from "../../../types";
 
 const airElemental = getDefinition("69c3b2a3-0daa-4d42-832d-fcdfda6555ea");

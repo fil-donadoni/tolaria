@@ -1,4 +1,4 @@
-// Per-card behavior tests for green cards in `convex/cards/sets/arn/green.ts`
+// Per-card behavior tests for green cards in `convex/cards/sets/arn/green.cards.ts`
 // (ARN, split by colour per ADR 0043). Each non-trivial card gets a describe
 // block citing the CR section it exercises; assertions check external behavior
 // only (effective P/T, damage, zone, combat outcome).
@@ -11,7 +11,7 @@ import {
     makeState,
     pushSpell,
     resolveActivated,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import { projectPublicState } from "../../../../gameProjections";
 import { raiseTriggerTargetSelection } from "../../../../gre/rules";
 import { finalizeTargetSelection } from "../../../../game";
@@ -34,7 +34,7 @@ import {
     spendablePoolForSpell,
     type StackItem,
 } from "../../../../gre/state";
-import { resolveTrigger, answerChoice, upkeepEvent } from "./helpers";
+import { resolveTrigger, answerChoice, upkeepEvent } from "./set.helper";
 import { continuousEffectsInLayer } from "../../../../gre/continuousEffects";
 import { getDefinition } from "../../../index";
 

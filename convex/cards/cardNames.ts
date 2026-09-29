@@ -23,7 +23,7 @@
 // One module rather than a clause in each half's own file, because the
 // CONSUMERS are shared: the client's name-card candidate list, the server's
 // submit gate (`pendingChoiceSubmit.ts`), and Meddling Mage's own match
-// (`sets/pls/multicolor.ts`) must agree, and a server that accepts a name the
+// (`sets/pls/multicolor.cards.ts`) must agree, and a server that accepts a name the
 // button never offered is the exact bug PR #3302 review finding 4 shipped.
 
 import type { CardDefinition } from "./types";

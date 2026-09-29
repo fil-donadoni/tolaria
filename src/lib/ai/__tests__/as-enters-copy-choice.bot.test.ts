@@ -35,13 +35,13 @@
 // hand-built OwedChoice, so a field dropped in the projection shows up as red.
 
 import { describe, expect, it } from "vitest";
-import { clone } from "@convex/cards/sets/lea/blue";
-import { grizzlyBears, serraAngel } from "@convex/cards/sets/lea";
+import { clone } from "@convex/cards/sets/lea/blue.cards";
+import { grizzlyBears, serraAngel } from "@convex/cards/sets/lea/index.cards";
 import {
     makeInstance,
     makePlayer,
     makeState,
-} from "@convex/cards/__tests__/setup";
+} from "@convex/cards/__tests__/setup.helper";
 import { projectPublicState } from "@convex/gameProjections";
 import type { CardInstanceState, GameState } from "@convex/gre";
 import { putReanimatedSetOnBattlefield } from "@convex/gre/state";

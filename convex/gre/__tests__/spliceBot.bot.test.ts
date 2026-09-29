@@ -36,10 +36,10 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import { getCardByName } from "../../cards";
-import { lavaSpike, throughTheBreach } from "../../cards/sets/chk/red";
-import { grizzlyBears } from "../../cards/sets/lea";
+import { lavaSpike, throughTheBreach } from "../../cards/sets/chk/red.cards";
+import { grizzlyBears } from "../../cards/sets/lea/index.cards";
 
 const MOUNTAIN = getCardByName("Mountain").id;
 const SPIKE = "spike";

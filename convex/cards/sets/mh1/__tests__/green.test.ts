@@ -8,7 +8,11 @@
 // layer reads, `projectPublicState`), never a hand-built view.
 
 import { describe, expect, it } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import type { CardInstanceState, GameState } from "../../../../gre/state";
 import {
     beginApplyingStaticEffects,

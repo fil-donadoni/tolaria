@@ -10,11 +10,15 @@
 // interaction (kill the Sculler in response to its own ETB and the card stays
 // exiled indefinitely) that is this card's defining play pattern.
 //
-// Fixtures from `convex/cards/__tests__/setup.ts`. The `choice` Op suspends
+// Fixtures from `convex/cards/__tests__/setup.helper.ts`. The `choice` Op suspends
 // mid-resolution for the controller's pick, so the DSL smoke sweep skips this
 // script — these tests are the coverage.
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import { getDefinition, getCardByName } from "../../..";
 import { projectPublicState } from "../../../../gameProjections";
 import {

@@ -14,7 +14,11 @@ import {
 import { collectTriggers } from "../../../../gre/triggers";
 import { effectiveMaxHandSize } from "../../../../gre/phases";
 import { projectPublicState } from "../../../../gameProjections";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import { getDefinition } from "../../..";
 import { tapUntap } from "../../../../game";
 import type { Id } from "../../../../_generated/dataModel";
@@ -23,7 +27,7 @@ import {
     runMutation,
     gameStateSeed,
     type Handler,
-} from "../../../../__tests__/gameMutationHarness";
+} from "../../../../__tests__/gameMutationHarness.fixture";
 
 // The registry seam (ADR 0046): the card is reached by ID through
 // `makeInstance`, never by importing its definition out of the set module.

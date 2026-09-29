@@ -25,7 +25,7 @@ import {
     makeInstance,
     makeState,
     pushSpell,
-} from "@convex/cards/__tests__/setup";
+} from "@convex/cards/__tests__/setup.helper";
 import { projectPublicState } from "@convex/gameProjections";
 import {
     getLegalTargets,
@@ -52,8 +52,8 @@ import {
     solRing,
     forest,
     stoneRain,
-} from "@convex/cards/sets/lea";
-import { sorinLordOfInnistrad } from "@convex/cards/sets/dka/multicolor";
+} from "@convex/cards/sets/lea/index.cards";
+import { sorinLordOfInnistrad } from "@convex/cards/sets/dka/multicolor.cards";
 
 const CHOOSER = "p1";
 

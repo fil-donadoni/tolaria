@@ -14,7 +14,7 @@
 //      drops would die here);
 //   2. game.ts — the REGISTERED `getPublicState` query's own `_handler`,
 //      driven against a stub ctx (this repo's established seam for `game.ts`
-//      integration coverage — see `gameMutationHarness.ts`), once per SEAT;
+//      integration coverage — see `gameMutationHarness.fixture.ts`), once per SEAT;
 //   3. UI — `buildLibraryPileModel` (`src/lib/library-knowledge.ts`), which is
 //      the reducer the pile ACTUALLY calls: `player-library.tsx:127` is its
 //      one and only non-test caller, and its `faceUp` flag is what decides
@@ -39,13 +39,17 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "@convex/cards/__tests__/setup";
-import { goblinSpy } from "@convex/cards/sets/inv/red";
-import { mountain, forest, island } from "@convex/cards/sets/lea/colorless";
+} from "@convex/cards/__tests__/setup.helper";
+import { goblinSpy } from "@convex/cards/sets/inv/red.cards";
+import {
+    mountain,
+    forest,
+    island,
+} from "@convex/cards/sets/lea/colorless.cards";
 import {
     makeMutationCtx,
     gameStateSeed,
-} from "@convex/__tests__/gameMutationHarness";
+} from "@convex/__tests__/gameMutationHarness.fixture";
 import { buildLibraryPileModel } from "~/lib/library-knowledge";
 import type { PublicLibrary } from "~/types/game";
 

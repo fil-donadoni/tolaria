@@ -11,16 +11,16 @@ import {
     makePlayer,
     makeInstance,
     pushSpell,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import { emitSpellCastEvent, resolveTopOfStack } from "../state";
 import { advancePhase } from "../phases";
 import { compactState, expandState } from "../serialize";
 import { projectPublicState } from "../../gameProjections";
 import { registerTokenDefinition } from "../../cards";
 import type { CardDefinition } from "../../cards/types";
-import { lightningBolt, grizzlyBears } from "../../cards/sets/lea";
-import { brainFreeze, tendrilsOfAgony } from "../../cards/sets/scg";
-import { grapeshot, emptyTheWarrens } from "../../cards/sets/tsp";
+import { lightningBolt, grizzlyBears } from "../../cards/sets/lea/index.cards";
+import { brainFreeze, tendrilsOfAgony } from "../../cards/sets/scg/index.cards";
+import { grapeshot, emptyTheWarrens } from "../../cards/sets/tsp/index.cards";
 import type { GameState, StackItem } from "../state";
 
 // A player-scoped shroud fixture (CR 702.18 / 115.4) — mirrors the pattern

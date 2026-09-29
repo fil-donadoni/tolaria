@@ -9,8 +9,12 @@
 
 import { describe, it, expect } from "vitest";
 import { untapForPayment, cancelCast, tapSourceIntoPayment } from "../game";
-import { makeInstance, makePlayer, makeState } from "../cards/__tests__/setup";
-import { arenaOfGlory } from "../cards/sets/mh3/colorless";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../cards/__tests__/setup.helper";
+import { arenaOfGlory } from "../cards/sets/mh3/colorless.cards";
 import type { GameState } from "../gre/state";
 import type { Id } from "../_generated/dataModel";
 import {
@@ -18,7 +22,7 @@ import {
     runMutation,
     gameStateSeed,
     type Handler,
-} from "./gameMutationHarness";
+} from "./gameMutationHarness.fixture";
 
 const GAME_ID = "game-1" as Id<"games">;
 

@@ -1,4 +1,4 @@
-// Per-card behaviour tests for APC red cards (`convex/cards/sets/apc/red.ts`).
+// Per-card behaviour tests for APC red cards (`convex/cards/sets/apc/red.cards.ts`).
 //
 // Bloodfire Infusion is hand-tail (issue #4319). Its two card-level claims no
 // Op test makes:
@@ -13,7 +13,11 @@
 // registry id — never by name.
 import { describe, expect, it } from "vitest";
 import { getDefinition } from "../../../index";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import { activateAbilityOnState } from "../../../../game";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { checkStateBasedActions } from "../../../../gre/sba";

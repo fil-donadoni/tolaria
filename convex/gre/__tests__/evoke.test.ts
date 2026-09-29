@@ -47,16 +47,20 @@ import {
     makeState,
     pushSpell,
     resolveTriggerOrder,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import { registerTokenDefinition } from "../../cards";
 import type { CardDefinition } from "../../cards/types";
-import { grief } from "../../cards/sets/mh2/black";
-import { solitude } from "../../cards/sets/mh2/white";
-import { darkRitual } from "../../cards/sets/lea/black";
-import { forest, grizzlyBears, serraAngel } from "../../cards/sets/lea";
-import { counterspell } from "../../cards/sets/lea/blue";
-import { regrowth } from "../../cards/sets/lea/green";
-import { vibrance } from "../../cards/sets/ecl/multicolor";
+import { grief } from "../../cards/sets/mh2/black.cards";
+import { solitude } from "../../cards/sets/mh2/white.cards";
+import { darkRitual } from "../../cards/sets/lea/black.cards";
+import {
+    forest,
+    grizzlyBears,
+    serraAngel,
+} from "../../cards/sets/lea/index.cards";
+import { counterspell } from "../../cards/sets/lea/blue.cards";
+import { regrowth } from "../../cards/sets/lea/green.cards";
+import { vibrance } from "../../cards/sets/ecl/multicolor.cards";
 import { enteredTrigger } from "../../cards/abilities/triggers/enteredTrigger";
 
 function handCard(cardId: string, id: string, controllerId = "p1") {

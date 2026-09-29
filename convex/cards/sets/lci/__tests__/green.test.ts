@@ -17,7 +17,11 @@
 import { describe, it, expect } from "vitest";
 import { MAP_TOKEN_SPEC } from "../../../abilities/tokens/mapToken";
 import { getDefinition } from "../../../index";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import {
     resolveTopOfStack,
     normalizeManaCost,

@@ -22,13 +22,13 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import { getEffectivePower } from "../../gre/layers";
 import { getPlayer, resolveTopOfStack } from "../../gre/state";
 import { compileCard } from "../compile";
 import { sentenceRule } from "../grammar/shared/effectClause";
 import { sortKeys } from "../gates";
-import { oracleCard, parseContext } from "./fixtures";
+import { oracleCard, parseContext } from "./oracle.fixture";
 
 function sorcery(name: string, manaCost: string, oracleText: string) {
     return oracleCard({

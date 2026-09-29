@@ -50,7 +50,7 @@
 //      the review found because none of them drives the cast path.
 //
 // Fixture: synthetic test-only cards (Carnage Interpreter itself, CLU 26,
-// `cards/sets/clu/multicolor.ts`, was a commented-out stub when this test was
+// `cards/sets/clu/multicolor.cards.ts`, was a commented-out stub when this test was
 // written — its `{1}{B/R}{B/R}` guild-hybrid cost has since become declarable
 // and payable, and the card shipped with issue #1927; the synthetic fixture is
 // kept because it isolates the hand-size condition from the real card's other
@@ -76,7 +76,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import { getMinimumBlockers, validateMinimumBlockers } from "../combat";
 import { projectPublicState } from "../../gameProjections";
 import { announceCast } from "../../game";

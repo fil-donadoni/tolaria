@@ -50,16 +50,16 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
-import { springheartNantuko } from "../../cards/sets/mh3/green";
-import { grizzlyBears } from "../../cards/sets/lea";
-import { unstableMutation } from "../../cards/sets/arn/blue";
-import { counterspell } from "../../cards/sets/lea/blue";
-import { conversion } from "../../cards/sets/lea/white";
-import { opalescence } from "../../cards/sets/uds/white";
-import { exclude } from "../../cards/sets/inv/blue";
+} from "../../cards/__tests__/setup.helper";
+import { springheartNantuko } from "../../cards/sets/mh3/green.cards";
+import { grizzlyBears } from "../../cards/sets/lea/index.cards";
+import { unstableMutation } from "../../cards/sets/arn/blue.cards";
+import { counterspell } from "../../cards/sets/lea/blue.cards";
+import { conversion } from "../../cards/sets/lea/white.cards";
+import { opalescence } from "../../cards/sets/uds/white.cards";
+import { exclude } from "../../cards/sets/inv/blue.cards";
 import { getLegalTargets } from "../rules";
-import { mountain as mountainCard } from "../../cards/sets/lea/colorless";
+import { mountain as mountainCard } from "../../cards/sets/lea/colorless.cards";
 import {
     applyBestowCharacteristics,
     hasLegalBestowHost,
@@ -70,7 +70,7 @@ import { declaresLayer2to5StaticEffect } from "../../cards/registry";
 import {
     grantedKeywordRows,
     wireCharacteristicsOf,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 
 const NANTUKO = springheartNantuko.id;
 const BEARS = grizzlyBears.id;

@@ -14,7 +14,7 @@
 // hand-built stack item would not exercise it.
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, cleanup } from "@testing-library/react";
-import { makeState, makeInstance } from "@convex/cards/__tests__/setup";
+import { makeState, makeInstance } from "@convex/cards/__tests__/setup.helper";
 import { getCardByName } from "@convex/cards";
 import { turnFaceDown } from "@convex/gre/faceDown";
 import { projectPublicState } from "@convex/gameProjections";

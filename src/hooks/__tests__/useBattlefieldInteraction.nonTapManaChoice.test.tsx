@@ -59,7 +59,7 @@ vi.mock("@convex/_generated/api", () => {
 // A Vivi-Ornitier-shaped definition: a free ("{0}:"), non-tap, non-stack,
 // once-per-turn, controller-turn-only mana ability whose `getManaChoices`
 // enumerates every {U}/{R} split summing to the source's power — the SAME
-// shape `convex/cards/sets/fin/multicolor.ts` ships, deterministic here
+// shape `convex/cards/sets/fin/multicolor.cards.ts` ships, deterministic here
 // since the mock never touches the real effective-power layer pipeline.
 const VIVI_DEF = {
     id: "vivi-def",

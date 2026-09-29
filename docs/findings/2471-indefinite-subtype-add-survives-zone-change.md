@@ -26,8 +26,8 @@ write). `removePermanentTo` (`convex/gre/state.ts:8489-8560`) likewise does not
 touch it. The source-departure sweep at `convex/gre/state.ts:6818-6826` prunes
 grants by SOURCE id, which by design never fires for the `"indefinite"`
 sentinel. Shipped call sites that can reach the bad state:
-`convex/cards/sets/bro/colorless.ts:129` and
-`convex/cards/sets/mh3/white.ts:93`.
+`convex/cards/sets/bro/colorless.cards.ts:129` and
+`convex/cards/sets/mh3/white.cards.ts:93`.
 
 **Why it may not deserve its own issue.** Both shipped call sites add a
 CREATURE subtype whose only consumers are tribal-ish reads, so the visible

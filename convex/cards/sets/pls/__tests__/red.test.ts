@@ -25,7 +25,7 @@ import {
     resolveTriggerOrder,
     resolveActivated,
     submitChoice,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import {
     resolveTopOfStack,
     tapPermanent,
@@ -80,7 +80,7 @@ const ephemerate = getDefinition("2da5f3f8-5eef-498f-ba2c-2f3fbc3745aa");
  *  throughout the catalogue's per-set test files (tmp/colorless.test.ts). */
 /** Collects triggers off pendingEvents and pushes the first one matching
  *  `triggeredAbilityId` onto the stack (the `collectAndStack` shim,
- *  `ice/__tests__/helpers.ts`). */
+ *  `ice/__tests__/set.helper.ts`). */
 function collectAndStack(
     state: GameState,
     triggeredAbilityId: string

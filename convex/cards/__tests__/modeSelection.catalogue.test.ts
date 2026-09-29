@@ -20,7 +20,7 @@ import { describe, expect, it } from "vitest";
 import type { CardDefinition, ModeSelection } from "../types";
 import { getAllCards } from "../index";
 import { maxModeCount } from "../../gre/modeSelection";
-import { hullBreach } from "../sets/pls/multicolor";
+import { hullBreach } from "../sets/pls/multicolor.cards";
 
 type ModeListShape = {
     staticEffects?: unknown[];

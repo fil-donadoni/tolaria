@@ -21,7 +21,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "@convex/cards/__tests__/setup";
+} from "@convex/cards/__tests__/setup.helper";
 import type { GameState } from "@convex/gre/state";
 import { getPlayer, resolveTopOfStack } from "@convex/gre/state";
 import { getEffectivePower, getEffectiveToughness } from "@convex/gre/layers";

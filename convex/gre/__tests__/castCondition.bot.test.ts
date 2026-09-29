@@ -13,13 +13,13 @@
 
 import { describe, it, expect } from "vitest";
 import { enumerateMoves } from "../moves";
-import { blizzard, snowCoveredForest } from "../../cards/sets/ice";
-import { mountain } from "../../cards/sets/lea";
+import { blizzard, snowCoveredForest } from "../../cards/sets/ice/index.cards";
+import { mountain } from "../../cards/sets/lea/index.cards";
 import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import type { CardInstanceState } from "../state";
 
 function land(cardId: string, id: string): CardInstanceState {

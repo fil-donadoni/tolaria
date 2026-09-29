@@ -32,12 +32,12 @@ import {
 import { buildAutoTapSources, solveAutoTap } from "../autoTap";
 import { compactState, expandState } from "../serialize";
 import { projectPublicState } from "../../gameProjections";
-import { makeInstance, makeState } from "../../cards/__tests__/setup";
+import { makeInstance, makeState } from "../../cards/__tests__/setup.helper";
 import { getCardByName } from "../../cards";
-import { lightningBolt } from "../../cards/sets/lea";
+import { lightningBolt } from "../../cards/sets/lea/index.cards";
 import { getInstanceManaCost } from "../../cards/registry";
 import { manaGateBattlefields } from "../constants";
-import { northStar } from "../../cards/sets/leg";
+import { northStar } from "../../cards/sets/leg/index.cards";
 
 const NORTH_STAR_ABILITY = "north-star-any-type-mana";
 

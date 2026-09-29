@@ -5,7 +5,7 @@
 // seams the choice must survive.
 
 import { describe, it, expect } from "vitest";
-import { makeState, makePlayer } from "../../cards/__tests__/setup";
+import { makeState, makePlayer } from "../../cards/__tests__/setup.helper";
 import type { GameState, StackItem } from "../state";
 import { placeTriggersOnStack, TRIGGER_BATCH_STACK_ID } from "../triggers";
 import { applyPendingChoiceSubmit } from "../pendingChoiceSubmit";

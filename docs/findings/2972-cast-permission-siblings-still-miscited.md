@@ -20,7 +20,7 @@ qualities as though it had flash…") together with `601.3d`. Sites:
 `gre/phases.ts`, `gre/effects/interpreter.ts`, `gre/effects/validate.ts`,
 `gre/effects/scenarioGenerator.ts`, `cards/mechanicsRegistry.ts` (the Op's own
 `cr:` field), `cards/castRestrictions.ts`, `cards/types.ts`,
-`cards/sets/war/multicolor.ts` and the two test files. Already drafted twice
+`cards/sets/war/multicolor.cards.ts` and the two test files. Already drafted twice
 from the other direction: `2146-flash-grant-cites-601-3e.md` and
 `2392-teferi-flash-grant-cites-601-3e.md` — this is the same family, now the
 ONLY remaining `601.3e` block of any size.

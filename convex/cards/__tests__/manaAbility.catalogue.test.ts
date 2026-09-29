@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { getAllCards } from "../index";
 import { getManaTapOptionsDetailed } from "../../gre/constants";
 import { resolveEntersWithCounters } from "../entersWith";
-import { makeInstance, makePlayer, makeState } from "./setup";
+import { makeInstance, makePlayer, makeState } from "./setup.helper";
 import type { ActivatedAbility, ManaCost } from "../types";
 
 /**

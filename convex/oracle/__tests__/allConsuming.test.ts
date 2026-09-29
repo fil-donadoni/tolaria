@@ -23,7 +23,7 @@ import { getAllCards } from "../../cards/catalogue";
 import { compileCard } from "../compile";
 import { goldOracleCard } from "../gold";
 import type { OracleCard } from "../types";
-import { oracleCard } from "./fixtures";
+import { oracleCard } from "./oracle.fixture";
 
 /**
  * A clause no v0 slot can read — verified as such below, not assumed.

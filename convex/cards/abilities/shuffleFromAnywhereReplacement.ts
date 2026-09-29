@@ -1,16 +1,16 @@
 // `shuffleFromAnywhereReplacement` — declarative template for CR 614.1a's
 // self-referential "If [this card] would be put into a graveyard from
 // anywhere, ... shuffle it into its owner's library instead" clause (issue
-// #2106; the shape Blightsteel Colossus, `sets/mbs/colorless.ts`, uses).
+// #2106; the shape Blightsteel Colossus, `sets/mbs/colorless.cards.ts`, uses).
 //
 // This is a TRUE replacement effect ("would... instead", CR 614.1a): the
 // object never occupies the graveyard, not even momentarily — no
 // `CREATURE_DIED` (or `CARD_DISCARDED`/`CARD_MILLED`/`CARD_PUT_INTO_GRAVEYARD`)
 // may fire for it, so an unrelated "whenever a creature dies" permanent
-// (Soul Net, `sets/lea/colorless.ts`) never spuriously sees it. This is
+// (Soul Net, `sets/lea/colorless.cards.ts`) never spuriously sees it. This is
 // DISTINCT FROM a card worded "When [this] IS put into a graveyard from
 // anywhere, shuffle it into its owner's library" (no "would"/"instead") —
-// that phrasing (Worldspine Wurm `sets/rtr/green.ts`, Emrakul, the Aeons
+// that phrasing (Worldspine Wurm `sets/rtr/green.cards.ts`, Emrakul, the Aeons
 // Torn `sets/roe/colorless.ts`) is a genuine CR 603 triggered ability: the
 // object legitimately DOES die/enter the graveyard first (CR 700.4), so
 // other permanents correctly observe that departure — modeling THOSE as a

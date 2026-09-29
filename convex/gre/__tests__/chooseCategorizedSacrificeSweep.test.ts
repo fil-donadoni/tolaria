@@ -22,7 +22,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import { resolveTopOfStack, type GameState } from "../state";
 import { compactState, expandState } from "../serialize";
 import { applyPendingChoiceSubmit } from "../pendingChoiceSubmit";

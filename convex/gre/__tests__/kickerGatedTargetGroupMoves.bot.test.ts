@@ -26,22 +26,22 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import { enumerateMoves, type Move } from "../moves";
 import {
     withTemporaryDefinition,
     withTemporaryDefinitionAsync,
 } from "../../cards";
 import type { CardDefinition } from "../../cards/types";
-import { ankhOfMishra, plains } from "../../cards/sets/lea/colorless";
-import { grizzlyBears } from "../../cards/sets/lea/green";
+import { ankhOfMishra, plains } from "../../cards/sets/lea/colorless.cards";
+import { grizzlyBears } from "../../cards/sets/lea/green.cards";
 import { announceCast, selectTargets, tapForPayment } from "../../game";
 import {
     gameStateSeed,
     makeMutationCtx,
     runMutation,
     type Handler,
-} from "../../__tests__/gameMutationHarness";
+} from "../../__tests__/gameMutationHarness.fixture";
 import type { Id } from "../../_generated/dataModel";
 import type { GameState } from "../state";
 

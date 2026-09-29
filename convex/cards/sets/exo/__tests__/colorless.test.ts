@@ -1,14 +1,18 @@
 // Per-card behavior tests for colorless cards in
-// `convex/cards/sets/exo/colorless.ts` (Exodus, split by colour per ADR
+// `convex/cards/sets/exo/colorless.cards.ts` (Exodus, split by colour per ADR
 // 0043). City of Traitors' triggered ability is a `resolve()` card (the
 // card's own comment documents why the `sacrifice` Op can't express a
 // "sacrifice $source directly" effect) — the full `resolve()` regime applies
 // (`.claude/rules/gre-development.md` § Card testing convention). Fixtures
-// from `convex/cards/__tests__/setup.ts`. Vintage Cube free tranche (issue
+// from `convex/cards/__tests__/setup.helper.ts`. Vintage Cube free tranche (issue
 // #675, ADR 0041).
 
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import { applyPlayLand } from "../../../../gre/playLand";
 import {
     processPendingActionTriggers,

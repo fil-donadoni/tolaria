@@ -15,7 +15,7 @@ import {
     makePlayer,
     makeState,
     resolveActivated,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import { projectPublicState } from "../../../../gameProjections";
 import { getDefinition } from "../../../index";
 

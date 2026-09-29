@@ -45,7 +45,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../../cards/__tests__/setup";
+} from "../../../cards/__tests__/setup.helper";
 
 /** Solitude (mh2/white) — the reference Evoke Incarnation. */
 const SOLITUDE_ID = "47a6234f-309f-4e03-9263-66da48b57153";

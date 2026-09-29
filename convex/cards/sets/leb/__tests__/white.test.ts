@@ -1,4 +1,4 @@
-// Per-card behavior tests for white cards in `convex/cards/sets/leb/white.ts`.
+// Per-card behavior tests for white cards in `convex/cards/sets/leb/white.cards.ts`.
 //
 // Circle of Protection: Black is a Beta-original {1}{W} enchantment (ADR 0014),
 // so its behavior test lives in the white module's parallel test file.
@@ -6,7 +6,11 @@
 import { describe, it, expect } from "vitest";
 import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
 import { resolveTopOfStack } from "../../../../gre/state";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import { getDefinition } from "../../../index";
 
 const circleOfProtectionBlack = getDefinition(

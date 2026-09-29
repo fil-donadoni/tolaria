@@ -52,7 +52,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 
 /** An artifact in hand costing {3} — the shape Urza's +2 discounts. */
 const ARTIFACT_ID = "test-cost-reduction-artifact";

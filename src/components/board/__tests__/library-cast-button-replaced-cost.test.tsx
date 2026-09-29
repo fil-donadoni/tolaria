@@ -24,9 +24,9 @@ import {
     PendingChoiceBufferContext,
     type PendingChoiceBuffer,
 } from "~/hooks/usePendingChoiceBuffer";
-import { gush } from "@convex/cards/sets/mmq/blue";
-import { fireball } from "@convex/cards/sets/lea/red";
-import { island } from "@convex/cards/sets/lea/colorless";
+import { gush } from "@convex/cards/sets/mmq/blue.cards";
+import { fireball } from "@convex/cards/sets/lea/red.cards";
+import { island } from "@convex/cards/sets/lea/colorless.cards";
 
 const noopBuffer: PendingChoiceBuffer = {
     buffer: [],

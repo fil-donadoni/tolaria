@@ -12,9 +12,9 @@ import type {
     SpellMode,
 } from "@convex/cards/types";
 import { withTemporaryDefinitionAsync } from "@convex/cards";
-import { hullBreach } from "@convex/cards/sets/pls/multicolor";
-import { grizzlyBears } from "@convex/cards/sets/lea/green";
-import { hillGiant } from "@convex/cards/sets/lea/red";
+import { hullBreach } from "@convex/cards/sets/pls/multicolor.cards";
+import { grizzlyBears } from "@convex/cards/sets/lea/green.cards";
+import { hillGiant } from "@convex/cards/sets/lea/red.cards";
 import { announceCast, selectTargets } from "@convex/game";
 import { projectPublicState } from "@convex/gameProjections";
 import type { GameState } from "@convex/gre/state";
@@ -23,13 +23,13 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "@convex/cards/__tests__/setup";
+} from "@convex/cards/__tests__/setup.helper";
 import {
     gameStateSeed,
     makeMutationCtx,
     runMutation,
     type Handler,
-} from "@convex/__tests__/gameMutationHarness";
+} from "@convex/__tests__/gameMutationHarness.fixture";
 import {
     formatModeTargetProvenance,
     modeTargetProvenance,

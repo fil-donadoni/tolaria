@@ -22,7 +22,11 @@ import {
     isSacrificeSelectionComplete,
 } from "../../../../gre/sacrificeChoice";
 import { getLegalActions } from "../../../../gre/rules";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import { getDefinition } from "../../../index";
 
 const gush = getDefinition("e755bbef-bf34-49c0-ae72-d70e3599de52");

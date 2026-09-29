@@ -1,4 +1,4 @@
-// Per-card behavior tests for DMU green cards (`convex/cards/sets/dmu/green.ts`).
+// Per-card behavior tests for DMU green cards (`convex/cards/sets/dmu/green.cards.ts`).
 // Tear Asunder exercises the Kicker capability (CR 702.33): the kick widens the
 // target set (artifact/enchantment → any nonland permanent) via
 // `kickedTargetRequirement`; here we assert the resolution exiles the target.
@@ -9,7 +9,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import { resolveTopOfStack, type StackItem } from "../../../../gre/state";
 import { getDefinition } from "../../../index";
 

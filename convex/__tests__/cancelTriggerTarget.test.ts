@@ -8,7 +8,7 @@
 import { describe, it, expect } from "vitest";
 import { cancelTriggerTargetSelection } from "../game";
 import type { GameState, StackItem } from "../gre/state";
-import { makePlayer, makeState } from "../cards/__tests__/setup";
+import { makePlayer, makeState } from "../cards/__tests__/setup.helper";
 
 function triggerItem(id: string): StackItem {
     return {

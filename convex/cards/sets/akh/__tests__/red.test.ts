@@ -1,12 +1,12 @@
 // AKH — red. One describe per card (ADR 0043); fixtures from
-// `convex/cards/__tests__/setup.ts`.
+// `convex/cards/__tests__/setup.helper.ts`.
 
 import { describe, it, expect } from "vitest";
 import { finalizeConfirmAttackers } from "../../../../game";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { projectPublicState } from "../../../../gameProjections";
 import type { GameState } from "../../../../gre/state";
-import { makeInstance, makeState } from "../../../__tests__/setup";
+import { makeInstance, makeState } from "../../../__tests__/setup.helper";
 
 const GLORYBRINGER = "3277ad99-5682-4baa-b106-de15721876a6";
 /** Grizzly Bears — 2/2 vanilla, the non-Dragon victim. */

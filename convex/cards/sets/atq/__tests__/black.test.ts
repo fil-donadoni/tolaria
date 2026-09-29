@@ -1,8 +1,8 @@
 // Antiquities (ATQ) — per-card behavior tests for black cards in
-// `convex/cards/sets/atq/black.ts` (set split by colour, ADR 0043). Each
+// `convex/cards/sets/atq/black.cards.ts` (set split by colour, ADR 0043). Each
 // non-trivial card gets a describe block citing the CR section it exercises;
 // assertions check external behavior only. Shared test shims live in
-// `./helpers`; fixtures in `convex/cards/__tests__/setup.ts`.
+// `./helpers`; fixtures in `convex/cards/__tests__/setup.helper.ts`.
 
 import { describe, it, expect } from "vitest";
 import {
@@ -10,7 +10,7 @@ import {
     makePlayer,
     makeState,
     resolveActivated,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import { hasManaAbility } from "../../../../gre/constants";
 import { projectPublicState } from "../../../../gameProjections";
 import {
@@ -30,7 +30,7 @@ import {
     artifactTappedEvent,
     fireTrigger,
     vanilla,
-} from "./helpers";
+} from "./set.helper";
 import { getDefinition } from "../../../index";
 const amuletOfKroog = getDefinition("b094f8dd-0184-41a2-9767-e848a6e4eac1");
 const yawgmothDemon = getDefinition("04bbd231-0d5f-4cbf-92a7-10d2c5c4b82c");

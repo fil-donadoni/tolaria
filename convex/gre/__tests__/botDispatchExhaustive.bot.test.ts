@@ -11,7 +11,7 @@ import { describe, expect, it } from "vitest";
 import { applyMoveInSearch } from "../search";
 import type { Move } from "../moves";
 import type { PendingChoice } from "../state";
-import { makeState } from "../../cards/__tests__/setup";
+import { makeState } from "../../cards/__tests__/setup.helper";
 import { moveCardRefs } from "../ai/interchangeable";
 import { isProbeEligibleMove } from "../ai/dominance";
 import { heuristicChoicePrior } from "../ai/choicePriors";

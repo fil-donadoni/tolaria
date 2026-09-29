@@ -26,12 +26,12 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import { enumerateCastMoves } from "../moves";
 import { libraryTopCastLifeCost } from "../rules";
 import { splitCastAltCostId } from "../splitCast";
 import type { GameState } from "../state";
-import { bonecrusherGiant } from "../../cards/sets/eld/red";
+import { bonecrusherGiant } from "../../cards/sets/eld/red.cards";
 
 const STAND_DELIVER = getCardByName("Stand // Deliver");
 const PLAINS = getCardByName("Plains").id;

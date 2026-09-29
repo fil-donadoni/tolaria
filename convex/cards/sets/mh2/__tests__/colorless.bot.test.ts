@@ -10,7 +10,7 @@
 
 import { describe, it, expect } from "vitest";
 import { planManaPayment } from "../../../../gre/moves";
-import { sagaBoard, tickChapter } from "./urzasSagaFixtures";
+import { sagaBoard, tickChapter } from "./urzasSagaFixtures.fixture";
 
 describe('chapter I — indefinite "{T}: Add {C}" grant (CR 611.2c / 605.1a, #1880)', () => {
     it("makes an otherwise-unpayable {1} spell payable through the REAL payment planner", () => {

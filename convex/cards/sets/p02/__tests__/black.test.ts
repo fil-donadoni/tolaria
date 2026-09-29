@@ -1,9 +1,13 @@
-// Per-card behavior tests for black cards in `convex/cards/sets/p02/black.ts`
+// Per-card behavior tests for black cards in `convex/cards/sets/p02/black.cards.ts`
 // (Portal Second Age, split by colour per ADR 0043). Fixtures from
-// `convex/cards/__tests__/setup.ts`.
+// `convex/cards/__tests__/setup.helper.ts`.
 
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import {
     resolveTopOfStack,
     type CardInstanceState,

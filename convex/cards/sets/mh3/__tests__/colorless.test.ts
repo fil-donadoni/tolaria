@@ -1,5 +1,5 @@
 // MH3 — colorless (lands + colourless artifacts). One describe per card
-// (ADR 0043); fixtures from `convex/cards/__tests__/setup.ts`.
+// (ADR 0043); fixtures from `convex/cards/__tests__/setup.helper.ts`.
 
 import { describe, it, expect } from "vitest";
 import { tapSourceIntoPayment } from "../../../../game";
@@ -7,7 +7,7 @@ import { restoreExertOnUntap } from "../../../../gre/exert";
 import { resolveEntersTapped } from "../../../entersTapped";
 import { buildAutoTapSources } from "../../../../gre/autoTap";
 import { getDefinition } from "../../..";
-import { makeInstance, makeState } from "../../../__tests__/setup";
+import { makeInstance, makeState } from "../../../__tests__/setup.helper";
 
 const ARENA_OF_GLORY = "dd148edc-9e43-41aa-bb50-f912115d3e72";
 const MOUNTAIN = "eace2c85-976c-425e-9800-5a6ccbd91b56";

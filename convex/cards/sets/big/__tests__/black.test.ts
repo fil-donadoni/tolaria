@@ -9,7 +9,11 @@
 // "Ability source not on battlefield". These tests lock the from-hand targeted
 // activation end to end (both the immediate and the deferred commit paths).
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import { type GameState, resolveTopOfStack } from "../../../../gre/state";
 import type { TargetSelection } from "../../../types";
 import {

@@ -7,7 +7,7 @@ import {
     makeState,
     pushSpell,
     resolveActivated,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import { mostCommonColors } from "../../../types";
 import { projectPublicState } from "../../../../gameProjections";
 import {
@@ -64,7 +64,7 @@ const swamp = getDefinition("6176936d-72e2-4205-8871-4c5a4f1cb2d8");
 const mountain = getDefinition("eace2c85-976c-425e-9800-5a6ccbd91b56");
 const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
 
-/** Local resolveActivated shim (mirrors `inv/__tests__/helpers.ts`'s helper of
+/** Local resolveActivated shim (mirrors `inv/__tests__/set.helper.ts`'s helper of
  *  the same name) — pushes an activated ability's stack item and resolves it,
  *  for Samite Elder's `resolve()` ability. */
 describe("Lashknife Barrier ({2}{W} Enchantment — damage reduction, CR 614)", () => {

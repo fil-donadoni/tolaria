@@ -9,7 +9,11 @@ import { resolveTopOfStack } from "../../../../gre/state";
 import { collectTriggers } from "../../../../gre/triggers";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { projectPublicState } from "../../../../gameProjections";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import { getDefinition } from "../../../index";
 
 const eternalWitness = getDefinition("c7e10ca7-1e5d-4224-82cf-798a4d436d72");

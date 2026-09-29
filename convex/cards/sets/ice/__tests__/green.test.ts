@@ -9,7 +9,7 @@ import {
     lureIce,
     regenerationIce,
     wildGrowthIce,
-} from "../../ice";
+} from "../../ice/index.cards";
 import { applyLandManaReplacement } from "../../../../gre/constants";
 import { untapStep } from "../../../../gre/phases";
 import {
@@ -60,7 +60,7 @@ import {
     pushSpell,
     resolveActivated,
     submitChoice,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import type {
     CardInstanceState,
     GameState,
@@ -79,7 +79,7 @@ import {
     fireCU,
     makeLand,
     snowLand,
-} from "./helpers";
+} from "./set.helper";
 
 const balduvianBears = getDefinition("ef5297cb-e763-4871-9cd3-0e2dbcc52095");
 const fyndhornElves = getDefinition("3ba95ffa-990a-4013-98b7-5d8c0b34e9c4");

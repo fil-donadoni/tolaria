@@ -41,23 +41,23 @@ import {
     normalizeManaCost,
 } from "../state";
 import { getPlayer, type CardInstanceState, type GameState } from "../state";
-import { mountain } from "../../cards/sets/lea";
-import { gush } from "../../cards/sets/mmq/blue";
-import { figureOfDestiny } from "../../cards/sets/eve/multicolor";
-import { firebolt } from "../../cards/sets/ody/red";
-import { thaliaGuardianOfThraben } from "../../cards/sets/dka/white";
+import { mountain } from "../../cards/sets/lea/index.cards";
+import { gush } from "../../cards/sets/mmq/blue.cards";
+import { figureOfDestiny } from "../../cards/sets/eve/multicolor.cards";
+import { firebolt } from "../../cards/sets/ody/red.cards";
+import { thaliaGuardianOfThraben } from "../../cards/sets/dka/white.cards";
 import {
     makeMutationCtx,
     gameStateSeed,
     runMutation,
     type Handler,
-} from "../../__tests__/gameMutationHarness";
+} from "../../__tests__/gameMutationHarness.fixture";
 import type { Id } from "../../_generated/dataModel";
 import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 
 type AnnounceArgs = {
     gameId: Id<"games">;

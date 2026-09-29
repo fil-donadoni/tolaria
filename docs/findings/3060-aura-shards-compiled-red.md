@@ -6,7 +6,7 @@ confidence: medium
 ---
 
 **What is wrong.** `bun run oracle:behavioural` reports Aura Shards
-(`convex/cards/sets/inv/multicolor.ts`) as `compiled-but-red` —
+(`convex/cards/sets/inv/multicolor.cards.ts`) as `compiled-but-red` —
 `AssertionError: expected true to be false // Object.is equality` — where the
 issue that filed #3060 recorded 0 red. This predates the #3060 changes: it
 reproduces identically on `5a12f1c` (the tip #3060 branched from, before any

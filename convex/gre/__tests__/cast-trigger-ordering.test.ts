@@ -18,7 +18,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 
 const CONSIDER = "a211d505-4d40-4914-a9da-220770d6ddbc"; // {U} Instant — Surveil 1, draw
 const LEDGER_SHREDDER = "7ea4b5bc-18a4-45db-a56a-ab3f8bd2fb0d"; // connive on 2nd spell

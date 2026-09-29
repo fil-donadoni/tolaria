@@ -26,8 +26,14 @@ import { getLegalActions, mvFilterUsesX } from "../../gre/rules";
 import { manaValue } from "../../gre/constants";
 import type { CardDefinition, TargetRequirement } from "../types";
 import type { CardInstanceState, GameState } from "../../gre/state";
-import { plains, island, swamp, mountain, forest } from "../sets/lea/colorless";
-import { makeInstance, makePlayer, makeState, pushSpell } from "./setup";
+import {
+    plains,
+    island,
+    swamp,
+    mountain,
+    forest,
+} from "../sets/lea/colorless.cards";
+import { makeInstance, makePlayer, makeState, pushSpell } from "./setup.helper";
 
 const BASIC_BY_COLOR: Record<string, CardDefinition> = {
     W: plains,

@@ -8,7 +8,7 @@
 // `CardDefinition`, and a list like that goes stale silently: the round-1
 // version omitted `grantTemplates[]` / `triggeredGrantTemplates[]`, so Urza's
 // Saga — whose granted chapter-II ability is a documented protocol-like
-// `resolve()` (`convex/cards/sets/mh2/colorless.ts`) — rendered `DSL · 5`,
+// `resolve()` (`convex/cards/sets/mh2/colorless.cards.ts`) — rendered `DSL · 5`,
 // and it omitted the `ActivatedAbility.effect` mana closure, so 164 cards
 // (Black Lotus, Sol Ring, the five Moxen, every dual land) claimed a script
 // they do not have. Nothing goes red when that happens: the badge still

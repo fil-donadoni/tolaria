@@ -31,8 +31,8 @@ then decrements a pool the cost already emptied, and the source is untapped and
 free to tap again.
 
 Reachable today through multi-colour `manaChoices` outputs:
-`convex/cards/sets/ice/white.ts:220` (`{C:1,U:1}`) and
-`convex/cards/sets/ice/red.ts:1990` (`{R:2,G:1}`). Not introduced by issue
+`convex/cards/sets/ice/white.cards.ts:220` (`{C:1,U:1}`) and
+`convex/cards/sets/ice/red.cards.ts:1990` (`{R:2,G:1}`). Not introduced by issue
 #3263 — but that change makes the multi-colour `chosenMana` snapshot the normal
 state of every source it newly enables, so the class is worth closing rather
 than leaving to the two ICE cards.

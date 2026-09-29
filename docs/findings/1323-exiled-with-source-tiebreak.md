@@ -36,7 +36,7 @@ like-for-like reuse.
   the simplification explicitly.
 - `convex/gre/effects/interpreter.ts::resolveExiledWithSource` — the
   first-match loop with no suspend/choice path.
-- `convex/cards/sets/mh3/black.ts` (Emperor of Bones) — the only current
+- `convex/cards/sets/mh3/black.cards.ts` (Emperor of Bones) — the only current
   consumer; its own doc comment flags the same tradeoff.
 
 **Why it may not deserve its own issue.** Building genuine player-choice

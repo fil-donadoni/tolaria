@@ -33,7 +33,11 @@ import {
 import type { PendingCast, PendingTarget } from "../gre/state";
 import { projectPublicState } from "../gameProjections";
 import { compactState, expandState } from "../gre/serialize";
-import { makeInstance, makePlayer, makeState } from "../cards/__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../cards/__tests__/setup.helper";
 import { getCardByName, tryGetDefinition } from "../cards";
 import { mvOfStackItem } from "../gre/targetFilters";
 import { manaValue } from "../gre/constants";
@@ -674,7 +678,7 @@ describe("delve commit (CR 601.2g — reduce → payWith → mana)", () => {
 // PAYS, it never changes the spell's mana value. That invariant already
 // holds *by construction* today: `CardInstanceState.card` (and therefore the
 // stack item's `card`) only ever carries the slim `{ id }` reference (see
-// `makeInstance` in `cards/__tests__/setup.ts`) — mana value is always
+// `makeInstance` in `cards/__tests__/setup.helper.ts`) — mana value is always
 // re-derived from the CATALOGUE definition behind that id
 // (`tryGetDefinition`, `gre/targetFilters.ts`'s `mvOfStackItem`), never from
 // `pendingCast.manaCost` (the thing delve actually mutates down to 0 for the

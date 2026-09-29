@@ -28,9 +28,9 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../cards/__tests__/setup";
-import { soulExchange } from "../../cards/sets/fem/black";
-import { voiceOfAll } from "../../cards/sets/pls/white";
+} from "../../cards/__tests__/setup.helper";
+import { soulExchange } from "../../cards/sets/fem/black.cards";
+import { voiceOfAll } from "../../cards/sets/pls/white.cards";
 
 // --- The shared body -------------------------------------------------------
 

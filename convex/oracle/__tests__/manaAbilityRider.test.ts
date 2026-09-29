@@ -10,7 +10,7 @@
 //     together, must produce exactly the shipped shape: ONE `manaChoices`
 //     ability whose first option is the painless colourless tap and whose
 //     coloured options carry `dealsDamageToControllerOnColoredTap` (Adarkar
-//     Wastes, `cards/sets/ice/colorless.ts`). One row for a hand-written twin
+//     Wastes, `cards/sets/ice/colorless.cards.ts`). One row for a hand-written twin
 //     (Adarkar Wastes itself) and one for a corpus-only card with no
 //     hand-written definition (Caves of Koilos, APC) — the merge is a
 //     property of the two LINES, not of having a twin to compare against.
@@ -33,8 +33,8 @@ import {
     karplusanForest,
     sulfurousSprings,
     undergroundRiver,
-} from "../../cards/sets/ice/colorless";
-import { oracleCard } from "./fixtures";
+} from "../../cards/sets/ice/colorless.cards";
+import { oracleCard } from "./oracle.fixture";
 
 function land(name: string, oracleText: string, oracleId = name): OracleCard {
     return oracleCard({

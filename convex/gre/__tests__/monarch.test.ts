@@ -15,7 +15,7 @@ import {
     resolveTopOfStack,
 } from "../state";
 import { applyAllCombatDamage, advancePhase } from "../phases";
-import { makePlayer, makeState } from "../../cards/__tests__/setup";
+import { makePlayer, makeState } from "../../cards/__tests__/setup.helper";
 import { projectPublicState, projectFullState } from "../../gameProjections";
 
 function creature(

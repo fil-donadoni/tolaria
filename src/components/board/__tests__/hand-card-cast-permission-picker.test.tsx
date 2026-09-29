@@ -69,13 +69,13 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "@convex/cards/__tests__/setup";
-import { aluren } from "@convex/cards/sets/tmp/green";
-import { grizzlyBears } from "@convex/cards/sets/lea/green";
-import { shivanDragon } from "@convex/cards/sets/lea/red";
-import { ragavanNimblePilferer } from "@convex/cards/sets/mh2/red";
-import { balduvianHydra } from "@convex/cards/sets/ice/red";
-import { forest } from "@convex/cards/sets/lea/colorless";
+} from "@convex/cards/__tests__/setup.helper";
+import { aluren } from "@convex/cards/sets/tmp/green.cards";
+import { grizzlyBears } from "@convex/cards/sets/lea/green.cards";
+import { shivanDragon } from "@convex/cards/sets/lea/red.cards";
+import { ragavanNimblePilferer } from "@convex/cards/sets/mh2/red.cards";
+import { balduvianHydra } from "@convex/cards/sets/ice/red.cards";
+import { forest } from "@convex/cards/sets/lea/colorless.cards";
 
 const ALUREN_ALT_COST_ID = "cast-permission:any-player-creature-f9f346f4";
 

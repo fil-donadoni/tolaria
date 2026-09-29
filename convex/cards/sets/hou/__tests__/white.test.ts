@@ -2,7 +2,11 @@
 
 import { describe, it, expect } from "vitest";
 import type { GameState, StackItem } from "../../../../gre/state";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import {
     beginApplyingStaticEffects,
     gainLifeEmitting,

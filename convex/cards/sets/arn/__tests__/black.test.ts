@@ -1,4 +1,4 @@
-// Per-card behavior tests for black cards in `convex/cards/sets/arn/black.ts`
+// Per-card behavior tests for black cards in `convex/cards/sets/arn/black.cards.ts`
 // (ARN, split by colour per ADR 0043). Each non-trivial card gets a describe
 // block citing the CR section it exercises; assertions check external behavior
 // only (effective P/T, damage, zone, combat outcome).
@@ -10,7 +10,7 @@ import {
     makeState,
     pushSpell,
     resolveActivated,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import { projectPublicState } from "../../../../gameProjections";
 import {
     getEffectivePower,
@@ -40,7 +40,7 @@ import {
     answerChoice,
     upkeepEvent,
     endStepEvent,
-} from "./helpers";
+} from "./set.helper";
 import { getDefinition } from "../../../index";
 
 const cuombajjWitches = getDefinition("7995c3f9-a147-43c9-9f82-470924818a4c");

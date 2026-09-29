@@ -16,7 +16,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "@convex/cards/__tests__/setup";
+} from "@convex/cards/__tests__/setup.helper";
 import { restrictedManaLabel } from "../restricted-mana";
 
 const ICE_CAULDRON_ID = getCardByName("Ice Cauldron").id;

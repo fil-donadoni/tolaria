@@ -15,7 +15,11 @@
 //     catch a payload dropped by the SBA.
 
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import {
     type CardInstanceState,
     type GameState,

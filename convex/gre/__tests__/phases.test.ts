@@ -11,7 +11,7 @@ import {
     finalizeCleanupDiscard,
 } from "../phases";
 import { phaseInUntapCycleBundles, resolveTopOfStack } from "../state";
-import { cloakOfConfusion } from "../../cards/sets/ice/black";
+import { cloakOfConfusion } from "../../cards/sets/ice/black.cards";
 import {
     getOpponentId,
     type GameState,
@@ -23,8 +23,8 @@ import type { Phase } from "../types";
 import type { CardType } from "../../cards/types";
 import { tryGetDefinition } from "../../cards";
 import { recordBlockedAttackers } from "../banding";
-import { pushSpell } from "../../cards/__tests__/setup";
-import { giantGrowth } from "../../cards/sets/lea/green";
+import { pushSpell } from "../../cards/__tests__/setup.helper";
+import { giantGrowth } from "../../cards/sets/lea/green.cards";
 import { assertExpectedInput } from "../expectedInput";
 
 // ---------------------------------------------------------------------------

@@ -57,14 +57,14 @@ import { collectTriggers } from "../triggers";
 import { advancePhase } from "../phases";
 import { applyPendingChoiceSubmit } from "../pendingChoiceSubmit";
 import { projectPublicState } from "../../gameProjections";
-import { maraudingMako } from "../../cards/sets/dft/red";
-import { grizzlyBears } from "../../cards/sets/lea";
-import { forest } from "../../cards/sets/lea";
+import { maraudingMako } from "../../cards/sets/dft/red.cards";
+import { grizzlyBears } from "../../cards/sets/lea/index.cards";
+import { forest } from "../../cards/sets/lea/index.cards";
 import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 
 const CYCLER_ID = "00000000-0000-4000-8000-000024420001";
 const TYPECYCLER_ID = "00000000-0000-4000-8000-000024420002";
@@ -111,7 +111,7 @@ preloadDefinitions([
     } as CardDefinition,
     {
         // The must-NOT twin: a `discardThis` activation cost that is NOT a
-        // cycling cost (the Harvester of Misery shape, `sets/big/black.ts`).
+        // cycling cost (the Harvester of Misery shape, `sets/big/black.cards.ts`).
         // Identical in every respect except the `cyclingCost` marker.
         id: PLAIN_DISCARD_ID,
         name: "Synthetic Discarder",

@@ -1,9 +1,9 @@
-// Per-card behavior tests for colorless cards in `convex/cards/sets/dsk/colorless.ts`
+// Per-card behavior tests for colorless cards in `convex/cards/sets/dsk/colorless.cards.ts`
 // (Duskmourn: House of Horror, split by colour per ADR 0043). Fixtures from
-// convex/cards/__tests__/setup.ts.
+// convex/cards/__tests__/setup.helper.ts.
 
 import { describe, it, expect } from "vitest";
-import { makeInstance, makeState } from "../../../__tests__/setup";
+import { makeInstance, makeState } from "../../../__tests__/setup.helper";
 import { getEffectiveManaChoices } from "../../../../gre/constants";
 import type { GameState, CardInstanceState } from "../../../../gre/state";
 import { getDefinition } from "../../../index";

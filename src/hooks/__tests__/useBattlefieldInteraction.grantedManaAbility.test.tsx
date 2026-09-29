@@ -86,7 +86,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "@convex/cards/__tests__/setup";
+} from "@convex/cards/__tests__/setup.helper";
 import { projectPublicState } from "@convex/gameProjections";
 import { useBattlefieldInteraction } from "../useBattlefieldInteraction";
 

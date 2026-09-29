@@ -17,7 +17,11 @@ import { DACK_FAYDEN_EMBLEM_ID } from "../cards/emblems";
 import { resolveTopOfStack } from "../gre/state";
 import type { GameState, PendingTarget } from "../gre/state";
 import { projectPublicState } from "../gameProjections";
-import { makeInstance, makePlayer, makeState } from "../cards/__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../cards/__tests__/setup.helper";
 
 const TWIDDLE = getCardByName("Twiddle").id;
 const ORNITHOPTER = getCardByName("Ornithopter").id;

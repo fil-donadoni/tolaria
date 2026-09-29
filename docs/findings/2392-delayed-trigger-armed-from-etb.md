@@ -21,7 +21,7 @@ reachable only from an effect body; `convex/gre/triggers.ts:46`
 (`buildDelayedTriggerStackItem`) carries no `triggerSourceId`, which is the other
 half of the same shape — a delayed body cannot read `$source` and must capture
 the scheduling object explicitly. Necromancy
-(`convex/cards/sets/vis/black.ts`) is the first card to hit it: its second Oracle
+(`convex/cards/sets/vis/black.cards.ts`) is the first card to hit it: its second Oracle
 sentence ("…the controller of the permanent it becomes sacrifices it at the
 beginning of the next cleanup step") is armed by
 `necromancy-cleanup-sacrifice`, an `enteredTrigger` whose only body is the

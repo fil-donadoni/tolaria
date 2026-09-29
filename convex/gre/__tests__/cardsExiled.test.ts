@@ -17,7 +17,11 @@ import {
 } from "../state";
 import { registerTokenDefinition } from "../../cards";
 import type { CardDefinition, GameEvent } from "../../cards/types";
-import { makePlayer, makeState, pushSpell } from "../../cards/__tests__/setup";
+import {
+    makePlayer,
+    makeState,
+    pushSpell,
+} from "../../cards/__tests__/setup.helper";
 
 const OWN_GRAVEYARD_REDIRECTOR_ID = "test-cards-exiled-own-graveyard-bound";
 const P1_SORCERY_ID = "test-cards-exiled-p1-sorcery";

@@ -19,7 +19,11 @@
 //     its candidate blue cards to the viewer (the dialog reads them)
 //   - a serialization round-trip of the new `pendingCast.exileFromGraveyardChoice`
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import {
     resolveTopOfStack,
     getPlayer,

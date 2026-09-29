@@ -29,7 +29,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "@convex/cards/__tests__/setup";
+} from "@convex/cards/__tests__/setup.helper";
 
 /** "{T}: Add {W}{B}." with no single-colour ability to fall back on. No
  *  catalogue card is this shape (the Invasion "Vent" lands pair theirs with a

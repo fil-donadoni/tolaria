@@ -14,7 +14,11 @@ import {
 } from "../../../../game";
 import { isSacrificeSelectionComplete } from "../../../../gre/sacrificeChoice";
 import { getLegalActions } from "../../../../gre/rules";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import { getDefinition } from "../../../index";
 
 const fireblast = getDefinition("b1eb5b2c-1f02-48a6-a287-88eb189d6780");

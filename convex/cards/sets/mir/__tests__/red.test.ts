@@ -8,7 +8,11 @@
 // the canned smoke generator skips every `destroy` shape, so without this file
 // the card ships with the whole second sentence inert.
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import { type GameState, resolveTopOfStack } from "../../../../gre/state";
 import type { TargetSelection } from "../../../types";
 import { finalizeTargetSelection } from "../../../../game";

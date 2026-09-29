@@ -1,7 +1,7 @@
-// Per-card behavior tests for red cards in `convex/cards/sets/lea/red.ts`
+// Per-card behavior tests for red cards in `convex/cards/sets/lea/red.cards.ts`
 // (LEA, split by colour per ADR 0043). Each non-trivial card gets a describe
 // block citing the CR section it exercises. Shared stack/resolve shims live in
-// ./helpers; fixture builders stay in convex/cards/__tests__/setup.ts.
+// ./helpers; fixture builders stay in convex/cards/__tests__/setup.helper.ts.
 
 import { describe, it, expect } from "vitest";
 import {
@@ -41,13 +41,13 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import {
     activatePump,
     grizzlyBearsId,
     pushDelayedTrigger,
     runUntapForJ,
-} from "./helpers";
+} from "./set.helper";
 import { continuousEffectsInLayer } from "../../../../gre/continuousEffects";
 import { getDefinition } from "../../../index";
 
@@ -111,7 +111,7 @@ const wheelOfFortune = getDefinition("67b369c4-faa8-45c8-a1b9-98f228b69682");
 import {
     grantedKeywordRows,
     removedKeywordRows,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 
 describe("Lightning Bolt (3 damage to any target, CR 608.3)", () => {
     it("kills a 1/1 creature (damage >= toughness)", () => {

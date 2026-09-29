@@ -7,7 +7,7 @@ import {
     makeState,
     resolveActivated,
     submitChoice,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import { isProtectedFromSource } from "../../../../gre/protection";
 import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
 import { projectPublicState } from "../../../../gameProjections";

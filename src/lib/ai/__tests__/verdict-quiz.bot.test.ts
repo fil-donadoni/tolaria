@@ -32,7 +32,7 @@ import { getLegalActions } from "@convex/gre/rules";
 import {
     makeMutationCtx,
     runMutation,
-} from "@convex/__tests__/gameMutationHarness";
+} from "@convex/__tests__/gameMutationHarness.fixture";
 import { submit } from "@convex/verdicts";
 import {
     buildVerdictQuiz,

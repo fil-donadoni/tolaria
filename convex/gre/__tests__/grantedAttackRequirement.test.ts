@@ -16,7 +16,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import type { CardInstanceState, GameState } from "../state";
 import {
     applyControlChange,
@@ -36,7 +36,7 @@ import {
     makeMutationCtx,
     runMutation,
     type Handler,
-} from "../../__tests__/gameMutationHarness";
+} from "../../__tests__/gameMutationHarness.fixture";
 
 // ── Fixtures ────────────────────────────────────────────────────────────────
 

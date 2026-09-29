@@ -51,7 +51,7 @@ something. SURFACE assertions traverse `projectPublicState` /
 ## Card testing convention (resolve() cards and new Ops)
 
 Colour-split per-set test files (ADR 0043); shared fixtures from
-`convex/cards/__tests__/setup.ts`, never duplicated. **Every per-card test MUST
+`convex/cards/__tests__/setup.helper.ts`, never duplicated. **Every per-card test MUST
 call something** — asserting definition fields is the definition written twice.
 
 **Wire format test** mandatory for `staticEffects[]` and any

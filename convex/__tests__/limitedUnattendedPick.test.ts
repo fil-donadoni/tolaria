@@ -12,14 +12,17 @@
 // The project has no convex-test harness (see `convex/__tests__/decks.test.ts`),
 // so — the same idiom as `limitedAutoPickLastCard.test.ts` — this drives the
 // REGISTERED mutations' own `_handler` against the shared in-memory ctx
-// (`fixtures/inMemoryDb.ts`) plus a recording `scheduler`, and asserts the
+// (`fixtures/inMemoryDb.fixture.ts`) plus a recording `scheduler`, and asserts the
 // DOCUMENTS they leave behind, then reads them back through the real client
 // projection.
 import { describe, it, expect } from "vitest";
 import type { Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
 import { autoPickSeatTimeout, submitPick } from "../limitedEvents";
-import { makeInMemoryDb, type InMemoryRow } from "./fixtures/inMemoryDb";
+import {
+    makeInMemoryDb,
+    type InMemoryRow,
+} from "./fixtures/inMemoryDb.fixture";
 import {
     projectLimitedEvent,
     type LimitedEventRow,

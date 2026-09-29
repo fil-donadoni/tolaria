@@ -20,7 +20,7 @@ import { act, renderHook } from "@testing-library/react";
 import type { Id } from "@convex/_generated/dataModel";
 import { getCardByName } from "@convex/cards";
 import { PLACEHOLDER_CARD_ID } from "@convex/gre";
-import { makeInstance } from "@convex/cards/__tests__/setup";
+import { makeInstance } from "@convex/cards/__tests__/setup.helper";
 import {
     computeExpectedInput,
     computeOwedPlayerIds,

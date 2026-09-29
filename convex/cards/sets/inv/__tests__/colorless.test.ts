@@ -31,8 +31,8 @@ import {
     makePlayer,
     makeState,
     resolveActivated,
-} from "../../../__tests__/setup";
-import { resolveTrigger } from "./helpers";
+} from "../../../__tests__/setup.helper";
+import { resolveTrigger } from "./set.helper";
 import { getDefinition } from "../../../index";
 import { applyDrawCardOnTap, tapSourceIntoPayment } from "../../../../game";
 import { getManaTapOptionsDetailed } from "../../../../gre/constants";

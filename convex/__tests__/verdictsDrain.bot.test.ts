@@ -2,7 +2,7 @@
 // the slimming mutation refuses, and the attestation decoder's type check.
 //
 // `drain` / `drainNow` are the REGISTERED actions, driven through `_handler`
-// with a stub ctx — the harness convention `gameMutationHarness.ts` sets for
+// with a stub ctx — the harness convention `gameMutationHarness.fixture.ts` sets for
 // mutations. Nothing here reaches GCS: both paths under test end before a
 // writer is constructed.
 //

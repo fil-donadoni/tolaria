@@ -27,9 +27,9 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../cards/__tests__/setup";
-import { loseFocus } from "../../cards/sets/mh2/blue";
-import { lightningBolt } from "../../cards/sets/lea";
+} from "../../cards/__tests__/setup.helper";
+import { loseFocus } from "../../cards/sets/mh2/blue.cards";
+import { lightningBolt } from "../../cards/sets/lea/index.cards";
 import {
     additionalCostPaidCount,
     kickedCountOfPayments,

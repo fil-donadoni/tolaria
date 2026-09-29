@@ -1,7 +1,7 @@
-// Per-card behavior tests for white cards in `convex/cards/sets/lea/white.ts`
+// Per-card behavior tests for white cards in `convex/cards/sets/lea/white.cards.ts`
 // (LEA, split by colour per ADR 0043). Each non-trivial card gets a describe
 // block citing the CR section it exercises. Shared stack/resolve shims live in
-// ./helpers; fixture builders stay in convex/cards/__tests__/setup.ts.
+// ./helpers; fixture builders stay in convex/cards/__tests__/setup.helper.ts.
 
 import { describe, it, expect } from "vitest";
 import {
@@ -51,8 +51,8 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../../__tests__/setup";
-import { activatePump, grizzlyBearsId } from "./helpers";
+} from "../../../__tests__/setup.helper";
+import { activatePump, grizzlyBearsId } from "./set.helper";
 import { getDefinition } from "../../../index";
 
 const ancestralRecall = getDefinition("70e7ddf2-5604-41e7-bb9d-ddd03d3e9d0b");
@@ -137,7 +137,7 @@ const wrathOfGod = getDefinition("a2788d69-6a3a-42f0-8736-cc6b57755ecd");
 import {
     grantedKeywordRows,
     removedKeywordRows,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 
 describe("Castle (static pt-buff: +0/+2 to your untapped creatures)", () => {
     function setup() {

@@ -3,7 +3,11 @@
 // cites the CR section it exercises.
 
 import { describe, it, expect } from "vitest";
-import { counterspellIce, powerSinkIce, sleightOfMindIce } from "../../ice";
+import {
+    counterspellIce,
+    powerSinkIce,
+    sleightOfMindIce,
+} from "../../ice/index.cards";
 import { matchesSpellFilter } from "../../../filters";
 import { getDefinition, getCardByName } from "../../../index";
 import {
@@ -57,7 +61,7 @@ import {
     pushSpell,
     resolveActivated,
     submitChoice,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import type { CardInstanceState } from "../../../../gre/state";
 import type { GameState, StackItem } from "../../../../gre/state";
 import type { CardType, ManaCost } from "../../../types";
@@ -76,7 +80,7 @@ import {
     PHASE_EVENT,
     ENTERED,
     LEFT,
-} from "./helpers";
+} from "./set.helper";
 import {
     applyLandManaReplacement,
     getBasicLandMana,
@@ -87,7 +91,7 @@ import {
 } from "../../../../game";
 import { checkStateBasedActions } from "../../../../gre/sba";
 import { continuousEffectsInLayer } from "../../../../gre/continuousEffects";
-import { grantedKeywordRows } from "../../../__tests__/setup";
+import { grantedKeywordRows } from "../../../__tests__/setup.helper";
 
 const balduvianBears = getDefinition("ef5297cb-e763-4871-9cd3-0e2dbcc52095");
 const hallowedGround = getDefinition("4b35c0f4-5633-4ea9-9bda-daaf787aebdd");

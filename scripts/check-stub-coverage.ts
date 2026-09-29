@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 /**
  * Stub-hygiene guard for the colour-split set modules
- * `convex/cards/sets/<code>/<colour>.ts` (ADR 0043; legacy flat
+ * `convex/cards/sets/<code>/<colour>.cards.ts` (ADR 0043; legacy flat
  * `sets/<code>.ts` still honoured).
  *
  * A "stub" is a commented-out card definition staged for a later cluster:
@@ -44,6 +44,7 @@
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { resolve, join } from "node:path";
 import { CARD_REGISTRY_GLOBS, enterGuardCache } from "./lib/guard-cache";
+import { SET_MODULE_SUFFIX } from "./lib/set-module-suffix";
 
 // Before the registry import below: a cached PASS never pays for loading it.
 enterGuardCache({
@@ -70,12 +71,14 @@ const deadDupes: Hit[] = [];
 let stubCount = 0;
 
 // Every set is a colour-split DIRECTORY `sets/<code>/` (ADR 0043), so collect
-// each set's colour modules (`<colour>.ts`, barrel `index.ts` and `*.test.ts`
+// each set's colour modules (`<colour>.cards.ts`, barrel `index.cards.ts` and `*.test.ts`
 // excluded). A legacy flat `sets/<code>.ts` file is still honoured for safety.
-// Returned paths are relative to SETS_DIR (e.g. `ice/black.ts`) so the orphan
+// Returned paths are relative to SETS_DIR (e.g. `ice/black.cards.ts`) so the orphan
 // report points at the exact module.
 const isSource = (f: string) =>
-    f.endsWith(".ts") && !f.endsWith(".test.ts") && f !== "index.ts";
+    f.endsWith(".ts") &&
+    !f.endsWith(".test.ts") &&
+    f !== `index${SET_MODULE_SUFFIX}.ts`;
 
 const files = readdirSync(SETS_DIR)
     .flatMap((entry) => {

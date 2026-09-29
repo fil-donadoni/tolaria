@@ -24,9 +24,9 @@ import {
     makePlayer,
     makeState,
     resolveTriggerOrder,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import { compileCard } from "../../oracle/compile";
-import { oracleCard } from "../../oracle/__tests__/fixtures";
+import { oracleCard } from "../../oracle/__tests__/oracle.fixture";
 import { applyAllCombatDamage } from "../phases";
 import { resolveTopOfStack, type GameState } from "../state";
 

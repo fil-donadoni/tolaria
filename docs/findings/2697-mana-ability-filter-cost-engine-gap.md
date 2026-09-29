@@ -61,13 +61,13 @@ for definitions the engine could not run as written.
 | Overeager Apprentice | `{ discardFilter: {…,count:1}, sacrifice: true }` | sacrifice gate passes; payment unverified  |
 
 The catalogue's only shipped precedent for the tap-legged half is Orcish
-Lumberjack (`convex/cards/sets/ice/red.ts:1954`,
+Lumberjack (`convex/cards/sets/ice/red.cards.ts:1954`,
 `{ tap: true, sacrificeFilter: { subtypes: "Forest" } }`, `useStack: false`),
 and it has **no engine test anywhere** — grep for it outside its own set file
 returns only `vintageCubeNames.ts`. So the four bottom rows are "reaches the
 gate", not "verified payable".
 
-**The catalogue already knows.** `convex/cards/sets/atq/red.ts:163-180` carries
+**The catalogue already knows.** `convex/cards/sets/atq/red.cards.ts:163-180` carries
 a box comment deviating Ashnod's Altar and Priest of Yawgmoth to
 `useStack: true` **for this exact reason** ("the engine's instant mana-ability
 path (`tapUntap`) has no choice step"), accepting the known cost that their mana

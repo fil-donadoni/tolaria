@@ -59,7 +59,7 @@ describe("matchesBotGlob / touchesBotGlobs", () => {
         // the brace-alternation is exact-name, not prefix.
         { path: "convex/gre/searchHelpers.ts", expected: false },
         { path: "convex/gre/state.ts", expected: false },
-        { path: "convex/cards/sets/lea/red.ts", expected: false },
+        { path: "convex/cards/sets/lea/red.cards.ts", expected: false },
         { path: "src/lib/card-utils.ts", expected: false },
         { path: "scripts/lib/receipt.ts", expected: false },
     ];

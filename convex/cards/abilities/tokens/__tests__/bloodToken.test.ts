@@ -24,13 +24,13 @@ import {
 } from "../../../../game";
 import { handCardMatchesFilter } from "../../../../gre/alternativeCost";
 import { projectPublicState } from "../../../../gameProjections";
-import { grizzlyBears } from "../../../sets/lea/green";
+import { grizzlyBears } from "../../../sets/lea/green.cards";
 import {
     makeInstance,
     makePlayer,
     makeState,
     pushSpell,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 
 const ABILITY_ID = "sacrifice-discard-draw";
 

@@ -73,9 +73,12 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "@convex/cards/__tests__/setup";
-import { bitterTriumph } from "@convex/cards/sets/lci/black";
-import { lightningBolt, grizzlyBears } from "@convex/cards/sets/lea";
+} from "@convex/cards/__tests__/setup.helper";
+import { bitterTriumph } from "@convex/cards/sets/lci/black.cards";
+import {
+    lightningBolt,
+    grizzlyBears,
+} from "@convex/cards/sets/lea/index.cards";
 
 /** `cardId` in `me`'s hand with mana to spare and `spares` other hand cards,
  *  at `life`, in `me`'s own main phase, with a creature on the opponent's

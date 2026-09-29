@@ -1,7 +1,7 @@
 // Warp capability tests (CR 702.185, issue #1268) — the whole keyword, across
 // every surface it crosses. No card in this pool declares Warp (Edge of
 // Eternities is not here), so the suite drives the synthetic probe from
-// `fixtures/warpProbe.ts`: the `dash.test.ts` / `evoke.test.ts` precedent for
+// `fixtures/warpProbe.fixture.ts`: the `dash.test.ts` / `evoke.test.ts` precedent for
 // an engine capability with no consuming card yet.
 //
 // What is covered, clause by clause:
@@ -47,8 +47,8 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
-import { WARP_PROBE_ID, warpProbe } from "./fixtures/warpProbe";
+} from "../../cards/__tests__/setup.helper";
+import { WARP_PROBE_ID, warpProbe } from "./fixtures/warpProbe.fixture";
 
 function handCard(cardId: string, id: string, controllerId = "p1") {
     return makeInstance(cardId, {

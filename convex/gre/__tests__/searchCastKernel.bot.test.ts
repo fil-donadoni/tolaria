@@ -27,8 +27,12 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
-import { blackLotus, lightningBolt, mountain } from "../../cards/sets/lea";
+} from "../../cards/__tests__/setup.helper";
+import {
+    blackLotus,
+    lightningBolt,
+    mountain,
+} from "../../cards/sets/lea/index.cards";
 
 type CastMove = Extract<Move, { kind: "cast-spell" }>;
 

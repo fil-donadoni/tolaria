@@ -15,7 +15,7 @@ disposition — some are live trackers, some are "ACTIVE (#NNN)" citations of
 the (closed) issue that already shipped that bullet, some are cross-references
 to a sibling card's ref. A first cut that resolved every bare `#NNN` measured
 **68 "rotten" hits, the great majority false positives** from exactly this
-shape (`convex/cards/sets/ice/white.ts:164`'s "DEFERRED (remain commented
+shape (`convex/cards/sets/ice/white.cards.ts:164`'s "DEFERRED (remain commented
 stubs...)" paragraph alone cites four closed-but-shipped issue numbers as
 completion records). Narrowing to `tracked-by:` only dropped this to 1 real
 hit (fixed in this PR, `pls/white.ts:877`).
@@ -30,7 +30,7 @@ case at any layer.
 **Evidence.** `scripts/lib/divergence-markers.ts`'s `issueNumbersIn` doc
 comment states the trade explicitly and names the measured false-positive
 count; `scripts/check-marker-liveness.ts:32-70`'s module doc walks the same
-reasoning. The ICE bundle at `convex/cards/sets/ice/white.ts:164-189` is the
+reasoning. The ICE bundle at `convex/cards/sets/ice/white.cards.ts:164-189` is the
 clearest example: `ACTIVE (#729)`, `ACTIVE (#734)` are completion citations
 (both issues are closed and describe the shipped capability), while
 `Kjeldoran Elite Guard — … not modelled (#653 flagged, deferred)` two bullets

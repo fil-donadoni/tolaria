@@ -3,7 +3,7 @@ import { evaluateBreakdown } from "@convex/gre/evaluate";
 import {
     makePlayer,
     makeState,
-} from "../../../../convex/cards/__tests__/setup";
+} from "../../../../convex/cards/__tests__/setup.helper";
 import { EVAL_TERM_LABELS, EVAL_TERM_ORDER } from "../eval-term-labels";
 
 /**

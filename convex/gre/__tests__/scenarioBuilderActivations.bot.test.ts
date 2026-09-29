@@ -10,9 +10,9 @@
 
 import { describe, expect, it } from "vitest";
 import { buildStateFromScenario } from "../scenarioBuilder";
-import { makeState } from "../../cards/__tests__/setup";
+import { makeState } from "../../cards/__tests__/setup.helper";
 import { enumerateMoves } from "../moves";
-import { gaeasTouch } from "../../cards/sets/drk/green";
+import { gaeasTouch } from "../../cards/sets/drk/green.cards";
 import type { GameState } from "../state";
 import type { ScenarioSpec } from "../../debugScenarioSpec";
 

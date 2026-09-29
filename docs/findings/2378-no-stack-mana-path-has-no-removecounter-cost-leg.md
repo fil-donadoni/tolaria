@@ -17,9 +17,9 @@ price of a documented CR 605.1a divergence.
 The divergence now stands on **two** cards with no tracking issue for the
 underlying gap:
 
-- Jeweled Amulet (`convex/cards/sets/ice/colorless.ts:1125`) — the original,
+- Jeweled Amulet (`convex/cards/sets/ice/colorless.cards.ts:1125`) — the original,
   where the deviation is mostly academic (a battery you charge and cash later).
-- Pentad Prism (`convex/cards/sets/5dn/colorless.ts`) — where it is not. The
+- Pentad Prism (`convex/cards/sets/5dn/colorless.cards.ts`) — where it is not. The
   Prism is a ramp rock whose entire printed purpose is paying MID-CAST: CR
   605.3a explicitly permits activating a mana ability "in the middle of casting
   a spell", which is how you cast a four-drop off two lands and a Prism.
@@ -36,8 +36,8 @@ underlying gap:
   and its "Use activateManaAbility for non-tap mana abilities" bounce) — mana
   and tap only.
 - Pentad Prism's flagged simplification, with the reasoning:
-  `convex/cards/sets/5dn/colorless.ts:45-59`.
-- Jeweled Amulet's identical flag: `convex/cards/sets/ice/colorless.ts:1137` (and its sibling flag at `:834`).
+  `convex/cards/sets/5dn/colorless.cards.ts:45-59`.
+- Jeweled Amulet's identical flag: `convex/cards/sets/ice/colorless.cards.ts:1137` (and its sibling flag at `:834`).
 - CR 605.1a makes the Prism's ability a mana ability by every criterion (no
   target, could add mana, not loyalty, no library movement); CR 605.3a is the
   timing clause the `useStack: true` route breaks.

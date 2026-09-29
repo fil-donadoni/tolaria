@@ -1,10 +1,14 @@
-// Per-card behavior tests for red cards in `convex/cards/sets/c19/red.ts`
+// Per-card behavior tests for red cards in `convex/cards/sets/c19/red.cards.ts`
 // (Commander 2019, split by colour per ADR 0043). The Madness capability is
 // exercised in `convex/gre/__tests__/madness.test.ts`; here we pin Anje's
 // Ravager's definition + its attack trigger (discard your hand, then draw 3).
 
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import type {
     CardInstanceState,
     GameState,

@@ -1,9 +1,13 @@
-// Per-card behavior tests for blue cards in `convex/cards/sets/mom/blue.ts`
+// Per-card behavior tests for blue cards in `convex/cards/sets/mom/blue.cards.ts`
 // (March of the Machine, split by colour per ADR 0043). Fixtures stay in
-// `convex/cards/__tests__/setup.ts` — do not duplicate them here.
+// `convex/cards/__tests__/setup.helper.ts` — do not duplicate them here.
 
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import { projectPublicState } from "../../../../gameProjections";
 import {
     type CardInstanceState,

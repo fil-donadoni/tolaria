@@ -1,4 +1,4 @@
-// Per-card behaviour tests for APC gold cards (`convex/cards/sets/apc/multicolor.ts`).
+// Per-card behaviour tests for APC gold cards (`convex/cards/sets/apc/multicolor.cards.ts`).
 //
 // Life // Death is the whole subject here (issue #3308, ADR 0121 §6 slice 2).
 // Its two halves reuse only already-exercised Ops, so the per-Op regime owes
@@ -27,14 +27,14 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import { submitResolutionChoice } from "../../../../game";
 import {
     makeMutationCtx,
     runMutation,
     gameStateSeed,
     type Handler,
-} from "../../../../__tests__/gameMutationHarness";
+} from "../../../../__tests__/gameMutationHarness.fixture";
 import type { Id } from "../../../../_generated/dataModel";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import {

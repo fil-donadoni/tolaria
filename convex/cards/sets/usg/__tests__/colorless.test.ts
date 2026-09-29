@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import {
     getDynamicManaProduced,
     getFixedManaAmount,
@@ -17,7 +21,7 @@ const SOL_RING_ID = "c4300d24-1cae-4dd5-be7e-38cc677cf5bd";
 
 // Gaea's Cradle / Tolarian Academy — board-conditional mana (CR 106.1,
 // 605.1a) via the `manaAmount` hook, the same primitive the Urza land trio
-// uses (`convex/cards/sets/atq/colorless.ts`), generalized here to a COUNT
+// uses (`convex/cards/sets/atq/colorless.cards.ts`), generalized here to a COUNT
 // of a permanent type instead of a binary assembled/not-assembled check
 // (issue #675, ADR 0041).
 describe("Gaea's Cradle ({T}: Add {G} for each creature you control, CR 605.1a)", () => {

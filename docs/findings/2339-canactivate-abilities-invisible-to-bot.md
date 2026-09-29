@@ -17,7 +17,7 @@ enumerated zero times regardless of board state.
 **Evidence.** `convex/gre/moves.ts:1030` —
 `if (ability.canActivate || ability.getTargetRequirement) continue;` with the
 comment "Conditional abilities need a runtime predicate we don't replicate;
-leave them to a later slice". `convex/cards/sets/ice/black.ts:205` —
+leave them to a later slice". `convex/cards/sets/ice/black.cards.ts:205` —
 `canActivate: (source, state) => creatureCardsAboveInGraveyard(state, source) >= 3`.
 The predicate's signature is `(PermanentView, TriggerStateView) => boolean`,
 and the frontend already evaluates exactly this predicate against a view it

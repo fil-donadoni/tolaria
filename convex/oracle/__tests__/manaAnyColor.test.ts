@@ -24,9 +24,9 @@ import { compileCard } from "../compile";
 import { sortKeys } from "../gates";
 import { roundTripCard } from "../gold";
 import type { CompiledDefinition, OracleCard } from "../types";
-import { birdsOfParadise } from "../../cards/sets/lea/green";
-import { celestialPrism } from "../../cards/sets/lea/colorless";
-import { oracleCard } from "./fixtures";
+import { birdsOfParadise } from "../../cards/sets/lea/green.cards";
+import { celestialPrism } from "../../cards/sets/lea/colorless.cards";
+import { oracleCard } from "./oracle.fixture";
 
 const ANY_COLOR: ReadonlyArray<Record<string, number>> = [
     { W: 1 },

@@ -18,8 +18,8 @@
 import { describe, it, expect } from "vitest";
 import { upkeepDiscardOrElseTrigger } from "../upkeepDiscardOrElse";
 import { registerTokenDefinition, getDefinition } from "../..";
-import { grizzlyBears } from "../../sets/lea";
-import { necropotence } from "../../sets/ice";
+import { grizzlyBears } from "../../sets/lea/index.cards";
+import { necropotence } from "../../sets/ice/index.cards";
 import { resolveTopOfStack } from "../../../gre/state";
 import type {
     CardInstanceState,
@@ -30,7 +30,11 @@ import {
     applyMayPaySubmit,
     applyPendingChoiceSubmit,
 } from "../../../gre/pendingChoiceSubmit";
-import { makeInstance, makePlayer, makeState } from "../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../__tests__/setup.helper";
 
 const FIXTURE_ID = "test-fixture:upkeep-discard-ward-1129";
 

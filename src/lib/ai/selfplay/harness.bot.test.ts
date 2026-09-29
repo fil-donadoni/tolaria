@@ -133,7 +133,7 @@ describe.runIf(RUN)("self-play harness (runner)", () => {
 describe("self-play names the undriven window (issue #2284)", () => {
     it("reports the Expected Input kind alongside a stall", async () => {
         const { makePlayer, makeState } =
-            await import("@convex/cards/__tests__/setup");
+            await import("@convex/cards/__tests__/setup.helper");
         const { refreshExpectedInput } =
             await import("@convex/gre/expectedInput");
         const state = makeState({

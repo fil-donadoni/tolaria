@@ -15,8 +15,8 @@ import {
 } from "../../gre/effects/validate";
 import { getAbilityEffectFn, getResolveFn } from "../effectRegistry";
 // The site enumeration lives in one shared module so every catalogue-wide
-// script sweep walks the SAME list of sites (see `effectSites.ts`).
-import { abilitySites, modeSites } from "./effectSites";
+// script sweep walks the SAME list of sites (see `effectSites.helper.ts`).
+import { abilitySites, modeSites } from "./effectSites.helper";
 
 describe("Effect Script catalogue sweep (ADR 0045)", () => {
     // Prodigal Pyromancer retired in issue #4027 (ADR 0114) — this sweep

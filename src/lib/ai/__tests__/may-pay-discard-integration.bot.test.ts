@@ -13,12 +13,12 @@
 // the SAME `submitMayPay` mutation surface a human's Pay button drives.
 
 import { describe, expect, it } from "vitest";
-import { formidableSpeaker } from "@convex/cards/sets/ecl/green";
+import { formidableSpeaker } from "@convex/cards/sets/ecl/green.cards";
 import {
     makeInstance,
     makePlayer,
     makeState,
-} from "@convex/cards/__tests__/setup";
+} from "@convex/cards/__tests__/setup.helper";
 import {
     mayPayHandSelectionLegal,
     resolveTopOfStack,

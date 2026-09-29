@@ -1,4 +1,4 @@
-// Per-card behavior tests for INV gold cards (`convex/cards/sets/inv/multicolor.ts`).
+// Per-card behavior tests for INV gold cards (`convex/cards/sets/inv/multicolor.cards.ts`).
 // Both cards belong to the Domain capability cluster (issue #1066). The
 // `{ domain: { of } }` value member and the `winGame` Op each already have
 // their own permanent interpreter test (`convex/gre/effects/__tests__/interpreter.test.ts`)
@@ -21,7 +21,7 @@ import {
     pushSpell,
     resolveActivated,
     submitChoice,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import {
     resolveTopOfStack,
     beginApplyingStaticEffects,
@@ -53,7 +53,7 @@ import {
 import { effectiveTriggeredAbilities } from "../../../../gre/copy";
 import { collectTriggers } from "../../../../gre/triggers";
 import { applyMayPaySubmit } from "../../../../gre/pendingChoiceSubmit";
-import { resolveTrigger } from "./helpers";
+import { resolveTrigger } from "./set.helper";
 import { getDefinition } from "../../../index";
 
 const orderedMigration = getDefinition("04d83a07-6054-45f1-bdf9-07f2006238d2");

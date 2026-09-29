@@ -39,7 +39,7 @@ import * as path from "path";
 import type { Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
 import * as gameModule from "../game";
-import { makeMutationCtx } from "./gameMutationHarness";
+import { makeMutationCtx } from "./gameMutationHarness.fixture";
 
 const GAME_TS = path.join(__dirname, "..", "game.ts");
 

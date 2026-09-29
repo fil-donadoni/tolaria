@@ -28,14 +28,14 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import { getEffectivePower, getEffectiveToughness } from "../../gre/layers";
 import { resolveTopOfStack, type GameState } from "../../gre/state";
 import { compileCard } from "../compile";
 import { sortKeys } from "../gates";
 import { GOLDEN_FIXTURES } from "../grammar/fixtures";
 import type { OracleCard } from "../types";
-import { oracleCard } from "./fixtures";
+import { oracleCard } from "./oracle.fixture";
 
 const NAMES = [
     "Strength of Night",

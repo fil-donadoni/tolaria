@@ -31,8 +31,12 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
-import { grizzlyBears, mountain, controlMagic } from "../../cards/sets/lea";
+} from "../../cards/__tests__/setup.helper";
+import {
+    grizzlyBears,
+    mountain,
+    controlMagic,
+} from "../../cards/sets/lea/index.cards";
 import { registerTokenDefinition } from "../../cards";
 import { enteredTrigger } from "../../cards/abilities/triggers/enteredTrigger";
 import type { CardDefinition } from "../../cards/types";

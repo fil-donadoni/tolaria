@@ -55,18 +55,18 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import { projectPublicState } from "../../gameProjections";
-import { grizzlyBears } from "../../cards/sets/lea/green";
-import { airElemental, flight } from "../../cards/sets/lea/blue";
-import { gravitySphere } from "../../cards/sets/leg/red";
-import { titaniasSong } from "../../cards/sets/atq/green";
-import { ashnodsBattleGear } from "../../cards/sets/atq/colorless";
-import { dreadWight } from "../../cards/sets/ice/black";
+import { grizzlyBears } from "../../cards/sets/lea/green.cards";
+import { airElemental, flight } from "../../cards/sets/lea/blue.cards";
+import { gravitySphere } from "../../cards/sets/leg/red.cards";
+import { titaniasSong } from "../../cards/sets/atq/green.cards";
+import { ashnodsBattleGear } from "../../cards/sets/atq/colorless.cards";
+import { dreadWight } from "../../cards/sets/ice/black.cards";
 import {
     PHASE_EVENT_EOC,
     resolveTrigger,
-} from "../../cards/sets/ice/__tests__/helpers";
+} from "../../cards/sets/ice/__tests__/set.helper";
 
 const UNTIL_EOT = { phase: "end-of-turn" } as const;
 

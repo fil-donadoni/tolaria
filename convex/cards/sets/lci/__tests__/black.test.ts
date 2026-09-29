@@ -9,14 +9,14 @@
 // arbitrarily many turns before the Bat leaves (the property the retired stub
 // cited `scheduleDelayedTrigger`'s this-turn purge as the blocker for).
 //
-// Fixtures from `convex/cards/__tests__/setup.ts`.
+// Fixtures from `convex/cards/__tests__/setup.helper.ts`.
 import { describe, it, expect } from "vitest";
 import {
     makeInstance,
     makePlayer,
     makeState,
     submitChoice,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import { getDefinition, getCardByName } from "../../..";
 import { projectPublicState } from "../../../../gameProjections";
 import {

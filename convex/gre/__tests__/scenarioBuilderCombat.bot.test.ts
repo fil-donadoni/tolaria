@@ -21,8 +21,8 @@ import { enumerateMoves } from "../moves";
 import { describeMove } from "../describeMove";
 import { decidingPlayer } from "../search";
 import { lowerDecision } from "../ai/verdicts/lowering";
-import { grizzlyBears } from "../../cards/sets/lea/green";
-import { shivanDragon } from "../../cards/sets/lea/red";
+import { grizzlyBears } from "../../cards/sets/lea/green.cards";
+import { shivanDragon } from "../../cards/sets/lea/red.cards";
 import type { GameState } from "../state";
 import type { ScenarioSpec } from "../../debugScenarioSpec";
 

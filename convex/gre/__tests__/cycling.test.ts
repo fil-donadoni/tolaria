@@ -20,18 +20,18 @@ import {
 } from "../../game";
 import { normalizeManaCost, resolveTopOfStack, type GameState } from "../state";
 import { getAllCards, getCardByName, getDefinition } from "../../cards";
-import { raugrinTriome } from "../../cards/sets/iko/colorless";
+import { raugrinTriome } from "../../cards/sets/iko/colorless.cards";
 import { cyclingAbility } from "../../cards/abilities/cycling";
-import { grizzlyBears } from "../../cards/sets/lea";
-import { trollOfKhazadDum } from "../../cards/sets/ltr/black";
-import { lorienRevealed } from "../../cards/sets/ltr/blue";
+import { grizzlyBears } from "../../cards/sets/lea/index.cards";
+import { trollOfKhazadDum } from "../../cards/sets/ltr/black.cards";
+import { lorienRevealed } from "../../cards/sets/ltr/blue.cards";
 import { applyPendingChoiceSubmit } from "../pendingChoiceSubmit";
 import { projectPublicState } from "../../gameProjections";
 import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 
 const CYCLING_ID = "cycling";
 
@@ -449,7 +449,7 @@ describe("cycling cost marker (CR 702.29c/f)", () => {
 // CR 107.4 / 202.1 — the reminder-text label prints the cost's mana SYMBOLS.
 // The renderer used to print `{generic}` and nothing else, on the stated
 // grounds that every caller's cycling cost was purely generic. Decree of
-// Silence (`sets/scg/blue.ts`, issue #3206) is the first with a COLOURED one,
+// Silence (`sets/scg/blue.cards.ts`, issue #3206) is the first with a COLOURED one,
 // and "Cycling {4}" is a wrong printed cost — on the ability, in
 // `aggregateOracleText`, and therefore in the search corpus.
 describe("cycling cost label renders coloured pips (CR 107.4 / 202.1)", () => {

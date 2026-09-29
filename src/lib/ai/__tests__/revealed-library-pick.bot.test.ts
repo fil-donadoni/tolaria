@@ -24,7 +24,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "@convex/cards/__tests__/setup";
+} from "@convex/cards/__tests__/setup.helper";
 import { getCardByName } from "@convex/cards";
 import { resolveTopOfStack } from "@convex/gre/state";
 import { applyPendingChoiceSubmit } from "@convex/gre/pendingChoiceSubmit";

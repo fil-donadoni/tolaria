@@ -67,10 +67,10 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "@convex/cards/__tests__/setup";
-import { standDeliver } from "@convex/cards/sets/inv/multicolor";
-import { hillGiant } from "@convex/cards/sets/lea/red";
-import { plains, island } from "@convex/cards/sets/lea/colorless";
+} from "@convex/cards/__tests__/setup.helper";
+import { standDeliver } from "@convex/cards/sets/inv/multicolor.cards";
+import { hillGiant } from "@convex/cards/sets/lea/red.cards";
+import { plains, island } from "@convex/cards/sets/lea/colorless.cards";
 import { splitCastAltCostId } from "@convex/gre/splitCast";
 
 const LEFT_ALT = splitCastAltCostId(standDeliver, "left");

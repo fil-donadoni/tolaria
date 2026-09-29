@@ -2591,7 +2591,7 @@ function graveyardCardMatchesColor(
  *
  *  Deliberately NOT exported. Its coverage runs through the registered
  *  `activateManaAbility` `_handler` (`cards/sets/mh1/__tests__/blue.test.ts`
- *  via `gameMutationHarness.ts`), because a test that calls this directly
+ *  via `gameMutationHarness.fixture.ts`), because a test that calls this directly
  *  stays green when the mutation stops calling it at all — which is exactly
  *  what shipped in PR #2419 round 1 and what the harness's own header comment
  *  forbids. */

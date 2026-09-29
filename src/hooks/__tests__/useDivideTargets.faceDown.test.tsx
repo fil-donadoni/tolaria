@@ -18,11 +18,11 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "@convex/cards/__tests__/setup";
+} from "@convex/cards/__tests__/setup.helper";
 import { projectPublicState } from "@convex/gameProjections";
 import { turnFaceDown } from "@convex/gre/faceDown";
 import { pendingTargetFiltersFromRequirement } from "@convex/gre/rules";
-import { mahamotiDjinn } from "@convex/cards/sets/lea";
+import { mahamotiDjinn } from "@convex/cards/sets/lea/index.cards";
 import type { TargetRequirement } from "@convex/cards/types";
 import type { PendingTarget, Player } from "~/types/game";
 import { GameContext } from "~/hooks/useGameContext";

@@ -1750,7 +1750,7 @@ function resolvePlayerRef(
     // before the removal and read `{ ref: "$x.controller" }`, which is exactly
     // CR 608.2h last known information. For a SPELL slot, which is not
     // bindable, the equivalent is to order the reading Op before the removing
-    // one (Undermine, `sets/inv/multicolor.ts`).
+    // one (Undermine, `sets/inv/multicolor.cards.ts`).
     if ("controllerOf" in ref) {
         const target = ctx.targets[ref.controllerOf.target];
         return target ? ctx.findController(target) : undefined;

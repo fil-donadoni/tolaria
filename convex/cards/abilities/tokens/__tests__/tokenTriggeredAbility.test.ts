@@ -29,7 +29,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 
 const PEST_ABILITY_ID = "pest-dies-gain-1-life";
 

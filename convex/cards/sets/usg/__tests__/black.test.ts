@@ -22,7 +22,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import { getDefinition } from "../../../index";
 
 const exhume = getDefinition("a88b23ce-ce19-47da-b9f2-055a4d6bdc79");

@@ -487,7 +487,7 @@ const TRACKED_BY_G = /tracked-by:\s*(?:tolaria)?#(\d+)/gi;
 
 // Issue #1841: a second live-ref SYNTAX, resolved by the SAME function and
 // filtered by the SAME `isStubContext` caller. A `TODO(issue #NNN…)` note
-// (`convex/cards/sets/dsk/red.ts`, `mh3/colorless.ts`, prior to this issue's
+// (`convex/cards/sets/dsk/red.cards.ts`, `mh3/colorless.ts`, prior to this issue's
 // own fix) named a live-tracking disposition — Guard B's own `DISPOSITION`
 // regex already accepted it presence-only — but `scanTrackedByRefs` only
 // ever resolved `tracked-by:`, so a closed issue behind this syntax

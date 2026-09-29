@@ -34,15 +34,15 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import { projectPublicState } from "../../gameProjections";
-import { venarianGold } from "../../cards/sets/leg/blue";
-import { bloodMoon } from "../../cards/sets/drk/red";
-import { cyclopeanTomb } from "../../cards/sets/lea/colorless";
-import { yavimayaCradleOfGrowth } from "../../cards/sets/mh2/colorless";
-import { mishrasFactory } from "../../cards/sets/atq/colorless";
-import { gravitySphere } from "../../cards/sets/leg/red";
-import { flight, airElemental } from "../../cards/sets/lea/blue";
+import { venarianGold } from "../../cards/sets/leg/blue.cards";
+import { bloodMoon } from "../../cards/sets/drk/red.cards";
+import { cyclopeanTomb } from "../../cards/sets/lea/colorless.cards";
+import { yavimayaCradleOfGrowth } from "../../cards/sets/mh2/colorless.cards";
+import { mishrasFactory } from "../../cards/sets/atq/colorless.cards";
+import { gravitySphere } from "../../cards/sets/leg/red.cards";
+import { flight, airElemental } from "../../cards/sets/lea/blue.cards";
 
 /** Mishra's Factory — a nonbasic land with NO printed land types, so every
  *  subtype seen below comes from a layer-4 source and nothing else. */

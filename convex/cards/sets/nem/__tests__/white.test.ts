@@ -21,8 +21,8 @@ import {
     makeState,
     pushSpell,
     resolveActivated,
-} from "../../../__tests__/setup";
-import { resolveTrigger, LEFT } from "./helpers";
+} from "../../../__tests__/setup.helper";
+import { resolveTrigger, LEFT } from "./set.helper";
 import { getDefinition } from "../../../index";
 
 const parallaxWave = getDefinition("cef789e8-e4cc-4f61-bc15-debc2487777f");

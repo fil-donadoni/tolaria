@@ -74,10 +74,10 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "@convex/cards/__tests__/setup";
-import { sinkIntoStupor } from "@convex/cards/sets/neo/blue";
-import { island } from "@convex/cards/sets/lea/colorless";
-import { hillGiant } from "@convex/cards/sets/lea/red";
+} from "@convex/cards/__tests__/setup.helper";
+import { sinkIntoStupor } from "@convex/cards/sets/neo/blue.cards";
+import { island } from "@convex/cards/sets/lea/colorless.cards";
+import { hillGiant } from "@convex/cards/sets/lea/red.cards";
 
 /** `me` holds Sink into Stupor // Soporific Springs with three Islands, in
  *  their own main phase with an empty stack and a land drop left — so BOTH

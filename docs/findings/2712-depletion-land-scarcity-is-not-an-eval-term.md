@@ -6,7 +6,7 @@ issue: 3530
 confidence: high
 ---
 
-**What is wrong.** A depletion land (`convex/cards/sets/mmq/colorless.ts`) is a
+**What is wrong.** A depletion land (`convex/cards/sets/mmq/colorless.cards.ts`) is a
 FINITE mana source: two activations, two mana each, then it sacrifices itself.
 "Do I spend a use now, or pay with something renewable?" is a real strategic
 question, and the engine answers it today in two places, one of which is right

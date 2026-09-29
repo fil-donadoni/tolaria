@@ -6,8 +6,8 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import type { CardInstance, Combat } from "~/types/game";
 import type { Id } from "@convex/_generated/dataModel";
-import { glorybringer } from "@convex/cards/sets/akh/red";
-import { grizzlyBears } from "@convex/cards/sets/lea/green";
+import { glorybringer } from "@convex/cards/sets/akh/red.cards";
+import { grizzlyBears } from "@convex/cards/sets/lea/green.cards";
 
 const toggleExert = vi.fn(async () => {});
 vi.mock("convex/react", () => ({

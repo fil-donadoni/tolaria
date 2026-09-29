@@ -36,10 +36,10 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "@convex/cards/__tests__/setup";
-import { grizzlyBears } from "@convex/cards/sets/lea";
-import { darkSuspicions } from "@convex/cards/sets/pls/black";
-import { stormSeeker } from "@convex/cards/sets/leg/green";
+} from "@convex/cards/__tests__/setup.helper";
+import { grizzlyBears } from "@convex/cards/sets/lea/index.cards";
+import { darkSuspicions } from "@convex/cards/sets/pls/black.cards";
+import { stormSeeker } from "@convex/cards/sets/leg/green.cards";
 import { projectedToGameState } from "../state-adapter";
 
 /** `n` filler cards in `owner`'s hand. */

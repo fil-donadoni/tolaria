@@ -21,7 +21,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 
 // Card ids (LEA set).
 const FOREST = "6f1c8cb0-38eb-408b-94e8-16db83999b3b"; // {T}: G

@@ -19,7 +19,7 @@
 // Same harness discipline as upToXTargetCastLegality.test.ts: no convex-test
 // harness in this project, so the established seam for `game.ts` integration
 // coverage is a stub `MutationCtx` driving the REGISTERED mutations' own
-// `_handler`s (`gameMutationHarness.ts`) — never a hand-rolled
+// `_handler`s (`gameMutationHarness.fixture.ts`) — never a hand-rolled
 // reimplementation of `activateAbilityOnState`'s loop body, and never the
 // `activate()` helper in `sets/war/__tests__/multicolor.test.ts` that pushes
 // straight onto `state.stack` — that helper bypasses `activateAbilityOnState`
@@ -29,9 +29,13 @@
 
 import { describe, it, expect } from "vitest";
 import { activateAbility, confirmTargets } from "../game";
-import { teferiTimeRaveler } from "../cards/sets/war/multicolor";
+import { teferiTimeRaveler } from "../cards/sets/war/multicolor.cards";
 import { registerTokenDefinition } from "../cards";
-import { makeInstance, makePlayer, makeState } from "../cards/__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../cards/__tests__/setup.helper";
 import { resolveTopOfStack } from "../gre/state";
 import type { Id } from "../_generated/dataModel";
 import {
@@ -39,7 +43,7 @@ import {
     runMutation,
     gameStateSeed,
     type Handler,
-} from "./gameMutationHarness";
+} from "./gameMutationHarness.fixture";
 
 const GAME_ID = "game-1" as Id<"games">;
 const MINUS3 = "teferi-time-raveler-minus3";

@@ -1,4 +1,4 @@
-// Per-card behavior tests for red cards in `convex/cards/sets/arn/red.ts`
+// Per-card behavior tests for red cards in `convex/cards/sets/arn/red.cards.ts`
 // (ARN, split by colour per ADR 0043). Each non-trivial card gets a describe
 // block citing the CR section it exercises; assertions check external behavior
 // only (effective P/T, damage, zone, combat outcome).
@@ -10,7 +10,7 @@ import {
     makeState,
     pushSpell,
     resolveActivated,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import { projectPublicState } from "../../../../gameProjections";
 import { validateBlockerEligibility } from "../../../../gre/combat";
 import {
@@ -37,7 +37,7 @@ import {
     upkeepEvent,
     WIN_SEED,
     LOSE_SEED,
-} from "./helpers";
+} from "./set.helper";
 import { getDefinition } from "../../../index";
 
 const aladdin = getDefinition("db52bad2-a3ec-4f6f-9418-12e8c40703f6");

@@ -54,7 +54,7 @@ The tell that this is a real shift rather than coincidence: the SAME repo cites
 
 Three smaller, unrelated instances of the same class:
 
-- **`702.14b` used for Fear** (5 sites, `convex/cards/sets/inv/multicolor.ts:655`,
+- **`702.14b` used for Fear** (5 sites, `convex/cards/sets/inv/multicolor.cards.ts:655`,
   `pls/black.ts:763`, …). `702.14b` is "Landwalk is an evasion ability"; Fear is
   **`702.36`**.
 - **`702.35c` used for Madness's discard→exile replacement** (14 sites,
@@ -79,7 +79,7 @@ Three smaller, unrelated instances of the same class:
       `707.10c` for a "color-change to red" — `707.10c` is the retarget rule,
       and Fork's colour-change is Fork's own text, not a CR subrule at all.
     - **`707.12` used for "copy a spell"** (26 sites,
-      `convex/cards/sets/c19/white.ts` and its tests, …). `707.12` is **cast** a
+      `convex/cards/sets/c19/white.cards.ts` and its tests, …). `707.12` is **cast** a
       copy ("An effect that instructs a player to cast a copy of an object **and
       not just copy a spell**… follows the rules for casting spells"); putting a
       copy on the stack without casting it is **`707.10`** ("a copy of a spell
@@ -141,9 +141,9 @@ slice:
     | `convex/gre/serialize.ts`                       |                1 |                    0 |
     | `convex/cards/sets/leg/__tests__/green.test.ts` |                6 |                    0 |
     | `convex/cards/sets/leg/__tests__/black.test.ts` |                1 |                    0 |
-    | `convex/cards/sets/leg/__tests__/helpers.ts`    |                1 |                    0 |
-    | `convex/cards/sets/leg/black.ts`                |                1 |                    0 |
-    | `convex/cards/sets/leg/green.ts`                |                1 |                    0 |
+    | `convex/cards/sets/leg/__tests__/set.helper.ts` |                1 |                    0 |
+    | `convex/cards/sets/leg/black.cards.ts`          |                1 |                    0 |
+    | `convex/cards/sets/leg/green.cards.ts`          |                1 |                    0 |
 
     **How to tell the two apart without line numbers** (which rot — the two this
     entry used to name were already stale by one review round): start from

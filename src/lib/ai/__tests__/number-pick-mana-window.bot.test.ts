@@ -27,7 +27,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "@convex/cards/__tests__/setup";
+} from "@convex/cards/__tests__/setup.helper";
 import {
     activateAbilityOnState,
     submitNumberChoice,
@@ -38,7 +38,7 @@ import {
     runMutation,
     gameStateSeed,
     type Handler,
-} from "@convex/__tests__/gameMutationHarness";
+} from "@convex/__tests__/gameMutationHarness.fixture";
 import { resolveTopOfStack, numberChoiceRange } from "@convex/gre/state";
 import type { GameState } from "@convex/gre/state";
 import { enumerateMoves } from "@convex/gre/moves";

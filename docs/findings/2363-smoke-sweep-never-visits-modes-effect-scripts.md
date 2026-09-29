@@ -29,7 +29,7 @@ outside it.
   collection, no `modes` branch. The consumer at `:170-182` iterates only what
   `collectDslSites()` returned, so a skip line can only exist for a collected
   site.
-- `convex/cards/sets/ice/blue.ts:729` (Hydroblast) is the concrete instance: a
+- `convex/cards/sets/ice/blue.cards.ts:729` (Hydroblast) is the concrete instance: a
   modal instant with two single-Op mode scripts
   (`{ op: "counter", target: { target: 0 } }` at `:745`,
   `{ op: "destroy", target: { target: 0 } }` at `:752`) and **no** top-level

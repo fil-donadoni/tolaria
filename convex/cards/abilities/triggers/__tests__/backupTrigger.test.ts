@@ -48,7 +48,7 @@ import {
     makeState,
     pushSpell,
     resolveTriggerOrder,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import { getCardByName } from "../../..";
 import type { CardInstanceState, GameState } from "../../../../gre/state";
 import type { Phase } from "../../../../gre/types";
@@ -66,9 +66,9 @@ import {
 import { compactState, expandState } from "../../../../gre/serialize";
 import { finalizeTargetSelection } from "../../../../game";
 import { projectPublicState } from "../../../../gameProjections";
-import { consumingAetherborn } from "../../../sets/mom/black";
-import { guardianScalelord } from "../../../sets/moc/white";
-import { deathGreetersChampion } from "../../../sets/moc/red";
+import { consumingAetherborn } from "../../../sets/mom/black.cards";
+import { guardianScalelord } from "../../../sets/moc/white.cards";
+import { deathGreetersChampion } from "../../../sets/moc/red.cards";
 import { continuousEffectsInLayer } from "../../../../gre/continuousEffects";
 
 const TARGET_ID = "backup-target";

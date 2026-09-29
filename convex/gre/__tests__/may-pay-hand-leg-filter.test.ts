@@ -26,7 +26,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import type { MayPayCost } from "../../cards/types";
 
 // Grizzly Bears (LEA) — a plain vanilla Creature.

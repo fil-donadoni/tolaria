@@ -27,8 +27,8 @@ import {
     giantGrowth,
     badMoon,
     bogWraith,
-} from "../../cards/sets/lea";
-import { opalescence } from "../../cards/sets/uds";
+} from "../../cards/sets/lea/index.cards";
+import { opalescence } from "../../cards/sets/uds/index.cards";
 
 // ---------------------------------------------------------------------------
 // Helpers

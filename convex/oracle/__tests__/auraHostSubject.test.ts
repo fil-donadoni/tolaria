@@ -29,12 +29,12 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import { projectPublicState } from "../../gameProjections";
 import { getEffectivePower, getEffectiveToughness } from "../../gre/layers";
 import { resolveTopOfStack } from "../../gre/state";
 import type { GameState, StackItem } from "../../gre/state";
-import { oracleCard } from "./fixtures";
+import { oracleCard } from "./oracle.fixture";
 
 /** A real Aura's row, with only the fields the rows here differ in. */
 function aura(

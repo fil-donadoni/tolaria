@@ -1,6 +1,6 @@
-// Per-card behaviour tests for blue cards in `convex/cards/sets/dsk/blue.ts`
+// Per-card behaviour tests for blue cards in `convex/cards/sets/dsk/blue.cards.ts`
 // (Duskmourn: House of Horror, split by colour per ADR 0043). Fixtures from
-// convex/cards/__tests__/setup.ts.
+// convex/cards/__tests__/setup.helper.ts.
 //
 // Enduring Curiosity (issue #2085) is a pure DSL card on already-exercised Ops,
 // so the catalogue sweep plus the generated smoke test cover its BODY. What
@@ -12,7 +12,11 @@
 // shared dies-trigger is covered once on Enduring Innocence (`white.test.ts`).
 
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import {
     dealDamageFromPermanentToPlayer,
     flushPendingEvents,

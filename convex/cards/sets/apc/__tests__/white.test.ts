@@ -1,5 +1,5 @@
 // Per-card behaviour tests for APC white cards
-// (`convex/cards/sets/apc/white.ts`).
+// (`convex/cards/sets/apc/white.cards.ts`).
 //
 // Haunted Angel is hand-tail (issue #4334): its dies trigger exiles the dead
 // card (CR 603.10a look-back, CR 406) and gives EACH OTHER player a 3/3 black
@@ -9,8 +9,12 @@
 // Resolved through the REGISTRY SEAM by id, never by name.
 import { describe, expect, it } from "vitest";
 import { getDefinition } from "../../../index";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
-import { resolveTrigger } from "../../leg/__tests__/helpers";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
+import { resolveTrigger } from "../../leg/__tests__/set.helper";
 import type { StackItem } from "../../../../gre/state";
 
 const HAUNTED_ANGEL = "78d2d11b-12e4-4810-a32d-8f1cdda3ec49";

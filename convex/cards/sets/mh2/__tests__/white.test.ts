@@ -1,6 +1,10 @@
 // MH2 white — per-colour card behavior tests (ADR 0043 parallel test file).
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import type { GameState } from "../../../../gre/state";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { collectTriggers } from "../../../../gre/triggers";

@@ -9,7 +9,7 @@ import type { CardDefinition } from "@convex/cards/types";
 import {
     NESTING_SHAPES,
     markerOp,
-} from "@convex/gre/__tests__/fixtures/nestedOpShapes";
+} from "@convex/gre/__tests__/fixtures/nestedOpShapes.fixture";
 
 describe("computeEngineViewBadge — nested Op count (issue #4654)", () => {
     it.each(NESTING_SHAPES.map((shape) => [shape.label, shape] as const))(

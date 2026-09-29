@@ -10,7 +10,7 @@
 // view would mask exactly the per-viewer gating this test exists to prove.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, cleanup, fireEvent, act } from "@testing-library/react";
-import { makeState, makeInstance } from "@convex/cards/__tests__/setup";
+import { makeState, makeInstance } from "@convex/cards/__tests__/setup.helper";
 import { getCardByName, FACE_DOWN_CARD_ID } from "@convex/cards";
 import { turnFaceDown } from "@convex/gre/faceDown";
 import { exileFaceDownCard } from "@convex/gre/state";

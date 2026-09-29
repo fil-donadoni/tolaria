@@ -16,7 +16,7 @@ import {
     makePlayer,
     makeState,
     submitChoice,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import { resolveTopOfStack } from "../../../../gre/state";
 import type { CardInstanceState, GameState } from "../../../../gre/state";
 import { getDefinition } from "../../../index";
@@ -27,7 +27,7 @@ const DEATHRITE = deathriteShaman.id;
 
 /** Pushes an activated ability onto the stack (cost assumed already paid),
  *  then resolves it. Mirrors the shim used across the other set test files
- *  (e.g. `drk/__tests__/helpers.ts`, `clb/__tests__/multicolor.test.ts`). */
+ *  (e.g. `drk/__tests__/set.helper.ts`, `clb/__tests__/multicolor.test.ts`). */
 function activate(
     state: GameState,
     source: CardInstanceState,

@@ -17,9 +17,9 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import { projectPublicState } from "../../gameProjections";
-import { grizzlyBears } from "../../cards/sets/lea/green";
+import { grizzlyBears } from "../../cards/sets/lea/green.cards";
 import { compactState, expandState } from "../serialize";
 
 function withCounteredBear(): GameState {

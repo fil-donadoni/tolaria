@@ -1,4 +1,4 @@
-// Per-card behavior tests for white cards in `convex/cards/sets/tmp/white.ts`
+// Per-card behavior tests for white cards in `convex/cards/sets/tmp/white.cards.ts`
 // (Tempest, split by colour per ADR 0043).
 //
 // Humility is the first card to declare the `pt-set` static-effect kind
@@ -9,7 +9,11 @@
 // around it.
 
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import { projectPublicState } from "../../../../gameProjections";
 import {
     type CardInstanceState,

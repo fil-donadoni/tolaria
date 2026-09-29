@@ -31,12 +31,12 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import { getPlayer, resolveTopOfStack } from "../../gre/state";
 import { compileCard } from "../compile";
 import { sortKeys } from "../gates";
 import type { OracleCard } from "../types";
-import { oracleCard } from "./fixtures";
+import { oracleCard } from "./oracle.fixture";
 
 /** Chastise's corpus row, verbatim (`data/oracle-corpus.json.gz`). */
 const CHASTISE: OracleCard = {

@@ -19,7 +19,11 @@
 import { describe, it, expect } from "vitest";
 import { BAT_TOKEN } from "../../../sharedTokens";
 import { getDefinition } from "../../../index";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import {
     resolveTopOfStack,
     type CardInstanceState,

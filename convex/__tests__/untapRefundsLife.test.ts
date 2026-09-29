@@ -38,7 +38,11 @@ import {
 import { getActivatedManaAbility } from "../gre/constants";
 import { compactState, expandState } from "../gre/serialize";
 import type { ManaCost } from "../cards/types";
-import { makeInstance, makePlayer, makeState } from "../cards/__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../cards/__tests__/setup.helper";
 
 const ADARKAR_WASTES = "09dd9023-f7ee-4e99-8821-7059deb83730"; // {C} painless | {W}/{U} → 1 dmg
 const ANCIENT_TOMB = "30e401e3-282b-4524-87e1-c6cd50cd6d00"; // {C}{C}, deals 2 to you every tap

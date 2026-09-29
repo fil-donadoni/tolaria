@@ -1,6 +1,10 @@
 // M3C black — per-colour card behavior tests (ADR 0043 parallel test file).
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import {
     getEffectivePower,
     getEffectiveToughness,
@@ -67,7 +71,7 @@ function libCard(
 
 /** Pushes Barrowgoyf's combat-damage trigger onto the stack with a synthetic
  *  DAMAGE_DEALT event and resolves it (mirrors the engine after
- *  `collectTriggers` places the trigger, ice/__tests__/helpers.ts's
+ *  `collectTriggers` places the trigger, ice/__tests__/set.helper.ts's
  *  `resolveTrigger` pattern). */
 function fireCombatDamage(
     state: GameState,

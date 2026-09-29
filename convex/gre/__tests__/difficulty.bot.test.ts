@@ -22,7 +22,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 
 const GIANT = getCardByName("Hill Giant").id; // 3/3
 const BOLT = getCardByName("Lightning Bolt").id; // R: 3 dmg any target

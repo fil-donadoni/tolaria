@@ -30,9 +30,13 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import { WRENN_AND_SIX_EMBLEM_ID } from "../../cards/emblems";
-import { grizzlyBears, lightningBolt, mountain } from "../../cards/sets/lea";
+import {
+    grizzlyBears,
+    lightningBolt,
+    mountain,
+} from "../../cards/sets/lea/index.cards";
 
 /** p1 has the Wrenn and Six emblem, a Lightning Bolt in the graveyard, two
  *  untapped Mountains, and `handLands` Mountains (plus `handOther` non-lands)

@@ -47,10 +47,14 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
-import { firebolt } from "../../cards/sets/ody/red";
-import { faithlessLooting } from "../../cards/sets/dka/red";
-import { grizzlyBears, mountain, ancestralRecall } from "../../cards/sets/lea";
+} from "../../cards/__tests__/setup.helper";
+import { firebolt } from "../../cards/sets/ody/red.cards";
+import { faithlessLooting } from "../../cards/sets/dka/red.cards";
+import {
+    grizzlyBears,
+    mountain,
+    ancestralRecall,
+} from "../../cards/sets/lea/index.cards";
 
 describe("Flashback capability (CR 702.34)", () => {
     describe("flashback cost lookup (convex/gre/flashback.ts)", () => {

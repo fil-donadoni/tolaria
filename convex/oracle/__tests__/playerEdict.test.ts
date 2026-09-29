@@ -25,7 +25,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import { registerTokenDefinition } from "../../cards";
 import { projectPublicState } from "../../gameProjections";
 import {
@@ -37,7 +37,7 @@ import { getPlayer, resolveTopOfStack } from "../../gre/state";
 import { compileCard } from "../compile";
 import { sortKeys } from "../gates";
 import type { OracleCard } from "../types";
-import { oracleCard } from "./fixtures";
+import { oracleCard } from "./oracle.fixture";
 
 /** A corpus row, verbatim (`data/oracle-corpus.json.gz`). */
 function row(

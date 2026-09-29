@@ -15,7 +15,7 @@ apply in ANY later layer.
 **Evidence.** `convex/gre/layer6.ts` is the only reader of
 `abilitiesSuppressedBy`; `convex/gre/layers.ts`'s layer-7 collection does not
 mention it. Reachable in a P/T-SETTING shape for the first time with
-Hexdrinker (`convex/cards/sets/mh1/green.ts`, issue #2386): under Humility its
+Hexdrinker (`convex/cards/sets/mh1/green.cards.ts`, issue #2386): under Humility its
 LEVEL bands would lose "protection from instants" / "protection from
 everything" (layer 6, correctly) while the band's 4/4 or 6/6 base P/T (layer 7b)
 kept applying — so the creature would read 6/6 instead of Humility's 1/1.

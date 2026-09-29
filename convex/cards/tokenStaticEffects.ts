@@ -44,7 +44,7 @@ import type {
 /** CR 604.3 — "This token gets +1/+1 for each artifact you control", the
  *  characteristic-defining ability on Urza's Saga's Construct (CR 714, mh2).
  *  A `pt-cda` returning the DELTA over the printed base P/T (the catalogue
- *  convention, Wayfaring Giant `sets/inv/white.ts`). The token IS an artifact,
+ *  convention, Wayfaring Giant `sets/inv/white.cards.ts`). The token IS an artifact,
  *  so it counts ITSELF: a lone Construct is 1/1 and never dies to the CR 704.5f
  *  zero-toughness SBA. */
 function ptCdaArtifactsYouControl(): StaticPTCDA {

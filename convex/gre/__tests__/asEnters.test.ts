@@ -30,8 +30,8 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../cards/__tests__/setup";
-import { grizzlyBears, lightningBolt } from "../../cards/sets/lea";
+} from "../../cards/__tests__/setup.helper";
+import { grizzlyBears, lightningBolt } from "../../cards/sets/lea/index.cards";
 
 // --- Synthetic definitions (engine capability, no shipped card) -------------
 

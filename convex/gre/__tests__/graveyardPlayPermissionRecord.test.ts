@@ -36,11 +36,11 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
-import { mountain, savannahLions } from "../../cards/sets/lea";
-import { crucibleOfWorlds } from "../../cards/sets/5dn/colorless";
-import { wateryGrave } from "../../cards/sets/rav/colorless";
-import { lurrus } from "../../cards/sets/iko/multicolor";
+} from "../../cards/__tests__/setup.helper";
+import { mountain, savannahLions } from "../../cards/sets/lea/index.cards";
+import { crucibleOfWorlds } from "../../cards/sets/5dn/colorless.cards";
+import { wateryGrave } from "../../cards/sets/rav/colorless.cards";
+import { lurrus } from "../../cards/sets/iko/multicolor.cards";
 
 const SOURCE_DEF_ID = "test-graveyard-play-permission-source";
 

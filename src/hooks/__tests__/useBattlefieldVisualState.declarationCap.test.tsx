@@ -25,12 +25,12 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../../convex/cards/__tests__/setup";
+} from "../../../convex/cards/__tests__/setup.helper";
 import { projectPublicState } from "../../../convex/gameProjections";
-import { grizzlyBears } from "../../../convex/cards/sets/lea/green";
-import { duelingGrounds } from "../../../convex/cards/sets/inv/multicolor";
-import { cavernsOfDespair } from "../../../convex/cards/sets/leg/red";
-import { twoHeadedGiantOfForiys } from "../../../convex/cards/sets/lea/red";
+import { grizzlyBears } from "../../../convex/cards/sets/lea/green.cards";
+import { duelingGrounds } from "../../../convex/cards/sets/inv/multicolor.cards";
+import { cavernsOfDespair } from "../../../convex/cards/sets/leg/red.cards";
+import { twoHeadedGiantOfForiys } from "../../../convex/cards/sets/lea/red.cards";
 
 vi.mock("~/hooks/usePendingChoiceBuffer", () => ({
     usePendingChoiceBuffer: () => ({

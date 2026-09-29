@@ -1,4 +1,4 @@
-// Per-card behavior tests for EOE blue cards (`convex/cards/sets/eoe/blue.ts`).
+// Per-card behavior tests for EOE blue cards (`convex/cards/sets/eoe/blue.cards.ts`).
 // Consult the Star Charts exercises the Kicker capability (CR 702.33) + the
 // `lookDistribute` Op with a `count` look size (lands you control): put one card into
 // hand, or two when kicked. The lookDistribute mechanics are proven generically in
@@ -11,7 +11,7 @@ import {
     makeState,
     pushSpell,
     submitChoice,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import {
     resolveTopOfStack,
     type GameState,

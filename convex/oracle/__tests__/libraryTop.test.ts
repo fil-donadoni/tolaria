@@ -22,7 +22,7 @@ import { describe, expect, it } from "vitest";
 import type { CardDefinition } from "../../cards/types";
 import { compileCard } from "../compile";
 import { sortKeys } from "../gates";
-import { oracleCard } from "./fixtures";
+import { oracleCard } from "./oracle.fixture";
 
 function spell(name: string, manaCost: string, oracleText: string) {
     return oracleCard({

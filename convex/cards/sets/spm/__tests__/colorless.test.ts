@@ -6,7 +6,11 @@
 // for the precedent citations).
 
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import {
     resolveTopOfStack,
     beginApplyingStaticEffects,

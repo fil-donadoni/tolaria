@@ -1908,7 +1908,7 @@ describe("land.ts — a cards-lane landing is treated like engine (ADR 0136 §4,
     // card PR used to classify `engine`; it now classifies `cards`, and
     // neither decision may change with it: no receipt owed, scenario owed.
     const CARD_DIFF = [
-        "convex/cards/sets/lea/red.ts",
+        "convex/cards/sets/lea/red.cards.ts",
         "data/card-index.json",
         "data/cr/citations-ledger.json",
     ];

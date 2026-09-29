@@ -12,7 +12,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import { getDefinition } from "../../../index";
 
 const oust = getDefinition("07313dd3-d0dc-40ca-98a3-fa4d39e5bcae");

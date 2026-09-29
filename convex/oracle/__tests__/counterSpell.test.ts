@@ -19,7 +19,7 @@
 import { describe, expect, it } from "vitest";
 import { compileCard } from "../compile";
 import { sortKeys } from "../gates";
-import { oracleCard } from "./fixtures";
+import { oracleCard } from "./oracle.fixture";
 
 function instant(name: string, manaCost: string, oracleText: string) {
     return oracleCard({

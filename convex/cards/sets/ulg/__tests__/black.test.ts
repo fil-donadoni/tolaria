@@ -21,7 +21,7 @@ import {
     makeState,
     pushSpell,
     submitChoice,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import { getDefinition } from "../../../index";
 
 const unearth = getDefinition("b6cb2549-e485-44d6-9d65-7605c568909e");
@@ -280,7 +280,7 @@ describe("Engineered Plague (CR 614.12a as-enters creature type + CR 613.4c laye
     });
 
     // CR 613.1 layer order, and the cross-card seam this card shares with
-    // Conspiracy (`sets/mmq/black.ts`): the layer-4 subtype SET is applied
+    // Conspiracy (`sets/mmq/black.cards.ts`): the layer-4 subtype SET is applied
     // before this layer-7c read, so a Bear that Conspiracy has turned into an
     // Elf is a legal victim of a Plague naming Elf — the predicate reads the
     // live subtypes, never the printed ones.

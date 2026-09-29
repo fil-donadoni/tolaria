@@ -15,12 +15,15 @@
 // row was never fetched" are correctness properties with no observable effect
 // on any returned value — exactly the regressions a result-shaped test cannot
 // see. The project has no convex-test harness, so this drives the real store
-// against the shared in-memory `db` (`fixtures/inMemoryDb.ts`).
+// against the shared in-memory `db` (`fixtures/inMemoryDb.fixture.ts`).
 import { describe, it, expect } from "vitest";
 import * as fs from "fs";
 import * as path from "path";
 import type { Doc, Id } from "../_generated/dataModel";
-import { makeInMemoryDb, type InMemoryRow } from "./fixtures/inMemoryDb";
+import {
+    makeInMemoryDb,
+    type InMemoryRow,
+} from "./fixtures/inMemoryDb.fixture";
 import { findActiveGameForUser } from "../gameLifecycle";
 import { findActiveMatchForUser, type MatchPlayer } from "../matches";
 import {

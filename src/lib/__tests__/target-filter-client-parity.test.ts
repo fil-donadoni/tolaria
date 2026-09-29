@@ -28,7 +28,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "@convex/cards/__tests__/setup";
+} from "@convex/cards/__tests__/setup.helper";
 import { projectPublicState } from "@convex/gameProjections";
 import { getLegalTargets, NO_TARGETING_SOURCE } from "@convex/gre/rules";
 import { pendingTargetFiltersFromRequirement } from "@convex/gre/rules";
@@ -41,18 +41,18 @@ import {
 } from "~/lib/card-utils";
 import { getEligibleGraveyards } from "~/lib/graveyard-targets";
 
-import { prohibit } from "@convex/cards/sets/inv/blue";
-import { gainsay } from "@convex/cards/sets/pls/blue";
-import { fireAndBrimstone } from "@convex/cards/sets/drk/white";
-import { forgottenLore } from "@convex/cards/sets/ice/green";
+import { prohibit } from "@convex/cards/sets/inv/blue.cards";
+import { gainsay } from "@convex/cards/sets/pls/blue.cards";
+import { fireAndBrimstone } from "@convex/cards/sets/drk/white.cards";
+import { forgottenLore } from "@convex/cards/sets/ice/green.cards";
 import {
     counterspell,
     disenchant,
     shivanDragon,
     grizzlyBears,
-} from "@convex/cards/sets/lea";
-import { thermokarst } from "@convex/cards/sets/ice/green";
-import { oathOfDruids } from "@convex/cards/sets/exo/green";
+} from "@convex/cards/sets/lea/index.cards";
+import { thermokarst } from "@convex/cards/sets/ice/green.cards";
+import { oathOfDruids } from "@convex/cards/sets/exo/green.cards";
 
 const CHOOSER = "p1";
 

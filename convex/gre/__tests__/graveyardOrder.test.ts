@@ -30,8 +30,8 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
-import { grizzlyBears } from "../../cards/sets/lea";
+} from "../../cards/__tests__/setup.helper";
+import { grizzlyBears } from "../../cards/sets/lea/index.cards";
 
 /** The card ids in `p1`'s graveyard, bottom (oldest) → top (newest). */
 const pileOf = (state: ReturnType<typeof makeState>) =>

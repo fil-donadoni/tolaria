@@ -3631,8 +3631,12 @@ describe("pendingTargetFiltersFromRequirement — player/card filter carry-compl
 // "Counter target spell."
 // ---------------------------------------------------------------------------
 
-import { counterspell, lightningBolt, giantGrowth } from "../../cards/sets/lea";
-import { stifle } from "../../cards/sets/scg/blue";
+import {
+    counterspell,
+    lightningBolt,
+    giantGrowth,
+} from "../../cards/sets/lea/index.cards";
+import { stifle } from "../../cards/sets/scg/blue.cards";
 
 describe("spell resolution: Counterspell (CR 701.6a)", () => {
     function makeCounterspellItem(

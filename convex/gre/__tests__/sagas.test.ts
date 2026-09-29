@@ -13,7 +13,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import {
     LORE_COUNTER,
     chapterAbilityId,

@@ -29,13 +29,13 @@ import { collectTriggers } from "../triggers";
 import { buildStateFromScenario } from "../scenarioBuilder";
 import { registerTokenDefinition } from "../../cards";
 import { enteredTrigger } from "../../cards/abilities/triggers/enteredTrigger";
-import { spreadingPlague } from "../../cards/sets/inv/black";
-import { titaniasSong } from "../../cards/sets/atq/green";
+import { spreadingPlague } from "../../cards/sets/inv/black.cards";
+import { titaniasSong } from "../../cards/sets/atq/green.cards";
 import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import type { CardDefinition, GameEvent, TokenSpec } from "../../cards/types";
 
 // ─── Fixtures ────────────────────────────────────────────────────────────────
@@ -425,7 +425,7 @@ describe("token entry emits PERMANENT_ENTERED (CR 111.1 / 603.6a, issue #2300)",
         // gate that decides whether P/T is snapshotted at all. Emit before the
         // grant passes and the Treasure announces a bare `["Artifact"]` with
         // no P/T, and every "whenever a creature enters" trigger silently
-        // stops seeing it. Titania's Song (`sets/atq/green.ts`) is the shipped
+        // stops seeing it. Titania's Song (`sets/atq/green.cards.ts`) is the shipped
         // instance of that shape.
         const state = boardWith([titaniasSong.id, CREATURE_WATCHER_ID]);
         createTokenPermanents(state, TREASURE, "p1", 1);
@@ -599,7 +599,7 @@ describe("a token's announced cardId resolves in the registry (issue #2300 censu
     });
 
     it("Spreading Plague — the one consumer that resolves the entrant's DEFINITION — reads a token's colors correctly", () => {
-        // The census's single RISKY row (`convex/cards/sets/inv/black.ts:1151`):
+        // The census's single RISKY row (`convex/cards/sets/inv/black.cards.ts:1151`):
         // its `resolve` calls `ctx.getColors` on the ENTERING permanent, which
         // falls back to `tryGetDefinition(cardId)?.manaCost`. For a token that
         // id is SYNTHESIZED — this proves the lookup resolves and yields the

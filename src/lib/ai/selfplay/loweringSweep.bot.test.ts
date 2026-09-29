@@ -10,7 +10,7 @@
 //     `test:bot` collects and skips it.
 
 import { describe, it, expect } from "vitest";
-import { makePlayer, makeState } from "@convex/cards/__tests__/setup";
+import { makePlayer, makeState } from "@convex/cards/__tests__/setup.helper";
 import {
     GAME_STATE_ALLOWLIST,
     PLAYER_STATE_ALLOWLIST,
@@ -27,7 +27,7 @@ import {
     type LoweringSweepConfig,
 } from "./loweringSweep";
 import { VERDICT_REFUSAL_KINDS } from "@convex/gre/ai/verdicts/lowering";
-import { makeInstance } from "@convex/cards/__tests__/setup";
+import { makeInstance } from "@convex/cards/__tests__/setup.helper";
 import type { StackItem } from "@convex/gre";
 
 describe("lowering sweep: dropped-message classes (issue #3461)", () => {

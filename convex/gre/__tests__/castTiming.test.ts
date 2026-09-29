@@ -20,13 +20,13 @@
 import { describe, it, expect } from "vitest";
 import { castTimingBaseLegal } from "../rules";
 import { isSorceryTiming, isSorceryTimingFor } from "../phases";
-import { braingeyser } from "../../cards/sets/lea/blue";
-import { lightningBolt } from "../../cards/sets/lea/red";
+import { braingeyser } from "../../cards/sets/lea/blue.cards";
+import { lightningBolt } from "../../cards/sets/lea/red.cards";
 import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import type { GameState } from "../state";
 
 function handCard(cardId: string, id: string, controllerId = "p1") {

@@ -36,7 +36,7 @@ permanent" against "gain the created token/effect".
 `src/lib/ai/brain.ts:822-825` (`chooseResolution`'s `case
 "sacrifice-permanents"`) computes `worstFirst(candidates).slice(0, min)`,
 which is `[]` whenever `min === 0`. Confirmed against Gut, True Soul Zealot's
-own shipped ability (`convex/cards/sets/clb/red.ts`,
+own shipped ability (`convex/cards/sets/clb/red.cards.ts`,
 `count: { min: 0, max: 1 }`): `src/lib/ai/__tests__/
 gutTrueSoulZealot.bot.test.ts` proves the bot always declines under the
 current default, even with a clearly-worse-than-the-token permanent (a bear)

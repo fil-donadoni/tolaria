@@ -27,7 +27,7 @@ import {
     type Plan,
 } from "../scenarioGenerator";
 import { EFFECT_OP_REGISTRY } from "../../../cards/mechanicsRegistry";
-import { makeInstance } from "../../../cards/__tests__/setup";
+import { makeInstance } from "../../../cards/__tests__/setup.helper";
 import { resolveTopOfStack } from "../../state";
 import OP_DISPOSITION_SNAPSHOT from "./scenarioOpDisposition.json";
 

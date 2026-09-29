@@ -11,7 +11,7 @@ chooses which mana in their pool to spend. Tolaria never asks: `payManaCost`
 color with the most mana in the pool first.
 
 Reported symptom: a land that adds two mana at once (e.g. Ancient Spring —
-`{T}, Sacrifice: Add {W}{B}`, `convex/cards/sets/inv/multicolor.ts:2861`) floats
+`{T}, Sacrifice: Add {W}{B}`, `convex/cards/sets/inv/multicolor.cards.ts:2861`) floats
 both colors; casting an artifact costing `{1}` silently consumes one color of
 the engine's choosing, leaving the other floating. The player never picks. This
 only bites when the leftover color matters (a second spell needing the specific

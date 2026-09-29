@@ -1,6 +1,6 @@
 // The resolution outbox's table door (issue #3582, ADR 0128 §6): the REGISTERED
 // `record` / `markResolutionStored` bindings driven through the shared stub ctx
-// (`gameMutationHarness.ts`) — the path that is deployed, not an extracted
+// (`gameMutationHarness.fixture.ts`) — the path that is deployed, not an extracted
 // helper.
 //
 // A `.bot.test.ts` because it derives ids through
@@ -10,7 +10,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { positionKeyOf, verdictIdOf } from "../gre/ai/verdicts/identity";
 import { resolutionIdOf } from "../gre/ai/verdicts/resolution";
 import { markResolutionStored, record } from "../verdictResolutions";
-import { makeMutationCtx, runMutation, type Row } from "./gameMutationHarness";
+import {
+    makeMutationCtx,
+    runMutation,
+    type Row,
+} from "./gameMutationHarness.fixture";
 
 const ADMIN: Row = {
     _id: "u-admin",

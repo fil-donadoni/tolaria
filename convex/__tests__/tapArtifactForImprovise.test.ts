@@ -20,7 +20,11 @@ import {
 } from "../game";
 import { emitPermanentTapped, type PendingCast } from "../gre/state";
 import { projectPublicState } from "../gameProjections";
-import { makeInstance, makePlayer, makeState } from "../cards/__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../cards/__tests__/setup.helper";
 
 const METALLIC_REBUKE = "f712ac26-dca4-459b-84c1-010597007f60"; // {2}{U} Instant, improvise
 const DISRUPT = "c000a02f-6b7e-4925-a938-59e645e980d7"; // {U} Instant, no improvise

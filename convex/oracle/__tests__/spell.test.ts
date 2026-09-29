@@ -28,16 +28,16 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 
-/** Black Lotus (`sets/lea/colorless.ts`) — a real artifact for the board. */
+/** Black Lotus (`sets/lea/colorless.cards.ts`) — a real artifact for the board. */
 const BLACK_LOTUS = "b0faa7f2-b547-42c4-a810-839da50dadfe";
 import { resolveTopOfStack } from "../../gre/state";
 import { compileCard } from "../compile";
 import { groupLines } from "../grammar/lineGroups";
 import { routeLine } from "../grammar/router";
 import { spellSlot, SPELL_SLOT } from "../grammar/slots/spell";
-import { oracleCard, parseContext } from "./fixtures";
+import { oracleCard, parseContext } from "./oracle.fixture";
 import type { OracleCard, ParseContext } from "../types";
 
 // ── Fixtures ───────────────────────────────────────────────────────────────

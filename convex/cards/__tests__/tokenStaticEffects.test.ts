@@ -24,8 +24,8 @@ import { describe, it, expect } from "vitest";
 import { tokenDefinitionId, tryGetDefinition } from "..";
 import { TOKEN_STATIC_EFFECT_FACTORIES } from "../tokenStaticEffects";
 import type { TokenSpec, TokenStaticEffectKey } from "../types";
-import { makeInstance, makePlayer, makeState } from "./setup";
-import { ornithopter } from "../sets/atq/colorless";
+import { makeInstance, makePlayer, makeState } from "./setup.helper";
+import { ornithopter } from "../sets/atq/colorless.cards";
 import { getEffectivePower, getEffectiveToughness } from "../../gre/layers";
 import type { CardInstanceState } from "../../gre/state";
 

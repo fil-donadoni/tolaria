@@ -11,7 +11,7 @@ it mis-signed: the chooser is the OPPONENT, but the zone picked from is the
 CONTROLLER's own — so it is the caster's land that dies, priced as +120 board
 removal aimed at the other seat.
 
-**Evidence.** `convex/cards/sets/lea/black.ts:256` —
+**Evidence.** `convex/cards/sets/lea/black.cards.ts:256` —
 `choice { player: "opponent", zoneOwnerId: "controller", filter: { type: "Land" } }`
 then `sacrifice { permanents: { ref: "$picked" } }`. The valuer
 (`convex/gre/ai/opValuers.ts`, `withBindingsOf`) attributes on `player` alone;

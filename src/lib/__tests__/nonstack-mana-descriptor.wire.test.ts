@@ -30,7 +30,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "@convex/cards/__tests__/setup";
+} from "@convex/cards/__tests__/setup.helper";
 
 /** The named card on p1's battlefield, projected onto the wire and read back
  *  as the client reads it. */

@@ -443,7 +443,7 @@ export function runGates(input: GateInput): GateResult {
         // `validateEffectScript` returns early on `def.effects === undefined`,
         // and a modal card has none by construction, so without this every
         // modal card would reach `ready` with its mode bodies unchecked. The
-        // synthetic host mirrors `cards/__tests__/effectSites.ts` §modeSites,
+        // synthetic host mirrors `cards/__tests__/effectSites.helper.ts` §modeSites,
         // which is how the catalogue sweep reaches the same scripts; it is
         // rebuilt here rather than imported because a production gate may not
         // depend on a test module.
@@ -459,7 +459,7 @@ export function runGates(input: GateInput): GateResult {
                       // they are cleared; the mode's OWN `resolve` is carried
                       // through, because its mutual exclusivity with the
                       // mode's body is the one check this synthetic host
-                      // exists to run (`effectSites.ts` §modeSites, mirrored).
+                      // exists to run (`effectSites.helper.ts` §modeSites, mirrored).
                       resolve: mode.resolve,
                       resolveSteps: undefined,
                       effect: undefined,

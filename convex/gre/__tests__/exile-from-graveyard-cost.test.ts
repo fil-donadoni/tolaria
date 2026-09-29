@@ -27,13 +27,13 @@ import {
 } from "../state";
 import { getDefinition } from "../../cards";
 import type { CardType } from "../../cards/types";
-import { nightSoil } from "../../cards/sets/fem";
-import { grizzlyBears } from "../../cards/sets/lea";
+import { nightSoil } from "../../cards/sets/fem/index.cards";
+import { grizzlyBears } from "../../cards/sets/lea/index.cards";
 import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 
 // --- mirror of game.ts canPayExileFromGraveyard ----------------------------
 function canPayExileFromGraveyard(

@@ -16,7 +16,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import {
     enumerateMoves,
     MAX_COMBINATIONS,
@@ -32,7 +32,7 @@ import { cloneGameState } from "../clone";
 import { applyMoveInSearch } from "../search";
 import { buildStateFromScenario } from "../scenarioBuilder";
 import { createInitialGameState, type PlayerInput } from "../setup";
-import { umezawasJitte } from "../../cards/sets/bok/colorless";
+import { umezawasJitte } from "../../cards/sets/bok/colorless.cards";
 
 type CastMove = Extract<Move, { kind: "cast-spell" }>;
 

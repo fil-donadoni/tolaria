@@ -1,5 +1,5 @@
 // ZEN — per-card behavior tests for colorless cards in
-// `convex/cards/sets/zen/colorless.ts` (set split by colour, ADR 0043). The
+// `convex/cards/sets/zen/colorless.cards.ts` (set split by colour, ADR 0043). The
 // fetchland family shares one Op combination (`choice` filtered
 // zone:"library" + `moveZone` cards-shape to battlefield + `libraryLook`
 // shuffle), already exercised as the Op's own permanent test in
@@ -9,7 +9,11 @@
 // distinct type-filter + sacrifice-self + hand destination.
 
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { projectPublicState } from "../../../../gameProjections";

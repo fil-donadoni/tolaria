@@ -14,7 +14,7 @@ import {
     makePlayer,
     makeState,
     resolveTriggerOrder,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import {
     emitSpellCastEvent,
     removePermanentTo,
@@ -25,13 +25,13 @@ import {
     moveCard,
     getPlayer,
 } from "../../../../gre/state";
-import { pushSpell } from "../../../__tests__/setup";
+import { pushSpell } from "../../../__tests__/setup.helper";
 import { annihilatorTriggerId } from "../../../abilities/annihilator";
 // SEAM EXCEPTION (issue #3048): this file's annihilator test asserts the
 // difference between the RAW module export and what the seam serves, so it is
 // the one place a set-module import IS the point. Allowlisted in
 // `scripts/__tests__/card-test-seam-boundary.test.ts`.
-import { emrakulTheAeonsTorn as rawEmrakulModuleExport } from "../colorless";
+import { emrakulTheAeonsTorn as rawEmrakulModuleExport } from "../colorless.cards";
 import { getDefinition } from "../../..";
 
 const emrakulTheAeonsTorn = getDefinition(

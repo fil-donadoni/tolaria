@@ -18,7 +18,7 @@ import { getCardByName } from "../../cards";
 import { enumerateMoves } from "../moves";
 import { applyMoveInSearch } from "../search";
 import { resolveTopOfStack } from "../state";
-import { makeState, pushSpell } from "../../cards/__tests__/setup";
+import { makeState, pushSpell } from "../../cards/__tests__/setup.helper";
 import type { GameState } from "../state";
 import type { Move } from "../moves";
 

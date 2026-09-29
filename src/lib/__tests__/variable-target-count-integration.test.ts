@@ -23,7 +23,7 @@
 //      against the announced X into a live `{min, max}` PendingTarget.count.
 //   2. game.ts — the REGISTERED `selectTarget` / `confirmTargets` mutation
 //      `_handler`s, driven through the project's stub-MutationCtx harness
-//      (`gameMutationHarness.ts` — the established seam; no convex-test
+//      (`gameMutationHarness.fixture.ts` — the established seam; no convex-test
 //      harness exists here).
 //   3. Frontend — `describeTargetProgress` (`~/lib/target-progress`), the
 //      real reducer the target-selection banner calls to decide whether
@@ -34,8 +34,12 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "@convex/cards/__tests__/setup";
-import { grizzlyBears, hillGiant, savannahLions } from "@convex/cards/sets/lea";
+} from "@convex/cards/__tests__/setup.helper";
+import {
+    grizzlyBears,
+    hillGiant,
+    savannahLions,
+} from "@convex/cards/sets/lea/index.cards";
 import { preloadDefinitions } from "@convex/cards";
 import type { CardDefinition } from "@convex/cards/types";
 import { selectTarget, confirmTargets } from "@convex/game";
@@ -51,7 +55,7 @@ import {
     runMutation,
     gameStateSeed,
     type Handler,
-} from "@convex/__tests__/gameMutationHarness";
+} from "@convex/__tests__/gameMutationHarness.fixture";
 import type { Id } from "@convex/_generated/dataModel";
 import { describeTargetProgress } from "~/lib/target-progress";
 

@@ -120,7 +120,7 @@ than it was costed:
 
 - **Layer-4 type REMOVAL already existed.** `type-remove` is part of the
   registry's layer-4 static-effect vocabulary and is what the reconfigure cards
-  use (`cards/sets/neo/white.ts`), so bestow declares it rather than adding it.
+  use (`cards/sets/neo/white.cards.ts`), so bestow declares it rather than adding it.
 - **The stack-side `.types` readers did not have to move.** This ADR costed
   ~11 consult sites migrating from `item.types` to a pipeline call. Since S4 the
   derivation MATERIALISES its layer-4 answer onto `types`/`subtypes`

@@ -18,7 +18,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 
 const hullbreacher = getDefinition("4df8aabc-7fcb-4b7b-980b-18f499e6c170");
 

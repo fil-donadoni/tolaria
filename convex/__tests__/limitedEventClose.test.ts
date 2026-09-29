@@ -28,8 +28,14 @@ import {
     limitedEventSummaryValidator,
     viewerMatchRecordFor,
 } from "../limitedEvents";
-import { type InMemoryRow, makeInMemoryDb } from "./fixtures/inMemoryDb";
-import { validatorJsonOf, validationErrors } from "./fixtures/validatorWalk";
+import {
+    type InMemoryRow,
+    makeInMemoryDb,
+} from "./fixtures/inMemoryDb.fixture";
+import {
+    validatorJsonOf,
+    validationErrors,
+} from "./fixtures/validatorWalk.fixture";
 import { buildEmptySeats, assignFreeSeat } from "../limited/eventLogic";
 import {
     uiGateOpenLabel,

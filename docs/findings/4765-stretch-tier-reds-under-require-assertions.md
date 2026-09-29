@@ -9,7 +9,7 @@ confidence: high
 **What is wrong.** `bun run test:blade:stretch` is report-only by contract, but
 since PR #4613 turned on `expect.requireAssertions` for every project
 (`vitest.blade.config.ts:61`), the stretch branch of
-`convex/gre/ai/blade/__tests__/bladeShardRunner.ts` (~line 265) fails every
+`convex/gre/ai/blade/__tests__/bladeShardRunner.helper.ts` (~line 265) fails every
 entry that carries no `beyondBudget`: it prints the verdict, returns, and has
 asserted nothing, so vitest reports `expected any number of assertion, but got
 none`. A PASS and a FAIL verdict both come out as a red test and a non-zero

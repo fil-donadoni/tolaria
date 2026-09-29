@@ -13,8 +13,8 @@ composition goes through `SpellContext.discardCard`, and that call stamps
 
 - `upkeepDiscardOrElseTrigger` (`convex/cards/abilities/upkeepDiscardOrElse.ts:106`,
   used by Solitary Confinement)
-- Oath of Lim-Dûl (`convex/cards/sets/ice/black.ts`)
-- the ATQ "3 damage unless you discard" card (`convex/cards/sets/atq/colorless.ts`,
+- Oath of Lim-Dûl (`convex/cards/sets/ice/black.cards.ts`)
+- the ATQ "3 damage unless you discard" card (`convex/cards/sets/atq/colorless.cards.ts`,
   a DSL `if`)
 - any DSL "you may discard … if you do" script
 

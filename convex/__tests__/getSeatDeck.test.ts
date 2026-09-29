@@ -18,12 +18,15 @@
 //
 // The project has no convex-test harness, so the REGISTERED query's own
 // `_handler` — the function Convex deploys — is driven against the shared
-// in-memory ctx (`convex/__tests__/fixtures/inMemoryDb.ts`), whose
+// in-memory ctx (`convex/__tests__/fixtures/inMemoryDb.fixture.ts`), whose
 // `identitySubject` is what `auth.getUserId` reads.
 import { describe, it, expect } from "vitest";
 import type { Id } from "../_generated/dataModel";
 import type { QueryCtx } from "../_generated/server";
-import { makeInMemoryDb, type InMemoryRow } from "./fixtures/inMemoryDb";
+import {
+    makeInMemoryDb,
+    type InMemoryRow,
+} from "./fixtures/inMemoryDb.fixture";
 import { getSeatDeck } from "../game";
 
 type Handler<A, R> = { _handler: (ctx: QueryCtx, args: A) => Promise<R> };

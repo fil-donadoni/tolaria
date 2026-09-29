@@ -21,7 +21,7 @@
 //     caster's life goes 20 → 17. This project has no `convex-test` package,
 //     so the established seam for `game.ts` integration coverage is a stub
 //     `MutationCtx` driving the REGISTERED mutation's own `_handler`
-//     (`gameMutationHarness.ts`, as `upToXTargetCastLegality.test.ts` and
+//     (`gameMutationHarness.fixture.ts`, as `upToXTargetCastLegality.test.ts` and
 //     `delveCastCost.test.ts` do) — never a hand-rolled reimplementation of
 //     `announceCast`'s body, which would share the bug's premise.
 //  3. **Source guard** — every cast-commit life total in `game.ts` folds
@@ -43,18 +43,22 @@ import {
     resolveAdditionalCosts,
 } from "../gre/additionalCost";
 import { announceCast } from "../game";
-import { toxicDeluge } from "../cards/sets/c13";
-import { bitterTriumph } from "../cards/sets/lci";
-import { lightningBolt } from "../cards/sets/lea";
-import { swamp } from "../cards/sets/lea/colorless";
-import { makeInstance, makePlayer, makeState } from "../cards/__tests__/setup";
+import { toxicDeluge } from "../cards/sets/c13/index.cards";
+import { bitterTriumph } from "../cards/sets/lci/index.cards";
+import { lightningBolt } from "../cards/sets/lea/index.cards";
+import { swamp } from "../cards/sets/lea/colorless.cards";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../cards/__tests__/setup.helper";
 import type { Id } from "../_generated/dataModel";
 import {
     makeMutationCtx,
     runMutation,
     gameStateSeed,
     type Handler,
-} from "./gameMutationHarness";
+} from "./gameMutationHarness.fixture";
 
 const GAME_TS = path.resolve(__dirname, "..", "game.ts");
 

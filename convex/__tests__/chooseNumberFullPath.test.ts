@@ -26,7 +26,11 @@ import { resolveTopOfStack, numberChoiceRange } from "../gre/state";
 import { MAX_CHOSEN_NUMBER } from "../gre/constants";
 import type { GameState } from "../gre/state";
 import { projectPublicState } from "../gameProjections";
-import { makePlayer, makeState, pushSpell } from "../cards/__tests__/setup";
+import {
+    makePlayer,
+    makeState,
+    pushSpell,
+} from "../cards/__tests__/setup.helper";
 import { registerTokenDefinition } from "../cards";
 import type { Id } from "../_generated/dataModel";
 import {
@@ -34,7 +38,7 @@ import {
     runMutation,
     gameStateSeed,
     type Handler,
-} from "./gameMutationHarness";
+} from "./gameMutationHarness.fixture";
 
 const GAME_ID = "game-1" as Id<"games">;
 

@@ -37,9 +37,9 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../cards/__tests__/setup";
-import { grizzlyBears, savannahLions } from "../../cards/sets/lea";
-import { crusade, serraAngel } from "../../cards/sets/lea/white";
+} from "../../cards/__tests__/setup.helper";
+import { grizzlyBears, savannahLions } from "../../cards/sets/lea/index.cards";
+import { crusade, serraAngel } from "../../cards/sets/lea/white.cards";
 import { NO_BOARD_LAYER_VIEW } from "../layers";
 
 /** A board with `battlefield` under p1 and a resolving spell to hang a

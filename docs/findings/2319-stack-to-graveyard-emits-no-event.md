@@ -32,7 +32,7 @@ land-can't-enter redirect (`state.ts:5426`) and the illegal-Aura-host path
 
 Affects all three cards in the from-anywhere family (Worldspine Wurm,
 Blightsteel Colossus, Emrakul). It is already acknowledged as out of scope in
-`convex/cards/sets/rtr/green.ts:49-51`.
+`convex/cards/sets/rtr/green.cards.ts:49-51`.
 
 **Why it may not deserve its own issue.** Practically unreachable for the three
 cards that care: Emrakul has `cantBeCountered`, and the Wurm and the Colossus

@@ -12,14 +12,18 @@
 // Same harness discipline as `bolassCitadelCastPath.test.ts`: no convex-test
 // harness exists in this project, so the established seam for `game.ts`
 // integration coverage is a stub `MutationCtx` driving the REGISTERED
-// mutation's own `_handler` (`gameMutationHarness.ts`).
+// mutation's own `_handler` (`gameMutationHarness.fixture.ts`).
 
 import { describe, expect, it } from "vitest";
 import { announceCast } from "../game";
-import { aluren } from "../cards/sets/tmp/green";
-import { grizzlyBears } from "../cards/sets/lea/green";
-import { forest } from "../cards/sets/lea/colorless";
-import { makeInstance, makePlayer, makeState } from "../cards/__tests__/setup";
+import { aluren } from "../cards/sets/tmp/green.cards";
+import { grizzlyBears } from "../cards/sets/lea/green.cards";
+import { forest } from "../cards/sets/lea/colorless.cards";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../cards/__tests__/setup.helper";
 import { registerTokenDefinition } from "../cards";
 import type { CardDefinition } from "../cards/types";
 import type { GameState } from "../gre/state";
@@ -29,7 +33,7 @@ import {
     makeMutationCtx,
     runMutation,
     type Handler,
-} from "./gameMutationHarness";
+} from "./gameMutationHarness.fixture";
 
 const GAME_ID = "game-1" as Id<"games">;
 const ALUREN_ALT_COST_ID = "cast-permission:any-player-creature-f9f346f4";

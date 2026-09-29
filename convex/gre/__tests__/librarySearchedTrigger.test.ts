@@ -23,16 +23,16 @@ import {
 import { applyPendingChoiceSubmit } from "../pendingChoiceSubmit";
 import { registerTokenDefinition } from "../../cards";
 import { librarySearchedTrigger } from "../../cards/abilities/triggers/librarySearchedTrigger";
-import { pathToExile } from "../../cards/sets/con/white";
-import { diabolicVision } from "../../cards/sets/ice/multicolor";
-import { expressiveIteration } from "../../cards/sets/stx/multicolor";
-import { grizzlyBears, forest } from "../../cards/sets/lea";
+import { pathToExile } from "../../cards/sets/con/white.cards";
+import { diabolicVision } from "../../cards/sets/ice/multicolor.cards";
+import { expressiveIteration } from "../../cards/sets/stx/multicolor.cards";
+import { grizzlyBears, forest } from "../../cards/sets/lea/index.cards";
 import {
     makeInstance,
     makePlayer,
     makeState,
     pushSpell,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import type { CardDefinition } from "../../cards/types";
 
 const WATCHER_YOU_ID = "test-library-searched-watcher-you";
@@ -91,8 +91,8 @@ registerTokenDefinition({
 
 /** A synthetic DSL-only tutor sorcery: search the library for a card (any
  *  filter), move it to `to`, then shuffle. Mirrors the shipped Vampiric
- *  Tutor / fetchland shapes exactly (`sets/vis/black.ts`,
- *  `sets/zen/colorless.ts`) — the same `choice(kind: "search-library")` +
+ *  Tutor / fetchland shapes exactly (`sets/vis/black.cards.ts`,
+ *  `sets/zen/colorless.cards.ts`) — the same `choice(kind: "search-library")` +
  *  `moveZone` + `libraryLook` composition every real tutor/fetchland uses,
  *  so this test exercises the EXACT choke point real cards commit through. */
 function registerTutor(

@@ -12,7 +12,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "@convex/cards/__tests__/setup";
+} from "@convex/cards/__tests__/setup.helper";
 
 describe("restrictedManaLabel (#754, CR 106.6)", () => {
     it("labels Ice Cauldron instance-keyed mana with the exiled card's name", () => {

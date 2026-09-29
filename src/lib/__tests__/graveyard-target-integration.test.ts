@@ -21,11 +21,11 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "@convex/cards/__tests__/setup";
+} from "@convex/cards/__tests__/setup.helper";
 import { resolveTopOfStack } from "@convex/gre/state";
 import { getLegalTargets, NO_TARGETING_SOURCE } from "@convex/gre/rules";
-import { resurrection, animateDead } from "@convex/cards/sets/lea";
-import { grizzlyBears } from "@convex/cards/sets/lea";
+import { resurrection, animateDead } from "@convex/cards/sets/lea/index.cards";
+import { grizzlyBears } from "@convex/cards/sets/lea/index.cards";
 import type { GameState } from "@convex/gre/state";
 import type { PendingTarget, Player } from "~/types/game";
 import { getEligibleGraveyards } from "~/lib/graveyard-targets";

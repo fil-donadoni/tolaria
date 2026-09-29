@@ -9,7 +9,11 @@ import { describe, it, expect } from "vitest";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { collectTriggers } from "../../../../gre/triggers";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import { getDefinition } from "../../../index";
 
 const titaniaProtectorOfArgoth = getDefinition(

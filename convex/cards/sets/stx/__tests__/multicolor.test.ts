@@ -7,7 +7,7 @@ import {
     makeState,
     pushSpell,
     submitChoice,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { projectPublicState } from "../../../../gameProjections";
 import { getDefinition } from "../../../index";

@@ -5,7 +5,7 @@ status: draft
 confidence: high
 ---
 
-**What is wrong.** `chaoticStrike` (`convex/cards/sets/inv/red.ts:332-372`)
+**What is wrong.** `chaoticStrike` (`convex/cards/sets/inv/red.cards.ts:332-372`)
 implements "Flip a coin. If you win the flip, target creature gets +1/+1
 until end of turn. Draw a card." by duplicating the unconditional `draw` Op
 into BOTH the `win` and `loss` branches, with a comment explaining that
@@ -16,7 +16,7 @@ card-shaped no-op Op to pad an otherwise-empty loss branch with." Issue
 rewritten as a `coinFlip` with an empty `win` addition and the `draw`
 unconditional (outside the coinFlip entirely, sequenced before or after it).
 
-**Evidence.** `convex/cards/sets/inv/red.ts:347-372` — the comment at
+**Evidence.** `convex/cards/sets/inv/red.cards.ts:347-372` — the comment at
 347-350 explicitly names the constraint this issue removed; both `win.effects`
 (358-366) and `loss.effects` (369-372) currently duplicate `{ op: "draw",
 player: "controller", count: 1 }`.

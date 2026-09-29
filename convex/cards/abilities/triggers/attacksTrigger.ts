@@ -20,7 +20,7 @@
 // controller lookup.
 //
 // Before this factory existed, every attack trigger in the catalogue wrote its
-// own inline `matches` over `event.attackerIds` (Rogue Kavu, `sets/inv/red.ts`).
+// own inline `matches` over `event.attackerIds` (Rogue Kavu, `sets/inv/red.cards.ts`).
 // Those stay as they are — they gate on shapes this factory deliberately does
 // not model ("attacks ALONE" is a cardinality test on the whole batch, not a
 // scope test on one attacker). What this factory is FOR is the self-scoped

@@ -36,7 +36,11 @@ import type { MutationCtx } from "../_generated/server";
 import { cancelAutoPass, concede, continueMatch, mill } from "../game";
 import { assertSeatOwnership, seatBelongsToUser } from "../gameLifecycle";
 import type { GameState } from "../gre/state";
-import { makeInstance, makePlayer, makeState } from "../cards/__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../cards/__tests__/setup.helper";
 
 type Row = Record<string, unknown>;
 

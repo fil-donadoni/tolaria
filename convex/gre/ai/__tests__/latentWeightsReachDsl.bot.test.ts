@@ -24,7 +24,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../../cards/__tests__/setup";
+} from "../../../cards/__tests__/setup.helper";
 import { evaluateBreakdown } from "../../evaluate";
 import { latentGraveyardValue } from "../graveyardReach";
 import { DEFAULT_EVAL_WEIGHTS, type EvalWeights } from "../evalWeights";

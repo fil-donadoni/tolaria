@@ -22,7 +22,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "@convex/cards/__tests__/setup";
+} from "@convex/cards/__tests__/setup.helper";
 import { getCardByName } from "@convex/cards";
 import { enumerateMoves } from "@convex/gre/moves";
 import { planActivationCostPicks } from "@convex/gre/activationCostPicks";

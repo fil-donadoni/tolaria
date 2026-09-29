@@ -16,7 +16,7 @@ import { describe, it, expect } from "vitest";
 import type { CardInstanceState } from "../state";
 import { removePermanentTo, flushPendingEvents } from "../state";
 import { checkZeroToughnessSBA } from "../sba";
-import { makePlayer, makeState } from "../../cards/__tests__/setup";
+import { makePlayer, makeState } from "../../cards/__tests__/setup.helper";
 import { projectPublicState } from "../../gameProjections";
 
 function creature(

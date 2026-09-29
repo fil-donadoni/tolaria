@@ -21,23 +21,23 @@ out to be a legal `EffectPlayerRef`.
 `ABILITY_BINDINGS` pre-declares it at every ability site. Markers still claiming
 otherwise, one line each:
 
-- `convex/cards/sets/fem/black.ts:688`
-- `convex/cards/sets/ice/white.ts:1027`
-- `convex/cards/sets/ice/red.ts:127`
-- `convex/cards/sets/pls/red.ts:229`
-- `convex/cards/sets/lea/green.ts:970`
-- `convex/cards/sets/leg/red.ts:580`
-- `convex/cards/sets/leg/blue.ts:399`, `:932` (these two ALSO name a second,
+- `convex/cards/sets/fem/black.cards.ts:688`
+- `convex/cards/sets/ice/white.cards.ts:1027`
+- `convex/cards/sets/ice/red.cards.ts:127`
+- `convex/cards/sets/pls/red.cards.ts:229`
+- `convex/cards/sets/lea/green.cards.ts:970`
+- `convex/cards/sets/leg/red.cards.ts:580`
+- `convex/cards/sets/leg/blue.cards.ts:399`, `:932` (these two ALSO name a second,
   independent blocker — an event-amount value construct — so they are
   corrections, not migrations)
-- `convex/cards/sets/leg/black.ts:910`
-- `convex/cards/sets/ice/black.ts:2980`, `convex/cards/sets/ice/white.ts:335`,
-  `convex/cards/sets/ice/red.ts:2253`, `convex/cards/sets/lea/white.ts:283`,
-  `:664`, `convex/cards/sets/lea/red.ts:385` (the `issue #840` pump variants,
+- `convex/cards/sets/leg/black.cards.ts:910`
+- `convex/cards/sets/ice/black.cards.ts:2980`, `convex/cards/sets/ice/white.cards.ts:335`,
+  `convex/cards/sets/ice/red.cards.ts:2253`, `convex/cards/sets/lea/white.cards.ts:283`,
+  `:664`, `convex/cards/sets/lea/red.cards.ts:385` (the `issue #840` pump variants,
   all one sentence apart)
 
 Also in the same family and NOT re-verified here: Essence Flare
-(`convex/cards/sets/ice/blue.ts`), whose marker claims a second refuted thing —
+(`convex/cards/sets/ice/blue.cards.ts`), whose marker claims a second refuted thing —
 that `phaseTrigger`'s `effects[]` site is restricted to `scope: "your"`. It is
 not: this PR ships four `scope: "host-controller"` scripts.
 

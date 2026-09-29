@@ -13,7 +13,11 @@
 // and re-checks the outcome through projectPublicState — the granted card must
 // arrive on the wire tagged with the Flashback cast affordance.
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import { resolveTopOfStack, getPlayer } from "../../../../gre/state";
 import { raiseTriggerTargetSelection } from "../../../../gre/rules";
 import { finalizeTargetSelection } from "../../../../game";

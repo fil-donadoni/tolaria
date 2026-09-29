@@ -14,11 +14,15 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
-import { urborgTombOfYawgmoth } from "../../cards/sets/plc";
-import { mountain, forest, tropicalIsland } from "../../cards/sets/lea";
-import { cityOfTraitors } from "../../cards/sets/exo";
-import { ancientTomb } from "../../cards/sets/tmp";
+} from "../../cards/__tests__/setup.helper";
+import { urborgTombOfYawgmoth } from "../../cards/sets/plc/index.cards";
+import {
+    mountain,
+    forest,
+    tropicalIsland,
+} from "../../cards/sets/lea/index.cards";
+import { cityOfTraitors } from "../../cards/sets/exo/index.cards";
+import { ancientTomb } from "../../cards/sets/tmp/index.cards";
 
 /** Puts Urborg on p1's battlefield and applies its Swamp-granting static to
  *  every land already there (CR 305.7 / 611, layer 4). */

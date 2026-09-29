@@ -1,12 +1,16 @@
 // ONS — per-card behavior tests for colorless cards in
-// `convex/cards/sets/ons/colorless.ts` (set split by colour, ADR 0043). The
+// `convex/cards/sets/ons/colorless.cards.ts` (set split by colour, ADR 0043). The
 // fetchland family's Op combination is exercised as its own permanent test
 // in `convex/gre/effects/__tests__/interpreter.test.ts` (per-Op regime,
 // issue #677); this file proves ONE representative real registered card
 // (Polluted Delta) wires it correctly end to end.
 
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { projectPublicState } from "../../../../gameProjections";

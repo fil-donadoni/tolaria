@@ -25,7 +25,7 @@ import {
     validateEffectScript,
 } from "../validate";
 import { planSmokeTest } from "../scenarioGenerator";
-import { NESTING_SHAPES } from "../../__tests__/fixtures/nestedOpShapes";
+import { NESTING_SHAPES } from "../../__tests__/fixtures/nestedOpShapes.fixture";
 
 /** "Count the creature cards in your hand" — a FILTERED hand count, the read
  *  CR 402.3 hides unless a preceding reveal made the hand public (CR 701.20a). */

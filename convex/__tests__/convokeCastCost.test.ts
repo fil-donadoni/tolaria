@@ -34,7 +34,11 @@ import type { Color } from "../cards/types";
 import type { PendingCast } from "../gre/state";
 import { projectPublicState } from "../gameProjections";
 import { compactState, expandState } from "../gre/serialize";
-import { makeInstance, makePlayer, makeState } from "../cards/__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../cards/__tests__/setup.helper";
 
 const HOGAAK = getCardByName("Hogaak, Arisen Necropolis").id;
 const CRAW_WURM = getCardByName("Craw Wurm").id; // mono-green creature

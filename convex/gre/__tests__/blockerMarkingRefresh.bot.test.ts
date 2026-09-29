@@ -32,10 +32,10 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
-import { vanilla, snowLand } from "../../cards/sets/ice/__tests__/helpers";
-import { snowDevil, snowCoveredIsland } from "../../cards/sets/ice";
-import { island } from "../../cards/sets/lea";
+} from "../../cards/__tests__/setup.helper";
+import { vanilla, snowLand } from "../../cards/sets/ice/__tests__/set.helper";
+import { snowDevil, snowCoveredIsland } from "../../cards/sets/ice/index.cards";
+import { island } from "../../cards/sets/lea/index.cards";
 
 function libraryFor(playerId: string): CardInstanceState[] {
     return [1, 2].map((n) =>

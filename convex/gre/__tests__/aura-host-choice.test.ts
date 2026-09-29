@@ -17,7 +17,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import {
     unholyStrength,
     controlMagic,
@@ -27,8 +27,8 @@ import {
     whiteKnight,
     warpArtifact,
     basaltMonolith,
-} from "../../cards/sets/lea";
-import { guardianBeast } from "../../cards/sets/arn";
+} from "../../cards/sets/lea/index.cards";
+import { guardianBeast } from "../../cards/sets/arn/index.cards";
 import { registerTokenDefinition } from "../../cards";
 import type { CardDefinition } from "../../cards/types";
 

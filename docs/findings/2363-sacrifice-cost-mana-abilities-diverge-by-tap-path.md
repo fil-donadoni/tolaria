@@ -14,13 +14,13 @@ ability does, and the divergence is invisible from either one alone.
 Two concrete cases, both found while writing the #2363 behaviour tests:
 
 - **`sacrificeFilter` is never enforced or paid.** Orcish Lumberjack
-  (`convex/cards/sets/ice/red.ts`) is `{T}, Sacrifice a Forest: Add {R}{R}{R}`
+  (`convex/cards/sets/ice/red.cards.ts`) is `{T}, Sacrifice a Forest: Add {R}{R}{R}`
   — the ability declares `sacrificeFilter: { subtypes: "Forest" }`. Tapping it
   through `tapSourceIntoPayment` succeeds and adds the mana **with zero Forests
   on the battlefield**, and does not remove a Forest when one is present. The
   cost is decorative on this path.
 - **A delayed trigger is armed on one path only.** Barbed Sextant
-  (`convex/cards/sets/ice/colorless.ts`) arms a next-upkeep draw when tapped.
+  (`convex/cards/sets/ice/colorless.cards.ts`) arms a next-upkeep draw when tapped.
   `tapUntap` arms it; `tapSourceIntoPayment` skips arming it when
   `cost.sacrifice === true`, behind an `if (!isSacrifice)` guard. So the same
   card yields a different game state depending on whether the player tapped it

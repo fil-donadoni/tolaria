@@ -1,8 +1,8 @@
 // Antiquities (ATQ) — per-card behavior tests for blue cards in
-// `convex/cards/sets/atq/blue.ts` (set split by colour, ADR 0043). Each
+// `convex/cards/sets/atq/blue.cards.ts` (set split by colour, ADR 0043). Each
 // non-trivial card gets a describe block citing the CR section it exercises;
 // assertions check external behavior only. Shared test shims live in
-// `./helpers`; fixtures in `convex/cards/__tests__/setup.ts`.
+// `./helpers`; fixtures in `convex/cards/__tests__/setup.helper.ts`.
 
 import { describe, it, expect } from "vitest";
 import { getDefinition } from "../../..";
@@ -13,7 +13,7 @@ import {
     pushSpell,
     resolveActivated,
     submitChoice,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import { collectTriggers } from "../../../../gre/triggers";
 import { effectiveTriggeredAbilities } from "../../../../gre/copy";
 import { projectPublicState } from "../../../../gameProjections";
@@ -31,7 +31,7 @@ import {
 } from "../../../../gre/state";
 import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
 import { applyMayPaySubmit } from "../../../../gre/pendingChoiceSubmit";
-import { UPKEEP_P1, vanilla, withEnergyFlux } from "./helpers";
+import { UPKEEP_P1, vanilla, withEnergyFlux } from "./set.helper";
 
 const ornithopter = getDefinition("59cc9bdb-7cf2-4795-bac7-ffff605c9eb0");
 const transmuteArtifact = getDefinition("6eab6765-eba3-4844-81ca-ae37a6e903df");

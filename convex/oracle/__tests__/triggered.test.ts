@@ -27,7 +27,7 @@ import {
     triggerHeadRule,
 } from "../grammar/shared/triggerHead";
 import { triggeredSlot } from "../grammar/slots/triggered";
-import { oracleCard, parseContext } from "./fixtures";
+import { oracleCard, parseContext } from "./oracle.fixture";
 import type { CompiledTriggeredAbility } from "../../cards/compiledTriggers";
 
 const ctx = parseContext();

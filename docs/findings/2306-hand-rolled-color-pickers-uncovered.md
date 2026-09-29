@@ -8,12 +8,12 @@ confidence: high
 **Correction (round 2 review).** This finding's premise is wrong. All four
 cards it names DO carry the colour tag:
 
-- Kavu Chameleon (`convex/cards/sets/inv/green.ts:101`), Alloy Golem
-  (`convex/cards/sets/inv/colorless.ts:161`) and Shyft
-  (`convex/cards/sets/ice/blue.ts:1929`) build their modes with
+- Kavu Chameleon (`convex/cards/sets/inv/green.cards.ts:101`), Alloy Golem
+  (`convex/cards/sets/inv/colorless.cards.ts:161`) and Shyft
+  (`convex/cards/sets/ice/blue.cards.ts:1929`) build their modes with
   `colorChoiceModes` (`convex/cards/abilities/chooseColor.ts`), which sets
   `color` on every mode it produces.
-- Fertile Ground (`convex/cards/sets/usg/green.ts:118`) uses `COLOR_OPTIONS`
+- Fertile Ground (`convex/cards/sets/usg/green.cards.ts:118`) uses `COLOR_OPTIONS`
   (`convex/cards/abilities/chooseColor.ts`), which is literally
   `COLOR_LABELS.map(([color, label]) => ({ id: color, label, color }))` — it
   sets `color` too.

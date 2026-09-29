@@ -23,7 +23,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "@convex/cards/__tests__/setup";
+} from "@convex/cards/__tests__/setup.helper";
 
 const MOUNTAIN = "eace2c85-976c-425e-9800-5a6ccbd91b56"; // Mountain (real Land def)
 

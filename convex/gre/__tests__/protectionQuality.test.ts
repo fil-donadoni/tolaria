@@ -24,7 +24,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import {
     getProtectionQualities,
     isProtectedFrom,
@@ -48,7 +48,7 @@ import {
     buildSpellContext,
     resolveTopOfStack,
 } from "../state";
-import { pushSpell } from "../../cards/__tests__/setup";
+import { pushSpell } from "../../cards/__tests__/setup.helper";
 import { legalActions } from "../legalActions";
 import { validateBlockerEligibility } from "../combat";
 import { checkAttachmentSBA, checkAuraAttachmentSBA } from "../sba";

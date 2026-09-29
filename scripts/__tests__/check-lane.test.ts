@@ -91,7 +91,9 @@ describe("check-lane — path classification (issue #2740)", () => {
     });
 
     it("classifies convex/cards/sets/** as cards, and the rest of convex/cards/** as engine (ADR 0136 §4)", () => {
-        expect(classifyPath("convex/cards/sets/lea/red.ts")).toBe("cards");
+        expect(classifyPath("convex/cards/sets/lea/red.cards.ts")).toBe(
+            "cards"
+        );
         expect(
             classifyPath("convex/cards/sets/lea/__tests__/red.test.ts")
         ).toBe("cards");
@@ -458,7 +460,7 @@ describe("check-lane — lane selection, named cases (issue #2740)", () => {
 
     it("convex-only ⇒ engine", () => {
         const plan = classifyLane([
-            "convex/cards/sets/lea/red.ts",
+            "convex/cards/sets/lea/red.cards.ts",
             "convex/gre/effects/interpreter.ts",
         ]);
         expect(plan.lane).toBe("engine");
@@ -495,7 +497,7 @@ describe("check-lane — lane selection, named cases (issue #2740)", () => {
      */
     it("a card PR — definition + regenerated data/** artefacts — ⇒ cards (ADR 0136 §4)", () => {
         const plan = classifyLane([
-            "convex/cards/sets/lea/red.ts",
+            "convex/cards/sets/lea/red.cards.ts",
             "data/card-index.json",
             "data/cr/citations-ledger.json",
         ]);
@@ -508,13 +510,13 @@ describe("check-lane — lane selection, named cases (issue #2740)", () => {
     });
 
     it("cards needs a card: data/** alone is engine, and any other convex/scripts path makes it engine", () => {
-        expect(classifyLane(["convex/cards/sets/lea/red.ts"]).lane).toBe(
+        expect(classifyLane(["convex/cards/sets/lea/red.cards.ts"]).lane).toBe(
             "cards"
         );
         expect(
             classifyLane([
-                "convex/cards/sets/lea/red.ts",
-                "convex/cards/sets/arn/blue.ts",
+                "convex/cards/sets/lea/red.cards.ts",
+                "convex/cards/sets/arn/blue.cards.ts",
                 "convex/cards/sets/lea/__tests__/red.test.ts",
                 "data/oracle-compiled.json",
             ]).lane
@@ -528,7 +530,7 @@ describe("check-lane — lane selection, named cases (issue #2740)", () => {
         ]) {
             expect(
                 classifyLane([
-                    "convex/cards/sets/lea/red.ts",
+                    "convex/cards/sets/lea/red.cards.ts",
                     "data/card-index.json",
                     other,
                 ]).lane,
@@ -537,11 +539,12 @@ describe("check-lane — lane selection, named cases (issue #2740)", () => {
         }
         // Beside src/** it is the mixed case, like any other code.
         expect(
-            classifyLane(["convex/cards/sets/lea/red.ts", "src/app.tsx"]).lane
+            classifyLane(["convex/cards/sets/lea/red.cards.ts", "src/app.tsx"])
+                .lane
         ).toBe("full");
         // Prose rides along without changing the lane (ADR 0136 §3).
         const withProse = classifyLane([
-            "convex/cards/sets/lea/red.ts",
+            "convex/cards/sets/lea/red.cards.ts",
             "docs/adr/0136.md",
         ]);
         expect(withProse.lane).toBe("cards");
@@ -605,7 +608,7 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
     const skin = classifyLane(["src/components/board/Card.tsx"]);
     const engine = classifyLane(["convex/gre/engine.ts"]);
     const cards = classifyLane([
-        "convex/cards/sets/lea/red.ts",
+        "convex/cards/sets/lea/red.cards.ts",
         "data/card-index.json",
     ]);
     const docs = classifyLane(["docs/adr/0111-extra-phases.md"]);
@@ -867,8 +870,8 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
             ["convex/gre/theme.css", "convex/cards/art/x.svg"],
             ["convex/gre/engine.ts", "scripts/gate.ts"],
             ["scripts/gate.ts"],
-            ["convex/cards/sets/lea/red.ts", "data/card-index.json"],
-            ["convex/cards/sets/lea/red.ts", "docs/adr/0136.md"],
+            ["convex/cards/sets/lea/red.cards.ts", "data/card-index.json"],
+            ["convex/cards/sets/lea/red.cards.ts", "docs/adr/0136.md"],
             // Prose rides with the code (ADR 0136 §3): a nested CLAUDE.md
             // sits UNDER the directory the reasons name, so they say "no
             // changed CODE under X" and the claim is checked against the
@@ -917,7 +920,7 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
             ["scripts/ui-gate/report.css"],
             ["convex/gre/theme.css", "scripts/gate.ts"],
             ["convex/gre/engine.ts"],
-            ["convex/cards/sets/lea/red.ts", "data/card-index.json"],
+            ["convex/cards/sets/lea/red.cards.ts", "data/card-index.json"],
         ]) {
             const plan = classifyLane(files);
             const re = allowed[plan.lane];
@@ -934,7 +937,7 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
         // paths must match the lane and the prose paths must be prose.
         for (const files of [
             ["docs/adr/0136.md", "convex/gre/engine.ts"],
-            ["docs/adr/0136.md", "convex/cards/sets/lea/red.ts"],
+            ["docs/adr/0136.md", "convex/cards/sets/lea/red.cards.ts"],
             ["CONTEXT.md", "src/components/board/Card.tsx", "src/CLAUDE.md"],
         ]) {
             const plan = classifyLane(files);
@@ -1022,7 +1025,10 @@ describe("check-lane — every planned check is invokable today (issue #2740)", 
     const plans: LanePlan[] = [
         classifyLane(["src/app.tsx"]),
         classifyLane(["convex/gre/engine.ts"]),
-        classifyLane(["convex/cards/sets/lea/red.ts", "data/card-index.json"]),
+        classifyLane([
+            "convex/cards/sets/lea/red.cards.ts",
+            "data/card-index.json",
+        ]),
         classifyLane(["docs/adr/0111-extra-phases.md"]),
         classifyLane(["docs/adr/0111-extra-phases.md", "convex/gre/engine.ts"]),
         classifyLane(["package.json"]),
@@ -1090,7 +1096,7 @@ describe("check-lane — every planned check is invokable today (issue #2740)", 
             ).not.toThrow();
         }
         // `tsc -b <dir>` builds <dir>/tsconfig.json.
-        const cards = classifyLane(["convex/cards/sets/lea/red.ts"]);
+        const cards = classifyLane(["convex/cards/sets/lea/red.cards.ts"]);
         const convex = cards.run.find((c) => c.id === "tsc[convex]")!;
         const dir = convex.command.match(/tsc -b (\S+)/)![1];
         expect(() =>
@@ -1473,7 +1479,7 @@ describe("check-lane — `--plan`: the classification without the gate (ADR 0136
 
     it("renders the plan with no RunResult — nothing ran, so nothing is claimed to have passed", () => {
         const plan = classifyLane([
-            "convex/cards/sets/arn/white.ts",
+            "convex/cards/sets/arn/white.cards.ts",
             "data/card-index.json",
         ]);
         expect(plan.lane).toBe("cards");

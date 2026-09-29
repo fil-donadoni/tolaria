@@ -10,7 +10,7 @@
 
 import { describe, it, expect } from "vitest";
 import { enumerateMoves } from "../../../../gre/moves";
-import { courserBoard } from "./courserBoard";
+import { courserBoard } from "./courserBoard.fixture";
 import { getDefinition } from "../../../index";
 
 const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { getAllCards, getDefinition } from "../index";
-import { volcanicIsland } from "../sets/leb";
-import { badlands } from "../sets/lea";
+import { volcanicIsland } from "../sets/leb/index.cards";
+import { badlands } from "../sets/lea/index.cards";
 import type { Rarity } from "../types";
 
 // Per-card Rarity (CR 206) was added to the card model in issue #511 and

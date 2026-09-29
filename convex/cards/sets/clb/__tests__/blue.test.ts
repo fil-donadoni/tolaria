@@ -14,7 +14,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import type { CardInstanceState, GameState } from "../../../../gre/state";
 import { emitSpellCastEvent, resolveTopOfStack } from "../../../../gre/state";
 import {

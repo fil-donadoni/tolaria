@@ -13,14 +13,14 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "@convex/cards/__tests__/setup";
+} from "@convex/cards/__tests__/setup.helper";
 import {
     RETURN_A_LAND,
     fireReturnLegEtb,
     returnLegLand,
     returnLegProbeInstance,
-} from "@convex/gre/__tests__/fixtures/mayPayReturnLegProbe";
-import { crosissCatacombs } from "@convex/cards/sets/pls/colorless";
+} from "@convex/gre/__tests__/fixtures/mayPayReturnLegProbe.fixture";
+import { crosissCatacombs } from "@convex/cards/sets/pls/colorless.cards";
 import {
     resolveTopOfStack,
     type CardInstanceState,

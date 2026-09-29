@@ -30,7 +30,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import {
     island,
     mountain,
@@ -38,17 +38,17 @@ import {
     plains,
     grizzlyBears,
     ancestralRecall,
-} from "../../cards/sets/lea";
+} from "../../cards/sets/lea/index.cards";
 import { withTemporaryDefinition } from "../../cards";
 import type { CardDefinition } from "../../cards/types";
-import { firebolt } from "../../cards/sets/ody/red";
-import { ephemerate } from "../../cards/sets/mh1/white";
-import { fireball } from "../../cards/sets/lea/red";
-import { flashOfInsight } from "../../cards/sets/jud/blue";
-import { uroTitanOfNaturesWrath } from "../../cards/sets/thb/multicolor";
-import { hogaakArisenNecropolis } from "../../cards/sets/mh1/multicolor";
-import { lurrus } from "../../cards/sets/iko/multicolor";
-import { thaliaGuardianOfThraben } from "../../cards/sets/dka/white";
+import { firebolt } from "../../cards/sets/ody/red.cards";
+import { ephemerate } from "../../cards/sets/mh1/white.cards";
+import { fireball } from "../../cards/sets/lea/red.cards";
+import { flashOfInsight } from "../../cards/sets/jud/blue.cards";
+import { uroTitanOfNaturesWrath } from "../../cards/sets/thb/multicolor.cards";
+import { hogaakArisenNecropolis } from "../../cards/sets/mh1/multicolor.cards";
+import { lurrus } from "../../cards/sets/iko/multicolor.cards";
+import { thaliaGuardianOfThraben } from "../../cards/sets/dka/white.cards";
 
 type CastMove = Extract<Move, { kind: "cast-spell" }>;
 

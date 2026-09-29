@@ -6,7 +6,7 @@
 
 ## Problem
 
-Brainstorm resolves as `draw 3` then `putBack 2` (`convex/cards/sets/ice/blue.ts`).
+Brainstorm resolves as `draw 3` then `putBack 2` (`convex/cards/sets/ice/blue.cards.ts`).
 The GRE is complete: `putBack` (`convex/gre/effects/interpreter.ts`) raises a
 single suspending `choose-hand-card` PendingChoice over the caster's own hand,
 `count: 2`, and on resume moves each pick to the library top via

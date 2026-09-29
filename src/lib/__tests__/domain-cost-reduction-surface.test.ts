@@ -17,15 +17,15 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "@convex/cards/__tests__/setup";
-import { draco } from "@convex/cards/sets/pls/colorless";
+} from "@convex/cards/__tests__/setup.helper";
+import { draco } from "@convex/cards/sets/pls/colorless.cards";
 import {
     forest,
     island,
     mountain,
     plains,
     swamp,
-} from "@convex/cards/sets/lea/colorless";
+} from "@convex/cards/sets/lea/colorless.cards";
 import {
     applyCostModifiers,
     getCostModifiers,

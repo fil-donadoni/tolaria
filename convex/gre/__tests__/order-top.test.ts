@@ -6,12 +6,12 @@
 // kept cards face-up to the controller after the choice.
 
 import { describe, it, expect } from "vitest";
-import { ponder } from "../../cards/sets/lrw/blue";
+import { ponder } from "../../cards/sets/lrw/blue.cards";
 import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import { buildSpellContext } from "../state";
 import { applyPendingChoiceSubmit } from "../pendingChoiceSubmit";
 import { projectPublicState } from "../../gameProjections";

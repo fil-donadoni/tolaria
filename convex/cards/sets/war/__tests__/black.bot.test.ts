@@ -15,8 +15,8 @@ import { describe, it, expect } from "vitest";
 import { enumerateMoves } from "../../../../gre/moves";
 import { applyMoveForSearch } from "../../../../gre/applyMove";
 import { getPlayer } from "../../../../gre/state";
-import { makeInstance } from "../../../__tests__/setup";
-import { citadelBoard } from "./citadelBoard";
+import { makeInstance } from "../../../__tests__/setup.helper";
+import { citadelBoard } from "./citadelBoard.fixture";
 import { getDefinition } from "../../../index";
 
 const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");

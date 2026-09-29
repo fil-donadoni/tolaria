@@ -222,7 +222,7 @@ const SUITE_FNS = new Set(["describe", "suite"]);
  * Closed and named — a call outside it clears the Op-only class.
  */
 export const OP_ONLY_CALLS: ReadonlySet<string> = new Set([
-    // fixture builders (`convex/cards/__tests__/setup.ts`)
+    // fixture builders (`convex/cards/__tests__/setup.helper.ts`)
     "makeState",
     "makePlayer",
     "makeInstance",

@@ -21,10 +21,10 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../../cards/__tests__/setup";
+} from "../../../cards/__tests__/setup.helper";
 import { getDefinition } from "../../../cards";
 import { resolveTopOfStack, type GameState } from "../../state";
-import { pushSpell } from "../../../cards/__tests__/setup";
+import { pushSpell } from "../../../cards/__tests__/setup.helper";
 import { CHOICE_TOP_K, choiceCandidates } from "../choiceCandidates";
 import { priorFor } from "../choicePriors";
 

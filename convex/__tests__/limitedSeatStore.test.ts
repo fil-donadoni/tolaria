@@ -7,13 +7,16 @@
 //
 // The project has no convex-test harness (see `convex/__tests__/decks.test.ts`)
 // so this drives the real store against the shared minimal in-memory `db`
-// (`fixtures/inMemoryDb.ts`), which implements exactly the surface the store
+// (`fixtures/inMemoryDb.fixture.ts`), which implements exactly the surface the store
 // uses: `get`/`patch`/`insert`/`replace`/`delete` plus
 // `query(table).withIndex(name, q => q.eq(...)).unique()/.collect()`.
 import { describe, it, expect } from "vitest";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { LimitedEventSeat, LimitedPoolCard } from "../limited/eventTypes";
-import { makeInMemoryDb, type InMemoryRow } from "./fixtures/inMemoryDb";
+import {
+    makeInMemoryDb,
+    type InMemoryRow,
+} from "./fixtures/inMemoryDb.fixture";
 import { projectLimitedEvent } from "../limited/eventProjection";
 import {
     deleteSeats,
@@ -39,7 +42,7 @@ import {
 
 type Row = InMemoryRow;
 
-/** The shared in-memory ctx (`fixtures/inMemoryDb.ts`), plus the two accessors
+/** The shared in-memory ctx (`fixtures/inMemoryDb.fixture.ts`), plus the two accessors
  *  this file's assertions are written against. */
 function makeDb(initial: Record<string, Row[]>) {
     const { ctx, tables, writes, reads } = makeInMemoryDb(initial);

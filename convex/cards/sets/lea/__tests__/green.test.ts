@@ -1,7 +1,7 @@
-// Per-card behavior tests for green cards in `convex/cards/sets/lea/green.ts`
+// Per-card behavior tests for green cards in `convex/cards/sets/lea/green.cards.ts`
 // (LEA, split by colour per ADR 0043). Each non-trivial card gets a describe
 // block citing the CR section it exercises. Shared stack/resolve shims live in
-// ./helpers; fixture builders stay in convex/cards/__tests__/setup.ts.
+// ./helpers; fixture builders stay in convex/cards/__tests__/setup.helper.ts.
 
 import { describe, it, expect } from "vitest";
 import {
@@ -52,7 +52,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import { getDefinition } from "../../../index";
 
 const aspectOfWolf = getDefinition("fd9ac9e6-1395-4fbd-80e2-645f0d910c29");
@@ -106,7 +106,7 @@ const wanderlust = getDefinition("220a03ca-8c9b-4acb-821d-f6577fbb20fb");
 const web = getDefinition("37c7890a-86dc-4a97-a7ce-1436fa22d0c0");
 const wildGrowth = getDefinition("fd896dfa-66c0-4327-8e5b-489bbe350c95");
 const wrathOfGod = getDefinition("a2788d69-6a3a-42f0-8736-cc6b57755ecd");
-import { grantedKeywordRows } from "../../../__tests__/setup";
+import { grantedKeywordRows } from "../../../__tests__/setup.helper";
 
 describe("Hurricane ({X}{G} — X damage to each flying creature and each player, CR 107.3 / 120.3)", () => {
     function setupBoard() {

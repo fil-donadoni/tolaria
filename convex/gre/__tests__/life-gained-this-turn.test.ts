@@ -19,7 +19,7 @@ import {
     buildSpellContext,
 } from "../state";
 import { advancePhase } from "../phases";
-import { makePlayer, makeState } from "../../cards/__tests__/setup";
+import { makePlayer, makeState } from "../../cards/__tests__/setup.helper";
 
 function state2p() {
     return makeState({

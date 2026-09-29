@@ -4,7 +4,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import { getDefinition, getCardByName } from "../../../index";
 import type { GameState, StackItem } from "../../../../gre/state";
 import { resolveTopOfStack } from "../../../../gre/state";

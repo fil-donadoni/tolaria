@@ -27,8 +27,8 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../cards/__tests__/setup";
-import { grizzlyBears } from "../../cards/sets/lea/green";
+} from "../../cards/__tests__/setup.helper";
+import { grizzlyBears } from "../../cards/sets/lea/green.cards";
 import { projectPublicState } from "../../gameProjections";
 import { getEffectiveActivatedAbilities } from "../../gre/activatedAbilities";
 import {

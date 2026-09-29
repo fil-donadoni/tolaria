@@ -18,7 +18,7 @@
 import { describe, expect, it } from "vitest";
 import { compileCard } from "../compile";
 import { activationCostRule } from "../grammar/shared/cost";
-import { oracleCard, parseContext } from "./fixtures";
+import { oracleCard, parseContext } from "./oracle.fixture";
 
 const TWO_UNTAPPED = "Tap two untapped creatures you control";
 

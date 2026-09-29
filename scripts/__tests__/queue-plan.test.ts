@@ -1164,7 +1164,7 @@ describe("queue planner — disjointness (issue #2181)", () => {
             100: {
                 body: body({
                     targetFiles: [
-                        "convex/cards/sets/lea/red.ts",
+                        "convex/cards/sets/lea/red.cards.ts",
                         "convex/cards/index.ts",
                     ],
                 }),
@@ -1172,7 +1172,7 @@ describe("queue planner — disjointness (issue #2181)", () => {
             200: {
                 body: body({
                     targetFiles: [
-                        "convex/cards/sets/lea/blue.ts",
+                        "convex/cards/sets/lea/blue.cards.ts",
                         "convex/cards/index.ts",
                     ],
                 }),
@@ -1360,7 +1360,10 @@ describe("queue planner — lane homogeneity (issue #2743, closing PRD #2738)", 
             100: { body: body({ targetFiles: ["src/a.ts"] }) },
             200: {
                 body: body({
-                    targetFiles: ["src/b.ts", "convex/cards/sets/lea/red.ts"],
+                    targetFiles: [
+                        "src/b.ts",
+                        "convex/cards/sets/lea/red.cards.ts",
+                    ],
                 }),
             },
             300: { body: body({ targetFiles: ["src/c.ts"] }) },
@@ -2138,8 +2141,8 @@ describe("normal paths keep their existing behaviour", () => {
     it("genuinely disjoint card files stay disjoint", () => {
         expect(
             pathsOverlap(
-                "convex/cards/sets/ice/white.ts",
-                "convex/cards/sets/leg/red.ts"
+                "convex/cards/sets/ice/white.cards.ts",
+                "convex/cards/sets/leg/red.cards.ts"
             )
         ).toBe(false);
     });

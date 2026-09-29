@@ -17,7 +17,7 @@ CR 105.2 gives an object its colour from its mana cost **or** a colour indicator
 colour indicator is coloured; the engine says it is colourless.
 
 **Evidence.** Three shipped cards hit it exactly: Crimson Kobolds, Crookshank
-Kobolds and Kobolds of Kher Keep (`convex/cards/sets/leg/colorless.ts`) are
+Kobolds and Kobolds of Kher Keep (`convex/cards/sets/leg/colorless.cards.ts`) are
 defined with `manaCost: {}` and no colour, but Scryfall gives all three
 `colors: ["R"]` / `color_indicator: ["R"]`. They are also filed under
 `colorless.ts`, which ADR 0043's "colour identity of the mana cost" rule makes
@@ -25,7 +25,7 @@ locally consistent and globally wrong.
 
 The first card to CARE landed with issue #3229: Ugin, Eye of the Storms'
 `Whenever you cast a colorless spell, exile up to one target permanent that's one
-or more colors` (`convex/cards/sets/tdm/colorless.ts`) uses
+or more colors` (`convex/cards/sets/tdm/colorless.cards.ts`) uses
 `SpellFilter.excludeColors: ["W","U","B","R","G"]`, which is the exact reading of
 CR 105.2c — and will fire on a Kobold, where paper says it must not. No other
 shipped card asks "is this spell colourless", and no devoid card ships, so the

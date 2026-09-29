@@ -19,16 +19,19 @@ import {
     phyrexianLifePipOptions,
     solvePhyrexianSplit,
 } from "../rules";
-import { dismember } from "../../cards/sets/nph/black";
-import { gitaxianProbe, phyrexianMetamorph } from "../../cards/sets/nph/blue";
-import { grizzlyBears } from "../../cards/sets/lea/green";
-import { ankhOfMishra, mountain } from "../../cards/sets/lea";
-import { moxOpal } from "../../cards/sets/som";
+import { dismember } from "../../cards/sets/nph/black.cards";
+import {
+    gitaxianProbe,
+    phyrexianMetamorph,
+} from "../../cards/sets/nph/blue.cards";
+import { grizzlyBears } from "../../cards/sets/lea/green.cards";
+import { ankhOfMishra, mountain } from "../../cards/sets/lea/index.cards";
+import { moxOpal } from "../../cards/sets/som/index.cards";
 import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import { projectPublicState } from "../../gameProjections";
 import { finalizeTargetSelection } from "../../game";
 import type { PendingTarget } from "../state";

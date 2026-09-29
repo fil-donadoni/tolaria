@@ -85,6 +85,7 @@ import { CLOSURE_SENTINEL, compiledTwin } from "../convex/oracle/gold";
 import { SWAP_ENV } from "../convex/oracle/behavioural";
 import { behaviouralProjection } from "../convex/oracle/gold";
 import type { CardDefinition } from "../convex/cards/types";
+import { SET_MODULE_SUFFIX } from "./lib/set-module-suffix";
 
 const ROOT = join(dirname(new URL(import.meta.url).pathname), "..");
 const SETS_ROOT = join(ROOT, "convex", "cards", "sets");
@@ -161,7 +162,7 @@ function findTestFile(card: CardDefinition): string | undefined {
     const testFile = join(
         dirname(module),
         "__tests__",
-        `${basename(module, ".ts")}.test.ts`
+        `${basename(module, `${SET_MODULE_SUFFIX}.ts`)}.test.ts`
     );
     if (!existsSync(testFile)) return undefined;
     if (!ownsADescribeBlock(readFileSync(testFile, "utf8"), card.name))

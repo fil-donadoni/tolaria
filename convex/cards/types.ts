@@ -1607,7 +1607,7 @@ export interface ActivatedAbility {
          *
          *  Only meaningful together with `discardThis` (the cycling cost's
          *  discard leg). A `discardThis` cost WITHOUT it — Harvester of Misery
-         *  (`sets/big/black.ts`) — is an ordinary discard cost, not a cycling
+         *  (`sets/big/black.cards.ts`) — is an ordinary discard cost, not a cycling
          *  cost, and must not fire a "when you cycle this card" trigger. */
         cyclingCost?: boolean;
         /** "Exile this card" / "Exile this permanent" as an activation cost
@@ -1680,7 +1680,7 @@ export interface ActivatedAbility {
          *  `sacrificeChoice` selection layer — a real tactical pick. This leg
          *  returns THIS source: no choice, so it belongs with `sacrifice` /
          *  `exileThis`, never with the selection layer. Used by Attunement
-         *  (`sets/usg/blue.ts`). */
+         *  (`sets/usg/blue.cards.ts`). */
         returnThisToHand?: boolean;
         /** CR 701.43a/c / 602.1a — "Exert this permanent" as an activation cost
          *  leg (Arena of Glory: "{R}, {T}, Exert this land: …"). Paying it
@@ -1907,7 +1907,7 @@ export interface ActivatedAbility {
      *  still see it, exactly like every other draw path — run BEFORE the
      *  shared tap-mana-ability trigger flush (`processPendingActionTriggers`).
      *  Deliberately NOT modeled as a separate leaves-the-battlefield trigger
-     *  (contrast Chromatic Star, `sets/tsp/colorless.ts`): Sphere's draw is
+     *  (contrast Chromatic Star, `sets/tsp/colorless.cards.ts`): Sphere's draw is
      *  tied only to activating ITS OWN mana ability, not to dying by any
      *  means — a removal spell must NOT draw a card for Sphere, so a Star-
      *  style trigger would be a silent rules deviation (issue #1093). Shared
@@ -3195,7 +3195,7 @@ export interface TokenSpec {
      *  code here that did exactly that (issue #1195 review) left the token
      *  only half-attacking. Per CR 508.4: the token's controller is NOT
      *  offered a planeswalker/battle attack target choice here — a tracked
-     *  DIVERGENCE (tracked-by: #1865, see `cards/sets/m3c/multicolor.ts`'s
+     *  DIVERGENCE (tracked-by: #1865, see `cards/sets/m3c/multicolor.cards.ts`'s
      *  Satya doc for the full rationale: this is a real gap against the
      *  current pool, not a hypothetical future card, since planeswalkers
      *  already ship widely and the engine already models attacking them) —
@@ -7919,7 +7919,7 @@ export interface PermanentView {
      *  permanent, readable by a LATER triggered ability's `condition` (CR
      *  603.4 check-time predicate) — e.g. "when this enters, if {R}{R} was
      *  spent to cast it, ...". The shipped readers are the ECL Elemental
-     *  Incarnations — Vibrance/Deceit/Wistfulness (`cards/sets/ecl/multicolor.ts`,
+     *  Incarnations — Vibrance/Deceit/Wistfulness (`cards/sets/ecl/multicolor.cards.ts`,
      *  issue #1927) — each of which gates two ETB triggers on this snapshot;
      *  paying their GUILD-HYBRID evoke cost ({R/G}{R/G}) with two mana of ONE
      *  colour records that colour twice here, so the matching half fires and
@@ -7936,7 +7936,7 @@ export interface PermanentView {
      *  what lets a materialized `keyword-grant` `applies` predicate gate on
      *  this field directly, replacing the counter-count PROXY the guard
      *  allowlisted for Pouncing Kavu / Duskwalker (issue #1716,
-     *  `cards/sets/inv/red.ts` / `cards/sets/inv/black.ts`) — see
+     *  `cards/sets/inv/red.cards.ts` / `cards/sets/inv/black.cards.ts`) — see
      *  {@link CardInstanceState.wasKicked} (`gre/state.ts`) for the full
      *  doc. Mirrors `evoked`/`dashed` above. Undefined for a permanent cast
      *  unkicked / without a Kicker cost. */
@@ -10153,7 +10153,7 @@ export const BASIC_LAND_SUBTYPES: readonly string[] = [
 /** Canonical "nonbasic land" predicate (CR 305.7, CR 205.4a) — a permanent
  *  whose PRINTED type line is a Land and which lacks the Basic supertype.
  *  Shared by every card printing "Nonbasic lands are Mountains": Blood Moon
- *  (`sets/drk/red.ts`) and Magus of the Moon (`sets/fut/red.ts`), each of which
+ *  (`sets/drk/red.cards.ts`) and Magus of the Moon (`sets/fut/red.cards.ts`), each of which
  *  needs the IDENTICAL set scanned twice — once for the CR 613.1f layer-6
  *  `ability-loss` that strips the land's printed abilities, once for the
  *  CR 305.7 layer-4 `subtype-set` that replaces its land types — so the two
@@ -10187,8 +10187,8 @@ export const IS_NONBASIC_LAND: StaticAbilityLoss["applies"] = (
  *  above exists to avoid). `gre/constants.ts`'s `LANDWALK_KEYWORDS` (keyword
  *  → subtype, the inverse direction, plus the non-basic `desertwalk` entry)
  *  derives from this table so the two can't drift. Consumers: Magnigoth
- *  Treefolk (`cards/sets/pls/green.ts`, Domain landwalk fan-out) and
- *  Traveler's Cloak (`cards/sets/inv/blue.ts`, chosen-land-type landwalk
+ *  Treefolk (`cards/sets/pls/green.cards.ts`, Domain landwalk fan-out) and
+ *  Traveler's Cloak (`cards/sets/inv/blue.cards.ts`, chosen-land-type landwalk
  *  fan-out) — both used to hand-author an identical local copy of this
  *  table before this export existed. */
 export const LANDWALK_KEYWORD_BY_BASIC_TYPE: Readonly<Record<string, string>> =
@@ -10294,7 +10294,7 @@ export function tallyMostCommonColors(
  *  Mirrors `countDomain`'s shape: a shared board-scan helper, not a per-card
  *  closure. Originally a private `inv/black.ts` pair (Goham Djinn / Tsabo's
  *  Assassin); promoted here on its 3rd consumer (Heroic Defiance,
- *  `cards/sets/pls/white.ts`) per the "generalize, don't add" primitive-reuse
+ *  `cards/sets/pls/white.cards.ts`) per the "generalize, don't add" primitive-reuse
  *  rule rather than a third near-duplicate copy.
  *
  *  No CR 613.8 dependency-loop risk: this reads `ctx.getColors` (layer 5,
@@ -13245,7 +13245,7 @@ export interface EffectCountSpec {
      *  graveyard and exile (face up by default, CR 406.3) — and a card redirected into a
      *  library is found nowhere, which is exactly the "undefined
      *  characteristics" reading: it matches no filter and counts 0 on its own.
-     *  Dauthi Voidwalker (`sets/mh2/black.ts`) is the shipped redirect; a
+     *  Dauthi Voidwalker (`sets/mh2/black.cards.ts`) is the shipped redirect; a
      *  graveyard-only lookup paid 0 life for two exiled lands.
      *
      *  An UNCAPTURED binding counts **0**, as `sum`'s does: a choice that
@@ -19179,7 +19179,7 @@ export interface CardDefinition {
      *  in functions in every OTHER zone: hand, library, graveyard, exile and
      *  the stack. "As long as this card isn't on the battlefield, it's a 1/1
      *  Insect creature in addition to its other types" (Grist, the Hunger
-     *  Tide, `sets/mh2/multicolor.ts`) is the shape this field declares.
+     *  Tide, `sets/mh2/multicolor.cards.ts`) is the shape this field declares.
      *
      *  NOT a characteristic-defining ability: CR 604.3a(5) excludes an ability
      *  that sets characteristics "only if certain conditions are met", and the

@@ -53,13 +53,13 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../cards/__tests__/setup";
-import { voiceOfAll } from "../../cards/sets/pls/white";
-import { meddlingMage } from "../../cards/sets/pls/multicolor";
-import { primalClay } from "../../cards/sets/atq/colorless";
-import { illusionaryTerrain } from "../../cards/sets/ice/blue";
-import { grizzlyBears } from "../../cards/sets/lea/green";
-import { sinSpirasPunishment } from "../../cards/sets/fin/multicolor";
+} from "../../cards/__tests__/setup.helper";
+import { voiceOfAll } from "../../cards/sets/pls/white.cards";
+import { meddlingMage } from "../../cards/sets/pls/multicolor.cards";
+import { primalClay } from "../../cards/sets/atq/colorless.cards";
+import { illusionaryTerrain } from "../../cards/sets/ice/blue.cards";
+import { grizzlyBears } from "../../cards/sets/lea/green.cards";
+import { sinSpirasPunishment } from "../../cards/sets/fin/multicolor.cards";
 import type { EffectOp, GameEvent } from "../../cards/types";
 
 // --- Harness ----------------------------------------------------------------

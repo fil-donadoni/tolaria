@@ -16,7 +16,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import { projectFullState, projectPublicState } from "../../gameProjections";
 import { syncLayer6 } from "../layer6";
 import { syncLayers2to5 } from "../layers2to5";

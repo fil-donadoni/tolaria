@@ -8799,7 +8799,7 @@ export type AbilityEffectScriptHost = {
      *  (issue #1341) or TRIGGERED (issue #2461) ability. Read only to enforce
      *  its mutual exclusivity with an ability-level body below; the modes'
      *  own scripts are validated as separate synthetic sites
-     *  (`cards/__tests__/effectSites.ts`). */
+     *  (`cards/__tests__/effectSites.helper.ts`). */
     modes?: unknown;
 };
 

@@ -1,4 +1,4 @@
-// Per-card behavior tests for blue cards in `convex/cards/sets/fem/blue.ts`
+// Per-card behavior tests for blue cards in `convex/cards/sets/fem/blue.cards.ts`
 // (FEM, split by colour per ADR 0043). Each non-trivial card gets a describe
 // block citing the CR section it exercises; assertions check external behavior
 // only (definition shape, zone after resolution, projected wire-format).
@@ -12,7 +12,7 @@ import {
     vodalianSoldiersFemB,
     vodalianSoldiersFemC,
     vodalianSoldiersFemD,
-} from "..";
+} from "../index.cards";
 import { getDefinition, getPrintingsForCard } from "../../../index";
 import {
     processPendingActionTriggers,
@@ -37,9 +37,9 @@ import {
     makeState,
     pushSpell,
     resolveActivated,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import { applyMayPaySubmit } from "../../../../gre/pendingChoiceSubmit";
-import { resolveTrigger, UPKEEP } from "./helpers";
+import { resolveTrigger, UPKEEP } from "./set.helper";
 
 const deepSpawn = getDefinition("69c9e4a5-735f-471c-ab1a-6e6d50ba5724");
 const highTide = getDefinition("4686bbb9-517f-4cce-aa7a-5db41e22c02b");

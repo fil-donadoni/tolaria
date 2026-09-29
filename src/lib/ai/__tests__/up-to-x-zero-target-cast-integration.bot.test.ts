@@ -28,7 +28,7 @@
 // enumerator + the real executor + the real registered mutation handlers can
 // see it. Same harness discipline as the other `game.ts` integration coverage:
 // a stub `MutationCtx` driving the REGISTERED mutations' own `_handler`s
-// (`gameMutationHarness.ts`), never a reimplementation of their bodies.
+// (`gameMutationHarness.fixture.ts`), never a reimplementation of their bodies.
 
 import { describe, expect, it } from "vitest";
 import {
@@ -43,14 +43,14 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "@convex/cards/__tests__/setup";
+} from "@convex/cards/__tests__/setup.helper";
 import {
     gameStateSeed,
     makeMutationCtx,
     runMutation,
     type Handler,
     type MutationStub,
-} from "@convex/__tests__/gameMutationHarness";
+} from "@convex/__tests__/gameMutationHarness.fixture";
 import { enumerateMoves } from "@convex/gre/moves";
 import type { GameState } from "@convex/gre/state";
 import { resolveTopOfStack } from "@convex/gre/state";

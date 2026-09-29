@@ -19,8 +19,8 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../../__tests__/setup";
-import { driveCopyChoice } from "../../lea/__tests__/helpers";
+} from "../../../__tests__/setup.helper";
+import { driveCopyChoice } from "../../lea/__tests__/set.helper";
 import { registerTokenDefinition } from "../../..";
 import {
     resolveTopOfStack,

@@ -17,7 +17,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "@convex/cards/__tests__/setup";
+} from "@convex/cards/__tests__/setup.helper";
 import { resolveTopOfStack, type GameState } from "@convex/gre/state";
 import { advancePhase } from "@convex/gre/phases";
 import {

@@ -288,7 +288,7 @@ function opNodes(
         // a chip. Structural, not a key list — `effects` / `then` / `else` are
         // not special-cased, and neither is any nesting key added later. The
         // key-list version of this shipped with `divideIntoPiles`'s
-        // `chosenEffect` / `otherEffect` (Bend or Break, `sets/inv/red.ts`)
+        // `chosenEffect` / `otherEffect` (Bend or Break, `sets/inv/red.cards.ts`)
         // flattened into one 400-character chip whose real Ops read `[1]`.
         for (const [key, value] of Object.entries(
             op as Record<string, unknown>
@@ -340,7 +340,7 @@ function opNodes(
  *  skipped as a chip that no builder renders as a node is worse than an
  *  unlisted one: it is silently dropped at exactly the sites nobody checked.
  *  That is what happened to `SpellMode.staticEffects` — Phantasmal Terrain
- *  (`sets/lea/blue.ts`), a five-mode modal Aura whose ENTIRE effect is one
+ *  (`sets/lea/blue.cards.ts`), a five-mode modal Aura whose ENTIRE effect is one
  *  `subtype-set` per mode, rendered as five completely bare `MOD` nodes. */
 function staticEffectNodes(
     site: { staticEffects?: readonly { kind: string }[] },
@@ -515,7 +515,7 @@ const CARD_PRESENTATION_KEYS: ReadonlySet<string> = new Set([
  *  Without this the tree read only what it had a builder for — keywords, static
  *  effects, targets, bodies, abilities — and every other rules field on the
  *  card was invisible with no trace anywhere. Multiversal Passage
- *  (`sets/spm/colorless.ts`) carries `entersTappedUnlessPay: { life: 2 }`, the
+ *  (`sets/spm/colorless.cards.ts`) carries `entersTappedUnlessPay: { life: 2 }`, the
  *  CR 614.12 shock-land choice that IS the card's decision, and the tree
  *  rendered a `subtype-set` and a trigger and nothing else. */
 function cardRiderNode(def: CardDefinition): EngineNode[] {

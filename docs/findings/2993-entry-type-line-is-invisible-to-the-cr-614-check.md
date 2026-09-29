@@ -16,9 +16,9 @@ It is **not** early enough for the CR 614 entry-REPLACEMENT check:
 reads the card's printed type line.
 
 **Evidence, and it is reachable with shipped cards.** Containment Priest ships
-(`convex/cards/sets/c14/white.ts:24`) — "if a nontoken **creature** would enter
+(`convex/cards/sets/c14/white.cards.ts:24`) — "if a nontoken **creature** would enter
 the battlefield and it wasn't cast, exile it instead" — and Enduring Innocence
-ships (`convex/cards/sets/dsk/white.ts`). Kill an Innocence under a Priest and
+ships (`convex/cards/sets/dsk/white.cards.ts`). Kill an Innocence under a Priest and
 its return is exiled as a creature, though what would enter is an enchantment.
 The same ordering makes the Worms of the Earth land check
 (`canLandEnterBattlefield`, CR 614) read the printed line; harmless today, since

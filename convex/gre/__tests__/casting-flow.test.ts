@@ -20,7 +20,7 @@ import {
     mountain,
     plains,
     savannahLions,
-} from "../../cards/sets/lea";
+} from "../../cards/sets/lea/index.cards";
 
 // ---------------------------------------------------------------------------
 // Helpers — simulate mutation logic as pure functions

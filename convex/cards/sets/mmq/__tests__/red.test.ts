@@ -8,7 +8,11 @@ import { describe, it, expect } from "vitest";
 import { resolveTopOfStack, type GameState } from "../../../../gre/state";
 import { collectTriggers } from "../../../../gre/triggers";
 import { applyMayPaySubmit } from "../../../../gre/pendingChoiceSubmit";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import { getDefinition } from "../../../index";
 
 const squeeGoblinNabob = getDefinition("4ba8325a-1203-4125-9111-94d9e2b1f14b");

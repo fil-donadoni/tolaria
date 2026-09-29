@@ -34,8 +34,16 @@ import type { Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
 import { debugBo3Sideboard, debugPatchState, debugResetGame } from "../game";
 import type { GameState } from "../gre/state";
-import { makeInstance, makePlayer, makeState } from "../cards/__tests__/setup";
-import { makeMutationCtx, runMutation, type Row } from "./gameMutationHarness";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../cards/__tests__/setup.helper";
+import {
+    makeMutationCtx,
+    runMutation,
+    type Row,
+} from "./gameMutationHarness.fixture";
 
 /** LEA Mountain — any real definition works; the library only needs one card
  *  for the fixture Game's `GameState`. */

@@ -28,7 +28,10 @@ import {
     loadMatchSeatDecks,
     saveMatchSeatDeck,
 } from "../deckStore";
-import { makeInMemoryDb, type InMemoryRow } from "./fixtures/inMemoryDb";
+import {
+    makeInMemoryDb,
+    type InMemoryRow,
+} from "./fixtures/inMemoryDb.fixture";
 
 // The Match orchestration (ADR 0029 / PRD #387). The project has no convex-test
 // harness, so — like gameLifecycle.test.ts — these tests drive the SAME pure

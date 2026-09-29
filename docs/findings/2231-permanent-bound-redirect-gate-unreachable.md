@@ -13,13 +13,13 @@ today, because of a scope mismatch nobody has written down:
 
 - all four `damageEffectKind: "redirection"` permanent-bound effects fire only
   on damage aimed at a **player** — Harsh Judgment
-  (`convex/cards/sets/inv/white.ts:513`), Martyrs of Korlis
-  (`convex/cards/sets/atq/white.ts:230`), Personal Incarnation
-  (`convex/cards/sets/lea/white.ts:914`), Veteran Bodyguard
-  (`convex/cards/sets/lea/white.ts:1232`);
+  (`convex/cards/sets/inv/white.cards.ts:513`), Martyrs of Korlis
+  (`convex/cards/sets/atq/white.cards.ts:230`), Personal Incarnation
+  (`convex/cards/sets/lea/white.cards.ts:914`), Veteran Bodyguard
+  (`convex/cards/sets/lea/white.cards.ts:1232`);
 - both shipped locks are **permanent**-scoped — Lava Burst's rider is
   conditional on the target being a creature
-  (`convex/cards/sets/ice/red.ts`), and `damageLockThisTurn` lives on a
+  (`convex/cards/sets/ice/red.cards.ts`), and `damageLockThisTurn` lives on a
   `CardInstanceState` (`convex/gre/state.ts`, `setDamageLockThisTurn` rejects a
   non-permanent selection).
 

@@ -19,7 +19,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import { getDefinition } from "../../../index";
 
 const shallowGrave = getDefinition("d5c782cc-c951-4c6f-a93f-774ae6c1c214");

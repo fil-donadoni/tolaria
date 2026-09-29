@@ -97,7 +97,7 @@ describe("scanRepoMarkers — resolves tracked-by: independent of Guard B's MARK
     it("finds a per-card bullet paragraph with no marker word — the actual shape of most inv/white.ts stubs", () => {
         const sources = [
             {
-                file: "convex/cards/sets/inv/white.ts",
+                file: "convex/cards/sets/inv/white.cards.ts",
                 text: [
                     '// Atalya, Samite Master — "Spend only white mana on X."',
                     "// tracked-by: #1330 (no color-restricted X payment exists).",
@@ -108,7 +108,7 @@ describe("scanRepoMarkers — resolves tracked-by: independent of Guard B's MARK
         const hits = scanRepoMarkers(sources);
         expect(hits).toHaveLength(1);
         expect(hits[0]).toMatchObject({
-            file: "convex/cards/sets/inv/white.ts",
+            file: "convex/cards/sets/inv/white.cards.ts",
             tracked: true,
             issueNumbers: [1330],
         });
@@ -148,7 +148,7 @@ describe("scanRepoMarkers — resolves tracked-by: independent of Guard B's MARK
     it("folds a `tracked-by:` that wraps onto the next `//` comment line before matching (issue #2560 fixup round 2, finding: reviewer proved a wrapped CLOSED ref hid from the sweep entirely — cd807cf7's `--umbrella 1086` proof)", () => {
         const sources = [
             {
-                file: "convex/cards/sets/inv/multicolor.ts",
+                file: "convex/cards/sets/inv/multicolor.cards.ts",
                 text: [
                     "// trigger does not carry the Jacked Rabbit blink divergence (tracked-by:",
                     "// #2042).",
@@ -181,7 +181,7 @@ describe("scanRepoMarkers — resolves tracked-by: independent of Guard B's MARK
     it("accepts a `tracked-by: <prefix>#NNN` form (`tracked-by: tolaria#1324`) that the plain #NNN shape missed even on one line", () => {
         const sources = [
             {
-                file: "convex/cards/sets/woe/colorless.ts",
+                file: "convex/cards/sets/woe/colorless.cards.ts",
                 text: [
                     "// TODO(tracked-by: tolaria#1324) — ability-copy mechanism unbuilt.",
                     "export {};",
@@ -237,7 +237,7 @@ describe("scanRepoMarkers — resolves tracked-by: independent of Guard B's MARK
     it("still drops a stub-context TODO(issue #NNN) hit that carries no separate tracked-by: colon disposition", () => {
         const sources = [
             {
-                file: "convex/cards/sets/xyz/white.ts",
+                file: "convex/cards/sets/xyz/white.cards.ts",
                 text: [
                     "// TODO(issue #676 stub — Boast is unbuilt, no primitive)",
                     "// export const broadsideBombardiers: CardDefinition = {",
@@ -254,7 +254,7 @@ describe("scanRepoMarkers — resolves tracked-by: independent of Guard B's MARK
         it("a bare `tracked-by: #NNN` comment inside a commented-out stub's own comment run is caught, unlike a TODO(issue #NNN) note in the same context", () => {
             const sources = [
                 {
-                    file: "convex/cards/sets/xyz/red.ts",
+                    file: "convex/cards/sets/xyz/red.cards.ts",
                     text: [
                         "// Delayed Blast Fireball — BLOCKED on Foretell.",
                         "// tracked-by: #925",
@@ -273,7 +273,7 @@ describe("scanRepoMarkers — resolves tracked-by: independent of Guard B's MARK
         it("when a single stub-context line carries BOTH a TODO(issue #NNN) note and a separate tracked-by: colon ref to a DIFFERENT number, only the tracked-by: number is admitted — TODO(issue stays check-stub-coverage.ts's domain even sharing a line with an admitted ref", () => {
             const sources = [
                 {
-                    file: "convex/cards/sets/xyz/white.ts",
+                    file: "convex/cards/sets/xyz/white.cards.ts",
                     text: [
                         "// TODO(issue #676 stub — Boast is unbuilt); tracked-by: #1339",
                         "// export const broadsideBombardiers: CardDefinition = {",
@@ -291,7 +291,7 @@ describe("scanRepoMarkers — resolves tracked-by: independent of Guard B's MARK
         it("end-to-end: a tracked-by: colon ref inside stub context naming a CLOSED issue is caught rotten by findRottenMarkers — this is the exact clb/red.ts shape (a stub, `tracked-by: #925`, #925 closed) that a `markers:lint` run at HEAD-before-this-fix reported clean", () => {
             const sources = [
                 {
-                    file: "convex/cards/sets/clb/red.ts",
+                    file: "convex/cards/sets/clb/red.cards.ts",
                     text: [
                         "// Delayed Blast Fireball — BLOCKED on Foretell.",
                         "// tracked-by: #925",
@@ -314,7 +314,7 @@ describe("scanRepoMarkers — resolves tracked-by: independent of Guard B's MARK
         it("resolves a `TODO(issue #NNN)` ref outside stub context, same as `tracked-by:` — the exact shape that hid dsk/red.ts's and mh3/colorless.ts's stale #691 refs from markers:lint before this fix", () => {
             const sources = [
                 {
-                    file: "convex/cards/sets/dsk/red.ts",
+                    file: "convex/cards/sets/dsk/red.cards.ts",
                     text: [
                         "// TODO(issue #691): Delirium attack trigger — additional combat",
                         "// phase not yet modeled.",
@@ -333,7 +333,7 @@ describe("scanRepoMarkers — resolves tracked-by: independent of Guard B's MARK
         it("resolves the `TODO(issue #NNN stub)` spelling too — the word `stub` in the parens does not by itself make this stub CONTEXT (that is `isStubContext`'s job, based on an adjacent commented-out `export const`, not on this word)", () => {
             const sources = [
                 {
-                    file: "convex/cards/sets/dsk/red.ts",
+                    file: "convex/cards/sets/dsk/red.cards.ts",
                     text: [
                         "// Silence — TODO(issue #691 stub): needs a proper implementation.",
                         "export {};",
@@ -348,7 +348,7 @@ describe("scanRepoMarkers — resolves tracked-by: independent of Guard B's MARK
         it("still drops a `TODO(issue #NNN stub)` hit sitting in REAL stub context (the same contiguous-comment-run + STUB_ANCHOR test as the tracked-by: shape) — the 26-of-29 majority this widening must not turn into false reds", () => {
             const sources = [
                 {
-                    file: "convex/cards/sets/mh1/white.ts",
+                    file: "convex/cards/sets/mh1/white.cards.ts",
                     text: [
                         "// TODO(issue #676 stub — Overload is unbuilt, no primitive)",
                         "// export const windsOfAbandon: CardDefinition = {",
@@ -433,7 +433,7 @@ describe("end-to-end: TODO(issue #NNN) reds the sweep exactly like tracked-by: (
     it("a TODO(issue #NNN) marker OUTSIDE stub context naming a CLOSED issue is now caught rotten — the exact gap #1841 closes (dsk/red.ts and mh3/colorless.ts named the closed #691 this way and markers:lint reported clean)", () => {
         const sources = [
             {
-                file: "convex/cards/sets/dsk/red.ts",
+                file: "convex/cards/sets/dsk/red.cards.ts",
                 text: [
                     "// TODO(issue #691): Delirium attack trigger — additional combat",
                     "// phase not yet modeled.",
@@ -449,7 +449,7 @@ describe("end-to-end: TODO(issue #NNN) reds the sweep exactly like tracked-by: (
     it("the SAME closed-issue TODO(issue #NNN) note sitting in REAL stub context stays green — check-stub-coverage.ts's domain, not this sweep's", () => {
         const sources = [
             {
-                file: "convex/cards/sets/mh1/white.ts",
+                file: "convex/cards/sets/mh1/white.cards.ts",
                 text: [
                     "// TODO(issue #691 stub — hypothetically closed, unbuilt)",
                     "// export const someStub: CardDefinition = {",

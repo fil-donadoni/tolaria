@@ -3,7 +3,7 @@
 // The mechanic's own permanent test. Everything here drives the REAL commit
 // path (`finalizeTargetSelection`, `convex/game.ts`) and the REAL resolution
 // (`resolveTopOfStack`) with the two shipped cards — Lava Spike (the Arcane
-// spell, `cards/sets/chk/red.ts`) and Through the Breach (the splice source) —
+// spell, `cards/sets/chk/red.cards.ts`) and Through the Breach (the splice source) —
 // rather than hand-building a stack item, because the whole claim of the
 // implementation is that splice rides the EXISTING additional-cost path: a
 // hand-built item would prove the merge and skip the path.
@@ -45,10 +45,10 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import { projectPublicState } from "../../gameProjections";
-import { lavaSpike, throughTheBreach } from "../../cards/sets/chk/red";
-import { fork, grizzlyBears } from "../../cards/sets/lea";
+import { lavaSpike, throughTheBreach } from "../../cards/sets/chk/red.cards";
+import { fork, grizzlyBears } from "../../cards/sets/lea/index.cards";
 
 const SPIKE = "spike1";
 const BREACH = "breach1";

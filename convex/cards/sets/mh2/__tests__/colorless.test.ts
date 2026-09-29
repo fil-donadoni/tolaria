@@ -1,14 +1,18 @@
-// Per-card behavior tests for colorless cards in `convex/cards/sets/mh2/colorless.ts`
+// Per-card behavior tests for colorless cards in `convex/cards/sets/mh2/colorless.cards.ts`
 // (Modern Horizons 2, split by colour per ADR 0043). Yavimaya, Cradle of
 // Growth is the "Forest" mirror of Urborg, Tomb of Yawgmoth
-// (`convex/cards/sets/plc/colorless.ts`) — same `subtype-add` static-effect
+// (`convex/cards/sets/plc/colorless.cards.ts`) — same `subtype-add` static-effect
 // shape (CR 305.7, 611). Urborg's test file carries the exhaustive coverage
 // (apply/existing-grants/unapply/wire-format); this file only re-confirms the
 // additive behavior and the self-mana-ability inference for Yavimaya, per the
 // project's per-Op / lighter-mirror testing convention.
 
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import { getDefinition } from "../../..";
 import {
     getBasicLandMana,
@@ -43,7 +47,7 @@ import {
 } from "../../../../gre/layers";
 import { getEffectiveActivatedAbilities } from "../../../../gre/activatedAbilities";
 import { projectPublicState } from "../../../../gameProjections";
-import { sagaBoard, tickChapter } from "./urzasSagaFixtures";
+import { sagaBoard, tickChapter } from "./urzasSagaFixtures.fixture";
 import { type StackItem } from "../../../../gre/state";
 import { effectiveTriggeredAbilities } from "../../../../gre/copy";
 import { tokenPrintIdFor } from "../../../tokenPrintLookup";

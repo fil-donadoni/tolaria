@@ -1,4 +1,4 @@
-// Per-card behavior tests for white cards in `convex/cards/sets/arn/white.ts`
+// Per-card behavior tests for white cards in `convex/cards/sets/arn/white.cards.ts`
 // (ARN, split by colour per ADR 0043). Each non-trivial card gets a describe
 // block citing the CR section it exercises; assertions check external behavior
 // only (effective P/T, damage, zone, combat outcome).
@@ -10,7 +10,7 @@ import {
     makeState,
     pushSpell,
     resolveActivated,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import { projectPublicState } from "../../../../gameProjections";
 import {
     getEffectivePower,
@@ -24,7 +24,7 @@ import {
     type StackItem,
 } from "../../../../gre/state";
 import type { Color } from "../../../types";
-import { resolveTrigger } from "./helpers";
+import { resolveTrigger } from "./set.helper";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { buildStateView } from "../../../../gre/replacements";
 import { getDefinition } from "../../../index";

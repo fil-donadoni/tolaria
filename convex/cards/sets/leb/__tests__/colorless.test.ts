@@ -1,5 +1,5 @@
 // Per-card behavior tests for colorless cards in
-// `convex/cards/sets/leb/colorless.ts` (artifacts + lands).
+// `convex/cards/sets/leb/colorless.cards.ts` (artifacts + lands).
 //
 // LEB is mostly reprints (CardPrint → shared LEA CardDefinition) plus two
 // Beta-original cards that have their own CardDefinition (Volcanic Island,
@@ -18,7 +18,7 @@ import {
     manaShortLeb,
     timeVaultLeb,
     taigaLeb,
-} from "..";
+} from "../index.cards";
 import { getDefinition, getAllCards } from "../../../index";
 import {
     commitLandsForCost,
@@ -26,7 +26,11 @@ import {
 } from "../../../../gre/state";
 import { hasManaAbility } from "../../../../gre/constants";
 import { projectPublicState } from "../../../../gameProjections";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 
 const circleOfProtectionBlack = getDefinition(
     "fa47b4cd-8da4-4544-b011-ba92b7009203"

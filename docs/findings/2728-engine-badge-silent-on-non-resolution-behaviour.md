@@ -18,7 +18,7 @@ area as a French-vanilla Grizzly Bears.
 
 **Evidence.** `src/lib/preview-body.ts` `resolutionSites()` /
 `hasHandWrittenBody()` — neither reads `drawReplacement`, `staticEffects` or
-`staticAbilities`. `convex/cards/sets/cmr/blue.ts:35` (Hullbreacher) is the
+`staticAbilities`. `convex/cards/sets/cmr/blue.cards.ts:35` (Hullbreacher) is the
 witness: a `drawReplacement` with an `applies` closure and a declarative
 `redirect-to-token` outcome, and no resolution body anywhere.
 `src/lib/__tests__/engine-view-badge.catalogue.test.ts` pins the same card as

@@ -49,10 +49,10 @@ import {
     board,
     CREATURE_ID,
     MANA_CREATURE_ID,
-} from "./fixtures/manaSubstitutionScopeProbe";
-import { makeInstance, makeState } from "../../cards/__tests__/setup";
-import { sunglassesOfUrza } from "../../cards/sets/lea";
-import { forest } from "../../cards/sets/lea";
+} from "./fixtures/manaSubstitutionScopeProbe.fixture";
+import { makeInstance, makeState } from "../../cards/__tests__/setup.helper";
+import { sunglassesOfUrza } from "../../cards/sets/lea/index.cards";
+import { forest } from "../../cards/sets/lea/index.cards";
 
 describe("CR 609.4b — an UNSCOPED mana-substitution static is untouched", () => {
     it("Sunglasses of Urza still reaches every cost, named activation or not", () => {

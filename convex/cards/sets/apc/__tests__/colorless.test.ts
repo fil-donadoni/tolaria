@@ -1,5 +1,5 @@
 // Per-card behaviour tests for APC colourless cards
-// (`convex/cards/sets/apc/colorless.ts`).
+// (`convex/cards/sets/apc/colorless.cards.ts`).
 //
 // Dragon Arch is a hand-tail card (issue #3806) built entirely out of
 // already-exercised Ops, so the per-Op regime owes it nothing. What it DOES
@@ -18,7 +18,7 @@ import {
     makeState,
     pushSpell,
     submitChoice,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import {
     discardToGraveyard,
     payDiscardAtRandomCost,

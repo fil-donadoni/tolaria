@@ -3,9 +3,9 @@
  *
  * Every set is a DIRECTORY `convex/cards/sets/<code>/`, not a single file:
  * seven colour modules (`white|blue|black|red|green|multicolor|colorless`) plus
- * an `index.ts` barrel that re-exports them. The registry consumes a set
- * unchanged via `import * as <code> from "./sets/<code>"`, which resolves to
- * `<code>/index.ts`.
+ * an `index.cards.ts` barrel that re-exports them — every name multi-dot, so
+ * none is a Convex entry point (issue #4811, {@link SET_MODULE_SUFFIX}). The
+ * catalogue consumes a set via `import * as <code> from "./sets/<code>/index.cards"`.
  *
  * Both importers (`json-to-cards.mjs` set mode, `list-to-cards.mjs` list mode)
  * route every card into its colour module via {@link moduleForCost} and emit the
@@ -19,6 +19,9 @@
 import { writeFileSync, mkdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { getColorsFromCost } from "../../convex/cards/colors.ts";
+import { SET_MODULE_SUFFIX } from "./set-module-suffix.ts";
+
+export { SET_MODULE_SUFFIX };
 
 /** The seven colour modules every set directory contains, in canonical order. */
 export const COLOUR_MODULES = [
@@ -56,27 +59,27 @@ export function moduleHeader(code, module) {
     const CODE = code.toUpperCase();
     return [
         `// ${CODE} — ${module} cards, split by colour per ADR 0043. The registry's`,
-        `// \`import * as ${code} from "./sets/${code}"\` resolves through ${code}/index.ts.`,
+        `// \`import * as ${code} from "./sets/${code}/index.cards"\` re-exports this module.`,
         `// Cards are classified by the colour identity of their mana cost (CR 202.2):`,
-        `// lands and colourless artifacts (no coloured cost) live in colorless.ts.`,
+        `// lands and colourless artifacts (no coloured cost) live in colorless.cards.ts.`,
     ].join("\n");
 }
 
-/** Source of the `index.ts` barrel re-exporting all seven colour modules. */
+/** Source of the `index.cards.ts` barrel re-exporting all seven colour modules. */
 export function barrelSource(code) {
     return [
         `// ${code.toUpperCase()} set barrel — re-exports every colour module so the`,
-        `// registry's \`import * as ${code} from "./sets/${code}"\` resolves here`,
-        `// unchanged (ADR 0043).`,
+        `// catalogue's \`import * as ${code} from "./sets/${code}/index.cards"\``,
+        `// resolves here (ADR 0043, issue #4811).`,
         "",
-        ...COLOUR_MODULES.map((m) => `export * from "./${m}";`),
+        ...COLOUR_MODULES.map((m) => `export * from "./${m}${SET_MODULE_SUFFIX}";`),
         "",
     ].join("\n");
 }
 
 /**
  * Writes a complete set directory `<setsDir>/<code>/`: one file per colour
- * module plus the `index.ts` barrel. `sources` maps a module name to an array
+ * module plus the `index.cards.ts` barrel. `sources` maps a module name to an array
  * of card-definition source strings (already formatted). A module with no cards
  * is still emitted as `header + export {}` so every set has the same sparse
  * shape (ADR 0043). `importLine` is the shared `import type { … }` prepended to
@@ -95,9 +98,9 @@ export function writeSetDirectory(setsDir, code, sources, importLine) {
             cards.length === 0
                 ? `${header}\n\nexport {};\n`
                 : `${header}\n${importLine}\n\n${cards.join("\n\n")}\n`;
-        writeFileSync(resolve(setDir, `${module}.ts`), body, "utf-8");
+        writeFileSync(resolve(setDir, `${module}${SET_MODULE_SUFFIX}.ts`), body, "utf-8");
     }
 
-    writeFileSync(resolve(setDir, "index.ts"), barrelSource(code), "utf-8");
+    writeFileSync(resolve(setDir, `index${SET_MODULE_SUFFIX}.ts`), barrelSource(code), "utf-8");
     return setDir;
 }

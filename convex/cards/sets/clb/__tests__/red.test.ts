@@ -1,10 +1,14 @@
-// Per-card behavior tests for red cards in `convex/cards/sets/clb/red.ts`
+// Per-card behavior tests for red cards in `convex/cards/sets/clb/red.cards.ts`
 // (CLB, split by colour per ADR 0043). Fixture builders live in
-// convex/cards/__tests__/setup.ts.
+// convex/cards/__tests__/setup.helper.ts.
 
 import { describe, it, expect } from "vitest";
 import type { CardType } from "../../../types";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import {
     resolveTopOfStack,
     type GameState,

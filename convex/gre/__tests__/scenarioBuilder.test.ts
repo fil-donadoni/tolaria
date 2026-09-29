@@ -22,30 +22,30 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../cards/__tests__/setup";
-import { giantGrowth, grizzlyBears } from "../../cards/sets/lea/green";
-import { gaeasTouch } from "../../cards/sets/drk/green";
+} from "../../cards/__tests__/setup.helper";
+import { giantGrowth, grizzlyBears } from "../../cards/sets/lea/green.cards";
+import { gaeasTouch } from "../../cards/sets/drk/green.cards";
 import {
     hillGiant,
     lightningBolt,
     shivanDragon,
-} from "../../cards/sets/lea/red";
+} from "../../cards/sets/lea/red.cards";
 const prodigalSorcerer = getDefinition("e4dc1103-7bf1-47f6-9006-d3ed9ccd7a6a");
-import { arboria } from "../../cards/sets/leg/green";
-import { rasputinDreamweaver } from "../../cards/sets/leg/multicolor";
-import { cityOfBrass } from "../../cards/sets/arn/colorless";
-import { fatalPush } from "../../cards/sets/aer/black";
-import { startingTown } from "../../cards/sets/fin/colorless";
-import { forest } from "../../cards/sets/lea/colorless";
+import { arboria } from "../../cards/sets/leg/green.cards";
+import { rasputinDreamweaver } from "../../cards/sets/leg/multicolor.cards";
+import { cityOfBrass } from "../../cards/sets/arn/colorless.cards";
+import { fatalPush } from "../../cards/sets/aer/black.cards";
+import { startingTown } from "../../cards/sets/fin/colorless.cards";
+import { forest } from "../../cards/sets/lea/colorless.cards";
 import {
     animateDead,
     fear,
     scatheZombies,
     simulacrum,
     zombieMaster,
-} from "../../cards/sets/lea/black";
-import { onceUponATime } from "../../cards/sets/eld/green";
-import { grapeshot } from "../../cards/sets/tsp";
+} from "../../cards/sets/lea/black.cards";
+import { onceUponATime } from "../../cards/sets/eld/green.cards";
+import { grapeshot } from "../../cards/sets/tsp/index.cards";
 import {
     getDefinition,
     tokenDefinitionId,
@@ -66,8 +66,8 @@ import { advancePhase } from "../phases";
 import { deriveLayer6 } from "../layer6";
 import { getEffectivePower, getEffectiveToughness } from "../layers";
 import { getEffectiveColors } from "../../cards/effectiveColors";
-import { mishrasFactory } from "../../cards/sets/atq/colorless";
-import { creepingTarPit } from "../../cards/sets/wwk/colorless";
+import { mishrasFactory } from "../../cards/sets/atq/colorless.cards";
+import { creepingTarPit } from "../../cards/sets/wwk/colorless.cards";
 import type { ContinuousEffect } from "../continuousEffects";
 import type { AnimateSpec } from "../../cards/types";
 import {
@@ -90,7 +90,7 @@ import {
     normalizeScenarioSpec,
     type ScenarioSpec,
 } from "../../debugScenarioSpec";
-import { removedKeywordRows } from "../../cards/__tests__/setup";
+import { removedKeywordRows } from "../../cards/__tests__/setup.helper";
 
 /** A live position at DECLARE_BLOCKERS with the attack declared and confirmed
  *  and one blocker locked in (CR 508.1 / 509.1) — the class of board
@@ -2911,7 +2911,7 @@ describe("buildStateFromScenario — per-seat turn history (issue #3450)", () =>
     // The fourth field earns its own DECISION too, so the block's claim holds
     // for all four: Starting Town "enters tapped unless it's your first,
     // second, or third turn of the game" (CR 614.1c), a predicate reading
-    // `turnsTaken` and nothing else (`cards/sets/fin/colorless.ts`). Asserted
+    // `turnsTaken` and nothing else (`cards/sets/fin/colorless.cards.ts`). Asserted
     // through `shouldEnterTapped`, the shared ETB oracle every placement site
     // calls.
     it("decides Starting Town's entry tapped or untapped off the seeded turnsTaken (CR 614.1c)", () => {

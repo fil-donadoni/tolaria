@@ -35,8 +35,8 @@ import {
     makePlayer,
     makeState,
     resolveTriggerOrder,
-} from "../../cards/__tests__/setup";
-import { securitronSquadron } from "../../cards/sets/pip/white";
+} from "../../cards/__tests__/setup.helper";
+import { securitronSquadron } from "../../cards/sets/pip/white.cards";
 import { additionalCostPaidCount, resolveKickerPayments } from "../kicker";
 
 const SQUADRON_ID = "sq1";

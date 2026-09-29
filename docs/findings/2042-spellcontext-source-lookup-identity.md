@@ -25,17 +25,17 @@ cannot tell.
 
 **Evidence.** All nine sites, with the correct behaviour per CR 608.2h:
 
-| site             | method                            | should be                                                                                                    |
-| ---------------- | --------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `state.ts:10422` | `getAttachedToId()`               | LKI — "what did I enter attached to"; the real consumer is Earthbind's own ETB (`cards/sets/lea/red.ts:240`) |
-| `state.ts:10444` | `getChosenPlayer()`               | LKI                                                                                                          |
-| `state.ts:10476` | `getChosenModeId()`               | LKI                                                                                                          |
-| `state.ts:10430` | `setChosenPlayer()`               | **no-op** if the source left — currently writes the choice onto the impostor                                 |
-| `state.ts:10452` | `setChosenSubtypes()`             | no-op, same                                                                                                  |
-| `state.ts:10501` | `becomeCopyOf()` recipient lookup | no-op, same                                                                                                  |
-| `state.ts:10507` | `setSelfBody()`                   | no-op, same                                                                                                  |
-| `state.ts:10543` | `setSelfChosenName()`             | no-op, same                                                                                                  |
-| `state.ts:14608` | `markEchoPaid()`                  | clears a flag on an object that never owed it                                                                |
+| site             | method                            | should be                                                                                                          |
+| ---------------- | --------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `state.ts:10422` | `getAttachedToId()`               | LKI — "what did I enter attached to"; the real consumer is Earthbind's own ETB (`cards/sets/lea/red.cards.ts:240`) |
+| `state.ts:10444` | `getChosenPlayer()`               | LKI                                                                                                                |
+| `state.ts:10476` | `getChosenModeId()`               | LKI                                                                                                                |
+| `state.ts:10430` | `setChosenPlayer()`               | **no-op** if the source left — currently writes the choice onto the impostor                                       |
+| `state.ts:10452` | `setChosenSubtypes()`             | no-op, same                                                                                                        |
+| `state.ts:10501` | `becomeCopyOf()` recipient lookup | no-op, same                                                                                                        |
+| `state.ts:10507` | `setSelfBody()`                   | no-op, same                                                                                                        |
+| `state.ts:10543` | `setSelfChosenName()`             | no-op, same                                                                                                        |
+| `state.ts:14608` | `markEchoPaid()`                  | clears a flag on an object that never owed it                                                                      |
 
 The `fight` site (`state.ts:10792` → `resolveFight` `:7736`, `findOnBattlefield`
 at `:7741`) is the same shape but is **already owned by #2012**.

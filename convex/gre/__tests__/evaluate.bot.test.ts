@@ -25,7 +25,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import { DEFAULT_EVAL_WEIGHTS } from "../ai/evalWeights";
 
 const BEARS = getCardByName("Grizzly Bears").id; // 2/2 ground

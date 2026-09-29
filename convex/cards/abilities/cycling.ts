@@ -59,7 +59,7 @@ const CYCLING_ABILITY_ID = "cycling";
  *
  *  It used to print `{${cost.generic ?? 0}}` and nothing else, on the stated
  *  grounds that every caller had a purely-generic cost. Decree of Silence
- *  (`sets/scg/blue.ts`) is the first with a COLOURED one — Cycling {4}{U}{U} —
+ *  (`sets/scg/blue.cards.ts`) is the first with a COLOURED one — Cycling {4}{U}{U} —
  *  and the generic-only renderer printed "Cycling {4}", which is a wrong
  *  printed cost on the card's ability text, in `aggregateOracleText`, and
  *  therefore in the search corpus. The cost OBJECT was always right; only the

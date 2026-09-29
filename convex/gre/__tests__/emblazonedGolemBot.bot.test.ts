@@ -24,15 +24,15 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
-import { emblazonedGolem } from "../../cards/sets/apc/colorless";
+} from "../../cards/__tests__/setup.helper";
+import { emblazonedGolem } from "../../cards/sets/apc/colorless.cards";
 import {
     plains,
     island,
     swamp,
     mountain,
     forest,
-} from "../../cards/sets/lea/colorless";
+} from "../../cards/sets/lea/colorless.cards";
 
 const GOLEM = "golem";
 

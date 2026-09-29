@@ -24,7 +24,10 @@ import {
     spendsStandingPermanent,
 } from "../ai/abilityTiming";
 import { valueEffectScript } from "../ai/opValuers";
-import { NESTING_SHAPES, type NestingShape } from "./fixtures/nestedOpShapes";
+import {
+    NESTING_SHAPES,
+    type NestingShape,
+} from "./fixtures/nestedOpShapes.fixture";
 
 /** Whether `walk` sees an Op nested under `shape`. */
 type Reaches = (shape: NestingShape) => boolean;

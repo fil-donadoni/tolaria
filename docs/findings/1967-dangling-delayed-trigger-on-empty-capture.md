@@ -25,7 +25,7 @@ have no equivalent gate. Reproduced in
 graveyard with no creature card") — the assertion had to be relaxed from
 "no delayed trigger scheduled" to "firing it is harmless".
 
-Not new to #1967: Sneak Attack (`convex/cards/sets/usg/red.ts`) has the same
+Not new to #1967: Sneak Attack (`convex/cards/sets/usg/red.cards.ts`) has the same
 shape whenever the player declines its optional "you may put a creature card
 from your hand onto the battlefield" — the capture `{ $captured: { ref:
 "$sneak" } }` resolves to nothing and the sacrifice trigger is scheduled

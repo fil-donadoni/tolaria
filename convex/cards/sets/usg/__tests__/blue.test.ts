@@ -17,7 +17,7 @@ import {
     makeState,
     makePlayer,
     pushSpell,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import { getDefinition } from "../../../index";
 
 const annul = getDefinition("3f8c73ff-be92-41ca-93a7-76f9823adb38");

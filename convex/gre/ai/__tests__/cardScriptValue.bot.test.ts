@@ -15,8 +15,8 @@ import type {
     CardDefinition,
     TriggeredAbility,
 } from "../../../cards/types";
-import { masterOfDeath } from "../../../cards/sets/mh2";
-import { whiteout } from "../../../cards/sets/ice";
+import { masterOfDeath } from "../../../cards/sets/mh2/index.cards";
+import { whiteout } from "../../../cards/sets/ice/index.cards";
 import { dashTrigger } from "../../../cards/abilities/dash";
 import {
     dslAbilityScriptOpValue,

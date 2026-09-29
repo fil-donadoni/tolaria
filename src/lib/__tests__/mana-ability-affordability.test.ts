@@ -17,8 +17,8 @@
 import { describe, it, expect } from "vitest";
 import { canAffordManaAbilityCost } from "../card-utils";
 import { withTemporaryDefinition } from "@convex/cards";
-import { arenaOfGlory } from "@convex/cards/sets/mh3/colorless";
-import { mountain } from "@convex/cards/sets/lea";
+import { arenaOfGlory } from "@convex/cards/sets/mh3/colorless.cards";
+import { mountain } from "@convex/cards/sets/lea/index.cards";
 import type { CardDefinition } from "@convex/cards/types";
 import type { CardInstance } from "@/types/game";
 

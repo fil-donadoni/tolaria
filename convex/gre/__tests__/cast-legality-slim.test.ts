@@ -12,7 +12,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import {
     ankhOfMishra,
     copyArtifact,
@@ -32,20 +32,20 @@ import {
     serraAngel,
     solRing,
     swamp,
-} from "../../cards/sets/lea";
-import { metallicRebuke } from "../../cards/sets/aer";
-import { startingTown } from "../../cards/sets/fin";
+} from "../../cards/sets/lea/index.cards";
+import { metallicRebuke } from "../../cards/sets/aer/index.cards";
+import { startingTown } from "../../cards/sets/fin/index.cards";
 import {
     archaeologicalDig,
     nomadicElf,
     utopiaTree,
-} from "../../cards/sets/inv";
-import { farrelitePriest } from "../../cards/sets/fem";
-import { moxOpal } from "../../cards/sets/som";
-import { urzaLordHighArtificer } from "../../cards/sets/mh1";
-import { firebolt } from "../../cards/sets/ody";
-import { nethergoyf } from "../../cards/sets/mh3";
-import { planarGate } from "../../cards/sets/leg";
+} from "../../cards/sets/inv/index.cards";
+import { farrelitePriest } from "../../cards/sets/fem/index.cards";
+import { moxOpal } from "../../cards/sets/som/index.cards";
+import { urzaLordHighArtificer } from "../../cards/sets/mh1/index.cards";
+import { firebolt } from "../../cards/sets/ody/index.cards";
+import { nethergoyf } from "../../cards/sets/mh3/index.cards";
+import { planarGate } from "../../cards/sets/leg/index.cards";
 import { castRawManaCost } from "../castCost";
 import {
     applyCostModifiers,

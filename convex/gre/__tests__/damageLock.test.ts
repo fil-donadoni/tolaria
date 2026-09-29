@@ -22,14 +22,17 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../cards/__tests__/setup";
-import { crawWurm } from "../../cards/sets/lea/green";
-import { lightningBolt } from "../../cards/sets/lea/red";
-import { lavaBurst, pyroclasm } from "../../cards/sets/ice/red";
-import { whippoorwill } from "../../cards/sets/drk/green";
-import { callousGiant, urzasRage } from "../../cards/sets/inv/red";
-import { divinePresence, harshJudgment } from "../../cards/sets/inv/white";
-import { lashknifeBarrier } from "../../cards/sets/pls/white";
+} from "../../cards/__tests__/setup.helper";
+import { crawWurm } from "../../cards/sets/lea/green.cards";
+import { lightningBolt } from "../../cards/sets/lea/red.cards";
+import { lavaBurst, pyroclasm } from "../../cards/sets/ice/red.cards";
+import { whippoorwill } from "../../cards/sets/drk/green.cards";
+import { callousGiant, urzasRage } from "../../cards/sets/inv/red.cards";
+import {
+    divinePresence,
+    harshJudgment,
+} from "../../cards/sets/inv/white.cards";
+import { lashknifeBarrier } from "../../cards/sets/pls/white.cards";
 import { projectPublicState } from "../../gameProjections";
 import { runDamageReplacement, resolveTopOfStack } from "../state";
 import { applyAllCombatDamage, finalizeCleanup } from "../phases";

@@ -1,7 +1,11 @@
 // kld (Kaladesh) — colorless behavior tests (ADR 0043 colour split).
 
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import { applyPlayLand } from "../../../../gre/playLand";
 import { getPlayer } from "../../../../gre/state";
 import { tapSourceIntoPayment } from "../../../../game";

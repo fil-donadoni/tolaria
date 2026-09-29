@@ -1,10 +1,14 @@
-// Per-card behavior tests for green cards in `convex/cards/sets/exo/green.ts`
+// Per-card behavior tests for green cards in `convex/cards/sets/exo/green.cards.ts`
 // (Exodus, split by colour per ADR 0043). Fixtures from
-// `convex/cards/__tests__/setup.ts`.
+// `convex/cards/__tests__/setup.helper.ts`.
 
 import { describe, it, expect } from "vitest";
 import type { GameState, StackItem } from "../../../../gre/state";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { raiseTriggerTargetSelection } from "../../../../gre/rules";
 import { applyMayPaySubmit } from "../../../../gre/pendingChoiceSubmit";

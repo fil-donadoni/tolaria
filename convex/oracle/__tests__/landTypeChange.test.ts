@@ -27,7 +27,7 @@
 import { describe, expect, it } from "vitest";
 import { compileCard } from "../compile";
 import { sortKeys } from "../gates";
-import { oracleCard } from "./fixtures";
+import { oracleCard } from "./oracle.fixture";
 import { BASIC_LAND_SUBTYPE_ORDER } from "../grammar/shared/subtypes";
 import { BASIC_LAND_SUBTYPES } from "../../cards/types";
 
@@ -283,7 +283,7 @@ describe("becomes a basic land type (CR 305.7)", () => {
 
     // The degenerate arity: ONE named type, and so NO choice at all. The
     // `optionChoice` wrapper is absent, not present with a single mode —
-    // the shape the hand-written Kavu Recluse (sets/pls/red.ts) already
+    // the shape the hand-written Kavu Recluse (sets/pls/red.cards.ts) already
     // ships, which is why it round-trips under Guard C.
     it("compiles the single named type with NO choice — Kavu Recluse, whole", () => {
         const oracleText =

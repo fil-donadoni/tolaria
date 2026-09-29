@@ -7,7 +7,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import { tapPermanent, emitPermanentTapped } from "../state";
 
 const BEARS = "ce2d603a-3231-4a8c-bf39-1617586ea870";

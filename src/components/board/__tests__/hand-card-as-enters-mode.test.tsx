@@ -77,9 +77,9 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "@convex/cards/__tests__/setup";
-import { voiceOfAll } from "@convex/cards/sets/pls/white";
-import { visionCharm } from "@convex/cards/sets/vis/blue";
+} from "@convex/cards/__tests__/setup.helper";
+import { voiceOfAll } from "@convex/cards/sets/pls/white.cards";
+import { visionCharm } from "@convex/cards/sets/vis/blue.cards";
 
 /** The given card in `me`'s hand with mana to spare, in `me`'s own main phase
  *  with an empty stack, run through the REAL wire projection. */

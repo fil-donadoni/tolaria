@@ -11,7 +11,7 @@ accepted, so a pick whose size comes from an earlier Op cannot be expressed.
 That rules out `max: { ref: "$n" }` bound by `moveZone.bindCount`, and it rules
 out X.
 
-**Evidence.** Jester's Mask (`convex/cards/sets/ice/colorless.ts`) is the one
+**Evidence.** Jester's Mask (`convex/cards/sets/ice/colorless.cards.ts`) is the one
 consumer issue #3011 listed that stays `resolve()` for this reason and no
 other. Its Oracle text: "Target opponent puts the cards from their hand on top
 of their library. Search that player's library for that many cards. That player

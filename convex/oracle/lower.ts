@@ -182,7 +182,7 @@ function censusGrantedKeywords(
  * #3828) that the hand-written catalogue models as ONE `manaChoices` ability
  * whose first option is the painless colourless tap and whose coloured
  * options carry `dealsDamageToControllerOnColoredTap` (Adarkar Wastes,
- * `cards/sets/ice/colorless.ts`). Two abilities sharing an activation cost are
+ * `cards/sets/ice/colorless.cards.ts`). Two abilities sharing an activation cost are
  * the same choice to a player who can pay that cost only once, so folding the
  * colourless line into the very next coloured-choice-with-rider line that
  * shares its cost changes no behaviour — it reproduces the shape the

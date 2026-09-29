@@ -30,7 +30,7 @@ import {
     pushSpell,
     resolveActivated,
     submitChoice,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import {
     beginApplyingStaticEffects,
     processPendingActionTriggers,
@@ -67,7 +67,7 @@ import {
     tryCommitAttackManaTax,
     tapSourceIntoPayment,
 } from "../../../../game";
-import { resolveTrigger } from "./helpers";
+import { resolveTrigger } from "./set.helper";
 import { buildActivatedAbilityStackItem } from "../../../../gre/activationCommit";
 import type { CardDefinition } from "../../../types";
 import { getDefinition } from "../../../index";

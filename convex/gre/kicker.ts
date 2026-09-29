@@ -464,7 +464,7 @@ export function kickedCountOfPayments(
 
 /** CR 702.33d + CR 603.2 (issue #1097) — the `SPELL_KICKED` events for ONE
  *  freshly-CAST spell, backing "whenever a player kicks a spell" triggers
- *  (Saproling Infestation, `cards/sets/inv/green.ts`).
+ *  (Saproling Infestation, `cards/sets/inv/green.cards.ts`).
  *
  *  ONE EVENT PER KICK, never one per spell. CR 702.33d: a spell with two
  *  Kickers, or with Multikicker, "may be kicked multiple times" — so a

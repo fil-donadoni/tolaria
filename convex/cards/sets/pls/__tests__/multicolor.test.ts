@@ -20,7 +20,7 @@ import {
     pushSpell,
     resolveTriggerOrder,
     submitChoice,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import {
     applyControlChange,
     beginApplyingStaticEffects,
@@ -49,7 +49,7 @@ import {
     makeMutationCtx,
     runMutation,
     type Handler,
-} from "../../../../__tests__/gameMutationHarness";
+} from "../../../../__tests__/gameMutationHarness.fixture";
 import type { Id } from "../../../../_generated/dataModel";
 import {
     collectTriggers,

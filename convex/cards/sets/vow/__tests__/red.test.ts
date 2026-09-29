@@ -5,7 +5,11 @@ import { resolveTopOfStack } from "../../../../gre/state";
 import { collectTriggers } from "../../../../gre/triggers";
 import { getDefinition } from "../../../index";
 import { projectPublicState } from "../../../../gameProjections";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 
 const voldarenEpicure = getDefinition("ae154e64-f626-45fb-bd52-840c1c27b2d3");
 

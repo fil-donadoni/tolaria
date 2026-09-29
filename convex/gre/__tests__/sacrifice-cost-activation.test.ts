@@ -43,16 +43,16 @@ import {
     gateToPhyrexia,
     ornithopter,
     yotianSoldier,
-} from "../../cards/sets/atq";
-import { grizzlyBears } from "../../cards/sets/lea";
-import { legionExtruder } from "../../cards/sets/big/red";
-import { orcGeneral } from "../../cards/sets/drk/red";
-import { fallenAngel } from "../../cards/sets/leg/black";
+} from "../../cards/sets/atq/index.cards";
+import { grizzlyBears } from "../../cards/sets/lea/index.cards";
+import { legionExtruder } from "../../cards/sets/big/red.cards";
+import { orcGeneral } from "../../cards/sets/drk/red.cards";
+import { fallenAngel } from "../../cards/sets/leg/black.cards";
 import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 
 // --- pre-sacrifice mana value (mirror of game.ts sacrificedManaValue) ------
 function sacrificedManaValue(perm: CardInstanceState): number {

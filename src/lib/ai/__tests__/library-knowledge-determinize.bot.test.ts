@@ -26,7 +26,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "@convex/cards/__tests__/setup";
+} from "@convex/cards/__tests__/setup.helper";
 import { projectedToGameState } from "../state-adapter";
 
 const BOLT = getCardByName("Lightning Bolt").id;

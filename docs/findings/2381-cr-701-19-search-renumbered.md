@@ -34,7 +34,7 @@ Same class, different rule: `convex/cards/mechanicsRegistry.ts` describes the
 trailing `libraryLook` shuffle as "CR 701.20", but 701.20 is **Reveal** —
 Shuffle is **701.24**.
 
-This PR's new card (`convex/cards/sets/wth/black.ts`) cites 701.23 / 701.13
+This PR's new card (`convex/cards/sets/wth/black.cards.ts`) cites 701.23 / 701.13
 directly from `bun run cr`, so it does not add to the count; issue #2381's own
 body cites 701.19 (Search) and 701.3 (Exile) and is wrong on both.
 

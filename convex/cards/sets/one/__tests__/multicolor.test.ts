@@ -1,5 +1,5 @@
 // ONE — per-card behavior tests for multicolor cards in
-// `convex/cards/sets/one/multicolor.ts` (set split by colour, ADR 0043).
+// `convex/cards/sets/one/multicolor.cards.ts` (set split by colour, ADR 0043).
 //
 // Atraxa's ETB uses `revealAndCategorize`, an Op the catalogue-wide
 // auto-generated smoke test explicitly SKIPS (it suspends on a live
@@ -18,7 +18,7 @@ import {
     makePlayer,
     makeState,
     submitChoice,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import { resolveTopOfStack } from "../../../../gre/state";
 import type { GameState } from "../../../../gre/state";
 import { collectTriggers } from "../../../../gre/triggers";

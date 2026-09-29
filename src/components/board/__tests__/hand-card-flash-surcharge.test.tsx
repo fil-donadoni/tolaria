@@ -71,8 +71,8 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "@convex/cards/__tests__/setup";
-import { rout } from "@convex/cards/sets/inv/white";
+} from "@convex/cards/__tests__/setup.helper";
+import { rout } from "@convex/cards/sets/inv/white.cards";
 import type { GameState } from "@convex/gre/state";
 
 /** Rout in `me`'s hand with the mana to cast it, at the given timing frame,

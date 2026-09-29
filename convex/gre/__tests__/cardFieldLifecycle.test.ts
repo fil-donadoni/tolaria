@@ -6,12 +6,12 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { grizzlyBears } from "../../cards/sets/lea/green";
+import { grizzlyBears } from "../../cards/sets/lea/green.cards";
 import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import { finalizeCleanup } from "../phases";
 import { compactState, expandState } from "../serialize";
 import {
@@ -28,7 +28,7 @@ import {
     CARD_FIELD_KEYS,
     CARD_FIELD_LIFECYCLE,
 } from "../state/cardFieldLifecycle";
-import { everyRoundTrippableCardField } from "./fixtures/everyOptionalCardField";
+import { everyRoundTrippableCardField } from "./fixtures/everyOptionalCardField.fixture";
 
 const FIXTURE_PATH = fileURLToPath(
     new URL("./fixtures/cardFieldLifecycle.compact.json.txt", import.meta.url)

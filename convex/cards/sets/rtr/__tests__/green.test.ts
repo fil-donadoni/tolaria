@@ -7,7 +7,7 @@ import {
     makeState,
     pushSpell,
     resolveTriggerOrder,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import {
     removePermanentTo,

@@ -458,7 +458,7 @@ suspends and still re-executes the Op at its resume position. The CARD-level
 twin does not — `Sin, Spira's Punishment` carried a hand-written
 run-to-completion marker in its plain `resolve()` body for exactly the replay
 #2570 removed, and it was deleted with the general fix rather than left standing
-as a second, silent authority on the same question (`cards/sets/fin/multicolor.ts`).
+as a second, silent authority on the same question (`cards/sets/fin/multicolor.cards.ts`).
 
 The rejected alternative is exempting as-enters choices from
 `resolutionSuspendedOnChoice` (`gre/state.ts`) the way `land-entry-tapped`

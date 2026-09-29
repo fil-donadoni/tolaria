@@ -43,16 +43,16 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../cards/__tests__/setup";
-import { driveCopyChoice } from "../../cards/sets/lea/__tests__/helpers";
-import { clockworkBeast } from "../../cards/sets/lea/colorless";
-import { clone } from "../../cards/sets/lea/blue";
-import { rockHydra } from "../../cards/sets/lea/red";
-import { everflowingChalice } from "../../cards/sets/wwk/colorless";
-import { pentadPrism } from "../../cards/sets/5dn/colorless";
-import { resurrection } from "../../cards/sets/lea/white";
-import { titaniasSong } from "../../cards/sets/atq/green";
-import { bloodMoon } from "../../cards/sets/drk/red";
+} from "../../cards/__tests__/setup.helper";
+import { driveCopyChoice } from "../../cards/sets/lea/__tests__/set.helper";
+import { clockworkBeast } from "../../cards/sets/lea/colorless.cards";
+import { clone } from "../../cards/sets/lea/blue.cards";
+import { rockHydra } from "../../cards/sets/lea/red.cards";
+import { everflowingChalice } from "../../cards/sets/wwk/colorless.cards";
+import { pentadPrism } from "../../cards/sets/5dn/colorless.cards";
+import { resurrection } from "../../cards/sets/lea/white.cards";
+import { titaniasSong } from "../../cards/sets/atq/green.cards";
+import { bloodMoon } from "../../cards/sets/drk/red.cards";
 
 /** History of Benalia (`dom/white.ts`) — the catalogue's first Saga. Referenced
  *  by id (not by import) exactly as `gre/__tests__/sagas.test.ts` does. */

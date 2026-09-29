@@ -15,12 +15,16 @@
 
 import { describe, it, expect } from "vitest";
 import { compileCard } from "../../oracle/compile";
-import { oracleCard } from "../../oracle/__tests__/fixtures";
-import { falseDawn } from "../../cards/sets/apc/white";
-import { darkRitual } from "../../cards/sets/lea/black";
-import { lightningBolt } from "../../cards/sets/lea/red";
-import { island, mountain, solRing } from "../../cards/sets/lea/colorless";
-import { coalGolem } from "../../cards/sets/drk/colorless";
+import { oracleCard } from "../../oracle/__tests__/oracle.fixture";
+import { falseDawn } from "../../cards/sets/apc/white.cards";
+import { darkRitual } from "../../cards/sets/lea/black.cards";
+import { lightningBolt } from "../../cards/sets/lea/red.cards";
+import {
+    island,
+    mountain,
+    solRing,
+} from "../../cards/sets/lea/colorless.cards";
+import { coalGolem } from "../../cards/sets/drk/colorless.cards";
 import {
     getManaSubstitutions,
     getPlayer,
@@ -45,14 +49,14 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import type { Id } from "../../_generated/dataModel";
 import {
     makeMutationCtx,
     runMutation,
     gameStateSeed,
     type Handler,
-} from "../../__tests__/gameMutationHarness";
+} from "../../__tests__/gameMutationHarness.fixture";
 
 const POOL0 = { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 };
 

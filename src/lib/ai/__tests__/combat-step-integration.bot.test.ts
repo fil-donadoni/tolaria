@@ -12,7 +12,7 @@
 // client ("passes in isolation, freezes together").
 
 import { describe, expect, it } from "vitest";
-import { makePlayer, makeState } from "@convex/cards/__tests__/setup";
+import { makePlayer, makeState } from "@convex/cards/__tests__/setup.helper";
 import { projectPublicState } from "@convex/gameProjections";
 import { decideBotAction } from "../brain";
 import { buildBotView } from "../bot-view";

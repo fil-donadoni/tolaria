@@ -13,13 +13,17 @@
 // `tapUntap` is a registered Convex mutation exactly like `tapForPayment` —
 // same harness discipline as `tapForPaymentBatch.test.ts`: drive the REAL
 // `_handler` end-to-end (including `saveGameState`) via the stub
-// `MutationCtx` (`gameMutationHarness.ts`), not a hand-rolled reimplementation
+// `MutationCtx` (`gameMutationHarness.fixture.ts`), not a hand-rolled reimplementation
 // of the tap/untap loop body.
 
 import { describe, it, expect } from "vitest";
 import { tapUntap } from "../game";
-import { makeInstance, makePlayer, makeState } from "../cards/__tests__/setup";
-import { delightedHalfling } from "../cards/sets/ltr";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../cards/__tests__/setup.helper";
+import { delightedHalfling } from "../cards/sets/ltr/index.cards";
 import type { GameState } from "../gre/state";
 import type { Id } from "../_generated/dataModel";
 import {
@@ -27,7 +31,7 @@ import {
     runMutation,
     gameStateSeed,
     type Handler,
-} from "./gameMutationHarness";
+} from "./gameMutationHarness.fixture";
 
 const GAME_ID = "game-1" as Id<"games">;
 

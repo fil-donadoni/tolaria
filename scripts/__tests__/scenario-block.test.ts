@@ -375,7 +375,9 @@ describe("classifyScenarioSection", () => {
 
 describe("owesScenario", () => {
     it("card definitions and the engine owe one", () => {
-        expect(owesScenario(["convex/cards/sets/dsk/white.ts"])).toBe(true);
+        expect(owesScenario(["convex/cards/sets/dsk/white.cards.ts"])).toBe(
+            true
+        );
         expect(owesScenario(["convex/gre/state.ts"])).toBe(true);
     });
 

@@ -7,7 +7,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "@convex/cards/__tests__/setup";
+} from "@convex/cards/__tests__/setup.helper";
 
 // Guild-hybrid pips on the CLIENT (CR 202.1a, issues #1738/#1740). Two cost
 // SHAPES reach these helpers and both must work: a card's PRINTED cost (the

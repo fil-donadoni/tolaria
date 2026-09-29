@@ -21,7 +21,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import { getDefinition } from "../../../index";
 
 const moggFanatic = getDefinition("ca2ecfd4-c874-4468-8601-87aa110d5a00");

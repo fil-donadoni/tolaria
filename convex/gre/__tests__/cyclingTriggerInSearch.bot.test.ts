@@ -26,7 +26,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import type { Move } from "../moves";
 import type { GameState } from "../state";
 

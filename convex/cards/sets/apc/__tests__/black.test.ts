@@ -1,5 +1,5 @@
 // Per-card behaviour tests for APC black cards
-// (`convex/cards/sets/apc/black.ts`).
+// (`convex/cards/sets/apc/black.cards.ts`).
 //
 // Both cards are hand-tail (issue #3806) and both carry a card-level claim no
 // Op test makes:
@@ -27,7 +27,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import {
     removePermanentTo,
     resolveTopOfStack,
@@ -51,7 +51,7 @@ import {
     makeMutationCtx,
     runMutation,
     type Handler,
-} from "../../../../__tests__/gameMutationHarness";
+} from "../../../../__tests__/gameMutationHarness.fixture";
 import type { Id } from "../../../../_generated/dataModel";
 
 const GAME_ID = "game-1" as Id<"games">;

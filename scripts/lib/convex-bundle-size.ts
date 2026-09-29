@@ -261,7 +261,7 @@ function* walk(dir: string): Generator<string> {
  * of `_generated/**`, dotfiles, `schema.*`, multi-dot filenames, paths with a
  * space, and TypeScript files carrying neither `import` nor `export`.
  */
-function discoverEntryPoints(convexDir: string): string[] {
+export function discoverEntryPoints(convexDir: string): string[] {
     const found: string[] = [];
     for (const fpath of walk(convexDir)) {
         const relPath = relative(convexDir, fpath);
@@ -280,6 +280,27 @@ function discoverEntryPoints(convexDir: string): string[] {
         found.push(fpath);
     }
     return found.sort();
+}
+
+/**
+ * Entry points in directories that hold no Convex function by construction:
+ * card-set data (`cards/sets/**`, ADR 0043) and test support
+ * (any `__tests__/` directory). Every such file the CLI discovers is a user module
+ * of its own, and with `splitting: true` every module shared between entries
+ * becomes a chunk that each importing entry opens with an `import` line — the
+ * ~1,100 set files alone cost ~9 MiB of that glue and 1,114 user modules
+ * (issue #4811). The fix is a multi-dot name (`<colour>.cards.ts`,
+ * `*.helper.ts`, `*.fixture.ts`): the CLI skips it, and it stays importable.
+ * Returns `convex/`-relative POSIX paths.
+ */
+export function nonFunctionEntryPoints(convexDir: string): string[] {
+    return discoverEntryPoints(convexDir)
+        .map((f) => relative(convexDir, f).split(sep).join("/"))
+        .filter(
+            (rel) =>
+                rel.startsWith("cards/sets/") ||
+                rel.split("/").slice(0, -1).includes("__tests__")
+        );
 }
 
 /** Options copied verbatim from the Convex CLI's `innerEsbuild`. */

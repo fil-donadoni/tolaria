@@ -29,11 +29,18 @@ import { describe, it, expect } from "vitest";
 import { autoTapForPayment } from "../game";
 import { buildAutoTapSources } from "../gre/autoTap";
 import { manaGateBattlefields } from "../gre/constants";
-import { makeInstance, makePlayer, makeState } from "../cards/__tests__/setup";
-import { thornspireVerge } from "../cards/sets/dsk";
-import { fellwarStone } from "../cards/sets/drk";
-import { blackManaBattery } from "../cards/sets/leg";
-import { grizzlyBears, mountain as leaMountain } from "../cards/sets/lea";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../cards/__tests__/setup.helper";
+import { thornspireVerge } from "../cards/sets/dsk/index.cards";
+import { fellwarStone } from "../cards/sets/drk/index.cards";
+import { blackManaBattery } from "../cards/sets/leg/index.cards";
+import {
+    grizzlyBears,
+    mountain as leaMountain,
+} from "../cards/sets/lea/index.cards";
 import { getCardByName } from "../cards";
 import type { GameState, PendingCast } from "../gre/state";
 import type { Id } from "../_generated/dataModel";
@@ -42,7 +49,7 @@ import {
     runMutation,
     gameStateSeed,
     type Handler,
-} from "./gameMutationHarness";
+} from "./gameMutationHarness.fixture";
 
 const GAME_ID = "game-1" as Id<"games">;
 const MOUNTAIN = leaMountain.id;

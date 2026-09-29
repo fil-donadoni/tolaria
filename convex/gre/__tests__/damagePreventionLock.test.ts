@@ -20,10 +20,10 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../cards/__tests__/setup";
-import { crawWurm } from "../../cards/sets/lea/green";
-import { lightningBolt } from "../../cards/sets/lea/red";
-import { harshJudgment } from "../../cards/sets/inv/white";
+} from "../../cards/__tests__/setup.helper";
+import { crawWurm } from "../../cards/sets/lea/green.cards";
+import { lightningBolt } from "../../cards/sets/lea/red.cards";
+import { harshJudgment } from "../../cards/sets/inv/white.cards";
 import { projectPublicState } from "../../gameProjections";
 import {
     dealDamageFromPermanentToPlayer,

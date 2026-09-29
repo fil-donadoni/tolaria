@@ -16,12 +16,12 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../cards/__tests__/setup";
-import { darkRitual } from "../../cards/sets/lea/black";
-import { counterspell } from "../../cards/sets/lea/blue";
-import { lightningBolt } from "../../cards/sets/lea/red";
+} from "../../cards/__tests__/setup.helper";
+import { darkRitual } from "../../cards/sets/lea/black.cards";
+import { counterspell } from "../../cards/sets/lea/blue.cards";
+import { lightningBolt } from "../../cards/sets/lea/red.cards";
 import { compileCard } from "../../oracle/compile";
-import { oracleCard } from "../../oracle/__tests__/fixtures";
+import { oracleCard } from "../../oracle/__tests__/oracle.fixture";
 import {
     emitSpellCastEvent,
     processPendingActionTriggers,

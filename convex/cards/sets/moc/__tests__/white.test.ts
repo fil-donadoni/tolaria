@@ -15,7 +15,11 @@
 // closes), and that the cap tracks a power change.
 
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
 import type { CardInstanceState, StackItem } from "../../../../gre/state";

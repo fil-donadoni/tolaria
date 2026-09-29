@@ -1,4 +1,4 @@
-// TLA — per-card behaviour tests for blue cards in `convex/cards/sets/tla/blue.ts`
+// TLA — per-card behaviour tests for blue cards in `convex/cards/sets/tla/blue.cards.ts`
 // (set split by colour, ADR 0043).
 //
 // Wan Shi Tong, All-Knowing (issue #3242): the ETB's choice belongs to the
@@ -15,7 +15,7 @@ import {
     makeState,
     pushSpell,
     submitChoice,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import {
     resolveTopOfStack,
     type CardInstanceState,

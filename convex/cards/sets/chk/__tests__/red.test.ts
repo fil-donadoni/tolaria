@@ -1,7 +1,7 @@
 // CHK (Champions of Kamigawa) — red behavior tests (ADR 0043 colour split).
 
 import { describe, it, expect } from "vitest";
-import { makeState, pushSpell } from "../../../__tests__/setup";
+import { makeState, pushSpell } from "../../../__tests__/setup.helper";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { projectPublicState } from "../../../../gameProjections";
 import { getResolveFn } from "../../../effectRegistry";

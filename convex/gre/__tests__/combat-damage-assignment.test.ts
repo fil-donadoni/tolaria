@@ -12,7 +12,7 @@ import { describe, it, expect } from "vitest";
 import type { CardInstanceState, GameState } from "../state";
 import type { CardType } from "../../cards/types";
 import { getEffectivePower } from "../layers";
-import { makePlayer, makeState } from "../../cards/__tests__/setup";
+import { makePlayer, makeState } from "../../cards/__tests__/setup.helper";
 import { projectFullState } from "../../gameProjections";
 
 function creature(

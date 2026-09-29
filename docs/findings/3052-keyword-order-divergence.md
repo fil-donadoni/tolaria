@@ -11,7 +11,7 @@ reads its order — but `behaviouralProjection`
 hand-written text lists its keywords in a different order from the corpus's
 Oracle text reports as a behavioural divergence.
 
-**Evidence.** Ancient Spider (`convex/cards/sets/pls/multicolor.ts:245`) writes
+**Evidence.** Ancient Spider (`convex/cards/sets/pls/multicolor.cards.ts:245`) writes
 `staticAbilities: ["first strike", "reach"]` from its own text
 `"First strike; reach (…)"`; the corpus prints
 `"Reach (…)\nFirst strike"`, so the lockfile row is

@@ -45,11 +45,11 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
-import { vanilla, snowLand } from "../../cards/sets/ice/__tests__/helpers";
-import { snowDevil, snowCoveredIsland } from "../../cards/sets/ice";
-import { island, lightningBolt } from "../../cards/sets/lea";
-import { lurker } from "../../cards/sets/drk";
+} from "../../cards/__tests__/setup.helper";
+import { vanilla, snowLand } from "../../cards/sets/ice/__tests__/set.helper";
+import { snowDevil, snowCoveredIsland } from "../../cards/sets/ice/index.cards";
+import { island, lightningBolt } from "../../cards/sets/lea/index.cards";
+import { lurker } from "../../cards/sets/drk/index.cards";
 
 // ── Fixture ────────────────────────────────────────────────────────────────
 //

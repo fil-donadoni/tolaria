@@ -29,7 +29,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 import type { CardDefinition, TokenSpec } from "../../cards/types";
 
 /** A plain 1/1 creature token — the thing that ENTERS in every test below. */

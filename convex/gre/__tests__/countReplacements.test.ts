@@ -26,7 +26,11 @@ import {
 } from "../state";
 import { registerTokenDefinition } from "../../cards";
 import type { CardDefinition, TokenSpec } from "../../cards/types";
-import { makePlayer, makeState, pushSpell } from "../../cards/__tests__/setup";
+import {
+    makePlayer,
+    makeState,
+    pushSpell,
+} from "../../cards/__tests__/setup.helper";
 
 const TOKEN_DOUBLER_ID = "test-token-created-doubler";
 const COUNTER_ADDER_ID = "test-counter-placed-adder";

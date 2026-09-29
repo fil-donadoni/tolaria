@@ -18,7 +18,7 @@ import { describe, expect, it } from "vitest";
 import { compileCard } from "../compile";
 import { sortKeys } from "../gates";
 import type { OracleCard } from "../types";
-import { oracleCard } from "./fixtures";
+import { oracleCard } from "./oracle.fixture";
 
 const BLUR_OF_BLADES: OracleCard = {
     oracleId: "65410f7a-c749-4b23-ad61-8a7136efcad2",

@@ -15,7 +15,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import { getDefinition } from "../../../index";
 
 const corpseDance = getDefinition("76ae81ea-13e3-4ab8-b956-4c7b139a5e9c");

@@ -1,8 +1,8 @@
 // Antiquities (ATQ) — per-card behavior tests for green cards in
-// `convex/cards/sets/atq/green.ts` (set split by colour, ADR 0043). Each
+// `convex/cards/sets/atq/green.cards.ts` (set split by colour, ADR 0043). Each
 // non-trivial card gets a describe block citing the CR section it exercises;
 // assertions check external behavior only. Shared test shims live in
-// `./helpers`; fixtures in `convex/cards/__tests__/setup.ts`.
+// `./helpers`; fixtures in `convex/cards/__tests__/setup.helper.ts`.
 
 import { describe, it, expect } from "vitest";
 import {
@@ -10,7 +10,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import {
     getActivatedManaAbility,
     hasManaAbility,
@@ -41,7 +41,7 @@ import {
     fireTrigger,
     vanilla,
     withTitaniasSong,
-} from "./helpers";
+} from "./set.helper";
 import { getDefinition } from "../../../index";
 
 const ornithopter = getDefinition("59cc9bdb-7cf2-4795-bac7-ffff605c9eb0");
@@ -60,7 +60,7 @@ const ashnodsBattleGear = getDefinition("aeeec853-dd3f-4ac3-8b20-c07fada8888f");
 const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 const hillGiant = getDefinition("0ddb98e8-13fe-4786-83f7-b72c56db135a");
 const solRing = getDefinition("c4300d24-1cae-4dd5-be7e-38cc677cf5bd");
-import { removedKeywordRows } from "../../../__tests__/setup";
+import { removedKeywordRows } from "../../../__tests__/setup.helper";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Artifact removal & bounce (free tranche, #274)

@@ -1,9 +1,13 @@
 // DFT — per-card behavior tests for multicolor cards in
-// `convex/cards/sets/dft/multicolor.ts` (set split by colour, ADR 0043).
+// `convex/cards/sets/dft/multicolor.cards.ts` (set split by colour, ADR 0043).
 
 import { describe, it, expect } from "vitest";
 import { registerTokenDefinition } from "../../..";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { getDefinition } from "../../../index";

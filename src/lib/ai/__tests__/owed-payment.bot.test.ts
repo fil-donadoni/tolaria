@@ -23,7 +23,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
-} from "@convex/cards/__tests__/setup";
+} from "@convex/cards/__tests__/setup.helper";
 import { projectPublicState } from "@convex/gameProjections";
 import { PARK_KINDS } from "@convex/gre/owedPayment";
 import type { OwedPaymentSubmission } from "@convex/gre/paymentPicks";

@@ -1,6 +1,6 @@
-// Per-card behaviour tests for green cards in `convex/cards/sets/dsk/green.ts`
+// Per-card behaviour tests for green cards in `convex/cards/sets/dsk/green.cards.ts`
 // (Duskmourn: House of Horror, split by colour per ADR 0043). Fixtures from
-// convex/cards/__tests__/setup.ts.
+// convex/cards/__tests__/setup.helper.ts.
 //
 // Enduring Vitality (issue #2085) is the catalogue's FIRST GROUP
 // `activated-grant` (CR 611.2a / 613.1f): every shipped one before it is an
@@ -13,7 +13,11 @@
 // Enduring Innocence (`white.test.ts`).
 
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import { getActivatedManaAbility } from "../../../../gre/constants";
 import { getEffectiveActivatedAbilities } from "../../../../gre/activatedAbilities";
 import {
@@ -23,7 +27,7 @@ import {
     resolveTopOfStack,
 } from "../../../../gre/state";
 import { tapSourceIntoPayment } from "../../../../game";
-import { resolveTriggerOrder } from "../../../__tests__/setup";
+import { resolveTriggerOrder } from "../../../__tests__/setup.helper";
 import { projectPublicState } from "../../../../gameProjections";
 import type { CardInstanceState, GameState } from "../../../../gre/state";
 import { getDefinition } from "../../../index";

@@ -1435,7 +1435,7 @@ export function pureGenericManaSubCost(mana: ManaCost): number | null {
  *     (review finding, issue #2420 round 2: this used to admit ANY
  *     `cost.mana` shape, and an unexecutable one nulled the entire plan
  *     instead of the planner simply not offering it as a source — measured
- *     regression on Nomadic Elf, `convex/cards/sets/inv/green.ts`).
+ *     regression on Nomadic Elf, `convex/cards/sets/inv/green.cards.ts`).
  *
  *  Still EXCLUDED, deliberately, because the issue's acceptance criteria
  *  name only the two shapes above: a `removeCounter` cost (Rasputin

@@ -16,7 +16,7 @@
 import { describe, expect, it } from "vitest";
 import { compileCard } from "../compile";
 import { sortKeys } from "../gates";
-import { oracleCard } from "./fixtures";
+import { oracleCard } from "./oracle.fixture";
 
 const CLAUSE =
     "shuffle the cards from your hand into your library, then draw that many cards.";

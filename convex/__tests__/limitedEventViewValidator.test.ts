@@ -74,7 +74,7 @@ import {
     validatorJsonOf,
     validationErrors,
     type FieldJson,
-} from "./fixtures/validatorWalk";
+} from "./fixtures/validatorWalk.fixture";
 
 // ── Convex's own validator description, walked by the shared helper ────────
 const viewValidatorJson = validatorJsonOf(limitedEventViewValidator);

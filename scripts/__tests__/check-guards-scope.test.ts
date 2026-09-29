@@ -226,7 +226,7 @@ describe("node partitions — which lane runs which (ADR 0136 §5)", () => {
             engine,
             classifyLane(["scripts/land.ts"]),
             classifyLane([
-                "convex/cards/sets/lea/red.ts",
+                "convex/cards/sets/lea/red.cards.ts",
                 "data/card-index.json",
             ]),
             classifyLane(["docs/adr/0111.md"]),
@@ -280,8 +280,8 @@ describe("the cards lane runs a FIXED partition of node and bot-node (ADR 0136 �
         expect(check, `${id} missing from the cards lane`).toBeTruthy();
         return check!.command;
     };
-    const LEA = ["convex/cards/sets/lea/red.ts", "data/card-index.json"];
-    const WAR = ["convex/cards/sets/war/black.ts"];
+    const LEA = ["convex/cards/sets/lea/red.cards.ts", "data/card-index.json"];
+    const WAR = ["convex/cards/sets/war/black.cards.ts"];
 
     it("both diffs are the cards lane (else the rest proves nothing)", () => {
         expect(plan(LEA).lane).toBe("cards");

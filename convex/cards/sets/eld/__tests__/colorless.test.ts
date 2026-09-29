@@ -1,8 +1,12 @@
 // ELD — per-card behavior tests for colorless cards in
-// `convex/cards/sets/eld/colorless.ts` (set split by colour, ADR 0043).
+// `convex/cards/sets/eld/colorless.cards.ts` (set split by colour, ADR 0043).
 
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { getDefinition } from "../../../index";

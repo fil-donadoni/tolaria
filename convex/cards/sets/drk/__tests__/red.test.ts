@@ -1,18 +1,18 @@
-// Per-card behavior tests for red cards in `convex/cards/sets/drk/red.ts`
+// Per-card behavior tests for red cards in `convex/cards/sets/drk/red.cards.ts`
 // (The Dark, split by colour per ADR 0043). Each non-trivial card gets a
 // describe block citing the CR section it exercises; set-wide registry-parity
 // checks live in colorless.test.ts. Shared stack/resolve shims live in
-// ./helpers; fixtures stay in convex/cards/__tests__/setup.ts.
+// ./helpers; fixtures stay in convex/cards/__tests__/setup.helper.ts.
 
 import { describe, it, expect } from "vitest";
-import { answerChoice, resolveTrigger } from "./helpers";
+import { answerChoice, resolveTrigger } from "./set.helper";
 import {
     makeInstance,
     makePlayer,
     makeState,
     pushSpell,
     resolveActivated,
-} from "../../../__tests__/setup";
+} from "../../../__tests__/setup.helper";
 import { projectPublicState } from "../../../../gameProjections";
 import {
     abilitiesSuppressed,

@@ -37,7 +37,7 @@ import { bladeLoadBotSeatId } from "../matches";
 import type { Doc } from "../_generated/dataModel";
 import type { GameState } from "../gre/state";
 import { STARTING_LIFE } from "../gre/setup";
-import { makePlayer, makeState } from "../cards/__tests__/setup";
+import { makePlayer, makeState } from "../cards/__tests__/setup.helper";
 import { getCardByName } from "../cards";
 import { BLADE_SCENARIOS, findBladeScenario } from "../gre/ai/blade/registry";
 import {

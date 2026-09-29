@@ -25,15 +25,15 @@ import {
     resolveTopOfStack,
 } from "../state";
 import { projectPublicState } from "../../gameProjections";
-import { chromaticStar } from "../../cards/sets/tsp";
-import { basalThrull } from "../../cards/sets/fem";
-import { soulNet } from "../../cards/sets/lea";
+import { chromaticStar } from "../../cards/sets/tsp/index.cards";
+import { basalThrull } from "../../cards/sets/fem/index.cards";
+import { soulNet } from "../../cards/sets/lea/index.cards";
 import { getCardByName } from "../../cards";
 import {
     makeInstance,
     makePlayer,
     makeState,
-} from "../../cards/__tests__/setup";
+} from "../../cards/__tests__/setup.helper";
 
 const FOREST = getCardByName("Forest").id;
 
