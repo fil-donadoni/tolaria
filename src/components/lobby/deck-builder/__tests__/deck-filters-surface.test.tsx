@@ -67,7 +67,7 @@ vi.mock("~/hooks/useSurfaceClass", () => ({
 }));
 
 import DeckBuilder from "../deck-builder";
-import type { CardIndexEntry } from "../useCardSearch";
+import type { SearchIndexRow } from "@convex/cards/searchIndex";
 import type { LobbyDeck } from "~/lib/deckTypes";
 
 function entry(
@@ -75,7 +75,7 @@ function entry(
     colors: string[],
     types: string[],
     manaValue: number
-): CardIndexEntry {
+): SearchIndexRow {
     return {
         cardId: `id-${name}`,
         name,
@@ -88,14 +88,13 @@ function entry(
         manaValue,
         oracleText: "",
         oracleFold: "",
-        prints: [{ printId: `print-${name}`, setCode: "lea" }],
-        available: true,
+        setCode: "lea",
     };
 }
 
 // Two white creatures, one blue instant — so "White" and "Creature" pick out
 // different, overlapping subsets and a removal is observable in the count.
-const INDEX: CardIndexEntry[] = [
+const INDEX: SearchIndexRow[] = [
     entry("Serra Angel", ["W"], ["Creature"], 5),
     entry("Savannah Lions", ["W"], ["Creature"], 1),
     entry("Counterspell", ["U"], ["Instant"], 2),

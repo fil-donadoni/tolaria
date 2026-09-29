@@ -1,3 +1,4 @@
+import { useDeckPrintResolver } from "~/lib/useDeckPrintResolver";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { DragDropManager } from "@dnd-kit/dom";
 import {
@@ -492,15 +493,25 @@ export default function DeckBuilder({
     // banlist override (PRD #1138, issue #1144) so a card banned via the
     // admin Scryfall sync is flagged illegal here reactively, not just at
     // game start.
+    const printResolver = useDeckPrintResolver([
+        ...deck.cards,
+        ...(deck.sideboard ?? []),
+    ]);
     const legality = useMemo(
         () =>
             validateDeck(
                 { cards: deck.cards, sideboard: deck.sideboard },
                 deck.format,
-                undefined,
+                printResolver,
                 banlistOverride
             ),
-        [deck.cards, deck.sideboard, deck.format, banlistOverride]
+        [
+            deck.cards,
+            deck.sideboard,
+            deck.format,
+            printResolver,
+            banlistOverride,
+        ]
     );
 
     // `count` defaults to 1 for every EXISTING caller (the search grid's

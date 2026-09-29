@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { CardPrinting } from "@convex/cards/catalogue";
+import type { SearchIndexRow } from "@convex/cards/searchIndex";
 import { useSearchIndex } from "~/lib/searchIndex";
 import { foldAccents } from "@convex/cards/textNormalize";
 import {
@@ -49,6 +50,17 @@ export interface CardIndexEntry {
     /** `true` for token cards (CR 111.1 — marker characteristic, not a type).
      *  Absent for index entries, set by `makeCatalogueEntry` from `parseTypeLine`. */
     isToken?: boolean;
+}
+
+/** A search-index row as a view entry. The index carries only the card's own
+ *  Set (Card Prints, ADR 0140), so the entry's `prints` is the one home
+ *  printing — the set filters see it; every other printing is the
+ *  `cardPrints` table's, queried when the edition selector opens. */
+export function indexRowToEntry(row: SearchIndexRow): CardIndexEntry {
+    return {
+        ...row,
+        prints: [{ printId: row.cardId, setCode: row.setCode }],
+    };
 }
 
 export type ColorMode = "at-most" | "include-all" | "include-any";
@@ -366,7 +378,8 @@ export function useCardSearch(
     // The pool of implemented cards. Derived from the hydrated registry, not
     // fetched (issue #3054) — so it is never `undefined` and the search has no
     // loading state of its own.
-    const all = useSearchIndex();
+    const indexRows = useSearchIndex();
+    const all = useMemo(() => indexRows.map(indexRowToEntry), [indexRows]);
     const catalogueRows = fullCatalogue?.rows;
     const isManual = format === "manual";
 

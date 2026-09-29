@@ -14,8 +14,11 @@ import {
     type BanlistOverride,
     type FormatId,
     type Reason,
+    type ResolveCard,
     validateDeck,
 } from "./formats";
+import { loadDeckPrintRows, loadPrintRows } from "./cardPrintRows";
+import { makeResolveCardFromRows } from "./cards/printRows";
 
 // Typed deck Format (ADR 0036). An Admin chooses it when authoring a preset.
 // Mirrors `userDecks`/`schema.ts`'s union (kept in sync with `FormatId`);
@@ -123,14 +126,15 @@ export function slugify(name: string): string {
  */
 export function presetRowToLobby(
     row: Doc<"presetDecks">,
-    banlist?: BanlistOverride
+    banlist?: BanlistOverride,
+    resolve?: ResolveCard
 ): LobbyPreset {
     // Legality is derived here, on every read (ADR 0036) — never persisted on
     // the row, so a banlist/card-pool change reclassifies presets automatically.
     const { isLegal, reasons } = validateDeck(
         row,
         row.format,
-        undefined,
+        resolve,
         banlist
     );
     return {
@@ -221,9 +225,22 @@ export const list = query({
     handler: async (ctx) => {
         const rows = await ctx.db.query("presetDecks").collect();
         const overridesByFormat = await loadBanlistOverridesByFormat(ctx);
+        // Card Prints (ADR 0140, issue #4118): legality reads each chosen
+        // printing's Set/Rarity from its table row — one shared index for the
+        // whole list, distinct ids only.
+        const resolve = makeResolveCardFromRows(
+            await loadPrintRows(
+                ctx,
+                rows.flatMap((row) =>
+                    [...row.cards, ...(row.sideboard ?? [])].map(
+                        (c) => c.cardId
+                    )
+                )
+            )
+        );
         return sortLobbyPresets(
             rows.map((row) =>
-                presetRowToLobby(row, overridesByFormat[row.format])
+                presetRowToLobby(row, overridesByFormat[row.format], resolve)
             )
         );
     },
@@ -347,7 +364,11 @@ export const getPreset = query({
         if (!row) return null;
         // DB banlist override (PRD #1138, issue #1144) — mirrors `list` above.
         const banlist = await loadBanlistOverrides(ctx, row.format);
-        return presetRowToLobby(row, banlist);
+        return presetRowToLobby(
+            row,
+            banlist,
+            makeResolveCardFromRows(await loadDeckPrintRows(ctx, row))
+        );
     },
 });
 
@@ -574,7 +595,7 @@ export const seedPresetDirect = internalMutation({
         const legality = validateDeck(
             { cards: row.cards, sideboard: row.sideboard },
             row.format,
-            undefined,
+            makeResolveCardFromRows(await loadDeckPrintRows(ctx, row)),
             banlist
         );
         if (!legality.isLegal) {
