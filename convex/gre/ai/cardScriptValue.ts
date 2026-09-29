@@ -578,6 +578,31 @@ export function dslLatentAbilityScriptOpValue(
     return etb ? mergeOpValue(discounted, etb) : discounted;
 }
 
+/** Issue #4758 — the value of ONE ETB Ability of `def` while it is IN FLIGHT:
+ *  triggered, on the stack, not yet resolved. Spent on entering is a statement
+ *  about the battlefield; between the two, the ability is neither in the
+ *  permanent's realized worth nor in the state it will leave behind, so the
+ *  evaluation credits it here (`evaluate.ts`, `etbAbilitiesInFlight`) — at its
+ *  full, context-free script value, the gate decided on `self` (the stack
+ *  item's snapshot of its source: an evoked one pays its sacrifice). 0 for an
+ *  unknown ability or one that is not an ETB Ability. */
+export function dslEtbAbilityInFlightValue(
+    def: CardDefinition,
+    abilityId: string,
+    ctx: GroundingContext = contextFreeGrounding(),
+    self?: PermanentView
+): number {
+    const ability = (def.triggeredAbilities ?? []).find(
+        (a) => a.id === abilityId
+    );
+    if (ability?.etbAbility !== true) return 0;
+    const script = effectiveScript(ability);
+    const raw = script
+        ? valueEffectScript(script, ctx)
+        : bestModeCombinationOpValue(ability.modes, undefined, ctx);
+    return (raw?.points ?? 0) * gateWeight(ability, self);
+}
+
 /** Issue #4758 — how surely a creature's body is gone the moment it enters:
  *  the largest gate weight (`gateWeight`, no instance — the card is not in
  *  play) of an ETB Ability whose script sacrifices its own source ("When this

@@ -22,6 +22,7 @@ import { tryGetDefinition } from "../cards";
 import { manaValue } from "./constants";
 import {
     dslAbilityScriptValue,
+    dslEtbAbilityInFlightValue,
     dslLatentDelayedTemplateValue,
     etbSelfSacrificeWeight,
     dslRealizedAbilityScriptValue,
@@ -325,6 +326,25 @@ export function dslRealizedAbilityValueById(
     const def = tryGetDefinition(cardId);
     return def
         ? dslRealizedAbilityScriptValue(def, contextFreeGrounding(latent), self)
+        : 0;
+}
+
+/** Issue #4758 — the in-flight value of one ETB Ability, from its source's
+ *  REGISTRY id (projection-safe, like `dslRealizedAbilityValueById`). */
+export function dslEtbAbilityInFlightValueById(
+    cardId: string,
+    abilityId: string,
+    self?: PermanentView,
+    latent: LatentWeights = DEFAULT_EVAL_WEIGHTS.latent
+): number {
+    const def = tryGetDefinition(cardId);
+    return def
+        ? dslEtbAbilityInFlightValue(
+              def,
+              abilityId,
+              contextFreeGrounding(latent),
+              self
+          )
         : 0;
 }
 

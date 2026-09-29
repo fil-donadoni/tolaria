@@ -21,7 +21,13 @@ import { getCardByName } from "../../../cards";
 import type { ScenarioSpec } from "../../../debugScenarioSpec";
 import type { GameState } from "../../state";
 import { cloneGameState } from "../../clone";
-import { enumerateMoves, type Move } from "../../moves";
+import {
+    enumerateMoves,
+    enumerateRaisedTargetMoves,
+    type Move,
+} from "../../moves";
+import { resolveTopOfStack } from "../../state";
+import { evaluate } from "../../evaluate";
 import { applyMoveInSearch, policyValue } from "../../search";
 import { buildPositionFromSpec } from "../blade/build";
 import { DEFAULT_EVAL_WEIGHTS } from "../evalWeights";
@@ -113,6 +119,64 @@ describe("Eval Pairs — an ETB Ability is spent on entering (issue #4758)", () 
             onBoard("Hill Giant", "opp"),
         ]);
         expect(policyOf(s, castOf(s, "Skyclave Apparition"))).toBeGreaterThan(
+            policyOf(s, isPass)
+        );
+    });
+});
+
+describe("an ETB Ability in flight is credited once (issue #4758)", () => {
+    // The window between entering and resolving: the trigger is spent from
+    // the permanent's realized worth and not yet in the state it leaves
+    // behind. Every probe that stops short of resolution scores it.
+
+    /** Cast `name`, resolve the spell, and announce its ETB's target with the
+     *  first legal selection — the trigger is then on the stack, unresolved. */
+    function inFlight(cards: SpecCard[], name: string): GameState {
+        const s = position(cards);
+        const me = s.activePlayerId;
+        const cast = enumerateMoves(s, me).find(castOf(s, name))!;
+        applyMoveInSearch(s, me, cast);
+        resolveTopOfStack(s);
+        const announce = enumerateRaisedTargetMoves(s, me)[0];
+        if (announce) applyMoveInSearch(s, me, announce);
+        return s;
+    }
+
+    function withoutStack(s: GameState): GameState {
+        const bare = cloneGameState(s);
+        bare.stack = [];
+        return bare;
+    }
+
+    it("a targeted ETB on the stack is worth its script to its controller", () => {
+        const s = inFlight(
+            [inHand("Flametongue Kavu"), onBoard("Serra Angel", "opp")],
+            "Flametongue Kavu"
+        );
+        expect(s.stack).toHaveLength(1);
+        expect(s.stack[0].targets?.length).toBe(1);
+        const me = s.activePlayerId;
+        expect(evaluate(s, me)).toBeGreaterThan(evaluate(withoutStack(s), me));
+    });
+
+    it("an ETB announced with no legal target is worth nothing", () => {
+        const s = inFlight(
+            [inHand("Skyclave Apparition")],
+            "Skyclave Apparition"
+        );
+        expect(s.stack).toHaveLength(1);
+        expect(s.stack[0].targets?.length ?? 0).toBe(0);
+        const me = s.activePlayerId;
+        expect(evaluate(s, me)).toBe(evaluate(withoutStack(s), me));
+    });
+
+    it("Eval Pair: Ravenous Rats cast into an opponent holding cards beats holding it — its discard waits on the opponent's pick", () => {
+        const s = position([
+            inHand("Ravenous Rats"),
+            { name: "Grizzly Bears", owner: "opp", zone: "hand" },
+            { name: "Hill Giant", owner: "opp", zone: "hand" },
+        ]);
+        expect(policyOf(s, castOf(s, "Ravenous Rats"))).toBeGreaterThan(
             policyOf(s, isPass)
         );
     });
