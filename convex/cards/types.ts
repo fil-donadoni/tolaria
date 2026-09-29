@@ -15086,6 +15086,28 @@ export type EffectOp =
            *  second parallel one. Orthogonal to `withoutPayingManaCost`. */
           exilesOnResolve?: boolean;
       }
+    /** CR 702.34a (issue #4756) — GRANT the Flashback keyword to an announced
+     *  graveyard-card target until end of turn, with the flashback cost equal
+     *  to the card's own mana cost: "target instant or sorcery card in your
+     *  graveyard gains flashback until end of turn. The flashback cost is
+     *  equal to its mana cost." (Snapcaster Mage, Stingcaster Mage, Recoup).
+     *  A thin declarative skin over `SpellContext.grantFlashback`, one
+     *  execution path (ADR 0045): it stamps the instance-level
+     *  `grantedFlashback`, so the cast permission, the alternative cost and
+     *  CR 702.34a's exile-whenever-it-would-leave-the-stack are the engine's
+     *  EXISTING flashback path (`convex/gre/flashback.ts`), not a second one.
+     *  The grant ends at cleanup with every "until end of turn" effect
+     *  (CR 514.2, the `custom:turn` reset of `grantedFlashback`).
+     *
+     *  Deliberately NOT here: an explicit flashback cost ("gains flashback
+     *  {2}{R}{G} until end of turn") and a picks-ref selector — the shape
+     *  widens when a card that prints them asks. `card` is an announced
+     *  TARGET slot (CR 115.1) that must still hold a `graveyard-card`
+     *  selection at resolution; anything else skips the Op (CR 608.2b). */
+    | {
+          op: "grantFlashback";
+          card: EffectTargetRef;
+      }
     /** CR 608.2g (issue #1477) — PLAY a card as PART OF THIS resolution: a
      *  "you may cast/play <card>" permission with NO stated duration, which per
      *  CR 608.2g exists ONLY during the resolution of the ability that grants

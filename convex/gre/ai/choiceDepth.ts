@@ -140,6 +140,7 @@ export const RAISES_RESOLUTION_CHOICE: Record<EffectOp["op"], boolean> = {
     grantAbility: false,
     grantCastFromExile: false,
     grantCastFromGraveyard: false,
+    grantFlashback: false,
     grantCastTiming: false,
     grantGraveyardPlay: false,
     grantManaSubstitution: false,

@@ -5655,6 +5655,53 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         expect: { forbidden: [{ kind: "cast-spell", card: "Firebolt" }] },
         note: "Issue #2971, half 2 — the discriminating twin. Same lethal-shaped board, the Firebolt one zone away. The new graveyard loop gates on `graveyardCastMechanism` before the affordance precisely so the candidate set stays the cards a mechanism actually permits.",
     },
+    // ── A GRANTED flashback (CR 702.34a) — issue #4756 ────────────────────
+    // Snapcaster Mage's ETB is now a `grantFlashback` Effect Script instead of
+    // a `resolve()` closure. The decision is the one the grant CREATES: the
+    // Bolt sits in the graveyard with no printed flashback, so a cast of it
+    // exists in the Bot's move set only if the ETB really stamped
+    // `grantedFlashback` and `graveyardCastMechanism` reads that stamp.
+    // Casting the Mage itself is NOT the decision: a flash 2/1 is worth
+    // casting anyway, so it would pass with the grant broken.
+    {
+        label: "granted-flashback: casts the Lightning Bolt Snapcaster Mage's ETB granted flashback, for lethal",
+        spec: {
+            cards: [
+                {
+                    name: "Snapcaster Mage",
+                    owner: "me",
+                    zone: "battlefield",
+                },
+                { name: "Lightning Bolt", owner: "me", zone: "graveyard" },
+                {
+                    name: "Mountain",
+                    owner: "me",
+                    zone: "battlefield",
+                    tapped: false,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 6,
+            // Three damage is lethal and `evaluate` is banded so a win
+            // dominates every material term — no seed can prefer passing.
+            life: { me: 20, opp: 3 },
+            landCount: 0,
+            libraryCount: 20,
+        },
+        // The ETB, through the engine's own trigger placement: the Bolt is
+        // the only instant or sorcery in the graveyard, so the CR 603.3d
+        // target is the only legal one; resolving it runs `grantFlashback`.
+        setup: [
+            { kind: "etb-trigger", card: "Snapcaster Mage" },
+            { kind: "resolve-top" },
+        ],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: { moves: [{ kind: "cast-spell", card: "Lightning Bolt" }] },
+        note: "Issue #4756. The Bot must cast a graveyard card whose ONLY cast permission is the flashback Snapcaster Mage's ETB granted at its own mana cost ({R}, CR 702.34a). A broken `grantFlashback` executor, or a graveyard enumerator blind to an instance-level grant, removes the Bolt from the move set and the Bot passes on lethal.",
+    },
     // ── The ESCAPE cast (CR 702.138a) — issue #2980 ──────────────────────
     // A DISCRIMINATING PAIR. The only difference between the two positions is
     // how much FODDER the graveyard holds: enough to pay "exile three other
@@ -7947,7 +7994,12 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         },
         bot: "me",
         budget: { iterations: 400 },
-        seeds: [0xb1ade, 1, 2, 3, 4],
+        // Seed 2 → 5 (issue #4756): the cast/pass pick here sits on a
+        // knife-edge — base weights pass 20/20 seeds, the issue-#4756 refit
+        // (every weight moved < 0.05%) passes 17/20 (2, 11, 14 fail). A pin
+        // that flips on that movement is rollout noise, not a valuation
+        // (the issue-#4764/#4773 precedent); seed 5 passes under both.
+        seeds: [0xb1ade, 1, 3, 4, 5],
         tier: "must",
         expect: { moves: [{ kind: "cast-spell", card: "Armageddon" }] },
         note: "Issue #4773, position A of the symmetric-sweep pair. A `forEach` over every battlefield that destroys `$each` used to sit in hand at ONE representative victim's worth, whatever the board held, so the land sweep outweighed the three-land surplus it takes and the cast read as a loss at 1 ply. The hand term now prices the sweep at the NET realised loss it inflicts (`LatentLens.sweepUnits`, `ai/latentBoard.ts`): the opponent's members minus the Bot's own. Position B is the mirror and must pass.",

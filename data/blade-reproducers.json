@@ -659,6 +659,7 @@
     },
     "free put: the caster puts a permanent in off its own Show and Tell": null,
     "free put: the second chooser still puts its creature in after the opponent's bigger one": null,
+    "granted-flashback: casts the Lightning Bolt Snapcaster Mage's ETB granted flashback, for lethal": null,
     "graveyard-cast: flashes back Firebolt from the graveyard for lethal": {
         "cards": [
             {

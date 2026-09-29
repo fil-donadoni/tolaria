@@ -250,6 +250,11 @@
             "needsSetup": false
         },
         {
+            "label": "granted-flashback: casts the Lightning Bolt Snapcaster Mage's ETB granted flashback, for lethal",
+            "tier": "must",
+            "needsSetup": true
+        },
+        {
             "label": "stretch: Chrome Mox imprints a card rather than nothing",
             "tier": "stretch",
             "needsSetup": true

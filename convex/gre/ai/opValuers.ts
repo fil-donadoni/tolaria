@@ -1657,6 +1657,14 @@ const grantCastFromGraveyard: Valuer<"grantCastFromGraveyard"> = () => ({
     tags: ["cardAdvantage"],
 });
 
+// CR 702.34a (issue #4756) — a flashback grant is a cast permission on one
+// graveyard card for its own mana cost: the same one-card recursion
+// `grantCastFromGraveyard` prices, so it mirrors that valuer exactly.
+const grantFlashback: Valuer<"grantFlashback"> = () => ({
+    points: GRANT_CAST_VALUE,
+    tags: ["cardAdvantage"],
+});
+
 const grantGraveyardPlay: Valuer<"grantGraveyardPlay"> = () => ({
     points: GRANT_GRAVEYARD_PLAY_VALUE,
     tags: tagScaling(true, "cardAdvantage"),
@@ -2279,6 +2287,7 @@ export const OP_VALUERS: {
     grantAbility,
     grantCastFromExile,
     grantCastFromGraveyard,
+    grantFlashback,
     grantGraveyardPlay,
     libraryLook,
     exileTopOfLibrary,
@@ -2515,6 +2524,7 @@ export const OP_BENEFICENCE: { [K in EffectOp["op"]]?: Beneficence } = {
     becomeMonarch: "beneficial",
     grantCastFromExile: "beneficial",
     grantCastFromGraveyard: "beneficial",
+    grantFlashback: "beneficial",
     randomExileToHand: "beneficial",
     grantGraveyardPlay: "beneficial",
     grantCastTiming: "beneficial",

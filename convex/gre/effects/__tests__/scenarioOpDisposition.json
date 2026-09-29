@@ -146,6 +146,10 @@
         "reason": "Op \"grantCastFromGraveyard\" grants a cast permission off a choice binding or a graveyard target — covered by the card's own tests"
     },
     "grantCastTiming": "runs",
+    "grantFlashback": {
+        "code": "unmodelled-object-or-zone",
+        "reason": "Op \"grantFlashback\" grants flashback to a graveyard-card target the canned generator does not seed — covered by the Op's own tests and its golden fixture"
+    },
     "grantGraveyardPlay": "runs",
     "grantManaSubstitution": "runs",
     "grantSpellManaSubstitution": "runs",

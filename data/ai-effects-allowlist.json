@@ -2634,13 +2634,6 @@
     },
     {
         "class": "ability",
-        "cardId": "9e5b279e-4670-4a1e-87d0-3cab7e4f9e58",
-        "name": "Snapcaster Mage",
-        "abilityId": "snapcaster-mage-etb-flashback",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
         "cardId": "788ed793-3993-4a63-b9f9-9ac3947c3108",
         "name": "Snowfall",
         "abilityId": "snowfall-cumulative-upkeep",

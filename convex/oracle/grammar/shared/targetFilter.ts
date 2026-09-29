@@ -183,6 +183,11 @@ export interface DescriptorState {
     types?: CardType[];
     /** Card-type words used ADJECTIVALLY ("creature card") — see `readNoun`. */
     typeAdjectives: CardType[];
+    /** `typeAdjectives` came from ONE "<type> or <type>" adjective before
+     *  "card" (CR 205.2a) — an OR the requirement's `type` array already
+     *  means, so no further type adjective may join it (that would be an AND
+     *  read as a wider OR). */
+    typeAdjectivesDisjunctive?: true;
     subtypes: string[];
     /** issue #3721 — see `DescriptorIR.chosenType`. */
     chosenType?: true;
@@ -239,8 +244,25 @@ function readAdjective(
     const lower = token.toLowerCase();
 
     // "blue or black" — one adjective token, joined by `joinColourDisjunctions`.
+    // "instant or sorcery" — one adjective token before "card", joined by
+    // `joinTypeDisjunctions` (CR 205.2a).
     const either = lower.split(" or ");
     if (either.length === 2) {
+        const firstType = singleType(either[0]!);
+        const secondType = singleType(either[1]!);
+        if (firstType !== undefined || secondType !== undefined) {
+            if (
+                firstType === undefined ||
+                secondType === undefined ||
+                firstType === secondType
+            )
+                return `"${token}" is not two card types`;
+            if (into.typeAdjectives.length > 0)
+                return `"${token}" joins another card-type adjective`;
+            into.typeAdjectives.push(firstType, secondType);
+            into.typeAdjectivesDisjunctive = true;
+            return null;
+        }
         const first = COLOR_WORDS.get(either[0]!);
         const second = COLOR_WORDS.get(either[1]!);
         if (first === undefined || second === undefined || first === second)
@@ -314,12 +336,21 @@ function readAdjective(
     // from your graveyard"). Legal ONLY there: "artifact creature" is a
     // conjunction of two types, which `TargetRequirement.type` cannot express
     // (its array is OR semantics), so `readNoun` refuses it.
-    const asAdjective = TYPE_NOUNS.get(lower);
-    if (asAdjective !== undefined && asAdjective.length === 1) {
-        into.typeAdjectives.push(asAdjective[0]!);
+    const asAdjective = singleType(lower);
+    if (asAdjective !== undefined) {
+        if (into.typeAdjectivesDisjunctive === true)
+            return `card type "${token}" beside a card-type disjunction`;
+        into.typeAdjectives.push(asAdjective);
         return null;
     }
     return "unknown";
+}
+
+/** The ONE card type a type word names, or `undefined` ("permanent" names
+ *  every permanent type, CR 110.4, and is never an adjective). */
+function singleType(word: string): CardType | undefined {
+    const types = TYPE_NOUNS.get(word);
+    return types !== undefined && types.length === 1 ? types[0] : undefined;
 }
 
 function isSubtype(token: string): boolean {
@@ -671,8 +702,10 @@ export function descriptorRuleWith(
         const withQualifiers = emptyState();
         const peeled = peelQualifiers(span, withQualifiers);
         if ("error" in peeled) return fail(peeled.error, span);
-        const tokens = joinColourDisjunctions(
-            peeled.head.split(" ").filter((t) => t.length > 0)
+        const tokens = joinTypeDisjunctions(
+            joinColourDisjunctions(
+                peeled.head.split(" ").filter((t) => t.length > 0)
+            )
         );
         if (tokens.length === 0) return fail("descriptor has no noun", span);
 
@@ -741,6 +774,38 @@ function joinColourDisjunctions(tokens: readonly string[]): string[] {
             b !== undefined &&
             COLOR_WORDS.has(a.toLowerCase()) &&
             COLOR_WORDS.has(b.toLowerCase())
+        ) {
+            out.push(`${a} or ${b}`);
+            i += 2;
+            continue;
+        }
+        out.push(a);
+    }
+    return out;
+}
+
+/**
+ * CR 205.2a — "instant or sorcery card": a card-type disjunction MODIFYING the
+ * noun "card" is ONE adjective, the card is either type. Joined only when the
+ * very next token is "card"/"cards": without that noun, "artifact or
+ * enchantment" is the noun or-list `readNoun` reads ("target artifact or
+ * enchantment"), and joining it there would lose that reading.
+ */
+function joinTypeDisjunctions(tokens: readonly string[]): string[] {
+    const out: string[] = [];
+    for (let i = 0; i < tokens.length; i += 1) {
+        const [a, or, b, noun] = [
+            tokens[i]!,
+            tokens[i + 1],
+            tokens[i + 2],
+            tokens[i + 3],
+        ];
+        if (
+            or === "or" &&
+            b !== undefined &&
+            (noun === "card" || noun === "cards") &&
+            singleType(a.toLowerCase()) !== undefined &&
+            singleType(b.toLowerCase()) !== undefined
         ) {
             out.push(`${a} or ${b}`);
             i += 2;

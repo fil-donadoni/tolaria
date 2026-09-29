@@ -26568,6 +26568,129 @@ describe("Effect Script choice kind: choose-hand-card + Op: grantCastFromGraveya
     });
 });
 
+// --- grantFlashback Op (CR 702.34a / 514.2, issue #4756) -------------------
+// "Target instant or sorcery card in your graveyard gains flashback until end
+// of turn. The flashback cost is equal to its mana cost." (Snapcaster Mage).
+// The Op stamps `grantedFlashback` through `SpellContext.grantFlashback`, so
+// the cast itself is the engine's existing flashback path; these tests pin the
+// stamp, its cost, its wire projection, its CR 608.2b skips and its CR 514.2
+// expiry.
+
+describe("Effect Script Op: grantFlashback (CR 702.34a / 514.2, issue #4756)", () => {
+    const script = (): string =>
+        registerScript("test-op-grant-flashback", [
+            { op: "grantFlashback", card: { target: 0 } },
+        ]);
+    const graveyardInstant = (id: string) =>
+        makeInstance(BLACK_CARD_ID, {
+            id,
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+
+    it("grants the targeted graveyard card flashback at its own mana cost, castable on the wire", () => {
+        const id = script();
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    graveyard: [
+                        graveyardInstant("gy-target"),
+                        graveyardInstant("gy-other"),
+                    ],
+                    // Enough for the instant's own {1}{B}.
+                    manaPool: { W: 0, U: 0, B: 1, R: 0, G: 0, C: 1 },
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1", [
+            { type: "graveyard-card", id: "gy-target", playerId: "p1" },
+        ]);
+        expect(resolveTopOfStack(state)).not.toBeNull();
+
+        const graveyard = state.players[0].graveyard;
+        // CR 702.34a — "The flashback cost is equal to its mana cost."
+        expect(
+            graveyard.find((c) => c.id === "gy-target")!.grantedFlashback
+        ).toEqual({ X: 1, B: 1 });
+        // Only the announced card is granted.
+        expect(
+            graveyard.find((c) => c.id === "gy-other")!.grantedFlashback
+        ).toBeUndefined();
+
+        // Wire format: the grant crosses the projection as the flashback cast
+        // affordance the client's graveyard button reads.
+        const projected = projectPublicState(state, 1, "p1");
+        const wire = projected.players[0].graveyard.find(
+            (c) => c.id === "gy-target"
+        )!;
+        expect(wire.castKind).toBe("flashback");
+        expect(wire.legalActions).toEqual(["cast"]);
+        expect(
+            projected.players[0].graveyard.find((c) => c.id === "gy-other")!
+                .castKind
+        ).toBeUndefined();
+    });
+
+    it("ends at cleanup with every 'until end of turn' effect (CR 514.2)", () => {
+        const id = script();
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    graveyard: [graveyardInstant("gy-target")],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1", [
+            { type: "graveyard-card", id: "gy-target", playerId: "p1" },
+        ]);
+        resolveTopOfStack(state);
+        expect(state.players[0].graveyard[0].grantedFlashback).toBeDefined();
+        finalizeCleanup(state);
+        expect(state.players[0].graveyard[0].grantedFlashback).toBeUndefined();
+    });
+
+    it("skips when the slot is empty, not a graveyard card, or the card left the graveyard (CR 608.2b)", () => {
+        const id = script();
+        const permanent = makeInstance(BEAR_ID, {
+            id: "bf-bear",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    graveyard: [graveyardInstant("gy-untouched")],
+                    battlefield: [permanent],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        // No target announced at all.
+        pushSpell(state, id, "p1");
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+        // A battlefield-permanent slot is the wrong family.
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "bf-bear" }]);
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "bf-bear")!
+                .grantedFlashback
+        ).toBeUndefined();
+        // A graveyard-card slot whose card is gone by resolution.
+        pushSpell(state, id, "p1", [
+            { type: "graveyard-card", id: "gy-vanished", playerId: "p1" },
+        ]);
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+        expect(
+            state.players[0].graveyard.every(
+                (c) => c.grantedFlashback === undefined
+            )
+        ).toBe(true);
+    });
+});
+
 // --- nameCard Op: an open name choice during resolution (CR 201.3 / 202.3,
 // issue #1085) -----------------------------------------------------------
 // `nameCard` suspends like `choice`/`mayPay` — the binding name doubles as
