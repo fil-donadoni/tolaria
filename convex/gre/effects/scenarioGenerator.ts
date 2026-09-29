@@ -1334,6 +1334,18 @@ const SCENARIO_SKIPS = {
         code: "choice-binding",
         reason: `Op "grantCastFromGraveyard" grants a cast permission off a choice binding or a graveyard target — covered by the card's own tests`,
     },
+    // `grantFlashback` (issue #4756, Snapcaster Mage) reads an announced
+    // GRAVEYARD-card target slot, which the canned generator never seeds (it
+    // seeds battlefield permanents and players — the `moveZone` rationale),
+    // and its outcome is a cast PERMISSION stamped on that graveyard card,
+    // not a battlefield/life/hand-count delta. Card-dependent by the slot's
+    // zone: a golden fixture exhibiting the form (`GOLDEN_FIXTURES`,
+    // rule "grant flashback") clears it; the Op's permanent test is the
+    // interpreter suite plus the wire-format assertion.
+    grantFlashback: {
+        code: "unmodelled-object-or-zone",
+        reason: `Op "grantFlashback" grants flashback to a graveyard-card target the canned generator does not seed — covered by the Op's own tests and its golden fixture`,
+    },
     // `reveal` (issue #920 / #682) stamps `knownTo` on hidden cards —
     // an information-visibility change, not a battlefield/life/hand-
     // count outcome the canned generator's assertions model. In every

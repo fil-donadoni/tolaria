@@ -3204,6 +3204,17 @@ export const OP_EXECUTORS: {
             ...(op.exilesOnResolve ? { exilesOnResolve: true } : {}),
         });
     },
+    // CR 702.34a (issue #4756) — grant flashback until end of turn to the
+    // announced graveyard-card target, cost = its mana cost (the primitive's
+    // default when no cost is passed). The slot must still hold a
+    // `graveyard-card` selection (CR 608.2b); the primitive re-checks that the
+    // card is still in that graveyard and stamps `grantedFlashback`, which the
+    // cleanup step clears (CR 514.2).
+    grantFlashback(ctx, op) {
+        const selection = resolveTargetRef(ctx, op.card);
+        if (selection?.type !== "graveyard-card") return;
+        ctx.grantFlashback(selection);
+    },
     // CR 608.2g (issue #1477) — play a card as PART OF this resolution.
     // The whole implementation is `runCastDuringResolution` (below), a named
     // module function rather than an inline method for one reason: the CASCADE

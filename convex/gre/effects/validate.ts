@@ -4023,6 +4023,15 @@ const OP_SCHEMAS: OpSchemaTable = {
             exilesOnResolve: isBoolean,
         },
     },
+    // CR 702.34a (issue #4756) — grant flashback until end of turn to an
+    // announced graveyard-card target, cost = its own mana cost. `card` is a
+    // target slot ONLY: no picks ref and no explicit cost until a card prints
+    // one (the Op's doc in `convex/cards/types.ts`).
+    grantFlashback: {
+        required: {
+            card: isTargetRef,
+        },
+    },
     // CR 608.2g (issue #1477 / #1478 / #1961) — play a card as part of this
     // resolution (a "you may cast/play" with no duration). `player` names the
     // caster; `free` (optional) waives the mana cost (Malcolm); `includesLand`
