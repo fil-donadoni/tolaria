@@ -31,7 +31,7 @@ import OverlaySpecimens, { type OverlaySpecimen } from "./overlay-specimens";
 
 /* ── Fixtures ─────────────────────────────────────────────────────────── */
 
-/** Lightning Bolt's registry id (`convex/cards/sets/lea/red.cards.ts`) — a real
+/** Lightning Bolt's registry id (`convex/cards/sets/lea/red.ts`) — a real
  *  definition with art on every deployment the lane walks, so the overlay
  *  measures the real face and oracle text, not a fallback name. */
 const BOLT = "d573ef03-4730-45aa-93dd-e45ac1dbaf4a";
