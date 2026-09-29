@@ -109,6 +109,29 @@ describe("buildBotFindingsPayload (issue #4176)", () => {
         expect(p.findings[1]!.printId).toBeUndefined();
     });
 
+    // Issue #4179 — the artifact's decision trace rides into the seed as a
+    // measured field, untouched.
+    it("carries a row's decision trace onto its finding", () => {
+        const trace = { cardMove: "pruned" as const };
+        const p = buildBotFindingsPayload({
+            artifact: {
+                ...ARTIFACT,
+                findings: ARTIFACT.findings.map((f) =>
+                    f.oracleId === "o-a" ? { ...f, trace } : f
+                ),
+            },
+            claims: [],
+            cardIndex: [],
+            handWritten: new Set(),
+        });
+        expect(p.findings.find((f) => f.oracleId === "o-a")!.trace).toEqual(
+            trace
+        );
+        expect(
+            p.findings.find((f) => f.oracleId === "o-b")!.trace
+        ).toBeUndefined();
+    });
+
     it("builds one class per key, with the filer's prose, per-Target counts and the bot claim's issue", () => {
         const [never, unmodelled] = payload().classes;
         expect(never).toEqual({

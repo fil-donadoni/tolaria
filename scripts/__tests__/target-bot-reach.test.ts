@@ -234,6 +234,33 @@ describe("buildFindings / serializeFindings", () => {
     });
 });
 
+const TRACE = {
+    cardMove: "weighed",
+    search: {
+        mechanism: "mean-reward",
+        iterations: 48,
+        weighed: 2,
+        candidates: [
+            {
+                role: "chosen",
+                label: "Pass",
+                visits: 40,
+                meanReward: 0.5,
+                total: 10,
+                terms: { life: [20, 20] },
+            },
+            {
+                role: "card",
+                label: "Cast A",
+                visits: 8,
+                meanReward: 0.3,
+                total: 4,
+                terms: { life: [15, 20] },
+            },
+        ],
+    },
+} satisfies NonNullable<FindingRow["trace"]>;
+
 describe("findingsCache", () => {
     const previous = buildFindings(header(), ["t"], [row({ oracleId: "o-1" })]);
     const key = { source: "hand-written", defHash: "sha256:def" } as const;
@@ -250,6 +277,24 @@ describe("findingsCache", () => {
             cause: "never-chosen",
             form: "instant",
         });
+        expect(cache.replayed()).toBe(0);
+    });
+
+    // Issue #4179 — the refusal's decision trace is a MEASURED field: it is
+    // written by the play, carried on the row, and reused with the verdict,
+    // so a cached run keeps the evidence a replay would have produced.
+    it("reuses a verdict's decision trace with the verdict", () => {
+        const withTrace = buildFindings(
+            header(),
+            ["t"],
+            [row({ oracleId: "o-1", trace: TRACE })]
+        );
+        expect(withTrace.findings[0]!.trace).toEqual(TRACE);
+        const cache = findingsCache(
+            parseFindings(serializeFindings(withTrace)),
+            "sha256:bot"
+        );
+        expect(cache.verdictFor("o-1", key, fresh).trace).toEqual(TRACE);
         expect(cache.replayed()).toBe(0);
     });
 

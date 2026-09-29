@@ -71,7 +71,19 @@ export function proseSegments(prose: string): ProseSegment[] {
 /** A `never-chosen` finding's recorded search decision (`BotReachTrace`,
  *  `convex/gre/ai/botReachTrace.ts`, as the query returns it). */
 export type BotFindingTrace = NonNullable<BotFindingRow["trace"]>;
-export type BotFindingTraceCandidate = BotFindingTrace["candidates"][number];
+export type BotFindingTraceSearch = NonNullable<BotFindingTrace["search"]>;
+export type BotFindingTraceCandidate =
+    BotFindingTraceSearch["candidates"][number];
+
+/** What happened to the card's own move, in words (`BotReachCardMove`). */
+export const CARD_MOVE_SENTENCE: Record<BotFindingTrace["cardMove"], string> = {
+    pruned: "Its move was pruned before the search: dominance proved casting it changes nothing.",
+    collapsed:
+        "Its move was folded into an interchangeable copy before the search.",
+    unexpanded:
+        "Its move was offered to the search but never expanded inside the budget.",
+    weighed: "The search weighed its move and preferred another.",
+};
 
 /** Why the root rule picked what it picked — the SAME sentence the in-game
  *  decision box shows (`MECHANISM_SENTENCES`), so a finding and a live trace
@@ -124,10 +136,10 @@ export function traceTermLine(c: BotFindingTraceCandidate): string {
  *  candidate whose breakdown is unavailable on either side — no evidence is
  *  not a difference. */
 export function traceComparison(
-    trace: BotFindingTrace,
+    search: BotFindingTraceSearch,
     c: BotFindingTraceCandidate
 ): string[] {
-    const chosen = trace.candidates.find((x) => x.role === "chosen");
+    const chosen = search.candidates.find((x) => x.role === "chosen");
     if (
         chosen === undefined ||
         c === chosen ||
@@ -154,13 +166,17 @@ export function traceRoleLabel(role: BotFindingTraceCandidate["role"]): string {
  * starts from the search's own evidence.
  */
 export function findingTraceText(trace: BotFindingTrace): string {
-    const lines = [
-        `Search: ${trace.iterations} iterations, ${trace.weighed} root moves weighed, mechanism \`${trace.mechanism}\` — ${traceMechanismSentence(trace.mechanism)}`,
-    ];
-    if (!trace.cardWeighed)
-        lines.push("The card's own move was never expanded inside the budget.");
-    for (const c of trace.candidates) {
-        const reading = traceComparison(trace, c);
+    const lines = [CARD_MOVE_SENTENCE[trace.cardMove]];
+    const { search } = trace;
+    if (search === undefined) {
+        lines.push("No search ran: a single move was left to make.");
+        return lines.join("\n");
+    }
+    lines.push(
+        `Search: ${search.iterations} iterations, ${search.weighed} root moves weighed, mechanism \`${search.mechanism}\` — ${traceMechanismSentence(search.mechanism)}`
+    );
+    for (const c of search.candidates) {
+        const reading = traceComparison(search, c);
         lines.push(
             `- [${traceRoleLabel(c.role)}] ${c.label} — visits ${c.visits}, reward ${c.meanReward}, eval ${c.total}` +
                 (reading.length > 0 ? `; vs chosen: ${reading.join(", ")}` : "")

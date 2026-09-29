@@ -49,6 +49,18 @@ const NO_OP_SORCERY: CardDefinition = {
     effects: [],
 };
 
+/** CR 119.3 — a spell whose only effect is that its caster loses life: it
+ *  changes the position (so dominance cannot prune it) and never for the
+ *  better, so the search weighs it and passes it over (issue #4179). */
+const SELF_DRAIN_SORCERY: CardDefinition = {
+    id: "bot-reach-test:self-drain",
+    name: "Bot Reach Self Drain",
+    rarity: "common",
+    manaCost: { B: 1 },
+    types: ["Sorcery"],
+    effects: [{ op: "loseLife", player: "controller", amount: 5 }],
+};
+
 /** CR 115.1 / 601.2c — a targeted spell with no legal target in the
  *  generated position (it seeds no planeswalker), so no cast move exists. */
 const UNTARGETABLE_INSTANT: CardDefinition = {
@@ -401,11 +413,56 @@ describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
 
     it("ignored — a legal, affordable no-op is never chosen, and ships", () => {
         withTemporaryDefinition(NO_OP_SORCERY, () => {
-            expect(playTwice(NO_OP_SORCERY)).toEqual({
+            expect(playTwice(NO_OP_SORCERY)).toMatchObject({
                 outcome: "ignored",
                 cause: "never-chosen",
                 form: "Sorcery",
             });
+        });
+    });
+
+    // Issue #4179 — a `never-chosen` refusal carries the decision that refused
+    // it, and the two refusal paths read differently. A no-op is dropped by
+    // dominance before the search runs (`pruneDominatedNoOps`, issue #1887):
+    // the trace says so, and — pruning having left one move — no search.
+    it("never-chosen trace — a dominated no-op was pruned before the search", () => {
+        withTemporaryDefinition(NO_OP_SORCERY, () => {
+            const { trace } = playTwice(NO_OP_SORCERY);
+            expect(trace?.cardMove).toBe("pruned");
+        });
+    });
+
+    // A card that DOES something (costs its caster life) is weighed by the
+    // search and passed over: the trace names the chosen move first, the
+    // card's move second, and carries the terms behind both — at the sweep's
+    // fixed iteration budget, identical on a replay (`playTwice`).
+    it("never-chosen trace — a weighed card: chosen, the card's move, terms", () => {
+        withTemporaryDefinition(SELF_DRAIN_SORCERY, () => {
+            const verdict = playTwice(SELF_DRAIN_SORCERY);
+            expect(verdict.cause).toBe("never-chosen");
+            const { cardMove, search } = verdict.trace!;
+            expect(cardMove).toBe("weighed");
+            expect(search).toBeDefined();
+            expect(search!.iterations).toBeLessThanOrEqual(
+                BOT_REACH_BUDGET.iterations
+            );
+            expect(search!.candidates.map((c) => c.role).slice(0, 2)).toEqual([
+                "chosen",
+                "card",
+            ]);
+            const [chosen, card] = search!.candidates;
+            expect(card!.label).toContain(SELF_DRAIN_SORCERY.name);
+            expect(chosen!.label).not.toContain(SELF_DRAIN_SORCERY.name);
+            // The drain shows in the card's own terms: less life for self.
+            expect(card!.terms?.life?.[0]).toBeLessThan(
+                chosen!.terms!.life![0]
+            );
+        });
+    });
+
+    it("played and harness verdicts carry no trace", () => {
+        withTemporaryDefinition(UNTARGETABLE_INSTANT, () => {
+            expect(playBotReach(UNTARGETABLE_INSTANT).trace).toBeUndefined();
         });
     });
 

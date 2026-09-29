@@ -45,23 +45,34 @@ export const findingBlameValidator = v.union(
  * validator and pinned to it below. Bounded by the projection, not here.
  */
 export const botReachTraceValidator = v.object({
-    mechanism: v.string(),
-    iterations: v.number(),
-    weighed: v.number(),
-    cardWeighed: v.boolean(),
-    candidates: v.array(
+    cardMove: v.union(
+        v.literal("pruned"),
+        v.literal("collapsed"),
+        v.literal("unexpanded"),
+        v.literal("weighed")
+    ),
+    search: v.optional(
         v.object({
-            role: v.union(
-                v.literal("chosen"),
-                v.literal("card"),
-                v.literal("alternative")
+            mechanism: v.string(),
+            iterations: v.number(),
+            weighed: v.number(),
+            candidates: v.array(
+                v.object({
+                    role: v.union(
+                        v.literal("chosen"),
+                        v.literal("card"),
+                        v.literal("alternative")
+                    ),
+                    label: v.string(),
+                    visits: v.number(),
+                    meanReward: v.number(),
+                    total: v.number(),
+                    /** `EvalTerms` key → `[self, opp]`, non-zero terms only. */
+                    terms: v.optional(
+                        v.record(v.string(), v.array(v.number()))
+                    ),
+                })
             ),
-            label: v.string(),
-            visits: v.number(),
-            meanReward: v.number(),
-            total: v.number(),
-            /** `EvalTerms` key → `[self, opp]`, non-zero terms only. */
-            terms: v.optional(v.record(v.string(), v.array(v.number()))),
         })
     ),
 });

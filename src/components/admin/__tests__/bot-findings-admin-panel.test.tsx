@@ -8,6 +8,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import BotFindingsAdminPanel from "../bot-findings-admin-panel";
+import { findingTraceText, type BotFindingTrace } from "@/lib/botFindings";
 
 const answers: Record<string, unknown> = {};
 
@@ -46,6 +47,33 @@ const FINDINGS = [
         blame: "bot",
         compileSource: "hand-written",
         measuredAt: "2026-09-23T13:17:56.829Z",
+        trace: {
+            cardMove: "weighed",
+            search: {
+                mechanism: "mean-reward",
+                iterations: 48,
+                weighed: 3,
+                candidates: [
+                    {
+                        role: "chosen",
+                        label: "Pass",
+                        visits: 40,
+                        meanReward: 0.5,
+                        total: 10,
+                        terms: { life: [20, 20], hand: [300, 300] },
+                    },
+                    {
+                        role: "card",
+                        label: "Cast Grist, the Hunger Tide",
+                        visits: 8,
+                        meanReward: 0.3,
+                        total: 4,
+                        // Cards fewer in hand, nothing gained for them.
+                        terms: { life: [20, 20], hand: [200, 300] },
+                    },
+                ],
+            },
+        },
     },
     {
         _id: "f-2",
@@ -139,6 +167,53 @@ describe("BotFindingsAdminPanel — the Cards tab (issue #4176)", () => {
         ).toBeTruthy();
         expect(spell.getByText(/A gap in the sweep's harness/)).toBeTruthy();
         expect(spell.queryByRole("img")).toBeNull();
+    });
+
+    // Issue #4179 — a refused card answers WHY: the search's decision, the
+    // card's own move beside the chosen one, their terms, and the difference
+    // in words from the in-game decision box's phrase table.
+    it("renders the decision behind a refusal, and only where one was recorded", () => {
+        render(<BotFindingsAdminPanel />);
+        const grist = document.querySelector(
+            '[data-bot-finding-row="o-grist"]'
+        ) as HTMLElement;
+        const trace = grist.querySelector("[data-bot-finding-trace]")!;
+        expect(
+            trace.querySelector("[data-bot-finding-card-move]")!.textContent
+        ).toBe("The search weighed its move and preferred another.");
+        expect(trace.textContent).toContain("48 iterations");
+        const chosen = trace.querySelector(
+            '[data-bot-finding-trace-role="chosen"]'
+        )!;
+        const card = trace.querySelector(
+            '[data-bot-finding-trace-role="card"]'
+        )!;
+        expect(chosen.textContent).toContain("Pass");
+        expect(chosen.textContent).not.toContain("vs chosen");
+        expect(card.textContent).toContain("Cast Grist, the Hunger Tide");
+        expect(card.textContent).toContain("vs chosen: spends a card");
+        expect(card.textContent).toContain("L20/20 H200/300");
+
+        expect(
+            document
+                .querySelector('[data-bot-finding-row="o-spell"]')!
+                .querySelector("[data-bot-finding-trace]")
+        ).toBeNull();
+    });
+
+    it("renders the trace as text for the copy-to-session payload", () => {
+        const text = findingTraceText(FINDINGS[0]!.trace as BotFindingTrace);
+        expect(text.split("\n")).toEqual([
+            "The search weighed its move and preferred another.",
+            "Search: 48 iterations, 3 root moves weighed, mechanism `mean-reward` — The search preferred it — it won more of the games it played out.",
+            "- [chosen] Pass — visits 40, reward 0.5, eval 10",
+            "  terms (self/opp): L20/20 H300/300",
+            "- [this card] Cast Grist, the Hunger Tide — visits 8, reward 0.3, eval 4; vs chosen: spends a card",
+            "  terms (self/opp): L20/20 H200/300",
+        ]);
+        expect(findingTraceText({ cardMove: "pruned" })).toBe(
+            "Its move was pruned before the search: dominance proved casting it changes nothing.\nNo search ran: a single move was left to make."
+        );
     });
 
     it("says so when the deployment was never seeded, rather than rendering nothing", () => {

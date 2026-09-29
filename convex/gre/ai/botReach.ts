@@ -1155,6 +1155,32 @@ export function classifyNoMove(
           };
 }
 
+/**
+ * Did root enumeration drop the card's move before the search could weigh
+ * it? The SAME options `searchWithTrace` enumerates its root with (dominance
+ * pruning, issue #1887; interchangeable collapse, issue #3593), read on the
+ * same state — pure, so asking costs the search nothing. Evidence for the
+ * finding's trace only (issue #4179); never an input to the verdict.
+ */
+function rootFate(
+    state: GameState,
+    holderId: string,
+    instanceId: string
+): "pruned" | "collapsed" | undefined {
+    let fate: "pruned" | "collapsed" | undefined;
+    enumerateMoves(state, holderId, {
+        pruneDominatedNoOps: true,
+        onPruned: (m) => {
+            if (usesCard(m, instanceId)) fate ??= "pruned";
+        },
+        collapseInterchangeable: true,
+        onCollapsed: (m) => {
+            if (usesCard(m, instanceId)) fate ??= "collapsed";
+        },
+    });
+    return fate;
+}
+
 function playFrom(
     def: CardDefinition,
     state: GameState,
@@ -1192,8 +1218,11 @@ function playFrom(
             seed
         );
         if (move === null || !usesCard(move, instanceId)) {
-            if (refusal === undefined && trace !== null)
-                refusal = projectBotReachTrace(trace, instanceId);
+            refusal ??= projectBotReachTrace(
+                trace,
+                instanceId,
+                rootFate(state, holderId, instanceId)
+            );
             continue;
         }
         const followed = followThrough(
