@@ -390,16 +390,26 @@ function sweptNetLoss(
             }
         }
     }
-    const aggregateAll = aggregateLoss(
-        zoneChanges(state, [fixed, recoverable])
-    );
+    // A ledger no member leaves changes no zone, so it moves no aggregate:
+    // skip the census rather than read two identical boards.
+    const aggregateOf = (ledgers: readonly SweepLedger[]): number =>
+        ledgers.some((l) => l.leavers > 0)
+            ? aggregateLoss(zoneChanges(state, ledgers))
+            : 0;
+    const aggregateAll = aggregateOf([fixed, recoverable]);
     const fraction = weights.recoverableSweepFraction;
-    if (recoverable.empty() || fraction === 1) {
+    // A recoverable member always leaves (`MemberOutcome.recoverable`).
+    if (recoverable.leavers === 0 || fraction === 1) {
         return fixed.net + recoverable.net + aggregateAll;
     }
     // The aggregate the FIXED members move alone; the rest of `aggregateAll`
-    // is what the recoverable members move, and it regrows with them.
-    const aggregateFixed = aggregateLoss(zoneChanges(state, [fixed]));
+    // is what the recoverable members move, and it regrows with them. The
+    // aggregate terms are not additive per member (`min(lands, curveTop)`),
+    // so the order is a choice: the fixed members are read first and the
+    // INTERACTION goes to the recoverable side — a sweep taking Llanowar
+    // Elves and Forests discounts the part of the Elves' curve demand that
+    // only the missing lands made unreachable.
+    const aggregateFixed = aggregateOf([fixed]);
     return (
         fixed.net +
         aggregateFixed +
@@ -414,20 +424,18 @@ class SweepLedger {
     net = 0;
     readonly leaving = new Map<string, Set<string>>();
     readonly returned = new Map<string, CardInstanceState[]>();
-    private members = 0;
+    /** How many members leave the battlefield. */
+    leavers = 0;
     leave(playerId: string, permId: string): void {
         const gone = this.leaving.get(playerId) ?? new Set<string>();
         gone.add(permId);
         this.leaving.set(playerId, gone);
-        this.members++;
+        this.leavers++;
     }
     handBack(ownerId: string, card: CardInstanceState): void {
         const back = this.returned.get(ownerId) ?? [];
         back.push(card);
         this.returned.set(ownerId, back);
-    }
-    empty(): boolean {
-        return this.members === 0 && this.net === 0;
     }
 }
 

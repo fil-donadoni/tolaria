@@ -1268,7 +1268,8 @@ function baseAggregateTerms(
  *  alone would price a coverage the resolution never realises.
  *
  *  The caster (`casterId`) reads in `seat`, every other player in the other
- *  one, exactly as `playerTerms` would score them from the caster's side. */
+ *  one, exactly as `playerTerms` would score them from the caster's side —
+ *  a two-seat reading, as `evaluateBreakdown`'s own `me` / `opp` is. */
 function sweptAggregateNetLoss(
     state: GameState,
     casterId: string,
@@ -1313,7 +1314,6 @@ function sweptAggregateNetLoss(
 
 /** The weighted contributions of one player's resources, from their own
  *  perspective. `sumTerms` of this equals the legacy `playerScore`. */
-
 function playerTerms(
     state: GameState,
     player: PlayerState,

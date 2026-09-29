@@ -60,6 +60,22 @@ describe("DEFAULT_EVAL_WEIGHTS (issue #2683)", () => {
         ).toBeGreaterThanOrEqual(1 - 1e-6);
     });
 
+    it("credits a recoverable sweep's swing at a FRACTION of it (issue #4880)", () => {
+        // `recoverableSweepFraction` discounts a held sweep's recoverable
+        // part because the realised swing decays once it resolves. Above 1
+        // the card in hand would be worth MORE than its full swing and
+        // holding would dominate again; at 0 a land sweep would be worth
+        // nothing held. The fit's trust region around the 0.8 prior reaches
+        // 1.2, and no fit band bounds a single weight, so the range is
+        // asserted here on the committed vector.
+        expect(DEFAULT_EVAL_WEIGHTS.recoverableSweepFraction).toBeGreaterThan(
+            0
+        );
+        expect(
+            DEFAULT_EVAL_WEIGHTS.recoverableSweepFraction
+        ).toBeLessThanOrEqual(1);
+    });
+
     it("is frozen — a mutation attempt is a no-op / throws in strict mode", () => {
         expect(Object.isFrozen(DEFAULT_EVAL_WEIGHTS)).toBe(true);
         expect(Object.isFrozen(FIT_BASE_EVAL_WEIGHTS)).toBe(true);

@@ -640,7 +640,7 @@ describe("a sweep's price counts the aggregate terms its members move (issue #48
     });
 
     it("never prices the relief of unloading a card no cast can unload", () => {
-        // Pyroclasm over a Forest is uncastable ({R}, CR 202.1a): its red pip
+        // Pyroclasm over a Forest is uncastable (CR 202.1a): its {R} pip
         // costs the hand `colorCoverage` whatever the sweep takes. Taking the
         // card out of the hand in the "after" board read that cost back as
         // the sweep's worth, so a sweep that kills nothing — the Craw Wurm
@@ -788,6 +788,74 @@ describe("a recoverable sweep's swing is credited in part (issue #4880)", () => 
                 creature + 0.5 * land,
                 6
             );
+        });
+    });
+
+    it("splits the aggregate terms: the fixed members' in full, the rest discounted", () => {
+        // Committed weights, aggregates on. The opponent's Llanowar Elves
+        // is its curve demand (`manaDevelopment` = min(lands, curveTop)):
+        // destroyed, it takes that demand for good; its Forest regrows. The
+        // price at fraction 0 is exactly what the Elves take — its body AND
+        // the aggregate it moves alone — so the aggregate is split, not
+        // wholly discounted.
+        const everything: CardDefinition = {
+            id: "latent-board-test:everything-aggregate",
+            name: "Latent Board everything aggregate",
+            rarity: "common",
+            manaCost: { R: 1, generic: 3 },
+            types: ["Sorcery"],
+            effects: [
+                {
+                    op: "forEach",
+                    select: { set: "permanents", zone: "battlefield" },
+                    effects: [{ op: "destroy", target: { ref: "$each" } }],
+                },
+            ],
+        };
+        const withAggregates = (fraction: number) => ({
+            ...DEFAULT_EVAL_WEIGHTS,
+            recoverableSweepFraction: fraction,
+        });
+        const oppAggregate = (oppBoard: readonly string[]) =>
+            evaluateBreakdown(
+                makeState({
+                    players: [
+                        makePlayer("p1"),
+                        makePlayer("p2", {
+                            battlefield: oppBoard.map((id) =>
+                                makeInstance(id, {
+                                    controllerId: "p2",
+                                    ownerId: "p2",
+                                })
+                            ),
+                        }),
+                    ],
+                }),
+                "p1",
+                withAggregates(1)
+            ).opp;
+        withTemporaryDefinition(everything, () => {
+            const before = oppAggregate([llanowarElves.id, forest.id]);
+            const elvesGone = oppAggregate([forest.id]);
+            const elvesAggregate =
+                before.manaDevelopment +
+                before.colorCoverage -
+                (elvesGone.manaDevelopment + elvesGone.colorCoverage);
+            expect(elvesAggregate).toBeGreaterThan(0);
+            const elvesBody = latentAgainst(
+                everything.id,
+                [],
+                [llanowarElves.id],
+                at(1)
+            );
+            expect(
+                latentAgainst(
+                    everything.id,
+                    [],
+                    [llanowarElves.id, forest.id],
+                    withAggregates(0)
+                )
+            ).toBeCloseTo(elvesBody + PER_POINT * elvesAggregate, 6);
         });
     });
 });
