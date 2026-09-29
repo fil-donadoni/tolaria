@@ -27,10 +27,14 @@ export type ReproducerAction =
       }
     | { readonly kind: "unknown"; readonly label: string };
 
-/** The shell command that re-runs ONE blade entry by its label. Single-quoted
- *  so a label carrying `'`, `:` or `(` survives a paste into a shell. */
+/** The shell command that re-runs ONE blade entry by its label. Vitest's `-t`
+ *  is a REGULAR EXPRESSION, so the label is regex-escaped and anchored first
+ *  (a label carrying `(block or die)` would otherwise match nothing and exit
+ *  green having run nothing), then single-quoted so `'` and `:` survive a
+ *  paste into a shell. */
 export function bladeEntryCommand(label: string): string {
-    return `bunx vitest run --config vitest.blade.config.ts -t '${label.replaceAll("'", `'\\''`)}'`;
+    const pattern = `^${label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`;
+    return `bunx vitest run --config vitest.blade.config.ts -t '${pattern.replaceAll("'", `'\\''`)}'`;
 }
 
 /** Resolve one label. A saved scenario wins over a blade entry of the same

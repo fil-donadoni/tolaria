@@ -47,10 +47,31 @@ describe("resolveReproducer", () => {
 });
 
 describe("bladeEntryCommand", () => {
-    it("single-quotes the label so `'`, `:` and `(` survive a shell paste", () => {
-        expect(bladeEntryCommand("it's: a (label)")).toBe(
-            "bunx vitest run --config vitest.blade.config.ts -t 'it'\\''s: a (label)'"
+    it("single-quotes the label so `'` and `:` survive a shell paste", () => {
+        expect(bladeEntryCommand("it's: a label")).toBe(
+            "bunx vitest run --config vitest.blade.config.ts -t '^it'\\''s: a label$'"
         );
+    });
+
+    it("regex-escapes the label: vitest's -t is a pattern, and `(…)` must match itself", () => {
+        const label = "charter: chump-blocks to survive lethal (block or die)";
+        const command = bladeEntryCommand(label);
+        const pattern = /-t '(.*)'$/.exec(command)![1]!;
+        expect(new RegExp(pattern).test(label)).toBe(true);
+        expect(
+            new RegExp(pattern).test(
+                "charter: chump-blocks to survive lethal block or die"
+            )
+        ).toBe(false);
+        // Every committed label matches itself — and only itself.
+        for (const l of Object.keys(bladeReproducers))
+            expect(
+                new RegExp(
+                    /-t '(.*)'$/
+                        .exec(bladeEntryCommand(l))![1]!
+                        .replaceAll("'\\''", "'")
+                ).test(l)
+            ).toBe(true);
     });
 });
 
