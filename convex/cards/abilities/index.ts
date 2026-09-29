@@ -281,6 +281,7 @@ export function makeDualLand(args: {
                       id: `${slug}-surveil`,
                       oracleText: "When this land enters, surveil 1.",
                       event: "PERMANENT_ENTERED",
+                      etbAbility: true, // issue #4758
                       matches: (event, self) =>
                           event.type === "PERMANENT_ENTERED" &&
                           event.instanceId === self.id,

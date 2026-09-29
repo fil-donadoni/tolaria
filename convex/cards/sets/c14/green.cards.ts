@@ -41,6 +41,7 @@ export const titaniaProtectorOfArgoth: CardDefinition = {
             oracleText:
                 "When Titania enters, return target land card from your graveyard to the battlefield.",
             event: "PERMANENT_ENTERED",
+            etbAbility: true, // issue #4758
             matches: (event, self) =>
                 event.type === "PERMANENT_ENTERED" &&
                 event.instanceId === self.id,

@@ -30,6 +30,7 @@ export const eternalWitness: CardDefinition = {
             oracleText:
                 "When this creature enters, you may return target card from your graveyard to your hand.",
             event: "PERMANENT_ENTERED",
+            etbAbility: true, // issue #4758
             matches: (event, self) =>
                 event.type === "PERMANENT_ENTERED" &&
                 event.instanceId === self.id,

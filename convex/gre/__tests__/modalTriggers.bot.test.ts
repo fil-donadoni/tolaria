@@ -21,7 +21,7 @@ import { raiseTriggerTargetSelection } from "../rules";
 import { enumerateMoves } from "../moves";
 import { decidingPlayer } from "../search";
 import { choiceCandidates } from "../ai/choiceCandidates";
-import { dslRealizedAbilityScriptValue } from "../ai/cardScriptValue";
+import { dslAbilityScriptValue } from "../ai/cardScriptValue";
 
 function boardWithExarchTrigger(): { state: GameState; trig: StackItem } {
     const state = makeState({
@@ -107,8 +107,9 @@ describe("modal trigger valuation walks the mode scripts, not a shadow sketch (P
         expect(etb.effects).toBeUndefined();
         expect(etb.aiEffects).toBeUndefined();
         expect(etb.modes).toHaveLength(2);
-        expect(dslRealizedAbilityScriptValue(deceiverExarch)).toBeGreaterThan(
-            0
-        );
+        // The LATENT reader: the modal trigger is an ETB Ability, spent on
+        // entering, so it is valued in hand and never on the battlefield
+        // (issue #4758).
+        expect(dslAbilityScriptValue(deceiverExarch)).toBeGreaterThan(0);
     });
 });

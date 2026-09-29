@@ -57,6 +57,7 @@ export const atraxaGrandUnifier: CardDefinition = {
             oracleText:
                 "When Atraxa enters, reveal the top ten cards of your library. For each card type, you may put a card of that type from among the revealed cards into your hand. Put the rest on the bottom of your library in a random order.",
             event: "PERMANENT_ENTERED",
+            etbAbility: true, // issue #4758
             matches: (event, self) =>
                 event.type === "PERMANENT_ENTERED" &&
                 event.instanceId === self.id,

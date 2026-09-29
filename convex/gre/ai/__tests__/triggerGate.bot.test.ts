@@ -136,10 +136,13 @@ describe("triggered-ability gates in the value model (CR 603.4, issue #1936)", (
 
         it("DECIDES an { onSelf } gate when the instance is supplied — full value when true, zero when false", () => {
             const gated = defWith(
+                // Scope `yours`, not `self`: a self ETB is an ETB Ability,
+                // spent on entering and never read on the realized path
+                // (issue #4758), and this block is about the gate alone.
                 enteredTrigger({
                     id: "t",
                     oracleText: "t",
-                    scope: "self",
+                    scope: "yours",
                     conditionOnSelf: (self) => self.evoked === true,
                     effects: SCRIPT,
                 })
@@ -159,10 +162,13 @@ describe("triggered-ability gates in the value model (CR 603.4, issue #1936)", (
 
         it("falls back to the undecided weight for an { onSelf } gate with NO instance (a card in hand)", () => {
             const gated = defWith(
+                // Scope `yours`, not `self`: a self ETB is an ETB Ability,
+                // spent on entering and never read on the realized path
+                // (issue #4758), and this block is about the gate alone.
                 enteredTrigger({
                     id: "t",
                     oracleText: "t",
-                    scope: "self",
+                    scope: "yours",
                     conditionOnSelf: (self) => self.evoked === true,
                     effects: SCRIPT,
                 })
@@ -180,22 +186,22 @@ describe("triggered-ability gates in the value model (CR 603.4, issue #1936)", (
             expect(onSelf(selfView())).toBe(false);
         });
 
-        it("charges the self-sacrifice to an EVOKED permanent and NOT to a hard-cast one", () => {
+        // Issue #4758 — the evoke sacrifice is an ETB Ability ("When this
+        // creature enters, if its evoke cost was paid, its controller
+        // sacrifices it"): spent on entering, so the realized reading never
+        // charges it, evoked or not — the sacrifice itself shows in the state
+        // it resolves into. The gate still decides the LATENT reading only
+        // where it is undecided (a card in hand), which the block above pins.
+        it("is an ETB Ability: the realized reading charges neither an evoked nor a hard-cast permanent", () => {
+            expect(evokeTrigger("Solitude").etbAbility).toBe(true);
             const def = getDefinition(SOLITUDE_ID);
-            const evoked = dslRealizedAbilityScriptValue(
-                def,
-                undefined,
-                selfView({ evoked: true })
-            );
-            const hardCast = dslRealizedAbilityScriptValue(
-                def,
-                undefined,
-                selfView()
-            );
-            // The sacrifice is a COST (negative), so dropping it must raise the
-            // hard-cast reading strictly above the evoked one.
-            expect(hardCast).toBeGreaterThan(evoked);
-            expect(evoked).toBeLessThan(0);
+            expect(
+                dslRealizedAbilityScriptValue(
+                    def,
+                    undefined,
+                    selfView({ evoked: true })
+                )
+            ).toBe(dslRealizedAbilityScriptValue(def, undefined, selfView()));
         });
 
         it("holds for every card built on the shared evoke template", () => {
@@ -213,9 +219,9 @@ describe("triggered-ability gates in the value model (CR 603.4, issue #1936)", (
                     selfView()
                 );
                 expect(
-                    hardCast,
-                    `${def.name}: hard-cast must not be charged the evoke sacrifice`
-                ).toBeGreaterThan(evoked);
+                    evoked,
+                    `${def.name}: the spent evoke sacrifice is no part of the realized reading`
+                ).toBe(hardCast);
             }
         });
     });
@@ -302,14 +308,16 @@ describe("triggered-ability gates in the value model (CR 603.4, issue #1936)", (
             return evaluateCreature(state, inst);
         }
 
-        it("scores a hard-cast Solitude in play strictly above an evoked one", () => {
-            expect(scoreSolitude(false)).toBeGreaterThan(scoreSolitude(true));
+        // Issue #4758 — see the Evoke block: the sacrifice is spent on
+        // entering, so an evoked Solitude still in play (its sacrifice not
+        // yet resolved) reads like a hard-cast one; the search sees the
+        // sacrifice once it resolves.
+        it("scores an evoked Solitude in play like a hard-cast one — the sacrifice is an ETB Ability", () => {
+            expect(scoreSolitude(true)).toBe(scoreSolitude(false));
         });
 
         it("keeps the id-keyed entry point in step with the instance-aware one", () => {
-            expect(
-                dslRealizedAbilityValueById(SOLITUDE_ID, selfView())
-            ).toBeGreaterThan(
+            expect(dslRealizedAbilityValueById(SOLITUDE_ID, selfView())).toBe(
                 dslRealizedAbilityValueById(
                     SOLITUDE_ID,
                     selfView({ evoked: true })

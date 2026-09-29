@@ -379,7 +379,7 @@ describe("BotFindingsCardsPanel — the Cards tab (issue #4176/#4177)", () => {
 describe("BotFindingsCardsPanel — copy and launch (issue #4178)", () => {
     // Real committed blade labels: one plain board, one needing setup steps.
     const PLAIN =
-        "symmetric sweep: casts Armageddon when the opponent holds the land surplus and the Bot the board";
+        "recoverable sweep: casts Armageddon when the Bot keeps its mana in rocks and the opponent has only lands";
     const SETUP =
         "keep mana open: casts Accumulated Knowledge at the opponent's end step";
     const writeText = vi.fn(() => Promise.resolve());

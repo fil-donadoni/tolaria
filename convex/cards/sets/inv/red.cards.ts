@@ -949,6 +949,7 @@ export const tectonicInstability: CardDefinition = {
             oracleText:
                 "Whenever a land enters, tap all lands its controller controls.",
             event: "PERMANENT_ENTERED",
+            etbAbility: false, // issue #4758
             matches: (event) =>
                 event.type === "PERMANENT_ENTERED" &&
                 event.types.includes("Land"),

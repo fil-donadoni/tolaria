@@ -150,6 +150,23 @@ export interface EnteredTriggerArgs {
     aiEffects?: EffectOp[];
 }
 
+/** Does any body of this trigger — its script, its shadow script or a mode's
+ *  script — carry a `delayedTrigger` Op, at any nesting depth (issue #4758)? */
+function schedulesDelayedTrigger(args: EnteredTriggerArgs): boolean {
+    const bodies: unknown[] = [
+        args.effects,
+        args.aiEffects,
+        ...(args.modes ?? []).map((m) => m.effects),
+    ];
+    const walk = (node: unknown): boolean => {
+        if (Array.isArray(node)) return node.some(walk);
+        if (node === null || typeof node !== "object") return false;
+        if ((node as { op?: unknown }).op === "delayedTrigger") return true;
+        return Object.values(node).some(walk);
+    };
+    return walk(bodies);
+}
+
 /** Builds a `TriggeredAbility` listening for `PERMANENT_ENTERED` events
  *  (CR 603.6a). The factory handles event-type narrowing, scope gating,
  *  filter matching, and CR 603.4 wiring so card authors write only
@@ -159,6 +176,14 @@ export function enteredTrigger(args: EnteredTriggerArgs): TriggeredAbility {
         id: args.id,
         oracleText: args.oracleText,
         event: "PERMANENT_ENTERED",
+        // Issue #4758 — CR 603.6a "When [this object] enters": a `self`-scoped
+        // ability on the entering event alone is an ETB Ability, spent on
+        // entering. Every other scope fires on another permanent and stays
+        // realized — and so does a self ETB that SCHEDULES a delayed trigger
+        // (CR 603.7a, Dash's return), whose consequence is still pending
+        // after it resolves and shows nowhere in the state the evaluation
+        // reads.
+        etbAbility: args.scope === "self" && !schedulesDelayedTrigger(args),
         matches: (event, self, state) => {
             if (event.type !== "PERMANENT_ENTERED") return false;
             const identity = {

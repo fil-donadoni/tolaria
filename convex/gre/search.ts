@@ -87,6 +87,7 @@ import {
 import { getEffectivePower, getEffectiveToughness } from "./layers";
 import {
     enumerateMoves,
+    enumerateRaisedTargetMoves,
     type ModeCombinationTruncation,
     type Move,
 } from "./moves";
@@ -1664,10 +1665,14 @@ export function policyProbeState(
     weights: EvalWeights = DEFAULT_EVAL_WEIGHTS,
     moverId?: string
 ): GameState {
+    // The depth the move's own announcement sits on — everything below it
+    // belongs to somebody else. -1 when the move put nothing on the stack.
+    let announcedDepth = -1;
     if (
         (move.kind === "cast-spell" || move.kind === "activate-ability") &&
         probe.stack.length > 0
     ) {
+        announcedDepth = probe.stack.length - 1;
         resolveTopOfStack(probe);
     }
     // Issue #3293 — a SUSPENDED resolution is not a ply boundary, and scoring
@@ -1716,6 +1721,24 @@ export function policyProbeState(
             // announcement, and settling it would price this move against a
             // board the move did not cause.
             suspendedDepth
+        );
+    } else if (moverId && announcedDepth === 0) {
+        // Issue #4758 — the triggers a resolution puts on the stack are part
+        // of what the move did. An ETB Ability is spent on entering and never
+        // counted on the battlefield, so a probe that stopped with it still
+        // on the stack (or still announcing its target, CR 603.3d) scored a
+        // creature cast as its body alone: casting Flametongue Kavu into a
+        // real target read below holding it. Same bound as the branch above —
+        // only with nothing underneath (the move's own announcement was the
+        // whole stack), only the mover's own answers, and a settle that cannot
+        // finish hands back the probe as it was.
+        settled = settleStackForBreakdown(
+            probe,
+            moverId,
+            weights,
+            0,
+            { left: MAX_CHOICE_BRANCH_WORK },
+            0
         );
     }
     return settled;
@@ -2857,7 +2880,7 @@ export function settleStackForBreakdown(
     // un-resolved announcement: it is the announced cost with the payoff
     // deleted, which is precisely how a cast that pays reads as a blank card.
     // So a bail returns the position as it was AT ENTRY — the documented
-    // pre-#3194 fallback, which `bestBranchThroughChoice` already took for a
+    // pre-#3194 fallback, which `bestSettledBranch` already took for a
     // null branch and the loop below silently did not.
     //
     // AT ENTRY is the exact limit, and it is worth stating (PR review finding
@@ -2933,12 +2956,37 @@ function settleFrom(
 ): { state: GameState; complete: boolean } {
     let guard = 0;
     while (guard++ < 16) {
-        if (
-            state.pendingTarget ||
-            state.pendingCast ||
-            state.pendingActivation
-        ) {
+        if (state.pendingCast || state.pendingActivation) {
             return { state, complete: false };
+        }
+        if (state.pendingTarget) {
+            // Issue #4758 — CR 603.3d: a triggered ability's targets are
+            // chosen as it goes on the stack, by its controller. When that is
+            // the MOVER, the announcement is one of the mover's own answers,
+            // like a resolution-time choice (#3194), and the ETB it announces
+            // is the whole of what a creature's cast buys: stopping here
+            // scored the body without the removal it brings. Any other target
+            // selection — the opponent's trigger, a half-made cast or
+            // activation, a retarget — still bails.
+            if (
+                !moverId ||
+                state.pendingTarget.kind !== "trigger" ||
+                state.pendingTarget.playerId !== moverId ||
+                depth >= MAX_CHOICE_DEPTH
+            ) {
+                return { state, complete: false };
+            }
+            const best = bestSettledBranch(
+                state,
+                moverId,
+                enumerateRaisedTargetMoves(state, moverId),
+                weights,
+                depth,
+                budget,
+                floorDepth
+            );
+            if (!best) return { state, complete: false };
+            return { state: best, complete: true };
         }
         const head = state.pendingChoices?.[0];
         if (head) {
@@ -2949,9 +2997,10 @@ function settleFrom(
             ) {
                 return { state, complete: false };
             }
-            const best = bestBranchThroughChoice(
+            const best = bestSettledBranch(
                 state,
                 moverId,
+                choiceCandidates(state, head).map((c) => c.move),
                 weights,
                 depth,
                 budget,
@@ -2985,7 +3034,9 @@ function settleFrom(
     return { state, complete: !settleHasWork(state, floorDepth) };
 }
 
-/** The settled branch of the head choice that leaves `moverId` best off, or
+/** The settled branch of the mover's pending answer — the head choice's
+ *  candidates, or the legal selections of a trigger's announcement-time
+ *  targets (issue #4758) — that leaves `moverId` best off, or
  *  `null` when none could be COMPLETELY settled (an unsupported answer kind, a
  *  throw, an exhausted work budget, or a branch that bails deeper down) — in
  *  which case the caller keeps the un-resolved state, exactly as before issue
@@ -2998,19 +3049,18 @@ function settleFrom(
  *  branch happened to stop earliest. That is the same all-or-nothing argument
  *  the budget check below has always made, applied to the other way a branch
  *  can fail to finish. */
-function bestBranchThroughChoice(
+function bestSettledBranch(
     state: GameState,
     moverId: string,
+    answers: readonly Move[],
     weights: EvalWeights,
     depth: number,
     budget: { left: number },
     floorDepth = 0
 ): GameState | null {
-    const head = state.pendingChoices?.[0];
-    if (!head) return null;
     let best: GameState | null = null;
     let bestScore = -Infinity;
-    for (const candidate of choiceCandidates(state, head)) {
+    for (const answer of answers) {
         // All-or-nothing on the budget (never `break` with a partial argmax):
         // a later sibling that got no budget would be scored on its UNSETTLED
         // state, and the max would then be taken over unlike quantities,
@@ -3021,7 +3071,7 @@ function bestBranchThroughChoice(
         const branch = cloneGameState(state);
         let settled: { state: GameState; complete: boolean };
         try {
-            applyMoveInSearch(branch, moverId, candidate.move);
+            applyMoveInSearch(branch, moverId, answer);
             settled = settleFrom(
                 branch,
                 moverId,
@@ -3530,7 +3580,7 @@ function resolvedMarginDelta(
 /** What one answer to the head choice settles to, and WHERE the settle
  *  stopped. Two readings are comparable only at the same `frontier` (PR review
  *  finding 1): a completed settle and a bailed one measure different
- *  quantities — the same reason `bestBranchThroughChoice` skips a bailed
+ *  quantities — the same reason `bestSettledBranch` skips a bailed
  *  branch rather than scoring it. */
 type PutReading = { margin: number; frontier: string };
 

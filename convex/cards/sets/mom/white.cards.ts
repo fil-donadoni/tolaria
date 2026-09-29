@@ -38,6 +38,7 @@ export const witchEnchanter: CardDefinition = {
             oracleText:
                 "When this creature enters, destroy target artifact or enchantment an opponent controls.",
             event: "PERMANENT_ENTERED",
+            etbAbility: true, // issue #4758
             matches: (event, self) =>
                 event.type === "PERMANENT_ENTERED" &&
                 event.instanceId === self.id,

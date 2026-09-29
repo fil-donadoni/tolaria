@@ -123,6 +123,13 @@
             "needsSetup": false
         }
     ],
+    "Flametongue Kavu": [
+        {
+            "label": "ETB Ability realized: casts Flametongue Kavu into an opposing creature worth killing",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
     "Flash": [
         {
             "label": "cheat into play: casts for a body that pays on the way out",
@@ -380,6 +387,13 @@
     "Sheoldred's Edict": [
         {
             "label": "sacrifice sign NEGATIVE CONTROL: still casts a genuine edict",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
+    "Skyclave Apparition": [
+        {
+            "label": "ETB Ability realized: casts Skyclave Apparition into a permanent worth exiling",
             "tier": "must",
             "needsSetup": false
         }

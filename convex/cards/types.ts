@@ -11835,6 +11835,23 @@ export interface TriggeredAbility {
      *  some of them is a static validation failure (`validate.ts`), never a
      *  runtime skip. */
     event: GameEventType | GameEventType[];
+    /** Issue #4758 — is this an **ETB Ability** (CONTEXT.md): "When [this
+     *  object] enters, …" (CR 603.6a), fired by its OWN permanent entering and
+     *  by nothing else? `true` means it is SPENT on entering: the Bot's value
+     *  model counts it in the card's latent Card Value (hand, library,
+     *  graveyard, playable exile) and never in its realized one on the
+     *  battlefield, where what it did is already visible in the state it left
+     *  behind. `false` means an ability on the entering event that is NOT one
+     *  — scoped to another permanent ("whenever another creature enters"), or
+     *  on a mixed event list ("enters or attacks") — and stays realized.
+     *
+     *  Stamped by `enteredTrigger` from its scope (`self` → `true`), so the
+     *  factory-authored and compiled paths carry it for free; a trigger
+     *  written by hand on `PERMANENT_ENTERED` sets it by hand. Absent reads as
+     *  realized (fail-closed, the pre-#4758 behaviour); the catalogue census
+     *  (`etbAbilityCensus.bot.test.ts`) reds on any `PERMANENT_ENTERED`
+     *  trigger left unclassified. Never consulted by the engine. */
+    etbAbility?: boolean;
     /** CR 603.3d (issue #1193) — a triggered ability's targets are chosen when
      *  it is PUT ON THE STACK (unlike a spell/activated ability, which chooses
      *  targets before it reaches the stack). When set, `placeTriggersOnStack`

@@ -47,6 +47,7 @@ export const orcishBowmasters: CardDefinition = {
             id: "orcish-bowmasters-volley",
             oracleText: ORCISH_BOWMASTERS_TRIGGER,
             event: ["PERMANENT_ENTERED", "CARD_DRAWN"],
+            etbAbility: false, // issue #4758
             // CR 601.2c — "any target": a creature, a planeswalker or a
             // player, announced as the trigger goes on the stack.
             targetRequirement: { type: "any", count: 1 },

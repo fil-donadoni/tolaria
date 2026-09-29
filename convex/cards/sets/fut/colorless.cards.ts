@@ -125,6 +125,7 @@ export const swordOfTheMeek: CardDefinition = {
             oracleText:
                 "Whenever a 1/1 creature you control enters, you may return this card from your graveyard to the battlefield, then attach it to that creature.",
             event: "PERMANENT_ENTERED",
+            etbAbility: false, // issue #4758
             // CR 603.6e — this ability functions while the card sits in the
             // graveyard (Nether Shadow's scan path), not the battlefield.
             zone: "graveyard",

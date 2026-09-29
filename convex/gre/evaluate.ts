@@ -88,10 +88,12 @@ import {
 } from "./ai/colorCoverage";
 import {
     creatureValueRaw,
+    dslEtbAbilityInFlightValueById,
     dslLatentPiecesById,
     dslRealizedAbilityValueById,
     latentValue,
 } from "./cardValue";
+import { findTriggeredAbility } from "./copy";
 import { keywordBonusFor } from "./creatureBody";
 // Issue #2937 — the single authority on which granted keywords are PROTECTIVE
 // and on whether anything the opponent is doing can currently reach the
@@ -211,7 +213,10 @@ export { cardValueById } from "./cardValue";
  *  projection-safe path the latent term uses, never the wire-stripped
  *  `card.card` blob — so it is identical client- and server-side. Scored on a
  *  creature in play; a creature is scored as realized OR latent, never both,
- *  so the ability value is never double-counted. */
+ *  so the ability value is never double-counted. The one exception to the
+ *  #149 ordering is an ETB Ability (issue #4758): spent on entering, it is
+ *  latent-only, so a creature whose ETB is most of its worth reads as a loss
+ *  when cast into nothing and a gain only through what the ETB did. */
 export function evaluateCreature(
     state: GameState,
     card: CardInstanceState,
@@ -522,6 +527,49 @@ export function hasCastableFlashPermanent(
         playerId,
         (c) => !c.types.includes("Instant")
     );
+}
+
+/** Issue #4758 — `player`'s ETB Abilities that have triggered and not yet
+ *  resolved: on the stack (CR 603.3), spent from the permanent's realized worth
+ *  and not yet in the state they will leave behind. Credited here, once, so
+ *  the leaf neither counts a Flametongue Kavu's trigger twice nor drops it in
+ *  the window between entering and resolving — the window every probe that
+ *  stops short of resolution scores: a cast made with something already on
+ *  the stack, or a resolution that hands the OPPONENT a choice (a discard ETB
+ *  waits on the opponent's pick, CR 608.2d).
+ *
+ *  An ability whose announcement named no target is worth nothing: its
+ *  target requirement found no legal choice ("up to one", CR 601.2c), so it
+ *  resolves doing nothing. One still AWAITING its announcement (the live
+ *  `pendingTarget`, CR 603.3d) is credited, since its controller is about to
+ *  pick. The gate is decided on the stack item, which snapshots its source —
+ *  an evoked creature's sacrifice is charged while it waits. */
+function etbAbilitiesInFlight(
+    state: GameState,
+    player: PlayerState,
+    latent: LatentWeights
+): number {
+    let total = 0;
+    for (const item of state.stack) {
+        if (!item.triggeredAbilityId) continue;
+        if (item.castById !== player.id) continue;
+        const ability = findTriggeredAbility(item, item.triggeredAbilityId);
+        if (ability?.etbAbility !== true) continue;
+        const targeted =
+            ability.targetRequirement !== undefined ||
+            (ability.modes ?? []).some((m) => m.targetRequirement);
+        const announcing = state.pendingTarget?.cardInstanceId === item.id;
+        if (targeted && !announcing && (item.targets?.length ?? 0) === 0) {
+            continue;
+        }
+        total += dslEtbAbilityInFlightValueById(
+            String(item.card.id ?? ""),
+            ability.id,
+            item,
+            latent
+        );
+    }
+    return total;
 }
 
 /** Activation cost legs the board-side flexibility term is willing to price.
@@ -1396,6 +1444,9 @@ function playerTerms(
             }
         }
     }
+    // Issue #4758 — the realized side's counterpart of an ETB Ability in
+    // flight (see `etbAbilitiesInFlight`).
+    terms.creatures += etbAbilitiesInFlight(state, player, weights.latent);
     const manaCensus = availableManaUnitsFor(state, player);
     // MATERIAL: how many sources are owned, not how many are untapped right
     // now (issue #3377 — see `manaSourceTermFor`). Tapping a source to pay for

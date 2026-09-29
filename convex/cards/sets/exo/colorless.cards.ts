@@ -38,6 +38,7 @@ export const cityOfTraitors: CardDefinition = {
             id: "city-of-traitors-sac",
             oracleText: "When you play another land, sacrifice this land.",
             event: "PERMANENT_ENTERED",
+            etbAbility: false, // issue #4758
             matches: (event, self) => {
                 if (event.type !== "PERMANENT_ENTERED") return false;
                 // CR 305.2 — "when you PLAY another land": fires on a land

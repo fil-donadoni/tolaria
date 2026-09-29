@@ -1344,7 +1344,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         },
         bot: "me",
         budget: { iterations: 400 },
-        seeds: [0xb1ade, 1, 2],
+        seeds: [0xb1ade, 2, 3], // seed 1 → 3 (issue #4758 refit): noise-pinned, issue #4882
         // ADR 0070 §2 — measured, not guessed: `cast Phyrexian Dreadnought` on
         // all three seeds at 400, 800, 1600 and 3200 (monotone, no
         // converge-away). Once beyond budget with cause `horizon` (it needed
@@ -9449,6 +9449,107 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
             describe: "casts Unnatural Speed on one of its own Grizzly Bears",
         },
         note: "Issue #4273. Pins the class 'a boon on the bot's own permanent is not self-harm' at the root hold. The predicate does not name the sick body: the target choice among the bot's own Bears is a separate, rollout-noise preference this entry does not claim. The cast and `pass` are outcome-equal here, so the pick is the pre-attack arm of `last-window-fire` (issue #4768): a haste grant on a summoning-sick body has its last useful window before attackers are declared (CR 508.1a), not at the opponent's end step.",
+    },
+    // Issue #4758 (PRD #4754) — an ETB Ability is spent on entering: latent
+    // (hand, library, graveyard, playable exile), never realized. Two
+    // discriminating halves on a creature whose ETB can find NOTHING and whose
+    // body then survives as a vanilla, plus the Flametongue Kavu positions the
+    // issue names, which the mandatory target keeps honest on its own.
+    {
+        label: "ETB Ability spent: holds Skyclave Apparition while its ETB has nothing to exile",
+        spec: {
+            cards: [{ name: "Skyclave Apparition", owner: "me", zone: "hand" }],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 4,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [{ kind: "cast-spell", card: "Skyclave Apparition" }],
+        },
+        note: 'Issue #4758 — the discriminating half. Skyclave Apparition\'s ETB ("exile up to one target nonland, nontoken permanent you don\'t control with mana value 4 or less") is an ETB Ability: spent on entering, latent in hand, never realized on the battlefield. With nothing to exile the trigger goes on the stack targetless (CR 601.2c "up to") and does nothing, so casting it trades the potential for a vanilla 2/2. Measured at authoring time on all five seeds: `cast-spell` before the change (the realized reading still counted the spent ETB), `pass` after. Proof of failure: putting the ETB back on the realized face, or discounting the latent ETB like a standing ability (0.5), turns this entry red.',
+    },
+    {
+        label: "ETB Ability realized: casts Skyclave Apparition into a permanent worth exiling",
+        spec: {
+            cards: [
+                { name: "Skyclave Apparition", owner: "me", zone: "hand" },
+                {
+                    name: "Hill Giant",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 4,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "cast-spell", card: "Skyclave Apparition" }],
+        },
+        note: "Issue #4758 — the passivity guard for the entry above: with an opposing Hill Giant to exile, casting realizes more than the potential it spends, so the Bot casts. Green before and after the change; what keeps it green after is the policy probe settling the ETB's own target announcement (CR 603.3d) — without it the probe scores the cast as a bare body.",
+    },
+    {
+        label: "ETB Ability spent: holds Flametongue Kavu when its ETB can only hit its own side",
+        spec: {
+            cards: [
+                { name: "Flametongue Kavu", owner: "me", zone: "hand" },
+                {
+                    name: "Grizzly Bears",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 4,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [{ kind: "cast-spell", card: "Flametongue Kavu" }],
+        },
+        note: 'Issue #4758 — a POSITION GUARD, not a discriminating entry. Flametongue Kavu\'s "deals 4 damage to target creature" is mandatory (CR 603.3d: a trigger is removed only when NO legal target can be chosen), so with no opposing creature it must hit its own Grizzly Bears or itself. The search already held here before the change (measured: `pass` on all five seeds); the entry keeps the spent-ETB accounting from teaching the Bot to throw a creature away. The discriminating hold is the Skyclave Apparition entry.',
+    },
+    {
+        label: "ETB Ability realized: casts Flametongue Kavu into an opposing creature worth killing",
+        spec: {
+            cards: [
+                { name: "Flametongue Kavu", owner: "me", zone: "hand" },
+                {
+                    name: "Serra Angel",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 4,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "cast-spell", card: "Flametongue Kavu" }],
+        },
+        note: "Issue #4758 — the passivity guard for Flametongue Kavu: a Serra Angel to kill is worth more than the potential spent, so the Bot casts. Green before and after the change.",
     },
 ];
 
