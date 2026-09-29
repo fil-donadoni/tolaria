@@ -360,6 +360,34 @@ const KICKED_SWEEP_CREATURE: CardDefinition = {
     ],
 };
 
+/** CR 603.6a / 603.3d (issue #4758) — a creature whose ETB Ability destroys
+ *  target Wall (Ogre Gatecrasher's shape). The generated position seeds no
+ *  Wall, so the ETB has nothing it may target and the Bot rightly holds the
+ *  card: a limit of the position, never a Bot Gap. */
+const ETB_WALL_REMOVER: CardDefinition = {
+    id: "bot-reach-test:etb-wall-remover",
+    name: "Bot Reach ETB Wall Remover",
+    rarity: "common",
+    manaCost: { generic: 1, W: 1 },
+    types: ["Creature"],
+    subtypes: ["Human", "Monk"],
+    power: 1,
+    toughness: 1,
+    compiledTriggeredAbilities: [
+        {
+            id: "bot-reach-test:etb-wall-remover:trigger",
+            oracleText: "When this creature enters, destroy target Wall.",
+            head: { kind: "entered", scope: "self" },
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                subtypeFilter: "Wall",
+            },
+            effects: [{ op: "destroy", target: { target: 0 } }],
+        },
+    ],
+};
+
 describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
     it("played — the Bot casts an affordable creature at both seats", () => {
         expect(playTwice(getCardByName("Grizzly Bears"))).toEqual({
@@ -1659,6 +1687,15 @@ describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
             lands.filter((n) => n === "Mountain").length
         ).toBeGreaterThanOrEqual(3);
         expect(lands.filter((n) => n === "Plains")).toHaveLength(2);
+    });
+
+    it("position-unmodelled — a creature whose ETB Ability finds no legal target is held, and the refusal is the position's (issue #4758)", () => {
+        withTemporaryDefinition(ETB_WALL_REMOVER, () => {
+            expect(playTwice(ETB_WALL_REMOVER)).toMatchObject({
+                outcome: "ignored",
+                cause: "position-unmodelled",
+            });
+        });
     });
 
     it("played — a card whose value lies in its kicked branch is cast kicked", () => {

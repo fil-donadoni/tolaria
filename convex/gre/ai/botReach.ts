@@ -51,7 +51,11 @@ import {
     searchWithTrace,
 } from "../search";
 import { enumerateMoves, type Move } from "../moves";
-import { getLegalActions } from "../rules";
+import {
+    getLegalActions,
+    getLegalTargets,
+    targetingSourceFromCard,
+} from "../rules";
 import { allocInstanceId, type GameState } from "../state";
 import { hasInstantSpeed, manaValue } from "../constants";
 import {
@@ -60,7 +64,7 @@ import {
     getColorsFromCost,
 } from "../../cards/colors";
 import type { CardDefinition, EffectForEachSelector } from "../../cards/types";
-import { tryGetCardByName } from "../../cards";
+import { tryGetCardByName, tryGetDefinition } from "../../cards";
 import { matchesPermanentFilter } from "../../cards/filters";
 import { sweepPermanentFilter, UNREADABLE_SWEEP_FILTER } from "./latentBoard";
 import { castShape } from "./botReachForm";
@@ -1191,6 +1195,40 @@ function rootMoveFate(
     return pruned ? "pruned" : collapsed ? "collapsed" : undefined;
 }
 
+/**
+ * Issue #4758 — does every target requirement of the card's ETB Abilities
+ * (CR 603.6a, `TriggeredAbility.etbAbility`) find NO legal target in the
+ * position, asked of the card as the source that will be on the battlefield
+ * (CR 603.3d: the trigger announces its targets as it goes on the stack)? False
+ * for a card with no targeted ETB Ability. Reads the REGISTERED definition —
+ * the sweep registers `def` before playing it, and only the registered copy
+ * has its compiled trigger descriptors expanded and classified.
+ */
+export function etbFindsNoTarget(
+    def: CardDefinition,
+    state: GameState,
+    holderId: string,
+    instanceId: string
+): boolean {
+    const live = tryGetDefinition(def.id) ?? def;
+    const requirements = (live.triggeredAbilities ?? [])
+        .filter((t) => t.etbAbility === true)
+        .flatMap((t) => [
+            t.targetRequirement,
+            ...(t.modes ?? []).map((m) => m.targetRequirement),
+        ])
+        .filter((r) => r !== undefined);
+    if (requirements.length === 0) return false;
+    const card = state.players
+        .find((p) => p.id === holderId)
+        ?.hand.find((c) => c.id === instanceId);
+    if (!card) return false;
+    const source = targetingSourceFromCard(card, false);
+    return requirements.every(
+        (r) => getLegalTargets(state, r, source, holderId).length === 0
+    );
+}
+
 function playFrom(
     def: CardDefinition,
     state: GameState,
@@ -1248,6 +1286,17 @@ function playFrom(
         stalled ??= followed;
     }
     if (stalled !== null) return stalled;
+    // Issue #4758 — an ETB Ability is spent on entering, so with nothing for it
+    // to hit the Bot rightly HOLDS the card: the refusal is the position's
+    // (it seeds no target the ETB can name), the same harness limit a spell
+    // with no legal target is (issue #4259), never a claim about the Bot.
+    if (etbFindsNoTarget(def, state, holderId, instanceId)) {
+        return {
+            outcome: "ignored",
+            cause: "position-unmodelled",
+            form: castShape(def),
+        };
+    }
     return {
         outcome: "ignored",
         cause: "never-chosen",
