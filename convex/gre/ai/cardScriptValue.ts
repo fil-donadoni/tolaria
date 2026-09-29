@@ -597,6 +597,12 @@ export function etbSelfSacrificeWeight(def: CardDefinition): number {
         if (ability.etbAbility !== true) continue;
         const script = effectiveScript(ability);
         if (!script || !sacrificesSource(script)) continue;
+        // "Sacrifice it unless you pay …" (a `mayPay` in the same script,
+        // Phyrexian Dreadnought's power-12 sacrifice): the controller's own
+        // payment decides whether the body stays, so the sacrifice is not a
+        // certainty and the body keeps its latent worth. "Unless it escaped"
+        // and an evoke sacrifice are decided by how the card was cast instead.
+        if (hasOp(script, "mayPay")) continue;
         weight = Math.max(weight, gateWeight(ability, undefined));
     }
     return weight;
@@ -609,6 +615,14 @@ function sacrificesSource(node: unknown): boolean {
     const op = node as { op?: unknown; target?: { ref?: unknown } };
     if (op.op === "sacrifice" && op.target?.ref === "$source") return true;
     return Object.values(node).some(sacrificesSource);
+}
+
+/** Does this script carry an Op named `name`, at any nesting depth? */
+function hasOp(node: unknown, name: string): boolean {
+    if (Array.isArray(node)) return node.some((n) => hasOp(n, name));
+    if (node === null || typeof node !== "object") return false;
+    if ((node as { op?: unknown }).op === name) return true;
+    return Object.values(node).some((n) => hasOp(n, name));
 }
 
 /** The DSL ability-script value of a card's activated + triggered abilities
