@@ -236,7 +236,33 @@ Time stops swing 4 → 8 with load, the counter side does not.
 even by CPU time, and up to ~13 % (8 / 60) are cut under load 12; the
 remaining ~87 % finish or settle well inside the cap (median 653 ms). The
 iteration count, not the clock, is the binding budget for the typical decision.
-An honest idle figure (load < 3) is still owed: re-run when the box is quiet.
+The idle figure (load < 3) is recorded in the next section.
+
+### Idle re-measure (load < 3) — issue #4458 (2026-09-29)
+
+Commit `4e619d989` (`staging` tip when measured), same harness, same 60
+positions, seed `0xb1ade`, in-process. `uptime` at run start:
+`load averages: 2.40 4.29 6.89`; per-row `loadavg()[0]` stayed in
+**1.97–2.52** for both runs. The earlier "never below load 3" was three
+orphaned `bun` processes spinning at 99 % CPU for 3 days (`ui-admission-*`
+child scripts), not real work; killed, the box idles at ~2.
+
+| Run                                     | Load1     | Stopped by `time` | Median | p90     | Max     |
+| --------------------------------------- | --------- | ----------------- | ------ | ------- | ------- |
+| Live `medium`, wall clock               | 1.97–2.40 | 3 / 60            | 491 ms | 823 ms  | 1505 ms |
+| Same, `timeMs` uncapped: wall           | 1.97–2.52 | 0 (n/a)           | 495 ms | 824 ms  | 2266 ms |
+| Same, `timeMs` uncapped: CPU time (u+s) | 1.97–2.52 | 0 (n/a)           | 583 ms | 1175 ms | –       |
+
+Stops on the capped run: 36 by `iterations`, 17 `settled`, 3 by `time`, 4 with
+no trace (single forced move). The 3 time-cut decisions completed 400, 300
+and 364 of 400 iterations — one of them lost nothing. CPU time of an uncapped
+decision exceeds 1500 ms in **4 / 60** positions (max 2266 ms wall).
+
+**Verdict: yes, the clock cuts `medium` decisions — on a small minority
+(3 / 60 = 5 %, of which 2 / 60 actually lose iterations), and idle does not
+change the picture.** The non-idle run cut 4–8 / 60; idle cuts 3 / 60, and 4 / 60
+would exceed the cap by CPU alone. The iteration count, not the clock, binds
+the typical decision (median ~0.5 s against a 1.5 s cap).
 
 Reproduce: loop `bladeScenariosForTier("must").slice(0, 60)` through
 `buildBladeState` + `searchWithTrace(state, botId, DIFFICULTY_BUDGETS.medium, 0xb1ade)`,
