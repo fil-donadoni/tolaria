@@ -198,6 +198,7 @@ export interface ExistingClass {
     readonly key: string;
     readonly active: boolean;
     readonly cardCount: number;
+    readonly targetCounts: FindingClass["targetCounts"];
     readonly previousCardCount?: number;
 }
 
@@ -446,11 +447,32 @@ export function planClassWrites(
         });
     }
     for (const row of existing) {
-        if (!seen.has(row.key) && !keptByPlayed.has(row.key))
+        if (seen.has(row.key)) continue;
+        if (!keptByPlayed.has(row.key)) {
             writes.push({
                 kind: "patch",
                 id: row.id,
                 fields: { active: false },
+            });
+            continue;
+        }
+        // Kept for a played finding, carried by no non-played card: on a NEW
+        // measurement it holds 0 cards now, and what it held before is the
+        // baseline — otherwise a class whose last card just started playing
+        // (the very effect of a Bot fix) would keep showing its old count.
+        if (advanced && measurements.previous !== null && row.active)
+            writes.push({
+                kind: "patch",
+                id: row.id,
+                fields: {
+                    cardCount: 0,
+                    targetCounts: row.targetCounts.map((t) => ({
+                        target: t.target,
+                        count: 0,
+                    })),
+                    previousCardCount: row.cardCount,
+                    active: true,
+                },
             });
     }
     return writes;

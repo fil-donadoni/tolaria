@@ -275,22 +275,34 @@ async function main(): Promise<void> {
         // is cut short leaves the page stale (marked so) instead of the tip
         // red: the measurement is a view of the Bot, not a gate on it.
         if (failedStep === undefined) {
-            let refreshed = refreshSteps.length > 0;
-            for (const step of refreshSteps) {
-                const r = await runHealthStep(step, { cwd: wt, env, logPath });
-                if (!r.ok) {
-                    refreshed = false;
-                    console.error(
-                        `health-main: ${step.name} failed — Bot Findings stay stale (${logPath})`
-                    );
-                    break;
+            try {
+                let refreshed = refreshSteps.length > 0;
+                for (const step of refreshSteps) {
+                    const r = await runHealthStep(step, {
+                        cwd: wt,
+                        env,
+                        logPath,
+                    });
+                    if (!r.ok) {
+                        refreshed = false;
+                        console.error(
+                            `health-main: ${step.name} failed — Bot Findings stay stale (${logPath})`
+                        );
+                        break;
+                    }
                 }
+                // Kept beside `last.json`: the worktree is removed below, and
+                // the artifact is what a PR commits (`bun run bot:reach`).
+                const artifact = join(wt, "data/bot-reach-findings.json");
+                if (refreshed && existsSync(artifact))
+                    copyFileSync(artifact, join(dir, REFRESHED_ARTIFACT_NAME));
+            } catch (err) {
+                // A throw here (spawn error, full disk) must not skip the
+                // verdict record below: the gates passed, the tip is green.
+                console.error(
+                    `health-main: Bot Findings refresh threw — page stays stale: ${String(err)}`
+                );
             }
-            // Kept beside `last.json`: the worktree is removed below, and the
-            // artifact is what a PR commits (`bun run bot:reach`).
-            const artifact = join(wt, "data/bot-reach-findings.json");
-            if (refreshed && existsSync(artifact))
-                copyFileSync(artifact, join(dir, REFRESHED_ARTIFACT_NAME));
         }
     } finally {
         spawnSync("git", ["worktree", "remove", "--force", wt], { cwd: root });

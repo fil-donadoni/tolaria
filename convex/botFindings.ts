@@ -185,6 +185,7 @@ export const seed = internalMutation({
                 key: row.key,
                 active: row.active,
                 cardCount: row.cardCount,
+                targetCounts: row.targetCounts,
                 ...(row.previousCardCount === undefined
                     ? {}
                     : { previousCardCount: row.previousCardCount }),

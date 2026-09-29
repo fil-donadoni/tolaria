@@ -452,6 +452,38 @@ describe("botFindings.seed — measured fields rewritten, human fields untouched
         expect(stub.doc("c-1").active).toBe(true);
     });
 
+    it("shows a kept class holding 0 cards now, with its old count as the baseline (issue #4181)", async () => {
+        const stub = makeMutationCtx(null, [
+            storedFinding("f-1", "o-a"),
+            {
+                _id: "c-1",
+                __table: "botFindingClasses",
+                ...CLASS,
+                cardCount: 4,
+                active: true,
+            },
+            {
+                _id: "m-1",
+                __table: "botFindingMeasurements",
+                ...measurement("old"),
+            },
+        ]);
+        await runMutation(seed, stub.ctx, {
+            payload: {
+                measurement: measurement("new"),
+                findings: [],
+                played: ["o-a"],
+                classes: [],
+            },
+        });
+        expect(stub.doc("c-1")).toMatchObject({
+            active: true,
+            cardCount: 0,
+            previousCardCount: 4,
+            targetCounts: [{ target: "cube", count: 0 }],
+        });
+    });
+
     it("writes nothing to a row already deactivated, and does not count it again", async () => {
         const stub = makeMutationCtx(null, [
             storedFinding("f-1", "o-gone", { active: false }),
