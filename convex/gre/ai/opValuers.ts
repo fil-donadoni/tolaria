@@ -1658,10 +1658,13 @@ const grantCastFromGraveyard: Valuer<"grantCastFromGraveyard"> = () => ({
 });
 
 // CR 702.34a (issue #4756) — a flashback grant is a cast permission on one
-// graveyard card for its own mana cost: the same one-card recursion
-// `grantCastFromGraveyard` prices, so it mirrors that valuer exactly.
-const grantFlashback: Valuer<"grantFlashback"> = () => ({
-    points: GRANT_CAST_VALUE,
+// graveyard card for its own mana cost: one card of card advantage, priced at
+// the fitted `latent.cardAdvantage` unit a drawn card carries (issue #4217,
+// PRD #4754: an ETB Ability's potential is a Latent Weight, never a bespoke
+// constant). At the flat `GRANT_CAST_VALUE` it sat below a bare body, so
+// Snapcaster Mage read as cheaper held than cast into an empty graveyard.
+const grantFlashback: Valuer<"grantFlashback"> = (_op, ctx) => ({
+    points: priced(ctx, "cardAdvantage"),
     tags: ["cardAdvantage"],
 });
 
