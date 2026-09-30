@@ -9,6 +9,8 @@ import ScenariosAdminPanel from "../scenarios-admin-panel";
 
 const navigate = vi.fn();
 const createSoloGame = vi.fn();
+const chooseFirstPlayer = vi.fn();
+const getGame = vi.fn();
 const setupScenario = vi.fn();
 const deleteScenario = vi.fn();
 const setGolden = vi.fn();
@@ -61,6 +63,10 @@ const PRESETS = [
 ];
 
 vi.mock("convex/react", () => ({
+    useConvex: () => ({
+        query: (query: { _name: string }, args: unknown) =>
+            query._name === "getGame" ? getGame(args) : undefined,
+    }),
     useQuery: (query: { _name: string }) => {
         if (query._name === "listDebugScenarios") return SCENARIOS;
         if (query._name === "list") return PRESETS;
@@ -69,6 +75,7 @@ vi.mock("convex/react", () => ({
     },
     useMutation: (fn: { _name: string }) => {
         if (fn._name === "createSoloGame") return createSoloGame;
+        if (fn._name === "chooseFirstPlayer") return chooseFirstPlayer;
         if (fn._name === "debugSetupScenario") return setupScenario;
         if (fn._name === "deleteDebugScenario") return deleteScenario;
         if (fn._name === "setDebugScenarioGolden") return setGolden;
@@ -117,6 +124,10 @@ describe("ScenariosAdminPanel", () => {
             calls.push("create");
             return "game-1";
         });
+        getGame.mockImplementation(async () => ({ matchId: "match-1" }));
+        chooseFirstPlayer.mockImplementation(async () => {
+            calls.push("toss");
+        });
         setupScenario.mockImplementation(async () => {
             calls.push("setup");
         });
@@ -139,12 +150,21 @@ describe("ScenariosAdminPanel", () => {
         expect(screen.getAllByText("Test").length).toBe(SCENARIOS.length);
     });
 
-    it("Test creates a solo game, applies the scenario, then navigates — in that order", async () => {
+    it("Test creates a solo game, resolves its coin toss, applies the scenario, then navigates — in that order", async () => {
         render(<ScenariosAdminPanel />);
         fireEvent.click(screen.getAllByText("Test")[0]);
 
         await waitFor(() => expect(navigate).toHaveBeenCalled());
-        expect(calls).toEqual(["create", "setup", "navigate"]);
+        expect(calls).toEqual(["create", "toss", "setup", "navigate"]);
+
+        // `createSoloGame` opens G1 on the coin-toss gate with no board
+        // (issue #4907): the toss must be resolved on THIS game's Match
+        // before the spec has a `gameStates` row to apply to.
+        expect(getGame).toHaveBeenCalledWith({ gameId: "game-1" });
+        expect(chooseFirstPlayer).toHaveBeenCalledWith({
+            matchId: "match-1",
+            choice: "play",
+        });
 
         expect(createSoloGame).toHaveBeenCalledTimes(1);
         expect(createSoloGame.mock.calls[0][0].name).toBe(
@@ -152,6 +172,8 @@ describe("ScenariosAdminPanel", () => {
         );
         // A scenario is a position, not a match.
         expect(createSoloGame.mock.calls[0][0].bestOf).toBe(1);
+        // Played against the Bot, never both seats by hand (issue #4907).
+        expect(createSoloGame.mock.calls[0][0].vsAi).toBe(true);
 
         // The spec is applied to the game just created, normalized (ADR 0044).
         expect(setupScenario).toHaveBeenCalledTimes(1);

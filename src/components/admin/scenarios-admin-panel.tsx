@@ -57,7 +57,7 @@ export default function ScenariosAdminPanel() {
     const [filter, setFilter] = useState("");
     const [editing, setEditing] = useState<EditingScenario | null>(null);
     const [creating, setCreating] = useState(false);
-    // "Test": create a fresh solo game, apply this scenario to it, go to the
+    // "Test": create a fresh vs-AI game, apply this scenario to it, go to the
     // board. The only affordance here that leaves the page.
     const testGame = useScenarioTestGame();
 
