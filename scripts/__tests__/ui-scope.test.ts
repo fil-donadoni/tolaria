@@ -30,6 +30,7 @@ const FILES: Record<string, string> = {
         `import Lobby from "./routes/lobby.route";`,
         `import Game from "./routes/game.route";`,
         `import Census from "./routes/census.route";`,
+        `import Orphan from "./routes/orphan.route";`,
         `import AppShell from "./components/chrome/app-shell";`,
     ].join("\n"),
     "src/components/chrome/app-shell.tsx": `import { NavLink } from "./nav-link";\n`,
@@ -40,6 +41,10 @@ const FILES: Record<string, string> = {
     "src/components/ui/button.tsx": `export const Button = 1;\n`,
     "src/routes/lobby.route.tsx": `import { Button } from "~/components/ui/button";\nimport { TOKENS } from "~/lib/design-tokens";\nimport { DeckShelf } from "~/components/deck-shelf";\nimport { Card } from "~/components/card";\nimport type { Shape } from "~/components/shape";\n`,
     "src/routes/game.route.tsx": `import { Card } from "~/components/card";\nimport { PauseDialog } from "~/components/dialogs/pause";\nconst quiz = () => import("~/components/debug/quiz");\n`,
+    // A route the router mounts and NO surface declares: whatever it renders
+    // is reachable at runtime, and nothing walks it.
+    "src/routes/orphan.route.tsx": `import { Widget } from "~/components/orphan-widget";\n`,
+    "src/components/orphan-widget.tsx": `export const Widget = 1;\n`,
     // Named by the lobby in a type-only statement and by nothing at runtime:
     // the build erases the edge, so no screen runs its code.
     "src/components/shape.ts": `export type Shape = 1;\n`,
@@ -208,6 +213,16 @@ describe("computeUiScope — full (fail-closed)", () => {
         const scope = scopeOf("src/components/deck-shelf.tsx", changed);
         expect(scope.kind).toBe("full");
         expect(scope.kind === "full" && scope.reason).toContain(reason);
+    });
+
+    it("a component under a route no surface declares selects full — reachable at runtime, walked by nothing (issue #4913 review)", () => {
+        // The type-only rule must not swallow it: the file IS in the
+        // type-inclusive closure of the shell (through the router), but it
+        // is in the runtime closure too, so nothing about it is erased.
+        expect(scopeOf("src/components/orphan-widget.tsx")).toEqual({
+            kind: "full",
+            reason: "src/components/orphan-widget.tsx is in no surface's closure and no rule places it",
+        });
     });
 
     it("a component the shell imports selects full, though no rule names it", () => {

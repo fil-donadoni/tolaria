@@ -81,4 +81,55 @@ describe("check:ui surface table — specimen rows (issue #4913)", () => {
             }
         }
     );
+
+    // The scoper prunes by NODE (issue #4913 review): the page scaffolding
+    // stops at a section module, and a section's closure stops at a row's
+    // mount. A section imported by anything but the route (a helper taken
+    // from it by `lib.tsx`), or a mount imported by anything in its section's
+    // closure but the section itself (a fixture borrowing a constant from a
+    // sibling dialog), would drop that module's closure out of the rows it
+    // can still move. Both are refused here, so the residual the ADR
+    // amendment accepts is the one it names, not these.
+    const sections = new Map<string, Set<string>>();
+    for (const s of specimens) {
+        const set = sections.get(s.specimen!.section) ?? new Set<string>();
+        for (const m of s.mounts ?? []) set.add(m);
+        sections.set(s.specimen!.section, set);
+    }
+    const entries = new Set(specimens.flatMap((s) => s.entries));
+
+    it("a specimen section is imported by its route entries only — never by the page's other modules", () => {
+        for (const entry of entries) {
+            for (const file of graph.closureOf(entry)) {
+                if (sections.has(file)) continue;
+                for (const imported of graph.importsOf(file)) {
+                    expect(
+                        !sections.has(imported) || entries.has(file),
+                        `${file} imports the specimen section ${imported}; only a route entry may`
+                    ).toBe(true);
+                }
+            }
+        }
+    });
+
+    it("a row's mount is imported inside its section's scaffolding by the section only — never by a fixture or a helper", () => {
+        // The section's closure AS THE SCOPER TAKES IT — pruned at every
+        // row's mount: a mount importing a sibling mount (the game-over
+        // dialog renders the sideboarding one) is inside its own row's
+        // unpruned mount closure and is not what this refuses.
+        for (const [section, mounts] of sections) {
+            const scaffolding = graph.closureOf(section, {
+                prune: (p) => mounts.has(p),
+            });
+            for (const file of scaffolding) {
+                if (file === section) continue;
+                for (const imported of graph.importsOf(file)) {
+                    expect(
+                        !mounts.has(imported),
+                        `${file} imports ${imported}, a mount of ${section}'s rows; only the section may`
+                    ).toBe(true);
+                }
+            }
+        }
+    });
 });

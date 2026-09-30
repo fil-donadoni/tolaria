@@ -148,12 +148,16 @@ export function computeUiScope({
         id: surface.id,
         files: surfaceClosure(surface, graph, specimens),
     }));
-    // Every module the app names at all, type-only edges included — taken
-    // once, and only when a path lands in no runtime closure.
-    let typeReach: Set<string> | null = null;
-    const typeReachable = (path: string): boolean => {
-        if (typeReach === null) {
-            typeReach = new Set<string>();
+    // A path the app names ONLY through type-only edges: in the type-inclusive
+    // closure of the roots below and NOT in their runtime closure — taken
+    // once, and only when a path lands in no surface's closure. The runtime
+    // half is what keeps this fail-closed: the same roots reach, at runtime,
+    // a route module no surface declares (the shell's closure is pruned at
+    // route modules), and a file under such a route must still force FULL,
+    // not read as "nothing runs it".
+    let reach: { runtime: Set<string>; typed: Set<string> } | null = null;
+    const typeOnlyReachable = (path: string): boolean => {
+        if (reach === null) {
             const roots = [
                 SHELL_ENTRY,
                 BUILD_CONFIG,
@@ -163,12 +167,15 @@ export function computeUiScope({
                     ...(s.specimen ? [s.specimen.section] : []),
                 ]),
             ];
+            reach = { runtime: new Set(), typed: new Set() };
             for (const entry of roots) {
+                for (const file of graph.closureOf(entry))
+                    reach.runtime.add(file);
                 for (const file of graph.closureOf(entry, { types: true }))
-                    typeReach.add(file);
+                    reach.typed.add(file);
             }
         }
-        return typeReach.has(path);
+        return reach.typed.has(path) && !reach.runtime.has(path);
     };
 
     const selected = new Set<string>();
@@ -204,7 +211,7 @@ export function computeUiScope({
         }
         const hits = closures.filter((c) => c.files.has(path));
         if (hits.length === 0) {
-            if (typeReachable(path)) continue;
+            if (typeOnlyReachable(path)) continue;
             return {
                 kind: "full",
                 reason: `${path} is in no surface's closure and no rule places it`,
