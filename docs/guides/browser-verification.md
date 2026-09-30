@@ -198,7 +198,7 @@ deployment.
   the surface, waiting for the load to drop, before it stands; when it stands
   the surface is unproven, never failed, and never green — `land` refuses the
   receipt. The signatures are `function-timeout`, `server-error`,
-  `navigation-timeout`, `step-timeout` and `unsettled`
+  `navigation-timeout`, `step-timeout`, `unsettled` and `cell-deadline`
   (`scripts/ui-gate/infra-verdict.ts`); each cell gets three attempts, and
   before each retry the lane waits for the 1-minute load average to drop
   under the CPU count (`TOLARIA_UI_GATE_LOAD_THRESHOLD` overrides it) — one
@@ -207,7 +207,17 @@ deployment.
   never moved) — ending and re-dealing its own game first when the surface
   plays in one. A
   signature that still fails with the load under that threshold is the walk's
-  own failure, and is reported as UNWALKED.
+  own failure, and is reported as UNWALKED — except `cell-deadline`.
+- **Deadlines** (issue #4912). Every cell ATTEMPT — walk, settle, probe, axe,
+  screenshot, assertions — runs under a wall-clock deadline (180s,
+  `TOLARIA_UI_GATE_CELL_DEADLINE_MS`); past it the lane closes the page and
+  the attempt fails as `cell-deadline`, retried like any signature and
+  standing as INFRA at any load (the stall it names is an await in the lane
+  that never settled, observed with the renderers idle). The run as a whole
+  gets 60 min (`TOLARIA_UI_GATE_RUN_DEADLINE_MS`): past it the lane prints
+  the finished viewports' cells and every viewport still open with the step
+  it was on, tears down its accounts, and exits 2 with no receipt
+  (`scripts/ui-gate/cell-deadline.ts`).
 - **UNWALKED** — the lane could not measure the surface at all: the
   debug-scenario row is absent from this deployment, an active game blocks the
   route, a walk timed out. This also exits non-zero. Coverage is the thing

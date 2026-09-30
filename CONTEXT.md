@@ -1536,7 +1536,7 @@ A promise a **Walked Surface** declares about one named element on it — that a
 _Avoid_: Precondition (a walk step that decides whether the surface was reached — it fails as UNWALKED, not as a broken promise), smoke check, expectation
 
 **Infra Verdict**:
-The third outcome of a **Walked Surface** at a viewport, beside pass and fail: the walk was cut short by the machine, not by the tree — a backend function past its execution limit, a server error, a navigation that never answered — recognised by its signature in the console and named on the receipt with that signature and the machine load. The lane retries the surface, waiting for the load to drop, before it stands; when it stands the surface is unproven, never failed, and never green.
+The third outcome of a **Walked Surface** at a viewport, beside pass and fail: the walk was cut short by the machine, not by the tree — a backend function past its execution limit, a server error, a navigation that never answered, a cell attempt that outlived its deadline — recognised by its signature in the console and named on the receipt with that signature and the machine load. The lane retries the surface, waiting for the load to drop, before it stands; when it stands the surface is unproven, never failed, and never green.
 _Avoid_: UNWALKED for a load red (UNWALKED is the walk's own inability to reach the surface on a quiet machine), flaky, timeout (one signature of several)
 
 **Settled Screen**:
