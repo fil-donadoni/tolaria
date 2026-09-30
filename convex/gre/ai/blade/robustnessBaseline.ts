@@ -18,10 +18,6 @@ import type { RobustnessBaselineRow } from "./robustness";
 export const ROBUSTNESS_BASELINE: readonly RobustnessBaselineRow[] = [
     // First run (issue #4875), wide seeds 0..9 × default / jitter+ / jitter-.
     {
-        label: "bounce sweep: casts Hibernation when the opponent holds the green surplus",
-        issue: 4878,
-    },
-    {
         label: "Sacrifice outlet with a transient payoff: casts the creature",
         issue: 4877,
     },

@@ -185,7 +185,7 @@
     ],
     "Hibernation": [
         {
-            "label": "bounce sweep: casts Hibernation when the opponent holds the green surplus",
+            "label": "bounce sweep: casts Hibernation when the opponent's green board outweighs its mana",
             "tier": "must",
             "needsSetup": false
         }
