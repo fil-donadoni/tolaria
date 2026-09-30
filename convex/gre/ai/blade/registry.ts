@@ -9722,20 +9722,16 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         bot: "me",
         budget: { iterations: 400 },
         seeds: [0xb1ade, 1, 2, 3, 4],
-        tier: "stretch",
+        tier: "must",
         expect: {
-            // A PREDICATE, not `moves`: this tier-stretch position is one the
-            // Evaluation cannot order yet, and as a Verdict it would pull the
-            // weight fit toward nothing it can satisfy. The owning issue
-            // promotes it to a `moves` `must` entry with its fix.
-            predicate: (move, state) =>
-                matchesMove(state, move, {
+            moves: [
+                {
                     kind: "cast-spell",
                     card: "Uro, Titan of Nature's Wrath",
-                }),
-            describe: "casts Uro, Titan of Nature's Wrath",
+                },
+            ],
         },
-        note: "Issue #4895 (issue #4758 review). STRETCH, owned by issue #4898: hard-cast Uro gains 3 life and draws, then goes to the graveyard with escape — strictly better than holding. Measured pass on 5/5 seeds.",
+        note: "Issue #4895 (issue #4758 review), fixed by issue #4898: hard-cast Uro gains 3 life and draws, then goes to the graveyard with escape — strictly better than holding. The cast read BELOW holding (policy 91.6 against 102.7) because `manaDevelopment` dropped the escape-ready card from the curve (-40.7) once it left the hand; a printed-escape graveyard card now keeps its curve top. The search already chose the cast on 5/5 seeds; the Eval Pair (etbAbility.bot.test.ts) carries the ordering.",
     },
     {
         label: "alternate win: casts Thassa's Oracle when its trigger wins on the spot",

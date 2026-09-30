@@ -72,6 +72,7 @@ import {
 import { dangerClock, predictCombatOutcome } from "./dangerClock";
 import { castableHeldInteraction } from "./heldInteraction";
 import { exileCastPermission } from "./castCost";
+import { getPrintedEscape } from "./escape";
 import {
     canPayCost,
     coversCostColors,
@@ -975,6 +976,19 @@ function manaDevelopmentTerm(
     // about. Built once, then asked one colour question per hand card.
     const baseUnits = base;
     for (const c of player.hand) {
+        const cost = getInstanceManaCost(c);
+        if (!coversCostColors(baseUnits, cost, { life: player.life })) continue;
+        raise(c);
+    }
+    // Issue #4898 — a card in the GRAVEYARD that escapes on its own (CR
+    // 702.138a, printed escape) is still a card this base is for: it leaves
+    // the hand for the graveyard and stays castable, so dropping it from the
+    // curve read casting a Titan whose hard-cast is spent on entering as
+    // losing the whole term (Uro: -40 of a net +30). Same colour question as a
+    // hand card; a flashback or granted permission is not counted (those cards
+    // were already cast once and their reach is `graveyardReach`'s).
+    for (const c of player.graveyard) {
+        if (getPrintedEscape(c) === undefined) continue;
         const cost = getInstanceManaCost(c);
         if (!coversCostColors(baseUnits, cost, { life: player.life })) continue;
         raise(c);

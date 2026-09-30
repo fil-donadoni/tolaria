@@ -27,7 +27,7 @@ import {
     type Move,
 } from "../../moves";
 import { resolveTopOfStack } from "../../state";
-import { evaluate } from "../../evaluate";
+import { evaluate, evaluateBreakdown } from "../../evaluate";
 import { applyMoveInSearch, policyValue } from "../../search";
 import { buildPositionFromSpec } from "../blade/build";
 import { findBladeScenario } from "../blade/registry";
@@ -328,5 +328,67 @@ describe("the cast route a zone implies (issue #4897, regression of #4758)", () 
         const etbOnly =
             w.graveyardReachFraction * dslAbilityScriptValue(phlage);
         expect(gap).toBeGreaterThan(etbOnly);
+    });
+});
+
+describe("Eval Pairs — a self-sacrificing ETB Titan is cast from hand (issue #4898)", () => {
+    /** The blade entry's own position, so the pair and the entry cannot drift. */
+    function bladePosition(label: string): GameState {
+        const entry = findBladeScenario(label);
+        if (!entry) throw new Error(`no blade entry "${label}"`);
+        return buildPositionFromSpec(entry.spec);
+    }
+
+    it("Uro hard-cast (+3 life, a card, an escape-ready graveyard card) outscores holding it", () => {
+        const s = bladePosition(
+            "self-sacrificing ETB: hard-casts Uro for its enter trigger"
+        );
+        expect(
+            policyOf(s, castOf(s, "Uro, Titan of Nature's Wrath"))
+        ).toBeGreaterThan(policyOf(s, isPass));
+    });
+
+    it("Phlage hard-cast with no lethal and no creature still outscores holding it (same shape, CR 702.138)", () => {
+        const s = position([inHand("Phlage, Titan of Fire's Fury")]);
+        expect(
+            policyOf(s, castOf(s, "Phlage, Titan of Fire's Fury"))
+        ).toBeGreaterThan(policyOf(s, isPass));
+    });
+
+    it("a card with escape in the graveyard keeps the curve top its hand cast raised (mana development is not spent)", () => {
+        const uro = getCardByName("Uro, Titan of Nature's Wrath");
+        const lands = () =>
+            Array.from({ length: 4 }, () =>
+                makeInstance(getCardByName("Forest").id, {
+                    zone: "battlefield",
+                })
+            );
+        const board = (zone: "hand" | "graveyard" | "exile") =>
+            makeState({
+                players: [
+                    makePlayer("p1", {
+                        battlefield: lands(),
+                        hand:
+                            zone === "hand"
+                                ? [makeInstance(uro.id, { zone })]
+                                : [],
+                        graveyard:
+                            zone === "graveyard"
+                                ? [makeInstance(uro.id, { zone })]
+                                : [],
+                        exile:
+                            zone === "exile"
+                                ? [makeInstance(uro.id, { zone })]
+                                : [],
+                    }),
+                    makePlayer("p2"),
+                ],
+            });
+        const dev = (z: "hand" | "graveyard" | "exile") =>
+            evaluateBreakdown(board(z), "p1", DEFAULT_EVAL_WEIGHTS).self
+                .manaDevelopment;
+        expect(dev("graveyard")).toBeGreaterThan(0);
+        expect(dev("graveyard")).toBeCloseTo(dev("hand"));
+        expect(dev("exile")).toBe(0);
     });
 });
