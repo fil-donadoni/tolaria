@@ -391,4 +391,32 @@ describe("Eval Pairs — a self-sacrificing ETB Titan is cast from hand (issue #
         expect(dev("graveyard")).toBeCloseTo(dev("hand"));
         expect(dev("exile")).toBe(0);
     });
+    it("a flashback card in the graveyard keeps its curve top; a granted permission does not", () => {
+        const analysis = getCardByName("Echo of Eons");
+        const lands = Array.from({ length: 4 }, () =>
+            makeInstance(getCardByName("Island").id, { zone: "battlefield" })
+        );
+        const dev = (owner: Partial<Parameters<typeof makePlayer>[1]>) =>
+            evaluateBreakdown(
+                makeState({
+                    players: [
+                        makePlayer("p1", { battlefield: lands, ...owner }),
+                        makePlayer("p2"),
+                    ],
+                }),
+                "p1",
+                DEFAULT_EVAL_WEIGHTS
+            ).self.manaDevelopment;
+        const card = (zone: "hand" | "graveyard") =>
+            makeInstance(analysis.id, { zone });
+        expect(dev({ graveyard: [card("graveyard")] })).toBeCloseTo(
+            dev({ hand: [card("hand")] })
+        );
+        expect(dev({ graveyard: [card("graveyard")] })).toBeGreaterThan(0);
+        // A nonland card with no own permission is a dead graveyard card.
+        const bears = makeInstance(getCardByName("Grizzly Bears").id, {
+            zone: "graveyard",
+        });
+        expect(dev({ graveyard: [bears] })).toBe(0);
+    });
 });
