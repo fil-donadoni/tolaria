@@ -631,9 +631,6 @@ export function etbSelfSacrificeWeight(
         // certainty and the body keeps its latent worth. "Unless it escaped"
         // and an evoke sacrifice are decided by how the card was cast instead.
         if (hasOp(script, "mayPay")) continue;
-        // An evoke sacrifice is a cast-route fact too (CR 702.74a, evoke is an
-        // alternative cost), and a card cast by escape was not evoked.
-        if (route === "escape" && ability.gate !== undefined) continue;
         weight = Math.max(weight, gateWeight(ability, undefined));
     }
     return weight;
