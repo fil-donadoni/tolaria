@@ -9989,7 +9989,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         expect: {
             moves: [{ kind: "cast-spell", card: "Snapcaster Mage" }],
         },
-        note: "Issue #4217 — the cast half. Flame Slash is a sorcery: flashback changes only the zone and the cost (CR 702.34a) and a noninstant spell still needs a main phase with an empty stack (CR 117.1a), so the ETB's payoff exists only in this main phase. The search already preferred the cast; `last-window-deferral` held it on every seed, reading the Mage as a flash body that could wait for the opponent's end step. What keeps it green is `waitsUnchanged`'s sorcery-cast reading — a resolution that opens a cast only this sorcery window allows does not reach the same board later. Proof of failure: dropping that reading turns this entry red (`pass` on three of the five seeds).",
+        note: "Issue #4217 — the cast half. Flame Slash is a sorcery: flashback changes only the zone and the cost (CR 702.34a) and a noninstant spell still needs a main phase with an empty stack (CR 117.1a), so the ETB's payoff exists only in this main phase. The search already preferred the cast; `last-window-deferral` held it on every seed, reading the Mage as a flash body that could wait for the opponent's end step. What keeps it green is `waitsUnchanged`'s sorcery-cast reading — a resolution that opens a cast only this sorcery window allows does not reach the same board later. Proof of failure: dropping that reading turns this entry red (`pass` on four of the five seeds).",
     },
     {
         label: "Snapcaster Mage (issue #4217 reported position): holds it on turn 4 with an empty graveyard",
