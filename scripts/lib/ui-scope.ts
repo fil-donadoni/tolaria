@@ -22,11 +22,34 @@
  *     imports, e.g. `scripts/lib/build-define.ts`) → `full`: it shapes the
  *     bundle every route is served from;
  *   - NON-DOM (tests, scripts, markdown) → contributes nothing;
+ *   - reachable from the shell, the build or a surface ONLY through
+ *     `import type` / `export type` statements → contributes nothing: the
+ *     build erases those, so no code of it runs on any screen (issue #4913;
+ *     a type change that matters fails `check:ts`, not a walk);
  *   - GLOBAL (`globalReason`) → `full`;
  *   - in the app SHELL's closure (`src/main.tsx`, not descending into route
  *     modules) → `full`: the shell renders around every surface;
- *   - in one or more surfaces' entry closures → selects those surfaces;
+ *   - in one or more surfaces' closures → selects those surfaces;
  *   - otherwise → `full`.
+ *
+ * A SURFACE'S CLOSURE is its route entries' import closure — except for a
+ * SPECIMEN row (issue #4913). `/admin/design-system` mounts ~30 dialogs and
+ * pickers one at a time behind openers, and every one of those rows declared
+ * the page's route as its entry, so any file in that page's closure walked all
+ * of them: PR #4911 changed one admin hook and paid 34 surfaces × 5 viewports.
+ * A specimen row (`ScopeSurface.specimen`) is selected by the closure of what
+ * it measures instead — three parts, each taken from the same graph:
+ *   1. the PAGE scaffolding: its entries' closure, not descending into any
+ *      specimen SECTION module (the frame every row shares — the layout, the
+ *      census page's own controls);
+ *   2. its SECTION's closure, not descending into any row's mount (the openers
+ *      and fixture props of that section: a change there selects every row of
+ *      the section, and no other section's);
+ *   3. its own `mounts` closure — the module the probe photographs.
+ * The soundness argument is re-made at this granularity in ADR 0131's
+ * amendment; the residual it accepts (a mount a section renders
+ * unconditionally, a sibling section's frame under an open layer) is what the
+ * full `check:ui --all` walk in batch health exists to catch.
  *
  * An empty `scoped` result is valid: a test-only diff owes no browser time.
  *
@@ -52,10 +75,18 @@ const UI_GATE_DIR = "scripts/ui-gate/";
 /** The one lane file that also holds per-surface definitions. */
 export const SURFACES_FILE = "scripts/ui-gate/surfaces.ts";
 
-/** A surface as the scoper sees it: an id and its declared route entry modules. */
+/** A surface as the scoper sees it: an id, its declared route entry modules
+ *  and, for a specimen row, what it measures (`Surface` in `surfaces.ts`). */
 export interface ScopeSurface {
     id: string;
     entries: readonly string[];
+    /** The modules on screen when the probe measures this surface. Read
+     *  only for a specimen row; a route surface is its entries' closure. */
+    mounts?: readonly string[];
+    /** A specimen row (issue #4913): one `mounts` module opened from the
+     *  page's `section` module. Scoped by mounts + section + page scaffolding,
+     *  never by the whole route closure every row on that page shares. */
+    specimen?: { readonly section: string };
 }
 
 export type UiScope =
@@ -112,13 +143,40 @@ export function computeUiScope({
 }: ComputeUiScopeInput): UiScope {
     const shell = graph.closureOf(SHELL_ENTRY, { prune: isRouteModulePath });
     const build = graph.closureOf(BUILD_CONFIG);
-    const closures = surfaces.map((surface) => {
-        const files = new Set<string>();
-        for (const entry of surface.entries) {
-            for (const file of graph.closureOf(entry)) files.add(file);
+    const specimens = specimenIndex(surfaces);
+    const closures = surfaces.map((surface) => ({
+        id: surface.id,
+        files: surfaceClosure(surface, graph, specimens),
+    }));
+    // A path the app names ONLY through type-only edges: in the type-inclusive
+    // closure of the roots below and NOT in their runtime closure — taken
+    // once, and only when a path lands in no surface's closure. The runtime
+    // half is what keeps this fail-closed: the same roots reach, at runtime,
+    // a route module no surface declares (the shell's closure is pruned at
+    // route modules), and a file under such a route must still force FULL,
+    // not read as "nothing runs it".
+    let reach: { runtime: Set<string>; typed: Set<string> } | null = null;
+    const typeOnlyReachable = (path: string): boolean => {
+        if (reach === null) {
+            const roots = [
+                SHELL_ENTRY,
+                BUILD_CONFIG,
+                ...surfaces.flatMap((s) => [
+                    ...s.entries,
+                    ...(s.mounts ?? []),
+                    ...(s.specimen ? [s.specimen.section] : []),
+                ]),
+            ];
+            reach = { runtime: new Set(), typed: new Set() };
+            for (const entry of roots) {
+                for (const file of graph.closureOf(entry))
+                    reach.runtime.add(file);
+                for (const file of graph.closureOf(entry, { types: true }))
+                    reach.typed.add(file);
+            }
         }
-        return { id: surface.id, files };
-    });
+        return reach.typed.has(path) && !reach.runtime.has(path);
+    };
 
     const selected = new Set<string>();
     for (const path of [...changed].sort()) {
@@ -153,9 +211,10 @@ export function computeUiScope({
         }
         const hits = closures.filter((c) => c.files.has(path));
         if (hits.length === 0) {
+            if (typeOnlyReachable(path)) continue;
             return {
                 kind: "full",
-                reason: `${path} is in no surface's entry closure and no rule places it`,
+                reason: `${path} is in no surface's closure and no rule places it`,
             };
         }
         for (const hit of hits) selected.add(hit.id);
@@ -164,6 +223,54 @@ export function computeUiScope({
         kind: "scoped",
         surfaces: surfaces.map((s) => s.id).filter((id) => selected.has(id)),
     };
+}
+
+/** Every specimen section module, and the union of the mounts its rows open. */
+interface SpecimenIndex {
+    sections: ReadonlySet<string>;
+    mountsBySection: ReadonlyMap<string, ReadonlySet<string>>;
+}
+
+function specimenIndex(surfaces: readonly ScopeSurface[]): SpecimenIndex {
+    const sections = new Set<string>();
+    const mountsBySection = new Map<string, Set<string>>();
+    for (const surface of surfaces) {
+        if (!surface.specimen) continue;
+        const { section } = surface.specimen;
+        sections.add(section);
+        const mounts = mountsBySection.get(section) ?? new Set<string>();
+        for (const mount of surface.mounts ?? []) mounts.add(mount);
+        mountsBySection.set(section, mounts);
+    }
+    return { sections, mountsBySection };
+}
+
+/**
+ * The files a change to which can move `surface`'s measurement: its entries'
+ * closure, or — for a specimen row — the three-part closure the header
+ * describes (page scaffolding, its section, its own mounts).
+ */
+function surfaceClosure(
+    surface: ScopeSurface,
+    graph: ImportGraph,
+    { sections, mountsBySection }: SpecimenIndex
+): Set<string> {
+    const files = new Set<string>();
+    const add = (closure: Iterable<string>) => {
+        for (const file of closure) files.add(file);
+    };
+    if (!surface.specimen) {
+        for (const entry of surface.entries) add(graph.closureOf(entry));
+        return files;
+    }
+    const { section } = surface.specimen;
+    for (const entry of surface.entries) {
+        add(graph.closureOf(entry, { prune: (p) => sections.has(p) }));
+    }
+    const rowMounts = mountsBySection.get(section) ?? new Set<string>();
+    add(graph.closureOf(section, { prune: (p) => rowMounts.has(p) }));
+    for (const mount of surface.mounts ?? []) add(graph.closureOf(mount));
+    return files;
 }
 
 /** The lines `check:ui` prints at the start of every run. */

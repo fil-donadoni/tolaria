@@ -5,7 +5,9 @@
 accepted (2026-09-15, PRD #3625 slice B, issue #3628). Amends ADR 0104 §2
 ("lane content is never diff-derived") for `check:ui` only. Builds on issue
 #3627 (the scoper and the import graph) and issue #3626 (the per-run lane
-account).
+account). **Amended 2026-09-30 (issue #4913)**: the argument is re-made at
+SURFACE granularity for the specimen rows, type-only imports are no edge, and
+the full walk moves to batch health — § Amendment below.
 
 ## Context
 
@@ -122,3 +124,129 @@ everything".
   the subset to the diff, which is how the #2742 bypass looked.
 - **Scope vitest projects the same way.** Rejected, and outside this ADR: ADR
   0104 §2's argument applies to them in full.
+
+## Amendment (issue #4913) — surface granularity, and the full walk in health
+
+### What the route-level argument missed
+
+The argument above scopes a surface by its ROUTE's closure. That is exact for
+a surface that measures a route. It is not for the ~30 specimen rows of
+`/admin/design-system` (`dlg-*`, `pick-*`): each opens ONE dialog or picker
+from fixture props and measures that layer, yet each declared the page's route
+as its entry, so any file in the page's closure selected all of them. PR #4911
+changed one admin hook and one admin panel, the hook was named by one section
+of that page, and the run walked 34 surfaces × 5 viewports — 31 of them
+dialogs and pickers the diff could not move. Meanwhile nothing walked every
+surface outside PRs: health did not include `check:ui`.
+
+### The argument, re-made for a specimen row
+
+A specimen row's rendered layout is a function of:
+
+1. **the module it mounts** — its `mounts` closure, exactly as a route's;
+2. **its section** — the module of the page that renders the openers and the
+   fixture props for that section's rows (`Surface.specimen.section`): a
+   change there can move any row of the section, so it selects them all, and
+   no other section's;
+3. **the page's scaffolding** — the route's closure not descending into any
+   specimen section: the frame every row is opened over, which still selects
+   every row;
+4. the global inputs of the original argument, unchanged.
+
+Each closure is taken from the same static graph; the section closure does
+not descend into a sibling row's mount, and the page closure does not descend
+into any section. A file in none of a row's three closures cannot be on that
+row's screen, unless one of the residuals below holds.
+
+**Type-only imports are no edge.** `import type … from` and
+`export type … from` are erased at build, so no code of the named module runs
+on the importer's account; the graph keeps them aside (`typeImportsOf`). A
+path reachable from the shell, the build or any surface ONLY through such
+edges contributes no surface — it is not "unplaced", and it does not force
+FULL: a type change that matters fails `check:ts`, not a browser walk. The
+same edge was what put the specimen page's whole section on PR #4911's diff
+(`sections-overlays.tsx` names the admin hook in an `import type`).
+
+### Residuals, and the backstop
+
+Accepted at this granularity, beside the two the original argument accepts:
+
+- a section that renders one of its mounts UNCONDITIONALLY (not behind an
+  opener) puts that module on screen for every row of the section; the
+  scoper selects only the row that claims it. The section modules today open
+  every specimen behind an opener, and the surface table's guard
+  (`ui-gate-surface-entries.test.ts`) pins the model "the section imports
+  each mount it opens", not this;
+- a regression in a sibling section's frame under an open layer: the page
+  surface (`design-system`) measures the page with no layer open, the row
+  measures its layer over the page, and only the FULL walk measures the pair.
+
+NOT residuals — refused by the same guard, because the scoper prunes by
+node: a specimen section imported by anything but its route entries (a helper
+`lib.tsx` took from it would leave the page scaffolding), and a row's mount
+imported inside its section's pruned closure by anything but the section (a
+fixture borrowing a constant from a sibling dialog would leave that row's
+closure). A mount importing a sibling mount (the game-over dialog renders the
+sideboarding one) is inside its own row's unpruned mount closure and is not
+refused.
+
+**The full walk now runs in batch health.** `check:ui --all` is the last
+`HEALTH_SCRIPTS` step (`scripts/lib/health-step.ts`): it runs after every
+offline verdict, on the batch's tip, under the same RED marker as the other
+steps — a failing surface leaves `RED`, `bun run health:fix` is the exit. It
+is the one health step that is not offline (it needs the local deployment and
+a browser), which is why it lives there and not in `check:all` (§ Decision 5
+and `docs/agents/quality-gates.md` § check:ui both stand). Every residual —
+the two above, the Tailwind class scan, the base-branch graph drift — is what
+this walk exists to catch, at batch cadence instead of on every PR.
+
+Three costs of that placement, priced rather than hidden:
+
+- **Any non-`PASS` exit is a `RED`**, an `INFRA` cell or an unreachable
+  deployment included — the same semantics as every other step, as the
+  issue asked, and the opposite of a walk that can go quietly amber. A RED
+  from the machine, not the tree, is cleared by re-running `bun run health`
+  on the same tip (a red `last.json` does not short-circuit), and
+  `health:status` names the failing step so the reader knows which it was.
+- **Under `--under-lock`** (the per-batch gate, ADR 0136 §6) the heavy mutex
+  is held for the whole run, so the walk — 4 to 29 min measured for a full
+  scope, 60 min run deadline — lengthens the one block a queued `land` waits
+  on by that much, once per batch. The walk also takes the `check:ui` lane
+  lock, so it never overlaps a PR's own run on the backend.
+- **The walk tests the tip's frontend against the functions the shared local
+  deployment currently serves**: `check:ui` never pushes Convex functions
+  (a second `convex dev` against the same backend is what the lane refuses),
+  on a PR as in health. A batch whose functions no session pushed can red or
+  green against another tree's functions; pushing the tip from health is a
+  separate decision, not taken here.
+
+### Decision, amended
+
+6. **A specimen row is scoped by its section and its mounts**, never by the
+   route closure every row on its page shares. `land` re-derives the scope
+   with the same function (`landingDiffScope`), so a receipt walked under the
+   old 34-surface scope is refused on the same terms as any stale one.
+7. **A type-only import is no edge**, and a path reachable only through one
+   contributes no surface.
+8. **`check:ui --all` is a batch-health step**, RED-marker semantics
+   included. A PR receipt stays `SCOPED` (or FULL when a global input forces
+   it); `check:ui` is still not in `check:pr` or `land`.
+
+Measured on the tree at the amendment (`landingDiffScope`): the two `src/**`
+files of PR #4911 — the ones its 34-surface receipt was scoped on — 34 → 3
+surfaces (`admin-scenarios`, `admin-bot-findings`,
+`admin-bot-findings-classes`; the merge commit also carries a CR-ledger
+entry, which is unplaced and forces FULL in either scoper); one board dialog
+(`pause-menu-dialog.tsx`)
+42 → 14 (its own row, the page, and the game surfaces that mount it); one
+cast-picker section frame 31 → 10; the page's shared scaffolding
+(`design-system/lib.tsx`) 31 → 31, as it must.
+
+### Survey — no other rows gain a narrower key
+
+Every other group of surfaces sharing a route entry (six on the lobby, seven
+on the deck builder, the game surfaces, the Limited surfaces) reaches its
+overlay by WALKING the route: the route is on screen under the layer and on
+the path to it, so the route closure is the surface's closure, not an
+over-approximation. The specimen page is the one place a surface's walk
+mounts a module the page does not otherwise render.

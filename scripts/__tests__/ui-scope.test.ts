@@ -29,6 +29,8 @@ const FILES: Record<string, string> = {
     "src/router.tsx": [
         `import Lobby from "./routes/lobby.route";`,
         `import Game from "./routes/game.route";`,
+        `import Census from "./routes/census.route";`,
+        `import Orphan from "./routes/orphan.route";`,
         `import AppShell from "./components/chrome/app-shell";`,
     ].join("\n"),
     "src/components/chrome/app-shell.tsx": `import { NavLink } from "./nav-link";\n`,
@@ -37,8 +39,28 @@ const FILES: Record<string, string> = {
     // imported by a ROUTE only, never by the shell — so each forces full
     // through its own rule, and removing that rule would scope it to `lobby`.
     "src/components/ui/button.tsx": `export const Button = 1;\n`,
-    "src/routes/lobby.route.tsx": `import { Button } from "~/components/ui/button";\nimport { TOKENS } from "~/lib/design-tokens";\nimport { DeckShelf } from "~/components/deck-shelf";\nimport { Card } from "~/components/card";\n`,
-    "src/routes/game.route.tsx": `import { Card } from "~/components/card";\nconst quiz = () => import("~/components/debug/quiz");\n`,
+    "src/routes/lobby.route.tsx": `import { Button } from "~/components/ui/button";\nimport { TOKENS } from "~/lib/design-tokens";\nimport { DeckShelf } from "~/components/deck-shelf";\nimport { Card } from "~/components/card";\nimport type { Shape } from "~/components/shape";\n`,
+    "src/routes/game.route.tsx": `import { Card } from "~/components/card";\nimport { PauseDialog } from "~/components/dialogs/pause";\nconst quiz = () => import("~/components/debug/quiz");\n`,
+    // A route the router mounts and NO surface declares: whatever it renders
+    // is reachable at runtime, and nothing walks it.
+    "src/routes/orphan.route.tsx": `import { Widget } from "~/components/orphan-widget";\n`,
+    "src/components/orphan-widget.tsx": `export const Widget = 1;\n`,
+    // Named by the lobby in a type-only statement and by nothing at runtime:
+    // the build erases the edge, so no screen runs its code.
+    "src/components/shape.ts": `export type Shape = 1;\n`,
+    // A census page (`/admin/design-system` in the app) that mounts dialog
+    // specimens one at a time behind openers, in two sections: the page's own
+    // frame (`lib`), a section with two rows and a fixture module, a section
+    // with one row. The pause dialog is also a board dialog the game renders.
+    "src/routes/census.route.tsx": `import { Frame } from "./census/lib";\nimport { SectionA } from "./census/section-a";\nimport { SectionB } from "./census/section-b";\n`,
+    "src/routes/census/lib.tsx": `export const Frame = 1;\n`,
+    "src/routes/census/section-a.tsx": `import { Frame } from "./lib";\nimport { FIXTURES } from "./fixtures-a";\nimport { PauseDialog } from "~/components/dialogs/pause";\nimport { ConcedeDialog } from "~/components/dialogs/concede";\n`,
+    "src/routes/census/fixtures-a.ts": `export const FIXTURES = [];\n`,
+    "src/routes/census/section-b.tsx": `import { Frame } from "./lib";\nimport { ReportDialog } from "~/components/dialogs/report";\n`,
+    "src/components/dialogs/pause.tsx": `import { PauseBody } from "./pause-body";\nexport const PauseDialog = 1;\n`,
+    "src/components/dialogs/pause-body.tsx": `export const PauseBody = 1;\n`,
+    "src/components/dialogs/concede.tsx": `export const ConcedeDialog = 1;\n`,
+    "src/components/dialogs/report.tsx": `export const ReportDialog = 1;\n`,
     "src/components/deck-shelf.tsx": `import "./deck-shelf.css";\nexport const DeckShelf = 1;\n`,
     "src/components/deck-shelf.css": `.shelf{}`,
     "src/components/card.tsx": `export const Card = 1;\n`,
@@ -50,10 +72,32 @@ for (const [rel, body] of Object.entries(FILES)) {
     fs.writeFileSync(path.join(root, rel), body);
 }
 
+const CENSUS = "src/routes/census.route.tsx";
+const SECTION_A = "src/routes/census/section-a.tsx";
+const SECTION_B = "src/routes/census/section-b.tsx";
 const SURFACES: ScopeSurface[] = [
     { id: "lobby", entries: ["src/routes/lobby.route.tsx"] },
     { id: "game-board", entries: ["src/routes/game.route.tsx"] },
     { id: "game-debug", entries: ["src/routes/game.route.tsx"] },
+    { id: "census", entries: [CENSUS] },
+    {
+        id: "dlg-pause",
+        entries: [CENSUS],
+        mounts: ["src/components/dialogs/pause.tsx"],
+        specimen: { section: SECTION_A },
+    },
+    {
+        id: "dlg-concede",
+        entries: [CENSUS],
+        mounts: ["src/components/dialogs/concede.tsx"],
+        specimen: { section: SECTION_A },
+    },
+    {
+        id: "dlg-report",
+        entries: [CENSUS],
+        mounts: ["src/components/dialogs/report.tsx"],
+        specimen: { section: SECTION_B },
+    },
 ];
 
 function scopeOf(...changed: string[]) {
@@ -76,6 +120,13 @@ describe("computeUiScope — scoped", () => {
         expect(scopeOf("src/components/card.tsx")).toEqual({
             kind: "scoped",
             surfaces: ["lobby", "game-board", "game-debug"],
+        });
+    });
+
+    it("a module a route names only in a type-only import selects nothing — the build erases the edge (issue #4913)", () => {
+        expect(scopeOf("src/components/shape.ts")).toEqual({
+            kind: "scoped",
+            surfaces: [],
         });
     });
 
@@ -102,6 +153,47 @@ describe("computeUiScope — scoped", () => {
     });
 });
 
+describe("computeUiScope — specimen rows (issue #4913)", () => {
+    it("a row's mount selects that row and the route surfaces whose closure holds it — never its sibling rows", () => {
+        // `pause-body` is reached only through the pause dialog: the game
+        // route renders that dialog, the census page imports it for § A, and
+        // § A's other row (concede) and § B's row never mount it.
+        expect(scopeOf("src/components/dialogs/pause-body.tsx")).toEqual({
+            kind: "scoped",
+            surfaces: ["game-board", "game-debug", "census", "dlg-pause"],
+        });
+    });
+
+    it("a sibling row's mount is not a section's scaffolding", () => {
+        expect(scopeOf("src/components/dialogs/concede.tsx")).toEqual({
+            kind: "scoped",
+            surfaces: ["census", "dlg-concede"],
+        });
+    });
+
+    it("a section's own module (openers, fixture props) selects every row of that section and none of another's", () => {
+        expect(scopeOf("src/routes/census/fixtures-a.ts")).toEqual({
+            kind: "scoped",
+            surfaces: ["census", "dlg-pause", "dlg-concede"],
+        });
+        expect(scopeOf(SECTION_B)).toEqual({
+            kind: "scoped",
+            surfaces: ["census", "dlg-report"],
+        });
+    });
+
+    it("the page's shared scaffolding still selects every row", () => {
+        expect(scopeOf("src/routes/census/lib.tsx")).toEqual({
+            kind: "scoped",
+            surfaces: ["census", "dlg-pause", "dlg-concede", "dlg-report"],
+        });
+        expect(scopeOf(CENSUS)).toEqual({
+            kind: "scoped",
+            surfaces: ["census", "dlg-pause", "dlg-concede", "dlg-report"],
+        });
+    });
+});
+
 describe("computeUiScope — full (fail-closed)", () => {
     it.each([
         ["src/components/ui/button.tsx", "a shared UI primitive"],
@@ -123,6 +215,16 @@ describe("computeUiScope — full (fail-closed)", () => {
         expect(scope.kind === "full" && scope.reason).toContain(reason);
     });
 
+    it("a component under a route no surface declares selects full — reachable at runtime, walked by nothing (issue #4913 review)", () => {
+        // The type-only rule must not swallow it: the file IS in the
+        // type-inclusive closure of the shell (through the router), but it
+        // is in the runtime closure too, so nothing about it is erased.
+        expect(scopeOf("src/components/orphan-widget.tsx")).toEqual({
+            kind: "full",
+            reason: "src/components/orphan-widget.tsx is in no surface's closure and no rule places it",
+        });
+    });
+
     it("a component the shell imports selects full, though no rule names it", () => {
         const scope = scopeOf("src/components/chrome/nav-link.tsx");
         expect(scope.kind).toBe("full");
@@ -138,7 +240,7 @@ describe("computeUiScope — full (fail-closed)", () => {
             const scope = scopeOf(unplaced);
             expect(scope, unplaced).toEqual({
                 kind: "full",
-                reason: `${unplaced} is in no surface's entry closure and no rule places it`,
+                reason: `${unplaced} is in no surface's closure and no rule places it`,
             });
         }
     });

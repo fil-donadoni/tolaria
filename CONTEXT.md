@@ -1523,6 +1523,10 @@ _Avoid_: Three viewports (the retired rule), responsive check (too vague)
 One screen state the headless browser lane can reach by a fixed click sequence and measure at every viewport of the **Viewport Matrix** — a route plus whatever the walk opens on it (a dialog, a sheet, a pile). Named by a stable id; the unit the lane reports on and the unit a diff is scoped to.
 _Avoid_: Page (a surface may be an overlay on one), screen (ambiguous with the device), route (several surfaces share one)
 
+**Specimen Row**:
+A **Walked Surface** that opens ONE overlay component from fixture props on the design-system census page (`/admin/design-system` § 16–18: `dlg-*`, `pick-*`) and measures that layer. It is scoped to a diff by the closure of the module it mounts plus its section's (the page module that renders the openers and fixture props for its rows) plus the page's shared scaffolding — never by the page's whole route closure, which every row on the page shares (issue #4913, ADR 0131 amendment). The full walk of every surface is a batch-health step, not a PR's.
+_Avoid_: Specimen surface (the census page's other sections are specimens too, but static), dialog surface (a board dialog walked on the game route is not one)
+
 **Floor**:
 A count the lane holds at zero on every **Walked Surface**, at every viewport, with no per-surface exception: zero-size cards or controls, cards or controls stranded outside any scroll port, serious or critical axe violations, horizontal overflow. A nonzero reading is a regression, never carried debt — the fix is in the tree, not in a budget.
 _Avoid_: Budget, ceiling, threshold (a floor has no number to record — it is zero by definition), known debt

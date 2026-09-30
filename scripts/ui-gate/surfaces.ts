@@ -211,6 +211,21 @@ export interface Surface {
      * surface claiming coverage of a file that no longer exists.
      */
     mounts?: readonly string[];
+    /**
+     * A SPECIMEN row (issue #4913): the walk opens ONE `mounts` module from
+     * the page's `section` module — the file whose openers and fixture props
+     * mount it — on a page whose other sections are on screen but are not
+     * what this row measures. The scoper (`scripts/lib/ui-scope.ts`) selects
+     * such a row by the closure of its mounts, of its section (not descending
+     * into a sibling row's mount) and of the page's scaffolding (not
+     * descending into any section) — never by the whole route closure every
+     * row on that page shares, which is what walked 34 surfaces for one
+     * admin hook (PR #4911). `ui-gate-surface-entries.test.ts` reds on a
+     * section that is not in the entries' closure or that does not itself
+     * import each mount: the model is "the section mounts it", and a row
+     * that breaks it would be scoped as if it did.
+     */
+    specimen?: { readonly section: string };
     walk(page: Page, ctx: WalkContext): Promise<void>;
     /**
      * Runs AFTER the probe/axe/screenshot for this surface+viewport pass, on
@@ -2319,6 +2334,9 @@ const CAST_PICKER_SPECIMENS: readonly DialogSpecimen[] = [
 interface DialogSpecimenSection {
     /** Surface id prefix: `dlg` (§ 16, § 17) or `pick` (§ 18). */
     idPrefix: string;
+    /** The section module that renders the openers and mounts each specimen
+     *  from fixture props — `Surface.specimen.section` for every row. */
+    module: string;
     /** The `data-*` attribute each opener carries, valued with the slug. */
     seam: string;
     /** Receipt label prefix and the section's `§ N` on the page. */
@@ -2327,6 +2345,7 @@ interface DialogSpecimenSection {
 }
 
 const BOARD_DIALOGS_SECTION: DialogSpecimenSection = {
+    module: "src/routes/design-system/sections-board-dialogs.tsx",
     idPrefix: "dlg",
     seam: "data-board-dialog-specimen",
     title: "Board dialog",
@@ -2334,6 +2353,7 @@ const BOARD_DIALOGS_SECTION: DialogSpecimenSection = {
 };
 
 const OVERLAYS_SECTION: DialogSpecimenSection = {
+    module: "src/routes/design-system/sections-overlays.tsx",
     idPrefix: "dlg",
     seam: "data-overlay-specimen",
     title: "Overlay",
@@ -2341,6 +2361,7 @@ const OVERLAYS_SECTION: DialogSpecimenSection = {
 };
 
 const CAST_PICKERS_SECTION: DialogSpecimenSection = {
+    module: "src/routes/design-system/sections-cast-pickers.tsx",
     idPrefix: "pick",
     seam: "data-cast-picker-specimen",
     title: "Cast picker",
@@ -2431,7 +2452,8 @@ async function closeSpecimenLayer(page: Page, layer: string): Promise<void> {
 
 /** One `dlg-*` row: open the specimen page, press its opener, measure the
  *  layer it mounted. The entries are the design-system route's, as every
- *  other row on that page: the section lives inside it. */
+ *  other row on that page: the section lives inside it. The row is SCOPED by
+ *  its `specimen` section and its mount, not by those entries (issue #4913). */
 function dialogSpecimenSurface(
     section: DialogSpecimenSection,
     spec: DialogSpecimen
@@ -2445,6 +2467,7 @@ function dialogSpecimenSurface(
         label: `${section.title} — ${spec.label} (/admin/design-system § ${section.index})`,
         asserts: [spec.layerAssert, spec.entry],
         mounts: [`src/components/${spec.module}`],
+        specimen: { section: section.module },
         settleTargets: [spec.layer],
         async cleanup(page) {
             await closeSpecimenLayer(page, spec.layer);

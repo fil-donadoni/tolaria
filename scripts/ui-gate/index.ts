@@ -89,7 +89,11 @@
  * scope prints a `SCOPED` receipt that walked nothing — no deployment, no
  * browser. `land` re-derives the scope from the PR's diff and refuses a
  * `SCOPED` receipt that does not match it. A hand-picked `--surface=` subset
- * is still a `DIAGNOSTIC`.
+ * is still a `DIAGNOSTIC`. A specimen row (`Surface.specimen`) is scoped by
+ * its section + mount, not by the design-system page's whole closure, and a
+ * type-only import is no edge (issue #4913). `--all` is what batch health
+ * runs, as its last step (`HEALTH_SCRIPTS`): the every-surface walk backstops
+ * what a scoped PR receipt accepts not to see, and never runs on a PR.
  *
  * Env:
  *   VITE_CONVEX_URL   the deployment to talk to (environment, else the

@@ -11,10 +11,10 @@ import { SURFACES } from "../ui-gate/surfaces";
 
 const REPO_ROOT = path.resolve(__dirname, "..", "..");
 
+const graph = createImportGraph({ root: REPO_ROOT });
+
 describe("check:ui surface table — route entries", () => {
-    const routed = new Set(
-        createImportGraph({ root: REPO_ROOT }).importsOf(ROUTER_MODULE)
-    );
+    const routed = new Set(graph.importsOf(ROUTER_MODULE));
 
     it.each(SURFACES.map((s) => [s.id, s.entries] as const))(
         "%s declares at least one entry, each an existing route module the router imports",
@@ -38,4 +38,98 @@ describe("check:ui surface table — route entries", () => {
             }
         }
     );
+});
+
+// A specimen row is scoped by its section and its mounts instead of its route
+// entries (issue #4913, `scripts/lib/ui-scope.ts`). The scoper's model is
+// "the section mounts it": a section outside the entries' closure is a frame
+// the page never renders, and a mount the section does not itself import is
+// opened by something the section-level closure does not see — either way
+// the row would be selected for the wrong diffs, and nothing else reds.
+describe("check:ui surface table — specimen rows (issue #4913)", () => {
+    const specimens = SURFACES.filter((s) => s.specimen !== undefined);
+
+    it("the table declares specimen rows", () => {
+        expect(specimens.length).toBeGreaterThan(0);
+    });
+
+    it.each(specimens.map((s) => [s.id, s] as const))(
+        "%s: its section is a module its entries render, and it imports every mount",
+        (id, surface) => {
+            const { section } = surface.specimen!;
+            expect(
+                fs.existsSync(path.join(REPO_ROOT, section)),
+                `${id}: section ${section} does not exist`
+            ).toBe(true);
+            const rendered = surface.entries.some((entry) =>
+                graph.closureOf(entry).has(section)
+            );
+            expect(
+                rendered,
+                `${id}: section ${section} is in no entry's closure`
+            ).toBe(true);
+            expect(
+                surface.mounts?.length ?? 0,
+                `${id}: a specimen row declares at least one mount`
+            ).toBeGreaterThan(0);
+            const opened = new Set(graph.importsOf(section));
+            for (const mount of surface.mounts ?? []) {
+                expect(
+                    opened.has(mount),
+                    `${id}: ${section} does not import its mount ${mount}`
+                ).toBe(true);
+            }
+        }
+    );
+
+    // The scoper prunes by NODE (issue #4913 review): the page scaffolding
+    // stops at a section module, and a section's closure stops at a row's
+    // mount. A section imported by anything but the route (a helper taken
+    // from it by `lib.tsx`), or a mount imported by anything in its section's
+    // closure but the section itself (a fixture borrowing a constant from a
+    // sibling dialog), would drop that module's closure out of the rows it
+    // can still move. Both are refused here, so the residual the ADR
+    // amendment accepts is the one it names, not these.
+    const sections = new Map<string, Set<string>>();
+    for (const s of specimens) {
+        const set = sections.get(s.specimen!.section) ?? new Set<string>();
+        for (const m of s.mounts ?? []) set.add(m);
+        sections.set(s.specimen!.section, set);
+    }
+    const entries = new Set(specimens.flatMap((s) => s.entries));
+
+    it("a specimen section is imported by its route entries only — never by the page's other modules", () => {
+        for (const entry of entries) {
+            for (const file of graph.closureOf(entry)) {
+                if (sections.has(file)) continue;
+                for (const imported of graph.importsOf(file)) {
+                    expect(
+                        !sections.has(imported) || entries.has(file),
+                        `${file} imports the specimen section ${imported}; only a route entry may`
+                    ).toBe(true);
+                }
+            }
+        }
+    });
+
+    it("a row's mount is imported inside its section's scaffolding by the section only — never by a fixture or a helper", () => {
+        // The section's closure AS THE SCOPER TAKES IT — pruned at every
+        // row's mount: a mount importing a sibling mount (the game-over
+        // dialog renders the sideboarding one) is inside its own row's
+        // unpruned mount closure and is not what this refuses.
+        for (const [section, mounts] of sections) {
+            const scaffolding = graph.closureOf(section, {
+                prune: (p) => mounts.has(p),
+            });
+            for (const file of scaffolding) {
+                if (file === section) continue;
+                for (const imported of graph.importsOf(file)) {
+                    expect(
+                        !mounts.has(imported),
+                        `${file} imports ${imported}, a mount of ${section}'s rows; only the section may`
+                    ).toBe(true);
+                }
+            }
+        }
+    });
 });

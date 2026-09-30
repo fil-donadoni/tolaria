@@ -62,7 +62,14 @@ checkout changed against the base branch (`scripts/lib/ui-scope.ts`). A
 stylesheet, a design token, a shared UI primitive, the shell, the router,
 `index.html`, `public/**`, the build config, the lane itself, or any path the
 scoper cannot place forces the full run. Tests, scripts and markdown reach
-nothing, so a diff made only of them walks zero surfaces and says so.
+nothing, so a diff made only of them walks zero surfaces and says so. A
+**specimen row** of `/admin/design-system` (`dlg-*`, `pick-*`) is scoped by the
+closure of the module it mounts plus its section's, never by the page's whole
+route closure (issue #4913, ADR 0131 amendment): one dialog's diff walks that
+dialog's row, the page's own surface and any route that mounts it — not the
+other ~30 rows. An `import type` is no edge. **The full walk (`--all`) runs as
+the last batch-health step**, never on a PR: what a scoped receipt accepts not
+to see, health catches at batch cadence.
 
 **Speed is sized to the machine the run owns** (issue #3653, re-sized in
 issue #4687). The five viewports are independent, so the lane walks several at

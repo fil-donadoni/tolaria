@@ -569,7 +569,9 @@ disagrees with the batch's is deferred as a lane mismatch, the same way an
 overlapping target file is deferred today. `/next-issue` lands one issue at a
 time, so a `skin` PR carries its own `check:ui` receipt and `land` re-derives
 it (ADR 0110 §4); the batch-level `check:ui` of the retired fan-out is gone
-with it.
+with it. What stands in its place (issue #4913) is the full `check:ui --all`
+walk as the LAST batch-health step: a PR walks the surfaces its diff can reach,
+the batch walks them all.
 
 ### No preflight, no pre-PR gate — `land` pays the lane once (ADR 0136 §1–2)
 
@@ -840,6 +842,24 @@ order of weight:
    `ncpu - 1` vitest workers, so neither tier fits it.
 3. It is slower than the whole static gate — measured ~4 min for eight
    surfaces × five viewports on this machine, most of it axe.
+
+**The full walk runs in batch health, never on a PR** (issue #4913, ADR 0131
+amendment). A PR's receipt is `SCOPED` to what its diff can reach — a specimen
+row of `/admin/design-system` by its section and its mount, a route surface by
+its route closure, a type-only import counting as no edge. What the scoper
+accepts not to see (a mount a section renders unconditionally, a sibling
+section's frame under an open layer, the Tailwind class scan, base-branch graph
+drift) is what `check:ui --all` as the last `HEALTH_SCRIPTS` step exists to
+catch: it runs after every offline verdict on the batch's tip, and a failing
+surface leaves the same `RED` marker as any other step — an `INFRA` cell or
+an unreachable deployment included: `bun run health` re-run on the same tip
+clears a RED the machine caused. It is the one health step that is not
+offline, and the three reasons above still keep it out of `check:all`. Priced:
+under the per-batch `--under-lock` hold the walk (4–29 min measured, 60 min
+deadline) lengthens the block a queued `land` waits on, once per batch; and
+it walks the tip's frontend against whatever Convex functions the shared local
+deployment serves, since `check:ui` pushes none — on a PR as in health (ADR
+0131 § Amendment).
 
 So `check:ui` is a standalone command, and **its output is the receipt a UI PR
 pastes**. The enforcement is the same as it was for the manual browser check

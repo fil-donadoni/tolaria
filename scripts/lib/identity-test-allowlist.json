@@ -1038,5 +1038,15 @@
         "file": "src/__tests__/design-tokens.test.ts",
         "test": "design tokens v3 — CSS ↔ typed mirror > declares every mirrored family in @layer base :root, not @theme inline",
         "reason": "Domain pin: the sibling it.each iterates the token groups themselves, so a family dropped from the mirror shrinks the sweep silently."
+    },
+    {
+        "file": "scripts/__tests__/health-ui-walk.test.ts",
+        "test": "health runs the full check:ui walk (issue #4913) > is the LAST health step — every offline verdict comes first",
+        "reason": "Ordering invariant over HEALTH_SCRIPTS: the browser walk runs after every offline verdict (issue #4913)."
+    },
+    {
+        "file": "scripts/__tests__/ui-gate-surface-entries.test.ts",
+        "test": "check:ui surface table — specimen rows (issue #4913) > the table declares specimen rows",
+        "reason": "Census guard: the it.each over specimen rows would pass vacuously on an empty table (issue #4913)."
     }
 ]

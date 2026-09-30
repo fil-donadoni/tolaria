@@ -23,7 +23,10 @@ block no longer fits a PR body (GitHub caps it at 65,536 characters): paste the
 three lines under `receipt digest` — banner, `verdict-sha256:`, coverage —
 which `land` accepts on the same terms (#4419). A no-flag run walks the diff's
 surfaces and prints `SCOPED` (ADR 0131), re-derived by `land`; `RECEIPT` covers
-any diff; never `DIAGNOSTIC`; never reflow a row.
+any diff; never `DIAGNOSTIC`; never reflow a row. A specimen row of
+`/admin/design-system` is scoped by its section + mount, not the page's whole
+route closure; **the full walk (`--all`) is a batch-health step, never a PR's**
+(issue #4913, ADR 0131 amendment).
 
 **Unreached prints `UNWALKED`; a walk the machine cut short, `INFRA` (#3644)** —
 both red the run: unproven, not a pass.
