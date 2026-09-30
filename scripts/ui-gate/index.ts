@@ -164,13 +164,15 @@ import {
 import { ORIGIN_BASE } from "../lib/branches.ts";
 import { renderUiScope, type UiScope } from "../lib/ui-scope.ts";
 import { acquireUiLane, gateLockRoot } from "../lib/ui-admission.ts";
+import { classifyWalkFailure, type RetryPolicy } from "./infra-verdict.ts";
 import {
-    classifyWalkFailure,
-    infraDetail,
-    retryStep,
-    standingVerdict,
-    type RetryPolicy,
-} from "./infra-verdict.ts";
+    DeadlineExpired,
+    deadlineFromEnv,
+    openCellsLines,
+    runCellAttempts,
+    withDeadline,
+    type AttemptResult,
+} from "./cell-deadline.ts";
 import {
     NETWORK_INSTRUMENT_SOURCE,
     trackPageRequests,
@@ -217,6 +219,30 @@ const RETRY_POLICY: RetryPolicy = {
     pollMs: 5_000,
     maxWaitMs: 30_000,
 };
+
+/**
+ * Cell and run deadlines (issue #4912). A cell ATTEMPT — walk, settle, probe,
+ * axe, screenshot, assertions — past `CELL_DEADLINE_MS` has its page closed and
+ * fails as `cell-deadline`, retried under `RETRY_POLICY`; the slowest walks
+ * (a game played to a combat step) take well under a minute, and the settle
+ * wait alone is capped at 30s. The run as a whole gets `RUN_DEADLINE_MS`,
+ * against a measured 4–29 min for a full five-viewport walk.
+ */
+const CELL_DEADLINE_MS = deadlineFromEnv(
+    process.env.TOLARIA_UI_GATE_CELL_DEADLINE_MS,
+    180_000
+);
+const RUN_DEADLINE_MS = deadlineFromEnv(
+    process.env.TOLARIA_UI_GATE_RUN_DEADLINE_MS,
+    60 * 60_000
+);
+
+/** One cell's measurement, as an attempt returns it. */
+interface MeasuredCell {
+    probe: ProbeResult;
+    axe: AxeCount;
+    asserts: readonly AssertResult[];
+}
 
 function loadAverage(): number {
     return os.loadavg()[0];
@@ -909,6 +935,14 @@ async function main(): Promise<number> {
                  * buffered here instead of logged, which under parallelism
                  * would interleave five viewports into one unreadable column.
                  */
+                /**
+                 * What each viewport is doing now, and which have reported —
+                 * what the run deadline prints when it fires (issue #4912).
+                 */
+                const progress = new Map<string, string>();
+                const reported = new Set<string>();
+                const finished: ViewportResult[] = [];
+
                 const walkViewport = async (
                     viewport: Viewport,
                     member: LaneMember
@@ -977,140 +1011,181 @@ async function main(): Promise<number> {
                     // Before any app code: the settle predicate counts the Convex
                     // requests in flight through this (`settle.ts`).
                     await context.addInitScript(NETWORK_INSTRUMENT_SOURCE);
-                    const page = await context.newPage();
-                    trackPageRequests(page);
                     /** The console errors of the CURRENT walk attempt, untruncated —
                      *  what `classifyWalkFailure` reads a signature from. */
                     const attemptConsole: string[] = [];
-                    page.on("console", (msg) => {
-                        if (msg.type() === "error") {
-                            attemptConsole.push(msg.text());
-                            consoleErrors.push(
-                                `${viewport.id}: ${msg.text().slice(0, 160)}`
-                            );
-                        }
-                    });
                     /**
-                     * Walk one surface to a Settled Screen on the CURRENT page,
-                     * retrying an Infra Verdict (issue #3644). True when the
-                     * screen is ready to measure. Otherwise the outcome is
-                     * recorded — UNWALKED for the whole surface, or an INFRA
-                     * cell for this viewport — and the answer is false.
+                     * A page in this viewport's context, instrumented. A cell
+                     * that outlives its deadline (issue #4912) has its page
+                     * CLOSED — the one act that rejects every Playwright call
+                     * still pending on it — and the next attempt or surface
+                     * opens a fresh one here: same context, so the sign-in
+                     * (context storage) and the network instrument survive.
                      */
-                    const walkToSettled = async (
+                    const openPage = async (): Promise<Page> => {
+                        const opened = await context.newPage();
+                        trackPageRequests(opened);
+                        opened.on("console", (msg) => {
+                            if (msg.type() === "error") {
+                                attemptConsole.push(msg.text());
+                                consoleErrors.push(
+                                    `${viewport.id}: ${msg.text().slice(0, 160)}`
+                                );
+                            }
+                        });
+                        return opened;
+                    };
+                    let page = await openPage();
+                    const ensurePage = async (): Promise<void> => {
+                        if (page.isClosed()) page = await openPage();
+                    };
+                    const closePage = (): Promise<void> =>
+                        page.close().catch(() => {});
+
+                    /**
+                     * ONE attempt at a cell: walk the surface to a Settled
+                     * Screen on the CURRENT page, then probe, axe, screenshot
+                     * and assert it. Throws a failure the Infra Verdict
+                     * classifies (issue #3644); returns `unwalked` for a
+                     * measurement no retry can fix. `runCellAttempts` runs it
+                     * under the cell deadline and retries it (issue #4912).
+                     */
+                    const attemptCell = async (
                         surface: Surface,
                         t: PhaseTimings
-                    ): Promise<boolean> => {
-                        const cell = `  ${surface.id.padEnd(20)} ${viewport.id.padEnd(12)}`;
-                        for (let attempts = 1; ; attempts++) {
-                            // Console events arrive asynchronously; a round trip
-                            // through the page flushes the ones the previous
-                            // attempt (or surface) logged before they are cleared,
-                            // so none can land in this attempt's signature.
-                            await page.evaluate("0").catch(() => {});
-                            attemptConsole.length = 0;
+                    ): Promise<AttemptResult<MeasuredCell>> => {
+                        await ensurePage();
+                        // Console events arrive asynchronously; a round trip
+                        // through the page flushes the ones the previous
+                        // attempt (or surface) logged before they are cleared,
+                        // so none can land in this attempt's signature.
+                        await page.evaluate("0").catch(() => {});
+                        attemptConsole.length = 0;
+                        await timed(t, "walk", () => surface.walk(page, ctx));
+                        await timed(t, "settle", () =>
+                            waitForSettledScreen(page, {
+                                targets: surface.settleTargets,
+                            })
+                        );
+                        // A backend function that timed out can still
+                        // leave a screen that settles — an error panel,
+                        // held data, an empty list — and measuring it
+                        // would report the machine as a UI failure. Only
+                        // this signature: a `Server Error` can be logged
+                        // harmlessly on a quiet machine.
+                        await page.evaluate("0").catch(() => {});
+                        const timedOut = attemptConsole.find((line) => {
+                            const c = classifyWalkFailure({
+                                message: "",
+                                consoleErrors: [line],
+                            });
+                            return (
+                                c.kind === "INFRA" &&
+                                c.signature === "function-timeout"
+                            );
+                        });
+                        if (timedOut) {
+                            throw new Error(
+                                `the screen settled, but a backend function timed out while it loaded: ${timedOut.split("\n").slice(-1)[0]}`
+                            );
+                        }
+
+                        // The page can still navigate between the settle and
+                        // the last evaluate — the document the probe measured
+                        // is then gone before axe reads it, and the error used
+                        // to take the whole run down (measured on this branch,
+                        // `game-debug-sheet` @ 1440x900x2). Re-settle and
+                        // measure again; a page that will not hold still for
+                        // a measurement is a surface the lane could not
+                        // measure, said as such.
+                        let measured: {
+                            probe: ProbeResult;
+                            axe: AxeCount;
+                        } | null = null;
+                        for (let tries = 1; !measured; tries++) {
                             try {
-                                await timed(t, "walk", () =>
-                                    surface.walk(page, ctx)
+                                const probe = await timed(t, "probe", () =>
+                                    runProbe(page)
                                 );
-                                await timed(t, "settle", () =>
-                                    waitForSettledScreen(page, {
-                                        targets: surface.settleTargets,
-                                    })
+                                const axe = await timed(t, "axe", () =>
+                                    runAxe(page)
                                 );
-                                // A backend function that timed out can still
-                                // leave a screen that settles — an error panel,
-                                // held data, an empty list — and measuring it
-                                // would report the machine as a UI failure. Only
-                                // this signature: a `Server Error` can be logged
-                                // harmlessly on a quiet machine.
-                                await page.evaluate("0").catch(() => {});
-                                const timedOut = attemptConsole.find((line) => {
-                                    const c = classifyWalkFailure({
-                                        message: "",
-                                        consoleErrors: [line],
-                                    });
-                                    return (
-                                        c.kind === "INFRA" &&
-                                        c.signature === "function-timeout"
-                                    );
-                                });
-                                if (timedOut) {
-                                    throw new Error(
-                                        `the screen settled, but a backend function timed out while it loaded: ${timedOut.split("\n").slice(-1)[0]}`
-                                    );
-                                }
-                                return true;
+                                measured = { probe, axe };
                             } catch (err) {
+                                const first = (err as Error).message.split(
+                                    "\n"
+                                )[0];
+                                const navigated =
+                                    /Execution context was destroyed|navigat/i.test(
+                                        first
+                                    );
+                                if (!navigated || tries >= 3) {
+                                    return {
+                                        kind: "unwalked",
+                                        reason: navigated
+                                            ? `the page navigated during the measurement ${tries} time(s) in a row: ${first}`
+                                            : `the measurement threw: ${first}`,
+                                    };
+                                }
+                                await waitForSettledScreen(page, {
+                                    targets: surface.settleTargets,
+                                }).catch(() => {});
+                            }
+                        }
+
+                        const shot = path.join(
+                            shotDir,
+                            `${surface.id}__${viewport.id}.png`
+                        );
+                        await timed(t, "screenshot", () =>
+                            page.screenshot({ path: shot })
+                        );
+                        // AFTER the probe, axe and the screenshot, never
+                        // before: a `reachable` check scrolls its element
+                        // into view, and the measurement above has to be
+                        // taken on the screen as the walk found it.
+                        const asserts = await timed(t, "assertions", () =>
+                            evaluateAssertions(page, surface.asserts ?? [], {
+                                viewport: {
+                                    width: viewport.width,
+                                    height: viewport.height,
+                                },
+                                ensureAxe: () => injectAxe(page),
+                            })
+                        );
+                        return { kind: "ok", value: { ...measured, asserts } };
+                    };
+
+                    /**
+                     * Walk + measure one surface on the CURRENT page, and
+                     * record its outcome.
+                     *
+                     * Extracted so the `preAuth` surfaces can run through exactly the
+                     * same measurement before `ensureSignedIn` — a second copy of this
+                     * block is how one of the two groups would quietly stop being
+                     * probed, screenshotted or held to the Floors.
+                     */
+                    const measure = async (surface: Surface): Promise<void> => {
+                        const t = emptyTimings();
+                        timings.push({
+                            surface: surface.id,
+                            viewport: viewport.id,
+                            ms: t,
+                        });
+                        progress.set(viewport.id, surface.id);
+                        const cell = `  ${surface.id.padEnd(20)} ${viewport.id.padEnd(12)}`;
+                        const outcome = await runCellAttempts<MeasuredCell>({
+                            attempt: () => attemptCell(surface, t),
+                            attemptConsole: () => attemptConsole,
+                            reasonOf: (err) => {
                                 const message = (err as Error).message;
-                                const reason =
-                                    err instanceof Unreachable
-                                        ? message
-                                        : `walk threw: ${message.split("\n")[0]}`;
-                                const failure = classifyWalkFailure({
-                                    message,
-                                    consoleErrors: attemptConsole,
-                                });
-                                if (failure.kind === "UNWALKED") {
-                                    unreachable.set(surface.id, reason);
-                                    lines.push(`${cell} UNWALKED — ${reason}`);
-                                    return false;
-                                }
-
-                                const failedAt = loadAverage();
-                                const said = infraDetail(
-                                    failure.signature,
-                                    failedAt
-                                );
-                                const samples: number[] = [];
-                                let step = retryStep(
-                                    attempts,
-                                    samples,
-                                    RETRY_POLICY
-                                );
-                                while (step.action === "wait") {
-                                    if (step.ms > 0) await sleep(step.ms);
-                                    samples.push(loadAverage());
-                                    step = retryStep(
-                                        attempts,
-                                        samples,
-                                        RETRY_POLICY
-                                    );
-                                }
-
-                                if (step.action === "give-up") {
-                                    const firstLine = reason.split("\n")[0];
-                                    if (
-                                        standingVerdict(
-                                            failedAt,
-                                            RETRY_POLICY
-                                        ) === "UNWALKED"
-                                    ) {
-                                        const quiet = `${firstLine} (${said}, under the retry threshold: the walk itself failed)`;
-                                        unreachable.set(surface.id, quiet);
-                                        lines.push(
-                                            `${cell} UNWALKED — ${quiet}`
-                                        );
-                                        return false;
-                                    }
-                                    infra.push({
-                                        surface: surface.id,
-                                        cell: {
-                                            viewport: viewport.id,
-                                            signature: failure.signature,
-                                            load: failedAt,
-                                            reason: firstLine,
-                                        },
-                                    });
-                                    lines.push(
-                                        `${cell} INFRA — ${said} after ${attempts} attempt(s): ${firstLine}`
-                                    );
-                                    return false;
-                                }
-
-                                lines.push(
-                                    `${cell} infra attempt ${attempts}/${RETRY_POLICY.maxAttempts} — ${said}; retrying at load ${(samples.at(-1) ?? failedAt).toFixed(1)}`
-                                );
+                                return err instanceof Unreachable
+                                    ? message
+                                    : `walk threw: ${message.split("\n")[0]}`;
+                            },
+                            onDeadline: closePage,
+                            beforeRetry: async () => {
+                                await ensurePage();
                                 // Undo what the failed attempt created (the
                                 // `deck-builder` fixture's `userDecks` row, issue
                                 // #2671) before the retry overwrites the record of
@@ -1132,79 +1207,37 @@ async function main(): Promise<number> {
                                             )
                                     );
                                 }
-                            }
-                        }
-                    };
-
-                    /**
-                     * Walk + probe one surface on the CURRENT page.
-                     *
-                     * Extracted so the `preAuth` surfaces can run through exactly the
-                     * same measurement before `ensureSignedIn` — a second copy of this
-                     * block is how one of the two groups would quietly stop being
-                     * probed, screenshotted or held to the Floors.
-                     */
-                    const measure = async (surface: Surface): Promise<void> => {
-                        const t = emptyTimings();
-                        timings.push({
-                            surface: surface.id,
-                            viewport: viewport.id,
-                            ms: t,
+                            },
+                            note: (line) => lines.push(`${cell} ${line}`),
+                            deadlineMs: CELL_DEADLINE_MS,
+                            policy: RETRY_POLICY,
+                            loadAverage,
+                            sleep,
+                            where: `${surface.id} @ ${viewport.id}`,
                         });
-                        let walked = await walkToSettled(surface, t);
                         /** The measured cell's line body and its failed
                          *  assertions, written after the cleanup (below). */
                         let cellDetail: string | null = null;
                         let assertLines: string[] = [];
 
-                        // The page can still navigate between the settle and
-                        // the last evaluate — the document the probe measured
-                        // is then gone before axe reads it, and the error used
-                        // to take the whole run down (measured on this branch,
-                        // `game-debug-sheet` @ 1440x900x2). Re-settle and
-                        // measure again; a page that will not hold still for
-                        // a measurement is a surface the lane could not
-                        // measure, said as such.
-                        let measured: {
-                            probe: ProbeResult;
-                            axe: AxeCount;
-                        } | null = null;
-                        for (let tries = 1; walked && !measured; tries++) {
-                            try {
-                                const probe = await timed(t, "probe", () =>
-                                    runProbe(page)
-                                );
-                                const axe = await timed(t, "axe", () =>
-                                    runAxe(page)
-                                );
-                                measured = { probe, axe };
-                            } catch (err) {
-                                const first = (err as Error).message.split(
-                                    "\n"
-                                )[0];
-                                const navigated =
-                                    /Execution context was destroyed|navigat/i.test(
-                                        first
-                                    );
-                                if (!navigated || tries >= 3) {
-                                    const reason = navigated
-                                        ? `the page navigated during the measurement ${tries} time(s) in a row: ${first}`
-                                        : `the measurement threw: ${first}`;
-                                    unreachable.set(surface.id, reason);
-                                    lines.push(
-                                        `  ${surface.id.padEnd(20)} ${viewport.id.padEnd(12)} UNWALKED — ${reason}`
-                                    );
-                                    walked = false;
-                                    break;
-                                }
-                                await waitForSettledScreen(page, {
-                                    targets: surface.settleTargets,
-                                }).catch(() => {});
-                            }
-                        }
-
-                        if (walked && measured) {
-                            const { probe, axe } = measured;
+                        if (outcome.kind === "UNWALKED") {
+                            unreachable.set(surface.id, outcome.reason);
+                            lines.push(`${cell} UNWALKED — ${outcome.reason}`);
+                        } else if (outcome.kind === "INFRA") {
+                            infra.push({
+                                surface: surface.id,
+                                cell: {
+                                    viewport: viewport.id,
+                                    signature: outcome.signature,
+                                    load: outcome.load,
+                                    reason: outcome.reason,
+                                },
+                            });
+                            lines.push(
+                                `${cell} INFRA — ${outcome.said} after ${outcome.attempts} attempt(s): ${outcome.reason}`
+                            );
+                        } else {
+                            const { probe, axe, asserts } = outcome.value;
                             const readings = readingsOf(probe, axe);
                             if (probe.shellBand.mounted) {
                                 bandWalks.push({
@@ -1212,13 +1245,6 @@ async function main(): Promise<number> {
                                     excluded: probe.shellBand.excluded,
                                 });
                             }
-                            const shot = path.join(
-                                shotDir,
-                                `${surface.id}__${viewport.id}.png`
-                            );
-                            await timed(t, "screenshot", () =>
-                                page.screenshot({ path: shot })
-                            );
 
                             // `cardsSquare` names its offenders inline (issue #2724):
                             // "5 cards are square" is not actionable, and the whole
@@ -1261,23 +1287,6 @@ async function main(): Promise<number> {
                                 `${axe.exempt ? ` exempt${axe.exempt}` : ""} | ` +
                                 `small${probe.smallN} tiny${probe.tinyText} hOverflow${probe.hOverflow}`;
 
-                            // AFTER the probe, axe and the screenshot, never
-                            // before: a `reachable` check scrolls its element
-                            // into view, and the measurement above has to be
-                            // taken on the screen as the walk found it.
-                            const asserts = await timed(t, "assertions", () =>
-                                evaluateAssertions(
-                                    page,
-                                    surface.asserts ?? [],
-                                    {
-                                        viewport: {
-                                            width: viewport.width,
-                                            height: viewport.height,
-                                        },
-                                        ensureAxe: () => injectAxe(page),
-                                    }
-                                )
-                            );
                             // The cell line carries its phase timings (issue
                             // #4687), so it is written only after the cleanup
                             // below has run — the last phase it accounts for.
@@ -1309,11 +1318,19 @@ async function main(): Promise<number> {
                         // row) without touching what was just measured. Best-effort:
                         // a cleanup failure is hygiene debt, not a measurement defect,
                         // so it is logged rather than failing the surface.
+                        // Under the cell deadline too (issue #4912): a cleanup
+                        // that never settles is reported, never waited on.
                         let cleanupLine: string | null = null;
                         if (surface.cleanup) {
                             try {
+                                await ensurePage();
                                 await timed(t, "cleanup", () =>
-                                    surface.cleanup!(page, ctx)
+                                    withDeadline(
+                                        () => surface.cleanup!(page, ctx),
+                                        CELL_DEADLINE_MS,
+                                        `the cleanup at ${surface.id} @ ${viewport.id}`,
+                                        closePage
+                                    )
                                 );
                             } catch (err) {
                                 cleanupLine = `  ${surface.id.padEnd(20)} ${viewport.id.padEnd(12)} CLEANUP FAILED — ${(err as Error).message.split("\n")[0]}`;
@@ -1337,6 +1354,8 @@ async function main(): Promise<number> {
                         await measure(surface);
                     }
 
+                    progress.set(viewport.id, "signing in");
+                    await ensurePage();
                     await ensureSignedIn(
                         page,
                         baseUrl,
@@ -1351,7 +1370,12 @@ async function main(): Promise<number> {
                         await measure(surface);
                     }
 
-                    await context.close();
+                    progress.set(viewport.id, "closing its context");
+                    await withDeadline(
+                        () => context.close(),
+                        CELL_DEADLINE_MS,
+                        `closing the ${viewport.id} context`
+                    ).catch(() => {});
                     return {
                         viewport: viewport.id,
                         lines,
@@ -1371,22 +1395,57 @@ async function main(): Promise<number> {
                 // it exists to dodge — one game per account — is held for as
                 // long as a walk is playing, and a lane is the only thing that
                 // is provably not walking two viewports at once.
-                const results = await runPool(
-                    VIEWPORTS,
-                    parallel,
-                    async (viewport, _index, lane) => {
-                        const walked = await walkViewport(
-                            viewport,
-                            fleet.members[lane]
-                        );
-                        // The only live progress a parallel run can honestly
-                        // give: its cells are printed in matrix order below.
-                        log(
-                            `ui-gate: ${viewport.id} (${viewport.label}) — walked`
-                        );
-                        return walked;
+                // The whole run under one deadline too (issue #4912): every
+                // cell is bounded, but sign-in and context setup are not, and
+                // a run that outlives this prints the viewports still open
+                // plus the cells of those that finished, then exits non-zero
+                // through the normal teardown — never a silent hang.
+                const results = await withDeadline(
+                    () =>
+                        runPool(
+                            VIEWPORTS,
+                            parallel,
+                            async (viewport, _index, lane) => {
+                                progress.set(
+                                    viewport.id,
+                                    "opening its context"
+                                );
+                                const walked = await walkViewport(
+                                    viewport,
+                                    fleet.members[lane]
+                                );
+                                reported.add(viewport.id);
+                                finished.push(walked);
+                                // The only live progress a parallel run can honestly
+                                // give: its cells are printed in matrix order below.
+                                log(
+                                    `ui-gate: ${viewport.id} (${viewport.label}) — walked`
+                                );
+                                return walked;
+                            }
+                        ),
+                    RUN_DEADLINE_MS,
+                    "the run"
+                ).catch((err: unknown) => {
+                    if (!(err instanceof DeadlineExpired)) throw err;
+                    const minutes = Math.round(RUN_DEADLINE_MS / 60_000);
+                    for (const id of VIEWPORT_IDS) {
+                        const done = finished.find((r) => r.viewport === id);
+                        for (const line of done?.lines ?? []) log(line);
                     }
-                );
+                    const open = openCellsLines(
+                        VIEWPORT_IDS,
+                        progress,
+                        reported
+                    );
+                    log(
+                        `ui-gate: run deadline (${minutes} min) passed with ${open.length} viewport(s) still open:`
+                    );
+                    for (const line of open) log(line);
+                    throw new FatalError(
+                        `the run outlived its ${minutes}-minute deadline with ${open.length} viewport(s) open (listed above) — no receipt`
+                    );
+                });
                 const collected = collectRun({
                     knownSurfaceIds: knownIds,
                     viewportIds: VIEWPORT_IDS,
@@ -1426,7 +1485,16 @@ async function main(): Promise<number> {
             } finally {
                 // Closed BEFORE the account is torn down, so no page is still
                 // subscribed to rows the teardown is deleting.
-                if (browser) await browser.close().catch(() => {});
+                // Bounded (issue #4912): a browser whose renderer stalled can
+                // stall its own close, and the teardown after it must run.
+                if (browser) {
+                    const closing = browser;
+                    await withDeadline(
+                        () => closing.close(),
+                        CELL_DEADLINE_MS,
+                        "closing the browser"
+                    ).catch(() => {});
+                }
             }
         });
     } finally {
