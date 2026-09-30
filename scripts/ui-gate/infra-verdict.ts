@@ -35,7 +35,8 @@ export type InfraSignature =
     | "server-error"
     | "navigation-timeout"
     | "step-timeout"
-    | "unsettled";
+    | "unsettled"
+    | "cell-deadline";
 
 /** One failed walk attempt, as the lane captured it. */
 export interface WalkFailure {
@@ -54,6 +55,13 @@ export type FailureClass =
  * Declared here, beside the rule that recognises it, so the two cannot drift.
  */
 export const UNSETTLED_MESSAGE_PREFIX = "screen did not settle";
+
+/**
+ * The prefix `cell-deadline.ts` puts on the error a cell attempt that outlived
+ * its wall-clock deadline is rejected with (issue #4912). Declared here for the
+ * same reason as `UNSETTLED_MESSAGE_PREFIX`.
+ */
+export const CELL_DEADLINE_MESSAGE_PREFIX = "cell deadline exceeded";
 
 interface SignatureRule {
     signature: InfraSignature;
@@ -97,7 +105,17 @@ const MESSAGE_RULES: readonly SignatureRule[] = [
     },
 ];
 
+/**
+ * A cell attempt that outlived its deadline (issue #4912) is `cell-deadline`
+ * before anything else is read: the lane itself cut the attempt short, so the
+ * deadline is a FACT about the attempt, where a console line is only evidence.
+ */
+const DEADLINE_PATTERN = new RegExp(`^${CELL_DEADLINE_MESSAGE_PREFIX}`);
+
 export function classifyWalkFailure(failure: WalkFailure): FailureClass {
+    if (DEADLINE_PATTERN.test(failure.message)) {
+        return { kind: "INFRA", signature: "cell-deadline" };
+    }
     for (const rule of CONSOLE_RULES) {
         if (failure.consoleErrors.some((line) => rule.pattern.test(line))) {
             return { kind: "INFRA", signature: rule.signature };
@@ -165,11 +183,18 @@ export function retryStep(
 /**
  * The verdict an `INFRA` failure stands as once `retryStep` gave up. `load` is
  * the 1-minute load average when the last attempt failed.
+ *
+ * `cell-deadline` stands as INFRA at any load (issue #4912): the stall it
+ * names was observed at load 2–10 on 8 cpus with the renderers idle — an
+ * await in the lane that never settled, not a screen the walk could not
+ * reach. Reporting it UNWALKED would put the lane's own hang on the surface.
  */
 export function standingVerdict(
     load: number,
-    policy: Pick<RetryPolicy, "loadThreshold">
+    policy: Pick<RetryPolicy, "loadThreshold">,
+    signature?: InfraSignature
 ): "INFRA" | "UNWALKED" {
+    if (signature === "cell-deadline") return "INFRA";
     return load >= policy.loadThreshold ? "INFRA" : "UNWALKED";
 }
 
