@@ -41,7 +41,8 @@
 // that keeps the most material — so a free chump attack never ties "no attacks"
 // on rollout noise.
 
-import { findPermanent } from "./lookup";
+import { hasCastPermissionFlash } from "./castPermissions";
+import { findCardInAnyZone, findPermanent } from "./lookup";
 import { announcedModeFields } from "./modeSelection";
 import {
     repeatedMoveKeys,
@@ -5253,6 +5254,14 @@ function isSorcerySpeedTrickDump(state: GameState, move: Move): boolean {
  *    attacker, a hasty token copy, a grant that lets a body attack: their
  *    last useful window is before the declaration, as clause 5 already says
  *    of a haste grant, and the end step comes after it.
+ *  - **A sorcery-speed cast opened** — in the mover's own sorcery window
+ *    (CR 307.1): after the resolution the mover may cast a card it could not
+ *    cast before, and that card has no instant timing of its own (CR 117.1a /
+ *    702.8a) and no "as though it had flash" permission (CR 601.3b). The
+ *    opponent's end step is no sorcery window, so a deferred action reaches
+ *    it with that cast gone: Snapcaster Mage granting flashback to a sorcery
+ *    (CR 702.34a — the flashback cast keeps the card's own timing), measured
+ *    held on every seed before this reading (issue #4217).
  *
  * KNOWN LIMIT, the mover's BLOCKING side: a flash body cast in the mover's
  * own main can block in the opponent's combat, and one cast at the end step
@@ -5290,11 +5299,20 @@ export function waitsUnchanged(
     if (!after) return false;
     if (after.opponent !== before.opponent) return false;
     if (after.pool > before.pool) return false;
+    if (after.sorceryCasts.some((id) => !before.sorceryCasts.includes(id)))
+        return false;
     return !attacksBeforeTheWait(state, pid) || after.roster === before.roster;
 }
 
-/** The three readings {@link waitsUnchanged} compares, as comparable values. */
-export type WaitReading = { opponent: string; pool: number; roster: string };
+/** The four readings {@link waitsUnchanged} compares, as comparable values. */
+export type WaitReading = {
+    opponent: string;
+    pool: number;
+    roster: string;
+    /** {@link sorceryTimedCasts} — the cards only this sorcery window lets
+     *  the mover cast. */
+    sorceryCasts: string[];
+};
 
 /** {@link WaitReading} of a position — exported so a caller asking the premise
  *  of several candidates on ONE root reads the root once. */
@@ -5323,7 +5341,28 @@ export function waitReadingOf(
         opponent: JSON.stringify(evaluateBreakdown(state, pid).opp),
         pool: spendableManaTotal(me),
         roster,
+        sorceryCasts: sorceryTimedCasts(state, pid),
     };
+}
+
+/** The ids of the cards `pid` may cast right now ONLY because this is its
+ *  sorcery window (CR 307.1): a legal cast of a card with no instant timing
+ *  of its own (`hasInstantSpeed`, CR 117.1a / 702.8a) and no "as though it
+ *  had flash" permission (CR 601.3b). Empty outside that window — no such
+ *  cast exists there to lose. Read off the enumerator, the one legality
+ *  authority, so a cast the mover cannot afford is not counted. */
+function sorceryTimedCasts(state: GameState, pid: string): string[] {
+    if (!isSorceryTimingFor(state, pid)) return [];
+    const ids: string[] = [];
+    for (const move of enumerateMoves(state, pid)) {
+        if (move.kind !== "cast-spell") continue;
+        const card = findCardInAnyZone(state, move.cardInstanceId);
+        if (!card || hasInstantSpeed(card)) continue;
+        const zone = move.castFromZone ?? "hand";
+        if (hasCastPermissionFlash(state, pid, card, zone)) continue;
+        if (!ids.includes(card.id)) ids.push(card.id);
+    }
+    return ids;
 }
 
 /** The mover's own turn, before attackers are declared (CR 508.1a): its own
