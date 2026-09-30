@@ -9928,6 +9928,121 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         },
         note: "Issue #4895 (issue #4758 review). STRETCH, owned by issue #4900: the pitch evoke (exile a white card) needs no mana, and it is the only way to survive. `enumerateMoves` offers only `pass` here, so the Bot dies.",
     },
+    // Issue #4217 (founding case of PRD #4754) — Snapcaster Mage. A
+    // DISCRIMINATING PAIR on one board: the only difference is whether the
+    // graveyard holds a sorcery worth flashing back. Then the reported position
+    // itself, rebuilt from the bug report's game state.
+    {
+        label: "Snapcaster Mage: holds it in its own main phase with an empty graveyard",
+        spec: {
+            cards: [
+                { name: "Snapcaster Mage", owner: "me", zone: "hand" },
+                { name: "Island", owner: "me", zone: "battlefield" },
+                { name: "Island", owner: "me", zone: "battlefield" },
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                {
+                    name: "Serra Angel",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [{ kind: "cast-spell", card: "Snapcaster Mage" }],
+        },
+        note: "Issue #4217 — the hold half. Snapcaster Mage's ETB has nothing to grant flashback to, so casting it in its own main phase spends its ETB Ability (issue #4758) for a vanilla 2/1 and gives up Flash's later window. Measured `pass` on ten seeds before and after this change; the half that discriminates is the Flame Slash entry below.",
+    },
+    {
+        label: "Snapcaster Mage: casts it to flash back a sorcery that kills a Serra Angel",
+        spec: {
+            cards: [
+                { name: "Snapcaster Mage", owner: "me", zone: "hand" },
+                { name: "Flame Slash", owner: "me", zone: "graveyard" },
+                { name: "Island", owner: "me", zone: "battlefield" },
+                { name: "Island", owner: "me", zone: "battlefield" },
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                {
+                    name: "Serra Angel",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "cast-spell", card: "Snapcaster Mage" }],
+        },
+        note: "Issue #4217 — the cast half. Flame Slash is a sorcery, and a granted flashback keeps the card's own timing (CR 702.34a / 307.1): the ETB's payoff exists only in this main phase. The search already preferred the cast; `last-window-deferral` held it on every seed, reading the Mage as a flash body that could wait for the opponent's end step. What keeps it green is `waitsUnchanged`'s sorcery-cast reading — a resolution that opens a cast only this sorcery window allows does not reach the same board later. Proof of failure: dropping that reading turns this entry red (`pass` on all five seeds).",
+    },
+    {
+        label: "Snapcaster Mage (issue #4217 reported position): holds it on turn 4 with an empty graveyard",
+        spec: {
+            // Rebuilt from the bug report's state (one turn later, the Mage on
+            // the battlefield): the Bot's Island + Plains untapped and the land
+            // drop spent, its hand as reported, the opponent's earthbent Hedge
+            // Maze and Badgermole Cub. The opponent's hand stays hidden.
+            cards: [
+                { name: "Island", owner: "me" },
+                { name: "Plains", owner: "me", summoningSick: true },
+                { name: "Snapcaster Mage", owner: "me", zone: "hand" },
+                { name: "Island", owner: "me", zone: "hand" },
+                { name: "Psychic Frog", owner: "me", zone: "hand" },
+                { name: "Show and Tell", owner: "me", zone: "hand" },
+                { name: "Brazen Borrower", owner: "me", zone: "hand" },
+                { name: "Subtlety", owner: "me", zone: "hand" },
+                { name: "Remand", owner: "me", zone: "hand" },
+                {
+                    name: "Hedge Maze",
+                    owner: "opp",
+                    counters: { "+1/+1": 1 },
+                    animated: {
+                        power: 0,
+                        toughness: 0,
+                        grantedAbilities: ["haste"],
+                    },
+                },
+                { name: "Island", owner: "opp" },
+                { name: "Badgermole Cub", owner: "opp" },
+                { name: "Verdant Catacombs", owner: "opp", zone: "graveyard" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 4,
+            life: { me: 20, opp: 19 },
+            activePlayer: "me",
+            priority: "me",
+            landsPlayed: { me: 1 },
+            hiddenHand: { opp: 5 },
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 500 },
+        // Seeds 5, 6, 8, 11 and 16 cast the Mage under the flat flashback-grant
+        // price (6/20 at 500 iterations); 0/20 after.
+        seeds: [0xb1ade, 5, 6, 8, 11, 16],
+        tier: "must",
+        expect: {
+            forbidden: [{ kind: "cast-spell", card: "Snapcaster Mage" }],
+        },
+        note: "Issue #4217 — the founding position (user on `hard`). Snapcaster Mage's ETB potential was priced at the flat `GRANT_CAST_VALUE` (20), below what its body adds on the battlefield, so the leaf evaluation scored the cast 6.7 above holding; priced at the fitted `latent.cardAdvantage` unit the hold leads by 17. The search's own cast-over-pass margin then falls inside `OUTCOME_EPS` and `last-window-deferral` keeps the Mage for a later window. Measured at 500 iterations over 20 seeds: 6 casts before, 0 after (at 400: 9/10 casts before, 4/10 after — rollout noise the budget here clears).",
+    },
 ];
 
 /** "The bot answered the ENGINE-RAISED target selection with a submission the
