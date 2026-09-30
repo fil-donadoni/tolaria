@@ -29,6 +29,7 @@ import {
     verdictIdOf,
     type VerdictJudgement,
 } from "./gre/ai/verdicts/identity";
+import { isLaneFixture } from "./gre/ai/verdicts/laneFixture";
 import type {
     VerdictAnswer,
     VerdictAttestation,
@@ -267,6 +268,19 @@ export function prepareOutboxRow(
         attribution = attributionOfRow(row, here);
     } catch (error) {
         return pending(messageOf(error));
+    }
+    // The lane's fixture never leaves the deployment that seeded it, by any
+    // route — the direct upload and the forward both come through here
+    // (issue #4905). It stays pending until the lane's teardown deletes it.
+    if (
+        isLaneFixture({
+            note: row.note,
+            deploymentKind: attribution.deploymentKind,
+        })
+    ) {
+        return pending(
+            "a check:ui lane fixture: never stored in the Verdict Store"
+        );
     }
     // A stamp that disagrees with the judgement it sits beside means the
     // canonicalisation moved since `submit` ran. Uploading would store the

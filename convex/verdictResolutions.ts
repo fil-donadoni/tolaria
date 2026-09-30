@@ -18,6 +18,7 @@ import { v } from "convex/values";
 import { internalMutation, internalQuery } from "./_generated/server";
 import { assertIsAdmin } from "./auth";
 import type { VerdictJudgement } from "./gre/ai/verdicts/identity";
+import { LANE_FIXTURE_NOTE } from "./gre/ai/verdicts/laneFixture";
 import {
     resolutionIdOf,
     resolutionProblems,
@@ -229,7 +230,9 @@ const UI_GATE_ANSWERS: VerdictJudgement["answer"][] = [
  * idempotent per account. The rows are the account's own (`authorId`), so the
  * lane's teardown removes them with the account, and they stay `local`, so
  * nothing downstream mistakes them for a tester's judgement. No drain is
- * scheduled: a local backend holds no write key.
+ * scheduled, and none can store them: their note is `LANE_FIXTURE_NOTE`, which
+ * the outbox refuses by every route — write key or forward token (issue
+ * #4905). The teardown is the only way they leave the table.
  */
 export const seedUiGateContestedPosition = internalMutation({
     args: { email: v.string() },
@@ -289,7 +292,7 @@ export const seedUiGateContestedPosition = internalMutation({
                 authorId: user._id,
                 author: user.nickname ?? "ui-gate",
                 createdAt: Date.now(),
-                note: "check:ui fixture",
+                note: LANE_FIXTURE_NOTE,
                 ...stamp,
                 attestationAuthor: verdictAuthorOf(here.name, user._id),
                 deployment: here.name,

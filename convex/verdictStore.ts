@@ -36,6 +36,7 @@ import {
     resolutionIdOf,
     resolutionProblems,
 } from "./gre/ai/verdicts/resolution";
+import { withoutLaneFixtures } from "./gre/ai/verdicts/laneFixture";
 import { utf8Bytes } from "./gre/ai/verdicts/sha256";
 import type {
     VerdictAttestation,
@@ -751,10 +752,22 @@ export async function readStoredCorpus(
     const attestationNames = await store.list(ATTESTATION_OBJECT_PREFIX);
     const verdictNames = await store.list(VERDICT_OBJECT_PREFIX);
     const resolutionNames = await store.list(RESOLUTION_OBJECT_PREFIX);
-    const [verdicts, attestations, resolutions] = await Promise.all([
-        readAll(store, verdictNames, decodeVerdictObject),
+    const [allAttestations, resolutions] = await Promise.all([
         readAll(store, attestationNames, decodeAttestationObject),
         readAll(store, resolutionNames, decodeResolutionObject),
     ]);
+    // The lane fixtures that leaked before the outbox refused them (issue
+    // #4905): the store never deletes, so the reader drops them — and every
+    // verdict only a fixture attests, unread.
+    const { attestations, fixtureOnlyVerdictIds } =
+        withoutLaneFixtures(allAttestations);
+    const verdicts = await readAll(
+        store,
+        verdictNames.filter((name) => {
+            const id = verdictIdOfObjectName(name);
+            return id === null || !fixtureOnlyVerdictIds.has(id);
+        }),
+        decodeVerdictObject
+    );
     return { verdicts, attestations, resolutions };
 }

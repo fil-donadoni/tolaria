@@ -57,6 +57,7 @@ import {
     minimalPairTally,
     type MinimalPairFitOutcome,
 } from "./fit";
+import { withoutLaneFixtures } from "./laneFixture";
 import { minimalPairStandings } from "./minimalPair";
 import { encodeVerdictPack } from "./pack";
 import {
@@ -121,7 +122,8 @@ export type VerdictObjectStatus =
     | "contested"
     | "rejected"
     | "in-registry"
-    | "incomplete-pair";
+    | "incomplete-pair"
+    | "lane-fixture";
 
 /** One verdict object's classification. `reasons` is empty exactly when the
  *  object is promotable. */
@@ -271,6 +273,23 @@ export function validateStoreObjects(
         }
     }
 
+    // The check:ui lane's fixtures that leaked before the outbox refused them
+    // (issue #4905): never part of the corpus. Their attestations are dropped,
+    // and a verdict only fixtures attest gets its own row saying why.
+    const { attestations: realAttestations, fixtureOnlyVerdictIds } =
+        withoutLaneFixtures(attestations);
+    for (const verdictId of [...fixtureOnlyVerdictIds].sort(byString)) {
+        if (!readable.delete(verdictId)) continue;
+        rows.push({
+            name: verdictObjectName(verdictId),
+            verdictId,
+            status: "lane-fixture",
+            reasons: [
+                "attested only by the check:ui lane's fixture — never corpus (issue #4905)",
+            ],
+        });
+    }
+
     // An admin's resolutions (issue #3582, ADR 0128 §6). A resolution that
     // does not read is a problem, never a guess: its position simply stays
     // contested, the direction that keeps a judgement out of the lock.
@@ -291,7 +310,7 @@ export function validateStoreObjects(
 
     const quarantine = quarantineContestedPositions(
         [...readable.values()],
-        attestations,
+        realAttestations,
         resolutions
     );
     const row = (
@@ -480,6 +499,7 @@ export function formatStoreValidation(validation: StoreValidation): string {
         `  rejected             : ${count("rejected")}`,
         `  in-registry          : ${count("in-registry")}`,
         `  incomplete-pair      : ${count("incomplete-pair")}`,
+        `  lane-fixture         : ${count("lane-fixture")}`,
         `attestation problems   : ${validation.attestationProblems.length}`,
         `resolution problems    : ${validation.resolutionProblems.length}`,
     ];
