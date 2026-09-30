@@ -616,30 +616,103 @@ export function dslEtbAbilityInFlightValue(
  *  and once the search saw the sacrifice resolve (`policyProbeState`) casting
  *  it read as throwing that body away — so the Bot held a Titan whose
  *  hard-cast is a burn spell, forever. */
-export function etbSelfSacrificeWeight(def: CardDefinition): number {
+export function etbSelfSacrificeWeight(
+    def: CardDefinition,
+    route: LatentCastRoute = "hand"
+): number {
     let weight = 0;
     for (const ability of def.triggeredAbilities ?? []) {
         if (ability.etbAbility !== true) continue;
         const script = effectiveScript(ability);
-        if (!script || !sacrificesSource(script)) continue;
+        if (!script || !sacrificesSource(script, route)) continue;
         // "Sacrifice it unless you pay …" (a `mayPay` in the same script,
         // Phyrexian Dreadnought's power-12 sacrifice): the controller's own
         // payment decides whether the body stays, so the sacrifice is not a
         // certainty and the body keeps its latent worth. "Unless it escaped"
         // and an evoke sacrifice are decided by how the card was cast instead.
         if (hasOp(script, "mayPay")) continue;
+        // An evoke sacrifice is a cast-route fact too (CR 702.74a, evoke is an
+        // alternative cost), and a card cast by escape was not evoked.
+        if (route === "escape" && ability.gate !== undefined) continue;
         weight = Math.max(weight, gateWeight(ability, undefined));
     }
     return weight;
 }
 
-/** Does this script sacrifice `$source`, at any nesting depth? */
-function sacrificesSource(node: unknown): boolean {
-    if (Array.isArray(node)) return node.some(sacrificesSource);
+/** Issue #4897 — the route a card's latent worth is read along. A card in
+ *  HAND is cast from hand (`escaped` is 0); a card in a GRAVEYARD that can
+ *  escape on its own (printed escape, CR 702.138a) is cast by escape
+ *  (`escaped` is 1), so its "unless it escaped" sacrifice never happens and
+ *  the body stays. Escape payability (five other cards to exile) is not
+ *  checked here: reach asks whether the card can escape at all. */
+export type LatentCastRoute = "hand" | "escape";
+
+/** `a op b` over numbers — the `EffectComparisonOp` set. */
+function compareNumbers(
+    op: string | undefined,
+    a: number,
+    b: number
+): boolean | undefined {
+    switch (op) {
+        case "eq":
+            return a === b;
+        case "ne":
+            return a !== b;
+        case "lt":
+            return a < b;
+        case "le":
+            return a <= b;
+        case "gt":
+            return a > b;
+        case "ge":
+            return a >= b;
+        default:
+            return undefined;
+    }
+}
+
+/** What an `if` predicate that reads `escaped` against a literal decides when
+ *  the card was cast by escape (`escaped` = 1); `undefined` for any other
+ *  predicate, which the route does not decide. */
+function escapedPredicateOnEscapeRoute(
+    predicate: unknown
+): boolean | undefined {
+    if (predicate === null || typeof predicate !== "object") return undefined;
+    const p = predicate as { left?: unknown; op?: string; right?: unknown };
+    if (
+        p.left === null ||
+        typeof p.left !== "object" ||
+        !("escaped" in (p.left as object)) ||
+        typeof p.right !== "number"
+    ) {
+        return undefined;
+    }
+    return compareNumbers(p.op, 1, p.right);
+}
+
+/** Does this script sacrifice `$source`, at any nesting depth? On the escape
+ *  route an `if` on `escaped` takes the branch escape decides; on the hand
+ *  route (and for any other `if`) every branch counts, as the `if` walker
+ *  takes its `then`. */
+function sacrificesSource(node: unknown, route: LatentCastRoute): boolean {
+    if (Array.isArray(node))
+        return node.some((n) => sacrificesSource(n, route));
     if (node === null || typeof node !== "object") return false;
-    const op = node as { op?: unknown; target?: { ref?: unknown } };
+    const op = node as {
+        op?: unknown;
+        target?: { ref?: unknown };
+        predicate?: unknown;
+        then?: unknown;
+        else?: unknown;
+    };
     if (op.op === "sacrifice" && op.target?.ref === "$source") return true;
-    return Object.values(node).some(sacrificesSource);
+    if (op.op === "if" && route === "escape") {
+        const taken = escapedPredicateOnEscapeRoute(op.predicate);
+        if (taken !== undefined) {
+            return sacrificesSource(taken ? op.then : op.else, route);
+        }
+    }
+    return Object.values(node).some((n) => sacrificesSource(n, route));
 }
 
 /** Does this script carry an Op named `name`, at any nesting depth? */

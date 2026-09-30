@@ -25,6 +25,7 @@ import {
     dslEtbAbilityInFlightValue,
     dslLatentDelayedTemplateValue,
     etbSelfSacrificeWeight,
+    type LatentCastRoute,
     dslRealizedAbilityScriptValue,
     dslSpellScriptValue,
 } from "./ai";
@@ -244,7 +245,10 @@ export function dslLatentPieces(
      *  different vector prices the DSL half at THAT vector rather than at the
      *  committed one. Without it, `evaluate(s, id, W)` is not a function of
      *  `W` and no weight fit over it can reproduce itself. */
-    latent: LatentWeights = DEFAULT_EVAL_WEIGHTS.latent
+    latent: LatentWeights = DEFAULT_EVAL_WEIGHTS.latent,
+    /** Issue #4897 — the route the card is cast along: "hand" by default,
+     *  "escape" for a graveyard card with printed escape. */
+    route: LatentCastRoute = "hand"
 ): {
     dslSpellValue?: number;
     dslAbilityValue?: number;
@@ -269,7 +273,7 @@ export function dslLatentPieces(
             def,
             contextFreeGrounding(latent)
         ),
-        etbSelfSacrificeWeight: etbSelfSacrificeWeight(def),
+        etbSelfSacrificeWeight: etbSelfSacrificeWeight(def, route),
         // Only a value the lens actually ANSWERED counts as measured — a
         // board that could not resolve the card's target slots leaves the
         // pre-#3398 representative valuation, floor included.
@@ -358,7 +362,9 @@ export function dslEtbAbilityInFlightValueById(
 export function cardValueById(
     cardId: string,
     /** Issue #3406 — see `dslLatentPieces`. */
-    latent: LatentWeights = DEFAULT_EVAL_WEIGHTS.latent
+    latent: LatentWeights = DEFAULT_EVAL_WEIGHTS.latent,
+    /** Issue #4897 — see `dslLatentPieces`. */
+    route: LatentCastRoute = "hand"
 ): number {
     const def = tryGetDefinition(cardId);
     if (!def) return 0;
@@ -369,6 +375,6 @@ export function cardValueById(
         manaValue: manaValue(def.manaCost),
         staticAbilities: def.staticAbilities ?? [],
         aiValue: def.aiValue,
-        ...dslLatentPieces(def, undefined, latent),
+        ...dslLatentPieces(def, undefined, latent, route),
     });
 }
