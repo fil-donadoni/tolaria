@@ -9997,7 +9997,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
             // Rebuilt from the bug report's state (one turn later, the Mage on
             // the battlefield): the Bot's Island + Plains untapped and the land
             // drop spent, its hand as reported, the opponent's earthbent Hedge
-            // Maze and Badgermole Cub. The opponent's hand stays hidden.
+            // Maze and Badgermole Cub.
             cards: [
                 { name: "Island", owner: "me" },
                 { name: "Plains", owner: "me", summoningSick: true },
@@ -10021,6 +10021,14 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
                 { name: "Island", owner: "opp" },
                 { name: "Badgermole Cub", owner: "opp" },
                 { name: "Verdant Catacombs", owner: "opp", zone: "graveyard" },
+                // The opponent's five hidden cards. The live Bot sees them as
+                // identity-free placeholders (`state-adapter.ts`), but a blade
+                // position must load into a live game (issue #1432), so no
+                // `hiddenHand`; and the report's real cards would hand the
+                // search identities it never saw (its Sink into Stupor gains a
+                // target the moment the Mage enters). Basic lands stand in as
+                // slots whose value no board changes.
+                { name: "Forest", owner: "opp", zone: "hand", count: 5 },
             ],
             phase: "PRECOMBAT_MAIN",
             turn: 4,
@@ -10028,20 +10036,19 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
             activePlayer: "me",
             priority: "me",
             landsPlayed: { me: 1 },
-            hiddenHand: { opp: 5 },
             landCount: 0,
             libraryCount: 20,
         },
         bot: "me",
         budget: { iterations: 500 },
-        // Seeds 5, 6, 8, 11 and 16 cast the Mage under the flat flashback-grant
-        // price (6/20 at 500 iterations); 0/20 after.
-        seeds: [0xb1ade, 5, 6, 8, 11, 16],
+        // Seeds 5, 9 and 14 cast the Mage under the flat cast-permission
+        // price (3/20 at 500 iterations); 0/20 after.
+        seeds: [0xb1ade, 5, 9, 14],
         tier: "must",
         expect: {
             forbidden: [{ kind: "cast-spell", card: "Snapcaster Mage" }],
         },
-        note: "Issue #4217 — the founding position (user on `hard`). Snapcaster Mage's ETB potential was priced at the flat `GRANT_CAST_VALUE` (20), below what its body adds on the battlefield, so the leaf evaluation scored the cast 6.7 above holding; priced at the fitted `latent.cardAdvantage` unit the hold leads by 17. The search's own cast-over-pass margin then falls inside `OUTCOME_EPS` (0.05; measured 0.036–0.045 at 400 iterations) and `last-window-deferral` keeps the Mage for a later window — so a refit that widens that margin past the band reds this entry by drift, not by regression; the leaf ordering itself is pinned by the Eval Pair in `etbAbility.bot.test.ts`. Measured at 500 iterations over 20 seeds: 6 casts before, 0 after (at 400: 9/10 casts before, 4/10 after — rollout noise the budget here clears).",
+        note: "Issue #4217 — the founding position (user on `hard`). A one-card cast permission was priced at the flat `GRANT_CAST_VALUE` (20), so Snapcaster Mage in hand read below its body on the battlefield and the leaf evaluation scored the cast above holding; priced at the fitted `latent.cardAdvantage` unit, holding leads. The search's own cast-over-pass margin then falls inside `OUTCOME_EPS` (0.05) and `last-window-deferral` keeps the Mage for a later window — so a refit that widens that margin past the band reds this entry by drift, not by regression; the leaf ordering itself is pinned by the Eval Pair in `etbAbility.bot.test.ts`. Measured at 500 iterations over 20 seeds: 3 casts before, 0 after (at 400: 15/20 before, 10/20 after — rollout noise the budget here clears).",
     },
 ];
 
