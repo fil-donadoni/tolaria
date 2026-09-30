@@ -318,15 +318,20 @@ export function latentGraveyardValue(
 ): number {
     const id = (card.card as { id?: string }).id;
     if (!id) return 0;
+    // Issue #4897 — a card that escapes on its own leaves this graveyard by
+    // escape, so its latent worth is the ESCAPED cast's: "sacrifice it unless
+    // it escaped" never happens and the body stays. The route is half the key.
+    const route = getPrintedEscape(card) !== undefined ? "escape" : "hand";
+    const key = route === "escape" ? `${id}|escape` : id;
     let byId = LATENT_BY_VECTOR.get(latent);
     if (!byId) {
         byId = new Map<string, number>();
         LATENT_BY_VECTOR.set(latent, byId);
     }
-    const hit = byId.get(id);
+    const hit = byId.get(key);
     if (hit !== undefined) return hit;
-    const value = cardValueById(id, latent);
-    byId.set(id, value);
+    const value = cardValueById(id, latent, route);
+    byId.set(key, value);
     return value;
 }
 

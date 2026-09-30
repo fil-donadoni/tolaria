@@ -39,6 +39,12 @@ import {
 } from "../cardScriptValue";
 import { cardValueById, creatureValueRaw } from "../../cardValue";
 import { manaValue } from "../../constants";
+import { latentGraveyardValue } from "../graveyardReach";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../cards/__tests__/setup.helper";
 
 type SpecCard = ScenarioSpec["cards"][number];
 
@@ -247,5 +253,80 @@ describe("value model — latent vs realized faces (issue #4758)", () => {
             );
         expect(dslAbilityScriptValue(oracle)).toBeGreaterThan(300);
         expect(cardValueById(oracle.id)).toBeCloseTo(body + 300);
+    });
+});
+
+describe("the cast route a zone implies (issue #4897, regression of #4758)", () => {
+    const phlage = getCardByName("Phlage, Titan of Fire's Fury");
+    const uro = getCardByName("Uro, Titan of Nature's Wrath");
+
+    it("an escaped cast keeps the body its hand cast sacrifices (CR 702.138b)", () => {
+        expect(etbSelfSacrificeWeight(phlage, "hand")).toBe(1);
+        expect(etbSelfSacrificeWeight(phlage, "escape")).toBe(0);
+        expect(etbSelfSacrificeWeight(uro, "hand")).toBe(1);
+        expect(etbSelfSacrificeWeight(uro, "escape")).toBe(0);
+        // Hand-side default is unchanged.
+        expect(etbSelfSacrificeWeight(phlage)).toBe(1);
+        // A sacrifice no escape decides is not lifted by the route.
+        const solitude = getCardByName("Solitude");
+        expect(etbSelfSacrificeWeight(solitude, "hand")).toBe(0.5);
+    });
+
+    it("a graveyard Phlage is priced with its body; the hand value is unchanged", () => {
+        const inGraveyard = makeInstance(phlage.id, { zone: "graveyard" });
+        const latent = DEFAULT_EVAL_WEIGHTS.latent;
+        const escaped = cardValueById(phlage.id, latent, "escape");
+        expect(latentGraveyardValue(inGraveyard, latent)).toBeCloseTo(escaped);
+        expect(escaped).toBeGreaterThan(
+            2 * cardValueById(phlage.id, latent, "hand")
+        );
+        expect(cardValueById(phlage.id)).toBeCloseTo(
+            dslAbilityScriptValue(phlage)
+        );
+    });
+
+    it("a graveyard card WITHOUT printed escape takes the hand route", () => {
+        const solitude = getCardByName("Solitude");
+        const card = makeInstance(solitude.id, { zone: "graveyard" });
+        expect(latentGraveyardValue(card)).toBeCloseTo(
+            cardValueById(solitude.id, DEFAULT_EVAL_WEIGHTS.latent, "hand")
+        );
+    });
+
+    it("Eval Pair: Phlage in the graveyard outscores the same board with it exiled by more than the ETB-only value", () => {
+        const fodder = () =>
+            Array.from({ length: 5 }, () =>
+                makeInstance(getCardByName("Lightning Bolt").id, {
+                    zone: "graveyard",
+                })
+            );
+        const board = (phlageZone: "graveyard" | "exile") =>
+            makeState({
+                players: [
+                    makePlayer("p1", {
+                        graveyard:
+                            phlageZone === "graveyard"
+                                ? [
+                                      makeInstance(phlage.id, {
+                                          zone: "graveyard",
+                                      }),
+                                      ...fodder(),
+                                  ]
+                                : fodder(),
+                        exile:
+                            phlageZone === "exile"
+                                ? [makeInstance(phlage.id, { zone: "exile" })]
+                                : [],
+                    }),
+                    makePlayer("p2"),
+                ],
+            });
+        const w = DEFAULT_EVAL_WEIGHTS;
+        const gap =
+            evaluate(board("graveyard"), "p1", w) -
+            evaluate(board("exile"), "p1", w);
+        const etbOnly =
+            w.graveyardReachFraction * dslAbilityScriptValue(phlage);
+        expect(gap).toBeGreaterThan(etbOnly);
     });
 });
