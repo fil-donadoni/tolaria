@@ -41,7 +41,6 @@
 // that keeps the most material — so a free chump attack never ties "no attacks"
 // on rollout noise.
 
-import { hasCastPermissionFlash } from "./castPermissions";
 import { findCardInAnyZone, findPermanent } from "./lookup";
 import { announcedModeFields } from "./modeSelection";
 import {
@@ -111,7 +110,7 @@ import {
     turnFaceUpInSearch,
 } from "./applyMove";
 import { applyTapPlanInSearch } from "./searchTapPlan";
-import { spendGraveyardPlayPermission } from "./rules";
+import { castNeedsSorceryWindow, spendGraveyardPlayPermission } from "./rules";
 // CR 602.2a / 602.5 (issue #1920) — the shared shape of an activated ability's
 // stack item and the shared activation tally, so the search's push is the same
 // object the mutation path commits.
@@ -5255,13 +5254,18 @@ function isSorcerySpeedTrickDump(state: GameState, move: Move): boolean {
  *    last useful window is before the declaration, as clause 5 already says
  *    of a haste grant, and the end step comes after it.
  *  - **A sorcery-speed cast opened** — in the mover's own sorcery window
- *    (CR 117.1a): after the resolution the mover may cast a card it could not
- *    cast before, and that card has no instant timing of its own (CR 117.1a /
- *    702.8a) and no "as though it had flash" permission (CR 601.3b). The
- *    opponent's end step is no sorcery window, so a deferred action reaches
- *    it with that cast gone: Snapcaster Mage granting flashback to a sorcery
- *    (CR 702.34a — the flashback cast keeps the card's own timing), measured
- *    held on every seed before this reading (issue #4217).
+ *    (CR 117.1a): after the resolution the mover may cast a card it already
+ *    knew of and could not cast before, and that cast is legal only in a
+ *    sorcery window (`castNeedsSorceryWindow`, the timing authority). The
+ *    opponent's end step is no such window, so a deferral cannot take that
+ *    cast there; whether it comes back next turn depends on the permission
+ *    (a flashback grant "until end of turn" does not), which this reading
+ *    does not try to know — it only refuses to assume the same board. The
+ *    shape: Snapcaster Mage granting flashback to a sorcery (CR 702.34a
+ *    changes the zone and the cost, never the timing), held on every seed
+ *    before this reading (issue #4217). A card the resolution DREW is not
+ *    counted: the probe runs on the real, undeterminized root, so reading
+ *    the mover's library would decide on hidden information.
  *
  * KNOWN LIMIT, the mover's BLOCKING side: a flash body cast in the mover's
  * own main can block in the opponent's combat, and one cast at the end step
@@ -5299,8 +5303,10 @@ export function waitsUnchanged(
     if (!after) return false;
     if (after.opponent !== before.opponent) return false;
     if (after.pool > before.pool) return false;
-    if (after.sorceryCasts.some((id) => !before.sorceryCasts.includes(id)))
-        return false;
+    const opened = after.sorceryCasts.filter(
+        (id) => !before.sorceryCasts.includes(id) && knownTo(state, pid, id)
+    );
+    if (opened.length > 0) return false;
     return !attacksBeforeTheWait(state, pid) || after.roster === before.roster;
 }
 
@@ -5346,23 +5352,44 @@ export function waitReadingOf(
 }
 
 /** The ids of the cards `pid` may cast right now ONLY because this is its
- *  sorcery window (CR 117.1a): a legal cast of a card with no instant timing
- *  of its own (`hasInstantSpeed`, CR 117.1a / 702.8a) and no "as though it
- *  had flash" permission (CR 601.3b). Empty outside that window — no such
- *  cast exists there to lose. Read off the enumerator, the one legality
- *  authority, so a cast the mover cannot afford is not counted. */
+ *  sorcery window (CR 117.1a): a legal cast (the enumerator, the one legality
+ *  authority, so a cast the mover cannot afford is not counted) that
+ *  `castNeedsSorceryWindow` says no later instant-speed window would offer —
+ *  no instant speed of its own and no flash permission (CR 601.3 / 702.8a).
+ *  Empty outside that window: no such cast exists there to lose. */
 function sorceryTimedCasts(state: GameState, pid: string): string[] {
     if (!isSorceryTimingFor(state, pid)) return [];
     const ids: string[] = [];
     for (const move of enumerateMoves(state, pid)) {
         if (move.kind !== "cast-spell") continue;
         const card = findCardInAnyZone(state, move.cardInstanceId);
-        if (!card || hasInstantSpeed(card)) continue;
+        if (!card || ids.includes(card.id)) continue;
         const zone = move.castFromZone ?? "hand";
-        if (hasCastPermissionFlash(state, pid, card, zone)) continue;
-        if (!ids.includes(card.id)) ids.push(card.id);
+        if (
+            castNeedsSorceryWindow(
+                state,
+                pid,
+                card,
+                zone,
+                move.alternativeCostId
+            )
+        ) {
+            ids.push(card.id);
+        }
     }
     return ids;
+}
+
+/** Whether `pid` knows which card `id` is in `state` — anywhere but a library
+ *  or another player's hand (CR 400.2: those are hidden zones). */
+function knownTo(state: GameState, pid: string, id: string): boolean {
+    return state.players.some(
+        (p) =>
+            p.battlefield.some((c) => c.id === id) ||
+            p.graveyard.some((c) => c.id === id) ||
+            p.exile.some((c) => c.id === id) ||
+            (p.id === pid && p.hand.some((c) => c.id === id))
+    );
 }
 
 /** The mover's own turn, before attackers are declared (CR 508.1a): its own

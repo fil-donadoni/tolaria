@@ -50,6 +50,8 @@ const ORB = getCardByName("Zuran Orb").id;
 const ISLAND = getCardByName("Island").id;
 const MOUNTAIN = getCardByName("Mountain").id;
 const FLAME_SLASH = getCardByName("Flame Slash").id;
+const FOREST = getCardByName("Forest").id;
+const ANCESTRAL = getCardByName("Ancestral Recall").id;
 
 const DELTA_FETCH = "polluted-delta-fetch";
 const FACTORY_MANA = "mishras-factory-mana";
@@ -520,5 +522,45 @@ describe("waitsUnchanged — the root rule's premise: nothing in between it woul
             false
         );
         expect(waitsUnchanged(withCard(BOLT), "p1", cast("snap"))).toBe(true);
+    });
+
+    it("never reads a card the resolution drew: the probe runs on the real library (issue #4217 review)", () => {
+        // Ancestral Recall draws the real top three; a castable Grizzly Bears
+        // among them is hidden information at the root, so it must not decide
+        // whether the draw waits.
+        const base = board({
+            hand: [card(ANCESTRAL, "anc")],
+            battlefield: [
+                card(ISLAND, "i1"),
+                card(FOREST, "f1"),
+                card(FOREST, "f2"),
+            ],
+            phase: "PRECOMBAT_MAIN",
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+        });
+        const state: GameState = {
+            ...base,
+            players: base.players.map((p) =>
+                p.id === "p1"
+                    ? {
+                          ...p,
+                          library: [
+                              card(BEARS, "top"),
+                              card(ISLAND, "l2"),
+                              card(ISLAND, "l3"),
+                              card(ISLAND, "l4"),
+                          ],
+                      }
+                    : p
+            ),
+        };
+        expect(
+            waitsUnchanged(
+                state,
+                "p1",
+                cast("anc", [{ type: "player", id: "p1" }])
+            )
+        ).toBe(true);
     });
 });
