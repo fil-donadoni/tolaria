@@ -9613,7 +9613,18 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         budget: { iterations: 400 },
         seeds: [0xb1ade, 1, 2, 3, 4],
         tier: "stretch",
-        expect: { moves: [{ kind: "cast-spell", card: "Mind Rot" }] },
+        expect: {
+            // A PREDICATE, not `moves`: this tier-stretch position is one the
+            // Evaluation cannot order yet, and as a Verdict it would pull the
+            // weight fit toward nothing it can satisfy. The owning issue
+            // promotes it to a `moves` `must` entry with its fix.
+            predicate: (move, state) =>
+                matchesMove(state, move, {
+                    kind: "cast-spell",
+                    card: "Mind Rot",
+                }),
+            describe: "casts Mind Rot",
+        },
         note: "Issue #4895 (issue #4758 review). STRETCH, owned by issue #4896: two cards for one, the obvious play. Measured cast on 1/5 seeds — the probe stops at the opponent's discard choice and scores the cost alone.",
     },
     {
@@ -9697,9 +9708,16 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         seeds: [0xb1ade, 1, 2, 3, 4],
         tier: "stretch",
         expect: {
-            moves: [
-                { kind: "cast-spell", card: "Uro, Titan of Nature's Wrath" },
-            ],
+            // A PREDICATE, not `moves`: this tier-stretch position is one the
+            // Evaluation cannot order yet, and as a Verdict it would pull the
+            // weight fit toward nothing it can satisfy. The owning issue
+            // promotes it to a `moves` `must` entry with its fix.
+            predicate: (move, state) =>
+                matchesMove(state, move, {
+                    kind: "cast-spell",
+                    card: "Uro, Titan of Nature's Wrath",
+                }),
+            describe: "casts Uro, Titan of Nature's Wrath",
         },
         note: "Issue #4895 (issue #4758 review). STRETCH, owned by issue #4898: hard-cast Uro gains 3 life and draws, then goes to the graveyard with escape — strictly better than holding. Measured pass on 5/5 seeds.",
     },
@@ -9716,7 +9734,18 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         budget: { iterations: 400 },
         seeds: [0xb1ade, 1, 2, 3, 4],
         tier: "stretch",
-        expect: { moves: [{ kind: "cast-spell", card: "Thassa's Oracle" }] },
+        expect: {
+            // A PREDICATE, not `moves`: this tier-stretch position is one the
+            // Evaluation cannot order yet, and as a Verdict it would pull the
+            // weight fit toward nothing it can satisfy. The owning issue
+            // promotes it to a `moves` `must` entry with its fix.
+            predicate: (move, state) =>
+                matchesMove(state, move, {
+                    kind: "cast-spell",
+                    card: "Thassa's Oracle",
+                }),
+            describe: "casts Thassa's Oracle",
+        },
         note: "Issue #4895 (issue #4758 review). STRETCH, owned by issue #4899: devotion to blue (2, Thassa's own {U}{U}) is at least the one card in library, so the ETB wins. Measured pass on 5/5 seeds — the win check sits behind a look-and-distribute choice nothing settles.",
     },
     {
@@ -9771,7 +9800,18 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         budget: { iterations: 400 },
         seeds: [0xb1ade, 1, 2, 3, 4],
         tier: "stretch",
-        expect: { moves: [{ kind: "cast-spell", card: "Monk Realist" }] },
+        expect: {
+            // A PREDICATE, not `moves`: this tier-stretch position is one the
+            // Evaluation cannot order yet, and as a Verdict it would pull the
+            // weight fit toward nothing it can satisfy. The owning issue
+            // promotes it to a `moves` `must` entry with its fix.
+            predicate: (move, state) =>
+                matchesMove(state, move, {
+                    kind: "cast-spell",
+                    card: "Monk Realist",
+                }),
+            describe: "casts Monk Realist",
+        },
         note: "Issue #4895 (issue #4758 review). STRETCH, owned by issue #4903: the Anthem pumps two opposing creatures; destroying it is the obvious play. Measured pass on 5/5 seeds — the ETB's potential is priced at a creature-sized Representative Victim, above any enchantment it can hit.",
     },
     {
@@ -9874,7 +9914,18 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         budget: { iterations: 400 },
         seeds: [0xb1ade, 1, 2, 3, 4],
         tier: "stretch",
-        expect: { moves: [{ kind: "cast-spell", card: "Solitude" }] },
+        expect: {
+            // A PREDICATE, not `moves`: this tier-stretch position is one the
+            // Evaluation cannot order yet, and as a Verdict it would pull the
+            // weight fit toward nothing it can satisfy. The owning issue
+            // promotes it to a `moves` `must` entry with its fix.
+            predicate: (move, state) =>
+                matchesMove(state, move, {
+                    kind: "cast-spell",
+                    card: "Solitude",
+                }),
+            describe: "casts Solitude",
+        },
         note: "Issue #4895 (issue #4758 review). STRETCH, owned by issue #4900: the pitch evoke (exile a white card) needs no mana, and it is the only way to survive. `enumerateMoves` offers only `pass` here, so the Bot dies.",
     },
 ];
