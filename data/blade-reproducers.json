@@ -1233,6 +1233,45 @@
             "opp": 3
         }
     },
+    "Snapcaster Mage: casts it to flash back a sorcery that kills a Serra Angel": {
+        "cards": [
+            {
+                "name": "Snapcaster Mage",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Flame Slash",
+                "owner": "me",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Island",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Island",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Mountain",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Serra Angel",
+                "owner": "opp",
+                "zone": "battlefield",
+                "summoningSick": false
+            }
+        ],
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 5,
+        "landCount": 0,
+        "libraryCount": 20
+    },
     "sorcery-speed permanent: deploys a Seal with the mana open and nothing else to do": {
         "cards": [
             {

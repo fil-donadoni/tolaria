@@ -30,6 +30,7 @@ import { resolveTopOfStack } from "../../state";
 import { evaluate } from "../../evaluate";
 import { applyMoveInSearch, policyValue } from "../../search";
 import { buildPositionFromSpec } from "../blade/build";
+import { findBladeScenario } from "../blade/registry";
 import { DEFAULT_EVAL_WEIGHTS } from "../evalWeights";
 import {
     dslAbilityScriptValue,
@@ -120,6 +121,24 @@ describe("Eval Pairs — an ETB Ability is spent on entering (issue #4758)", () 
         ]);
         expect(policyOf(s, castOf(s, "Skyclave Apparition"))).toBeGreaterThan(
             policyOf(s, isPass)
+        );
+    });
+});
+
+describe("Eval Pairs — Snapcaster Mage's ETB potential (issue #4217)", () => {
+    /** The blade entry's own position, so the pair and the entry cannot drift. */
+    function bladePosition(label: string): GameState {
+        const entry = findBladeScenario(label);
+        if (!entry) throw new Error(`no blade entry "${label}"`);
+        return buildPositionFromSpec(entry.spec);
+    }
+
+    it("the reported position: holding Snapcaster Mage beats casting it into an empty graveyard", () => {
+        const s = bladePosition(
+            "Snapcaster Mage (issue #4217 reported position): holds it on turn 4 with an empty graveyard"
+        );
+        expect(policyOf(s, isPass)).toBeGreaterThan(
+            policyOf(s, castOf(s, "Snapcaster Mage"))
         );
     });
 });

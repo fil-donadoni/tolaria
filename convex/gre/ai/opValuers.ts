@@ -162,7 +162,6 @@ const WHOLE_HAND_DISCARD_VALUE = 110; // representative whole-hand discard (~3 c
 const CARD_SELECTION_VALUE = 30; // lookDistribute/digMatchingToHand — an impulse-drawn card
 const SCRY_PER_CARD_VALUE = 10; // one card of scry-style selection
 const MILL_PER_CARD_VALUE = 6; // one milled card — a small library-resource shift
-const GRANT_CAST_VALUE = 20; // permission to cast an already-known exile/graveyard card
 const GRANT_GRAVEYARD_PLAY_VALUE = 80; // broad graveyard-replay permission (board-scaling)
 const RESTRICT_CASTING_VALUE = 20; // a turn-scoped "can't cast" denial
 const RESTRICT_ACTIVATION_VALUE = 15; // a turn-scoped "can't activate" denial
@@ -208,7 +207,7 @@ const SKIP_DRAW_STEP_DISRUPTION_VALUE = 40; // the mirror case — denying ANOTH
 // worth (which spell gets cast; the copied body's stats) is unknown until
 // resolution.
 const CAST_DURING_RESOLUTION_FREE_VALUE = 55; // a free mini-cast (Cascade-style) — a hair above a drawn card (one `latent.cardAdvantage` unit), since no mana is spent
-const CAST_DURING_RESOLUTION_PAID_VALUE = 20; // a pay-the-cost mini-cast — matches GRANT_CAST_VALUE's "permission to cast" scale, since the mana cost offsets most of the card's own worth
+const CAST_DURING_RESOLUTION_PAID_VALUE = 20; // a pay-the-cost mini-cast — the mana cost offsets most of the card's own worth
 const CASCADE_VALUE = 50; // CR 702.85a (issue #3216) — a free mini-cast of a cheaper spell off the top, a hair UNDER CAST_DURING_RESOLUTION_FREE_VALUE: the caster does not choose the card, the walk can miss entirely, and the remainder is buried
 const COPY_TOKEN_REPRESENTATIVE_STAT = 2; // unknown copied body's P/T — same representative magnitude `grounding.ts`'s CF_ASSUMED_REF uses for a bound ref
 
@@ -1647,23 +1646,28 @@ const cascade: Valuer<"cascade"> = () => ({
     tags: tagScaling(true, "cardAdvantage"),
 });
 
-const grantCastFromExile: Valuer<"grantCastFromExile"> = () => ({
-    points: GRANT_CAST_VALUE,
+// A cast permission on one known card — from exile (an impulse window) or a
+// graveyard, for its own cost or with flashback (CR 702.34a, issue #4756) — is
+// one card of card advantage, priced at the fitted `latent.cardAdvantage` unit
+// a drawn card carries (issue #4217, PRD #4754: an ETB Ability's potential is
+// a Latent Weight, never a bespoke constant). A drawn card is paid for too, so
+// the cost the permission leaves owed is no discount against it. At the old
+// flat 20 a creature whose ETB grants one read as worth less held than its
+// bare body cast into nothing.
+const grantCastPermission = (
+    _op: unknown,
+    ctx: GroundingContext
+): ReturnType<Valuer<"grantFlashback">> => ({
+    points: priced(ctx, "cardAdvantage"),
     tags: ["cardAdvantage"],
 });
 
-const grantCastFromGraveyard: Valuer<"grantCastFromGraveyard"> = () => ({
-    points: GRANT_CAST_VALUE,
-    tags: ["cardAdvantage"],
-});
+const grantCastFromExile: Valuer<"grantCastFromExile"> = grantCastPermission;
 
-// CR 702.34a (issue #4756) — a flashback grant is a cast permission on one
-// graveyard card for its own mana cost: the same one-card recursion
-// `grantCastFromGraveyard` prices, so it mirrors that valuer exactly.
-const grantFlashback: Valuer<"grantFlashback"> = () => ({
-    points: GRANT_CAST_VALUE,
-    tags: ["cardAdvantage"],
-});
+const grantCastFromGraveyard: Valuer<"grantCastFromGraveyard"> =
+    grantCastPermission;
+
+const grantFlashback: Valuer<"grantFlashback"> = grantCastPermission;
 
 const grantGraveyardPlay: Valuer<"grantGraveyardPlay"> = () => ({
     points: GRANT_GRAVEYARD_PLAY_VALUE,

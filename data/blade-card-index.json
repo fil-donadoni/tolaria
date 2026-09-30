@@ -431,6 +431,13 @@
             "needsSetup": false
         }
     ],
+    "Snapcaster Mage": [
+        {
+            "label": "Snapcaster Mage: casts it to flash back a sorcery that kills a Serra Angel",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
     "Solitude": [
         {
             "label": "casts Solitude to exile a lethal attacker",

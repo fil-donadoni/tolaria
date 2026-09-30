@@ -568,6 +568,30 @@ export function castTimingBaseLegal(
     state: GameState,
     casterId: string,
     card: CardInstanceState,
+    castFromZone: CastFromZone = "hand",
+    alternativeCostId?: string
+): boolean {
+    return (
+        !castNeedsSorceryWindow(
+            state,
+            casterId,
+            card,
+            castFromZone,
+            alternativeCostId
+        ) || isSorceryTimingFor(state, casterId)
+    );
+}
+
+/** The window-independent half of {@link castTimingBaseLegal}: whether this
+ *  cast is legal ONLY in `casterId`'s sorcery window (CR 117.1a) — no instant
+ *  speed of its own and no flash permission of any kind, or a sorcery-speed
+ *  lock on the caster. Split out so a reader asking "would a later, non-sorcery
+ *  window still offer this cast?" (the Bot's `last-window-deferral` premise,
+ *  issue #4217) asks the one timing authority rather than re-deriving it. */
+export function castNeedsSorceryWindow(
+    state: GameState,
+    casterId: string,
+    card: CardInstanceState,
     /** CR 601.3 — the zone this cast would come FROM. Load-bearing for the
      *  board-permission leg alone: a `cast-permission` static licenses a cast
      *  from the caster's HAND (see `collectCastPermissions`), so an Aluren on
@@ -590,9 +614,7 @@ export function castTimingBaseLegal(
      *  by construction. */
     alternativeCostId?: string
 ): boolean {
-    if (isCastTimingSorcerySpeedLocked(casterId, state)) {
-        return isSorceryTimingFor(state, casterId);
-    }
+    if (isCastTimingSorcerySpeedLocked(casterId, state)) return true;
     // CR 715.3b — the object whose TYPES and keywords decide instant speed is
     // the announced subject, not necessarily the printed card. Identity for
     // every cast this engine had before Adventure.
@@ -622,9 +644,9 @@ export function castTimingBaseLegal(
         // and so charges the unconditional grant nothing.
         hasCardSelfFlashPermission(subject)
     ) {
-        return true;
+        return false;
     }
-    return isSorceryTimingFor(state, casterId);
+    return true;
 }
 
 /** CR 601.3c — the conditional-flash SURCHARGE `card` declares, or `undefined`.
