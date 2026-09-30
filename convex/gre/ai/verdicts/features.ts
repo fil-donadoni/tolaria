@@ -179,6 +179,7 @@ const FITTABLE_TERM_WEIGHTS = [
     "graveyardReachFraction",
     "recoverableSweepFraction",
     "latentCreatureDiscount",
+    "latentFlashCreatureDiscount",
 ] as const;
 
 export type FittableTermWeight = (typeof FITTABLE_TERM_WEIGHTS)[number];

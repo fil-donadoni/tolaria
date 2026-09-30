@@ -125,6 +125,10 @@ export function latentValue(chars: {
      *  (`EvalWeights.latentCreatureDiscount`, fitted). Absent = the committed
      *  vector's. */
     creatureDiscount?: number;
+    /** Issue #4882 — the same share for a creature with flash (CR 702.8a),
+     *  `EvalWeights.latentFlashCreatureDiscount`. Absent = the committed
+     *  vector's. */
+    flashCreatureDiscount?: number;
     isCreature: boolean;
     power: number;
     toughness: number;
@@ -174,8 +178,11 @@ export function latentValue(chars: {
         // chain below, which targets the spell-script (non-creature) path.
         if (chars.aiValue !== undefined) return chars.aiValue;
         const body =
-            (chars.creatureDiscount ??
-                DEFAULT_EVAL_WEIGHTS.latentCreatureDiscount) *
+            (chars.staticAbilities.includes("flash")
+                ? (chars.flashCreatureDiscount ??
+                  DEFAULT_EVAL_WEIGHTS.latentFlashCreatureDiscount)
+                : (chars.creatureDiscount ??
+                  DEFAULT_EVAL_WEIGHTS.latentCreatureDiscount)) *
             (1 - (chars.etbSelfSacrificeWeight ?? 0)) *
             creatureValueRaw(
                 Math.max(0, chars.power),

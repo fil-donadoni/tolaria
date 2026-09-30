@@ -86,6 +86,12 @@ describe("DEFAULT_EVAL_WEIGHTS (issue #2683)", () => {
         // weight, so the range is asserted here on the committed vector.
         expect(DEFAULT_EVAL_WEIGHTS.latentCreatureDiscount).toBeGreaterThan(0);
         expect(DEFAULT_EVAL_WEIGHTS.latentCreatureDiscount).toBeLessThan(1);
+        expect(
+            DEFAULT_EVAL_WEIGHTS.latentFlashCreatureDiscount
+        ).toBeGreaterThan(0);
+        expect(DEFAULT_EVAL_WEIGHTS.latentFlashCreatureDiscount).toBeLessThan(
+            1
+        );
     });
 
     it("is frozen — a mutation attempt is a no-op / throws in strict mode", () => {

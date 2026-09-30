@@ -276,6 +276,15 @@ export type EvalWeights = {
      *  a creature in hand outranks the same creature in play (issue #149;
      *  asserted on the committed vector in `evalWeights.bot.test.ts`). */
     latentCreatureDiscount: number;
+    /** `latentCreatureDiscount` for a creature with FLASH (issue #4882).
+     *  CR 702.8a: "You may play this card any time you could cast an
+     *  instant", so a flash creature still in hand at the leaf has not paid
+     *  the deployment delay a sorcery-speed one has — it can enter at the
+     *  opponent's end step with the same board. Priced apart, or fitting the
+     *  sorcery-speed discount down (a held 12/12 losing a turn) drags every
+     *  held flash creature down with it and the bot dumps them at sorcery
+     *  speed. Same invariant: strictly below 1. */
+    latentFlashCreatureDiscount: number;
     latent: LatentWeights;
 
     /** How many determinized worlds the block-quality root tie-break averages
@@ -381,6 +390,7 @@ export const FIT_BASE_EVAL_WEIGHTS: Readonly<EvalWeights> = Object.freeze({
     blockWorldSamples: 12,
     // Issue #4882 — the old `LATENT_DISCOUNT`, now fitted from this prior.
     latentCreatureDiscount: 0.85,
+    latentFlashCreatureDiscount: 0.85,
     // Issue #3398 — chosen so today's per-Op numbers are reproduced where a
     // representative victim exists: `boardRemoval` 160 against one 2/2-worth
     // victim IS the old `DESTROY_VALUE`, `damage` 22 IS `DAMAGE_PER_POINT`,
@@ -440,6 +450,7 @@ export const DEFAULT_EVAL_WEIGHTS: Readonly<EvalWeights> = Object.freeze({
     graveyardReachFraction: 0.173405,
     recoverableSweepFraction: 0.781212,
     latentCreatureDiscount: 0.85,
+    latentFlashCreatureDiscount: 0.85,
     latent: Object.freeze({
         damage: 21.709279,
         cardAdvantage: 39.861042,
