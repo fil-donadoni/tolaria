@@ -1,19 +1,22 @@
-// "Test" one saved scenario from `/admin/scenarios`: spin up a fresh SOLO game
+// "Test" one saved scenario from `/admin/scenarios`: spin up a fresh VS-AI game
 // and apply the scenario to it immediately, then land on the board.
 //
-// Why solo: the scenario builder (`debugSetupScenario`) rewrites both seats'
-// boards, so a scenario is only meaningful when one person drives both — which
-// is exactly the mode the Chrome-debug workflow already prescribes. Bo1,
-// because a scenario is a position, not a match.
+// Why vs-AI (issue #4907): a scenario is tested by playing it against the Bot
+// — `"me"` is the human seat, `"opp"` the Bot's (`debugLoadMySeatId` orients a
+// vs-AI load onto the human whichever seat it landed on). Bo1, because a
+// scenario is a position, not a match.
 //
 // The deck is incidental — `debugSetupScenario` replaces the board it deals —
 // but `createSoloGame` requires one, so this takes the lobby's persisted
 // selection when it resolves and otherwise falls back to the first preset. The
-// order (create → store session → apply spec → navigate) matters: navigating
+// order (create → resolve coin toss → store session → apply spec → navigate)
+// matters: `createSoloGame` opens G1 on the coin-toss gate (CR 103.2-103.4,
+// status "pregame") with NO `gameStates` row, so the spec has nothing to apply
+// to until `chooseFirstPlayer` builds the Game (issue #4907); and navigating
 // before the spec lands would show one frame of the dealt opening hand before
 // the scenario replaced it.
 import { useState } from "react";
-import { useMutation, useQuery } from "convex/react";
+import { useConvex, useMutation, useQuery } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
 import { useNavigate } from "@tanstack/react-router";
 import { api } from "@convex/_generated/api";
@@ -100,7 +103,9 @@ export function useScenarioTestGame(): ScenarioTestGame {
     const navigate = useNavigate();
     const presetDecks = useQuery(api.decks.list, {});
     const activeGame = useQuery(api.game.myActiveGame);
+    const convex = useConvex();
     const createSoloGame = useMutation(api.game.createSoloGame);
+    const chooseFirstPlayer = useMutation(api.game.chooseFirstPlayer);
     const setupScenario = useMutation(api.game.debugSetupScenario);
     const forfeitMatch = useMutation(api.game.forfeitMatch);
     const manualConcedeMatch = useMutation(api.game.manualConcedeMatch);
@@ -112,8 +117,8 @@ export function useScenarioTestGame(): ScenarioTestGame {
         useState<BlockingActiveGame | null>(null);
     const [resolvingActiveGame, setResolvingActiveGame] = useState(false);
 
-    // Shared by the first attempt and the post-concede retry: create → store
-    // session → apply spec → navigate. A failure in the create step is the
+    // Shared by the first attempt and the post-concede retry: create → resolve
+    // coin toss → store session → apply spec → navigate. A failure in the create step is the
     // only one that can be the #155 active-game block; a failure applying the
     // scenario to a game THIS call just created is a different problem and
     // always surfaces as the plain error banner.
@@ -151,6 +156,7 @@ export function useScenarioTestGame(): ScenarioTestGame {
             gameId = await createSoloGame({
                 name: `Scenario: ${row.label}`,
                 deck: deckPayload(deck),
+                vsAi: true,
                 bestOf: 1,
             });
         } catch (e) {
@@ -166,6 +172,13 @@ export function useScenarioTestGame(): ScenarioTestGame {
         }
 
         try {
+            // The pregame gate holds no board yet (issue #4907): build G1
+            // before applying the spec. "play" is arbitrary — the scenario
+            // replaces the board the toss dealt.
+            const game = await convex.query(api.game.getGame, { gameId });
+            if (!game?.matchId)
+                throw new Error("Scenario game has no Match to start.");
+            await chooseFirstPlayer({ matchId: game.matchId, choice: "play" });
             storeSession(gameId, `${user._id}-p1`);
             // Tolerant load (ADR 0044): drop unknown fields, default the
             // missing ones, then hand clean args to the unchanged builder.
