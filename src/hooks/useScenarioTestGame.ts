@@ -10,7 +10,7 @@
 // but `createSoloGame` requires one, so this takes the lobby's persisted
 // selection when it resolves and otherwise falls back to the first preset. The
 // order (create → resolve coin toss → store session → apply spec → navigate)
-// matters: `createSoloGame` opens G1 on the coin-toss gate (CR 103.2-103.4,
+// matters: `createSoloGame` opens G1 on the coin-toss gate (CR 103.1,
 // status "pregame") with NO `gameStates` row, so the spec has nothing to apply
 // to until `chooseFirstPlayer` builds the Game (issue #4907); and navigating
 // before the spec lands would show one frame of the dealt opening hand before
