@@ -1308,6 +1308,14 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
             turn: 3,
             landCount: 1,
             libraryCount: 20,
+            // Opponent at 12 = exactly the Dreadnought's power (issue #4882).
+            // At 20 life the 12/12 is only tempo: a rollout that passes now
+            // casts it next turn and lands on the same clipped material, so
+            // cast and `pass` tie inside the outcome band and the pick is
+            // rollout order (`material-tiebreak`). At 12 a cast now swings
+            // for lethal a full turn cycle before a cast next turn, a
+            // terminal-band difference no weight vector closes.
+            life: { opp: 12 },
         },
         bot: "me",
         budget: { iterations: 400 },
@@ -1341,10 +1349,18 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
             // for Stifle.
             landCount: 2,
             libraryCount: 20,
+            // Opponent at 12 = exactly the Dreadnought's power (issue #4882).
+            // At 20 life the 12/12 is only tempo: a rollout that passes now
+            // casts it next turn and lands on the same clipped material, so
+            // cast and `pass` tie inside the outcome band and the pick is
+            // rollout order (`material-tiebreak`). At 12 a cast now swings
+            // for lethal a full turn cycle before a cast next turn, a
+            // terminal-band difference no weight vector closes.
+            life: { opp: 12 },
         },
         bot: "me",
         budget: { iterations: 400 },
-        seeds: [0xb1ade, 2, 3], // seed 1 → 3 (issue #4758 refit): noise-pinned, issue #4882
+        seeds: [0xb1ade, 1, 2],
         // ADR 0070 §2 — measured, not guessed: `cast Phyrexian Dreadnought` on
         // all three seeds at 400, 800, 1600 and 3200 (monotone, no
         // converge-away). Once beyond budget with cause `horizon` (it needed

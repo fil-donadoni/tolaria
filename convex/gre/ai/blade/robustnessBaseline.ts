@@ -25,12 +25,6 @@ export const ROBUSTNESS_BASELINE: readonly RobustnessBaselineRow[] = [
         label: "Discard sorcery with a sacrifice cost: casts it into a full hand",
         issue: 4877,
     },
-    // Issue #4758's refit (the ETB Ability accounting) took it from 20/20 to
-    // 18/20 on seeds 0..19 — decided by `material-tiebreak` throughout.
-    {
-        label: "discriminating pair: casts Phyrexian Dreadnought WITH an out (Stifle)",
-        issue: 4882,
-    },
     // Back on issue #4878's refit (robust after issue #4880's, jitter− 9/10
     // on this one): the same knife-edge issue #4877 tracks.
     {
