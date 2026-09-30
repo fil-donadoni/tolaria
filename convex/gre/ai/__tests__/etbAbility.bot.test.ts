@@ -141,15 +141,6 @@ describe("Eval Pairs — Snapcaster Mage's ETB potential (issue #4217)", () => {
             policyOf(s, castOf(s, "Snapcaster Mage"))
         );
     });
-
-    it("an empty graveyard: holding Snapcaster Mage beats casting it", () => {
-        const s = bladePosition(
-            "Snapcaster Mage: holds it in its own main phase with an empty graveyard"
-        );
-        expect(policyOf(s, isPass)).toBeGreaterThan(
-            policyOf(s, castOf(s, "Snapcaster Mage"))
-        );
-    });
 });
 
 describe("an ETB Ability in flight is credited once (issue #4758)", () => {

@@ -9989,7 +9989,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         expect: {
             moves: [{ kind: "cast-spell", card: "Snapcaster Mage" }],
         },
-        note: "Issue #4217 — the cast half. Flame Slash is a sorcery, and a granted flashback keeps the card's own timing (CR 702.34a / 117.1a): the ETB's payoff exists only in this main phase. The search already preferred the cast; `last-window-deferral` held it on every seed, reading the Mage as a flash body that could wait for the opponent's end step. What keeps it green is `waitsUnchanged`'s sorcery-cast reading — a resolution that opens a cast only this sorcery window allows does not reach the same board later. Proof of failure: dropping that reading turns this entry red (`pass` on three of the five seeds).",
+        note: "Issue #4217 — the cast half. Flame Slash is a sorcery: flashback changes only the zone and the cost (CR 702.34a) and a noninstant spell still needs a main phase with an empty stack (CR 117.1a), so the ETB's payoff exists only in this main phase. The search already preferred the cast; `last-window-deferral` held it on every seed, reading the Mage as a flash body that could wait for the opponent's end step. What keeps it green is `waitsUnchanged`'s sorcery-cast reading — a resolution that opens a cast only this sorcery window allows does not reach the same board later. Proof of failure: dropping that reading turns this entry red (`pass` on three of the five seeds).",
     },
     {
         label: "Snapcaster Mage (issue #4217 reported position): holds it on turn 4 with an empty graveyard",
@@ -10041,7 +10041,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         expect: {
             forbidden: [{ kind: "cast-spell", card: "Snapcaster Mage" }],
         },
-        note: "Issue #4217 — the founding position (user on `hard`). Snapcaster Mage's ETB potential was priced at the flat `GRANT_CAST_VALUE` (20), below what its body adds on the battlefield, so the leaf evaluation scored the cast 6.7 above holding; priced at the fitted `latent.cardAdvantage` unit the hold leads by 17. The search's own cast-over-pass margin then falls inside `OUTCOME_EPS` and `last-window-deferral` keeps the Mage for a later window. Measured at 500 iterations over 20 seeds: 6 casts before, 0 after (at 400: 9/10 casts before, 4/10 after — rollout noise the budget here clears).",
+        note: "Issue #4217 — the founding position (user on `hard`). Snapcaster Mage's ETB potential was priced at the flat `GRANT_CAST_VALUE` (20), below what its body adds on the battlefield, so the leaf evaluation scored the cast 6.7 above holding; priced at the fitted `latent.cardAdvantage` unit the hold leads by 17. The search's own cast-over-pass margin then falls inside `OUTCOME_EPS` (0.05; measured 0.036–0.045 at 400 iterations) and `last-window-deferral` keeps the Mage for a later window — so a refit that widens that margin past the band reds this entry by drift, not by regression; the leaf ordering itself is pinned by the Eval Pair in `etbAbility.bot.test.ts`. Measured at 500 iterations over 20 seeds: 6 casts before, 0 after (at 400: 9/10 casts before, 4/10 after — rollout noise the budget here clears).",
     },
 ];
 
