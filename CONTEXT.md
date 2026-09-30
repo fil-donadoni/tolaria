@@ -1058,6 +1058,18 @@ _Avoid_: Bot Gap (the class), bot verdict (that is the human judgement of a posi
 The artifact that makes a **Bot Finding** admissible and actionable: a blade entry or a saved scenario, named by its label, that rebuilds the position on demand. The dashboard's certification bar, and the same standard as proof-of-failure — a defect nobody can rebuild is not evidence. A blade entry stays a CURATED sample keyed to a class, never one entry per card (ADR 0102): the class carries the proof, the card carries the measurement.
 _Avoid_: Repro steps, test case, scenario alone (a scenario is one kind of reproducer)
 
+**Bot Audit**:
+A session in which an agent reads the **Evaluation**'s seams for one **Audit Theme**, writes **Minimal Pairs** for what it suspects the **Brain** cannot read, runs them through the real search, and hands the reviewer only the pairs that came out wrong. Each reviewed pair leaves by one of two doors, by its kind: a pair whose wrong move loses something forced by the rules becomes a **Test Position** in the _stretch_ tier with its cause classified, waiting for the fix that promotes it; a pair that is only a preference becomes a **Verdict** the reviewer attests, read by the **Weight Fit**. A diagnosed cause is an issue; a pair with no cause waits under the programme's umbrella; nothing becomes a rule at the root. Distinct from the Bot-play sweep, which measures cards, and from the seed-noise measurement of the _must_ tier, which measures positions already admitted.
+_Avoid_: Bot review, blade audit, robustness audit (that is the seed-noise measurement), sweep (that is per card), QA session
+
+**Audit Theme**:
+A **Decision Class** crossed with one family of mechanics — declaring blockers against first strike, a cast against blink, a land drop against lands that enter tapped — taken from a closed list, so that two **Bot Audits** never name the same ground two ways. The unit a **Bot Audit** is seeded with and the unit its coverage is counted in, the same unit the corpus census counts **Verdicts** in.
+_Avoid_: Topic, area, category, mechanic alone (a mechanic spans several decisions)
+
+**Audit Review**:
+The reviewer's pass over a **Bot Audit**'s wrong pairs, one row each, and the word given on every row. On a forced-loss pair the word is the human decision **Admission** will need, given early, so the fix that turns the pair green promotes it without a second look; on a preference pair the word is the **Attestation** its **Verdict** carries. A pair the reviewer reclassifies changes door; a pair the reviewer rejects lands nowhere.
+_Avoid_: Approval, sign-off, batch confirm
+
 **Card Retirement**:
 Deleting a hand-written **Card Definition** once its compiled twin is proven to behave identically, leaving the **Oracle Lockfile** as the only copy. The card's own test does not go with it — it moves onto the registry lookup, because it is the only standing proof that the compilation was ever right. A retired card's lockfile row is marked as such, so a later change to it is reviewed rather than merely diffed.
 _Avoid_: Deletion, deprecation, cleanup
