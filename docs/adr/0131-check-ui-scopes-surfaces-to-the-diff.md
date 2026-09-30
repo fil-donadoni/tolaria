@@ -181,6 +181,15 @@ Accepted at this granularity, beside the two the original argument accepts:
   surface (`design-system`) measures the page with no layer open, the row
   measures its layer over the page, and only the FULL walk measures the pair.
 
+NOT residuals — refused by the same guard, because the scoper prunes by
+node: a specimen section imported by anything but its route entries (a helper
+`lib.tsx` took from it would leave the page scaffolding), and a row's mount
+imported inside its section's pruned closure by anything but the section (a
+fixture borrowing a constant from a sibling dialog would leave that row's
+closure). A mount importing a sibling mount (the game-over dialog renders the
+sideboarding one) is inside its own row's unpruned mount closure and is not
+refused.
+
 **The full walk now runs in batch health.** `check:ui --all` is the last
 `HEALTH_SCRIPTS` step (`scripts/lib/health-step.ts`): it runs after every
 offline verdict, on the batch's tip, under the same RED marker as the other
@@ -190,6 +199,26 @@ a browser), which is why it lives there and not in `check:all` (§ Decision 5
 and `docs/agents/quality-gates.md` § check:ui both stand). Every residual —
 the two above, the Tailwind class scan, the base-branch graph drift — is what
 this walk exists to catch, at batch cadence instead of on every PR.
+
+Three costs of that placement, priced rather than hidden:
+
+- **Any non-`PASS` exit is a `RED`**, an `INFRA` cell or an unreachable
+  deployment included — the same semantics as every other step, as the
+  issue asked, and the opposite of a walk that can go quietly amber. A RED
+  from the machine, not the tree, is cleared by re-running `bun run health`
+  on the same tip (a red `last.json` does not short-circuit), and
+  `health:status` names the failing step so the reader knows which it was.
+- **Under `--under-lock`** (the per-batch gate, ADR 0136 §6) the heavy mutex
+  is held for the whole run, so the walk — 4 to 29 min measured for a full
+  scope, 60 min run deadline — lengthens the one block a queued `land` waits
+  on by that much, once per batch. The walk also takes the `check:ui` lane
+  lock, so it never overlaps a PR's own run on the backend.
+- **The walk tests the tip's frontend against the functions the shared local
+  deployment currently serves**: `check:ui` never pushes Convex functions
+  (a second `convex dev` against the same backend is what the lane refuses),
+  on a PR as in health. A batch whose functions no session pushed can red or
+  green against another tree's functions; pushing the tip from health is a
+  separate decision, not taken here.
 
 ### Decision, amended
 
@@ -203,9 +232,12 @@ this walk exists to catch, at batch cadence instead of on every PR.
    included. A PR receipt stays `SCOPED` (or FULL when a global input forces
    it); `check:ui` is still not in `check:pr` or `land`.
 
-Measured on the tree at the amendment (`landingDiffScope`): PR #4911's diff
-34 → 3 surfaces (`admin-scenarios`, `admin-bot-findings`,
-`admin-bot-findings-classes`); one board dialog (`pause-menu-dialog.tsx`)
+Measured on the tree at the amendment (`landingDiffScope`): the two `src/**`
+files of PR #4911 — the ones its 34-surface receipt was scoped on — 34 → 3
+surfaces (`admin-scenarios`, `admin-bot-findings`,
+`admin-bot-findings-classes`; the merge commit also carries a CR-ledger
+entry, which is unplaced and forces FULL in either scoper); one board dialog
+(`pause-menu-dialog.tsx`)
 42 → 14 (its own row, the page, and the game surfaces that mount it); one
 cast-picker section frame 31 → 10; the page's shared scaffolding
 (`design-system/lib.tsx`) 31 → 31, as it must.

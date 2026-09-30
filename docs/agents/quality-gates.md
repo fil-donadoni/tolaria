@@ -851,9 +851,15 @@ accepts not to see (a mount a section renders unconditionally, a sibling
 section's frame under an open layer, the Tailwind class scan, base-branch graph
 drift) is what `check:ui --all` as the last `HEALTH_SCRIPTS` step exists to
 catch: it runs after every offline verdict on the batch's tip, and a failing
-surface leaves the same `RED` marker as any other step. It is the one health
-step that is not offline, and the three reasons above still keep it out of
-`check:all`.
+surface leaves the same `RED` marker as any other step — an `INFRA` cell or
+an unreachable deployment included: `bun run health` re-run on the same tip
+clears a RED the machine caused. It is the one health step that is not
+offline, and the three reasons above still keep it out of `check:all`. Priced:
+under the per-batch `--under-lock` hold the walk (4–29 min measured, 60 min
+deadline) lengthens the block a queued `land` waits on, once per batch; and
+it walks the tip's frontend against whatever Convex functions the shared local
+deployment serves, since `check:ui` pushes none — on a PR as in health (ADR
+0131 § Amendment).
 
 So `check:ui` is a standalone command, and **its output is the receipt a UI PR
 pastes**. The enforcement is the same as it was for the manual browser check
