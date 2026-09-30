@@ -358,8 +358,8 @@ describe("Eval Pairs — a self-sacrificing ETB Titan is cast from hand (issue #
     it("a card with escape in the graveyard keeps the curve top its hand cast raised (mana development is not spent)", () => {
         const uro = getCardByName("Uro, Titan of Nature's Wrath");
         const lands = () =>
-            Array.from({ length: 4 }, () =>
-                makeInstance(getCardByName("Forest").id, {
+            Array.from({ length: 4 }, (_, i) =>
+                makeInstance(getCardByName(i % 2 ? "Island" : "Forest").id, {
                     zone: "battlefield",
                 })
             );
