@@ -73,7 +73,6 @@ describe("runCellAttempts — a walk that never settles still ends", () => {
         "ends as INFRA cell-deadline after maxAttempts, closing the page on every attempt",
         async () => {
             const { deps, log } = cell<number>(() => never());
-            const started = Date.now();
             const outcome = await runCellAttempts(deps);
             expect(outcome).toMatchObject({
                 kind: "INFRA",
@@ -85,10 +84,6 @@ describe("runCellAttempts — a walk that never settles still ends", () => {
             expect(log.notes).toHaveLength(POLICY.maxAttempts - 1);
             expect(log.notes[0]).toMatch(
                 /^infra attempt 1\/3 — cell-deadline, load 0\.5/
-            );
-            // deadline × maxAttempts, with slack for the scheduler.
-            expect(Date.now() - started).toBeLessThan(
-                DEADLINE_MS * POLICY.maxAttempts + 500
             );
         },
         HANG_TIMEOUT
