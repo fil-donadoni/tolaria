@@ -436,6 +436,7 @@ describe("verdicts:promote — the lock it writes", () => {
                 .map((r) => r.status)
         ).toEqual(["lane-fixture"]);
         expect(rowOf(validation, real).status).toBe("promotable");
+        expect(validation.attestationProblems).toEqual([]);
         expect(planPromotion(null, validation).lock.verdictIds).toEqual([real]);
         expect(formatStoreValidation(validation)).toContain(
             "lane-fixture         : 1"
