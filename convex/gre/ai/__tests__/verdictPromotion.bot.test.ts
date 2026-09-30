@@ -55,6 +55,7 @@ import {
     type VerdictRebuildCheck,
     type VerdictSourceAxis,
 } from "../verdicts";
+import { LANE_FIXTURE_NOTE } from "../verdicts/laneFixture";
 import { sha256Hex } from "../verdicts/sha256";
 
 /** A judgement on board `turn`, answering candidate `index`. Two judgements
@@ -402,6 +403,32 @@ describe("verdicts:promote — the lock it writes", () => {
         ]);
         expect(formatStoreValidation(validation)).toContain(
             "rejected             : 1"
+        );
+    });
+
+    it("never lets the check:ui lane fixture into the corpus — nor contest a real verdict with it (issue #4905)", async () => {
+        const store = createMemoryVerdictStore();
+        const real = await stored(store, judgement(6, 1));
+        const fixtureOnly = await stored(store, judgement(6, 2), []);
+        const fixture = (verdictId: string, author: string) =>
+            putAttestation(store, {
+                verdictId,
+                author,
+                sourceAxis: "explicit",
+                note: LANE_FIXTURE_NOTE,
+                deployment: "local-3210",
+                deploymentKind: "local",
+            });
+        await fixture(real, "local-3210:lane1");
+        await fixture(fixtureOnly, "local-3210:lane2");
+
+        const validation = await validate(store);
+
+        expect(rowOf(validation, fixtureOnly).status).toBe("lane-fixture");
+        expect(rowOf(validation, real).status).toBe("promotable");
+        expect(planPromotion(null, validation).lock.verdictIds).toEqual([real]);
+        expect(formatStoreValidation(validation)).toContain(
+            "lane-fixture         : 1"
         );
     });
 
