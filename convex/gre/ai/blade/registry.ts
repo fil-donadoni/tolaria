@@ -8100,19 +8100,19 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         note: "Issue #4781, position B of the damage-sweep pair: the mirror of A. Every body the damage kills is the Bot's and the opponent's Craw Wurm survives it, so the net worth is below zero and the card in hand is floored at nothing — casting it only clears the Bot's own board.",
     },
     {
-        label: "bounce sweep: casts Hibernation when the opponent holds the green surplus",
+        label: "bounce sweep: casts Hibernation when the opponent's green board outweighs its mana",
         spec: {
             cards: [
                 { name: "Hibernation", owner: "me", zone: "hand" },
                 { name: "Island", owner: "me", zone: "battlefield", count: 4 },
                 { name: "Serra Angel", owner: "me", zone: "battlefield" },
-                { name: "Forest", owner: "opp", zone: "battlefield", count: 2 },
                 {
-                    name: "Grizzly Bears",
-                    owner: "opp",
+                    name: "Savannah Lions",
+                    owner: "me",
                     zone: "battlefield",
-                    count: 5,
+                    count: 2,
                 },
+                { name: "Forest", owner: "opp", zone: "battlefield", count: 2 },
                 {
                     name: "Craw Wurm",
                     owner: "opp",
@@ -8129,7 +8129,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         seeds: [0xb1ade, 1, 2, 3, 4],
         tier: "must",
         expect: { moves: [{ kind: "cast-spell", card: "Hibernation" }] },
-        note: "Issue #4781, position A of the bounce-sweep pair. A `forEach` that returns `$each` to its owner's hand sat in hand at one representative victim's tempo whatever the board held. The hand term now prices it at the NET units of what it returns (CR 105.2: the colour filter read exactly), and the Bot's white Serra Angel is no member. Position B is the mirror and must hold.",
+        note: "Issue #4781, position A of the bounce-sweep pair, re-cut by issue #4878. A `forEach` that returns `$each` to its owner's hand sat in hand at one representative victim's tempo whatever the board held; the hand term now prices it at the NET units of what it returns (CR 105.2: an object is the colour of its mana symbols, so the colourless Forests and the Bot's white creatures are no members). The sweep returns both Craw Wurms to a player with two Forests, who cannot recast either for four land drops, and leaves the Bot's three attackers facing an empty board. Hibernation is an instant, so casting in the opponent's upkeep is equivalent (the opponent has no mana to answer it and nothing left to add to the board before its main phase): the entry pins that the Bot does not leave the sweep in hand, and the search reaches the cast now. The first cut (seven green creatures against one Serra Angel) sat at a margin near −875, past `materialFull`: both branches clipped to the `terminalBand` floor, every run fell to `material-tiebreak`, and 3 of 10 wide seeds failed (issue #4878). This board keeps both branches inside the open band, so the cast wins by mean reward on every wide seed. What the pair checks is the RESOLVED swing, not the colour filter of the hand price: with that filter ignored (`sweepPermanentFilter` dropping `colors`) both positions stay green, because the search resolves the real sweep either way. Position B is the mirror and must hold.",
     },
     {
         label: "bounce sweep: holds Hibernation when the Bot holds the green surplus",

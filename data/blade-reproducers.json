@@ -129,7 +129,7 @@
         "libraryCount": 20
     },
     "boast: eats its Grizzly Bears to boast for lethal after attacking": null,
-    "bounce sweep: casts Hibernation when the opponent holds the green surplus": {
+    "bounce sweep: casts Hibernation when the opponent's green board outweighs its mana": {
         "cards": [
             {
                 "name": "Hibernation",
@@ -148,16 +148,16 @@
                 "zone": "battlefield"
             },
             {
-                "name": "Forest",
-                "owner": "opp",
+                "name": "Savannah Lions",
+                "owner": "me",
                 "zone": "battlefield",
                 "count": 2
             },
             {
-                "name": "Grizzly Bears",
+                "name": "Forest",
                 "owner": "opp",
                 "zone": "battlefield",
-                "count": 5
+                "count": 2
             },
             {
                 "name": "Craw Wurm",

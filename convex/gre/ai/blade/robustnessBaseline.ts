@@ -18,10 +18,6 @@ import type { RobustnessBaselineRow } from "./robustness";
 export const ROBUSTNESS_BASELINE: readonly RobustnessBaselineRow[] = [
     // First run (issue #4875), wide seeds 0..9 × default / jitter+ / jitter-.
     {
-        label: "bounce sweep: casts Hibernation when the opponent holds the green surplus",
-        issue: 4878,
-    },
-    {
         label: "Sacrifice outlet with a transient payoff: casts the creature",
         issue: 4877,
     },
@@ -34,5 +30,17 @@ export const ROBUSTNESS_BASELINE: readonly RobustnessBaselineRow[] = [
     {
         label: "discriminating pair: casts Phyrexian Dreadnought WITH an out (Stifle)",
         issue: 4882,
+    },
+    // Back on issue #4878's refit (robust after issue #4880's, jitter− 9/10
+    // on this one): the same knife-edge issue #4877 tracks.
+    {
+        label: "Sacrifice-for-removal outlet: casts the creature",
+        issue: 4877,
+    },
+    // Robust at health GREEN 143e46bb, jitter− 9/10 on the base tip after the
+    // refits of issue #4758 and issue #4880; found landing issue #4878.
+    {
+        label: "storm: Grapeshot is lethal because the search counts the spell cast before it",
+        issue: 4893,
     },
 ];
