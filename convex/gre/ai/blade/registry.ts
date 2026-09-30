@@ -9570,7 +9570,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         seeds: [0xb1ade, 1, 2, 3, 4],
         tier: "must",
         expect: { moves: [{ kind: "cast-spell", card: "Ravenous Rats" }] },
-        note: "Issue #4895 (issue #4758 review). Its ETB Ability makes the opponent discard (their pick, CR 608.2d), so the policy probe stops with the trigger in flight; `etbAbilitiesInFlight` credits it. Measured cast on 5/5 seeds. The general opponent-choice limit is issue #4896.",
+        note: "Issue #4895 (issue #4758 review). Its ETB Ability makes the opponent discard (their pick, CR 701.9b), so the policy probe stops with the trigger in flight; `etbAbilitiesInFlight` credits it. Measured cast on 5/5 seeds. The general opponent-choice limit is issue #4896.",
     },
     {
         label: "opponent's choice: casts Chainer's Edict at the opponent's only creature",
