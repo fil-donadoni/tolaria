@@ -1308,13 +1308,11 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
             turn: 3,
             landCount: 1,
             libraryCount: 20,
-            // Opponent at 12 = exactly the Dreadnought's power (issue #4882).
-            // At 20 life the 12/12 is only tempo: a rollout that passes now
-            // casts it next turn and lands on the same clipped material, so
-            // cast and `pass` tie inside the outcome band and the pick is
-            // rollout order (`material-tiebreak`). At 12 a cast now swings
-            // for lethal a full turn cycle before a cast next turn, a
-            // terminal-band difference no weight vector closes.
+            // Opponent at 12 (issue #4882): matched to the partner, which
+            // needs it — this half is the same position minus the out, so the
+            // pair still differs by Stifle alone. Here the 12/12 never
+            // survives (every legal answer sacrifices it); measured `pass` wins
+            // by mean reward on every seed and vector.
             life: { opp: 12 },
         },
         bot: "me",
@@ -1361,7 +1359,9 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         bot: "me",
         budget: { iterations: 400 },
         seeds: [0xb1ade, 1, 2],
-        // ADR 0070 §2 — measured, not guessed: `cast Phyrexian Dreadnought` on
+        // ADR 0070 §2 — measured, not guessed, at opponent life 20 and before
+        // the issue #4882 re-cut (life 12; re-measured only at the production
+        // 400): `cast Phyrexian Dreadnought` on
         // all three seeds at 400, 800, 1600 and 3200 (monotone, no
         // converge-away). Once beyond budget with cause `horizon` (it needed
         // 1600 when authored), it is now solved at the production 400 — the
