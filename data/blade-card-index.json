@@ -523,6 +523,13 @@
             "needsSetup": true
         }
     ],
+    "Uro, Titan of Nature's Wrath": [
+        {
+            "label": "self-sacrificing ETB: hard-casts Uro for its enter trigger",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
     "Walking Ballista": [
         {
             "label": "activation payoff: shoots its own last counter at a face on 1",

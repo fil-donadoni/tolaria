@@ -1236,6 +1236,22 @@
             "opp": 3
         }
     },
+    "self-sacrificing ETB: hard-casts Uro for its enter trigger": {
+        "cards": [
+            {
+                "name": "Uro, Titan of Nature's Wrath",
+                "owner": "me",
+                "zone": "hand"
+            }
+        ],
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 5,
+        "landCount": 4,
+        "libraryCount": 20,
+        "landsPlayed": {
+            "me": 1
+        }
+    },
     "Snapcaster Mage: casts it to flash back a sorcery that kills a Serra Angel": {
         "cards": [
             {
