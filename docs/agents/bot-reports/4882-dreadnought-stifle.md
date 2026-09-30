@@ -174,6 +174,35 @@ vettori default / jitter+ / jitter− (18 run per riga):
   turno. Questo ri-taglio è dichiarato, non nascosto: non rende la posizione
   più facile, toglie un'alternativa altrettanto corretta.
 
+## Correzione di classe: `latentCreatureDiscount` fittato
+
+- `LATENT_DISCOUNT = 0.85` (costante in `cardValue.ts`) è diventato
+  `EvalWeights.latentCreatureDiscount`, fittabile, con prior 0.85. Il peso lo
+  leggono il termine `hand` e il `returnedWorth` dei bounce. Un'asserzione in
+  `evalWeights.bot.test.ts` lo tiene in (0, 1) (invariante #149).
+- Coppia ri-tagliata a POSTCOMBAT_MAIN, vita di default 20. Nessun life 12.
+- **Prova rapida prima del fit** (costante cambiata a mano): a 0.6 la metà 2 in
+  POSTCOMBAT l20 dà 18/18 `mean-reward`, e la metà 1 resta corretta.
+- **Fit sul corpus committato (240 Verdict):** lo sconto va a **0.62953**. Senza
+  le due metà Dreadnought andrebbe a 0.796: il resto del corpus spinge nella
+  stessa direzione, ma la coppia pesa più di tutto il resto. Il pair "WITH an
+  out" è letto a 1-ply (Stifle non entra nel probe) e resta violato. Le righe
+  OK passano da 151 a 153 su 240.
+- **Audit coppia ai pesi committati:** entrambe le metà `ROBUST`, `mean-reward`
+  10/10 su tutti e tre i vettori.
+- **Suite blade `must`: 2 rossi**, entrambi già `NOISE-PINNED` sulla base:
+
+| entry                                   | base                           | branch                       |
+| --------------------------------------- | ------------------------------ | ---------------------------- |
+| Discard sorcery (baseline, #4877)       | own 5/5 · 9/10 · 8/10 · 10/10  | own 4/5 · 8/10 · 7/10 · 5/10 |
+| Snapcaster hold, cimitero vuoto (#4217) | own 4/4 · 10/10 · 8/10 · 10/10 | own 3/4 · 7/10 · 7/10 · 8/10 |
+
+Snapcaster è un effetto reale dello sconto: sulla base lo tiene la regola root
+`last-window-deferral`, sul branch in alcuni seed il `mean-reward` preferisce
+schierare il corpo 2/1. Un solo sconto uniforme non distingue "creatura il cui
+valore è il corpo" (Dreadnought) da "creatura il cui valore è il momento in
+cui entra" (Snapcaster, flash + ETB).
+
 ## Cosa fare quando c'è un bug del game bot
 
 1. **L'entry blade è la specifica.** La domanda che pone ("un umano risponde
