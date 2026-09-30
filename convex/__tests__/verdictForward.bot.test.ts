@@ -20,6 +20,7 @@ import {
     verdictIdOf,
     type VerdictJudgement,
 } from "../gre/ai/verdicts/identity";
+import { LANE_FIXTURE_NOTE } from "../gre/ai/verdicts/laneFixture";
 import { resolutionIdOf } from "../gre/ai/verdicts/resolution";
 import { sha256Hex } from "../gre/ai/verdicts/sha256";
 import type { VerdictResolution } from "../gre/ai/verdicts/types";
@@ -41,8 +42,11 @@ import {
 } from "../verdictResolutionsOutbox";
 import {
     attestationObjectName,
+    putAttestation,
+    putVerdict,
     readAttestation,
     readResolution,
+    readStoredCorpus,
     readVerdict,
     verdictObjectName,
     type VerdictStoreWriter,
@@ -51,6 +55,7 @@ import {
     createMemoryVerdictStore,
     type MemoryVerdictStore,
 } from "../verdictStoreMemory";
+import { reviewSourcesOf } from "../verdictReview";
 import { drain } from "../verdictsDrain";
 import {
     directOutboxStore,
@@ -856,5 +861,149 @@ describe("the writer's registered HTTP route (issue #3745)", () => {
         expect(
             await readAttestation(store, VERDICT_ID, LOCAL_AUTHOR)
         ).toMatchObject({ deployment: "local-3210", deploymentKind: "local" });
+    });
+});
+
+describe("the check:ui lane fixture never reaches the Verdict Store (issue #4905)", () => {
+    const fixtureRow = (): OutboxRow => ({
+        ...localRow("r-fixture", JUDGEMENT, {
+            attestationAuthor: LOCAL_AUTHOR,
+            deployment: "local-3210",
+        }),
+        note: LANE_FIXTURE_NOTE,
+    });
+
+    it.each([
+        {
+            route: "a forward token",
+            storeRow: (store: MemoryVerdictStore, sent: unknown[]) =>
+                forwardOutboxStore(async (request) => {
+                    sent.push(request);
+                    return wire(writerPorts(store))(request);
+                }, LOCAL),
+        },
+        {
+            route: "the write key",
+            storeRow: (store: MemoryVerdictStore) =>
+                directOutboxStore(store, LOCAL),
+        },
+    ])(
+        "the outbox keeps a fixture row pending by $route, sending nothing",
+        async ({ storeRow }) => {
+            const store = createMemoryVerdictStore();
+            const sent: unknown[] = [];
+            const markStoredSpy = vi.fn();
+
+            const report = await drainOutbox({
+                storeRow: storeRow(store, sent),
+                now: () => 1,
+                pendingPage: async () => ({
+                    rows: [fixtureRow()],
+                    cursor: "",
+                    isDone: true,
+                }),
+                markStored: markStoredSpy,
+            });
+
+            expect(report.stored).toBe(0);
+            expect(report.pending).toEqual([
+                {
+                    rowId: "r-fixture",
+                    reason: "a check:ui lane fixture: never stored in the Verdict Store",
+                },
+            ]);
+            expect(sent).toEqual([]);
+            expect(markStoredSpy).not.toHaveBeenCalled();
+            expect(store.objects.size).toBe(0);
+        }
+    );
+
+    it("the writer refuses a fixture a drain without the outbox's refusal forwards", async () => {
+        const store = createMemoryVerdictStore();
+
+        const answer = await wire(writerPorts(store))({
+            kind: "verdict",
+            ...verdictStampOf(JUDGEMENT),
+            judgement: JUDGEMENT,
+            attestation: {
+                verdictId: VERDICT_ID,
+                author: LOCAL_AUTHOR,
+                sourceAxis: "explicit",
+                createdAt: 1_700_000_000_000,
+                note: LANE_FIXTURE_NOTE,
+                deployment: "local-3210",
+                deploymentKind: "local",
+            },
+        });
+
+        expect(answer).toEqual({
+            httpStatus: 422,
+            response: {
+                status: "refused",
+                reason: "a check:ui lane fixture is never stored in the Verdict Store",
+            },
+        });
+        expect(store.objects.size).toBe(0);
+    });
+
+    it("a store read drops leaked fixtures, and a verdict only a fixture attests", async () => {
+        const store = createMemoryVerdictStore();
+        const OTHER: VerdictJudgement = {
+            ...JUDGEMENT,
+            answer: { kind: "right", rightIndexes: [0] },
+        };
+        const OTHER_ID = verdictIdOf(OTHER);
+        const fixture = (verdictId: string, author: string) => ({
+            verdictId,
+            author,
+            sourceAxis: "explicit" as const,
+            createdAt: 1_700_000_000_000,
+            note: LANE_FIXTURE_NOTE,
+            deployment: "local-3210",
+            deploymentKind: "local" as const,
+        });
+        const real = {
+            verdictId: VERDICT_ID,
+            author: LOCAL_AUTHOR,
+            sourceAxis: "explicit" as const,
+            deployment: "local-3210",
+            deploymentKind: "local" as const,
+        };
+        await putVerdict(store, JUDGEMENT);
+        await putVerdict(store, OTHER);
+        await putAttestation(store, real);
+        await putAttestation(store, fixture(VERDICT_ID, "local-3210:u-lane1"));
+        await putAttestation(store, fixture(OTHER_ID, "local-3210:u-lane2"));
+
+        const corpus = await readStoredCorpus(store);
+
+        expect(corpus.verdicts).toEqual([JUDGEMENT]);
+        expect(corpus.attestations).toEqual([real]);
+    });
+
+    it("the lane still walks its own fixture: the review reads it from the outbox, never from the store", async () => {
+        const store = createMemoryVerdictStore();
+        await putVerdict(store, JUDGEMENT);
+        await putAttestation(store, {
+            verdictId: VERDICT_ID,
+            author: "local-3210:u-old-lane",
+            sourceAxis: "explicit",
+            note: LANE_FIXTURE_NOTE,
+            deployment: "local-3210",
+            deploymentKind: "local",
+        });
+
+        const sources = reviewSourcesOf({
+            stored: await readStoredCorpus(store),
+            verdictRows: [fixtureRow()],
+            resolutionRows: [],
+            here: LOCAL,
+        });
+
+        expect(sources.verdicts).toEqual([JUDGEMENT]);
+        expect(sources.attestations.map((a) => a.author)).toEqual([
+            LOCAL_AUTHOR,
+        ]);
+        expect(sources.attestations[0].note).toBe(LANE_FIXTURE_NOTE);
     });
 });

@@ -55,6 +55,7 @@ import {
     type VerdictRebuildCheck,
     type VerdictSourceAxis,
 } from "../verdicts";
+import { LANE_FIXTURE_NOTE } from "../verdicts/laneFixture";
 import { sha256Hex } from "../verdicts/sha256";
 
 /** A judgement on board `turn`, answering candidate `index`. Two judgements
@@ -402,6 +403,43 @@ describe("verdicts:promote — the lock it writes", () => {
         ]);
         expect(formatStoreValidation(validation)).toContain(
             "rejected             : 1"
+        );
+    });
+
+    it("never lets the check:ui lane fixture into the corpus — nor contest a real verdict with it (issue #4905)", async () => {
+        const store = createMemoryVerdictStore();
+        const real = await stored(store, judgement(6, 1));
+        const fixtureOnly = await stored(store, judgement(6, 2), []);
+        const fixture = (verdictId: string, author: string) =>
+            putAttestation(store, {
+                verdictId,
+                author,
+                sourceAxis: "explicit",
+                note: LANE_FIXTURE_NOTE,
+                deployment: "local-3210",
+                deploymentKind: "local",
+            });
+        await fixture(real, "local-3210:lane1");
+        await fixture(fixtureOnly, "local-3210:lane2");
+
+        // The fixture's position need not rebuild: it is set aside unread,
+        // never judged invalid (the leaked ones crash the engine step).
+        const validation = await validate(store, (v) =>
+            v.answer.kind === "right" && v.answer.rightIndexes[0] === 2
+                ? "the fixture's position does not rebuild"
+                : null
+        );
+
+        expect(
+            validation.rows
+                .filter((r) => r.verdictId === fixtureOnly)
+                .map((r) => r.status)
+        ).toEqual(["lane-fixture"]);
+        expect(rowOf(validation, real).status).toBe("promotable");
+        expect(validation.attestationProblems).toEqual([]);
+        expect(planPromotion(null, validation).lock.verdictIds).toEqual([real]);
+        expect(formatStoreValidation(validation)).toContain(
+            "lane-fixture         : 1"
         );
     });
 

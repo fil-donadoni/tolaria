@@ -40,6 +40,7 @@
 // writes.
 
 import {
+    attestationObjectName,
     decodeAttestationObject,
     decodeResolutionObject,
     decodeVerdictObject,
@@ -57,6 +58,7 @@ import {
     minimalPairTally,
     type MinimalPairFitOutcome,
 } from "./fit";
+import { withoutLaneFixtures } from "./laneFixture";
 import { minimalPairStandings } from "./minimalPair";
 import { encodeVerdictPack } from "./pack";
 import {
@@ -121,7 +123,8 @@ export type VerdictObjectStatus =
     | "contested"
     | "rejected"
     | "in-registry"
-    | "incomplete-pair";
+    | "incomplete-pair"
+    | "lane-fixture";
 
 /** One verdict object's classification. `reasons` is empty exactly when the
  *  object is promotable. */
@@ -226,12 +229,45 @@ export function validateStoreObjects(
     registry: readonly Verdict[] = [],
     resolutionObjects: readonly StoreObject[] = []
 ): StoreValidation {
+    // Attestations first, so the check:ui lane's fixtures that leaked before
+    // the outbox refused them (issue #4905) are known before any verdict is
+    // rebuilt: a fixture is never corpus, and a verdict only fixtures attest
+    // is set aside unread rather than judged — or reported invalid.
+    const decoded: VerdictAttestation[] = [];
+    const attestationProblems: StoreValidation["attestationProblems"] = [];
+    for (const object of [...attestationObjects].sort((a, b) =>
+        byString(a.name, b.name)
+    )) {
+        try {
+            decoded.push(decodeAttestationObject(object.name, object.bytes));
+        } catch (error) {
+            attestationProblems.push({
+                name: object.name,
+                reason: message(error),
+            });
+        }
+    }
+    const { attestations: realAttestations, fixtureOnlyVerdictIds } =
+        withoutLaneFixtures(decoded);
+
     const rows: VerdictObjectRow[] = [];
     const readable = new Map<string, VerdictJudgement>();
     const invalidIds = new Set<string>();
     for (const object of [...verdictObjects].sort((a, b) =>
         byString(a.name, b.name)
     )) {
+        const fixtureId = verdictIdOfObjectName(object.name);
+        if (fixtureId !== null && fixtureOnlyVerdictIds.has(fixtureId)) {
+            rows.push({
+                name: object.name,
+                verdictId: fixtureId,
+                status: "lane-fixture",
+                reasons: [
+                    "attested only by the check:ui lane's fixture — never corpus (issue #4905)",
+                ],
+            });
+            continue;
+        }
         const read = readVerdictObject(object, rebuild);
         if ("reason" in read) {
             if (read.verdictId !== null) invalidIds.add(read.verdictId);
@@ -247,25 +283,15 @@ export function validateStoreObjects(
     }
 
     const attestations: VerdictAttestation[] = [];
-    const attestationProblems: StoreValidation["attestationProblems"] = [];
-    for (const object of [...attestationObjects].sort((a, b) =>
-        byString(a.name, b.name)
-    )) {
-        let attestation: VerdictAttestation;
-        try {
-            attestation = decodeAttestationObject(object.name, object.bytes);
-        } catch (error) {
-            attestationProblems.push({
-                name: object.name,
-                reason: message(error),
-            });
-            continue;
-        }
+    for (const attestation of realAttestations) {
         if (readable.has(attestation.verdictId)) {
             attestations.push(attestation);
         } else if (!invalidIds.has(attestation.verdictId)) {
             attestationProblems.push({
-                name: object.name,
+                name: attestationObjectName(
+                    attestation.verdictId,
+                    attestation.author
+                ),
                 reason: `attests ${attestation.verdictId}, which the store holds no verdict object for`,
             });
         }
@@ -480,6 +506,7 @@ export function formatStoreValidation(validation: StoreValidation): string {
         `  rejected             : ${count("rejected")}`,
         `  in-registry          : ${count("in-registry")}`,
         `  incomplete-pair      : ${count("incomplete-pair")}`,
+        `  lane-fixture         : ${count("lane-fixture")}`,
         `attestation problems   : ${validation.attestationProblems.length}`,
         `resolution problems    : ${validation.resolutionProblems.length}`,
     ];

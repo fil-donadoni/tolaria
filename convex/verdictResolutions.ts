@@ -18,6 +18,7 @@ import { v } from "convex/values";
 import { internalMutation, internalQuery } from "./_generated/server";
 import { assertIsAdmin } from "./auth";
 import type { VerdictJudgement } from "./gre/ai/verdicts/identity";
+import { LANE_FIXTURE_NOTE } from "./gre/ai/verdicts/laneFixture";
 import {
     resolutionIdOf,
     resolutionProblems,
@@ -229,7 +230,9 @@ const UI_GATE_ANSWERS: VerdictJudgement["answer"][] = [
  * idempotent per account. The rows are the account's own (`authorId`), so the
  * lane's teardown removes them with the account, and they stay `local`, so
  * nothing downstream mistakes them for a tester's judgement. No drain is
- * scheduled: a local backend holds no write key.
+ * scheduled, and none can store them: their note is `LANE_FIXTURE_NOTE`, which
+ * the outbox refuses by every route — write key or forward token (issue
+ * #4905). The teardown is the only way they leave the table.
  */
 export const seedUiGateContestedPosition = internalMutation({
     args: { email: v.string() },
@@ -246,9 +249,9 @@ export const seedUiGateContestedPosition = internalMutation({
                 `refusing to seed verdicts on ${url ?? "an unidentified deployment"}: lane fixtures exist only on a local deployment`
             );
         }
-        // Fixture rows are ordinary outbox rows: any drain on a deployment
-        // holding the write key would upload them into the shared bucket for
-        // good. A local backend never should hold it; if one does, refuse.
+        // Defence in depth: the outbox refuses to store a fixture row by any
+        // route (issue #4905), but a local backend should never hold the write
+        // key at all; if one does, something is misconfigured — refuse.
         // (The name is `verdictStoreGcsWriter.ts`'s constant, spelled out
         // because a non-node module cannot import a `"use node"` one.)
         if (process.env.VERDICT_STORE_WRITE_KEY) {
@@ -289,7 +292,7 @@ export const seedUiGateContestedPosition = internalMutation({
                 authorId: user._id,
                 author: user.nickname ?? "ui-gate",
                 createdAt: Date.now(),
-                note: "check:ui fixture",
+                note: LANE_FIXTURE_NOTE,
                 ...stamp,
                 attestationAuthor: verdictAuthorOf(here.name, user._id),
                 deployment: here.name,

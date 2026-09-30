@@ -34,6 +34,7 @@
 // card registry (`scripts/__tests__/convex-node-bundle-seam.test.ts`).
 
 import type { VerdictJudgement } from "./gre/ai/verdicts/identity";
+import { isLaneFixture } from "./gre/ai/verdicts/laneFixture";
 import {
     resolutionIdOf,
     resolutionProblems,
@@ -420,6 +421,14 @@ async function acceptForwardedVerdict(
     }
     const outside = originOutsideDeployment(attestation, deployment);
     if (outside !== null) return refused(403, outside);
+    // Defence in depth behind the outbox's own refusal (issue #4905): a lane
+    // fixture forwarded by a drain that predates it is still never stored.
+    if (isLaneFixture(attestation)) {
+        return refused(
+            422,
+            "a check:ui lane fixture is never stored in the Verdict Store"
+        );
+    }
     const future = futureCreatedAt(ports, attestation.createdAt as number);
     if (future !== null) return refused(422, future);
     const stamp = verdictStampOf(judgement);
