@@ -10,7 +10,8 @@
  * source on every run, so it cannot.
  *
  * WHAT IS FOLLOWED — the edges Vite itself follows when it builds the page:
- *   - static `import … from "x"`, `export … from "x"`, side-effect `import "x"`;
+ *   - static `import … from "x"`, `export … from "x"`, side-effect `import "x"`
+ *     — but not `import type` / `export type`, which the build erases;
  *   - dynamic `import("x")` with a LITERAL specifier (the verdict quiz loads its
  *     builder that way — a non-literal specifier cannot be resolved statically
  *     and is ignored);
@@ -56,8 +57,12 @@ export const APP_ALIASES: readonly ImportAlias[] = [
 ];
 
 const SPECIFIER_PATTERNS: readonly RegExp[] = [
-    // import x from "y" · import { a, b } from "y" · import type … · export … from "y"
-    /\b(?:import|export)\s+(?:type\s+)?[^'"`;]*?\bfrom\s*["']([^"'\n]+)["']/g,
+    // import x from "y" · import { a, b } from "y" · export … from "y".
+    // `import type … from` / `export type … from` are matched too (group 1)
+    // and DROPPED: the statement is erased at build time, so no code of "y"
+    // runs on the importer's account (issue #4913). A mixed `import { a,
+    // type B }` keeps the edge — `a` is a runtime binding.
+    /\b(?:import|export)\s+(type\s+)?[^'"`;]*?\bfrom\s*["']([^"'\n]+)["']/g,
     // import "y"
     /\bimport\s*["']([^"'\n]+)["']/g,
     // import("y")
@@ -66,13 +71,35 @@ const SPECIFIER_PATTERNS: readonly RegExp[] = [
     /\bnew\s+URL\(\s*["']([^"'\n]+)["']\s*,\s*import\.meta\.url\s*\)/g,
 ];
 
-/** Every module specifier `source` names, in no particular order, deduped. */
+/** Every module specifier `source` names at RUNTIME, in no particular order,
+ *  deduped — a type-only statement contributes nothing (`typeOnlySpecifiers`). */
 export function importSpecifiers(source: string): string[] {
-    const out = new Set<string>();
-    for (const pattern of SPECIFIER_PATTERNS) {
-        for (const match of source.matchAll(pattern)) out.add(match[1]);
+    return [...specifiersOf(source).runtime];
+}
+
+/** The specifiers `source` names ONLY in `import type` / `export type`
+ *  statements: modules whose code never runs on `source`'s account, though a
+ *  change to their types can still fail `check:ts`. A module named both ways
+ *  is a runtime import and is not here. */
+export function typeOnlySpecifiers(source: string): string[] {
+    const { runtime, typeOnly } = specifiersOf(source);
+    return [...typeOnly].filter((s) => !runtime.has(s));
+}
+
+function specifiersOf(source: string): {
+    runtime: Set<string>;
+    typeOnly: Set<string>;
+} {
+    const runtime = new Set<string>();
+    const typeOnly = new Set<string>();
+    for (const [i, pattern] of SPECIFIER_PATTERNS.entries()) {
+        for (const match of source.matchAll(pattern)) {
+            if (i !== 0) runtime.add(match[1]);
+            else if (match[1] === undefined) runtime.add(match[2]);
+            else typeOnly.add(match[2]);
+        }
     }
-    return [...out];
+    return { runtime, typeOnly };
 }
 
 const EXTENSIONS = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".json"];
@@ -132,11 +159,20 @@ export interface ClosureOptions {
      * shell's closure WITHOUT descending into the route modules it mounts.
      */
     prune?: (repoPath: string) => boolean;
+    /**
+     * Follow type-only edges too (`typeImportsOf`). Off by default: the
+     * closure is what RUNS. The scoper takes the type-inclusive closure once,
+     * to tell a module nothing runs from a module nothing places (issue
+     * #4913) — the first contributes no surface, the second forces FULL.
+     */
+    types?: boolean;
 }
 
 export interface ImportGraph {
-    /** The files `repoPath` imports directly, resolved. */
+    /** The files `repoPath` imports directly at runtime, resolved. */
     importsOf(repoPath: string): readonly string[];
+    /** The files `repoPath` names only in type-only statements, resolved. */
+    typeImportsOf(repoPath: string): readonly string[];
     /** `entry` plus every file reachable from it. */
     closureOf(entry: string, options?: ClosureOptions): Set<string>;
 }
@@ -156,6 +192,7 @@ export function createImportGraph({
     aliases = APP_ALIASES,
 }: ImportGraphOptions): ImportGraph {
     const edges = new Map<string, readonly string[]>();
+    const typeEdges = new Map<string, readonly string[]>();
     const fileCache = new Map<string, boolean>();
 
     const isFile = (repoPath: string): boolean => {
@@ -171,19 +208,31 @@ export function createImportGraph({
         return known;
     };
 
-    const importsOf = (repoPath: string): readonly string[] => {
-        const cached = edges.get(repoPath);
-        if (cached) return cached;
-        let resolved: string[] = [];
+    const read = (repoPath: string): void => {
+        if (edges.has(repoPath)) return;
+        let runtime: string[] = [];
+        let typeOnly: string[] = [];
         if (isFile(repoPath) && !repoPath.endsWith(".json")) {
             const source = readFileSync(join(root, repoPath), "utf8");
-            resolved = importSpecifiers(source)
-                .map((s) => resolveSpecifier(repoPath, s, aliases, isFile))
-                .filter((p): p is string => p !== null);
+            const resolve = (specifiers: string[]) =>
+                specifiers
+                    .map((s) => resolveSpecifier(repoPath, s, aliases, isFile))
+                    .filter((p): p is string => p !== null);
+            runtime = resolve(importSpecifiers(source));
+            typeOnly = resolve(typeOnlySpecifiers(source));
         }
-        const unique = [...new Set(resolved)];
-        edges.set(repoPath, unique);
-        return unique;
+        edges.set(repoPath, [...new Set(runtime)]);
+        typeEdges.set(repoPath, [...new Set(typeOnly)]);
+    };
+
+    const importsOf = (repoPath: string): readonly string[] => {
+        read(repoPath);
+        return edges.get(repoPath)!;
+    };
+
+    const typeImportsOf = (repoPath: string): readonly string[] => {
+        read(repoPath);
+        return typeEdges.get(repoPath)!;
     };
 
     const closureOf = (entry: string, options: ClosureOptions = {}) => {
@@ -191,7 +240,10 @@ export function createImportGraph({
         const queue = [entry];
         while (queue.length > 0) {
             const file = queue.pop()!;
-            for (const next of importsOf(file)) {
+            const nexts = options.types
+                ? [...importsOf(file), ...typeImportsOf(file)]
+                : importsOf(file);
+            for (const next of nexts) {
                 if (seen.has(next) || options.prune?.(next)) continue;
                 seen.add(next);
                 queue.push(next);
@@ -200,5 +252,5 @@ export function createImportGraph({
         return seen;
     };
 
-    return { importsOf, closureOf };
+    return { importsOf, typeImportsOf, closureOf };
 }

@@ -54,8 +54,17 @@ const PREFIX = "health-main:";
 export const DEFAULT_LIVENESS_MS = 60_000;
 
 /**
- * The full offline gate, in series, stopping at the first red — the name of
- * the failing entry is what the RED verdict records as `failedStep`.
+ * The full gate, in series, stopping at the first red — the name of the
+ * failing entry is what the RED verdict records as `failedStep`.
+ *
+ * `check:ui --all` (the full browser walk, issue #4913) is the one step that
+ * is not offline: it needs the local deployment and a browser, which is why
+ * it is not in `check:all` (`docs/agents/quality-gates.md` § check:ui). It is
+ * LAST, after every offline verdict, and it is the backstop for what a PR's
+ * SCOPED receipt accepts not to see (ADR 0131 amendment): a PR walks the
+ * surfaces its diff can reach, the batch walks them all. It takes the
+ * machine-wide `check:ui` lane (`ui-admission.ts`), a separate mutex from the
+ * heavy gate's, so a PR's own run and this one never overlap on the backend.
  *
  * `check:targets` (the Coverage Invariant, issue #3868) lives here on the
  * same terms and after `check:gaps`: it reads the same lockfile and allowlist.
@@ -86,7 +95,14 @@ export const HEALTH_SCRIPTS: readonly string[] = [
     "check:targets",
     "check:test-hygiene",
     "test",
+    "check:ui --all",
 ];
+
+/** The `bun run` argv for one `HEALTH_SCRIPTS` entry: the script name, then
+ *  the flags the entry carries after it (`check:ui --all`). */
+export function healthStepArgs(entry: string): string[] {
+    return ["run", ...entry.split(/\s+/)];
+}
 
 /**
  * Gates a batch owes ONLY when its diff touched the Bot's globs

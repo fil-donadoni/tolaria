@@ -10,6 +10,7 @@ import {
     APP_ALIASES,
     createImportGraph,
     importSpecifiers,
+    typeOnlySpecifiers,
     type ImportAlias,
 } from "../lib/import-graph";
 
@@ -30,7 +31,7 @@ afterAll(() => {
 });
 
 describe("importSpecifiers", () => {
-    it("finds static, re-export, side-effect, dynamic and worker-URL specifiers", () => {
+    it("finds static, re-export, side-effect, dynamic and worker-URL specifiers — and no type-only import (issue #4913)", () => {
         const source = [
             `import a from "./a";`,
             `import {`,
@@ -38,6 +39,7 @@ describe("importSpecifiers", () => {
             `    type C,`,
             `} from "~/b";`,
             `import type { D } from "./d";`,
+            `export type { D2 } from "./d2";`,
             `export { e } from "./e";`,
             `export * from "./f";`,
             `import "./g.css";`,
@@ -51,7 +53,6 @@ describe("importSpecifiers", () => {
             [
                 "./a",
                 "~/b",
-                "./d",
                 "./e",
                 "./f",
                 "./g.css",
@@ -59,6 +60,17 @@ describe("importSpecifiers", () => {
                 "./i.worker.ts",
             ].sort()
         );
+        expect(typeOnlySpecifiers(source).sort()).toEqual(["./d", "./d2"]);
+    });
+
+    it("a module named both ways is a runtime import, not a type-only one", () => {
+        const source = [
+            `import type { A } from "./a";`,
+            `import { a } from "./a";`,
+            `export type { B } from "./b";`,
+        ].join("\n");
+        expect(importSpecifiers(source)).toEqual(["./a"]);
+        expect(typeOnlySpecifiers(source)).toEqual(["./b"]);
     });
 });
 
@@ -73,7 +85,9 @@ describe("createImportGraph — closureOf", () => {
         "convex/gre/rules.ts": `import data from "../../data/rules.json";\nexport const rules = data;\n`,
         "data/rules.json": `{}`,
         "src/components/unrelated.tsx": `export const U = 1;\n`,
-        "src/routes/b.route.tsx": `import { U } from "../components/unrelated.js";\nimport React from "react";\n`,
+        "src/routes/b.route.tsx": `import { U } from "../components/unrelated.js";\nimport React from "react";\nimport type { Shape } from "../components/shape";\n`,
+        "src/components/shape.ts": `import { deep } from "./deep";\nexport type Shape = typeof deep;\n`,
+        "src/components/deep.ts": `export const deep = 1;\n`,
     });
     const graph = createImportGraph({ root });
 
@@ -102,6 +116,22 @@ describe("createImportGraph — closureOf", () => {
             "src/components/unrelated.tsx",
             "src/routes/b.route.tsx",
         ]);
+    });
+
+    it("does not follow a type-only import, unless asked to (issue #4913)", () => {
+        const runtime = graph.closureOf("src/routes/b.route.tsx");
+        expect(runtime).not.toContain("src/components/shape.ts");
+        expect(runtime).not.toContain("src/components/deep.ts");
+        expect(graph.typeImportsOf("src/routes/b.route.tsx")).toEqual([
+            "src/components/shape.ts",
+        ]);
+        const typed = graph.closureOf("src/routes/b.route.tsx", {
+            types: true,
+        });
+        expect(typed).toContain("src/components/shape.ts");
+        // Followed through: `shape.ts` imports `deep.ts` at runtime, and the
+        // type-inclusive closure keeps walking past a type-only edge.
+        expect(typed).toContain("src/components/deep.ts");
     });
 
     it("does not reach a module nothing imports", () => {
