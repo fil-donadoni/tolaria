@@ -8,6 +8,7 @@
 // so a game is fully reproducible from it.
 
 import {
+    type CardInstanceState,
     type GameState,
     type PlayerState,
     allocInstanceId,
@@ -38,6 +39,46 @@ export type PlayerInput = {
     deck: DeckInput;
 };
 
+/** A deck entry's chosen printing as the cosmetic `imagePrintId` pin
+ *  (ADR 0140 §6, issue #4119): `cardId` is the PRINTING the player picked, and
+ *  it is written only when it differs from the definition's own printing, so a
+ *  default-art deck adds no field to state. Opaque to the engine — no rules
+ *  module reads it; the client alone turns it into an image, and the
+ *  projection hides it wherever the card's identity is hidden. */
+export function deckPrintPin(
+    cardId: string,
+    definitionId: string
+): { imagePrintId?: string } {
+    return cardId === definitionId ? {} : { imagePrintId: cardId };
+}
+
+/** One deck card as a fresh instance in `zone`: characteristics hydrated from
+ *  its definition, the chosen printing carried as a cosmetic pin
+ *  ({@link deckPrintPin}). The one instantiation every game-start path shares
+ *  (`buildPlayerState` here and in `convex/game.ts`). */
+export function instantiateDeckCard(
+    deckCard: { cardId: string },
+    playerId: string,
+    zone: "library" | "exile",
+    counter: { nextInstanceId?: number }
+): CardInstanceState {
+    const def = getDefinition(deckCard.cardId);
+    return {
+        id: allocInstanceId(counter),
+        card: { id: def.id },
+        types: def.types,
+        subtypes: def.subtypes ?? [],
+        power: def.power,
+        toughness: def.toughness,
+        staticAbilities: def.staticAbilities ?? [],
+        controllerId: playerId,
+        ownerId: playerId,
+        zone,
+        isTapped: false,
+        ...deckPrintPin(deckCard.cardId, def.id),
+    };
+}
+
 /** Build a player's starting state: every deck card as a library instance, life
  *  20, empty zones (CR 103.1). Instance ids are allocated from the shared
  *  `counter` so both players' ids are globally unique within the game. */
@@ -45,22 +86,9 @@ export function buildPlayerState(
     player: PlayerInput,
     counter: { nextInstanceId?: number }
 ): PlayerState {
-    const instances = player.deck.cards.map((deckCard) => {
-        const def = getDefinition(deckCard.cardId);
-        return {
-            id: allocInstanceId(counter),
-            card: { id: def.id },
-            types: def.types,
-            subtypes: def.subtypes ?? [],
-            power: def.power,
-            toughness: def.toughness,
-            staticAbilities: def.staticAbilities ?? [],
-            controllerId: player.id,
-            ownerId: player.id,
-            zone: "library" as const,
-            isTapped: false,
-        };
-    });
+    const instances = player.deck.cards.map((deckCard) =>
+        instantiateDeckCard(deckCard, player.id, "library", counter)
+    );
 
     return {
         id: player.id,

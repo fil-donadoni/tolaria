@@ -161,6 +161,33 @@ describe("GameStack ability-kind detection (#935)", () => {
     });
 });
 
+describe("GameStack ability art follows the chosen printing (ADR 0140 §6, issue #4119)", () => {
+    const PRINT = "4e50454c-3927-4e7e-b4f6-7f5d5fd9b913"; // Birds, 2ED
+    const BIRDS = "55fe6449-1f23-43dc-adee-d144cd505b5c";
+    const trigger = (extra: Partial<StackItem>) =>
+        ({
+            ...makeStackItem("birds-trigger"),
+            card: { id: BIRDS },
+            delayedTriggerId: "$inline-effects",
+            delayedOracleText: "Draw a card.",
+            ...extra,
+        }) as StackItem;
+
+    it("paints the source's chosen printing, not the definition's", () => {
+        const { container } = renderStack([trigger({ imagePrintId: PRINT })]);
+        const src = container.querySelector("img")?.getAttribute("src");
+        expect(src).toContain(PRINT);
+        expect(src).not.toContain(BIRDS);
+    });
+
+    it("an unpinned source keeps the definition's printing", () => {
+        const { container } = renderStack([trigger({})]);
+        expect(container.querySelector("img")?.getAttribute("src")).toContain(
+            BIRDS
+        );
+    });
+});
+
 describe("GameStack targets are arrows, not text chips (QA)", () => {
     it("renders no target-name chip for a targeted stack item", () => {
         // The board-crossing SVG arrows (`board-arrows.tsx`) are the single

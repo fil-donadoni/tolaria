@@ -136,6 +136,65 @@ describe("Face-down card preview (CR 708.5 / CR 406.3, issue #2904)", () => {
         expect(secondary).toContain("4/4");
     });
 
+    // ADR 0140 §6 / issue #4119 — the chosen printing is part of the identity:
+    // the entitled viewer's "Actual card" face paints it, and nothing anyone
+    // else receives names it (the wire drops it in `hideFaceDownIdentity`).
+    it("paints the real card in its CHOSEN printing for the entitled viewer, and nowhere for anyone else", () => {
+        const PRINT = "print-chosen-by-owner";
+        const imageSrcs = (viewerId: "p1" | "p2") => {
+            const morph = makeInstance(SERRA.id, {
+                id: "fd-pinned",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "battlefield",
+                imagePrintId: PRINT,
+            });
+            turnFaceDown(NO_BOARD_LAYER_VIEW, morph, "morph");
+            const base = makeState();
+            const state = makeState({
+                players: [
+                    { ...base.players[0], id: "p1", battlefield: [morph] },
+                    base.players[1],
+                ],
+            });
+            const projected = projectPublicState(state, 1, viewerId);
+            const slim = projected.players[0].battlefield[0] as CardInstance;
+            const { container } = render(
+                <GameContext value={ctxFor(projected.players)}>
+                    <CardImage card={slim} />
+                </GameContext>
+            );
+            const board = Array.from(container.querySelectorAll("img")).map(
+                (i) => i.getAttribute("src") ?? ""
+            );
+            openPreview(container.firstElementChild as HTMLElement);
+            const panel = anchored()!;
+            const actual =
+                viewerId === "p1"
+                    ? Array.from(
+                          faceColumn(panel, "Actual card").querySelectorAll(
+                              "img"
+                          )
+                      ).map((i) => i.getAttribute("src") ?? "")
+                    : [];
+            const all = Array.from(panel.querySelectorAll("img")).map(
+                (i) => i.getAttribute("src") ?? ""
+            );
+            cleanup();
+            resetPreviewSingleton();
+            return { board, actual, all };
+        };
+
+        const mine = imageSrcs("p1");
+        expect(mine.actual.some((src) => src.includes(PRINT))).toBe(true);
+        // The board face stays the anonymous back, for the controller too.
+        expect(mine.board.some((src) => src.includes(PRINT))).toBe(false);
+
+        const theirs = imageSrcs("p2");
+        expect(theirs.all.some((src) => src.includes(PRINT))).toBe(false);
+        expect(theirs.board.some((src) => src.includes(PRINT))).toBe(false);
+    });
+
     it("gives a NON-entitled viewer one anonymous face and no real identity in any form", () => {
         const { slim, players } = projectFaceDownPermanent("p2");
         expect(slim.knownCardId).toBeUndefined();

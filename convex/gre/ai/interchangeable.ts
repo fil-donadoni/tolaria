@@ -54,16 +54,25 @@ type RefGroup = "tap";
 import type { CardInstanceState, GameState } from "../state";
 import { assertNever } from "../assertNever";
 
-/** The two fields the descriptor does NOT compare verbatim.
+/** The fields the descriptor does NOT compare verbatim.
  *
  *  - `id` IS the identity the collapse exists to erase.
+ *  - `imagePrintId` / `sourcePrintId` are the printing a player chose and a
+ *    token's source printing — cosmetic, never rule-readable (ADR 0140 §6,
+ *    issue #4119), so two copies of a card on different printings are the
+ *    same option. Dropped, not projected.
  *  - `enteredOnTurn` is rule-readable (`PermanentFilter.enteredThisTurn` reads
  *    `enteredOnTurn === state.turn`, CR 302.6 / 400.7) but only through that
  *    comparison, so it is PROJECTED to the boolean the rule asks for rather
  *    than dropped: two Treetop Villages that entered on turns 3 and 5 of a
  *    turn-9 board are interchangeable, and two where one entered this turn
  *    are not. */
-const DESCRIPTOR_PROJECTED_KEYS = new Set(["id", "enteredOnTurn"]);
+const DESCRIPTOR_PROJECTED_KEYS = new Set([
+    "id",
+    "enteredOnTurn",
+    "imagePrintId",
+    "sourcePrintId",
+]);
 
 /** JSON with object keys in sorted order, so two structurally equal values
  *  stringify identically no matter what order their fields were written in.

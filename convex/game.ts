@@ -82,7 +82,6 @@ import {
     discardPermanentTappedEvent,
     processPendingActionTriggers,
     realizeManaAbilityTapBonus,
-    allocInstanceId,
     tapPermanent,
     dealDamageFromPermanentToPlayer,
     loseLifeEmitting,
@@ -95,6 +94,7 @@ import {
     canSummonCompanion,
     COMPANION_SUMMON_COST,
 } from "./gre/companion";
+import { instantiateDeckCard } from "./gre/setup";
 import {
     type SacrificeSelection,
     type SacrificeRequirement,
@@ -627,43 +627,28 @@ function buildCompanionInstance(
         player.deck.cards.map((c) => c.cardId)
     );
     if (!def) return undefined;
-    return {
-        id: allocInstanceId(counter),
-        card: { id: def.id },
-        types: def.types,
-        subtypes: def.subtypes ?? [],
-        power: def.power,
-        toughness: def.toughness,
-        staticAbilities: def.staticAbilities ?? [],
-        controllerId: player.id,
-        ownerId: player.id,
-        // CR 702.139 — nominal tag only; the companion slot is not a real
-        // zone (see the `PlayerState.companion` / serialize.ts doc).
-        zone: "exile" as const,
-        isTapped: false,
-    };
+    // The sideboard entry the companion came from, for its chosen printing
+    // (ADR 0140 §6) — `selectCompanion` answers with the definition only.
+    const entry = (player.deck.sideboard ?? []).find(
+        (c) => tryGetDefinition(c.cardId)?.id === def.id
+    );
+    // CR 702.139 — `exile` is a nominal tag only; the companion slot is not a
+    // real zone (see the `PlayerState.companion` / serialize.ts doc).
+    return instantiateDeckCard(
+        { cardId: entry?.cardId ?? def.id },
+        player.id,
+        "exile",
+        counter
+    );
 }
 
 function buildPlayerState(
     player: PlayerInput,
     counter: { nextInstanceId?: number }
 ): PlayerState {
-    const instances = player.deck.cards.map((deckCard) => {
-        const def = getDefinition(deckCard.cardId);
-        return {
-            id: allocInstanceId(counter),
-            card: { id: def.id },
-            types: def.types,
-            subtypes: def.subtypes ?? [],
-            power: def.power,
-            toughness: def.toughness,
-            staticAbilities: def.staticAbilities ?? [],
-            controllerId: player.id,
-            ownerId: player.id,
-            zone: "library" as const,
-            isTapped: false,
-        };
-    });
+    const instances = player.deck.cards.map((deckCard) =>
+        instantiateDeckCard(deckCard, player.id, "library", counter)
+    );
 
     const companionInstance = buildCompanionInstance(player, counter);
 

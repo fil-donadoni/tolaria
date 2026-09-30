@@ -174,6 +174,17 @@ describe("card preview reflects runtime grants end-to-end (#447)", () => {
         expect(cardImageSignature(laced)).not.toBe(cardImageSignature(base));
     });
 
+    it("the chosen printing is in the signature, so a repinned card repaints (ADR 0140 §6)", () => {
+        const base = makeInstance(BEAR_ID, {
+            id: "creature-1",
+        }) as unknown as CardInstance;
+        const pinned: CardInstance = { ...base, imagePrintId: "print-a" };
+        expect(cardImageSignature(pinned)).not.toBe(cardImageSignature(base));
+        expect(
+            cardImageSignature({ ...base, imagePrintId: "print-b" })
+        ).not.toBe(cardImageSignature(pinned));
+    });
+
     it("a bare { id } placeholder has a stable signature (no instance deltas to track)", () => {
         expect(cardImageSignature({ id: "x" })).toBe(
             cardImageSignature({ id: "x" })

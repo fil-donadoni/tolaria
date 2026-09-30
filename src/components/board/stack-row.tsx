@@ -161,6 +161,9 @@ export default function StackRow({
         item.designationImagePrintId ??
         designation?.imagePrintId ??
         emblem?.imagePrintId ??
+        // The chosen printing (ADR 0140 §6) — never for a face-down item,
+        // whose art is the anonymous face even for its caster.
+        (isFaceDownCard(item) ? undefined : item.imagePrintId) ??
         resolveCardImageId(identityId);
     // Only the permanent-sourced fallback above can be a transformed
     // permanent's back face (a designation/emblem marker never transforms) —

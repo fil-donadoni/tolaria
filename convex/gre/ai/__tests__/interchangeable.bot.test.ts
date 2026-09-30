@@ -105,6 +105,29 @@ describe("collapse — two copies of a card are ONE option (issue #3593)", () =>
         expect(movesOf(state, "play-land", true)).toHaveLength(1);
     });
 
+    it("collapses two Brushlands on different chosen printings (ADR 0140 §6, issue #4119)", () => {
+        // The printing is cosmetic: a pinned copy and a default copy are the
+        // same option, or the search would branch on which art a player picked.
+        const state = build({
+            cards: [
+                { name: "Brushland", owner: "me", zone: "hand" },
+                { name: "Brushland", owner: "me", zone: "hand" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            landCount: 2,
+            libraryCount: 20,
+        });
+        const [first, second] = movesOf(state, "play-land", false).map(
+            (m) =>
+                state.players[0].hand.find((c) => c.id === moveCardRefs(m)[0])!
+        );
+        first.imagePrintId = "print-a";
+        second.imagePrintId = "print-b";
+        expect(movesOf(state, "play-land", false)).toHaveLength(2);
+        expect(movesOf(state, "play-land", true)).toHaveLength(1);
+    });
+
     it("picks the LOWEST instance id as the representative, both builds", () => {
         const spec: BladeScenario["spec"] = {
             cards: [

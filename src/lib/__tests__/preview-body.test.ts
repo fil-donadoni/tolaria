@@ -798,3 +798,44 @@ describe("buildPreviewBody — the back face of a double-faced card (CR 712)", (
         expect(buildPreviewBody(SERRA.id).backFaceHalf).toBeNull();
     });
 });
+
+describe("buildPreviewBody — the chosen printing (ADR 0140 §6, issue #4119)", () => {
+    const BIRDS = getCardByName("Birds of Paradise");
+    const PRINT = "4e50454c-3927-4e7e-b4f6-7f5d5fd9b913"; // Birds, 2ED
+    const pinned = {
+        id: "inst-birds",
+        card: { id: BIRDS.id },
+        types: BIRDS.types,
+        subtypes: BIRDS.subtypes ?? [],
+        power: BIRDS.power,
+        toughness: BIRDS.toughness,
+        staticAbilities: BIRDS.staticAbilities ?? [],
+        controllerId: "p1",
+        ownerId: "p1",
+        zone: "battlefield",
+        isTapped: false,
+        imagePrintId: PRINT,
+    } as CardInstance;
+
+    it("the current face paints the instance's printing, like the board does", () => {
+        const body = buildPreviewBody(BIRDS.id, pinned);
+        expect(body.imageSrc).toContain(PRINT);
+        expect(body.printedImageSrc).toContain(PRINT);
+        expect(body.imageSrc).not.toContain(BIRDS.id);
+    });
+
+    it("a face built without an instance paints an explicit printing", () => {
+        const body = buildPreviewBody(
+            BIRDS.id,
+            undefined,
+            undefined,
+            undefined,
+            PRINT
+        );
+        expect(body.imageSrc).toContain(PRINT);
+    });
+
+    it("no pin keeps the definition's own printing", () => {
+        expect(buildPreviewBody(BIRDS.id).imageSrc).toContain(BIRDS.id);
+    });
+});
