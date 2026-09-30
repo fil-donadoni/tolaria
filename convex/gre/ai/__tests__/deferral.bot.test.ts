@@ -50,8 +50,8 @@ const ORB = getCardByName("Zuran Orb").id;
 const ISLAND = getCardByName("Island").id;
 const MOUNTAIN = getCardByName("Mountain").id;
 const FLAME_SLASH = getCardByName("Flame Slash").id;
-const FOREST = getCardByName("Forest").id;
-const ANCESTRAL = getCardByName("Ancestral Recall").id;
+const SWAMP = getCardByName("Swamp").id;
+const STRIX = getCardByName("Baleful Strix");
 
 const DELTA_FETCH = "polluted-delta-fetch";
 const FACTORY_MANA = "mishras-factory-mana";
@@ -525,42 +525,35 @@ describe("waitsUnchanged — the root rule's premise: nothing in between it woul
     });
 
     it("never reads a card the resolution drew: the probe runs on the real library (issue #4217 review)", () => {
-        // Ancestral Recall draws the real top three; a castable Grizzly Bears
-        // among them is hidden information at the root, so it must not decide
-        // whether the draw waits.
-        const base = board({
-            hand: [card(ANCESTRAL, "anc")],
-            battlefield: [
-                card(ISLAND, "i1"),
-                card(FOREST, "f1"),
-                card(FOREST, "f2"),
-            ],
-            phase: "PRECOMBAT_MAIN",
-            activePlayerId: "p1",
-            priorityPlayerId: "p1",
-        });
-        const state: GameState = {
-            ...base,
-            players: base.players.map((p) =>
-                p.id === "p1"
-                    ? {
-                          ...p,
-                          library: [
-                              card(BEARS, "top"),
-                              card(ISLAND, "l2"),
-                              card(ISLAND, "l3"),
-                              card(ISLAND, "l4"),
-                          ],
-                      }
-                    : p
-            ),
+        // A flash body whose ETB draws: the settled probe draws the REAL top
+        // card, and a castable sorcery there is hidden information at the
+        // root, so it must not decide whether the cast waits.
+        const flashStrix = {
+            ...STRIX,
+            staticAbilities: [...(STRIX.staticAbilities ?? []), "flash"],
         };
-        expect(
-            waitsUnchanged(
-                state,
-                "p1",
-                cast("anc", [{ type: "player", id: "p1" }])
-            )
-        ).toBe(true);
+        withTemporaryDefinition(flashStrix, () => {
+            const base = board({
+                hand: [card(STRIX.id, "strix")],
+                battlefield: [
+                    card(ISLAND, "i1"),
+                    card(SWAMP, "s1"),
+                    card(MOUNTAIN, "m1"),
+                ],
+                oppBattlefield: [card(BEARS, "theirs", "p2")],
+                phase: "PRECOMBAT_MAIN",
+                activePlayerId: "p1",
+                priorityPlayerId: "p1",
+            });
+            const state: GameState = {
+                ...base,
+                players: base.players.map((p) =>
+                    p.id === "p1"
+                        ? { ...p, library: [card(FLAME_SLASH, "top")] }
+                        : p
+                ),
+            };
+            expect(waitsUnchanged(state, "p1", cast("strix"))).toBe(true);
+        });
     });
 });
