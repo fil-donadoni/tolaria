@@ -296,6 +296,39 @@
         "landCount": 0,
         "libraryCount": 20
     },
+    "casts Solitude to exile a lethal attacker": {
+        "cards": [
+            {
+                "name": "Solitude",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Savannah Lions",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Serra Angel",
+                "owner": "opp",
+                "zone": "battlefield",
+                "summoningSick": false
+            }
+        ],
+        "phase": "DECLARE_ATTACKERS",
+        "turn": 5,
+        "landCount": 5,
+        "libraryCount": 20,
+        "life": {
+            "me": 4
+        },
+        "activePlayer": "opp",
+        "priority": "me",
+        "combat": {
+            "attackers": ["Serra Angel"],
+            "confirmed": true
+        }
+    },
     "channel: activates a player-level grant to fund a lethal Fireball (#2903)": null,
     "charter: chump-blocks to survive lethal (block or die)": null,
     "charter: cracks its fetchland for the only answer to a trigger on the stack": null,
@@ -602,6 +635,54 @@
     },
     "entomb: buries the reanimation target, not one of eight lands": null,
     "entomb: buries the self-reachable card, not the bigger body": null,
+    "escape: casts Phlage from the graveyard": {
+        "cards": [
+            {
+                "name": "Phlage, Titan of Fire's Fury",
+                "owner": "me",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Grizzly Bears",
+                "owner": "me",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Grizzly Bears",
+                "owner": "me",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Grizzly Bears",
+                "owner": "me",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Grizzly Bears",
+                "owner": "me",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Grizzly Bears",
+                "owner": "me",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Plateau",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Plateau",
+                "owner": "me",
+                "zone": "battlefield"
+            }
+        ],
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 5,
+        "landCount": 2,
+        "libraryCount": 20
+    },
     "escape: reaches for a Lightning Bolt Underworld Breach made escapable": {
         "cards": [
             {
@@ -673,6 +754,25 @@
         "landCount": 4,
         "libraryCount": 20
     },
+    "ETB bounce: casts Man-o'-War on an opposing Craw Wurm": {
+        "cards": [
+            {
+                "name": "Man-o'-War",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Craw Wurm",
+                "owner": "opp",
+                "zone": "battlefield",
+                "summoningSick": false
+            }
+        ],
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 5,
+        "landCount": 4,
+        "libraryCount": 20
+    },
     "explore: bins the revealed blank instead of leaving it as the next draw": null,
     "flash permanent NEGATIVE CONTROL: casts Containment Priest as the only surviving block": null,
     "flash permanent NEGATIVE CONTROL: still casts hasty Raging Kavu for lethal this turn": {
@@ -697,6 +797,27 @@
     },
     "free put: the caster puts a permanent in off its own Show and Tell": null,
     "free put: the second chooser still puts its creature in after the opponent's bigger one": null,
+    "granted flashback: casts Stingcaster Mage to flash back Lightning Bolt for lethal": {
+        "cards": [
+            {
+                "name": "Stingcaster Mage",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Lightning Bolt",
+                "owner": "me",
+                "zone": "graveyard"
+            }
+        ],
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 5,
+        "landCount": 4,
+        "libraryCount": 20,
+        "life": {
+            "opp": 3
+        }
+    },
     "granted-flashback: casts the Lightning Bolt Snapcaster Mage's ETB granted flashback, for lethal": null,
     "graveyard-cast: flashes back Firebolt from the graveyard for lethal": {
         "cards": [
@@ -940,6 +1061,48 @@
     "ninjutsu: swaps its unblocked attacker for Fallen Shinobi": null,
     "oath: declines the dig when its library holds no creature": null,
     "oath: takes the free body when its library is creature-dense": null,
+    "opponent's choice: casts Chainer's Edict at the opponent's only creature": {
+        "cards": [
+            {
+                "name": "Chainer's Edict",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Serra Angel",
+                "owner": "opp",
+                "zone": "battlefield",
+                "summoningSick": false
+            }
+        ],
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 5,
+        "landCount": 4,
+        "libraryCount": 20
+    },
+    "opponent's choice: casts Ravenous Rats into a two-card hand": {
+        "cards": [
+            {
+                "name": "Ravenous Rats",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Grizzly Bears",
+                "owner": "opp",
+                "zone": "hand"
+            },
+            {
+                "name": "Hill Giant",
+                "owner": "opp",
+                "zone": "hand"
+            }
+        ],
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 5,
+        "landCount": 4,
+        "libraryCount": 20
+    },
     "positive-control: plays its only land on an empty board": {
         "cards": [
             {
@@ -1054,6 +1217,22 @@
     },
     "scry: bottoms two dead cards to draw off a deck of bombs": null,
     "scry: keeps two bombs on top of a deck of blanks": null,
+    "self-sacrificing ETB: casts Phlage from hand for lethal": {
+        "cards": [
+            {
+                "name": "Phlage, Titan of Fire's Fury",
+                "owner": "me",
+                "zone": "hand"
+            }
+        ],
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 5,
+        "landCount": 4,
+        "libraryCount": 20,
+        "life": {
+            "opp": 3
+        }
+    },
     "sorcery-speed permanent: deploys a Seal with the mana open and nothing else to do": {
         "cards": [
             {

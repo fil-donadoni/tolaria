@@ -62,6 +62,13 @@
             "needsSetup": true
         }
     ],
+    "Chainer's Edict": [
+        {
+            "label": "opponent's choice: casts Chainer's Edict at the opponent's only creature",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
     "Containment Priest": [
         {
             "label": "flash permanent NEGATIVE CONTROL: casts Containment Priest as the only surviving block",
@@ -286,11 +293,30 @@
             "needsSetup": true
         }
     ],
+    "Man-o'-War": [
+        {
+            "label": "ETB bounce: casts Man-o'-War on an opposing Craw Wurm",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
     "Mother of Runes": [
         {
             "label": "activation payoff: Mother of Runes protects itself against removal on the stack",
             "tier": "must",
             "needsSetup": true
+        }
+    ],
+    "Phlage, Titan of Fire's Fury": [
+        {
+            "label": "escape: casts Phlage from the graveyard",
+            "tier": "must",
+            "needsSetup": false
+        },
+        {
+            "label": "self-sacrificing ETB: casts Phlage from hand for lethal",
+            "tier": "must",
+            "needsSetup": false
         }
     ],
     "Phyrexian Dreadnought": [
@@ -331,6 +357,13 @@
     "Raven Familiar": [
         {
             "label": "cast permission: casts Raven Familiar for free under Aluren with no lands",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
+    "Ravenous Rats": [
+        {
+            "label": "opponent's choice: casts Ravenous Rats into a two-card hand",
             "tier": "must",
             "needsSetup": false
         }
@@ -398,6 +431,13 @@
             "needsSetup": false
         }
     ],
+    "Solitude": [
+        {
+            "label": "casts Solitude to exile a lethal attacker",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
     "Splinter Twin": [
         {
             "label": "combo: casts Splinter Twin on Deceiver Exarch with both pieces assembled",
@@ -410,6 +450,13 @@
             "label": "charter: Stifles its own Phyrexian Dreadnought trigger",
             "tier": "must",
             "needsSetup": true
+        }
+    ],
+    "Stingcaster Mage": [
+        {
+            "label": "granted flashback: casts Stingcaster Mage to flash back Lightning Bolt for lethal",
+            "tier": "must",
+            "needsSetup": false
         }
     ],
     "Stone Rain": [
