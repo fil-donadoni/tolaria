@@ -266,6 +266,16 @@ export type EvalWeights = {
      *  hand-picked per-Op point constants (`DESTROY_VALUE` and its siblings)
      *  that `ai/opValuers.ts` used to carry: those were unreachable to a fit
      *  and blind to the board. */
+    /** The share of a creature's realized body a copy NOT in play (hand,
+     *  returned-to-hand) is worth (was `cardValue.ts`'s `LATENT_DISCOUNT`,
+     *  issue #4882). Everything a creature in hand has not yet done — spent
+     *  the mana, survived the turn, attacked — is this discount; at the old
+     *  fixed 0.85 a 12/12 in hand plus the counterspell protecting it summed
+     *  to the 12/12 in play, so deploying it read as material-neutral.
+     *  Fitted, with one invariant the fit cannot state: strictly below 1, or
+     *  a creature in hand outranks the same creature in play (issue #149;
+     *  asserted on the committed vector in `evalWeights.bot.test.ts`). */
+    latentCreatureDiscount: number;
     latent: LatentWeights;
 
     /** How many determinized worlds the block-quality root tie-break averages
@@ -369,6 +379,8 @@ export const FIT_BASE_EVAL_WEIGHTS: Readonly<EvalWeights> = Object.freeze({
     // 21 on its own board). Its cost is per CONTENDER block edge — see
     // `makeBlockDeltaLens`' measurement.
     blockWorldSamples: 12,
+    // Issue #4882 — the old `LATENT_DISCOUNT`, now fitted from this prior.
+    latentCreatureDiscount: 0.85,
     // Issue #3398 — chosen so today's per-Op numbers are reproduced where a
     // representative victim exists: `boardRemoval` 160 against one 2/2-worth
     // victim IS the old `DESTROY_VALUE`, `damage` 22 IS `DAMAGE_PER_POINT`,
@@ -427,6 +439,7 @@ export const DEFAULT_EVAL_WEIGHTS: Readonly<EvalWeights> = Object.freeze({
     graveyardEngineWeight: 62.530291,
     graveyardReachFraction: 0.173405,
     recoverableSweepFraction: 0.781212,
+    latentCreatureDiscount: 0.85,
     latent: Object.freeze({
         damage: 21.709279,
         cardAdvantage: 39.861042,

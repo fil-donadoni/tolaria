@@ -277,10 +277,14 @@ export function cardValue(
     /** Issue #3406 — see `evaluateCreature`. */
     latent: LatentWeights = DEFAULT_EVAL_WEIGHTS.latent,
     /** Issue #4462 — see `evaluateCreature`. */
-    pass: Layer7Pass = beginLayer7Pass(state)
+    pass: Layer7Pass = beginLayer7Pass(state),
+    /** Issue #4882 — the vector's `latentCreatureDiscount`; defaulted like
+     *  `latent`, so a caller with no vector of its own is unchanged. */
+    creatureDiscount: number = DEFAULT_EVAL_WEIGHTS.latentCreatureDiscount
 ): number {
     const pt = getEffectivePT(state, card, { pass });
     return latentValue({
+        creatureDiscount,
         isCreature: isCreature(card),
         power: pt.power,
         toughness: pt.toughness,
@@ -323,7 +327,8 @@ function latentBoardFor(
                     asReturnedToHand(perm),
                     undefined,
                     weights.latent,
-                    pass
+                    pass,
+                    weights.latentCreatureDiscount
                 ),
             aggregateLoss: (changes) =>
                 sweptAggregateNetLoss(state, player.id, weights, seat, changes),
@@ -1487,7 +1492,8 @@ function playerTerms(
                     c,
                     latentBoardFor(state, player, c, weights, seat, pass),
                     weights.latent,
-                    pass
+                    pass,
+                    weights.latentCreatureDiscount
                 ),
             0
         ),
