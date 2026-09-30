@@ -48,6 +48,8 @@ const HIBERNATION = getCardByName("Hibernation").id;
 const FACTORY = getCardByName("Mishra's Factory").id;
 const ORB = getCardByName("Zuran Orb").id;
 const ISLAND = getCardByName("Island").id;
+const MOUNTAIN = getCardByName("Mountain").id;
+const FLAME_SLASH = getCardByName("Flame Slash").id;
 
 const DELTA_FETCH = "polluted-delta-fetch";
 const FACTORY_MANA = "mishras-factory-mana";
@@ -492,5 +494,31 @@ describe("waitsUnchanged — the root rule's premise: nothing in between it woul
         expect(
             waitsUnchanged({ ...state, phase: "POSTCOMBAT_MAIN" }, "p1", shot)
         ).toBe(true);
+    });
+
+    it("refuses a resolution that opens a cast only this sorcery window allows (CR 307.1 / 702.34a, issue #4217)", () => {
+        // Snapcaster Mage grants flashback to the graveyard card; the flashback
+        // cast keeps the card's own timing, so a sorcery's is gone by the
+        // opponent's end step and an instant's is not.
+        const withCard = (cardId: string) =>
+            board({
+                hand: [card(SNAPCASTER, "snap")],
+                graveyard: [
+                    { ...card(cardId, "gy-card"), zone: "graveyard" as const },
+                ],
+                battlefield: [
+                    card(ISLAND, "i1"),
+                    card(ISLAND, "i2"),
+                    card(MOUNTAIN, "m1"),
+                ],
+                oppBattlefield: [card(BEARS, "theirs", "p2")],
+                phase: "PRECOMBAT_MAIN",
+                activePlayerId: "p1",
+                priorityPlayerId: "p1",
+            });
+        expect(waitsUnchanged(withCard(FLAME_SLASH), "p1", cast("snap"))).toBe(
+            false
+        );
+        expect(waitsUnchanged(withCard(BOLT), "p1", cast("snap"))).toBe(true);
     });
 });
