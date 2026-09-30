@@ -105,6 +105,44 @@ imprecisi, tutti corretti. Landed via `bun run land`, issue chiusa.
   foglia, vita dell'avversario, Dreadnought in campo, margin, clip) e il
   breakdown di `evaluate`.
 
+## Misura a livello di foglia (secondo passaggio)
+
+Probe temporaneo sulle foglie in `search.ts` (non committato). Metà 2, 400
+iterazioni, pesi default. Medie per foglia, per ramo della radice:
+
+| posizione           | ramo | creature | mano | margin | total | danger | foglie ≥ 500 |
+| ------------------- | ---- | -------- | ---- | ------ | ----- | ------ | ------------ |
+| life 20, POSTCOMBAT | pass | ≈35      | ≈360 | ≈400   | ≈410  | ≈6     | ≈70%         |
+| life 20, POSTCOMBAT | cast | ≈380     | ≈31  | ≈438   | ≈520  | ≈81    | ≈74%         |
+| life 30, POSTCOMBAT | pass | ≈38      | ≈372 | ≈334   | ≈338  | ≈4     | ≈2%          |
+| life 30, POSTCOMBAT | cast | ≈400     | ≈26  | ≈384   | ≈446  | ≈61    | ≈45%         |
+
+Le foglie finiscono all'UPKEEP del turno 5 o 7 del bot, con profondità d'albero
+≈23.
+
+Valori singoli: Dreadnought in mano 396, in campo 513. Stifle in mano 118.
+
+- **Materiale netto del cast ≈ −1** (+117 per il Dreadnought realizzato, −118
+  per Stifle speso). Per il margin materiale, due carte spese per un 12/12
+  equivalgono a non fare niente.
+- **Il valore vero del cast sta nel `total`**, cioè nel danger clock (+75) e
+  nella vita tolta all'avversario: cast ≈520 contro pass ≈410.
+- **Il clip cancella quel valore.** Il 12/12 da solo vale 513, oltre
+  `materialFull` = 500. Le foglie sopra il cap diventano tutte uguali, e
+  l'avversario senza carte parte già con ≈+400 di margine per il bot.
+- A life 30 la vita dell'avversario abbassa il margine sotto il cap, il
+  vantaggio torna visibile e il cast vince per `mean-reward`. **È lo stesso
+  meccanismo che faceva "funzionare" il ri-taglio a life 12:** non trasmetteva
+  il concetto di tempo, spostava solo la posizione fuori dalla zona clippata.
+- `materialFull` **non è fittabile** (non sta in `FITTABLE_WEIGHT_KEYS`): nessun
+  refit può separare due foglie clippate.
+- Il `material-tiebreak` confronta `materialMargin`, che non include il danger
+  clock. Quindi anche lo spareggio non vede il tempo.
+
+L'ipotesi iniziale dell'issue ("saturazione della reward su un 12/12") era
+giusta. Il primo tentativo l'aveva scartata perché la _media_ del margin era
+sotto 500, ma il clip si applica foglia per foglia, non alla media.
+
 ## Cosa fare quando c'è un bug del game bot
 
 1. **L'entry blade è la specifica.** La domanda che pone ("un umano risponde
@@ -124,3 +162,5 @@ imprecisi, tutti corretti. Landed via `bun run land`, issue chiusa.
    fit costa di più, ma se il difetto è lì è l'unica correzione. Un fix nel
    registry che rende banale la posizione è un segnale d'allarme.
 6. **Non scrivere nella PR conclusioni che non hai misurato.**
+7. **Il clip si applica alla foglia, non alla media.** Una media sotto il cap
+   non esclude la saturazione: conta la frazione di foglie clippate per ramo.
