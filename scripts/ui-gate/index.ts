@@ -1055,15 +1055,20 @@ async function main(): Promise<number> {
                         t: PhaseTimings
                     ): Promise<AttemptResult<MeasuredCell>> => {
                         await ensurePage();
+                        // The attempt's OWN page, never the `let`: an attempt
+                        // the deadline abandoned may still be running, and must
+                        // hit the page it was given (now closed, so every call
+                        // rejects) — never the fresh one the retry opened.
+                        const p = page;
                         // Console events arrive asynchronously; a round trip
                         // through the page flushes the ones the previous
                         // attempt (or surface) logged before they are cleared,
                         // so none can land in this attempt's signature.
-                        await page.evaluate("0").catch(() => {});
+                        await p.evaluate("0").catch(() => {});
                         attemptConsole.length = 0;
-                        await timed(t, "walk", () => surface.walk(page, ctx));
+                        await timed(t, "walk", () => surface.walk(p, ctx));
                         await timed(t, "settle", () =>
-                            waitForSettledScreen(page, {
+                            waitForSettledScreen(p, {
                                 targets: surface.settleTargets,
                             })
                         );
@@ -1073,7 +1078,7 @@ async function main(): Promise<number> {
                         // would report the machine as a UI failure. Only
                         // this signature: a `Server Error` can be logged
                         // harmlessly on a quiet machine.
-                        await page.evaluate("0").catch(() => {});
+                        await p.evaluate("0").catch(() => {});
                         const timedOut = attemptConsole.find((line) => {
                             const c = classifyWalkFailure({
                                 message: "",
@@ -1105,10 +1110,10 @@ async function main(): Promise<number> {
                         for (let tries = 1; !measured; tries++) {
                             try {
                                 const probe = await timed(t, "probe", () =>
-                                    runProbe(page)
+                                    runProbe(p)
                                 );
                                 const axe = await timed(t, "axe", () =>
-                                    runAxe(page)
+                                    runAxe(p)
                                 );
                                 measured = { probe, axe };
                             } catch (err) {
@@ -1127,7 +1132,7 @@ async function main(): Promise<number> {
                                             : `the measurement threw: ${first}`,
                                     };
                                 }
-                                await waitForSettledScreen(page, {
+                                await waitForSettledScreen(p, {
                                     targets: surface.settleTargets,
                                 }).catch(() => {});
                             }
@@ -1138,19 +1143,19 @@ async function main(): Promise<number> {
                             `${surface.id}__${viewport.id}.png`
                         );
                         await timed(t, "screenshot", () =>
-                            page.screenshot({ path: shot })
+                            p.screenshot({ path: shot })
                         );
                         // AFTER the probe, axe and the screenshot, never
                         // before: a `reachable` check scrolls its element
                         // into view, and the measurement above has to be
                         // taken on the screen as the walk found it.
                         const asserts = await timed(t, "assertions", () =>
-                            evaluateAssertions(page, surface.asserts ?? [], {
+                            evaluateAssertions(p, surface.asserts ?? [], {
                                 viewport: {
                                     width: viewport.width,
                                     height: viewport.height,
                                 },
-                                ensureAxe: () => injectAxe(page),
+                                ensureAxe: () => injectAxe(p),
                             })
                         );
                         return { kind: "ok", value: { ...measured, asserts } };
