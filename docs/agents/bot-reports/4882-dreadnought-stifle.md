@@ -143,6 +143,37 @@ L'ipotesi iniziale dell'issue ("saturazione della reward su un 12/12") era
 giusta. Il primo tentativo l'aveva scartata perché la _media_ del margin era
 sotto 500, ma il clip si applica foglia per foglia, non alla media.
 
+## Opzione 1 misurata: scalare `materialFull` (e `outcomeEps` di 1/k)
+
+Scelta dall'utente tra tre opzioni: alzare `materialFull` di un fattore k e
+dividere `outcomeEps` per k, così la banda di indifferenza in punti di margine
+resta la stessa. Misura tramite `SearchVariant` (defaults intatti), seed 0..5 ×
+vettori default / jitter+ / jitter− (18 run per riga):
+
+| k   | metà 2 life 20 PRE    | metà 2 life 20 POST  | metà 2 life 30 POST   | metà 1 life 20 POST |
+| --- | --------------------- | -------------------- | --------------------- | ------------------- |
+| 1   | 17 cast + 1 pass, tb  | 18 cast, tb          | 18 cast, mr           | 18 pass, mr         |
+| 2   | 18 cast (14 tb, 4 mr) | **18 cast, mr**      | 18 cast (5 tb, 13 mr) | 18 pass, mr         |
+| 3   | 6 cast / 12 pass, tb  | 10 cast / 8 pass, tb | 7 cast / 11 pass, tb  | 18 pass, mr         |
+
+(tb = `material-tiebreak`, mr = `mean-reward`)
+
+- **Non è monotona.** k=2 risolve life 20 POSTCOMBAT ma peggiora life 30. k=3
+  peggiora tutto: con la pendenza più bassa la ricerca non concentra più le
+  visite e il pareggio torna a decidere sul margine materiale, che per il cast
+  vale ≈ −1.
+- **Il clip non è l'unico difetto.** Anche senza clip il vantaggio del cast è
+  solo nel danger clock (≈ +75) e nella vita tolta, cioè ≈ 110 punti di `total`,
+  appena sopra la banda di indifferenza (100 punti). Il margine materiale conta
+  Dreadnought in mano + Stifle in mano (396 + 118) quanto il 12/12 in campo
+  (513): il tempo di un 12/12 schierato un turno prima vale quasi zero.
+- **PRECOMBAT_MAIN è ambigua anche per un umano.** `pass` lì porta al
+  POSTCOMBAT_MAIN dello stesso turno, dove il cast è ancora disponibile.
+  Castare prima o dopo il combattimento, senza attaccanti, è indifferente.
+  L'entry dovrebbe essere in POSTCOMBAT_MAIN, dove `pass` rimanda davvero di un
+  turno. Questo ri-taglio è dichiarato, non nascosto: non rende la posizione
+  più facile, toglie un'alternativa altrettanto corretta.
+
 ## Cosa fare quando c'è un bug del game bot
 
 1. **L'entry blade è la specifica.** La domanda che pone ("un umano risponde
@@ -162,5 +193,8 @@ sotto 500, ma il clip si applica foglia per foglia, non alla media.
    fit costa di più, ma se il difetto è lì è l'unica correzione. Un fix nel
    registry che rende banale la posizione è un segnale d'allarme.
 6. **Non scrivere nella PR conclusioni che non hai misurato.**
-7. **Il clip si applica alla foglia, non alla media.** Una media sotto il cap
+7. **Una raccomandazione è un'ipotesi finché non è misurata.** L'opzione 1 era
+   la mia raccomandazione, e la misura l'ha smentita in parte: riportare subito,
+   non forzare.
+8. **Il clip si applica alla foglia, non alla media.** Una media sotto il cap
    non esclude la saturazione: conta la frazione di foglie clippate per ramo.
