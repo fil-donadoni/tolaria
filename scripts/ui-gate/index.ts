@@ -1036,11 +1036,31 @@ async function main(): Promise<number> {
                         return opened;
                     };
                     let page = await openPage();
-                    const ensurePage = async (): Promise<void> => {
-                        if (page.isClosed()) page = await openPage();
+                    /** Set by `closePage`: a close that itself stalls on a
+                     *  hung renderer leaves `isClosed()` false, and the next
+                     *  attempt must not reuse that page. */
+                    let pageDead = false;
+                    /** Single-flight: an abandoned attempt still inside
+                     *  `ensurePage` and the retry share ONE new page. */
+                    let opening: Promise<void> | null = null;
+                    const ensurePage = (): Promise<void> => {
+                        if (!pageDead && !page.isClosed()) {
+                            return Promise.resolve();
+                        }
+                        opening ??= openPage()
+                            .then((opened) => {
+                                page = opened;
+                                pageDead = false;
+                            })
+                            .finally(() => {
+                                opening = null;
+                            });
+                        return opening;
                     };
-                    const closePage = (): Promise<void> =>
-                        page.close().catch(() => {});
+                    const closePage = (): Promise<void> => {
+                        pageDead = true;
+                        return page.close().catch(() => {});
+                    };
 
                     /**
                      * ONE attempt at a cell: walk the surface to a Settled
