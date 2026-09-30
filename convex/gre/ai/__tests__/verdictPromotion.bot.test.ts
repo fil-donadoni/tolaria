@@ -422,7 +422,13 @@ describe("verdicts:promote — the lock it writes", () => {
         await fixture(real, "local-3210:lane1");
         await fixture(fixtureOnly, "local-3210:lane2");
 
-        const validation = await validate(store);
+        // The fixture's position need not rebuild: it is set aside unread,
+        // never judged invalid (the leaked ones crash the engine step).
+        const validation = await validate(store, (v) =>
+            v.answer.kind === "right" && v.answer.rightIndexes[0] === 2
+                ? "the fixture's position does not rebuild"
+                : null
+        );
 
         expect(
             validation.rows

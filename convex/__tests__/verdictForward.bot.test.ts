@@ -55,6 +55,7 @@ import {
     createMemoryVerdictStore,
     type MemoryVerdictStore,
 } from "../verdictStoreMemory";
+import { reviewSourcesOf } from "../verdictReview";
 import { drain } from "../verdictsDrain";
 import {
     directOutboxStore,
@@ -978,5 +979,31 @@ describe("the check:ui lane fixture never reaches the Verdict Store (issue #4905
 
         expect(corpus.verdicts).toEqual([JUDGEMENT]);
         expect(corpus.attestations).toEqual([real]);
+    });
+
+    it("the lane still walks its own fixture: the review reads it from the outbox, never from the store", async () => {
+        const store = createMemoryVerdictStore();
+        await putVerdict(store, JUDGEMENT);
+        await putAttestation(store, {
+            verdictId: VERDICT_ID,
+            author: "local-3210:u-old-lane",
+            sourceAxis: "explicit",
+            note: LANE_FIXTURE_NOTE,
+            deployment: "local-3210",
+            deploymentKind: "local",
+        });
+
+        const sources = reviewSourcesOf({
+            stored: await readStoredCorpus(store),
+            verdictRows: [fixtureRow()],
+            resolutionRows: [],
+            here: LOCAL,
+        });
+
+        expect(sources.verdicts).toEqual([JUDGEMENT]);
+        expect(sources.attestations.map((a) => a.author)).toEqual([
+            LOCAL_AUTHOR,
+        ]);
+        expect(sources.attestations[0].note).toBe(LANE_FIXTURE_NOTE);
     });
 });
