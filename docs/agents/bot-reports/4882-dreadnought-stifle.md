@@ -203,6 +203,29 @@ schierare il corpo 2/1. Un solo sconto uniforme non distingue "creatura il cui
 valore è il corpo" (Dreadnought) da "creatura il cui valore è il momento in
 cui entra" (Snapcaster, flash + ETB).
 
+## Snapcaster: seconda classe, `latentFlashCreatureDiscount`
+
+- **Misura:** anche con sconto 0.85 la valutazione preferisce castare Snapcaster
+  (reward 0.565 contro 0.533, margin 140 contro 84). Il `pass` vinceva solo
+  perché il gap stava dentro `outcomeEps` e decideva la regola root
+  `last-window-deferral`. Lo sconto a 0.63 allargava un errore già esistente,
+  fino a superare la banda in 3 seed su 10.
+- **Classe:** CR 702.8a. Una creatura con flash tenuta in mano non paga il
+  ritardo di schieramento che paga una creatura a velocità di stregoneria: può
+  entrare alla fine del turno dell'avversario. Uno sconto unico trascinava giù
+  anche le creature con flash (Brazen Borrower: 173 → 128 in mano).
+- **Correzione:** secondo peso fittabile `latentFlashCreatureDiscount` (prior
+  0.85), applicato quando `staticAbilities` contiene `flash`.
+- **Refit:** sorcery-speed **0.607809**, flash **0.862786** (resta sul prior).
+  Il corpus conferma la separazione.
+- **Audit ai nuovi pesi:**
+    - coppia Dreadnought: entrambe `ROBUST`, `mean-reward` 10/10 × 3;
+    - Snapcaster hold: **`ROBUST`** 4/4 + 10/10 × 3 (sulla base era `NOISE-PINNED`);
+    - Discard sorcery (issue #4877): `WRONG`, own 3/5, 6/10 × 3, sempre
+      `material-tiebreak`. È un pareggio con entrambi gli sconti (gap di reward
+      ≈ 0.01; 7/10 cast a 0.85, 6/10 a 0.608), cioè il rumore che issue #4877 già
+      traccia. Il refit lo sposta di un seed, ma non lo causa.
+
 ## Cosa fare quando c'è un bug del game bot
 
 1. **L'entry blade è la specifica.** La domanda che pone ("un umano risponde
