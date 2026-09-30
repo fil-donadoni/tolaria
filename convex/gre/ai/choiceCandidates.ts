@@ -1106,6 +1106,67 @@ const handPickCandidates: ChoiceCandidateGenerator = (state, choice) => {
     return out;
 };
 
+/** Issue #4896 — the ONE answer the search gives a choice it does not branch
+ *  on, or `null` when it has none and must stop there as before.
+ *
+ *  A MANDATORY `discard-hand` (CR 701.9b — by default the discarding player
+ *  chooses) is no in-tree node, deliberately (see `handPickCandidates`:
+ *  mandatory hand picks are costs, and making them search nodes is a wider
+ *  change). But the 1-ply policy probe's settle stopped THERE and scored the
+ *  position one Op into the resolution: the discard spell spent, the mana
+ *  tapped, the discard not yet made — a Mind Rot read as its cost alone.
+ *  Answered here with the chooser's own best keep: it sheds its `min` least
+ *  valuable cards, ties broken by identity, the same worth-first order the
+ *  client's discard policy falls back to (`brain.ts`). Only the probe's settle
+ *  asks (`answerOpponent`); the tree walk and the rollout still stop at it
+ *  (issue #4917).
+ *
+ *  It reads the chooser's hand by identity, as `evaluate` already does when
+ *  it scores that hand: at the real root this is no new information.
+ *  An as-enters discard (`asEntersKind`, an "instead" replacement, CR 614.1a) is not
+ *  that shape and gets nothing. */
+export function forcedChoiceAnswer(
+    state: GameState,
+    choice: PendingChoice
+): Move | null {
+    if (choice.kind !== "discard-hand" || choice.asEntersKind) return null;
+    const min = getPendingChoiceMin(choice.count);
+    if (min <= 0) return null;
+    const owner = getPlayer(state, choice.zoneOwnerId ?? choice.playerId);
+    const allow = choice.candidateIds ? new Set(choice.candidateIds) : null;
+    const shed = (
+        allow ? owner.hand.filter((c) => allow.has(c.id)) : owner.hand
+    )
+        .map((card) => ({
+            card,
+            identity: stableCardIdentity(card),
+            worth: prospectiveCardWorth(state, card),
+        }))
+        .sort(
+            (a, b) =>
+                a.worth - b.worth ||
+                (a.identity < b.identity ? -1 : a.identity > b.identity ? 1 : 0)
+        )
+        .slice(0, min);
+    return {
+        kind: "resolution-choice",
+        stackItemId: choice.stackItemId,
+        step: choice.step,
+        choiceId: choice.choiceId,
+        cardInstanceIds: shed.map((p) => p.card.id),
+    };
+}
+
+/** The answers a SETTLE weighs at `choice` (issue #4896): the in-tree
+ *  candidates — whatever the search would open at that node — else the one
+ *  forced answer, else none. */
+export function settleAnswers(state: GameState, choice: PendingChoice): Move[] {
+    const inTree = choiceCandidates(state, choice).map((c) => c.move);
+    if (inTree.length > 0) return inTree;
+    const forced = forcedChoiceAnswer(state, choice);
+    return forced ? [forced] : [];
+}
+
 // ---------------------------------------------------------------------------
 // Reflexive CAST WINDOWS — Madness (CR 702.35a) and Rebound (CR 702.88a)
 // ---------------------------------------------------------------------------

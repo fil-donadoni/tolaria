@@ -145,6 +145,7 @@ import { spendableManaTotal } from "./state";
 import {
     choiceCandidates,
     isOptionalOwnBattlefieldPut,
+    settleAnswers,
     selectOpeningCandidate,
     type ChoiceCandidate,
 } from "./ai/choiceCandidates";
@@ -1610,8 +1611,9 @@ function findActivationSource(
  *     measured what scoring it there costs: the probe sees "the creature has
  *     ENTERED" without "and is then sacrificed", because the sacrifice is a
  *     later Op of the same resolution. So a suspended resolution is now SETTLED
- *     first (`settleStackForBreakdown`, issue #3194's seam — it answers only
- *     choices the mover itself owns), and only when the probe can finish it in
+ *     first (`settleStackForBreakdown`, issue #3194's seam — the mover's own
+ *     choices with its best answer, the opponent's with the answer worst for
+ *     the mover, issue #4896), and only when the probe can finish it in
  *     ISOLATION: the suspended item must be the sole thing on the stack. With
  *     another announcement underneath, finishing this one either resolves that
  *     announcement too — which prices the move against a board it did not cause
@@ -1688,9 +1690,12 @@ export function policyProbeState(
     // node AND, from the `pass` branch, casts the same spell later in the
     // rollout for the same reason, so passing never looks better either.
     //
-    // Settling is only ever through a choice THIS mover owns
-    // (`settleStackForBreakdown`, issue #3194 — the opponent's answer is not
-    // the mover's to assume), bounded by `MAX_CHOICE_DEPTH` and the shared
+    // Settling answers the mover's own choices with its best branch
+    // (`settleStackForBreakdown`, issue #3194) and, since issue #4896, the
+    // OPPONENT's with the branch worst for the mover: stopping there scored an
+    // edict or a discard spell as its cost alone (Mind Rot measured −378.7
+    // cast vs −292.6 pass), so the rollout never cast one and every Eval Pair
+    // priced it below passing. Bounded by `MAX_CHOICE_DEPTH` and the shared
     // branch-work budget, and it leaves a state with no pending choice exactly
     // as it was: a resolution that already completed has nothing to settle, so
     // every position that is not mid-resolution scores byte-identically.
@@ -1720,7 +1725,9 @@ export function policyProbeState(
             // everything below the suspended item is somebody else's
             // announcement, and settling it would price this move against a
             // board the move did not cause.
-            suspendedDepth
+            suspendedDepth,
+            undefined,
+            true
         );
     } else if (moverId && announcedDepth === 0) {
         // Issue #4758 — the triggers a resolution puts on the stack are part
@@ -1730,15 +1737,18 @@ export function policyProbeState(
         // creature cast as its body alone: casting Flametongue Kavu into a
         // real target read below holding it. Same bound as the branch above —
         // only with nothing underneath (the move's own announcement was the
-        // whole stack), only the mover's own answers, and a settle that cannot
-        // finish hands back the probe as it was.
+        // whole stack), the opponent's answers taken adversarially (a discard
+        // ETB waits on the opponent's pick, issue #4896), and a settle that
+        // cannot finish hands back the probe as it was.
         settled = settleStackForBreakdown(
             probe,
             moverId,
             weights,
             0,
             { left: MAX_CHOICE_BRANCH_WORK },
-            0
+            0,
+            undefined,
+            true
         );
     }
     return settled;
@@ -2862,7 +2872,8 @@ export function settleStackForBreakdown(
     depth = 0,
     budget: { left: number } = { left: MAX_CHOICE_BRANCH_WORK },
     floorDepth = 0,
-    report?: { complete: boolean }
+    report?: { complete: boolean },
+    answerOpponent = false
 ): GameState {
     // Nothing owed: no clone, no work, byte-identical state back. This is the
     // overwhelmingly common case (every position that is not mid-resolution)
@@ -2898,7 +2909,8 @@ export function settleStackForBreakdown(
         weights,
         depth,
         budget,
-        floorDepth
+        floorDepth,
+        answerOpponent
     );
     if (report) report.complete = settled.complete;
     return settled.complete ? settled.state : before;
@@ -2952,7 +2964,8 @@ function settleFrom(
     weights: EvalWeights,
     depth: number,
     budget: { left: number },
-    floorDepth: number
+    floorDepth: number,
+    answerOpponent: boolean
 ): { state: GameState; complete: boolean } {
     let guard = 0;
     while (guard++ < 16) {
@@ -2983,16 +2996,27 @@ function settleFrom(
                 weights,
                 depth,
                 budget,
-                floorDepth
+                floorDepth,
+                moverId,
+                answerOpponent
             );
             if (!best) return { state, complete: false };
             return { state: best, complete: true };
         }
         const head = state.pendingChoices?.[0];
         if (head) {
+            // Issue #4896 — a choice the OPPONENT owns is answered only when
+            // the caller asks for it (`answerOpponent`, the 1-ply policy
+            // probe), and then with the candidate WORST for the mover
+            // (`bestSettledBranch` negates the margin for a chooser that is
+            // not the mover): an edict's sacrifice or a discard the opponent
+            // picks is part of what the announcement buys, and the adversarial
+            // answer is a lower bound on it, never a guess in the mover's
+            // favour. Every other caller keeps the stop: the opponent's answer
+            // is not the mover's to assume there.
             if (
                 !moverId ||
-                head.playerId !== moverId ||
+                (head.playerId !== moverId && !answerOpponent) ||
                 depth >= MAX_CHOICE_DEPTH
             ) {
                 return { state, complete: false };
@@ -3000,11 +3024,18 @@ function settleFrom(
             const best = bestSettledBranch(
                 state,
                 moverId,
-                choiceCandidates(state, head).map((c) => c.move),
+                // The forced answer to a choice with no in-tree node
+                // (`settleAnswers`) rides the same flag: every other caller
+                // keeps stopping exactly where it did.
+                answerOpponent
+                    ? settleAnswers(state, head)
+                    : choiceCandidates(state, head).map((c) => c.move),
                 weights,
                 depth,
                 budget,
-                floorDepth
+                floorDepth,
+                head.playerId,
+                answerOpponent
             );
             if (!best) return { state, complete: false };
             return { state: best, complete: true };
@@ -3056,8 +3087,14 @@ function bestSettledBranch(
     weights: EvalWeights,
     depth: number,
     budget: { left: number },
-    floorDepth = 0
+    floorDepth: number,
+    chooser: string,
+    answerOpponent: boolean
 ): GameState | null {
+    // The chooser picks the branch best for ITSELF: the mover's own answer
+    // maximises the mover's margin, an opponent's answer minimises it
+    // (issue #4896 — two-player margins are zero-sum in sign).
+    const sign = chooser === moverId ? 1 : -1;
     let best: GameState | null = null;
     let bestScore = -Infinity;
     for (const answer of answers) {
@@ -3071,20 +3108,28 @@ function bestSettledBranch(
         const branch = cloneGameState(state);
         let settled: { state: GameState; complete: boolean };
         try {
-            applyMoveInSearch(branch, moverId, answer);
+            applyMoveInSearch(branch, chooser, answer);
             settled = settleFrom(
                 branch,
                 moverId,
                 weights,
                 depth + 1,
                 budget,
-                floorDepth
+                floorDepth,
+                answerOpponent
             );
         } catch {
+            // An opponent's answer the settle cannot finish may be its WORST
+            // one for the mover; skipping it would bound the announcement from
+            // above, not below. Stop instead, as before issue #4896.
+            if (sign < 0) return null;
             continue;
         }
-        if (!settled.complete) continue;
-        const score = materialMargin(settled.state, moverId, weights);
+        if (!settled.complete) {
+            if (sign < 0) return null;
+            continue;
+        }
+        const score = sign * materialMargin(settled.state, moverId, weights);
         if (score > bestScore) {
             bestScore = score;
             best = settled.state;
