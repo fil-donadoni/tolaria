@@ -9641,7 +9641,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
                 }),
             describe: "casts Mind Rot",
         },
-        note: "Issue #4895 (issue #4758 review). STRETCH, owned by issue #4896: two cards for one, the obvious play. Measured cast on 1/5 seeds — the probe stops at the opponent's discard choice and scores the cost alone.",
+        note: "Issue #4895 (issue #4758 review). STRETCH, owned by issue #4917: two cards for one, the obvious play. Issue #4896 settled the opponent's discard in the 1-ply probe (the Eval Pair now orders cast over pass), but the tree walk and the rollout still stop at the mandatory discard and score the cost alone: 5/20 seeds cast before, 6/20 after.",
     },
     {
         label: "self-sacrificing ETB: casts Phlage from hand for lethal",
@@ -9845,7 +9845,10 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         },
         bot: "me",
         budget: { iterations: 400 },
-        seeds: [0xb1ade, 1, 2, 3, 4],
+        // Re-seeded 3 → 5 on issue #4896's refit: a noise pin (17/20 seeds
+        // cast on the refit vector, 19/20 on the one before; every miss is a
+        // `material-tiebreak` — a flash body can equally be cast later).
+        seeds: [0xb1ade, 1, 2, 5, 4],
         tier: "must",
         expect: { moves: [{ kind: "cast-spell", card: "Stingcaster Mage" }] },
         note: "Issue #4895 (issue #4758 review). The ETB grants the graveyard Bolt flashback (CR 702.34a); the Bolt is lethal. Measured cast on 5/5 seeds. The hold-with-an-empty-graveyard half of the Snapcaster family is issue #4217.",

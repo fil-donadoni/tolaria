@@ -537,6 +537,10 @@ export function hasCastableFlashPermanent(
  *  stops short of resolution scores: a cast made with something already on
  *  the stack, or a resolution that hands the OPPONENT a choice (a discard ETB
  *  waits on the opponent's pick, CR 608.2d).
+ *  Since issue #4896 the first is the normal case: the policy probe settles
+ *  the opponent's choice (adversarially), so the trigger has normally
+ *  resolved; a cast with an announcement underneath, or a settle that cannot
+ *  finish, still stops short and is credited here.
  *
  *  An ability whose announcement named no target is worth nothing: its
  *  target requirement found no legal choice ("up to one", CR 601.2c), so it
