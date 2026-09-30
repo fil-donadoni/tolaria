@@ -5255,7 +5255,7 @@ function isSorcerySpeedTrickDump(state: GameState, move: Move): boolean {
  *    last useful window is before the declaration, as clause 5 already says
  *    of a haste grant, and the end step comes after it.
  *  - **A sorcery-speed cast opened** — in the mover's own sorcery window
- *    (CR 307.1): after the resolution the mover may cast a card it could not
+ *    (CR 117.1a): after the resolution the mover may cast a card it could not
  *    cast before, and that card has no instant timing of its own (CR 117.1a /
  *    702.8a) and no "as though it had flash" permission (CR 601.3b). The
  *    opponent's end step is no sorcery window, so a deferred action reaches
@@ -5346,7 +5346,7 @@ export function waitReadingOf(
 }
 
 /** The ids of the cards `pid` may cast right now ONLY because this is its
- *  sorcery window (CR 307.1): a legal cast of a card with no instant timing
+ *  sorcery window (CR 117.1a): a legal cast of a card with no instant timing
  *  of its own (`hasInstantSpeed`, CR 117.1a / 702.8a) and no "as though it
  *  had flash" permission (CR 601.3b). Empty outside that window — no such
  *  cast exists there to lose. Read off the enumerator, the one legality

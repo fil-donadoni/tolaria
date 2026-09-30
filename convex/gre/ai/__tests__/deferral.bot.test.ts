@@ -496,7 +496,7 @@ describe("waitsUnchanged — the root rule's premise: nothing in between it woul
         ).toBe(true);
     });
 
-    it("refuses a resolution that opens a cast only this sorcery window allows (CR 307.1 / 702.34a, issue #4217)", () => {
+    it("refuses a resolution that opens a cast only this sorcery window allows (CR 117.1a / 702.34a, issue #4217)", () => {
         // Snapcaster Mage grants flashback to the graveyard card; the flashback
         // cast keeps the card's own timing, so a sorcery's is gone by the
         // opponent's end step and an instant's is not.
