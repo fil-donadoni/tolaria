@@ -424,7 +424,11 @@ describe("verdicts:promote — the lock it writes", () => {
 
         const validation = await validate(store);
 
-        expect(rowOf(validation, fixtureOnly).status).toBe("lane-fixture");
+        expect(
+            validation.rows
+                .filter((r) => r.verdictId === fixtureOnly)
+                .map((r) => r.status)
+        ).toEqual(["lane-fixture"]);
         expect(rowOf(validation, real).status).toBe("promotable");
         expect(planPromotion(null, validation).lock.verdictIds).toEqual([real]);
         expect(formatStoreValidation(validation)).toContain(
