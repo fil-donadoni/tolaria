@@ -147,7 +147,7 @@ whenever the roster shifts, and children inherit it (issue #3212).
   fallback.
 - **Each umbrella's board `Priority` is its Target's band**, kept by
   `backlog:triage --write` (issue #4212) — a Target completing shifts it with
-  no owner edit, the `P0` slot excepted (hand-set, never written); its
+  no owner edit, the `P0` slot excepted (hand-set, never written by it); its
   children inherit it (issue #3212).
 - **A landed issue leaves its umbrella** (issue #4235). `land` runs
   `bun run umbrella:detach <issue>` for the issue the branch names, after

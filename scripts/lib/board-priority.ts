@@ -316,3 +316,47 @@ export function fetchBoardPriority(
     }
     return priority;
 }
+
+export interface BoardPriorityTarget {
+    owner: string;
+    projectNumber: string;
+    repo: string;
+}
+
+/**
+ * Set `issue`'s board `Priority` to `priority` (issue #4928). `item-add` first:
+ * it is idempotent and returns the existing item, and an issue the board
+ * automation has not picked up yet would otherwise make `item-edit` fail on
+ * a missing item. Throws on a failed `gh` call — the caller decides whether
+ * that is fatal. The one board WRITE, shared by `prd:copy` (the copy keeps
+ * the original's band) and `issue:inherit-band`.
+ */
+export function setBoardPriority(
+    issue: number,
+    priority: BoardPriority,
+    target: BoardPriorityTarget
+): void {
+    const url = `https://github.com/${target.repo}/issues/${issue}`;
+    gh([
+        "project",
+        "item-add",
+        target.projectNumber,
+        "--owner",
+        target.owner,
+        "--url",
+        url,
+    ]);
+    gh([
+        "project",
+        "item-edit",
+        target.projectNumber,
+        "--owner",
+        target.owner,
+        "--url",
+        url,
+        "--field",
+        "Priority",
+        "--value",
+        priority,
+    ]);
+}

@@ -25,7 +25,11 @@
  */
 
 import { gh, setIssueParent, subIssueCount } from "./lib/gh";
-import { fetchBoardPriority, type BoardPriority } from "./lib/board-priority";
+import {
+    fetchBoardPriority,
+    setBoardPriority,
+    type BoardPriority,
+} from "./lib/board-priority";
 import { isIssueNotFound } from "./gaps-sync";
 
 const PROJECT_OWNER = process.env.TOLARIA_PROJECT_OWNER ?? "fil-donadoni";
@@ -327,29 +331,11 @@ class GhPrdTracker implements PrdTracker {
     }
 
     setPriority(number: number, priority: BoardPriority): void {
-        const url = `https://github.com/${PROJECT_REPO}/issues/${number}`;
-        gh([
-            "project",
-            "item-add",
-            PROJECT_NUMBER,
-            "--owner",
-            PROJECT_OWNER,
-            "--url",
-            url,
-        ]);
-        gh([
-            "project",
-            "item-edit",
-            PROJECT_NUMBER,
-            "--owner",
-            PROJECT_OWNER,
-            "--url",
-            url,
-            "--field",
-            "Priority",
-            "--value",
-            priority,
-        ]);
+        setBoardPriority(number, priority, {
+            owner: PROJECT_OWNER,
+            projectNumber: PROJECT_NUMBER,
+            repo: PROJECT_REPO,
+        });
     }
 }
 

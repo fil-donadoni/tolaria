@@ -356,6 +356,7 @@ describe("every filing skill points at the filing stamp (issue #4457)", () => {
         "new-op",
         "new-qa-issue",
         "new-set",
+        "next-issue",
         "to-prd",
         "to-tickets",
     ];

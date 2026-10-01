@@ -330,6 +330,26 @@ An abort is two acts, in this order (issue #4752):
    it" on every pass, forever — `deny-guard.sh` § 6b denies it. Then remove
    the worktree.
 
+### An issue this session files inherits its band
+
+Every issue the session files by hand — an abort prerequisite, a follow-up split off
+an acceptance criterion this PR cannot meet, a defect found on the way — takes
+the band of the issue being worked, straight after `gh issue create`
+(owner rule, issue #4928):
+
+```bash
+bun run issue:inherit-band <N> <new>
+```
+
+It copies the band `queue:plan` orders `N` by (the open umbrella's
+`Priority`, else `N`'s own) onto `<new>`'s board `Priority`, reads it back,
+and refuses rather than overwrite a band already set. It COPIES a hand-set
+band and never derives one — the one way a script writes `P0` (ADR 0143,
+Amendment IV). The issue body's `## Band` names the same band and where it
+came from. Gap issues are not filed by hand: `land` already passes the band
+to `gaps:sync --band`. Labels and the `## Band` section follow
+`docs/agents/triage-labels.md` § Every new issue is stamped at filing.
+
 ## 6. Report
 
 Five lines, no more: issue, PR, what landed, what the review caught (or

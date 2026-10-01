@@ -18,6 +18,10 @@ gains a fourth clause (§ The v1 gate); an issue that touches no card reaches
 (§ Bands follow the Targets). "A band means a milestone, and nothing else" is
 retired, and the hand source is now `user-decision`.
 
+**Amended 2026-10-01** (issue #4928, Amendment IV): an issue filed while
+working another inherits its band, copied by `issue:inherit-band` — the one
+script that may write `P0`, and only by copying it.
+
 ## Context
 
 Tolaria is deployed and played by a few friends. The owner asked for the road
@@ -343,6 +347,23 @@ value sits there. Terms in `CONTEXT.md`: **Game Variant**, **Commander
 Profile**, **Command Zone**, **Commander**, **Command Slot**, **Color
 Identity**, **Commander Damage**, **Paranoid Reduction**, **Focus View**,
 **Mosaic View**.
+
+### A filed issue inherits the band it was born of — Amendment IV (issue #4928, 2026-10-01)
+
+"`P0` … never written or cleared by a script" (§ Bands follow the Targets,
+and Amendment II) is **amended by one exception**, at the owner's ruling. An
+issue a `/next-issue` session files while working issue N takes N's band:
+`bun run issue:inherit-band <N> <new>`, run straight after the issue is
+created. Examples are an abort prerequisite, or a follow-up split off an
+acceptance criterion the PR cannot meet. The shape that prompted it: issue
+#4917, split out of P0 issue #4896, sat unprioritised until the owner set it
+by hand.
+
+The script COPIES a band; it never derives one. The value is N's effective
+band — the same `originBandOfIssue` read `land` hands to
+`gaps:sync --band` — so a `P0` it writes is always a `P0` a human set on N
+or on N's umbrella. It refuses to overwrite a band already set, and it never
+clears one. Every other script still never writes or clears `P0`.
 
 ### Format Tiers
 
