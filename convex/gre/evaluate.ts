@@ -71,7 +71,11 @@ import {
 } from "../cards";
 import { dangerClock, predictCombatOutcome } from "./dangerClock";
 import { castableHeldInteraction } from "./heldInteraction";
-import { exileCastPermission } from "./castCost";
+import {
+    exileCastPermission,
+    graveyardCastMechanismForMember,
+} from "./castCost";
+import { getPrintedEscape } from "./escape";
 import {
     canPayCost,
     coversCostColors,
@@ -913,7 +917,9 @@ function quietDefensiveGrantFlat(
  *
  *  A card leaving the hand for the GRAVEYARD (discarded, countered, milled)
  *  lowers demand by the same rule, and there it is simply correct: the mana
- *  that would have cast it is no longer wanted by anything.
+ *  that would have cast it is no longer wanted by anything — EXCEPT a card
+ *  castable from there on its own (escape, flashback, retrace, an intrinsic
+ *  permission), which the graveyard loop below keeps counting (issue #4898).
  *
  *  WHAT THIS PROXY DELIBERATELY DOES NOT SEE, and why each is left standing:
  *
@@ -955,6 +961,7 @@ function quietDefensiveGrantFlat(
  *
  *  Zero card names, pure, and state-only by construction. */
 function manaDevelopmentTerm(
+    state: GameState,
     player: PlayerState,
     base: ManaUnits,
     weights: EvalWeights
@@ -975,6 +982,36 @@ function manaDevelopmentTerm(
     // about. Built once, then asked one colour question per hand card.
     const baseUnits = base;
     for (const c of player.hand) {
+        const cost = getInstanceManaCost(c);
+        if (!coversCostColors(baseUnits, cost, { life: player.life })) continue;
+        raise(c);
+    }
+    // Issue #4898 — a card in the GRAVEYARD that is castable from there on its
+    // OWN (CR 702.138a escape, CR 702.34a flashback, CR 702.81a retrace, an
+    // intrinsic permission) is still a card this base is for: it leaves the
+    // hand for the graveyard and stays castable, so dropping it from the curve
+    // read casting a Titan whose hard-cast is spent on entering as losing the
+    // whole term (Uro: -40 of a net +30). Same colour question as a hand card.
+    // A permission another permanent or a turn-scoped grant confers is NOT
+    // counted: it would raise the curve for every nonland card in a graveyard
+    // under one Underworld Breach. The mechanism is `graveyardCastMechanism`'s
+    // (`castCost.ts`), the one authority the enumerator and `graveyardReach`
+    // share.
+    for (const c of player.graveyard) {
+        const mechanism = graveyardCastMechanismForMember(
+            state,
+            player,
+            c,
+            player.id
+        );
+        if (
+            mechanism === undefined ||
+            mechanism === "grant" ||
+            mechanism === "permission" ||
+            (mechanism === "escape" && getPrintedEscape(c) === undefined)
+        ) {
+            continue;
+        }
         const cost = getInstanceManaCost(c);
         if (!coversCostColors(baseUnits, cost, { life: player.life })) continue;
         raise(c);
@@ -1297,7 +1334,7 @@ function baseAggregateTerms(
         // castability (issue #2686) — additive to `mana`, never a replacement
         // for it, and zero on any board whose land count already covers the
         // hand's mana needs.
-        manaDevelopment: manaDevelopmentTerm(player, base, weights),
+        manaDevelopment: manaDevelopmentTerm(state, player, base, weights),
         // Colour coverage (issue #3532) — the same `base` census, asked the
         // colour question instead of the count one: what fraction of the
         // colours this seat needs can its own mana base actually produce. The
