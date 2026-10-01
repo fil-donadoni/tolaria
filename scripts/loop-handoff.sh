@@ -629,6 +629,16 @@ case "$MODE" in
             echo "loop-handoff: refusing to start without a token budget — pass --budget <tokens> (e.g. --budget 200000000), record one with --arm --budget, or set TOLARIA_LOOP_TOKEN_BUDGET. An unbudgeted driver ran unthrottled for days (ADR 0109)." >&2
             exit 1
         fi
+        # The local Convex backend (issue #4945): started here, once, while a
+        # human is still at the terminal to read a failure, rather than
+        # discovered dead by the first pass. The driver re-runs it before
+        # every pass and stops as `convex-down` when it fails.
+        if [ "$DRY_RUN" -eq 1 ]; then
+            echo "loop-handoff: [dry-run] would run: bun run convex:ensure"
+        elif ! bun run --silent convex:ensure; then
+            echo "loop-handoff: not starting — the local Convex backend does not answer and 'bun run convex:ensure' could not start one (log: .claude/telemetry/convex-dev.log)." >&2
+            exit 1
+        fi
         write_conf
         # The announcement is launch_driver's now (announce_start): on the
         # foreground path it has to be printed INSIDE the stamped pipeline, or

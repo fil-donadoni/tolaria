@@ -70,6 +70,12 @@ beforeEach(() => {
     // copy the real driver in so --dry-run prints a command that would
     // actually resolve.
     fs.copyFileSync(DRIVER, path.join(tmp, "scripts", "loop-drain.sh"));
+    // A real `--start` runs `bun run convex:ensure` before arming (issue
+    // #4945); here it answers "the deployment answers" without touching one.
+    fs.writeFileSync(
+        path.join(tmp, "package.json"),
+        JSON.stringify({ scripts: { "convex:ensure": "true" } })
+    );
 });
 
 afterEach(() => {
@@ -816,5 +822,42 @@ describe("--watch renders an existing log, read-only (issue #4720)", () => {
             });
             expect(survivors.stdout.trim()).toBe("");
         });
+    });
+});
+
+describe("--start runs convex:ensure once before arming (issue #4945)", () => {
+    it("--dry-run names the step and does not run it", () => {
+        const r = run({ args: ["--start", "--dry-run", "--budget", "1"] });
+        expect(r.status).toBe(0);
+        expect(r.stdout).toMatch(
+            /\[dry-run\] would run: bun run convex:ensure/
+        );
+    });
+
+    it("a failing convex:ensure refuses the start: exit 1, nothing armed, no driver", () => {
+        const bin = fs.mkdtempSync(
+            path.join(os.tmpdir(), "tolaria-handoff-bin-")
+        );
+        const calls = path.join(bin, "calls");
+        fs.writeFileSync(
+            path.join(bin, "bun"),
+            `#!/bin/sh\necho "$*" >> "${calls}"\nexit 1\n`,
+            { mode: 0o755 }
+        );
+        try {
+            const r = run({
+                args: ["--start", "--budget", "1", "--no-caffeinate"],
+                env: { PATH: `${bin}:${process.env.PATH}` },
+            });
+            expect(r.status).toBe(1);
+            expect(r.stderr).toMatch(/could not start one/);
+            expect(fs.readFileSync(calls, "utf8").trim()).toBe(
+                "run --silent convex:ensure"
+            );
+            expect(fs.existsSync(CONF())).toBe(false);
+            expect(fs.existsSync(PID())).toBe(false);
+        } finally {
+            fs.rmSync(bin, { recursive: true, force: true });
+        }
     });
 });

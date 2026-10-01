@@ -221,6 +221,13 @@ export const planJson = (number: number, model: string): string =>
         staleClaims: [],
     });
 
+/** The pass's `bun run convex:ensure` step (issue #4945), answered "the
+ *  deployment answers". Every `bun` stub carries it — `planBranch` folds it in
+ *  — because a stub that forwards it to the REAL `bun` runs it from a scratch
+ *  cwd with no `package.json`, and the run stops as `convex-down` before its
+ *  own subject is ever reached. */
+export const CONVEX_ENSURE_UP = `if [ "$1" = "run" ] && [ "$2" = "convex:ensure" ]; then exit 0; fi`;
+
 /** Everything the pre-flight calls `bun` for, as one shell fragment.
  *
  *  EVERY stub needs it, not just the pre-flight's own tests: since #3088 a
@@ -234,6 +241,7 @@ export const planJson = (number: number, model: string): string =>
  *  stderr and stayed green. */
 export const planBranch = (number = 101, model = "sonnet"): string =>
     [
+        CONVEX_ENSURE_UP,
         `if [ "$1" = "run" ] && [ "$2" = "queue:plan" ]; then`,
         `  echo "$ bun scripts/queue-plan.ts --cap \\"1\\"" >&2`,
         `  cat <<'PLANEOF'`,
