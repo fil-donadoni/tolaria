@@ -814,6 +814,39 @@
         "landCount": 4,
         "libraryCount": 20
     },
+    "evoke with no mana: evokes Solitude to exile a lethal attacker": {
+        "cards": [
+            {
+                "name": "Solitude",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Savannah Lions",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Serra Angel",
+                "owner": "opp",
+                "zone": "battlefield",
+                "summoningSick": false
+            }
+        ],
+        "phase": "DECLARE_ATTACKERS",
+        "turn": 5,
+        "landCount": 0,
+        "libraryCount": 20,
+        "life": {
+            "me": 4
+        },
+        "activePlayer": "opp",
+        "priority": "me",
+        "combat": {
+            "attackers": ["Serra Angel"],
+            "confirmed": true
+        }
+    },
     "explore: bins the revealed blank instead of leaving it as the next draw": null,
     "flash permanent NEGATIVE CONTROL: casts Containment Priest as the only surviving block": null,
     "flash permanent NEGATIVE CONTROL: still casts hasty Raging Kavu for lethal this turn": {

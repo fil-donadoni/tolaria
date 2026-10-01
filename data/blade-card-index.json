@@ -450,6 +450,11 @@
             "label": "casts Solitude to exile a lethal attacker",
             "tier": "must",
             "needsSetup": false
+        },
+        {
+            "label": "evoke with no mana: evokes Solitude to exile a lethal attacker",
+            "tier": "must",
+            "needsSetup": false
         }
     ],
     "Splinter Twin": [
