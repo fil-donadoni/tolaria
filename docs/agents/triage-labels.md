@@ -59,8 +59,11 @@ P2 — <one-line reason>
 ```
 
 `P1`-`P3` or `none — <reason>` (ruled off the road); never `P0`, which is
-hand-set on the board and never written by a filer. A filer who may not rule
-the band applies `needs-triage` instead. With neither, `backlog:triage`
+hand-set on the board and never written by a filer — with ONE exception: an
+issue filed while working another inherits that issue's band, `P0` included,
+copied by `bun run issue:inherit-band <worked> <new>` (ADR 0143 Amendment IV,
+issue #4928). A filer who may not rule the band applies `needs-triage`
+instead. With neither, `backlog:triage`
 computes the coarse label default (ADR 0143 § The write rule and the default)
 and the issue is residue until a human rules it.
 
