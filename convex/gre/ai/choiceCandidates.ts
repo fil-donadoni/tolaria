@@ -1605,6 +1605,129 @@ const orderTopCandidates: ChoiceCandidateGenerator = (state, choice) => {
 };
 
 // ---------------------------------------------------------------------------
+// Look and distribute (look-distribute)
+// ---------------------------------------------------------------------------
+
+/** `look-distribute` (CR 401.4 — Impulse, Stock Up, Narset, Thassa's Oracle):
+ *  look at the top N, KEEP up to `max` of them (to the hand or back on top,
+ *  `keepTo`), the rest to `destination`.
+ *
+ *  Issue #4899 — the kind had no generator, so it was no decision node and,
+ *  worse, a wall for every settle: `choiceCandidates` answered `[]`, the 1-ply
+ *  probe bailed on the suspended resolution, and whatever the SAME resolution
+ *  does after the keep never reached a scored state. Thassa's Oracle is the
+ *  sharp shape: its win check (CR 104.2b) is the Op after the keep, so a cast
+ *  that wins on the spot read as a 1/3 body.
+ *
+ *  The answers are the search-library ones (property 1): one candidate LED BY
+ *  each distinct keep-eligible identity, the remaining keep slots filled
+ *  greedily by the same ranking, then the empty keep when the count admits it
+ *  ("up to one", `optional`). Keys name the kept cards' identities
+ *  (`stableSetIdentity`), never ids (property 2). The un-kept cards ride the
+ *  submission's auto-bottom (no `secondZoneIds`) — every shipped user is a
+ *  random or unordered rest, and the submit handler accepts the keep alone.
+ *
+ *  ORDER IS THE PRIOR. `heuristicChoicePrior` is flat for this kind, so
+ *  `topKByPrior` keeps the order written here and the node opens the best keep
+ *  first and the empty keep LAST (PR review). No `materialGained` hint either:
+ *  nothing reads one for this kind, and a keep to the library top or to a
+ *  face-down exile (Hideaway, the same kind) is not hand worth gained.
+ *
+ *  POLARITY, as for `order-top`: the worth is priced for the LIBRARY OWNER
+ *  (it is their hand or their next draw), and a chooser who is not the owner
+ *  (an opponent choosing from the owner's window — "an opponent chooses one of
+ *  them") ranks it the other way round. That branch is reached only inside the
+ *  search's OWN worlds: `determinize` pins the window for the chooser alone, so
+ *  at the root of a search by the library's owner the window is unpinned,
+ *  fails the top-run check below and yields nothing — the settle then stops
+ *  at the choice exactly as it did before this generator existed.
+ *
+ *  The window must still be the library's top run, as for `order-top`: a
+ *  disturbed world yields no candidates rather than a throw. */
+const lookDistributeCandidates: ChoiceCandidateGenerator = (state, choice) => {
+    const ownerId = choice.zoneOwnerId ?? choice.playerId;
+    const owner = getPlayer(state, ownerId);
+    const forOpponent = ownerId !== choice.playerId;
+
+    const allow = new Set(choice.candidateIds ?? []);
+    const looked = owner.library.slice(0, allow.size);
+    if (looked.length === 0 || looked.length !== allow.size) return [];
+    if (!looked.every((c) => allow.has(c.id))) return [];
+
+    const submit = (cards: CardInstanceState[]): Move => ({
+        kind: "resolution-choice",
+        stackItemId: choice.stackItemId,
+        step: choice.step,
+        choiceId: choice.choiceId,
+        cardInstanceIds: cards.map((c) => c.id),
+    });
+
+    const min = getPendingChoiceMin(choice.count);
+    const none: Omit<ChoiceCandidate, "prior">[] =
+        min <= 0 ? [{ key: "look-distribute:none", move: submit([]) }] : [];
+    // The empty keep keeps its slot under the cap.
+    const leadCap = CHOICE_TOP_K - none.length;
+
+    // Narset's "noncreature, nonland" gate (issue #1266): only `eligibleIds`
+    // may be KEPT; the rest of the window can only go to `destination`.
+    const eligible = choice.eligibleIds ? new Set(choice.eligibleIds) : null;
+    const pool = eligible ? looked.filter((c) => eligible.has(c.id)) : looked;
+    const take = Math.min(getPendingChoiceMax(choice.count), pool.length);
+    if (take <= 0 || take < min) return none;
+
+    const ranked = pool
+        .map((card) => {
+            const worth = libraryTargetWorth(state, ownerId, card);
+            return {
+                card,
+                identity: stableCardIdentity(card),
+                value: forOpponent ? -worth : worth,
+            };
+        })
+        .sort(
+            (a, b) =>
+                b.value - a.value ||
+                (a.identity < b.identity ? -1 : a.identity > b.identity ? 1 : 0)
+        );
+
+    const out: Omit<ChoiceCandidate, "prior">[] = [];
+    const categories = choice.categories;
+    const seenIdentities = new Set<string>();
+    const seenKeys = new Set<string>();
+    for (const lead of ranked) {
+        if (out.length >= leadCap) break;
+        if (seenIdentities.has(lead.identity)) continue;
+        seenIdentities.add(lead.identity);
+        const picked = [lead];
+        for (const other of ranked) {
+            if (picked.length >= take) break;
+            if (other.card.id === lead.card.id) continue;
+            // Issue #1364 (Atraxa) — a categorised keep admits only sets with
+            // an injective card → category assignment; an illegal submission
+            // throws out of the search, so it is pruned here.
+            if (
+                categories &&
+                !canAddCategorizedPick(
+                    categories,
+                    picked.map((p) => p.card.id),
+                    other.card.id
+                )
+            ) {
+                continue;
+            }
+            picked.push(other);
+        }
+        if (picked.length < min) continue;
+        const cards = picked.map((p) => p.card);
+        const key = `look-distribute:${stableSetIdentity(cards)}`;
+        if (seenKeys.has(key)) continue;
+        seenKeys.add(key);
+        out.push({ key, move: submit(cards) });
+    }
+    return [...out, ...none];
+};
+
+// ---------------------------------------------------------------------------
 // Simultaneous-trigger ordering (trigger-order)
 // ---------------------------------------------------------------------------
 
@@ -2058,6 +2181,10 @@ export const CHOICE_CANDIDATE_GENERATORS: Partial<
     // Explore with the minimal-legal "keep everything on top" and never sent a
     // card to the bottom or the graveyard.
     "order-top": orderTopCandidates,
+    // CR 401.4 (issue #4899) — the keep-and-distribute look. Without a
+    // generator the settle stopped at the keep, and every Op of the same
+    // resolution after it (Thassa's Oracle's win check) was never scored.
+    "look-distribute": lookDistributeCandidates,
     // CR 603.3b (ADR 0058, issue #3222) — the degenerate ordering, registered
     // so a simultaneous-trigger batch is a node the search can DESCEND past
     // rather than a wall it leaf-scores at. See the generator's own header.

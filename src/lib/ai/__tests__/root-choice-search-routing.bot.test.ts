@@ -135,6 +135,31 @@ function stateWithBotOrderTop(top: string[], rest: string[]): GameState {
     );
 }
 
+/** CR 401.4 (issue #4899) — a live `look-distribute` choice over the bot's own
+ *  top `top` cards, with `rest` beneath them: the Impulse position, keep one
+ *  to hand and the rest to the bottom. */
+function stateWithBotLookDistribute(top: string[], rest: string[]): GameState {
+    const library = [...top, ...rest].map((name, i) =>
+        makeInstance(getCardByName(name).id, {
+            id: `lib-${i}`,
+            controllerId: BOT,
+            ownerId: BOT,
+            zone: "library",
+        })
+    );
+    return stateWithBotChoice(
+        {
+            kind: "look-distribute",
+            zone: "library",
+            destination: "library-bottom",
+            candidateIds: library.slice(0, top.length).map((c) => c.id),
+            count: { min: 1, max: 1 },
+            prompt: "Put one into your hand and the rest on the bottom.",
+        },
+        { library }
+    );
+}
+
 /** CR 603.3c (issue #2461) — a modal TRIGGERED ability's announce-time mode
  *  choice (Deceiver Exarch's "untap yours / tap an opponent's"), raised by the
  *  ENGINE itself as the trigger goes on the stack rather than hand-written
@@ -421,6 +446,13 @@ const FIXTURES: Partial<Record<PendingChoiceKind, () => GameState>> = {
         stateWithBotOrderTop(
             ["Ornithopter", "Craw Wurm"],
             ["Island", "Island", "Island"]
+        ),
+    // CR 401.4 (issue #4899) — the keep-and-distribute look, in its Impulse
+    // shape: one of the looked-at cards to hand, the rest to the bottom.
+    "look-distribute": () =>
+        stateWithBotLookDistribute(
+            ["Ornithopter", "Craw Wurm", "Forest"],
+            ["Island", "Island"]
         ),
     // CR 603.3b (ADR 0058, issue #3222) — ordering one's own simultaneous
     // triggers. The generator emits a single canonical permutation, so the

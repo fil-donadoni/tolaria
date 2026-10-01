@@ -9754,7 +9754,14 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     {
         label: "alternate win: casts Thassa's Oracle when its trigger wins on the spot",
         spec: {
-            cards: [{ name: "Thassa's Oracle", owner: "me", zone: "hand" }],
+            cards: [
+                { name: "Thassa's Oracle", owner: "me", zone: "hand" },
+                ...Array.from({ length: 5 }, () => ({
+                    name: "Island",
+                    owner: "opp" as const,
+                    zone: "library" as const,
+                })),
+            ],
             phase: "PRECOMBAT_MAIN",
             turn: 5,
             landCount: 4,
@@ -9763,20 +9770,16 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         bot: "me",
         budget: { iterations: 400 },
         seeds: [0xb1ade, 1, 2, 3, 4],
-        tier: "stretch",
+        tier: "must",
         expect: {
-            // A PREDICATE, not `moves`: this tier-stretch position is one the
-            // Evaluation cannot order yet, and as a Verdict it would pull the
-            // weight fit toward nothing it can satisfy. The owning issue
-            // promotes it to a `moves` `must` entry with its fix.
-            predicate: (move, state) =>
-                matchesMove(state, move, {
+            moves: [
+                {
                     kind: "cast-spell",
                     card: "Thassa's Oracle",
-                }),
-            describe: "casts Thassa's Oracle",
+                },
+            ],
         },
-        note: "Issue #4895 (issue #4758 review). STRETCH, owned by issue #4899: devotion to blue (2, Thassa's own {U}{U}) is at least the one card in library, so the ETB wins. Measured pass on 5/5 seeds — the win check sits behind a look-and-distribute choice nothing settles.",
+        note: "Issue #4895 (issue #4758 review), fixed by issue #4899: devotion to blue (2, Thassa's own {U}{U}) is at least the one card in library, so the ETB wins on the spot (CR 104.2b). The win check is the Op AFTER the trigger's look-and-distribute keep (CR 401.4), and `look-distribute` had no candidate generator, so neither the 1-ply probe nor the tree got past the keep — the search passed on 5/5 seeds. The opponent's library is five cards deep so passing does not win by decking within the horizon: with both libraries at one card, passing ALSO read as a won game and the material tie-break preferred the later win with Thassa still in hand. With the generator 5/5 cast on `mean-reward`; without it 1/5.",
     },
     {
         label: "ETB bounce: casts Man-o'-War on an opposing Craw Wurm",
