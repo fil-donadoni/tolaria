@@ -1117,9 +1117,9 @@ const handPickCandidates: ChoiceCandidateGenerator = (state, choice) => {
  *  tapped, the discard not yet made — a Mind Rot read as its cost alone.
  *  Answered here with the chooser's own best keep: it sheds its `min` least
  *  valuable cards, ties broken by identity, the same worth-first order the
- *  client's discard policy falls back to (`brain.ts`). Only the probe's settle
- *  asks (`answerOpponent`); the tree walk and the rollout still stop at it
- *  (issue #4917).
+ *  client's discard policy falls back to (`brain.ts`). The probe's settle asks
+ *  (`answerOpponent`), and since issue #4917 so do the tree walk and the
+ *  rollout (`advanceToDecision`, search.ts): no leaf is scored mid-resolution.
  *
  *  It reads the chooser's hand by identity, as `evaluate` already does when
  *  it scores that hand: at the real root this is no new information.

@@ -1280,10 +1280,16 @@ function scoreLeaf(
     };
 }
 
-/** Issue #4917 — answer the head choice when it is one the search does not
- *  branch on but has a forced answer for (`forcedChoiceAnswer`: a MANDATORY
- *  `discard-hand`, CR 701.9b), so the walk continues instead of scoring a leaf
- *  mid-resolution. Called only where `decidingPlayer` returned `null`.
+/** Bound on consecutive forced answers in one `advanceToDecision` call: one
+ *  resolution can raise another mandatory discard (a second Op), never an
+ *  unbounded chain, so this only stops a malformed loop. */
+const MAX_FORCED_ANSWERS = 8;
+
+/** Issue #4917 — `decidingPlayer`, after answering every head choice the
+ *  search does not branch on but has a forced answer for
+ *  (`forcedChoiceAnswer`: a MANDATORY `discard-hand`, CR 701.9b). The tree
+ *  walk and the rollout ask THIS, never `decidingPlayer` directly, so neither
+ *  scores a leaf mid-resolution. Mutates `state` (caller owns it).
  *
  *  Stopping there scored a discard spell as its cost alone: the spell spent,
  *  the mana tapped, the discard not yet made. Issue #4896 answered it in the
@@ -1291,22 +1297,26 @@ function scoreLeaf(
  *  Rot line was truncated at its own resolution while `pass` played on to the
  *  horizon. The answer is not a decision node (no edge, no statistics): it is
  *  one deterministic function of the world, like an automatic resolution
- *  step. Returns whether it answered; `false` leaves `state` untouched. */
-function answerForcedChoice(state: GameState): boolean {
-    if (state.gameOver) return false;
-    if (
-        state.pendingCast ||
-        state.pendingActivation ||
-        state.pendingCompanionPay
-    ) {
-        return false;
+ *  step, so the decision after it hangs off the same tree node. */
+export function advanceToDecision(state: GameState): string | null {
+    for (let i = 0; i <= MAX_FORCED_ANSWERS; i++) {
+        const pid = decidingPlayer(state);
+        if (pid) return pid;
+        if (
+            state.gameOver ||
+            state.pendingCast ||
+            state.pendingActivation ||
+            state.pendingCompanionPay
+        ) {
+            return null;
+        }
+        const head = state.pendingChoices?.[0];
+        if (!head) return null;
+        const forced = forcedChoiceAnswer(state, head);
+        if (!forced) return null;
+        applyMoveInSearch(state, head.playerId, forced);
     }
-    const head = state.pendingChoices?.[0];
-    if (!head) return false;
-    const forced = forcedChoiceAnswer(state, head);
-    if (!forced) return false;
-    applyMoveInSearch(state, head.playerId, forced);
-    return true;
+    return null;
 }
 
 /** Play `state` forward to a stable leaf with a cheap policy, then score it.
@@ -1370,11 +1380,8 @@ function rollout(
         // on a degenerate board) — score wherever we got to.
         if (state.turn - startTurn >= MAX_ROLLOUT_TURNS) break;
 
-        const pid = decidingPlayer(state);
-        if (!pid) {
-            if (answerForcedChoice(state)) continue;
-            break;
-        }
+        const pid = advanceToDecision(state);
+        if (!pid) break;
         const moves = enumerateMoves(state, pid);
         if (moves.length === 0) break;
 
@@ -2646,13 +2653,8 @@ function iterate(
     let node = root;
 
     for (let depth = 0; depth < MAX_TREE_DEPTH; depth++) {
-        const pid = decidingPlayer(world);
-        if (!pid) {
-            // Not an edge: the forced answer is a function of the world, so
-            // the decision after it hangs off this same node.
-            if (answerForcedChoice(world)) continue;
-            break;
-        }
+        const pid = advanceToDecision(world);
+        if (!pid) break;
         let keyed = keyedMovesFor(world, pid, botId);
         // Deny-set, never an allow-set, and never emptying: a world-specific
         // move the root enumeration never saw stays available, and `pass` is
