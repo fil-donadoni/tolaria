@@ -1621,20 +1621,29 @@ const orderTopCandidates: ChoiceCandidateGenerator = (state, choice) => {
  *
  *  The answers are the search-library ones (property 1): one candidate LED BY
  *  each distinct keep-eligible identity, the remaining keep slots filled
- *  greedily by the same ranking, plus the empty keep when the count admits it
+ *  greedily by the same ranking, then the empty keep when the count admits it
  *  ("up to one", `optional`). Keys name the kept cards' identities
  *  (`stableSetIdentity`), never ids (property 2). The un-kept cards ride the
  *  submission's auto-bottom (no `secondZoneIds`) — every shipped user is a
  *  random or unordered rest, and the submit handler accepts the keep alone.
  *
+ *  ORDER IS THE PRIOR. `heuristicChoicePrior` is flat for this kind, so
+ *  `topKByPrior` keeps the order written here and the node opens the best keep
+ *  first and the empty keep LAST (PR review). No `materialGained` hint either:
+ *  nothing reads one for this kind, and a keep to the library top or to a
+ *  face-down exile (Hideaway, the same kind) is not hand worth gained.
+ *
  *  POLARITY, as for `order-top`: the worth is priced for the LIBRARY OWNER
  *  (it is their hand or their next draw), and a chooser who is not the owner
- *  (an opponent choosing from the owner's window — "an opponent chooses one of them")
- *  ranks it the other way round.
+ *  (an opponent choosing from the owner's window — "an opponent chooses one of
+ *  them") ranks it the other way round. That branch is reached only inside the
+ *  search's OWN worlds: `determinize` pins the window for the chooser alone, so
+ *  at the root of a search by the library's owner the window is unpinned,
+ *  fails the top-run check below and yields nothing — the settle then stops
+ *  at the choice exactly as it did before this generator existed.
  *
- *  The window must still be the library's top run, as for `order-top`: the
- *  peek is pinned by `determinize` only for a chooser looking at their own
- *  library, and a disturbed world yields no candidates rather than a throw. */
+ *  The window must still be the library's top run, as for `order-top`: a
+ *  disturbed world yields no candidates rather than a throw. */
 const lookDistributeCandidates: ChoiceCandidateGenerator = (state, choice) => {
     const ownerId = choice.zoneOwnerId ?? choice.playerId;
     const owner = getPlayer(state, ownerId);
@@ -1653,22 +1662,18 @@ const lookDistributeCandidates: ChoiceCandidateGenerator = (state, choice) => {
         cardInstanceIds: cards.map((c) => c.id),
     });
 
-    const out: Omit<ChoiceCandidate, "prior">[] = [];
     const min = getPendingChoiceMin(choice.count);
-    if (min <= 0) {
-        out.push({
-            key: "look-distribute:none",
-            move: submit([]),
-            hint: { materialGained: 0 },
-        });
-    }
+    const none: Omit<ChoiceCandidate, "prior">[] =
+        min <= 0 ? [{ key: "look-distribute:none", move: submit([]) }] : [];
+    // The empty keep keeps its slot under the cap.
+    const leadCap = CHOICE_TOP_K - none.length;
 
     // Narset's "noncreature, nonland" gate (issue #1266): only `eligibleIds`
     // may be KEPT; the rest of the window can only go to `destination`.
     const eligible = choice.eligibleIds ? new Set(choice.eligibleIds) : null;
     const pool = eligible ? looked.filter((c) => eligible.has(c.id)) : looked;
     const take = Math.min(getPendingChoiceMax(choice.count), pool.length);
-    if (take <= 0 || take < min) return out;
+    if (take <= 0 || take < min) return none;
 
     const ranked = pool
         .map((card) => {
@@ -1676,7 +1681,6 @@ const lookDistributeCandidates: ChoiceCandidateGenerator = (state, choice) => {
             return {
                 card,
                 identity: stableCardIdentity(card),
-                worth,
                 value: forOpponent ? -worth : worth,
             };
         })
@@ -1686,11 +1690,12 @@ const lookDistributeCandidates: ChoiceCandidateGenerator = (state, choice) => {
                 (a.identity < b.identity ? -1 : a.identity > b.identity ? 1 : 0)
         );
 
+    const out: Omit<ChoiceCandidate, "prior">[] = [];
     const categories = choice.categories;
     const seenIdentities = new Set<string>();
     const seenKeys = new Set<string>();
     for (const lead of ranked) {
-        if (out.length >= CHOICE_TOP_K) break;
+        if (out.length >= leadCap) break;
         if (seenIdentities.has(lead.identity)) continue;
         seenIdentities.add(lead.identity);
         const picked = [lead];
@@ -1717,17 +1722,9 @@ const lookDistributeCandidates: ChoiceCandidateGenerator = (state, choice) => {
         const key = `look-distribute:${stableSetIdentity(cards)}`;
         if (seenKeys.has(key)) continue;
         seenKeys.add(key);
-        out.push({
-            key,
-            move: submit(cards),
-            hint: forOpponent
-                ? undefined
-                : {
-                      materialGained: picked.reduce((s, p) => s + p.worth, 0),
-                  },
-        });
+        out.push({ key, move: submit(cards) });
     }
-    return out;
+    return [...out, ...none];
 };
 
 // ---------------------------------------------------------------------------

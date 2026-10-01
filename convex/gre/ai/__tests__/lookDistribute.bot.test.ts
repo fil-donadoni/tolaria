@@ -27,6 +27,7 @@ import { findBladeScenario } from "../blade/registry";
 import { DEFAULT_EVAL_WEIGHTS } from "../evalWeights";
 import { choiceCandidates, stableCardIdentity } from "../choiceCandidates";
 import { libraryTargetWorth } from "../candidateValue";
+import { isCategorizedPickLegal } from "../../categorizedPick";
 import {
     makeInstance,
     makePlayer,
@@ -139,8 +140,41 @@ describe("look-distribute candidates (CR 401.4, issue #4899)", () => {
             count: { min: 0, max: 1 },
         });
         const keys = choiceCandidates(state, choice).map((c) => c.key);
-        expect(keys).toContain("look-distribute:none");
         expect(keys).toHaveLength(4);
+        // The prior is flat for this kind, so this order IS the opening
+        // order: the best keep first, keeping nothing last.
+        expect(keys.at(-1)).toBe("look-distribute:none");
+        expect(keys[0]).toBe(ownerExtremes(state, choice).best);
+    });
+
+    it("a categorised keep (Atraxa) only offers keeps with a card-to-category assignment", () => {
+        const window = ["Grizzly Bears", "Serra Angel", "Craw Wurm"];
+        const { state, choice } = lookPosition(window, 3, {
+            count: { min: 0, max: 2 },
+        });
+        // Every card is a "Creature"; only the owner's WORST card also fills
+        // the second category. The two best cards together are then
+        // illegal (both can only be the Creature), and that pair is exactly
+        // what an unguarded greedy fill from the best lead would submit.
+        const byWorth = [...state.players[0].library].sort(
+            (a, b) =>
+                libraryTargetWorth(state, "p1", b) -
+                libraryTargetWorth(state, "p1", a)
+        );
+        choice.categories = [
+            { label: "Creature", cardIds: byWorth.map((c) => c.id) },
+            { label: "Other", cardIds: [byWorth[2].id] },
+        ];
+        const cands = choiceCandidates(state, choice).filter(
+            (c) => keptIds(c).length > 0
+        );
+        expect(cands.length).toBeGreaterThan(0);
+        expect(cands.some((c) => keptIds(c).length === 2)).toBe(true);
+        for (const c of cands) {
+            expect(isCategorizedPickLegal(choice.categories, keptIds(c))).toBe(
+                true
+            );
+        }
     });
 
     it("only `eligibleIds` may be kept (Narset's filtered keep)", () => {
