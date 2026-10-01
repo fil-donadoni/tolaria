@@ -68,6 +68,7 @@ import {
 } from "./lib/queue-plan";
 import { ORIGIN_BASE, sessionCap } from "./lib/branches";
 import { primaryCheckout } from "./lib/primary-checkout";
+import { infraNotice, type InfraRecord } from "./lib/health-verdict";
 import { claimLedgerPath, claimVerdicts } from "./loop-doctor";
 
 // Computed the same way scripts/__tests__/land.test.ts computes it (from a
@@ -645,6 +646,32 @@ export function readHealthMarker(root: string): HealthMarker | null {
 }
 
 /**
+ * The last health run's INFRA record (issue #4943), or null when the last run
+ * was anything else. Not a refusal — an infra tip is unproven, not red — only
+ * the reason the planner prints, so a session (or the AFK loop) that sees a
+ * stale verdict knows the machine, not the tree, is what to fix. Total like
+ * `readHealthMarker`: a torn record reads as null.
+ *
+ * Exported for direct testing.
+ */
+export function readHealthInfra(root: string): InfraRecord | null {
+    try {
+        const last = JSON.parse(
+            readFileSync(join(root, HEALTH_DIR_REL, "last.json"), "utf8")
+        ) as Record<string, unknown> | null;
+        if (last?.status !== "infra") return null;
+        const str = (v: unknown) => (typeof v === "string" ? v : undefined);
+        return {
+            sha: str(last.sha),
+            failedStep: str(last.failedStep),
+            reason: str(last.reason),
+        };
+    } catch {
+        return null;
+    }
+}
+
+/**
  * The claim journal's RELEASED issues — what `liveClaims` subtracts from the
  * `in-progress` labels.
  *
@@ -675,6 +702,8 @@ function main(): void {
     // queue read plus a detail fetch per candidate to be told it may not pick.
     const health = redRefusal(readHealthMarker(primaryCheckout()));
     if (!health.admitted) die(health.message);
+    const infra = readHealthInfra(primaryCheckout());
+    if (infra) console.error(`queue:plan: ${infraNotice(infra)}`);
 
     // Parsed before the first round-trip too: a malformed `--lineage` is a
     // typo, and paying a queue read and a board read to be told so is two

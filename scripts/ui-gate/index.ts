@@ -100,6 +100,14 @@
  *       gitignored `.env.local`). It must be LOCAL: the lane account's role
  *       grant and teardown refuse any other deployment. No credentials are
  *       read — each run mints its own account.
+ *
+ * Exit codes:
+ *   0  PASS
+ *   1  a non-PASS verdict (a Floor, a coverage hole, UNWALKED, INFRA)
+ *   2  usage, configuration, or any other fatal error
+ *   3  `DEPLOYMENT_DOWN_EXIT` (`lib/convex-reachable.ts`): the deployment at
+ *      VITE_CONVEX_URL did not answer. Its own code so the health gate records
+ *      `infra`, never a RED tip (issue #4943); `bun run convex:ensure` starts it.
  */
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { createServer } from "node:net";
@@ -166,7 +174,11 @@ import {
     type ViewportResult,
 } from "./parallel.ts";
 import { ORIGIN_BASE } from "../lib/branches.ts";
-import { reachable, readEnvLocal } from "../lib/convex-reachable.ts";
+import {
+    DEPLOYMENT_DOWN_EXIT,
+    reachable,
+    readEnvLocal,
+} from "../lib/convex-reachable.ts";
 import { renderUiScope, type UiScope } from "../lib/ui-scope.ts";
 import { acquireUiLane, gateLockRoot } from "../lib/ui-admission.ts";
 import { classifyWalkFailure, type RetryPolicy } from "./infra-verdict.ts";
@@ -316,6 +328,10 @@ function sleep(ms: number): Promise<void> {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class FatalError extends Error {}
+
+/** The deployment did not answer: exits `DEPLOYMENT_DOWN_EXIT`, never 2, so
+ *  the health gate can tell a down backend from a red tree (issue #4943). */
+class DeploymentDownError extends FatalError {}
 
 function log(message: string): void {
     process.stdout.write(`${message}\n`);
@@ -785,7 +801,7 @@ async function main(): Promise<number> {
         throw new FatalError("VITE_CONVEX_URL is unset (.env.local)");
     }
     if (!(await reachable(convexUrl, 5000))) {
-        throw new FatalError(
+        throw new DeploymentDownError(
             `the Convex deployment at ${convexUrl} did not answer. Start it with ` +
                 `\`bun run convex:ensure\` (this lane never starts one — a second ` +
                 `backend on the same deployment is worse than a clear failure; ` +
@@ -1519,7 +1535,9 @@ try {
 } catch (err) {
     if (err instanceof FatalError || err instanceof LaneAccountError) {
         process.stderr.write(`\n✗ check:ui: ${err.message}\n`);
-        process.exit(2);
+        process.exit(
+            err instanceof DeploymentDownError ? DEPLOYMENT_DOWN_EXIT : 2
+        );
     }
     throw err;
 }

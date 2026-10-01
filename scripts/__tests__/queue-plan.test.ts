@@ -49,6 +49,7 @@ import {
     rateLimitFallbackMessage,
     readBoardPriorityCache,
     writeBoardPriorityCache,
+    readHealthInfra,
     readHealthMarker,
     readWholeQueue,
     NO_PRIORITY_MESSAGE,
@@ -2999,6 +3000,46 @@ describe("admission — reading the health marker off disk (issue #3775)", () =>
             (dir) => fs.writeFileSync(path.join(dir, "RED"), ""),
             (root) => expect(readHealthMarker(root)).toEqual({})
         );
+    });
+});
+
+describe("admission — an INFRA verdict is a notice, never a refusal (issue #4943)", () => {
+    const withLast = (last: string, assert: (root: string) => void) => {
+        const root = fs.mkdtempSync(path.join(os.tmpdir(), "health-"));
+        try {
+            const dir = path.join(root, ".claude", "telemetry", "health");
+            fs.mkdirSync(dir, { recursive: true });
+            fs.writeFileSync(path.join(dir, "last.json"), last);
+            assert(root);
+        } finally {
+            fs.rmSync(root, { recursive: true, force: true });
+        }
+    };
+
+    it("reads the step and the remedy of an INFRA record — and no RED marker refuses", () => {
+        withLast(
+            JSON.stringify({
+                sha: "deadbeefcafe",
+                status: "infra",
+                failedStep: "preflight:convex",
+                reason: "start it",
+            }),
+            (root) => {
+                expect(readHealthInfra(root)).toEqual({
+                    sha: "deadbeefcafe",
+                    failedStep: "preflight:convex",
+                    reason: "start it",
+                });
+                expect(readHealthMarker(root)).toBeNull();
+            }
+        );
+    });
+
+    it("is null for any other status, and for a torn record", () => {
+        withLast(JSON.stringify({ sha: "a", status: "red" }), (root) =>
+            expect(readHealthInfra(root)).toBeNull()
+        );
+        withLast("{", (root) => expect(readHealthInfra(root)).toBeNull());
     });
 });
 

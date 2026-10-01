@@ -22,6 +22,11 @@
  * A step that failed while the machine was asleep (`lib/health-verdict.ts`,
  * issue #4938) is `infra`: recorded, exit 1, but no `RED` marker written and
  * none cleared — the tip is unproven, not red, and the next run re-gates it.
+ * So is a `check:ui` step that found the Convex deployment down (its own exit
+ * code, issue #4943) — and a run whose PREFLIGHT finds it down records
+ * `infra` at step `preflight:convex` before any gate runs, in seconds rather
+ * than after ~40 minutes of gates. Health never STARTS the backend: the AFK
+ * loop's `convex:ensure` does (issue #4945).
  *
  * Deduplicated by sha: a tip that is already green, or already being gated
  * (a `running` record younger than 90 minutes), is not re-gated — so N
@@ -55,7 +60,8 @@
  * red tip — and neither `land` nor `check:pr` runs them.
  *
  * Zero imports beyond node builtins, `lib/branches.ts`, `lib/health-step.ts`,
- * `lib/health-verdict.ts` and `lib/health-bot-refresh.ts` (builtins and the import-free
+ * `lib/health-verdict.ts`, `lib/convex-reachable.ts` and
+ * `lib/health-bot-refresh.ts` (builtins and the import-free
  * `lib/bot-globs.ts` only) — same constraint as bootstrap-worktree.
  */
 import { spawnSync } from "node:child_process";
@@ -74,11 +80,16 @@ import {
     type HealthStep,
 } from "./lib/health-step";
 import {
-    infraRecordToKeep,
+    convexPreflight,
+    INFRA_REMEDY,
+    infraCause,
+    PREFLIGHT_CONVEX_STEP,
     readLastSleepAt,
-    stepVerdict,
+    recordInfra,
     type HealthStatus,
+    type InfraCause,
 } from "./lib/health-verdict";
+import { reachable, readEnvLocal } from "./lib/convex-reachable";
 import {
     copyFileSync,
     existsSync,
@@ -99,6 +110,9 @@ interface LastRun {
     finishedAt?: string;
     failedStep?: string;
     log?: string;
+    /** `infra` only: why, and what to do (`INFRA_REMEDY`). */
+    infraCause?: InfraCause;
+    reason?: string;
 }
 
 function git(args: string[], cwd: string): string {
@@ -194,7 +208,7 @@ function status(root: string): never {
     if (!last) console.log("  no health run recorded yet");
     else
         console.log(
-            `  last: ${last.status.toUpperCase()} @ ${last.sha.slice(0, 8)} (started ${last.startedAt}${last.finishedAt ? `, finished ${last.finishedAt}` : ""})${last.failedStep ? ` — failed at ${last.failedStep}` : ""}${last.log ? `\n  log:  ${last.log}` : ""}`
+            `  last: ${last.status.toUpperCase()} @ ${last.sha.slice(0, 8)} (started ${last.startedAt}${last.finishedAt ? `, finished ${last.finishedAt}` : ""})${last.failedStep ? ` — failed at ${last.failedStep}` : ""}${last.reason ? `\n  why:  ${last.reason}` : ""}${last.log ? `\n  log:  ${last.log}` : ""}`
         );
     const stale = staleWorktrees(root);
     if (stale.length > 0) {
@@ -249,6 +263,33 @@ async function main(): Promise<void> {
     }
 
     const startedAt = new Date().toISOString();
+    const finishInfra = (
+        cause: InfraCause,
+        failedStep: string,
+        log: string | undefined
+    ): never => {
+        recordInfra<LastRun>({
+            dir,
+            infra: {
+                sha: tip,
+                status: "infra",
+                startedAt,
+                finishedAt: new Date().toISOString(),
+                failedStep,
+                infraCause: cause,
+                reason: INFRA_REMEDY[cause],
+                ...(log ? { log } : {}),
+            },
+            // Read before this run's `running` record overwrote it.
+            previous: last,
+            redMarkerStanding: existsSync(join(dir, "RED")),
+        });
+        console.error(
+            `health-main: INFRA @ ${tip.slice(0, 8)} at ${failedStep} — ${INFRA_REMEDY[cause]}${log ? ` — ${log}` : ""}`
+        );
+        process.exit(1);
+    };
+
     writeLast(dir, { sha: tip, status: "running", startedAt });
 
     const wt = join(root, "..", `tolaria-health-${process.pid}`);
@@ -264,6 +305,16 @@ async function main(): Promise<void> {
     // A Bot batch also owes the Bot-only gates (issue #4875), after the rest.
     const scripts = HEALTH_SCRIPTS;
     const gates = healthGates(scripts, refreshBot);
+    // The deployment `check:ui` needs, asked BEFORE ~40 minutes of gates
+    // (issue #4943) — the same probe `check:ui` makes, on the URL it reads.
+    const preflight = await convexPreflight({
+        gates,
+        url: process.env.VITE_CONVEX_URL ?? readEnvLocal(root).VITE_CONVEX_URL,
+        probe: (url) => reachable(url, 5000),
+    });
+    if (preflight !== null)
+        finishInfra(preflight, PREFLIGHT_CONVEX_STEP, undefined);
+
     const steps: HealthStep[] = gates.map((name, i) => ({
         ordinal: i + 1,
         total: gates.length,
@@ -280,7 +331,7 @@ async function main(): Promise<void> {
     }
 
     let failedStep: string | undefined;
-    let failedVerdict: "red" | "infra" = "red";
+    let failedCause: InfraCause | null = null;
     try {
         git(["worktree", "add", "--detach", wt, tip], root);
         for (const step of steps) {
@@ -289,12 +340,13 @@ async function main(): Promise<void> {
             if (!r.ok) {
                 failedStep = step.name;
                 // Read at once: a later sleep must not reach back to this step.
-                const verdict = stepVerdict({
+                failedCause = infraCause({
                     ok: false,
                     startedAt: stepStartedAt,
                     lastSleepAt: readLastSleepAt(),
+                    step: step.name,
+                    exitCode: r.status,
                 });
-                if (verdict !== "green") failedVerdict = verdict;
                 break;
             }
         }
@@ -335,28 +387,8 @@ async function main(): Promise<void> {
         spawnSync("git", ["worktree", "remove", "--force", wt], { cwd: root });
     }
 
-    if (failedStep && failedVerdict === "infra") {
-        writeLast(
-            dir,
-            infraRecordToKeep({
-                infra: {
-                    sha: tip,
-                    status: "infra",
-                    startedAt,
-                    finishedAt: new Date().toISOString(),
-                    failedStep,
-                    log: logPath,
-                },
-                // Read before this run's `running` record overwrote it.
-                previous: last,
-                redMarkerStanding: existsSync(join(dir, "RED")),
-            })
-        );
-        console.error(
-            `health-main: INFRA @ ${tip.slice(0, 8)} — the machine slept during ${failedStep}; the verdict is unproven, re-run \`bun run health\` awake — ${logPath}`
-        );
-        process.exit(1);
-    }
+    if (failedStep && failedCause !== null)
+        finishInfra(failedCause, failedStep, logPath);
 
     if (failedStep) {
         writeLast(dir, {
