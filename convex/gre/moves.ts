@@ -3017,7 +3017,7 @@ export function enumerateCastMoves(
  *     `planManaPayment` plans no hybrid pip at all, so the Move would carry an
  *     empty tap plan for a cost the caster may not be able to pay.
  *  All three are left unenumerated (dead for the Bot, never a freeze).
- *  tracked-by: #4935 (permanent leg), #4936 (hybrid pips)
+ *  tracked-by: #4935 (permanent leg), #4934 (hybrid pips)
  *
  *  Hand casts only: a cast from any other zone is already priced by that
  *  zone's own alternative (flashback, escape, a permission — `castRawManaCost`),
