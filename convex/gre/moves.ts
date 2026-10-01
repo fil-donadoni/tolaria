@@ -46,6 +46,7 @@ import {
 } from "./state";
 import { deriveXFromTargetSpellMv, resolveAbilityManaCost } from "./activation";
 import { classLevelActivationViolation } from "../cards/abilities/classLevels";
+import { EVOKE_SACRIFICE_TRIGGER_ID } from "../cards/abilities/evoke";
 import { activationPreconditionViolation } from "./activationPrecondition";
 import {
     affordableAlternativeCosts,
@@ -3044,7 +3045,49 @@ function searchPayableOwnAlternativeCosts(
             ownIds.has(a.id) &&
             a.permanent === undefined &&
             (a.energy ?? 0) === 0 &&
-            (a.mana?.hybrid?.length ?? 0) === 0
+            (a.mana?.hybrid?.length ?? 0) === 0 &&
+            !(
+                a.id === def.evoke?.id &&
+                evokeCastIsWasteful(state, player, card, def)
+            )
+    );
+}
+
+/** Bot-only prune (issue #4900, the #938 copy-on-ETB precedent) — an EVOKE
+ *  cast is legal but strictly wasteful when none of the card's own triggered
+ *  abilities can do anything: CR 702.74a sacrifices the permanent as it
+ *  enters, so the cast trades the card (and a pitched one) for its ETB
+ *  triggers alone, and a trigger whose every effect lands on a target does
+ *  nothing with no legal target (Subtlety with no creature spell on the
+ *  stack, Solitude with no other creature). Offered anyway, it is a strictly
+ *  bad child at EVERY Bot decision node where the card sits in hand, and the
+ *  tree's exploration of it drags every line's mean reward down (measured on
+ *  the issue #4217 Snapcaster pair: −0.12 on all three root candidates).
+ *
+ *  Conservative, from card data alone: the cast is kept unless EVERY
+ *  triggered ability other than the evoke sacrifice declares a single
+ *  `targetRequirement`, no modes, and no legal target on the current board.
+ *  A trigger with no target requirement (Grief-style "target opponent" always
+ *  has one; a draw or a search has none) keeps the cast. CR legality is
+ *  unchanged — this only constrains the Bot's move generation, never a
+ *  human/server cast. */
+function evokeCastIsWasteful(
+    state: GameState,
+    player: PlayerState,
+    card: CardInstanceState,
+    def: CardDefinition
+): boolean {
+    const own = (def.triggeredAbilities ?? []).filter(
+        (t) => t.id !== EVOKE_SACRIFICE_TRIGGER_ID
+    );
+    if (own.length === 0) return false;
+    const source = targetingSourceFromCard(card, false);
+    return own.every(
+        (t) =>
+            t.targetRequirement !== undefined &&
+            !(t.modes && t.modes.length > 0) &&
+            getLegalTargets(state, t.targetRequirement, source, player.id)
+                .length === 0
     );
 }
 

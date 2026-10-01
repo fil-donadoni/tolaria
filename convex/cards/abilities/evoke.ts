@@ -35,12 +35,17 @@
 import type { TriggeredAbility } from "../types";
 import { enteredTrigger } from "./triggers/enteredTrigger";
 
+/** The id `evokeTrigger` gives the sacrifice trigger, so a reader can tell it
+ *  from the card's own ETB abilities (the Bot's evoke-cast prune,
+ *  `gre/moves.ts`, issue #4900). */
+export const EVOKE_SACRIFICE_TRIGGER_ID = "evoke-sacrifice";
+
 /** Builds the Evoke sacrifice trigger (CR 702.74a). Add alongside the card's
  *  own ETB triggered ability/abilities. `cardName` feeds the oracle-text
  *  reminder shown on the stack. */
 export function evokeTrigger(cardName: string): TriggeredAbility {
     return enteredTrigger({
-        id: "evoke-sacrifice",
+        id: EVOKE_SACRIFICE_TRIGGER_ID,
         oracleText: `When ${cardName} enters, if its evoke cost was paid, sacrifice it.`,
         scope: "self",
         // Declared as `conditionOnSelf` (issue #1936), not `condition`: the

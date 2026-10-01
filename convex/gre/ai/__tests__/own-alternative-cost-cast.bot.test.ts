@@ -107,6 +107,23 @@ describe("own alternative cost cast (issue #4900, CR 118.9 / 702.74a)", () => {
         expect(onStackOrField?.evoked).toBe(true);
     });
 
+    it("CR 702.74a — an evoke whose every ETB trigger has no legal target is pruned (the body is sacrificed for nothing)", () => {
+        // Solitude's only ETB exiles "up to one OTHER target creature": with
+        // no creature on the battlefield the evoke trades two cards for
+        // nothing, and the Bot never offers it.
+        const state = build({
+            cards: [
+                { name: "Solitude", owner: "me", zone: "hand" },
+                { name: "Savannah Lions", owner: "me", zone: "hand" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            landCount: 0,
+            libraryCount: 20,
+        });
+        expect(castsOf(state, "Solitude")).toEqual([]);
+    });
+
     it("fail closed — a hybrid evoke (unplannable by `planManaPayment`) is not offered on zero lands", () => {
         const state = build({
             cards: [{ name: "Wistfulness", owner: "me", zone: "hand" }],

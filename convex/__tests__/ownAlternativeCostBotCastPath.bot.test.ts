@@ -18,6 +18,7 @@ import { describe, expect, it } from "vitest";
 import { announceCast, selectCastAlternativeHandCost } from "../game";
 import { solitude } from "../cards/sets/mh2/white.cards";
 import { savannahLions, serraAngel } from "../cards/sets/lea/white.cards";
+import { grizzlyBears } from "../cards/sets/lea/green.cards";
 import {
     makeInstance,
     makePlayer,
@@ -40,7 +41,8 @@ const GAME_ID = "game-1" as Id<"games">;
 
 /** p1 has no lands and holds Solitude plus TWO white cards, so the evoke's
  *  "exile a white card" is a real choice: the server parks it rather than
- *  auto-resolving it. */
+ *  auto-resolving it. p2's Grizzly Bears gives Solitude's ETB a target — an
+ *  evoke with none is pruned (`evokeCastIsWasteful`). */
 function pitchState(): GameState {
     const inHand = (id: string, cardId: string) =>
         makeInstance(cardId, {
@@ -58,7 +60,15 @@ function pitchState(): GameState {
                     inHand("lions", savannahLions.id),
                 ],
             }),
-            makePlayer("p2"),
+            makePlayer("p2", {
+                battlefield: [
+                    makeInstance(grizzlyBears.id, {
+                        id: "bears",
+                        controllerId: "p2",
+                        ownerId: "p2",
+                    }),
+                ],
+            }),
         ],
         activePlayerId: "p1",
         priorityPlayerId: "p1",
