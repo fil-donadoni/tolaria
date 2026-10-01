@@ -1629,7 +1629,7 @@ const orderTopCandidates: ChoiceCandidateGenerator = (state, choice) => {
  *
  *  POLARITY, as for `order-top`: the worth is priced for the LIBRARY OWNER
  *  (it is their hand or their next draw), and a chooser who is not the owner
- *  (CR 401.4 with an opponent choosing — "an opponent chooses one of them")
+ *  (an opponent choosing from the owner's window — "an opponent chooses one of them")
  *  ranks it the other way round.
  *
  *  The window must still be the library's top run, as for `order-top`: the
