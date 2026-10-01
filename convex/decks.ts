@@ -40,11 +40,20 @@ const formatValidator = v.union(
 // `seedPresets` migration below — it is no longer read at runtime by `list`.
 // Do not "clean it up": deleting it would break the seed.
 
-// Validators mirroring the `presetDecks` row shape, used for `returns:`.
+// A deck card as a caller WRITES it: `definitionId` may be omitted, and
+// `withDefinitionId` fills it before the row is stored (issue #4117).
 const deckCardValidator = v.object({
     cardId: v.string(),
     cardName: v.string(),
     definitionId: v.optional(v.string()),
+});
+
+// A deck card as the `presetDecks` row STORES it, used for `returns:` —
+// `definitionId` required, mirroring the narrowed schema (issue #4386).
+const storedDeckCardValidator = v.object({
+    cardId: v.string(),
+    cardName: v.string(),
+    definitionId: v.string(),
 });
 
 // A single legality failure reason mirroring `formats.Reason` (ADR 0036).
@@ -59,8 +68,8 @@ const lobbyPresetValidator = v.object({
     format: formatValidator,
     description: v.string(),
     colors: v.array(v.string()),
-    cards: v.array(deckCardValidator),
-    sideboard: v.optional(v.array(deckCardValidator)),
+    cards: v.array(storedDeckCardValidator),
+    sideboard: v.optional(v.array(storedDeckCardValidator)),
     // Featured Card (PRD #589, issue #593). The resolved Card ID representing
     // the deck's art in the lobby (override-or-default, via
     // `resolveFeaturedCardId`). `null` for an empty deck. Resolved server-side
@@ -76,14 +85,20 @@ const lobbyPresetValidator = v.object({
 // The shape `list` returns to the lobby. Kept identical to the old in-code
 // `DeckPreset` (notably the public id field is `presetId` === the slug), so
 // the wire format and every frontend consumer are unchanged.
+/** A Maindeck/Sideboard entry as STORED on a `userDecks` / `presetDecks` row
+ *  (issue #4386): `definitionId` is required by the schema, so this type is
+ *  derived from it rather than restated. The WRITE shape (`definitionId`
+ *  optional, filled by `withDefinitionId`) is `deckCardValidator` below. */
+export type StoredDeckCard = Doc<"presetDecks">["cards"][number];
+
 export interface LobbyPreset {
     presetId: string;
     name: string;
     format: FormatId;
     description: string;
     colors: string[];
-    cards: DeckCard[];
-    sideboard?: DeckCard[];
+    cards: StoredDeckCard[];
+    sideboard?: StoredDeckCard[];
     // Resolved Featured Card ID (PRD #589, issue #593) — override-or-default,
     // `null` for an empty deck. Resolved server-side so the lobby renders deck
     // art without re-running the resolver.

@@ -29,8 +29,16 @@ const DECK: LobbyDeck = {
     format: "old-school",
     colors: ["W"],
     cards: [
-        { cardId: SAVANNAH_LIONS, cardName: "Savannah Lions" },
-        { cardId: SAVANNAH_LIONS, cardName: "Savannah Lions" },
+        {
+            cardId: SAVANNAH_LIONS,
+            cardName: "Savannah Lions",
+            definitionId: SAVANNAH_LIONS,
+        },
+        {
+            cardId: SAVANNAH_LIONS,
+            cardName: "Savannah Lions",
+            definitionId: SAVANNAH_LIONS,
+        },
     ],
     featuredCardId: null,
     isLegal: true,

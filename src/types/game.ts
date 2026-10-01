@@ -124,12 +124,19 @@ export type DeckCard = {
     /** The card's identity (Card Prints, ADR 0140/issue #4117) — `cardId`
      *  above is the chosen PRINTING and stays unrenamed (it predates the
      *  split and ~100 call sites read it that way); `definitionId` is the
-     *  new, additive field the deck builder's edition selector uses to query
-     *  `cardPrints`. Optional here too: a row saved before this slice, or a
-     *  caller that has not been updated, omits it and the server backfills
-     *  it (`convex/cards/catalogue.ts`'s `withDefinitionId`). */
+     *  field the deck builder's edition selector uses to query `cardPrints`.
+     *
+     *  Optional HERE because this is the WRITE / working shape: a Full
+     *  Catalogue entry, a Limited Pool card or an imported line does not know
+     *  its definition client-side, and inventing one (`cardId`) would store a
+     *  printing under the definition field for good. The server fills it on
+     *  every write (`convex/cards/catalogue.ts`'s `withDefinitionId`), so a
+     *  STORED row always carries it — read those as {@link StoredDeckCard}
+     *  (issue #4386). */
     definitionId?: string;
 };
+
+export type { StoredDeckCard } from "@convex/decks";
 
 /**
  * A Maindeck/Sideboard entry that remembers WHICH PHYSICAL COPY it is (ADR

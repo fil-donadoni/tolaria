@@ -4,7 +4,6 @@
 // empty Sideboard, not crash.
 import { describe, it, expect } from "vitest";
 import type { Doc } from "@convex/_generated/dataModel";
-import type { DeckPreset } from "@convex/deckPresets";
 import type { Reason } from "@convex/formats";
 import {
     toUserLobbyDeck,
@@ -63,13 +62,15 @@ describe("toUserLobbyDeck (issue #391 backward compatibility)", () => {
 });
 
 describe("toPresetLobbyDeck (issue #391)", () => {
-    const base: DeckPreset = {
+    const base: Parameters<typeof toPresetLobbyDeck>[0] = {
         presetId: "p1",
         name: "Preset",
         format: "freeform",
         description: "",
         colors: ["W"],
-        cards: [{ cardId: "plains", cardName: "Plains" }],
+        cards: [
+            { cardId: "plains", cardName: "Plains", definitionId: "plains" },
+        ],
     };
 
     it("defaults a preset without a sideboard to an empty Sideboard", () => {
@@ -79,9 +80,11 @@ describe("toPresetLobbyDeck (issue #391)", () => {
     it("carries a preset sideboard through unchanged", () => {
         const deck = toPresetLobbyDeck({
             ...base,
-            sideboard: [{ cardId: "x", cardName: "X" }],
+            sideboard: [{ cardId: "x", cardName: "X", definitionId: "x" }],
         });
-        expect(deck.sideboard).toEqual([{ cardId: "x", cardName: "X" }]);
+        expect(deck.sideboard).toEqual([
+            { cardId: "x", cardName: "X", definitionId: "x" },
+        ]);
     });
 });
 
@@ -150,7 +153,13 @@ describe("derived deck legality on lobby decks (ADR 0036, issue #512)", () => {
             format: "old-school",
             description: "",
             colors: [],
-            cards: [{ cardId: BOLT_LEA, cardName: "Lightning Bolt" }],
+            cards: [
+                {
+                    cardId: BOLT_LEA,
+                    cardName: "Lightning Bolt",
+                    definitionId: BOLT_LEA,
+                },
+            ],
         });
         expect(deck.isLegal).toBe(false);
     });
@@ -234,7 +243,13 @@ describe("Featured Card on lobby decks (PRD #589, issue #593)", () => {
             format: "freeform",
             description: "",
             colors: ["R"],
-            cards: [{ cardId: "bolt", cardName: "Lightning Bolt" }],
+            cards: [
+                {
+                    cardId: "bolt",
+                    cardName: "Lightning Bolt",
+                    definitionId: "bolt",
+                },
+            ],
             featuredCardId: "bolt",
         });
         expect(deck.featuredCardId).toBe("bolt");
@@ -247,7 +262,13 @@ describe("Featured Card on lobby decks (PRD #589, issue #593)", () => {
             format: "freeform",
             description: "",
             colors: ["W"],
-            cards: [{ cardId: "lions", cardName: "Savannah Lions" }],
+            cards: [
+                {
+                    cardId: "lions",
+                    cardName: "Savannah Lions",
+                    definitionId: "lions",
+                },
+            ],
         });
         expect(deck.featuredCardId).toBe("lions");
     });
@@ -261,7 +282,13 @@ describe("selectPreset — null-safe stored-selection fallback (issue #470)", ()
             format: "freeform",
             description: "",
             colors: ["R"],
-            cards: [{ cardId: "bolt", cardName: "Lightning Bolt" }],
+            cards: [
+                {
+                    cardId: "bolt",
+                    cardName: "Lightning Bolt",
+                    definitionId: "bolt",
+                },
+            ],
         }),
         toPresetLobbyDeck({
             presetId: "white-weenie",
@@ -269,7 +296,13 @@ describe("selectPreset — null-safe stored-selection fallback (issue #470)", ()
             format: "freeform",
             description: "",
             colors: ["W"],
-            cards: [{ cardId: "lions", cardName: "Savannah Lions" }],
+            cards: [
+                {
+                    cardId: "lions",
+                    cardName: "Savannah Lions",
+                    definitionId: "lions",
+                },
+            ],
         }),
     ];
 
