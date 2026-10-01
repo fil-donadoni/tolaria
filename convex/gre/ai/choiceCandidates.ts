@@ -1616,7 +1616,7 @@ const orderTopCandidates: ChoiceCandidateGenerator = (state, choice) => {
  *  worse, a wall for every settle: `choiceCandidates` answered `[]`, the 1-ply
  *  probe bailed on the suspended resolution, and whatever the SAME resolution
  *  does after the keep never reached a scored state. Thassa's Oracle is the
- *  sharp shape: its win check (CR 104.2a) is the Op after the keep, so a cast
+ *  sharp shape: its win check (CR 104.2b) is the Op after the keep, so a cast
  *  that wins on the spot read as a 1/3 body.
  *
  *  The answers are the search-library ones (property 1): one candidate LED BY
