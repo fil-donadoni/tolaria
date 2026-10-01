@@ -112,15 +112,28 @@ function main(): void {
         projectNumber: PROJECT_NUMBER,
         repo: PROJECT_REPO,
     });
-    // Read back: the write is the whole point, so prove it landed.
-    const after = fetchBoardPriority({
-        owner: PROJECT_OWNER,
-        projectNumber: PROJECT_NUMBER,
-        repo: PROJECT_REPO,
-        onError: (message) => {
-            throw new Error(message.split("\n")[0]);
-        },
-    })[to];
+    // Read back: the write is the whole point, so prove it landed. The board
+    // can lag a write by a moment, so a mismatch is retried before it counts.
+    let after: BoardPriority | undefined;
+    for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+            after = fetchBoardPriority({
+                owner: PROJECT_OWNER,
+                projectNumber: PROJECT_NUMBER,
+                repo: PROJECT_REPO,
+                onError: (message) => {
+                    throw new Error(message.split("\n")[0]);
+                },
+            })[to];
+        } catch (err) {
+            console.error(
+                `issue:inherit-band: wrote ${plan.band} on issue #${to}, but the read-back failed: ${(err as Error).message}`
+            );
+            process.exit(1);
+        }
+        if (after === plan.band) break;
+        Bun.sleepSync(1500);
+    }
     if (after !== plan.band) {
         console.error(
             `issue:inherit-band: wrote ${plan.band} on issue #${to} but the board reads ${after ?? "nothing"}`
@@ -128,7 +141,7 @@ function main(): void {
         process.exit(1);
     }
     console.log(
-        `issue:inherit-band: issue #${to} ← ${plan.band} (band of issue #${from})`
+        `issue:inherit-band: issue #${to} ← ${plan.band} (band of issue #${from}); its body's ## Band should say "${plan.band} — inherited from issue #${from}"`
     );
 }
 

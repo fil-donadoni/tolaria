@@ -332,7 +332,7 @@ An abort is two acts, in this order (issue #4752):
 
 ### An issue this session files inherits its band
 
-Every issue the session files — an abort prerequisite, a follow-up split off
+Every issue the session files by hand — an abort prerequisite, a follow-up split off
 an acceptance criterion this PR cannot meet, a defect found on the way — takes
 the band of the issue being worked, straight after `gh issue create`
 (owner rule, issue #4928):

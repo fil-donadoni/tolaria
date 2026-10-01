@@ -32,6 +32,15 @@ describe("issue:inherit-band (issue #4928)", () => {
         expect(plan).toEqual({ kind: "write", band: "P1" });
     });
 
+    it("a CLOSED umbrella does not govern: the worked issue's own band", () => {
+        const plan = planInheritance(
+            10,
+            11,
+            deps({ 10: "P1", 1: "P0" }, { 10: { number: 1, state: "CLOSED" } })
+        );
+        expect(plan).toEqual({ kind: "write", band: "P1" });
+    });
+
     it("refuses when the worked issue has no band", () => {
         const plan = planInheritance(10, 11, deps({}));
         expect(plan.kind).toBe("refuse");
