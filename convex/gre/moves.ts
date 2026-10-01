@@ -2984,11 +2984,23 @@ export function enumerateCastMoves(
               enumerateCastMovesFromZone(state, player, card, {
                   ...opts,
                   chosenAltCost: alt,
-              }).map((m) =>
-                  m.kind === "cast-spell"
-                      ? { ...m, alternativeCostId: alt.id }
-                      : m
-              )
+              })
+                  // Bot-only prune (issue #4900 review) — a pitch that
+                  // DECLINES every target of an "up to" spell (Force of
+                  // Vigor with nothing to destroy) trades its cards for
+                  // nothing; offered anyway it dilutes every line's mean the
+                  // way a target-less evoke does (`evokeCastIsWasteful`).
+                  .filter(
+                      (m) =>
+                          m.kind !== "cast-spell" ||
+                          m.targets.length > 0 ||
+                          !castDefinitionHasSpellTarget(card)
+                  )
+                  .map((m) =>
+                      m.kind === "cast-spell"
+                          ? { ...m, alternativeCostId: alt.id }
+                          : m
+                  )
           );
     const moves = [...printedMoves, ...ownAltMoves, ...permissionMoves];
     if (castFromZone === "hand") return moves;
@@ -3033,6 +3045,12 @@ function searchPayableOwnAlternativeCosts(
     if (castFromZone !== "hand" || lifeInsteadOfMana !== undefined) return [];
     const def = tryGetDefinition((card.card as { id?: string }).id ?? "");
     if (!def || !offersPrintedCast(def)) return [];
+    // The live cast merges every hand leg it owes — the alternative cost's
+    // and an additional cost's discard — into ONE picker
+    // (`buildCastHandCostChoice`), while the search charges the alternative
+    // leg alone (`applyAlternativeCostHandLegForSearch`): the two could
+    // charge different cards. No shipped card carries both, so fail closed.
+    if (def.additionalCosts !== undefined) return [];
     const ownIds = new Set(
         [
             ...(def.alternativeCosts ?? []),
@@ -3050,6 +3068,17 @@ function searchPayableOwnAlternativeCosts(
                 a.id === def.evoke?.id &&
                 evokeCastIsWasteful(state, player, card, def)
             )
+    );
+}
+
+/** Whether `card`'s definition announces a SPELL-level target group (the
+ *  printed `targetRequirement` or a mode's), for the zero-target pitch prune
+ *  in `enumerateCastMoves`. */
+function castDefinitionHasSpellTarget(card: CardInstanceState): boolean {
+    const def = tryGetDefinition((card.card as { id?: string }).id ?? "");
+    return (
+        def?.targetRequirement !== undefined ||
+        (def?.modes ?? []).some((m) => m.targetRequirement !== undefined)
     );
 }
 

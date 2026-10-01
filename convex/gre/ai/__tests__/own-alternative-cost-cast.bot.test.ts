@@ -124,6 +124,59 @@ describe("own alternative cost cast (issue #4900, CR 118.9 / 702.74a)", () => {
         expect(castsOf(state, "Solitude")).toEqual([]);
     });
 
+    it("CR 118.9 / 119.4 — a targeted pitch (Force of Will) is enumerated against the spell and charges its life and its blue card", () => {
+        const state = build({
+            cards: [
+                { name: "Force of Will", owner: "me", zone: "hand" },
+                { name: "Brainstorm", owner: "me", zone: "hand" },
+            ],
+            stack: [
+                { kind: "spell", name: "Ancestral Recall", controller: "opp" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 4,
+            landCount: 0,
+            libraryCount: 20,
+            activePlayer: "opp",
+            priority: "me",
+        });
+        const casts = castsOf(state, "Force of Will");
+        expect(casts).toHaveLength(1);
+        const [cast] = casts;
+        expect(cast.alternativeCostId).toBe("pitch-pay-1-life-exile-blue");
+        expect(cast.targets).toHaveLength(1);
+        expect(cast.payLife).toBe(1);
+        const after = applyMoveForSearch(state, me(state).id, cast);
+        expect(me(after).life).toBe(me(state).life - 1);
+        expect(me(after).exile.map(cardName)).toEqual(["Brainstorm"]);
+    });
+
+    it('issue #4900 review — a pitch that would decline every target of an "up to" spell is pruned (Force of Vigor with nothing to destroy)', () => {
+        const spec = (
+            oppPermanents: { name: string; owner: "opp"; zone: "battlefield" }[]
+        ) =>
+            build({
+                cards: [
+                    { name: "Force of Vigor", owner: "me", zone: "hand" },
+                    { name: "Grizzly Bears", owner: "me", zone: "hand" },
+                    ...oppPermanents,
+                ],
+                phase: "PRECOMBAT_MAIN",
+                turn: 4,
+                landCount: 0,
+                libraryCount: 20,
+                activePlayer: "opp",
+                priority: "me",
+            });
+        expect(castsOf(spec([]), "Force of Vigor")).toEqual([]);
+        const withTarget = castsOf(
+            spec([{ name: "Sol Ring", owner: "opp", zone: "battlefield" }]),
+            "Force of Vigor"
+        );
+        expect(withTarget.length).toBeGreaterThan(0);
+        expect(withTarget.every((m) => m.targets.length > 0)).toBe(true);
+    });
+
     it("fail closed — a hybrid evoke (unplannable by `planManaPayment`) is not offered on zero lands", () => {
         const state = build({
             cards: [{ name: "Wistfulness", owner: "me", zone: "hand" }],
