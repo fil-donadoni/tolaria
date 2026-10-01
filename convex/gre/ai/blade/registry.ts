@@ -8800,10 +8800,10 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         // SACRIFICE-OUTLET reachability (CR 701.21a, issue #4261). The bot's
-        // precombat main, a Grizzly Bears on each side, Nantuko Husk in hand
-        // and five untapped Swamps for its {2}{B}: a 2/2 body that can turn
-        // any creature into +2/+2 until end of turn. Casting it is strictly
-        // better than holding it.
+        // postcombat main (below), a Grizzly Bears on each side, Nantuko Husk
+        // in hand and five untapped Swamps for its {2}{B}: a 2/2 body that can
+        // turn any creature into +2/+2 until end of turn. Casting it is
+        // strictly better than holding it.
         //
         // Before the fix the cast edge read WORSE than `pass` on every seed:
         // the tree opened a "sacrifice a creature" child at each node after
@@ -8812,6 +8812,16 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // mana instead of a creature was cast. Fixed by class, not by card:
         // `isDeferrableTransientSacrifice` and `isTransientSacrificeConversion`
         // (`search.ts`).
+        //
+        // POSTCOMBAT, not the sweep's precombat main (issue #4877, the shape
+        // of issue #4777). There `pass` is not "don't cast": the rollout casts
+        // the Husk in the postcombat main, both edges reach the same leaf, and
+        // the root pick was rollout noise (`pass` on 3 of seeds 0..9, every
+        // pick `material-tiebreak`, the two edges within 0.003 reward). Here
+        // `pass` forgoes the deploy for the turn: 10/10 cast on seeds 0..9 at
+        // this budget and at 200, under the committed weights and both ±1%
+        // jitter vectors. The precombat pick stays covered by the sweep itself
+        // (`botReach.bot.test.ts`), which asks "ever played?", not "cast now?".
         label: "Sacrifice outlet with a transient payoff: casts the creature",
         spec: {
             cards: [
@@ -8830,16 +8840,14 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
                 { name: "Castle", owner: "opp", zone: "battlefield" },
                 { name: "Grizzly Bears", owner: "opp", zone: "graveyard" },
             ],
-            phase: "PRECOMBAT_MAIN",
+            phase: "POSTCOMBAT_MAIN",
             turn: 3,
             libraryCount: 20,
         },
         bot: "me",
-        // The Bot-play sweep's own position, budget and seeds
-        // (`botReachSpec`, `BOT_REACH_BUDGET`): a REACHABILITY claim, the
-        // verdict `oracle:compile` measures. At a larger budget `pass` edges
-        // ahead again by ~1.5% of mean reward on this board, so the entry
-        // states what the issue measures and no more.
+        // The Bot-play sweep's board, budget and seeds (`botReachSpec`,
+        // `BOT_REACH_BUDGET`): a REACHABILITY claim, the verdict
+        // `oracle:compile` measures.
         budget: { iterations: 48 },
         seeds: [0xb07, 0x5eed],
         tier: "must",
@@ -8974,7 +8982,8 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         // SACRIFICE-FOR-REMOVAL reachability (CR 701.21a, issue #4272). The
-        // sweep's own position for a creature whose only ability is "Sacrifice
+        // sweep's own board, moved to the postcombat main (below), for a
+        // creature whose only ability is "Sacrifice
         // this creature: it deals 1 damage to target creature": Frostling in
         // hand, three Mountains, a spare body on each side.
         //
@@ -8986,6 +8995,14 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // mean margin under `pass`'s for a creature the static leaf ranks
         // higher. Fixed by class, not by card: `isRemovalExchangeSacrifice`
         // (`search.ts`).
+        //
+        // POSTCOMBAT, not the sweep's precombat main (issue #4877, the shape
+        // of issue #4777): there the rollout casts Frostling in the postcombat
+        // main after `pass`, the two edges reach the same leaf (within 0.001
+        // reward), and the pick was rollout noise. Here `pass` forgoes the
+        // deploy for the turn: 10/10 cast on seeds 0..9 under the committed
+        // weights and both ±1% jitter vectors. The precombat pick stays
+        // covered by the sweep (`botReach.bot.test.ts`).
         label: "Sacrifice-for-removal outlet: casts the creature",
         spec: {
             cards: [
@@ -9002,19 +9019,18 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
                 { name: "Castle", owner: "opp", zone: "battlefield" },
                 { name: "Grizzly Bears", owner: "opp", zone: "graveyard" },
             ],
-            phase: "PRECOMBAT_MAIN",
+            phase: "POSTCOMBAT_MAIN",
             turn: 3,
             libraryCount: 20,
         },
         bot: "me",
-        // The Bot-play sweep's own position at four times its budget — a
+        // The Bot-play sweep's board at four times its budget — a
         // REACHABILITY claim, so a PREDICATE, kept out of the weight fit for
         // the reason the Nantuko Husk entry gives.
         budget: { iterations: 200 },
-        // Re-seeded 0x5eed → 4 on issue #4761's promotion refit: a noise pin
-        // (19/20 seeds cast on the refit vector, 20/20 on the one before),
-        // not a valuation change — follow-up issue #4804.
-        seeds: [0xb07, 4, 1, 2, 3],
+        // 0x5eed restored (issue #4877): issue #4761's refit had re-seeded it
+        // to 4 as a noise pin, which the postcombat board no longer is.
+        seeds: [0xb07, 0x5eed, 1, 2, 3],
         tier: "must",
         expect: {
             predicate: (move, state) =>
