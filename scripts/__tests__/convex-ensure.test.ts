@@ -203,14 +203,20 @@ describe("convex:ensure — the backend is down", () => {
             "--instance-name",
             `test-none-${process.pid}-${port}`,
             "--start-cmd",
-            JSON.stringify(["sh", "-c", "echo kaboom-from-convex-dev; exit 3"]),
+            // The output is assembled at run time so it never appears in the
+            // argv the failure line also quotes: only the log tail carries it.
+            JSON.stringify([
+                "sh",
+                "-c",
+                "printf 'kab%s\\n' oom-from-the-log; exit 3",
+            ]),
             "--start-timeout-ms",
             "3000",
         ]);
         expect(r.code).toBe(1);
         expect(r.stderr).toMatch(/FAILED/);
         expect(r.stderr).toMatch(/exited/);
-        expect(r.stderr).toMatch(/kaboom-from-convex-dev/);
+        expect(r.stderr).toMatch(/kaboom-from-the-log/);
     });
 });
 
