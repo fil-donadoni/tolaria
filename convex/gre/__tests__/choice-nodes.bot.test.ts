@@ -239,7 +239,11 @@ describe("choice-node candidate contract (CR 608.2 / ADR 0016, issue #1425)", ()
         // shipped shape is ZERO: unregistered, the bot would decline every one
         // of these and the card would simply not happen.
         expect(hasChoiceCandidateGenerator("number-pick")).toBe(true);
-        expect(Object.keys(CHOICE_CANDIDATE_GENERATORS).length).toBe(15);
+        // CR 401.4 (issue #4899) — the keep-and-distribute look. Unregistered,
+        // the settle stopped at the keep and never scored the Ops after it
+        // (Thassa's Oracle's win check).
+        expect(hasChoiceCandidateGenerator("look-distribute")).toBe(true);
+        expect(Object.keys(CHOICE_CANDIDATE_GENERATORS).length).toBe(16);
     });
 
     it("searchable is per-CHOICE, not per-kind: a mandatory hand pick is not a node (PR #1914 review finding 2)", () => {
