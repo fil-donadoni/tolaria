@@ -1121,6 +1121,47 @@
         "landCount": 4,
         "libraryCount": 20
     },
+    "opponent's choice: casts Mind Rot into a two-card hand": {
+        "cards": [
+            {
+                "name": "Mind Rot",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Grizzly Bears",
+                "owner": "opp",
+                "zone": "hand"
+            },
+            {
+                "name": "Hill Giant",
+                "owner": "opp",
+                "zone": "hand"
+            },
+            {
+                "name": "Grizzly Bears",
+                "owner": "opp",
+                "zone": "library",
+                "count": 10
+            },
+            {
+                "name": "Hill Giant",
+                "owner": "opp",
+                "zone": "library",
+                "count": 10
+            },
+            {
+                "name": "Swamp",
+                "owner": "me",
+                "zone": "library",
+                "count": 20
+            }
+        ],
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 5,
+        "landCount": 4,
+        "libraryCount": 0
+    },
     "opponent's choice: casts Ravenous Rats into a two-card hand": {
         "cards": [
             {

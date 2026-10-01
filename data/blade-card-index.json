@@ -300,6 +300,13 @@
             "needsSetup": false
         }
     ],
+    "Mind Rot": [
+        {
+            "label": "opponent's choice: casts Mind Rot into a two-card hand",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
     "Mother of Runes": [
         {
             "label": "activation payoff: Mother of Runes protects itself against removal on the stack",
