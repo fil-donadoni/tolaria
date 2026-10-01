@@ -1280,9 +1280,9 @@ function scoreLeaf(
     };
 }
 
-/** Bound on consecutive forced answers in one `advanceToDecision` call: one
- *  resolution can raise another mandatory discard (a second Op), never an
- *  unbounded chain, so this only stops a malformed loop. */
+/** Bound on consecutive forced answers in one `advanceToDecision` call. A
+ *  resolution can raise a second mandatory discard, and a cleanup discard can
+ *  follow one, never an unbounded chain, so this only stops a malformed loop. */
 const MAX_FORCED_ANSWERS = 8;
 
 /** Issue #4917 — `decidingPlayer`, after answering every head choice the
@@ -1295,11 +1295,16 @@ const MAX_FORCED_ANSWERS = 8;
  *  the mana tapped, the discard not yet made. Issue #4896 answered it in the
  *  1-ply policy probe; the tree walk and the rollout kept stopping, so a Mind
  *  Rot line was truncated at its own resolution while `pass` played on to the
- *  horizon. The answer is not a decision node (no edge, no statistics): it is
- *  one deterministic function of the world, like an automatic resolution
- *  step, so the decision after it hangs off the same tree node. */
+ *  horizon. The cleanup discard to hand size (CR 514.1) is the same shape and
+ *  is answered too: a line that reached an over-full cleanup used to stop and
+ *  score the hand before the discard.
+ *
+ *  The answer is not a decision node (no edge, no statistics): it is one
+ *  deterministic function of the world, like a hidden draw, so the decision
+ *  after it hangs off the same tree node. An answer the engine refuses hands
+ *  back `null` — the old stop — rather than aborting the search. */
 export function advanceToDecision(state: GameState): string | null {
-    for (let i = 0; i <= MAX_FORCED_ANSWERS; i++) {
+    for (let i = 0; i < MAX_FORCED_ANSWERS; i++) {
         const pid = decidingPlayer(state);
         if (pid) return pid;
         if (
@@ -1314,9 +1319,13 @@ export function advanceToDecision(state: GameState): string | null {
         if (!head) return null;
         const forced = forcedChoiceAnswer(state, head);
         if (!forced) return null;
-        applyMoveInSearch(state, head.playerId, forced);
+        try {
+            applyMoveInSearch(state, head.playerId, forced);
+        } catch {
+            return null;
+        }
     }
-    return null;
+    return decidingPlayer(state);
 }
 
 /** Play `state` forward to a stable leaf with a cheap policy, then score it.
@@ -1354,7 +1363,7 @@ function rolloutEpsilonFor(state: GameState, weights: EvalWeights): number {
     return anyHeld ? weights.rolloutEpsilonReactive : weights.rolloutEpsilon;
 }
 
-function rollout(
+export function rollout(
     state: GameState,
     botId: string,
     rng: () => number,
@@ -1382,6 +1391,9 @@ function rollout(
 
         const pid = advanceToDecision(state);
         if (!pid) break;
+        // A forced answer can cross a turn boundary (the cleanup discard, CR
+        // 514.1): run the horizon checks above on the new turn first.
+        if (state.turn !== lastTurn) continue;
         const moves = enumerateMoves(state, pid);
         if (moves.length === 0) break;
 

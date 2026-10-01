@@ -9650,10 +9650,11 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
                 { name: "Hill Giant", owner: "opp", zone: "hand" },
                 // Issue #4917 — the search re-deals the opponent's hand from
                 // the unseen pool, so the two creatures above are priced as
-                // the pool: twenty filler basics alone, and Mind Rot read as
-                // two lands discarded (16) for a card in hand (40). Stocking
-                // the library with the same creatures is what makes "two
-                // cards for one" the position the Bot actually deduces.
+                // the pool: with `libraryCount: 20` that was twenty filler
+                // basics, and Mind Rot read as two lands discarded (16) for a
+                // card in hand (40). No filler now — the opponent's library is
+                // the same creatures, the Bot's own is Swamps — so "two cards
+                // for one" is the position the Bot actually deduces.
                 {
                     name: "Grizzly Bears",
                     owner: "opp",
@@ -9666,18 +9667,19 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
                     zone: "library",
                     count: 10,
                 },
+                { name: "Swamp", owner: "me", zone: "library", count: 20 },
             ],
             phase: "PRECOMBAT_MAIN",
             turn: 5,
             landCount: 4,
-            libraryCount: 20,
+            libraryCount: 0,
         },
         bot: "me",
         budget: { iterations: 400 },
         seeds: [0xb1ade, 1, 2, 3, 4],
         tier: "must",
         expect: { moves: [{ kind: "cast-spell", card: "Mind Rot" }] },
-        note: "Issue #4895 (issue #4758 review), promoted by issue #4917: two cards for one, the obvious play. Issue #4896 settled the opponent's discard in the 1-ply probe; issue #4917 answers it in the tree walk and the rollout too (`answerForcedChoice`), so no leaf is scored mid-resolution, and stocks the opponent's library so the re-dealt hand holds spells.",
+        note: "Issue #4895 (issue #4758 review), promoted by issue #4917: two cards for one, the obvious play. Issue #4896 settled the opponent's discard in the 1-ply probe; issue #4917 answers it in the tree walk and the rollout too (`advanceToDecision` over `forcedChoiceAnswer`), so no leaf is scored mid-resolution, and stocks the opponent's library so the re-dealt hand holds spells.",
     },
     {
         label: "self-sacrificing ETB: casts Phlage from hand for lethal",

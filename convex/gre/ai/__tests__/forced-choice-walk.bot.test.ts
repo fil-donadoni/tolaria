@@ -6,7 +6,8 @@
  * it. The walk and the rollout used to stop right there and score the leaf
  * mid-resolution: the discard spell spent, the mana tapped, the discard not
  * yet made. They now ask `advanceToDecision`, which applies the forced answer
- * (`forcedChoiceAnswer`) and hands back whoever decides next.
+ * (`forcedChoiceAnswer`) and hands back whoever decides next. The cleanup
+ * discard to hand size (CR 514.1) is the same shape.
  */
 
 import { describe, expect, it } from "vitest";
@@ -20,8 +21,11 @@ import {
     advanceToDecision,
     applyMoveInSearch,
     decidingPlayer,
+    rollout,
 } from "../../search";
+import { makeRng } from "../../rng";
 import { buildPositionFromSpec } from "../blade/build";
+import { DEFAULT_EVAL_WEIGHTS } from "../evalWeights";
 
 type SpecCard = ScenarioSpec["cards"][number];
 
@@ -111,5 +115,51 @@ describe("advanceToDecision — a mandatory discard is answered, not scored (iss
         expect(advanceToDecision(s)).toBe(decidingPlayer(cloneGameState(s)));
         expect(advanceToDecision(s)).toBe(s.activePlayerId);
         expect(JSON.stringify(s)).toBe(before);
+    });
+
+    it("the cleanup discard to hand size is answered too: the turn moves on", () => {
+        const s = position([
+            { name: "Grizzly Bears", owner: "me", zone: "hand", count: 9 },
+        ]);
+        const me = s.activePlayerId;
+        const turn = s.turn;
+        // Pass the turn out until the active player owes the cleanup discard.
+        for (let i = 0; i < 40 && s.turn === turn; i++) {
+            const pid = decidingPlayer(s);
+            if (!pid) break;
+            // Pass priority; an empty attack declaration where one is owed.
+            const moves = enumerateMoves(s, pid);
+            const next = moves.find((m) => m.kind === "pass") ?? moves[0];
+            if (!next) throw new Error("no move before the cleanup");
+            applyMoveInSearch(s, pid, next);
+        }
+        expect(s.phase).toBe("CLEANUP");
+        expect(s.pendingChoices?.[0]?.kind).toBe("discard-hand");
+        expect(decidingPlayer(s)).toBeNull();
+        expect(advanceToDecision(s)).not.toBeNull();
+        expect(s.turn).toBe(turn + 1);
+        expect(s.players.find((p) => p.id === me)!.hand).toHaveLength(7);
+    });
+});
+
+describe("the rollout plays on past the discard (issue #4917)", () => {
+    it("a rollout started mid-Mind-Rot makes the discard and reaches the horizon", () => {
+        const mid = midMindRot([
+            { name: "Grizzly Bears", owner: "opp", zone: "hand" },
+            { name: "Hill Giant", owner: "opp", zone: "hand" },
+        ]);
+        const me = mid.activePlayerId;
+        const turn = mid.turn;
+        // `rollout` mutates the state it is given: read where it stopped.
+        rollout(mid, me, makeRng(1), DEFAULT_EVAL_WEIGHTS);
+        expect(mid.pendingChoices?.length ?? 0).toBe(0);
+        expect(mid.turn).toBeGreaterThan(turn);
+        const opp = mid.players.find((p) => p.id !== me)!;
+        expect(opp.graveyard.map(idOf)).toEqual(
+            expect.arrayContaining([
+                getCardByName("Grizzly Bears").id,
+                getCardByName("Hill Giant").id,
+            ])
+        );
     });
 });
