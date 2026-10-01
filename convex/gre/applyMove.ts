@@ -105,7 +105,15 @@ import {
     buildCastPermanentCostChoice,
     type KickerPayments,
 } from "./kicker";
-import { completeSacrificeSelection } from "./paymentPicks";
+import {
+    completeSacrificeSelection,
+    pickAlternativeHandCost,
+} from "./paymentPicks";
+import { payAlternativeCostHandChoice } from "./activation";
+import {
+    buildAlternativeCostHandChoice,
+    getAlternativeCost,
+} from "./alternativeCost";
 import { applyCastSacrificeVictims, type CastCostPicks } from "./castCostPicks";
 import { cheapestFirst } from "./paymentPicks";
 // CR 613.1f (issue #1920 review, finding 4) — the POST-LAYER ability set, the
@@ -347,6 +355,43 @@ export function applyAdditionalCostLegForSearch(
     if (!picks) return;
     for (const c of picks)
         discardToGraveyard(state, playerId, c.id, { kind: "cost" });
+}
+
+/** CR 118.9 / 601.2h (issue #4900) — pay the HAND leg of the alternative
+ *  cost a `cast-spell` move announced (Force of Will's "exile a blue card",
+ *  Solitude's evoke "exile a white card") on a search sandbox state, in place.
+ *  The picks are the ones the live game will make: the forced picks
+ *  `buildAlternativeCostHandChoice` pre-fills, else the owed-payment seam's
+ *  own greedy `pickAlternativeHandCost` — so the tree values the cards the
+ *  executor's driver later submits to `selectCastAlternativeHandCost`, and the
+ *  cards move through the real commit's `payAlternativeCostHandChoice`.
+ *
+ *  The MANA leg is the Move's `tapPlan` and the LIFE leg its `payLife`, both
+ *  folded at enumeration time (`enumerateCastMovesFromZone`'s
+ *  `chosenAltCost`). Returns `false` when the leg can no longer be paid — a
+ *  STALE Move — so the caller drops the cast rather than let a pitch spell
+ *  resolve for free. `true` for a cast with no alternative cost or no hand
+ *  leg. Runs while the cast card is still in hand: CR 601.2a excludes it. */
+export function applyAlternativeCostHandLegForSearch(
+    state: GameState,
+    playerId: string,
+    spell: CardInstanceState,
+    alternativeCostId: string | undefined
+): boolean {
+    if (alternativeCostId === undefined) return true;
+    const def = tryGetDefinition((spell.card as { id?: string }).id ?? "");
+    const alt = getAlternativeCost(def ?? undefined, alternativeCostId);
+    if (!alt?.hand) return true;
+    const player = getPlayer(state, playerId);
+    const choice = buildAlternativeCostHandChoice(player, alt, spell.id);
+    if (!choice) return true;
+    const picks =
+        choice.pickedCardIds ?? pickAlternativeHandCost(player, choice);
+    if (!picks) return false;
+    return payAlternativeCostHandChoice(state, playerId, {
+        ...choice,
+        pickedCardIds: picks,
+    });
 }
 
 /** CR 702.33a / 601.2f (issue #2081) — pay a `cast-spell` move's paid Kickers'
@@ -1193,6 +1238,21 @@ export function commitCastInSearch(
         move.additionalCostLegId,
         move.chosenX
     );
+    // CR 118.9 / 601.2h (issue #4900) — the chosen alternative cost's HAND
+    // leg (a pitch: Force of Will, Solitude's evoke), before the spell leaves
+    // its zone. Uncharged, a pitch cast is a free spell and the search would
+    // prefer it to the printed cast on every board.
+    if (
+        preCastSpell &&
+        !applyAlternativeCostHandLegForSearch(
+            state,
+            playerId,
+            preCastSpell,
+            move.alternativeCostId
+        )
+    ) {
+        return null;
+    }
     // CR 702.33a / 601.2f (issue #2081) — pay a paid Kicker's PERMANENT leg
     // (sacrifice/return) before the spell leaves its zone, for the same reason.
     // `preCastSpell` is looked up in the zone the Move DECLARES (issue #2980),

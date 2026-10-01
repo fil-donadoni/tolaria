@@ -21,6 +21,7 @@
 import { findPermanent } from "./lookup";
 import type {
     ActivatedAbility,
+    AlternativeCost,
     CardDefinition,
     Color,
     EffectOp,
@@ -46,7 +47,10 @@ import {
 import { deriveXFromTargetSpellMv, resolveAbilityManaCost } from "./activation";
 import { classLevelActivationViolation } from "../cards/abilities/classLevels";
 import { activationPreconditionViolation } from "./activationPrecondition";
-import { handCardMatchesFilter } from "./alternativeCost";
+import {
+    affordableAlternativeCosts,
+    handCardMatchesFilter,
+} from "./alternativeCost";
 import { mayExertAsAttacks } from "./exert";
 import {
     castAlternativeCostForZone,
@@ -2941,7 +2945,7 @@ export function enumerateCastMoves(
     ).flatMap((alt) =>
         enumerateCastMovesFromZone(state, player, card, {
             ...opts,
-            freeCastAltCostId: alt.id,
+            chosenAltCost: alt,
         }).map((m) =>
             m.kind === "cast-spell" ? { ...m, alternativeCostId: alt.id } : m
         )
@@ -2951,21 +2955,96 @@ export function enumerateCastMoves(
     // a paid announcement outright). Enumerating the printed-cost variants here
     // would hand the executor a Move the mutation refuses — the #2283/#2284
     // bot-freeze class — so they are dropped, not merely deprioritised.
-    const printedMoves = castPermissionRequiredFor(
+    const permissionRequired = castPermissionRequiredFor(
         state,
         player.id,
         card,
         castFromZone
-    )
+    );
+    const printedMoves = permissionRequired
         ? []
         : enumerateCastMovesFromZone(state, player, card, opts);
-    const moves = [...printedMoves, ...permissionMoves];
+    // CR 118.9 / 702.74a (issue #4900) — the card's OWN alternative costs
+    // (`alternativeCosts[]`, Evoke): Force of Will's and Solitude's pitch,
+    // Mulldrifter's cheaper evoke. Re-entered through the same builder as the
+    // permission casts above, priced at the alternative cost's MANA leg, so a
+    // card whose printed cost the Bot cannot afford — the situation a pitch
+    // cost exists for — still enumerates its cast. Before this the printed
+    // loop was the only way in, and a zero-land Solitude offered only `pass`.
+    const ownAltMoves = permissionRequired
+        ? []
+        : searchPayableOwnAlternativeCosts(
+              state,
+              player,
+              card,
+              castFromZone,
+              opts?.lifeInsteadOfMana
+          ).flatMap((alt) =>
+              enumerateCastMovesFromZone(state, player, card, {
+                  ...opts,
+                  chosenAltCost: alt,
+              }).map((m) =>
+                  m.kind === "cast-spell"
+                      ? { ...m, alternativeCostId: alt.id }
+                      : m
+              )
+          );
+    const moves = [...printedMoves, ...ownAltMoves, ...permissionMoves];
     if (castFromZone === "hand") return moves;
     // Stamp the zone once, here, rather than at each of the four `moves.push`
     // sites below (printed cost, bestow, morph, dash) — a new cast variant
     // cannot forget it.
     return moves.map((m) =>
         m.kind === "cast-spell" ? { ...m, castFromZone } : m
+    );
+}
+
+/** CR 118.9 / 702.74a (issue #4900) — the card's OWN alternative costs
+ *  (`alternativeCosts[]` and Evoke) the search can both ENUMERATE and PAY, out
+ *  of the affordable list every cast-option surface reads
+ *  (`affordableAlternativeCosts`, which already checks the condition, life and
+ *  hand legs). The other rows of that list — bestow, dash, warp, overload,
+ *  morph, Adventure, split — have their own branches in
+ *  `enumerateCastMovesFromZone`, and the board permissions theirs in
+ *  `enumerateCastMoves`.
+ *
+ *  Fail CLOSED on two shapes the search cannot pay yet:
+ *   - a PERMANENT leg (Fireblast's "sacrifice two Mountains", Daze's "return
+ *     an Island") — the picks would have to ride on the Move the way
+ *     `castCostPicks` does for the additional-cost parks;
+ *   - an ENERGY leg — no shipped alternative cost carries one;
+ *   - a HYBRID pip in the MANA leg (the ECL evoke trio's `{G/U}{G/U}`) —
+ *     `planManaPayment` plans no hybrid pip at all, so the Move would carry an
+ *     empty tap plan for a cost the caster may not be able to pay.
+ *  All three are left unenumerated (dead for the Bot, never a freeze).
+ *  tracked-by: #4935 (permanent leg), #4936 (hybrid pips)
+ *
+ *  Hand casts only: a cast from any other zone is already priced by that
+ *  zone's own alternative (flashback, escape, a permission — `castRawManaCost`),
+ *  and CR 118.9a forbids stacking a second one on it. */
+function searchPayableOwnAlternativeCosts(
+    state: GameState,
+    player: PlayerState,
+    card: CardInstanceState,
+    castFromZone: CastFromZone,
+    lifeInsteadOfMana: number | undefined
+): AlternativeCost[] {
+    if (castFromZone !== "hand" || lifeInsteadOfMana !== undefined) return [];
+    const def = tryGetDefinition((card.card as { id?: string }).id ?? "");
+    if (!def || !offersPrintedCast(def)) return [];
+    const ownIds = new Set(
+        [
+            ...(def.alternativeCosts ?? []),
+            ...(def.evoke ? [def.evoke] : []),
+        ].map((a) => a.id)
+    );
+    if (ownIds.size === 0) return [];
+    return affordableAlternativeCosts(state, player, card).filter(
+        (a) =>
+            ownIds.has(a.id) &&
+            a.permanent === undefined &&
+            (a.energy ?? 0) === 0 &&
+            (a.mana?.hybrid?.length ?? 0) === 0
     );
 }
 
@@ -3023,13 +3102,16 @@ function enumerateCastMovesFromZone(
     opts?: {
         lifeInsteadOfMana?: number;
         castFromZone?: CastFromZone;
-        /** CR 118.9 — this pass prices the cast under a board permission's
-         *  free cast (`castPermissionAltCosts`): the mana cost is replaced by
-         *  nothing, and no OTHER alternative cost may ride along (CR 118.9a —
-         *  only one alternative cost per spell), so the bestow / morph / dash
-         *  branches below are skipped for it. The caller stamps the id onto
-         *  every Move this pass returns. */
-        freeCastAltCostId?: string;
+        /** CR 118.9 — this pass prices the cast under ONE chosen alternative
+         *  cost: a board permission's free cast (`castPermissionAltCosts`,
+         *  no mana leg) or the card's own (`alternativeCosts[]` / Evoke, issue
+         *  #4900). The mana cost is replaced by the alternative's mana leg (or
+         *  nothing), its life leg joins `payLife`, and no OTHER alternative
+         *  cost may ride along (CR 118.9a — only one alternative cost per
+         *  spell), so the bestow / morph / dash / warp / overload / Adventure /
+         *  split branches below are skipped for it. The caller stamps the id
+         *  onto every Move this pass returns. */
+        chosenAltCost?: AlternativeCost;
         onTruncated?: (t: ModeCombinationTruncation) => void;
     }
 ): Move[] {
@@ -3076,11 +3158,13 @@ function enumerateCastMovesFromZone(
     // pays. Before this the enumerator had no way to reach those costs at all:
     // the helper lived in `convex/game.ts`, which imports this module.
     const castFromZone: CastFromZone = opts?.castFromZone ?? "hand";
-    const freeCastAltCostId = opts?.freeCastAltCostId;
+    const chosenAltCost = opts?.chosenAltCost;
     const rawCost =
-        lifeInsteadOfMana !== undefined || freeCastAltCostId !== undefined
-            ? {}
-            : (castRawManaCost(state, card, castFromZone) ?? {});
+        chosenAltCost !== undefined
+            ? (chosenAltCost.mana ?? {})
+            : lifeInsteadOfMana !== undefined
+              ? {}
+              : (castRawManaCost(state, card, castFromZone) ?? {});
 
     // Bot-only prune (#938): a copy-on-ETB spell (Clone, Copy Artifact, Vesuvan
     // Doppelganger, Dance of Many) is a legal but strictly wasteful cast when no
@@ -3674,6 +3758,9 @@ function enumerateCastMovesFromZone(
             // replacements above.
             let payLife =
                 (lifeInsteadOfMana ?? 0) +
+                // CR 118.9 / 119.4 (issue #4900) — the chosen alternative
+                // cost's life leg (Force of Will's "pay 1 life").
+                (chosenAltCost?.life ?? 0) +
                 (def ? kickerLifeCost(def, kickerPayments) : 0);
             if (phyPips > 0) {
                 const split = solvePhyrexianSplit(
@@ -3862,7 +3949,7 @@ function enumerateCastMovesFromZone(
     // `pendingCast`).
     if (
         def?.bestow &&
-        freeCastAltCostId === undefined &&
+        chosenAltCost === undefined &&
         hasLegalBestowHost(state)
     ) {
         const bestowCost = normalizeManaCost(def.bestow.mana ?? {}, {
@@ -3939,7 +4026,7 @@ function enumerateCastMovesFromZone(
     // board state — a face-down creature, and the unmorph line that follows —
     // permanently out of reach.
     const morphCast = morphCastAlternativeCost(def ?? undefined);
-    if (morphCast && freeCastAltCostId === undefined) {
+    if (morphCast && chosenAltCost === undefined) {
         const morphCost = normalizeManaCost(morphCast.mana ?? {}, {
             chosenX: 0,
         });
@@ -4014,7 +4101,7 @@ function enumerateCastMovesFromZone(
         if (
             priceOnlyCost &&
             lifeInsteadOfMana === undefined &&
-            freeCastAltCostId === undefined &&
+            chosenAltCost === undefined &&
             !def?.targetRequirement &&
             !(def?.modes && def.modes.length > 0)
         ) {
@@ -4064,7 +4151,13 @@ function enumerateCastMovesFromZone(
     // targets against it (`targets: []`, exactly the morph shape). The modal
     // case is likewise not a reason to skip: `announceCast` ignores a chosen
     // mode's requirement for an overload cast for the same CR 702.96a reason.
-    if (def?.overload && lifeInsteadOfMana === undefined) {
+    if (
+        def?.overload &&
+        lifeInsteadOfMana === undefined &&
+        // CR 118.9a — overload is an alternative cost; it never rides on
+        // another one.
+        chosenAltCost === undefined
+    ) {
         const overloadCost = normalizeManaCost(def.overload.mana ?? {}, {
             chosenX: 0,
         });
@@ -4121,7 +4214,12 @@ function enumerateCastMovesFromZone(
     // `independentCastOptionsFor` (not the per-mechanic builders) is what
     // withdraws the Adventure on a card exiled by its own Adventure
     // (CR 715.3d) and what a third such mode would join.
-    for (const alt of independentCastOptionsFor(card)) {
+    for (const alt of chosenAltCost === undefined
+        ? independentCastOptionsFor(card)
+        : // CR 118.9a — an Adventure or a split half is announced on the
+          // same alternative-cost channel, so it never rides on another
+          // alternative cost (issue #4900).
+          []) {
         // CR 601.2b / 118.9a (PR review finding 1) — "a player can't apply two
         // alternative methods of casting … to a single spell", and a cast off
         // a permission that REPLACES the mana cost with life (Bolas's Citadel)

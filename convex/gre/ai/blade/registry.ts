@@ -9969,20 +9969,11 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         bot: "me",
         budget: { iterations: 400 },
         seeds: [0xb1ade, 1, 2, 3, 4],
-        tier: "stretch",
+        tier: "must",
         expect: {
-            // A PREDICATE, not `moves`: this tier-stretch position is one the
-            // Evaluation cannot order yet, and as a Verdict it would pull the
-            // weight fit toward nothing it can satisfy. The owning issue
-            // promotes it to a `moves` `must` entry with its fix.
-            predicate: (move, state) =>
-                matchesMove(state, move, {
-                    kind: "cast-spell",
-                    card: "Solitude",
-                }),
-            describe: "casts Solitude",
+            moves: [{ kind: "cast-spell", card: "Solitude" }],
         },
-        note: "Issue #4895 (issue #4758 review). STRETCH, owned by issue #4900: the pitch evoke (exile a white card) needs no mana, and it is the only way to survive. `enumerateMoves` offers only `pass` here, so the Bot dies.",
+        note: "Issue #4895 (issue #4758 review), promoted by issue #4900: the pitch evoke (exile a white card) needs no mana, and it is the only way to survive. `enumerateMoves` used to reach a cast only through the PRINTED cost, so with zero lands it offered only `pass` and the Bot died; the card's own alternative costs are now re-entered through the same cast builder (`searchPayableOwnAlternativeCosts`).",
     },
     // Issue #4217 (founding case of PRD #4754) — Snapcaster Mage. A
     // DISCRIMINATING PAIR on one board: the only difference is whether the
