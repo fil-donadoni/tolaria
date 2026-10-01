@@ -47,6 +47,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { BASE_BRANCH, ORIGIN_BASE } from "./lib/branches";
+import type { HealthStatus } from "./lib/health-verdict";
 
 /** Health telemetry directory, relative to the primary checkout. */
 export const HEALTH_DIR = join(".claude", "telemetry", "health");
@@ -58,7 +59,7 @@ export const MANUAL_COMMAND = "bun run health:fix";
 /** The record `health-main.ts` writes to `last.json`. */
 export interface HealthRecord {
     sha: string;
-    status: "running" | "green" | "red";
+    status: HealthStatus;
     failedStep?: string;
     log?: string;
 }
