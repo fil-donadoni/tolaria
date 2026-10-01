@@ -9366,6 +9366,16 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // with spells and hands the holder a spare 1/1 (`discardsFromTarget`,
         // `sacrificesCreature`, `botReach.ts`) — a position change, not a
         // search change: the Bot's preference is unchanged.
+        //
+        // Issue #4917 — the stock was half of the pool, not all of it:
+        // `libraryCount: 20` ADDS twenty filler basics beside the Angels, so
+        // the re-dealt hand held two lands in about half the worlds, the
+        // opponent sheds its least valuable cards (CR 701.9b,
+        // `forcedChoiceAnswer`), and two discarded lands (16) never pay for
+        // the 1/1 (156). The cast read as a win only because the search
+        // stopped at the discard and scored the line before the opponent's
+        // turn. No filler now: the opponent's library is the Angels, the
+        // Bot's own is Swamps.
         label: "Discard sorcery with a sacrifice cost: casts it into a full hand",
         spec: {
             cards: [
@@ -9388,7 +9398,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
                     owner: "opp",
                     zone: "library",
                     position: 1,
-                    count: 12,
+                    count: 20,
                 },
                 // Real cards where the sweep seeds `hiddenHand: { opp: 3 }`:
                 // a blade position must load into a live game (issue #1432),
@@ -9400,10 +9410,11 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
                     owner: "me",
                     zone: "battlefield",
                 },
+                { name: "Swamp", owner: "me", zone: "library", count: 20 },
             ],
             phase: "PRECOMBAT_MAIN",
             turn: 3,
-            libraryCount: 20,
+            libraryCount: 0,
         },
         bot: "me",
         // A REACHABILITY claim at four times the sweep's budget, so a
@@ -9637,6 +9648,24 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
                 { name: "Mind Rot", owner: "me", zone: "hand" },
                 { name: "Grizzly Bears", owner: "opp", zone: "hand" },
                 { name: "Hill Giant", owner: "opp", zone: "hand" },
+                // Issue #4917 — the search re-deals the opponent's hand from
+                // the unseen pool, so the two creatures above are priced as
+                // the pool: twenty filler basics alone, and Mind Rot read as
+                // two lands discarded (16) for a card in hand (40). Stocking
+                // the library with the same creatures is what makes "two
+                // cards for one" the position the Bot actually deduces.
+                {
+                    name: "Grizzly Bears",
+                    owner: "opp",
+                    zone: "library",
+                    count: 10,
+                },
+                {
+                    name: "Hill Giant",
+                    owner: "opp",
+                    zone: "library",
+                    count: 10,
+                },
             ],
             phase: "PRECOMBAT_MAIN",
             turn: 5,
@@ -9646,20 +9675,9 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         bot: "me",
         budget: { iterations: 400 },
         seeds: [0xb1ade, 1, 2, 3, 4],
-        tier: "stretch",
-        expect: {
-            // A PREDICATE, not `moves`: this tier-stretch position is one the
-            // Evaluation cannot order yet, and as a Verdict it would pull the
-            // weight fit toward nothing it can satisfy. The owning issue
-            // promotes it to a `moves` `must` entry with its fix.
-            predicate: (move, state) =>
-                matchesMove(state, move, {
-                    kind: "cast-spell",
-                    card: "Mind Rot",
-                }),
-            describe: "casts Mind Rot",
-        },
-        note: "Issue #4895 (issue #4758 review). STRETCH, owned by issue #4917: two cards for one, the obvious play. Issue #4896 settled the opponent's discard in the 1-ply probe (the Eval Pair now orders cast over pass), but the tree walk and the rollout still stop at the mandatory discard and score the cost alone: 5/20 seeds cast before, 6/20 after.",
+        tier: "must",
+        expect: { moves: [{ kind: "cast-spell", card: "Mind Rot" }] },
+        note: "Issue #4895 (issue #4758 review), promoted by issue #4917: two cards for one, the obvious play. Issue #4896 settled the opponent's discard in the 1-ply probe; issue #4917 answers it in the tree walk and the rollout too (`answerForcedChoice`), so no leaf is scored mid-resolution, and stocks the opponent's library so the re-dealt hand holds spells.",
     },
     {
         label: "self-sacrificing ETB: casts Phlage from hand for lethal",
