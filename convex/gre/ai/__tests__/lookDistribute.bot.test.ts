@@ -110,12 +110,12 @@ function ownerExtremes(state: GameState, choice: PendingChoice) {
     );
     return {
         best: `look-distribute:${stableCardIdentity(ranked[0])}`,
-        worst: `look-distribute:${stableCardIdentity(ranked.at(-1)!)}`,
+        worst: `look-distribute:${stableCardIdentity(ranked[ranked.length - 1])}`,
     };
 }
 
 const keptIds = (c: { move: { kind: string } }): string[] =>
-    (c.move as { cardInstanceIds: string[] }).cardInstanceIds;
+    (c.move as unknown as { cardInstanceIds: string[] }).cardInstanceIds;
 
 describe("look-distribute candidates (CR 401.4, issue #4899)", () => {
     const names = ["Grizzly Bears", "Serra Angel", "Island", "Craw Wurm"];
@@ -143,7 +143,7 @@ describe("look-distribute candidates (CR 401.4, issue #4899)", () => {
         expect(keys).toHaveLength(4);
         // The prior is flat for this kind, so this order IS the opening
         // order: the best keep first, keeping nothing last.
-        expect(keys.at(-1)).toBe("look-distribute:none");
+        expect(keys[keys.length - 1]).toBe("look-distribute:none");
         expect(keys[0]).toBe(ownerExtremes(state, choice).best);
     });
 
@@ -193,7 +193,7 @@ describe("look-distribute candidates (CR 401.4, issue #4899)", () => {
         const cands = choiceCandidates(state, choice);
         const { best, worst } = ownerExtremes(state, choice);
         expect(cands[0].key).toBe(worst);
-        expect(cands.at(-1)?.key).toBe(best);
+        expect(cands[cands.length - 1].key).toBe(best);
     });
 
     it("a window that is no longer the library's top run yields nothing", () => {
