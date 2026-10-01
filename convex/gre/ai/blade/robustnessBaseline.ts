@@ -17,19 +17,15 @@ import type { RobustnessBaselineRow } from "./robustness";
 
 export const ROBUSTNESS_BASELINE: readonly RobustnessBaselineRow[] = [
     // First run (issue #4875), wide seeds 0..9 × default / jitter+ / jitter-.
-    {
-        label: "Sacrifice outlet with a transient payoff: casts the creature",
-        issue: 4877,
-    },
+    // Noise-pinned behind a search defect: the tree walk and the rollout
+    // stop at the opponent's mandatory discard (issue #4917), so the cast
+    // line is scored mid-resolution, before Tendrils' discard is made, and
+    // its rollouts never reach the opponent's turn. Issue #4877 moved the
+    // sibling sacrifice entries to the postcombat main; this one waits on
+    // the stall fix, which owns the entry.
     {
         label: "Discard sorcery with a sacrifice cost: casts it into a full hand",
-        issue: 4877,
-    },
-    // Back on issue #4878's refit (robust after issue #4880's, jitter− 9/10
-    // on this one): the same knife-edge issue #4877 tracks.
-    {
-        label: "Sacrifice-for-removal outlet: casts the creature",
-        issue: 4877,
+        issue: 4917,
     },
     // Robust at health GREEN 143e46bb, jitter− 9/10 on the base tip after the
     // refits of issue #4758 and issue #4880; found landing issue #4878.
