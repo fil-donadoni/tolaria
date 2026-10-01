@@ -516,6 +516,13 @@
             "needsSetup": true
         }
     ],
+    "Thassa's Oracle": [
+        {
+            "label": "alternate win: casts Thassa's Oracle when its trigger wins on the spot",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
     "Thought Scour": [
         {
             "label": "known top: digs with a cantrip because it knows the Bolt is there",

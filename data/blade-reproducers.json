@@ -53,6 +53,44 @@
         "libraryCount": 20
     },
     "activation timing: converts a sacrifice engine at the opponent's end step": null,
+    "alternate win: casts Thassa's Oracle when its trigger wins on the spot": {
+        "cards": [
+            {
+                "name": "Thassa's Oracle",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Island",
+                "owner": "opp",
+                "zone": "library"
+            },
+            {
+                "name": "Island",
+                "owner": "opp",
+                "zone": "library"
+            },
+            {
+                "name": "Island",
+                "owner": "opp",
+                "zone": "library"
+            },
+            {
+                "name": "Island",
+                "owner": "opp",
+                "zone": "library"
+            },
+            {
+                "name": "Island",
+                "owner": "opp",
+                "zone": "library"
+            }
+        ],
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 5,
+        "landCount": 4,
+        "libraryCount": 1
+    },
     "as-enters creature type: names the opponent's tribe, not its own and not the alphabet": null,
     "battle cry: swings for exactly-lethal only the pump provides": {
         "cards": [
