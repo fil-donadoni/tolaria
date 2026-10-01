@@ -52,6 +52,19 @@ describe("release — releaseDecision", () => {
         expect(d.kind === "refuse" && d.reason).toMatch(/health\.log/);
     });
 
+    it("refuses an INFRA record as unrepairable — no fixer for a tip never shown wrong (issue #4938)", () => {
+        const d = releaseDecision(tip, {
+            sha: tip,
+            status: "infra",
+            failedStep: "test",
+        });
+        expect(d).toEqual({
+            kind: "refuse",
+            reason: expect.stringMatching(/INFRA/),
+            red: false,
+        });
+    });
+
     it("refuses a still-running record — never races another health run", () => {
         const d = releaseDecision(tip, { sha: tip, status: "running" });
         expect(d.kind).toBe("refuse");

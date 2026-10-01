@@ -42,6 +42,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { BASE_BRANCH, ORIGIN_BASE, RELEASE_BRANCH } from "./lib/branches";
 import { netEnv } from "./lib/gh";
+import type { HealthStatus } from "./lib/health-verdict";
 import {
     MANUAL_COMMAND,
     parseVerdict,
@@ -59,7 +60,7 @@ export const DEFAULT_FIX_ATTEMPTS = 3;
 
 export interface HealthRecord {
     sha: string;
-    status: "running" | "green" | "red";
+    status: HealthStatus;
     failedStep?: string;
     log?: string;
 }
@@ -102,7 +103,8 @@ export function releaseDecision(
             kind: "refuse",
             reason: `health is ${last.status.toUpperCase()} @ ${tip.slice(0, 8)}${last.failedStep ? ` (failed at ${last.failedStep})` : ""}${last.log ? ` — log: ${last.log}` : ""}`,
             // A RUNNING record is not repairable: another gate holds the sha
-            // and must not be raced.
+            // and must not be raced. Nor is INFRA (issue #4938): the tree was
+            // never shown wrong, so there is nothing for a fixer to fix.
             red: last.status === "red",
         };
     }

@@ -13,11 +13,15 @@
  * merged tip, in a throwaway worktree, and leaves a durable verdict in
  * `.claude/telemetry/health/`:
  *
- *   - `last.json`  — { sha, status: running|green|red, startedAt, finishedAt, log }
+ *   - `last.json`  — { sha, status: running|green|red|infra, startedAt, finishedAt, log }
  *   - `RED`        — marker file, present iff the last completed run was red.
  *                    `land` warns when it exists; `bun run health:status`
  *                    prints the details. Fix-forward, then the next green run
  *                    removes it.
+ *
+ * A step that failed while the machine was asleep (`lib/health-verdict.ts`,
+ * issue #4938) is `infra`: recorded, exit 1, but no `RED` marker written and
+ * none cleared — the tip is unproven, not red, and the next run re-gates it.
  *
  * Deduplicated by sha: a tip that is already green, or already being gated
  * (a `running` record younger than 90 minutes), is not re-gated — so N
@@ -50,8 +54,8 @@
  * The two refresh steps NEVER fail the batch — a stale page is marked stale, not a
  * red tip — and neither `land` nor `check:pr` runs them.
  *
- * Zero imports beyond node builtins, `lib/branches.ts`, `lib/health-step.ts`
- * and `lib/health-bot-refresh.ts` (builtins and the import-free
+ * Zero imports beyond node builtins, `lib/branches.ts`, `lib/health-step.ts`,
+ * `lib/health-verdict.ts` and `lib/health-bot-refresh.ts` (builtins and the import-free
  * `lib/bot-globs.ts` only) — same constraint as bootstrap-worktree.
  */
 import { spawnSync } from "node:child_process";
@@ -70,6 +74,11 @@ import {
     type HealthStep,
 } from "./lib/health-step";
 import {
+    readLastSleepAt,
+    stepVerdict,
+    type HealthStatus,
+} from "./lib/health-verdict";
+import {
     copyFileSync,
     existsSync,
     mkdirSync,
@@ -84,7 +93,7 @@ const STALE_RUNNING_MS = 90 * 60 * 1000;
 
 interface LastRun {
     sha: string;
-    status: "running" | "green" | "red";
+    status: HealthStatus;
     startedAt: string;
     finishedAt?: string;
     failedStep?: string;
@@ -270,12 +279,21 @@ async function main(): Promise<void> {
     }
 
     let failedStep: string | undefined;
+    let failedVerdict: "red" | "infra" = "red";
     try {
         git(["worktree", "add", "--detach", wt, tip], root);
         for (const step of steps) {
+            const stepStartedAt = Date.now();
             const r = await runHealthStep(step, { cwd: wt, env, logPath });
             if (!r.ok) {
                 failedStep = step.name;
+                // Read at once: a later sleep must not reach back to this step.
+                const verdict = stepVerdict({
+                    ok: false,
+                    startedAt: stepStartedAt,
+                    lastSleepAt: readLastSleepAt(),
+                });
+                if (verdict !== "green") failedVerdict = verdict;
                 break;
             }
         }
@@ -314,6 +332,21 @@ async function main(): Promise<void> {
         }
     } finally {
         spawnSync("git", ["worktree", "remove", "--force", wt], { cwd: root });
+    }
+
+    if (failedStep && failedVerdict === "infra") {
+        writeLast(dir, {
+            sha: tip,
+            status: "infra",
+            startedAt,
+            finishedAt: new Date().toISOString(),
+            failedStep,
+            log: logPath,
+        });
+        console.error(
+            `health-main: INFRA @ ${tip.slice(0, 8)} — the machine slept during ${failedStep}; the verdict is unproven, re-run \`bun run health\` awake — ${logPath}`
+        );
+        process.exit(1);
     }
 
     if (failedStep) {

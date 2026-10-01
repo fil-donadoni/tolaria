@@ -367,6 +367,22 @@ describe("health cadence — reconciling a finished run (issue #3780 review, fin
         expect(action.state.landings).toHaveLength(LANDINGS_PER_BATCH);
     });
 
+    it("never hands an INFRA record to the fixer — the machine slept, not the tree (issue #4938)", () => {
+        // Any status that is not RUNNING or GREEN used to fall through to the
+        // RED branch, so a gate cut by a closed lid spawned `health:fix` on a
+        // tip with nothing to fix. The ledger stays put: the next landing
+        // re-fires and the tip is gated again, awake.
+        const s = state({ landings: landings(LANDINGS_PER_BATCH) });
+        const action = reconcileHealthRun(s, {
+            last: record({ status: "infra", failedStep: "test" }),
+            firedAt: FIRED_AT,
+        });
+        expect(action).toEqual({
+            kind: "none",
+            reason: expect.stringMatching(/slept during test/),
+        });
+    });
+
     it("does not re-hand-over a RED that predates this run", () => {
         expect(
             reconcileHealthRun(state({ landings: landings(2) }), {

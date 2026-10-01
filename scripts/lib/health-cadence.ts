@@ -13,10 +13,11 @@
  * effects (the ledger file, the fetch, the detached gate). The scenarios the
  * rules exist to satisfy are A/B/C in `docs/guides/next-issue-flow.md` § 2.
  *
- * Node builtins only — nothing here imports anything at all, so `land`'s
- * locked command can reach the CLI around it without dragging a module graph
- * into a shell step that must never fail.
+ * Node builtins only — nothing here imports anything at runtime (one
+ * erased type import), so `land`'s locked command can reach the CLI around it
+ * without dragging a module graph into a shell step that must never fail.
  */
+import type { HealthStatus } from "./health-verdict";
 
 /** One landing on the base branch: the tip it created, and when it merged. */
 export interface Landing {
@@ -266,7 +267,7 @@ export function serializeCadence(state: CadenceState): string {
 /** The part of `health-main.ts`'s `last.json` this module reasons about. */
 export interface HealthRecord {
     sha: string;
-    status: "running" | "green" | "red";
+    status: HealthStatus;
     /** ISO, as `health-main.ts` writes it. */
     startedAt: string;
     failedStep?: string;
@@ -314,6 +315,13 @@ export function reconcileHealthRun(
         return {
             kind: "none",
             reason: `${short(last.sha)} is still being gated`,
+        };
+    // INFRA (issue #4938): the machine, not the tree, failed the step — no
+    // fixer, and the ledger stays as it is so the next landing re-fires.
+    if (last.status === "infra")
+        return {
+            kind: "none",
+            reason: `${short(last.sha)} is unproven — the machine slept during ${last.failedStep ?? "a step"}`,
         };
     if (last.status === "green") {
         if (last.sha === state.lastGreenSha)
