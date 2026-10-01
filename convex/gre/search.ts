@@ -144,6 +144,7 @@ import { spendableManaTotal } from "./state";
 // Choice-node spine (PRD #1423, issue #1425).
 import {
     choiceCandidates,
+    forcedChoiceAnswer,
     isOptionalOwnBattlefieldPut,
     settleAnswers,
     selectOpeningCandidate,
@@ -1279,6 +1280,35 @@ function scoreLeaf(
     };
 }
 
+/** Issue #4917 — answer the head choice when it is one the search does not
+ *  branch on but has a forced answer for (`forcedChoiceAnswer`: a MANDATORY
+ *  `discard-hand`, CR 701.9b), so the walk continues instead of scoring a leaf
+ *  mid-resolution. Called only where `decidingPlayer` returned `null`.
+ *
+ *  Stopping there scored a discard spell as its cost alone: the spell spent,
+ *  the mana tapped, the discard not yet made. Issue #4896 answered it in the
+ *  1-ply policy probe; the tree walk and the rollout kept stopping, so a Mind
+ *  Rot line was truncated at its own resolution while `pass` played on to the
+ *  horizon. The answer is not a decision node (no edge, no statistics): it is
+ *  one deterministic function of the world, like an automatic resolution
+ *  step. Returns whether it answered; `false` leaves `state` untouched. */
+function answerForcedChoice(state: GameState): boolean {
+    if (state.gameOver) return false;
+    if (
+        state.pendingCast ||
+        state.pendingActivation ||
+        state.pendingCompanionPay
+    ) {
+        return false;
+    }
+    const head = state.pendingChoices?.[0];
+    if (!head) return false;
+    const forced = forcedChoiceAnswer(state, head);
+    if (!forced) return false;
+    applyMoveInSearch(state, head.playerId, forced);
+    return true;
+}
+
 /** Play `state` forward to a stable leaf with a cheap policy, then score it.
  *  Policy: with probability `ROLLOUT_EPSILON` a uniform-random legal move,
  *  otherwise the reactive-aware `selectRolloutMove` default policy (ADR 0021
@@ -1341,7 +1371,10 @@ function rollout(
         if (state.turn - startTurn >= MAX_ROLLOUT_TURNS) break;
 
         const pid = decidingPlayer(state);
-        if (!pid) break;
+        if (!pid) {
+            if (answerForcedChoice(state)) continue;
+            break;
+        }
         const moves = enumerateMoves(state, pid);
         if (moves.length === 0) break;
 
@@ -2614,7 +2647,12 @@ function iterate(
 
     for (let depth = 0; depth < MAX_TREE_DEPTH; depth++) {
         const pid = decidingPlayer(world);
-        if (!pid) break;
+        if (!pid) {
+            // Not an edge: the forced answer is a function of the world, so
+            // the decision after it hangs off this same node.
+            if (answerForcedChoice(world)) continue;
+            break;
+        }
         let keyed = keyedMovesFor(world, pid, botId);
         // Deny-set, never an allow-set, and never emptying: a world-specific
         // move the root enumeration never saw stays available, and `pass` is
