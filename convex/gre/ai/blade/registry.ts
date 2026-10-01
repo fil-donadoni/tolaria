@@ -9758,7 +9758,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
             phase: "PRECOMBAT_MAIN",
             turn: 5,
             landCount: 4,
-            libraryCount: 1,
+            libraryCount: 2,
         },
         bot: "me",
         budget: { iterations: 400 },
