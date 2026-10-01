@@ -166,6 +166,7 @@ import {
     type ViewportResult,
 } from "./parallel.ts";
 import { ORIGIN_BASE } from "../lib/branches.ts";
+import { reachable, readEnvLocal } from "../lib/convex-reachable.ts";
 import { renderUiScope, type UiScope } from "../lib/ui-scope.ts";
 import { acquireUiLane, gateLockRoot } from "../lib/ui-admission.ts";
 import { classifyWalkFailure, type RetryPolicy } from "./infra-verdict.ts";
@@ -320,20 +321,6 @@ function log(message: string): void {
     process.stdout.write(`${message}\n`);
 }
 
-/** `.env.local` is gitignored and holds the deployment URL; the credentials go
- *  there too when they are not in the environment. Parsed, never echoed. */
-function readEnvLocal(): Record<string, string> {
-    const file = path.join(REPO_ROOT, ".env.local");
-    if (!fs.existsSync(file)) return {};
-    const out: Record<string, string> = {};
-    for (const line of fs.readFileSync(file, "utf8").split("\n")) {
-        const m = /^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/.exec(line);
-        if (!m) continue;
-        out[m[1]] = m[2].replace(/^["']|["']$/g, "");
-    }
-    return out;
-}
-
 async function freePort(): Promise<number> {
     return await new Promise((resolve, reject) => {
         const srv = createServer();
@@ -348,18 +335,6 @@ async function freePort(): Promise<number> {
             srv.close(() => resolve(port));
         });
     });
-}
-
-async function reachable(url: string, timeoutMs: number): Promise<boolean> {
-    try {
-        const ctrl = new AbortController();
-        const t = setTimeout(() => ctrl.abort(), timeoutMs);
-        await fetch(url, { signal: ctrl.signal });
-        clearTimeout(t);
-        return true;
-    } catch {
-        return false;
-    }
 }
 
 async function waitForServer(url: string, timeoutMs: number): Promise<void> {
@@ -801,7 +776,10 @@ async function main(): Promise<number> {
         );
     }
 
-    const env = { ...readEnvLocal(), ...process.env } as Record<string, string>;
+    const env = { ...readEnvLocal(REPO_ROOT), ...process.env } as Record<
+        string,
+        string
+    >;
     const convexUrl = env.VITE_CONVEX_URL;
     if (!convexUrl) {
         throw new FatalError("VITE_CONVEX_URL is unset (.env.local)");
@@ -809,8 +787,9 @@ async function main(): Promise<number> {
     if (!(await reachable(convexUrl, 5000))) {
         throw new FatalError(
             `the Convex deployment at ${convexUrl} did not answer. Start it with ` +
-                `\`bunx convex dev\` (this lane never starts one — a second backend ` +
-                `on the same deployment is worse than a clear failure).`
+                `\`bun run convex:ensure\` (this lane never starts one — a second ` +
+                `backend on the same deployment is worse than a clear failure; ` +
+                `convex:ensure starts one only when none is alive, issue #4945).`
         );
     }
     if (!fs.existsSync(AXE_PATH)) {

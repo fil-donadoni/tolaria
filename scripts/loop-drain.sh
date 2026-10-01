@@ -675,6 +675,21 @@ while :; do
         break
     fi
 
+    # 2a. the local Convex backend (issue #4945). `check:ui`, the health
+    # gate's `--all` walk and preset seeding all need it, and while AFK nobody
+    # is there to type `bunx convex dev` after a sleep or a crash killed it —
+    # health went RED at `check:ui` and the run stopped as `health-red`.
+    # `convex:ensure` starts one ONLY when none answers and none is alive
+    # (never a second); it is a no-op probe when the deployment answers.
+    # Checked BEFORE the RED marker so a down backend is named as itself,
+    # never folded into `health-red` or `no-progress`.
+    if ! _convex_out=$(bun run convex:ensure 2>&1); then
+        stop_reason="convex-down"
+        echo "loop-drain[error]: the local Convex backend does not answer and 'bun run convex:ensure' could not start one — stopping. Its output:" >&2
+        printf '%s\n' "$_convex_out" | tail -n 25 >&2
+        break
+    fi
+
     # 2b. health RED — the post-merge full gate failed on the merged tip and
     # nobody has fixed it. ADR 0110's green-main invariant: "A RED marker
     # means fix-forward FIRST — never stack unrelated work on a red tip."
