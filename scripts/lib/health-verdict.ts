@@ -61,3 +61,26 @@ export function stepVerdict(input: {
         return "infra";
     return "red";
 }
+
+/** The `last.json` fields this module reasons about. */
+export interface HealthRecordLike {
+    sha: string;
+    status: HealthStatus;
+}
+
+/**
+ * What an INFRA run leaves in `last.json`. Normally its own record. But while
+ * a `RED` marker still stands, the record must stay the red one the marker
+ * names: an infra run proves nothing, so it may not replace the evidence
+ * `health:fix` and `land` read (`health:fix` refuses anything but RED — it
+ * would answer "nothing to fix" with the marker still up).
+ */
+export function infraRecordToKeep<R extends HealthRecordLike>(input: {
+    infra: R;
+    previous: R | null;
+    redMarkerStanding: boolean;
+}): R {
+    const { infra, previous, redMarkerStanding } = input;
+    if (redMarkerStanding && previous?.status === "red") return previous;
+    return infra;
+}

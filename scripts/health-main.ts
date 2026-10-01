@@ -74,6 +74,7 @@ import {
     type HealthStep,
 } from "./lib/health-step";
 import {
+    infraRecordToKeep,
     readLastSleepAt,
     stepVerdict,
     type HealthStatus,
@@ -335,14 +336,22 @@ async function main(): Promise<void> {
     }
 
     if (failedStep && failedVerdict === "infra") {
-        writeLast(dir, {
-            sha: tip,
-            status: "infra",
-            startedAt,
-            finishedAt: new Date().toISOString(),
-            failedStep,
-            log: logPath,
-        });
+        writeLast(
+            dir,
+            infraRecordToKeep({
+                infra: {
+                    sha: tip,
+                    status: "infra",
+                    startedAt,
+                    finishedAt: new Date().toISOString(),
+                    failedStep,
+                    log: logPath,
+                },
+                // Read before this run's `running` record overwrote it.
+                previous: last,
+                redMarkerStanding: existsSync(join(dir, "RED")),
+            })
+        );
         console.error(
             `health-main: INFRA @ ${tip.slice(0, 8)} — the machine slept during ${failedStep}; the verdict is unproven, re-run \`bun run health\` awake — ${logPath}`
         );

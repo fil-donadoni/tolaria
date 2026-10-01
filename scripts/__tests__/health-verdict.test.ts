@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+    infraRecordToKeep,
     parseKernSleeptime,
     readLastSleepAt,
     stepVerdict,
@@ -76,5 +77,33 @@ describe("health verdict — reading kern.sleeptime", () => {
         }
         // A machine up since boot without sleeping reads null, also fine.
         if (at !== null) expect(at).toBeLessThanOrEqual(Date.now());
+    });
+});
+
+describe("health verdict — an INFRA run never erases a standing RED (issue #4938 review)", () => {
+    const red = { sha: "r".repeat(40), status: "red" as const };
+    const infra = { sha: "i".repeat(40), status: "infra" as const };
+
+    it("keeps the red record the standing marker names", () => {
+        expect(
+            infraRecordToKeep({ infra, previous: red, redMarkerStanding: true })
+        ).toBe(red);
+    });
+
+    it("writes its own record when no RED marker stands", () => {
+        expect(
+            infraRecordToKeep({
+                infra,
+                previous: red,
+                redMarkerStanding: false,
+            })
+        ).toBe(infra);
+        expect(
+            infraRecordToKeep({
+                infra,
+                previous: null,
+                redMarkerStanding: true,
+            })
+        ).toBe(infra);
     });
 });
