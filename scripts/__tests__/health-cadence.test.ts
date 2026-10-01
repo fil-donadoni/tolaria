@@ -379,7 +379,27 @@ describe("health cadence — reconciling a finished run (issue #3780 review, fin
         });
         expect(action).toEqual({
             kind: "none",
-            reason: expect.stringMatching(/slept during test/),
+            reason: expect.stringMatching(/at test — the machine slept/),
+        });
+    });
+
+    it("names the cause the INFRA record carries — a down backend is not a sleep (issue #4943)", () => {
+        const action = reconcileHealthRun(
+            state({ landings: landings(LANDINGS_PER_BATCH) }),
+            {
+                last: record({
+                    status: "infra",
+                    failedStep: "preflight:convex",
+                    reason: "the local Convex backend did not answer",
+                }),
+                firedAt: FIRED_AT,
+            }
+        );
+        expect(action).toEqual({
+            kind: "none",
+            reason: expect.stringMatching(
+                /at preflight:convex — the local Convex backend did not answer$/
+            ),
         });
     });
 

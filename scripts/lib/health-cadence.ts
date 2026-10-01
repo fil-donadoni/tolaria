@@ -271,6 +271,8 @@ export interface HealthRecord {
     /** ISO, as `health-main.ts` writes it. */
     startedAt: string;
     failedStep?: string;
+    /** `infra` only: why, and what to do (`INFRA_REMEDY`, issue #4943). */
+    reason?: string;
 }
 
 export type ReconcileAction =
@@ -321,7 +323,9 @@ export function reconcileHealthRun(
     if (last.status === "infra")
         return {
             kind: "none",
-            reason: `${short(last.sha)} is unproven — the machine slept during ${last.failedStep ?? "a step"}`,
+            // A record from before issue #4943 carries no `reason`: those
+            // were all the sleep rule.
+            reason: `${short(last.sha)} is unproven at ${last.failedStep ?? "a step"} — ${last.reason ?? "the machine slept during the step"}`,
         };
     if (last.status === "green") {
         if (last.sha === state.lastGreenSha)
