@@ -95,8 +95,10 @@ export function instanceOf(args: string): string | null {
     return m ? m[1] : null;
 }
 
+/** The binary itself, never a `sh -c` wrapper or a `grep` naming it. */
 export function isBackend(args: string): boolean {
-    return /(?:^|[\s/])convex-local-backend(?:\s|$)/.test(args);
+    const first = args.trim().split(/\s+/)[0] ?? "";
+    return path.basename(first) === "convex-local-backend";
 }
 
 /** `convex dev` as the CLI runs it: `node …/convex/bin/main.js dev …` or
@@ -124,6 +126,18 @@ function processCwd(pid: number): string | null {
     return line ? line.slice(1) : null;
 }
 
+/** `lsof` prints the resolved path (`/private/var/…` for `/var/…` on macOS). */
+function samePath(a: string, b: string): boolean {
+    const real = (p: string): string => {
+        try {
+            return fs.realpathSync(p);
+        } catch {
+            return path.resolve(p);
+        }
+    };
+    return real(a) === real(b);
+}
+
 function alive(pid: number): boolean {
     try {
         process.kill(pid, 0);
@@ -140,21 +154,81 @@ interface LockOwner {
     stamp: string;
 }
 
-function readOwner(file: string): LockOwner | null {
+/** A lock created by O_EXCL but never written — its owner was killed
+ *  between the create and the write — is stale once it is this old. Younger,
+ *  it is a writer mid-write. */
+const UNWRITTEN_LOCK_GRACE_MS = 10_000;
+
+/** What a lock file IS: its inode and its bytes. A lock broken and re-taken
+ *  by another caller has a new inode even when the bytes match. */
+export interface LockSighting {
+    ino: number;
+    raw: string;
+    mtimeMs: number;
+}
+
+export function sight(file: string): LockSighting | null {
     try {
-        const o = JSON.parse(fs.readFileSync(file, "utf8")) as LockOwner;
+        const st = fs.statSync(file);
+        return {
+            ino: st.ino,
+            raw: fs.readFileSync(file, "utf8"),
+            mtimeMs: st.mtimeMs,
+        };
+    } catch {
+        return null;
+    }
+}
+
+function parseOwner(raw: string): LockOwner | null {
+    try {
+        const o = JSON.parse(raw) as LockOwner;
         return typeof o.pid === "number" ? o : null;
     } catch {
         return null;
     }
 }
 
+function readOwner(file: string): LockOwner | null {
+    const s = sight(file);
+    return s ? parseOwner(s.raw) : null;
+}
+
 /** A lock whose owner is gone — dead pid, or a live pid with another start
- *  stamp (recycled) — is stale and may be broken. An unreadable lock is a
- *  writer mid-`writeFileSync`: not stale. */
-function ownerIsStale(owner: LockOwner): boolean {
+ *  stamp (recycled) — is stale and may be broken; so is one never written
+ *  past the grace. */
+function isStale(s: LockSighting): boolean {
+    const owner = parseOwner(s.raw);
+    if (owner === null) {
+        return Date.now() - s.mtimeMs > UNWRITTEN_LOCK_GRACE_MS;
+    }
     if (!alive(owner.pid)) return true;
     return owner.stamp !== "" && startStamp(owner.pid) !== owner.stamp;
+}
+
+/** Break the stale lock `judged` without ever deleting a live one. Two
+ *  waiters can judge the SAME stale lock: the first breaks it and takes a
+ *  fresh one, and a plain `rm` by the second would delete that live lock and
+ *  let both start a backend. `rename` is atomic, so exactly one breaker moves
+ *  the file aside; a breaker that finds it moved something other than what it
+ *  judged (another inode, other bytes) puts it back — `link` refuses if a
+ *  third caller has already re-taken the name. */
+export function breakStale(file: string, judged: LockSighting): void {
+    const aside = `${file}.${process.pid}.stale`;
+    try {
+        fs.renameSync(file, aside);
+    } catch {
+        return; // another breaker got there first
+    }
+    const moved = sight(aside);
+    if (moved && (moved.ino !== judged.ino || moved.raw !== judged.raw)) {
+        try {
+            fs.linkSync(aside, file);
+        } catch {
+            /* the name is taken again: that lock rules */
+        }
+    }
+    fs.rmSync(aside, { force: true });
 }
 
 async function acquireLock(
@@ -175,12 +249,13 @@ async function acquireLock(
         } catch (err) {
             if ((err as NodeJS.ErrnoException).code !== "EEXIST") throw err;
         }
-        const owner = readOwner(file);
-        if (owner && ownerIsStale(owner)) {
-            fs.rmSync(file, { force: true });
+        const seen = sight(file);
+        if (seen && isStale(seen)) {
+            breakStale(file, seen);
             continue;
         }
         if (Date.now() >= deadline) {
+            const owner = seen ? parseOwner(seen.raw) : null;
             return `the lock ${file} is held by pid ${owner?.pid ?? "?"} past the wait`;
         }
         await sleep(pollMs);
@@ -234,12 +309,53 @@ export function reportStrays(
             continue;
         }
         const cwd = cwdOf(r.pid);
-        if (cwd !== null && path.resolve(cwd) === path.resolve(o.root))
-            continue;
+        if (cwd !== null && samePath(cwd, o.root)) continue;
         o.log(
             `convex:ensure: note — pid ${r.pid} (${backend ? `backend ${instance ?? "?"}` : "convex dev"}, cwd ${cwd ?? "?"}) is not this checkout's deployment; reported, not killed`
         );
     }
+}
+
+/** Every live process that may already be bringing THIS deployment up — the
+ *  ones a start would duplicate: a `convex-local-backend` for its instance
+ *  (ANY backend when the instance is unknown: fail closed), a `convex dev` in
+ *  the primary checkout (one still starting, or restarting its backend,
+ *  before any backend shows), and the process `convex-dev.pid` records (a
+ *  start this script made whose earlier wait ran out). */
+export function deploymentProcesses(
+    rows: ProcessRow[],
+    o: Pick<EnsureOptions, "root" | "instanceName">,
+    recorded: LockOwner | null,
+    cwdOf: (pid: number) => string | null = processCwd
+): ProcessRow[] {
+    return rows.filter((r) => {
+        if (isBackend(r.args)) {
+            return (
+                o.instanceName === null || instanceOf(r.args) === o.instanceName
+            );
+        }
+        if (recorded && r.pid === recorded.pid) {
+            return (
+                recorded.stamp === "" || startStamp(r.pid) === recorded.stamp
+            );
+        }
+        if (isConvexDev(r.args)) {
+            const cwd = cwdOf(r.pid);
+            return cwd !== null && samePath(cwd, o.root);
+        }
+        return false;
+    });
+}
+
+function describeProcess(
+    r: ProcessRow,
+    o: Pick<EnsureOptions, "instanceName">
+): string {
+    if (isBackend(r.args)) {
+        return `backend pid ${r.pid} for ${instanceOf(r.args) ?? o.instanceName ?? "an unknown instance"}`;
+    }
+    if (isConvexDev(r.args)) return `convex dev pid ${r.pid}`;
+    return `pid ${r.pid} (${r.args.slice(0, 80)})`;
 }
 
 export async function ensureConvex(o: EnsureOptions): Promise<EnsureOutcome> {
@@ -254,34 +370,28 @@ export async function ensureConvex(o: EnsureOptions): Promise<EnsureOutcome> {
         // Another caller may have started it while this one queued.
         if (await reachable(o.url, o.probeTimeoutMs)) return { kind: "up" };
 
+        const logFile = path.join(o.telemetryDir, "convex-dev.log");
+        const pidFile = path.join(o.telemetryDir, "convex-dev.pid");
         const rows = listProcesses();
         reportStrays(rows, o);
-        const ours =
-            o.instanceName === null
-                ? []
-                : rows.filter(
-                      (r) =>
-                          isBackend(r.args) &&
-                          instanceOf(r.args) === o.instanceName
-                  );
+        const ours = deploymentProcesses(rows, o, readOwner(pidFile));
         if (ours.length > 0) {
-            const pid = ours[0].pid;
+            const what = describeProcess(ours[0], o);
+            const anyAlive = () => ours.some((r) => alive(r.pid));
             o.log(
-                `convex:ensure: backend pid ${pid} for ${o.instanceName} is alive but not answering ${o.url} — waiting up to ${Math.round(o.waitAliveMs / 1000)} s, never starting a second`
+                `convex:ensure: ${what} is alive but not answering ${o.url} — waiting up to ${Math.round(o.waitAliveMs / 1000)} s, never starting a second`
             );
-            if (await pollUntil(o, o.waitAliveMs, () => alive(pid))) {
-                return { kind: "waited", pid };
+            if (await pollUntil(o, o.waitAliveMs, anyAlive)) {
+                return { kind: "waited", pid: ours[0].pid };
             }
             return {
                 kind: "failed",
-                reason: alive(pid)
-                    ? `backend pid ${pid} for ${o.instanceName} is alive but never answered ${o.url} — not starting a second backend on the same deployment; kill it by hand if it is wedged`
-                    : `backend pid ${pid} for ${o.instanceName} exited without answering ${o.url} — re-run convex:ensure`,
+                reason: anyAlive()
+                    ? `${what} is alive but never answered ${o.url} — not starting a second backend on the same deployment; kill it by hand if it is wedged`
+                    : `${what} exited without answering ${o.url} — re-run convex:ensure`,
             };
         }
 
-        const logFile = path.join(o.telemetryDir, "convex-dev.log");
-        const pidFile = path.join(o.telemetryDir, "convex-dev.pid");
         const out = fs.openSync(logFile, "a");
         fs.writeSync(
             out,
@@ -379,8 +489,9 @@ function parseArgs(argv: string[]): EnsureOptions | string {
     };
     return {
         url,
+        // `--instance-name ""` = unknown: every live backend then counts.
         instanceName: flags.has("instance-name")
-            ? flags.get("instance-name")!
+            ? flags.get("instance-name") || null
             : localInstanceName(env.CONVEX_DEPLOYMENT),
         root,
         telemetryDir: path.resolve(

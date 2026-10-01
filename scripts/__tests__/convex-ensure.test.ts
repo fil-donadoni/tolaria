@@ -9,7 +9,10 @@ import {
     instanceOf,
     isBackend,
     isConvexDev,
+    breakStale,
     reportStrays,
+    sight,
+    startStamp,
     type ProcessRow,
 } from "../convex-ensure";
 import { localInstanceName } from "../lib/convex-reachable";
@@ -195,6 +198,27 @@ describe("convex:ensure — the backend is down", () => {
         expect(starts()).toBe(1);
     });
 
+    it("breaks a lock created but never written once it is past the grace", async () => {
+        const port = await freePort();
+        fs.mkdirSync(telemetry, { recursive: true });
+        const lock = path.join(telemetry, "convex-ensure.lock");
+        fs.writeFileSync(lock, "");
+        const old = (Date.now() - 60_000) / 1000;
+        fs.utimesSync(lock, old, old);
+        const r = await ensure([
+            "--url",
+            `http://127.0.0.1:${port}`,
+            "--instance-name",
+            `test-none-${process.pid}-${port}`,
+            "--start-cmd",
+            stubStart(port, 200),
+            "--start-timeout-ms",
+            "15000",
+        ]);
+        expect(r.code).toBe(0);
+        expect(starts()).toBe(1);
+    });
+
     it("fails non-zero with the log tail when the start command never makes the URL answer", async () => {
         const port = await freePort();
         const r = await ensure([
@@ -241,26 +265,23 @@ describe("convex:ensure — the backend answers", () => {
     });
 });
 
-describe("convex:ensure — a backend for this instance is alive but not answering", () => {
-    it("waits, then fails without starting a second", async () => {
-        const port = await freePort();
-        const instance = `test-wedged-${process.pid}-${port}`;
-        // A real process whose command line reads as this deployment's
-        // backend, listening on nothing.
-        const wedged = spawn(
-            process.execPath,
-            [
-                "-e",
-                "setInterval(() => {}, 1000)",
-                "convex-local-backend",
-                "--instance-name",
-                instance,
-            ],
-            { stdio: "ignore" }
-        );
-        children.push(wedged);
-        await new Promise((r) => wedged.once("spawn", r));
-        const r = await ensure([
+/** A real, idle process (it listens on nothing) — what a wedged or
+ *  still-starting deployment process looks like to the URL probe. */
+async function idle(
+    args: string[],
+    opts: { argv0?: string; cwd?: string } = {}
+): Promise<ChildProcess> {
+    const c = spawn(process.execPath, args, { stdio: "ignore", ...opts });
+    children.push(c);
+    await new Promise((r) => c.once("spawn", r));
+    return c;
+}
+
+const IDLE = ["-e", "setInterval(() => {}, 1000)", "x"];
+
+describe("convex:ensure — something for this deployment is alive but not answering", () => {
+    const wedgedRun = (port: number, instance: string): Promise<Run> =>
+        ensure([
             "--url",
             `http://127.0.0.1:${port}`,
             "--instance-name",
@@ -270,6 +291,14 @@ describe("convex:ensure — a backend for this instance is alive but not answeri
             "--wait-alive-ms",
             "1500",
         ]);
+
+    it("a backend for this instance: waits, then fails without starting a second", async () => {
+        const port = await freePort();
+        const instance = `test-wedged-${process.pid}-${port}`;
+        const wedged = await idle([...IDLE, "--instance-name", instance], {
+            argv0: "convex-local-backend",
+        });
+        const r = await wedgedRun(port, instance);
         expect(r.code).toBe(1);
         expect(r.stderr).toMatch(
             new RegExp(
@@ -277,6 +306,73 @@ describe("convex:ensure — a backend for this instance is alive but not answeri
             )
         );
         expect(starts()).toBe(0);
+    });
+
+    it("an unknown instance counts every live backend: fails closed", async () => {
+        const port = await freePort();
+        const other = await idle(
+            [...IDLE, "--instance-name", `test-other-${process.pid}-${port}`],
+            { argv0: "convex-local-backend" }
+        );
+        const r = await wedgedRun(port, "");
+        expect(r.code).toBe(1);
+        expect(r.stderr).toMatch(
+            /backend pid \d+ for .* is alive but never answered/
+        );
+        expect(other.pid).toBeGreaterThan(0);
+        expect(starts()).toBe(0);
+    });
+
+    it("a `convex dev` in the primary checkout still starting: no second start", async () => {
+        const port = await freePort();
+        const cli = path.join(tmp, "node_modules", "convex", "bin", "main.js");
+        fs.mkdirSync(path.dirname(cli), { recursive: true });
+        fs.writeFileSync(cli, "setInterval(() => {}, 1000);\n");
+        const dev = await idle([cli, "dev", "--local"], { cwd: tmp });
+        const r = await wedgedRun(port, `test-none-${process.pid}-${port}`);
+        expect(r.code).toBe(1);
+        expect(r.stderr).toMatch(
+            new RegExp(`convex dev pid ${dev.pid} is alive but never answered`)
+        );
+        expect(starts()).toBe(0);
+    });
+
+    it("the process convex-dev.pid records, from a start whose wait ran out: no second start", async () => {
+        const port = await freePort();
+        const earlier = await idle(IDLE);
+        fs.mkdirSync(telemetry, { recursive: true });
+        fs.writeFileSync(
+            path.join(telemetry, "convex-dev.pid"),
+            JSON.stringify({
+                pid: earlier.pid,
+                stamp: startStamp(earlier.pid!),
+            })
+        );
+        const r = await wedgedRun(port, `test-none-${process.pid}-${port}`);
+        expect(r.code).toBe(1);
+        expect(r.stderr).toMatch(
+            new RegExp(`pid ${earlier.pid} .* is alive but never answered`)
+        );
+        expect(starts()).toBe(0);
+    });
+});
+
+describe("breaking a stale lock never deletes a live one", () => {
+    it("a second breaker that judged the same stale lock leaves the fresh lock in place", () => {
+        fs.mkdirSync(telemetry, { recursive: true });
+        const lock = path.join(telemetry, "convex-ensure.lock");
+        fs.writeFileSync(lock, JSON.stringify({ pid: 99_999_999, stamp: "x" }));
+        // Both waiters see the same dead owner…
+        const judgedByB = sight(lock)!;
+        // …A breaks it and takes the lock afresh (a new inode)…
+        breakStale(lock, sight(lock)!);
+        expect(fs.existsSync(lock)).toBe(false);
+        const live = JSON.stringify({ pid: process.pid, stamp: "live" });
+        fs.writeFileSync(lock, live, { flag: "wx" });
+        // …then B acts on its stale judgment.
+        breakStale(lock, judgedByB);
+        expect(fs.readFileSync(lock, "utf8")).toBe(live);
+        expect(fs.readdirSync(telemetry)).toEqual(["convex-ensure.lock"]);
     });
 });
 
@@ -292,6 +388,11 @@ describe("process classification", () => {
         expect(
             isBackend("bun scripts/convex-ensure.ts --instance-name x")
         ).toBe(false);
+        // A wrapper or a search naming the binary is not the backend.
+        expect(
+            isBackend("sh -c convex-local-backend --instance-name local-x")
+        ).toBe(false);
+        expect(isBackend("grep convex-local-backend")).toBe(false);
     });
 
     it("recognises convex dev, not convex:ensure", () => {
