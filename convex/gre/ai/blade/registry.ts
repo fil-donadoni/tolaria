@@ -8820,8 +8820,9 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // pick `material-tiebreak`, the two edges within 0.003 reward). Here
         // `pass` forgoes the deploy for the turn: 10/10 cast on seeds 0..9 at
         // this budget and at 200, under the committed weights and both ±1%
-        // jitter vectors. The precombat pick stays covered by the sweep itself
-        // (`botReach.bot.test.ts`), which asks "ever played?", not "cast now?".
+        // jitter vectors. What the sweep (`botReach.bot.test.ts`) covers is
+        // its own verdict, "ever played?" in either main phase; "cast
+        // precombat?" is guarded by nothing, deliberately.
         label: "Sacrifice outlet with a transient payoff: casts the creature",
         spec: {
             cards: [
@@ -9001,8 +9002,9 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // main after `pass`, the two edges reach the same leaf (within 0.001
         // reward), and the pick was rollout noise. Here `pass` forgoes the
         // deploy for the turn: 10/10 cast on seeds 0..9 under the committed
-        // weights and both ±1% jitter vectors. The precombat pick stays
-        // covered by the sweep (`botReach.bot.test.ts`).
+        // weights and both ±1% jitter vectors. The sweep
+        // (`botReach.bot.test.ts`) still asks "ever played?" in either main
+        // phase; "cast precombat?" is guarded by nothing, deliberately.
         label: "Sacrifice-for-removal outlet: casts the creature",
         spec: {
             cards: [
@@ -9412,7 +9414,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // not a valuation change — follow-up issue #4804. Re-seeded 5 → 6 on
         // issue #4880's refit (15/20 seeds cast; 4, 5, 8, 17 and 19 `pass`):
         // the same noise pin, listed in the robustness baseline under issue
-        // #4877.
+        // #4917, which owns the discard stall behind it.
         seeds: [6, 0x5eed, 1, 2, 3],
         tier: "must",
         expect: {

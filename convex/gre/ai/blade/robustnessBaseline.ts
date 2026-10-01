@@ -17,11 +17,12 @@ import type { RobustnessBaselineRow } from "./robustness";
 
 export const ROBUSTNESS_BASELINE: readonly RobustnessBaselineRow[] = [
     // First run (issue #4875), wide seeds 0..9 × default / jitter+ / jitter-.
-    // Green only because the tree walk and the rollout stop at the
-    // opponent's mandatory discard (issue #4917): the cast line is scored
-    // mid-resolution, before Tendrils' discard is made. Issue #4877 moved its
-    // sacrifice-cost siblings to the postcombat main; this one waits on the
-    // stall fix, which owns the entry.
+    // Noise-pinned behind a search defect: the tree walk and the rollout
+    // stop at the opponent's mandatory discard (issue #4917), so the cast
+    // line is scored mid-resolution, before Tendrils' discard is made, and
+    // its rollouts never reach the opponent's turn. Issue #4877 moved the
+    // sibling sacrifice entries to the postcombat main; this one waits on
+    // the stall fix, which owns the entry.
     {
         label: "Discard sorcery with a sacrifice cost: casts it into a full hand",
         issue: 4917,
