@@ -4216,9 +4216,11 @@ function enumerateCastMovesFromZone(
     // (CR 715.3d) and what a third such mode would join.
     for (const alt of chosenAltCost === undefined
         ? independentCastOptionsFor(card)
-        : // CR 118.9a — an Adventure or a split half is announced on the
-          // same alternative-cost channel, so it never rides on another
-          // alternative cost (issue #4900).
+        : // CR 601.2b — "a player can't apply two alternative methods of
+          // casting or two alternative costs to a single spell": an Adventure
+          // never rides on a chosen alternative cost (issue #4900). A split
+          // card never gets here with one — it offers no printed cast for an
+          // alternative to replace (`offersPrintedCast`).
           []) {
         // CR 601.2b / 118.9a (PR review finding 1) — "a player can't apply two
         // alternative methods of casting … to a single spell", and a cast off

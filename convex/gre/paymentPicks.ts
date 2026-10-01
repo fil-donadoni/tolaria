@@ -481,7 +481,8 @@ function manaSpendViewFor(
  *  alternative-cost hand leg, mirroring the server's own greedy validation
  *  (`validateAlternativeHandCostPick`): walk the requirements in order and take
  *  the cheapest still-unused matching hand card for each. The spell itself is
- *  never eligible (CR 601.2b — it can't pay for its own cost).
+ *  never eligible (CR 601.2a — it is already on the stack, so it can't pay
+ *  for its own cost).
  *
  *  Exported for the search (`applyAlternativeCostHandLegForSearch`, issue
  *  #4900): the tree charges the SAME cards this seam later submits. */
