@@ -193,19 +193,16 @@ export default defineSchema({
         // server-side by `withDefinitionId` on every write whether or not
         // the caller sent one.
         //
-        // It stays OPTIONAL here, and that is the WIDEN step, not an
-        // oversight: Convex validates every existing document against the
-        // pushed schema BEFORE the new functions go live, so a brand-new
-        // REQUIRED field and the backfill that would populate it cannot ship
-        // in the same push — the push is rejected before
-        // `migrateDefinitionIds` exists to run. Widen (this slice) → migrate
-        // (run both `migrateDefinitionIds` against the deployed, still
-        // optional schema) → narrow to `v.string()` in issue #4386.
+        // REQUIRED on the stored row (issue #4386, the NARROW after issue
+        // #4117's widen + `migrateDefinitionIds` backfills): every write goes
+        // through `withDefinitionId`, so a caller that sends none is still
+        // served and the row never lacks one. Only the mutation ARGS
+        // validators stay optional.
         cards: v.array(
             v.object({
                 cardId: v.string(),
                 cardName: v.string(),
-                definitionId: v.optional(v.string()),
+                definitionId: v.string(),
             })
         ),
         // Sideboard: 0–15 cards held aside (PRD #387, issue #391). Optional so
@@ -215,7 +212,7 @@ export default defineSchema({
                 v.object({
                     cardId: v.string(),
                     cardName: v.string(),
-                    definitionId: v.optional(v.string()),
+                    definitionId: v.string(),
                 })
             )
         ),
@@ -276,13 +273,12 @@ export default defineSchema({
         description: v.optional(v.string()),
         colors: v.array(v.string()),
         // Maindeck: the cards that build the starting Library. See
-        // `userDecks.cards` above for `definitionId` (issue #4117) and for
-        // why it stays optional until issue #4386 narrows it.
+        // `userDecks.cards` above for `definitionId` (issues #4117, #4386).
         cards: v.array(
             v.object({
                 cardId: v.string(),
                 cardName: v.string(),
-                definitionId: v.optional(v.string()),
+                definitionId: v.string(),
             })
         ),
         // Sideboard: 0–15 cards held aside (PRD #387). Optional; absent ===
@@ -292,7 +288,7 @@ export default defineSchema({
                 v.object({
                     cardId: v.string(),
                     cardName: v.string(),
-                    definitionId: v.optional(v.string()),
+                    definitionId: v.string(),
                 })
             )
         ),

@@ -136,8 +136,20 @@ describe("PoolDeckBuilderForm — continuous draft→build seed (ADR 0060, issue
                     name: "Saved Deck",
                     format: "limited",
                     colors: ["R"],
-                    cards: [{ cardId: BOLT_ID, cardName: "Lightning Bolt" }],
-                    sideboard: [{ cardId: PLAINS_ID, cardName: "Plains" }],
+                    cards: [
+                        {
+                            cardId: BOLT_ID,
+                            cardName: "Lightning Bolt",
+                            definitionId: BOLT_ID,
+                        },
+                    ],
+                    sideboard: [
+                        {
+                            cardId: PLAINS_ID,
+                            cardName: "Plains",
+                            definitionId: PLAINS_ID,
+                        },
+                    ],
                     featuredCardId: null,
                     isLegal: true,
                     reasons: [],
@@ -280,11 +292,23 @@ describe("PoolDeckBuilderForm — per-copy Pin identity survives a zone move (is
                     format: "limited",
                     colors: ["R"],
                     cards: [
-                        { cardId: BOLT_ID, cardName: "Lightning Bolt" },
-                        { cardId: BOLT_ID, cardName: "Lightning Bolt" },
+                        {
+                            cardId: BOLT_ID,
+                            cardName: "Lightning Bolt",
+                            definitionId: BOLT_ID,
+                        },
+                        {
+                            cardId: BOLT_ID,
+                            cardName: "Lightning Bolt",
+                            definitionId: BOLT_ID,
+                        },
                     ],
                     sideboard: [
-                        { cardId: BOLT_ID, cardName: "Lightning Bolt" },
+                        {
+                            cardId: BOLT_ID,
+                            cardName: "Lightning Bolt",
+                            definitionId: BOLT_ID,
+                        },
                     ],
                     featuredCardId: null,
                     isLegal: true,

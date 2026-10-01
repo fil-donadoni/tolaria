@@ -11,6 +11,7 @@ import {
     validateDeck,
 } from "@convex/formats";
 import type { StoredDeckColumnLayout } from "@convex/deckLayout";
+import type { StoredDeckCard } from "@convex/decks";
 
 export interface LobbyDeckBase {
     presetId: string;
@@ -18,11 +19,13 @@ export interface LobbyDeckBase {
     format: FormatId;
     description?: string;
     colors: string[];
-    // Maindeck — the cards that build the starting Library.
-    cards: DeckCard[];
+    // Maindeck — the cards that build the starting Library. A lobby deck is
+    // always a STORED row, so every entry carries its `definitionId`
+    // (issue #4386).
+    cards: StoredDeckCard[];
     // Sideboard — 0–15 cards held aside (issue #391). Absent === empty for
     // legacy decks saved before sideboarding existed.
-    sideboard?: DeckCard[];
+    sideboard?: StoredDeckCard[];
     // Resolved Featured Card ID (PRD #589, issue #593) — the Card ID whose art
     // represents the deck in the lobby. Override-or-default via the shared pure
     // `resolveFeaturedCardId`; `null` for an empty deck. Not part of legality.
@@ -57,8 +60,11 @@ export interface UserLobbyDeck extends LobbyDeckBase {
 export type LobbyDeck = PresetLobbyDeck | UserLobbyDeck;
 
 // The preset row the lobby query returns may already carry derived legality
-// (`convex/decks.ts`); accept either that shape or the bare in-code preset.
-type PresetSource = DeckPreset & {
+// (`convex/decks.ts`); accept either that shape or a preset without it. Its
+// cards are the STORED shape either way (issue #4386).
+type PresetSource = Omit<DeckPreset, "cards" | "sideboard"> & {
+    cards: StoredDeckCard[];
+    sideboard?: StoredDeckCard[];
     isLegal?: boolean;
     reasons?: Reason[];
     // The lobby query resolves and surfaces this server-side; bare in-code
