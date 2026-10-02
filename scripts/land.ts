@@ -131,7 +131,10 @@ import {
 import type { UiScope } from "./lib/ui-scope.ts";
 import { changedRetiredRows, retirementRefusal } from "./lib/retirement-ack";
 import { REGENERATE_MARKER } from "./lib/generated-artifacts";
+import { robustnessBaselineRefusal } from "./lib/robustness-baseline-refusal";
+import { ROBUSTNESS_BASELINE } from "../convex/gre/ai/blade/robustnessBaseline";
 import {
+    closingIssueRefs,
     parseCadence,
     redLandGate,
     type LandingKind,
@@ -402,6 +405,12 @@ export interface LandFacts {
      * `--red-ok`. A pre-merge gate like the three above.
      */
     redRefusal?: string | null;
+    /**
+     * Refusal string from `robustnessBaselineRefusal` (issue #4980), or null:
+     * the PR closes the owner of a blade robustness baseline row it leaves in
+     * the tree. A pre-merge gate like the ones above.
+     */
+    robustnessBaselineRefusal?: string | null;
 }
 
 /**
@@ -502,6 +511,9 @@ export function refusalReason(facts: LandFacts): string | null {
     }
     if (facts.redRefusal) {
         return facts.redRefusal;
+    }
+    if (facts.robustnessBaselineRefusal) {
+        return facts.robustnessBaselineRefusal;
     }
     return null;
 }
@@ -1431,6 +1443,12 @@ function main(): void {
         scenarioRefusal: scenarioProblem,
         retirementRefusal: retirementProblem,
         redRefusal: redGate.kind === "refuse" ? redGate.reason : null,
+        // Issue #4980 — the baseline is this branch's own module: `land` runs
+        // from the PR's worktree, so the import IS the tree being landed.
+        robustnessBaselineRefusal: robustnessBaselineRefusal(
+            ROBUSTNESS_BASELINE,
+            closingIssueRefs(prBody)
+        ),
     });
     if (reason) fail(`refusing — ${reason}`);
     const landingKind =
