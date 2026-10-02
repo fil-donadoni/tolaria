@@ -20,9 +20,29 @@
  *           time, but each runs at solo speed instead of N running at 1/N
  *           speed. Callers queue.
  *   yield — heavy, but lands go first. See YIELD below.
+ *   job   — heavy, for the long CPU-bound JOBS an issue session legitimately
+ *           runs itself: the Oracle compiler's Bot-play sweep (it re-execs
+ *           itself here only when it will play — `lib/heavy-admission.ts`; its
+ *           drift-guard and carry-forward modes stay unadmitted),
+ *           `verdicts:search` and `bot:reach`. Same mutex, same worker count,
+ *           same heartbeat — but NOT refused in an issue worktree, because the
+ *           guard below exists to stop a session re-paying the merge-train's
+ *           gate, and these are not that gate: they are the work itself (a
+ *           grammar slice recompiles, a bot slice searches verdicts). Issue
+ *           #4941 measured them running outside the mutex entirely — a sweep
+ *           averaging 28 min beside a `land` and two `check:ui` pools put the
+ *           load at 20–38.
  *   light — targeted vitest, `check:ts`, `lint`. No lock, but vitest is capped
  *           at TOLARIA_VITEST_WORKERS (default 2, see vitest.config.ts), so
  *           four concurrent light jobs fit in ncpu.
+ *
+ * `check:ui` is NOT a tier here. It keeps its own browser lane
+ * (`lib/ui-admission.ts`) so a browser run never blocks a `land` — and it
+ * counts against heavy admission from its side only: when it sizes its pool
+ * it asks `heavyHolderLive` whether a heavy holder (any of the three spellings
+ * above) is live, and if one is it walks ONE viewport at a time instead of
+ * starting a Chrome pool (`viewportParallelism`, issue #4941). A heavy gate
+ * never waits for `check:ui`.
  *
  * The lock lives OUTSIDE the repo ($HOME/.cache/tolaria) on purpose: worktrees
  * are separate directories, so an in-repo lock would not be shared between them.
@@ -51,6 +71,7 @@
  * Usage:
  *   bun scripts/gate.ts heavy '<shell command>'
  *   bun scripts/gate.ts yield '<shell command>'   # heavy, but lands go first
+ *   bun scripts/gate.ts job '<shell command>'     # heavy, allowed in a worktree
  *   bun scripts/gate.ts light '<shell command>'
  *   bun scripts/gate.ts who              # who holds the mutex, and is it alive?
  *
@@ -535,14 +556,15 @@ function whoAll(): number {
 if (tier === "who") process.exit(whoAll());
 
 /** `yield` is the heavy tier in every respect but its acquisition (ADR 0136
- *  §6): same mutex, same worker count, same heartbeat, same teardown. */
-const HEAVY_TIERS = ["heavy", "yield"] as const;
+ *  §6), `job` in every respect but the issue-worktree guard (issue #4941):
+ *  same mutex, same worker count, same heartbeat, same teardown. */
+const HEAVY_TIERS = ["heavy", "yield", "job"] as const;
 const isHeavyTier = (t: string): boolean =>
     (HEAVY_TIERS as readonly string[]).includes(t);
 
 if ((!isHeavyTier(tier) && tier !== "light") || !command) {
     console.error(
-        "usage: bun scripts/gate.ts <heavy|yield|light> '<shell command>' | bun scripts/gate.ts who"
+        "usage: bun scripts/gate.ts <heavy|yield|job|light> '<shell command>' | bun scripts/gate.ts who"
     );
     process.exit(2);
 }
@@ -565,6 +587,7 @@ function isIssueWorktree(): boolean {
 
 if (
     isHeavyTier(tier) &&
+    tier !== "job" &&
     !process.env.TOLARIA_GATE_HELD &&
     !process.env.TOLARIA_ALLOW_FULL_SUITE &&
     isIssueWorktree()

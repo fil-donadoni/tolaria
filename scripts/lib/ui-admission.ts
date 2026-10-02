@@ -118,6 +118,50 @@ export function uiLaneHolderLine(owner: UiLaneOwner, now: number): string {
     ].join(" · ");
 }
 
+/** The heavy gate's owner stamp, as `gate.ts` writes it under `gate.lock`. */
+export interface HeavyGateOwner {
+    pid: number;
+    label: string;
+    cwd: string;
+    ts: number;
+    acquiredAt?: number;
+}
+
+/** `gate.ts`'s STALE_MS default: a holder silent this long is reclaimable,
+ *  so it no longer counts as holding the machine. */
+const HEAVY_STALE_MS = 45 * 60 * 1000;
+
+/**
+ * The heavy gate's LIVE holder, or null (issue #4941) — what `check:ui` asks
+ * before it sizes its pool, so it never starts five Chrome contexts beside a
+ * suite, a sweep or a `land` that holds the machine.
+ *
+ * Null when no lock is held, when the holder is dead or has gone silent past
+ * the reclaim threshold (the next waiter takes it — it holds nothing), and
+ * when THIS process runs under the hold itself (`TOLARIA_GATE_HELD=1`): the
+ * holder is then our own ancestor, and the machine is ours.
+ */
+export function heavyHolderLive(
+    root: string,
+    env: NodeJS.ProcessEnv = process.env,
+    now: number = Date.now(),
+    isAlive: (pid: number) => boolean = pidAlive,
+    staleMs: number = HEAVY_STALE_MS
+): HeavyGateOwner | null {
+    if (env.TOLARIA_GATE_HELD === "1") return null;
+    let owner: HeavyGateOwner;
+    try {
+        owner = JSON.parse(
+            readFileSync(join(root, "gate.lock", OWNER_NAME), "utf8")
+        ) as HeavyGateOwner;
+    } catch {
+        return null;
+    }
+    return reclaimVerdict(owner, isAlive(owner.pid), now, staleMs) === null
+        ? owner
+        : null;
+}
+
 /** `gate:who`'s lines for this lane. Empty is never printed as "free": the
  *  caller prints one line either way. */
 export function uiLaneWhoLines(

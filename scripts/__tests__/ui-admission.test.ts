@@ -10,6 +10,7 @@ import * as path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
     acquireUiLane,
+    heavyHolderLive,
     readUiLaneOwner,
     uiLaneWhoLines,
 } from "../lib/ui-admission";
@@ -123,6 +124,46 @@ describe("uiLaneWhoLines", () => {
         expect(live).toMatch(/holder pid alive/);
         const dead = uiLaneWhoLines(root, Date.now(), () => false).join("\n");
         expect(dead).toMatch(/holder is dead/);
+    });
+});
+
+describe("heavyHolderLive (issue #4941)", () => {
+    const stamp = (owner: object) => {
+        fs.mkdirSync(path.join(root, "gate.lock"), { recursive: true });
+        fs.writeFileSync(
+            path.join(root, "gate.lock", "owner.json"),
+            JSON.stringify(owner)
+        );
+    };
+    const now = 10_000_000;
+    const holder = {
+        pid: 4242,
+        label: "bun run oracle:compile",
+        cwd: "/wt",
+        ts: now - 1000,
+    };
+
+    it("is null when the heavy mutex is free", () => {
+        expect(heavyHolderLive(root, {}, now, () => true)).toBeNull();
+    });
+
+    it("names a live, heartbeating holder", () => {
+        stamp(holder);
+        expect(heavyHolderLive(root, {}, now, () => true)?.pid).toBe(4242);
+    });
+
+    it("ignores a dead holder and one silent past the reclaim threshold", () => {
+        stamp(holder);
+        expect(heavyHolderLive(root, {}, now, () => false)).toBeNull();
+        stamp({ ...holder, ts: now - 46 * 60 * 1000 });
+        expect(heavyHolderLive(root, {}, now, () => true)).toBeNull();
+    });
+
+    it("ignores the hold this process runs under (TOLARIA_GATE_HELD=1)", () => {
+        stamp(holder);
+        expect(
+            heavyHolderLive(root, { TOLARIA_GATE_HELD: "1" }, now, () => true)
+        ).toBeNull();
     });
 });
 

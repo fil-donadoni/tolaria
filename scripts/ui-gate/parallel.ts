@@ -37,7 +37,8 @@ export const MAX_PARALLELISM = VIEWPORTS.length;
 export const RESERVED_CORES = 3;
 
 /** The lane never walks fewer than two viewports at once: the floor the
- *  parallelism cannot collapse under (issue #4687). */
+ *  parallelism cannot collapse under (issue #4687) — on an otherwise free
+ *  machine. A live heavy-gate holder overrides it (`HEAVY_HELD_PARALLELISM`). */
 export const MIN_PARALLELISM = 2;
 
 /** Memory kept out of the budget — the OS, the other sessions' gates, the
@@ -46,6 +47,10 @@ export const MIN_PARALLELISM = 2;
  *  cap do the real clamping; this only keeps a small machine honest. */
 export const MEMORY_RESERVE_BYTES = 6 * 1024 ** 3;
 export const CONTEXT_MEMORY_BYTES = 1024 ** 3;
+
+/** What the lane walks at while a heavy gate holds the machine: one context,
+ *  no Chrome pool (issue #4941). */
+export const HEAVY_HELD_PARALLELISM = 1;
 
 /**
  * How many viewports to walk at once, from the core count and the machine's
@@ -62,12 +67,23 @@ export const CONTEXT_MEMORY_BYTES = 1024 ** 3;
  * 16 GiB machine with nothing running, because file cache and inactive pages
  * are not counted, and a sizing read off that number collapses to the floor.
  *
+ * The one exception is `heavyHeld` (issue #4941): the lane holds the one
+ * browser slot, not the machine. A live heavy-gate holder — a suite, the
+ * `oracle:compile` sweep, `verdicts:search`, `bot:reach`, a `land` — already
+ * runs at the heavy tier's full worker count, and a Chrome pool beside it is
+ * the load-20–38 contention the issue measured. So the lane walks ONE viewport
+ * at a time instead (`HEAVY_HELD_PARALLELISM`), below the floor on purpose.
+ * Read once, like the rest: a holder arriving mid-run does not shrink a pool
+ * already running.
+ *
  * Pure, and total: a machine that reports nonsense gets the floor.
  */
 export function viewportParallelism(
     ncpu: number,
-    totalMemoryBytes: number
+    totalMemoryBytes: number,
+    heavyHeld = false
 ): number {
+    if (heavyHeld) return HEAVY_HELD_PARALLELISM;
     if (!Number.isFinite(ncpu) || !Number.isFinite(totalMemoryBytes)) {
         return MIN_PARALLELISM;
     }

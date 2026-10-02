@@ -22,6 +22,8 @@
  * (`convex/gre/ai/botReach.ts`), incrementally — a verdict is reused while its
  * definition and the Bot hash are unchanged (`lib/oracle-bot-reach.ts`).
  * `--check` never plays; it carries the committed verdicts forward.
+ * A run that plays (bare or `--replay-bot`) first takes the heavy gate's mutex
+ * (`gate.ts job`, issue #4941); `--check` and `--carry-bot` take nothing.
  *
  * A card the sweep turns `frozen` moves out of `ready`, and the `ready` set is
  * what `data/oracle-compiled-pool.json` and `data/card-index.json` are built
@@ -70,6 +72,7 @@ import {
     rankBotGaps,
     type BotReachSource,
 } from "./lib/oracle-bot-reach";
+import { runUnderHeavyAdmission } from "./lib/heavy-admission";
 import {
     emptyRetirementLedger,
     parseRetirementLedger,
@@ -506,6 +509,16 @@ async function main(): Promise<void> {
     // verdicts are carried forward on unchanged definitions, a changed one is
     // left unswept. What `land`'s artifact resolver runs (ADR 0105 § 7.2).
     const carry = process.argv.includes("--carry-bot");
+    // The sweep is heavy work (mean 28 min, issue #4941): a run that will play
+    // waits for the heavy gate's mutex instead of racing a `land`. `--check`
+    // and `--carry-bot` never play and never queue.
+    if (!check && !carry) {
+        const code = await runUnderHeavyAdmission(
+            process.argv[1],
+            process.argv.slice(2)
+        );
+        if (code !== null) process.exit(code);
+    }
     const previous = readCommittedLockfile();
     // `--check` never plays: it is the drift guard's question, asked from a
     // script (ADR 0105 § 7.2 — the sweep never runs inside a gate).
