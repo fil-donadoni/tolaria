@@ -5,7 +5,11 @@ import * as http from "http";
 import * as os from "os";
 import * as path from "path";
 import { BASE_BRANCH } from "../lib/branches";
-import { UI_WALK_FILE, UI_WALK_PROBATION_RUNS } from "../lib/health-verdict";
+import {
+    PREFLIGHT_CONVEX_STEP,
+    UI_WALK_FILE,
+    UI_WALK_PROBATION_RUNS,
+} from "../lib/health-verdict";
 
 /**
  * The per-batch health run, driven for real through `health-cadence detach`
@@ -350,6 +354,9 @@ describe("health-main — a terminal verdict on the tip: the waiter skips it, a 
         expect(r.stdout).not.toMatch(/already has a INFRA verdict/);
         const last = lastJson();
         expect(last.startedAt).not.toBe(INFRA_STARTED_AT);
-        expect(last.failedStep).not.toBe("check:ui --all");
+        expect(last).toMatchObject({
+            status: "infra",
+            failedStep: PREFLIGHT_CONVEX_STEP,
+        });
     }, 120_000);
 });
