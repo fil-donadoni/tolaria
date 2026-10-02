@@ -1129,6 +1129,64 @@ describe("gate.ts — the wrapped tree dies with the gate (issue #3821)", () => 
     });
 });
 
+describe("gate.ts — a gate whose cwd is removed under it (issue #4974)", () => {
+    /**
+     * `land` deletes its own worktree when it merges, and that worktree is the
+     * cwd of the `gate.ts heavy` holding the mutex. Bun cannot spawn from a
+     * cwd that no longer exists, so every `ps` after the removal failed: the
+     * teardown fell back to its blind group signal and printed `could NOT
+     * confirm` on every `land`, and the heartbeat read the subtree as
+     * unmeasurable — which never stalls.
+     */
+    function holderIn(dir: string, command: string, extraEnv = {}) {
+        const gate = spawn("bun", [GATE, "heavy", command], {
+            cwd: dir,
+            env: env(extraEnv),
+            stdio: ["ignore", "ignore", "pipe"],
+        });
+        const out = { err: "" };
+        gate.stderr.on("data", (c: Buffer) => (out.err += c.toString()));
+        strays.push(gate.pid!);
+        return { gate, out };
+    }
+
+    it("the exit-path teardown still walks and verifies the tree", async () => {
+        const dir = join(lockRoot, "worktree");
+        mkdirSync(dir);
+        const pidFile = join(lockRoot, "sleeper.pid");
+        // The sleeper stays in the child's group after the shell exits — the
+        // shape of a worker outliving its command. Its stdio is detached so
+        // the gate's stderr closes when the gate exits, not when it does.
+        const { gate, out } = holderIn(
+            dir,
+            `sleep 120 >/dev/null 2>&1 & echo $! >'${pidFile}'; rm -rf "$PWD"`
+        );
+        await new Promise<void>((r) => gate.on("close", () => r()));
+        const sleeper = Number(readFileSync(pidFile, "utf8").trim());
+        strays.push(sleeper);
+        expect(existsSync(dir)).toBe(false);
+        expect(out.err).not.toContain("could NOT confirm");
+        // Verified gone before exit: the very first look finds it dead.
+        expect(alive(sleeper)).toBe(false);
+    }, 60_000);
+
+    it("the heartbeat still measures the subtree — a silent command is declared STALLED", async () => {
+        const dir = join(lockRoot, "worktree");
+        mkdirSync(dir);
+        const { gate, out } = holderIn(dir, `rm -rf "$PWD"; sleep 60`, {
+            TOLARIA_GATE_HEARTBEAT_MS: "150",
+            TOLARIA_GATE_STALL_BEATS: "2",
+        });
+        try {
+            expect(await waitFor(() => out.err.includes("STALLED"))).toBe(true);
+        } finally {
+            // SIGTERM, not SIGKILL: the gate's own teardown takes the sleeper.
+            gate.kill("SIGTERM");
+        }
+        await exited(gate);
+    }, 60_000);
+});
+
 describe("gate-liveness — the admission order, pure (issue #4965)", () => {
     const NOW = 100 * AGE_STEP_MS;
 
