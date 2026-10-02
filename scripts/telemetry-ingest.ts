@@ -31,14 +31,18 @@
  */
 
 import {
+    closeSync,
+    mkdirSync,
+    openSync,
     readdirSync,
     readFileSync,
     renameSync,
+    writeSync,
     rmSync,
     statSync,
     existsSync,
 } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { homedir } from "node:os";
 import { Database as Sqlite } from "bun:sqlite";
 import {
@@ -87,6 +91,12 @@ export const ROTATE_BYTES = 16 * 1024 * 1024;
 const QUICK_CHUNK_BYTES = 16 * 1024 * 1024;
 /** `--quick`'s default wall budget: inside `land`'s locked housekeeping. */
 const QUICK_BUDGET_MS = 5000;
+/** How long the rotation waits for a hook write already aimed at the
+ *  renamed file (its `>>` is opened before its `jq` runs). */
+const ROTATE_SETTLE_MS = 250;
+/** One ingest at a time: `gate_lock` / `health_detach` are append-only, so
+ *  two runs reading the same cursor would count every row twice. */
+const LOCK_PATH = DB_PATH + ".ingest.lock";
 const PROJECTS_ROOT = join(homedir(), ".claude/projects");
 const PROJECT_SLUG = PROJECT_DIR.replace(/\//g, "-");
 
@@ -1102,6 +1112,14 @@ function ingestGateRuns(db: Sqlite): number {
             .all()
             .map((r) => r.k)
     );
+    const attemptSeen = new Set(
+        db
+            .query<{ k: string }, []>(
+                "SELECT run || '@' || started AS k FROM gate_attempts WHERE bucket IS NOT NULL OR green = 1"
+            )
+            .all()
+            .map((r) => r.k)
+    );
     const putAttempt = db.prepare(
         `INSERT OR REPLACE INTO gate_attempts (run, started, cmd, green, bucket)
          VALUES (?, ?, ?, ?, ?)`
@@ -1127,6 +1145,32 @@ function ingestGateRuns(db: Sqlite): number {
         const startedStr = readOpt("started");
         if (!cmd || startedStr === null) continue;
         const started = Number(startedStr);
+        // Earlier attempts of the same key, archived by gate-run.sh before it
+        // reused the dir (issue #4968). Immutable once written.
+        const archived = join(dir, "attempts");
+        if (existsSync(archived))
+            for (const a of readdirSync(archived)) {
+                const adir = join(archived, a);
+                const aStarted = Number(a);
+                if (!Number.isInteger(aStarted) || aStarted === started)
+                    continue;
+                if (attemptSeen.has(`${run}@${aStarted}`)) continue;
+                let aLog = "";
+                try {
+                    aLog = readFileSync(join(adir, "log"), "utf8");
+                } catch {
+                    /* no log kept */
+                }
+                const aGreen =
+                    existsSync(join(adir, "green")) || landLogMerged(aLog);
+                putAttempt.run(
+                    run,
+                    aStarted,
+                    readFileSafe(join(adir, "command")) ?? cmd,
+                    aGreen ? 1 : 0,
+                    aGreen ? null : classifyLandFailure(aLog)
+                );
+            }
         if (
             seenStarted.has(run) &&
             seenStarted.get(run) === started &&
@@ -1214,6 +1258,14 @@ function ingestHealthRuns(db: Sqlite): number {
     return n;
 }
 
+function readFileSafe(path: string): string | null {
+    try {
+        return readFileSync(path, "utf8").trim();
+    } catch {
+        return null;
+    }
+}
+
 /** `gate-lock.jsonl` → `gate_lock`, incremental by offset (issue #4968). */
 async function ingestGateLock(db: Sqlite, path: string): Promise<number> {
     const delta = await readDelta(db, path);
@@ -1291,11 +1343,15 @@ async function ingestHealthDetach(db: Sqlite, path: string): Promise<number> {
 /**
  * Rotate `tool-events.jsonl` once it is fully ingested and past
  * `rotateBytes` (issue #4968). The hook appends with a shell `>>` per event —
- * open, append, close — so a rename never strands an open descriptor: the
- * next event creates a fresh file. Lines appended between the last read and
+ * open, append, close — so the next event after a rename creates a fresh
+ * file. Lines appended between the last read and
  * the rename are in the renamed file past the cursor, and are ingested from
  * it under the LIVE file's cursor before it is deleted; the cursor then
  * restarts at zero for the new file.
+ *
+ * (`.claude/hooks/timing-log.sh` opens the file before its `jq` runs, so a
+ * write may land in the renamed file shortly AFTER the rename; the recovery
+ * re-reads it once more after `ROTATE_SETTLE_MS`.)
  *
  * A run that died between the rename and the delete leaves `<path>.rotating`
  * behind; `recoverRotation` finishes it before the live file is read.
@@ -1326,11 +1382,19 @@ export async function recoverRotation(
     const tmp = `${path}.rotating`;
     if (!existsSync(tmp)) return;
     await ingestSpans(db, tmp, harness, { cursorKey: path });
-    rmSync(tmp, { force: true });
+    // The hook's `>>` opens the file BEFORE its `jq` runs, so a write can
+    // still reach the renamed inode for a few tens of ms after the rename.
+    // One beat, one more read.
+    await Bun.sleep(ROTATE_SETTLE_MS);
+    await ingestSpans(db, tmp, harness, { cursorKey: path });
+    // Cursor reset BEFORE the delete: a crash between the two then re-reads
+    // the renamed file from zero next run — idempotent, spans are keyed by
+    // id — instead of leaving a stale cursor past the new file's start.
     db.run(
         "INSERT OR REPLACE INTO ingest_state (path, offset, mtime) VALUES (?, 0, 0)",
         [path]
     );
+    rmSync(tmp, { force: true });
 }
 
 /**
@@ -1354,6 +1418,54 @@ async function ingestSpansBounded(
         if (cursorOf(db, path) === before) break;
     }
     return n;
+}
+
+/**
+ * Take the ingest lock, or say who holds it. `O_EXCL` create; a lock whose
+ * pid is gone (a killed run) is taken over once. Returns the release, or
+ * null when a live ingest holds it — the caller then skips: that run is
+ * already ingesting the same cursors.
+ */
+function takeIngestLock(): (() => void) | null {
+    mkdirSync(dirname(LOCK_PATH), { recursive: true });
+    for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+            const fd = openSync(LOCK_PATH, "wx");
+            writeSync(fd, String(process.pid));
+            closeSync(fd);
+            return () => rmSync(LOCK_PATH, { force: true });
+        } catch (e) {
+            if ((e as NodeJS.ErrnoException).code !== "EEXIST") throw e;
+            const holder = Number(readFileSafe(LOCK_PATH));
+            let alive = false;
+            if (Number.isInteger(holder) && holder > 0)
+                try {
+                    process.kill(holder, 0);
+                    alive = true;
+                } catch {
+                    /* gone */
+                }
+            if (alive) return null;
+            rmSync(LOCK_PATH, { force: true });
+        }
+    }
+    return null;
+}
+
+/** Run `fn` under the ingest lock; a held lock is a skip, not a failure. */
+async function underIngestLock(fn: () => Promise<void>): Promise<void> {
+    const release = takeIngestLock();
+    if (!release) {
+        console.log(
+            `telemetry:ingest: another ingest holds ${LOCK_PATH} — skipped`
+        );
+        return;
+    }
+    try {
+        await fn();
+    } finally {
+        release();
+    }
 }
 
 function numFlag(name: string): number | null {
@@ -1714,4 +1826,4 @@ async function main(): Promise<void> {
     db.close();
 }
 
-if (import.meta.main) await main();
+if (import.meta.main) await underIngestLock(main);

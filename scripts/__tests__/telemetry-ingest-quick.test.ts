@@ -132,6 +132,42 @@ describe("telemetry:ingest --quick (issue #4968)", () => {
         ).toBe(1);
     });
 
+    it("reads the attempts gate-run.sh archived before reusing a dir, even beside a live retry", () => {
+        const now = Math.floor(Date.now() / 1000);
+        gateRun("land-11", now - 60, {
+            command: "land 11",
+            log: "lane: ran\n",
+            green: false,
+        });
+        // The retry is still running: its own record must wait…
+        writeFileSync(join(runs, "land-11/pid"), String(process.pid));
+        const ident = spawnSync(
+            "ps",
+            ["-o", "lstart=,command=", "-p", String(process.pid)],
+            { encoding: "utf8", timeout: SPAWN_TIMEOUT_MS }
+        )
+            .stdout.split("\n")[0]
+            .replace(/ +/g, " ")
+            .trim();
+        writeFileSync(join(runs, "land-11/pidstart"), ident);
+        // …but the archived attempt is immutable and is read now.
+        const a = join(runs, "land-11/attempts", String(now - 900));
+        mkdirSync(a, { recursive: true });
+        writeFileSync(join(a, "command"), "land 11\n");
+        writeFileSync(join(a, "started"), `${now - 900}\n`);
+        writeFileSync(
+            join(a, "log"),
+            'lane: ran\n  ✗ tsc  9.0s\nerror: script "check:lane" exited with code 1\n'
+        );
+        expect(run(INGEST, ["--quick"]).status).toBe(0);
+        expect(run(INGEST, ["--quick"]).status).toBe(0); // no duplicate
+        expect(
+            query<{ started: number; green: number; bucket: string }>(
+                "SELECT started, green, bucket FROM gate_attempts"
+            )
+        ).toEqual([{ started: now - 900, green: 0, bucket: "static" }]);
+    });
+
     it("ingests gate-lock.jsonl and detach.log incrementally, and spans to today", () => {
         const now = Math.floor(Date.now() / 1000);
         writeFileSync(
@@ -276,6 +312,25 @@ describe("workflow:kpi (issue #4968)", () => {
 
     it("exits 0 when every KPI is within its ceiling", () => {
         const now = Math.floor(Date.now() / 1000);
+        // A machine-admission wait is not a MUTEX wait (review, issue #4968):
+        // 15 minutes of it must not read as a p90 over the ceiling.
+        writeFileSync(
+            join(tel, "gate-lock.jsonl"),
+            JSON.stringify({
+                ts: now,
+                tier: "heavy",
+                event: "machine-saturated",
+                waited_ms: 900_000,
+            }) +
+                "\n" +
+                JSON.stringify({
+                    ts: now,
+                    tier: "heavy",
+                    event: "acquired",
+                    waited_ms: 3000,
+                }) +
+                "\n"
+        );
         gateRun("land-1", now - 60, {
             command: "land 1",
             log: "lane: ran\n",

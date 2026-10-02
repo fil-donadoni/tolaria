@@ -719,6 +719,10 @@ describe("land.ts — the locked command", () => {
         const step = telemetryIngestStep("/repo");
         expect(cmd).toContain(step);
         expect(step).toContain("bun 'scripts/telemetry-ingest.ts' --quick");
+        // Hard wall: it holds the heavy mutex, and the budget is soft.
+        expect(step).toMatch(
+            /perl -e 'alarm shift; exec @ARGV or die' \d+ bun /
+        );
         // The session's CLAUDE_PROJECT_DIR may name the worktree this very
         // command removes; the DB everyone reads is the primary checkout's.
         expect(step).toContain("CLAUDE_PROJECT_DIR='/repo' ");

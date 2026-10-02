@@ -15,7 +15,7 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
-import type { Database as Sqlite } from "bun:sqlite";
+import { Database, type Database as Sqlite } from "bun:sqlite";
 import { openDb } from "./lib/telemetry-db.ts";
 import {
     computeWorkflowKpis,
@@ -59,7 +59,9 @@ export function loadKpiInputs(db: Sqlite): {
         .map((r) => ({ ts: r.ts, red: r.red === 1 }));
     const waits = db
         .query<{ ts: number; waited_ms: number }, []>(
-            "SELECT ts, waited_ms FROM gate_lock WHERE waited_ms IS NOT NULL AND tier = 'heavy'"
+            // `acquired` (NULL before issue #4966) is the MUTEX wait; the
+            // `machine-*` rows carry the machine-admission wait instead.
+            "SELECT ts, waited_ms FROM gate_lock WHERE waited_ms IS NOT NULL AND tier = 'heavy' AND (event = 'acquired' OR event IS NULL)"
         )
         .all()
         .map((r) => ({ ts: r.ts, waitedMs: r.waited_ms }));
@@ -77,13 +79,15 @@ export function rollingWindows(nowS: number): Array<[string, KpiWindow]> {
 /**
  * The four lines per rolling window, read from `root`'s telemetry DB — what
  * `health-cadence` prints when it fires. Never throws: a missing or
- * unreadable DB is one line saying so.
+ * unreadable DB (or one not yet migrated) is one line saying so.
  */
 export function kpiReport(root: string, nowS = Date.now() / 1000): string[] {
     const path = telemetryDbPath(root);
     if (!existsSync(path)) return [`workflow:kpi: no telemetry DB at ${path}`];
     try {
-        const db = openDb(path);
+        // Read-only: `openDb` migrates, and a fire must never contend for a
+        // write lock with an ingest.
+        const db = new Database(path, { readonly: true });
         try {
             const input = loadKpiInputs(db);
             return rollingWindows(nowS).flatMap(([label, w]) =>

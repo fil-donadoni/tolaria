@@ -327,6 +327,8 @@ const PR_MERGE = resolve(__dirname, "pr-merge.ts");
  */
 const HEALTH_CADENCE_REL = "scripts/health-cadence.ts";
 const TELEMETRY_INGEST_REL = "scripts/telemetry-ingest.ts";
+/** `telemetryIngestStep`'s hard wall, seconds — its budget is 5 s. */
+const TELEMETRY_INGEST_WALL_S = 30;
 const SEED_SCENARIO = resolve(__dirname, "seed-scenario.ts");
 const RESOLVE_ARTIFACTS = resolve(__dirname, "resolve-generated-artifacts.ts");
 const GAPS_SYNC = resolve(__dirname, "gaps-sync.ts");
@@ -1106,10 +1108,17 @@ export function healthDetachStep(primaryCheckout: string): string {
  * about to remove — its `.claude/telemetry/` is not the one anyone reads.
  * BEFORE the health detach, so a decision that fires prints KPIs that count
  * this landing. Non-gating like every post-merge step.
+ *
+ * HARD-WALLED: `--budget-ms` is checked between spans slices only, and this
+ * step runs holding the heavy mutex — a hung read or a stuck SQLite lock
+ * must not hold every other `land` with it. `perl`'s `alarm` survives the
+ * `exec` (macOS ships no `timeout`); a SIGALRM'd ingest leaves its lock to
+ * the next run's stale-pid takeover.
  */
 export function telemetryIngestStep(primaryCheckout: string): string {
     return (
         `(cd ${shQuote(primaryCheckout)} && CLAUDE_PROJECT_DIR=${shQuote(primaryCheckout)} ` +
+        `perl -e 'alarm shift; exec @ARGV or die' ${TELEMETRY_INGEST_WALL_S} ` +
         `bun ${shQuote(TELEMETRY_INGEST_REL)} --quick || ` +
         `echo "land: telemetry ingest failed — telemetry.db is one landing staler" >&2; true)`
     );

@@ -436,6 +436,26 @@ if [ "$attached" -eq 0 ] && [ "$finished" -eq 0 ]; then
             exit 76
         fi
     fi
+    # A `land` retried under the same key reuses this dir and overwrites the
+    # previous attempt — the failure `workflow:kpi` counts (issue #4968). Keep
+    # it in `attempts/<started>/` for `telemetry-ingest`, which reads both;
+    # the dir's own KEEP_DAYS prune takes it away with the rest.
+    case "$(cat "$CMD_F" 2>/dev/null)" in
+        land\ *)
+            _prev_started=$(cat "$STARTF" 2>/dev/null || echo "")
+            case "$_prev_started" in
+                '' | *[!0-9]*) ;;
+                *)
+                    _prev="$RUN_DIR/attempts/$_prev_started"
+                    if mkdir -p "$_prev" 2>/dev/null; then
+                        cp "$CMD_F" "$STARTF" "$_prev/" 2>/dev/null || true
+                        cp "$LOG" "$_prev/log" 2>/dev/null || true
+                        [ ! -f "$GREEN_F" ] || : >"$_prev/green"
+                    fi
+                    ;;
+            esac
+            ;;
+    esac
     rm -f "$RC" "$PIDF" "$PIDSTART" "$GREEN_F" "$END_HEAD_F" "$RUN_DIR/reaped"
     pwd >"$CWD_F"
     printf '%s\n' "$1" >"$SCRIPT_F"
