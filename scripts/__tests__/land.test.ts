@@ -6,6 +6,7 @@ import {
     rmSync,
     writeFileSync,
     existsSync,
+    readFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { issueWorktree } from "../lib/issue-worktree";
@@ -40,6 +41,7 @@ import {
     type LandFacts,
     type LockedCommandOptions,
     type HousekeepingOptions,
+    preflightGate,
 } from "../land";
 import { BASE_BRANCH, ORIGIN_BASE, RELEASE_BRANCH } from "../lib/branches";
 import { classifyLane } from "../check-lane";
@@ -2174,5 +2176,107 @@ describe("land.ts — the teardown step, executed", () => {
                 encoding: "utf8",
             }).stdout.trim()
         ).toBe("");
+    });
+});
+
+/**
+ * Issue #4967 — `land` runs the static half of the lane on the PR's own head
+ * BEFORE it queues for the machine mutex, so a deterministic failure is
+ * refused without waiting in the queue or holding the lock.
+ */
+describe("land.ts — preflight before queuing (issue #4967)", () => {
+    const calls: string[] = [];
+    const deps = (status: number | null, admitted = true) => ({
+        admit: async () => {
+            calls.push("admit");
+            return admitted;
+        },
+        run: () => {
+            calls.push("run");
+            return { status, ms: 1234 };
+        },
+    });
+    beforeEach(() => {
+        calls.length = 0;
+    });
+
+    it("refuses a red preflight, naming it, and says nothing was queued", async () => {
+        const out = await preflightGate({
+            mode: "full",
+            enabled: true,
+            ...deps(1),
+        });
+        expect(out.kind).toBe("refuse");
+        if (out.kind !== "refuse") return;
+        expect(out.reason).toMatch(/preflight is red on the PR's own head/);
+        expect(out.reason).toMatch(/Nothing was queued/);
+        expect(calls).toEqual(["admit", "run"]);
+    });
+
+    it("refuses ANY non-zero preflight, a signal included — only exit 0 passes", async () => {
+        for (const status of [2, 77, null]) {
+            const out = await preflightGate({
+                mode: "full",
+                enabled: true,
+                ...deps(status),
+            });
+            expect(out.kind, String(status)).toBe("refuse");
+        }
+    });
+
+    it("passes a green preflight with its wall-clock", async () => {
+        expect(
+            await preflightGate({ mode: "full", enabled: true, ...deps(0) })
+        ).toEqual({ kind: "pass", ms: 1234 });
+    });
+
+    it("asks the machine FIRST, and runs nothing on a saturated one (issue #4966)", async () => {
+        expect(
+            await preflightGate({
+                mode: "full",
+                enabled: true,
+                ...deps(0, false),
+            })
+        ).toEqual({ kind: "saturated" });
+        expect(calls).toEqual(["admit"]);
+    });
+
+    it("a run that reached no verdict (failed fetch, timeout) is skipped as INFRA, never a refusal", async () => {
+        const out = await preflightGate({
+            mode: "full",
+            enabled: true,
+            admit: async () => true,
+            run: () => ({ infra: "`git fetch origin x` failed" }),
+        });
+        expect(out).toEqual({
+            kind: "skipped",
+            why: "`git fetch origin x` failed",
+        });
+    });
+
+    it("--no-preflight and the housekeeping mode run nothing and ask nothing", async () => {
+        for (const [mode, enabled] of [
+            ["full", false],
+            ["housekeeping", true],
+        ] as const) {
+            const out = await preflightGate({ mode, enabled, ...deps(1) });
+            expect(out.kind).toBe("skipped");
+        }
+        expect(calls).toEqual([]);
+    });
+
+    it("main() settles the preflight before it spawns the heavy gate — a refusal never registers a waiter", () => {
+        const src = readFileSync(resolve(__dirname, "../land.ts"), "utf8");
+        const body = src.slice(src.indexOf("async function main("));
+        const pre = body.indexOf("await preflightGate(");
+        const refuse = body.indexOf('if (pre.kind === "refuse") fail(');
+        const heavy = body.indexOf('spawnSync("bun", [GATE, "heavy"');
+        expect(pre).toBeGreaterThan(-1);
+        expect(refuse).toBeGreaterThan(pre);
+        expect(heavy).toBeGreaterThan(refuse);
+        // The preflight is `check:lane --preflight`, the lane's own plan
+        // filtered — never a hand-kept list of commands in land.ts.
+        expect(src).toMatch(/\[CHECK_LANE, "--preflight"\]/);
+        expect(src).toMatch(/--no-preflight/);
     });
 });

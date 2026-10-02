@@ -109,6 +109,8 @@ import { primaryCheckout } from "./lib/primary-checkout";
 import {
     GATE_OVERRIDE_ENV,
     MACHINE_SATURATED_EXIT,
+    readMachineConfig,
+    waitForMachine,
 } from "./lib/machine-admission";
 import {
     LIVE_ORIGIN_BAND_DEPS,
@@ -331,6 +333,7 @@ const UMBRELLA_DETACH = resolve(__dirname, "umbrella-detach.ts");
 // would throw when this module is imported under vitest for its pure
 // functions).
 const GATE = resolve(__dirname, "gate.ts");
+const CHECK_LANE = resolve(__dirname, "check-lane.ts");
 
 // ─────────────────────────────────────────────────────────────────────────
 // git plumbing — thin and untested, per repo convention (docs-lane.ts,
@@ -1300,6 +1303,116 @@ export function buildLockedCommand(opts: LockedCommandOptions): string {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
+// PREFLIGHT (issue #4967) — the deterministic failures, found before queuing.
+// ─────────────────────────────────────────────────────────────────────────
+
+/** One preflight run: an exit code, or the reason it reached no verdict. */
+export type PreflightRun =
+    | { status: number | null; ms: number }
+    | { infra: string };
+
+/** A hung `tsc` or vitest before the queue blocks `land` with nothing in
+ *  `gate:who` to name it — so the run is bounded, and the bound is INFRA. */
+const PREFLIGHT_TIMEOUT_MS = 15 * 60_000;
+const PREFLIGHT_FETCH_TIMEOUT_MS = 120_000;
+
+export type PreflightOutcome =
+    | { kind: "skipped"; why: string }
+    | { kind: "pass"; ms: number }
+    | { kind: "refuse"; reason: string }
+    | { kind: "saturated" };
+
+/**
+ * Run the static half of the lane on the PR's UN-REBASED head, BEFORE `land`
+ * registers as a waiter on the machine mutex (issue #4967). Measured over
+ * 14 days: 79 of 276 lands failed, and ~60 of those failures (a test that
+ * needed a code change, a stale Oracle lockfile or card index, a type, lint
+ * or format error) were decidable on the PR's own tree — each one first
+ * waited the median 5.5 min (p90 13) in the queue and then held the mutex to
+ * find out. 7.8 h of mutex time in 14 days went to failed runs.
+ *
+ * What runs is `check:lane --preflight` (`preflightPlan`): the same plan
+ * the lane builds, filtered — never a second list. It runs at the LIGHT tier
+ * (no lock), so it is admitted by the machine first (issue #4966): a light
+ * gate does not ask on its own, and a saturated machine is waited out here
+ * exactly as the heavy tier waits it out under the hold.
+ *
+ * It PROVES NOTHING ABOUT THE REBASED TIP AND SKIPS NOTHING: the lane inside
+ * the mutex is unchanged. Only the full landing path runs it — the
+ * housekeeping mode gates nothing — and `--no-preflight` drops it for the
+ * retry after a merge-only failure, whose tree already passed.
+ *
+ * `admit` and `run` are injected so the DECISION — what runs, in what order,
+ * what a red or a saturated machine means — is testable without a machine
+ * probe or a subprocess, per this file's convention.
+ */
+export async function preflightGate(opts: {
+    mode: LandMode;
+    enabled: boolean;
+    admit: () => Promise<boolean>;
+    run: () => PreflightRun;
+}): Promise<PreflightOutcome> {
+    if (opts.mode === "housekeeping")
+        return {
+            kind: "skipped",
+            why: "the PR is already MERGED — housekeeping gates nothing",
+        };
+    if (!opts.enabled) return { kind: "skipped", why: "--no-preflight" };
+    if (!(await opts.admit())) return { kind: "saturated" };
+    const ran = opts.run();
+    // The preflight could not give a verdict on the tree (a failed fetch, a
+    // hung check): INFRA, never a red — the lane in the mutex still runs.
+    if ("infra" in ran) return { kind: "skipped", why: ran.infra };
+    const { status, ms } = ran;
+    if (status === 0) return { kind: "pass", ms };
+    return {
+        kind: "refuse",
+        reason: `preflight is red on the PR's own head (\`check:lane --preflight\`, exit ${status ?? "signal"}) — a failure the lane would have found after the queue and inside the mutex. Fix it on the branch, push, re-run \`land\`. Nothing was queued.`,
+    };
+}
+
+/** The machine admission the preflight waits on — the heavy tier's own
+ *  `waitForMachine`, since the light tier does not ask. */
+async function admitPreflight(): Promise<boolean> {
+    const machine = await waitForMachine({
+        thresholds: readMachineConfig(),
+        tag: "land: preflight",
+        announce: (line) => console.error(line),
+    });
+    return machine.admitted;
+}
+
+/** Fetch the base so the merge-base diff is the PR's own, then run the
+ *  preflight plan at the light tier. Thin plumbing; `preflightGate` decides. */
+function runPreflight(cwd: string): PreflightRun {
+    const t0 = Date.now();
+    const env = netEnv(process.env);
+    // A stale `origin/<base>` moves the merge-base back and the plan would
+    // cover other PRs' files — a false red on code that is not this PR's.
+    const fetch = spawnSync("git", ["fetch", "origin", BASE_BRANCH, "-q"], {
+        cwd,
+        env,
+        stdio: "inherit",
+        timeout: PREFLIGHT_FETCH_TIMEOUT_MS,
+    });
+    if (fetch.status !== 0)
+        return {
+            infra: `\`git fetch origin ${BASE_BRANCH}\` failed — the diff base would be stale`,
+        };
+    const r = spawnSync("bun", [CHECK_LANE, "--preflight"], {
+        cwd,
+        env,
+        stdio: "inherit",
+        timeout: PREFLIGHT_TIMEOUT_MS,
+    });
+    if (r.error || (r.status === null && r.signal === "SIGTERM"))
+        return {
+            infra: `\`check:lane --preflight\` reached no verdict (${r.error?.message ?? `killed after ${PREFLIGHT_TIMEOUT_MS / 60_000} min`})`,
+        };
+    return { status: r.status, ms: Date.now() - t0 };
+}
+
+// ─────────────────────────────────────────────────────────────────────────
 // The locked child's environment — pure function of a base env so a test can
 // assert on it without touching real `process.env`.
 // ─────────────────────────────────────────────────────────────────────────
@@ -1334,12 +1447,13 @@ function parseArgs(argv: string[]): {
     teardown: boolean;
     repair: boolean;
     redOk: boolean;
+    preflight: boolean;
 } {
     const positional = argv.filter((a) => !a.startsWith("--"));
     const pr = Number((positional[0] ?? "").replace(/^#/, ""));
     if (!Number.isInteger(pr) || pr <= 0) {
         fail(
-            "usage: bun run land <PR#> [--no-merge] [--keep] [--repair | --red-ok]"
+            "usage: bun run land <PR#> [--no-merge] [--keep] [--repair | --red-ok] [--no-preflight]"
         );
     }
     return {
@@ -1348,6 +1462,7 @@ function parseArgs(argv: string[]): {
         teardown: !argv.includes("--keep"),
         repair: argv.includes("--repair"),
         redOk: argv.includes("--red-ok"),
+        preflight: !argv.includes("--no-preflight"),
     };
 }
 
@@ -1366,10 +1481,10 @@ function readRepairIssues(primary: string): number[] {
     }
 }
 
-function main(): void {
+async function main(): Promise<void> {
     const cwd = process.cwd();
     const [, , ...argv] = process.argv;
-    const { pr, merge, teardown, repair, redOk } = parseArgs(argv);
+    const { pr, merge, teardown, repair, redOk, preflight } = parseArgs(argv);
 
     const branch = git(["rev-parse", "--abbrev-ref", "HEAD"], cwd);
     const dirty = git(["status", "--porcelain"], cwd) !== "";
@@ -1472,6 +1587,27 @@ function main(): void {
     // serialise against another session's `land`.
     const mode = landMode(prState);
 
+    // BEFORE the waiter entry (issue #4967): a red here exits having never
+    // queued, so `gate:who` never shows this PR.
+    const pre = await preflightGate({
+        mode,
+        enabled: preflight,
+        admit: admitPreflight,
+        run: () => runPreflight(cwd),
+    });
+    if (pre.kind === "saturated") {
+        console.error(
+            `land: NOT landed, and NOT failed — the machine stayed saturated past the bound before the preflight, so nothing ran and PR #${pr} is untouched. Re-issue the same command once \`bun run machine\` reads calm.`
+        );
+        process.exit(MACHINE_SATURATED_EXIT);
+    }
+    if (pre.kind === "refuse") fail(`refusing — ${pre.reason}`);
+    console.log(
+        pre.kind === "pass"
+            ? `land: preflight PASS in ${(pre.ms / 1000).toFixed(1)}s — queuing for the mutex`
+            : `land: preflight skipped (${pre.why})`
+    );
+
     // The branch every step below is ABOUT, and the worktree the teardown
     // removes — from the PR's head ref, never from `cwd` (issue #4378). See
     // `landingTarget` for what reading either off `cwd` does to the recovery
@@ -1567,5 +1703,7 @@ function main(): void {
 }
 
 if (import.meta.main) {
-    main();
+    main().catch((e: unknown) =>
+        fail(e instanceof Error ? (e.stack ?? e.message) : String(e))
+    );
 }

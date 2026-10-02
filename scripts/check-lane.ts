@@ -49,6 +49,7 @@
  *   bun run check:lane --base=<ref>   # classify against another base
  *   bun run check:lane --json         # emit the plan + receipt as JSON
  *   bun run check:lane --plan         # print the classification, run NOTHING
+ *   bun run check:lane --preflight    # run only the static half (land, #4967)
  *
  * Exits 1 on a dirty working tree, so the HEAD SHA it prints describes
  * exactly what was classified — and exits 1 again if that tree MOVES under
@@ -65,11 +66,17 @@
  * dirty-tree refusal applies here too, and an uncommitted card is a path the
  * classifier cannot see.
  *
- * NO PREFLIGHT (ADR 0136 §1). Issue #3286 made this refuse a tree behind the
- * base tip or a RED base before paying the gate, to stop a hand-run PRE-PR
- * gate being paid twice. There is no pre-PR gate any more — `land` pays the
- * lane once, on the rebased tip, inside the mutex — so the refusal went with
- * it. A hand-run `check:lane` gates whatever HEAD is, stale or not.
+ * NO STALENESS REFUSAL (ADR 0136 §1). Issue #3286 made this refuse a tree
+ * behind the base tip or a RED base before paying the gate, to stop a
+ * hand-run PRE-PR gate being paid twice. There is no pre-PR gate any more —
+ * `land` pays the lane once, on the rebased tip, inside the mutex — so the
+ * refusal went with it. A hand-run `check:lane` gates whatever HEAD is, stale
+ * or not.
+ *
+ * `--preflight` (issue #4967) is `land`'s, run on the PR's un-rebased head
+ * before it queues for the mutex: the static half of the SAME plan
+ * (`preflightPlan`), same renderers, same receipt. It replaces nothing — the
+ * lane still runs whole on the rebased tip.
  */
 
 import { spawnSync } from "node:child_process";
@@ -748,6 +755,102 @@ function appendCheapGuards(
 }
 
 /**
+ * The lane checks that are decidable on the PR's OWN tree (issue #4967):
+ * formatting, lint, the type-check, the lockfile/stub/oracle drift guards,
+ * the CR citation lint and the cheap census guards. None of them reads
+ * anything the base branch could change under the PR except the generated
+ * artefacts — and 15 of the 79 failed lands measured were exactly those,
+ * stale on the PR's own head.
+ */
+const PREFLIGHT_STATIC_IDS: ReadonlySet<string> = new Set([
+    "format(diff)",
+    "lint(diff)",
+    "tsc[all]",
+    "tsc[app,scripts]",
+    "tsc[convex]",
+    "check:index",
+    "check:stubs",
+    "check:oracle",
+    "cr:lint",
+    ...CHEAP_GUARDS.map(({ id }) => id),
+]);
+
+/** Where the drift-guard census lives: hooks, skills, the gate scripts. */
+const PREFLIGHT_TOOLING_PATHS = /^(scripts|\.claude)\//;
+
+const PREFLIGHT_SKIP_REASON =
+    "needs the rebased tip — runs inside the mutex, in the lane proper";
+
+/**
+ * `land`'s PREFLIGHT (issue #4967): the static half of `plan`, run on the
+ * PR's un-rebased head BEFORE `land` queues for the machine mutex. Measured
+ * over 14 days: 79 of 276 lands failed, ~60 of them on a check that never
+ * needed the rebased tip (vitest that needed a code change, a stale lockfile,
+ * a type error) — each paid the median 5.5 min queue and then held the mutex
+ * to find out.
+ *
+ * DERIVED FROM THE LANE PLAN, NEVER A SECOND CLASSIFICATION: it takes the
+ * `LanePlan` the one `classifyLane` call built and filters it, so the
+ * preflight can never run a check its lane would not. The one exception is
+ * `full`, whose run list is `check:pr` verbatim — opaque — so its static half
+ * is spelled out from the same ids the narrower lanes use.
+ *
+ * vitest only for a `scripts/**` or `.claude/**` diff — `node-tooling`, the
+ * project the drift-guard census is in, where the vitest bucket of failed
+ * lands concentrated. The engine, bot and dom projects stay in the mutex:
+ * minutes each, and the issue's budget is ≤ 3 min of preflight.
+ *
+ * PROVES NOTHING ABOUT THE REBASED TIP AND SKIPS NOTHING: the lane inside the
+ * mutex is unchanged. A `docs` lane is `check:docs` — seconds, all static —
+ * so its preflight is the lane itself.
+ */
+export function preflightPlan(
+    plan: LanePlan,
+    presentPaths: string[] = plan.files
+): LanePlan {
+    const rationale = `preflight on the un-rebased head — ${plan.rationale}`;
+    if (plan.lane === "docs") return { ...plan, rationale };
+
+    const fromLane =
+        plan.lane === "full"
+            ? [
+                  scopedCheck(
+                      "format(diff)",
+                      "bunx prettier --check",
+                      presentPaths.filter((p) => PRETTIER_EXTENSIONS.test(p))
+                  ),
+                  scopedCheck(
+                      "lint(diff)",
+                      "bunx eslint --no-warn-ignored",
+                      presentPaths.filter((p) => ESLINT_EXTENSIONS.test(p))
+                  ),
+                  { id: "tsc[all]", command: "bun run check:ts" },
+                  { id: "check:index", command: "bun run check:index" },
+                  { id: "check:stubs", command: "bun run check:stubs" },
+                  { id: "check:oracle", command: "bun run check:oracle" },
+                  { id: "cr:lint", command: "bun run cr:lint" },
+                  ...CHEAP_GUARDS.map(({ id }) => ({
+                      id,
+                      command: `bun run ${id}`,
+                  })),
+              ].filter((c): c is PlannedCheck => c !== null)
+            : plan.run.filter((c) => PREFLIGHT_STATIC_IDS.has(c.id));
+
+    const run = [...fromLane];
+    if (plan.files.some((p) => PREFLIGHT_TOOLING_PATHS.test(p)))
+        run.push({
+            id: "node-tooling",
+            command: "bunx vitest run --project node-tooling",
+        });
+
+    const ran = new Set(run.map((c) => c.id));
+    const skip = plan.run
+        .filter((c) => !ran.has(c.id))
+        .map((c) => ({ id: c.id, reason: PREFLIGHT_SKIP_REASON }));
+    return { lane: plan.lane, rationale, files: plan.files, run, skip };
+}
+
+/**
  * Prose in a code lane (ADR 0136 §3): the run list ENDS with the docs lane's
  * own node test list — the guards that READ prose, exactly the set
  * `check:docs` runs (`DOC_GATE_TESTS`, one list, two consumers). The other two
@@ -1243,30 +1346,40 @@ export function parseArgs(argv: string[]): {
     base: string;
     json: boolean;
     planOnly: boolean;
+    preflight: boolean;
 } {
     const baseArg = argv.find((a) => a.startsWith("--base="));
     for (const a of argv) {
-        if (a === "--json" || a === "--plan" || a.startsWith("--base=")) {
+        if (
+            a === "--json" ||
+            a === "--plan" ||
+            a === "--preflight" ||
+            a.startsWith("--base=")
+        ) {
             continue;
         }
-        fail(`unknown argument \`${a}\` — usage: bun run check:lane [--base=<ref>] [--json] [--plan]
+        fail(`unknown argument \`${a}\` — usage: bun run check:lane [--base=<ref>] [--json] [--plan] [--preflight]
 
 The lane is derived from the diff and can never be declared by a flag (#2738):
 a flag is a hand-maintained list in disguise, and the first agent that passes
 \`--skin\` out of habit on a diff touching convex/ gets a lying green.
 \`--plan\` is not that flag: it prints the lane this diff classifies as and
-runs nothing, so it cannot make a wrong lane true.`);
+runs nothing, so it cannot make a wrong lane true. \`--preflight\` is not
+one either: it runs a SUBSET of the lane the diff classifies as.`);
     }
     return {
         base: baseArg ? baseArg.slice("--base=".length) : ORIGIN_BASE,
         json: argv.includes("--json"),
         planOnly: argv.includes("--plan"),
+        preflight: argv.includes("--preflight"),
     };
 }
 
 function main(): void {
     const cwd = process.cwd();
-    const { base, json, planOnly } = parseArgs(process.argv.slice(2));
+    const { base, json, planOnly, preflight } = parseArgs(
+        process.argv.slice(2)
+    );
 
     const start = snapshotTree(cwd);
     if (start.status.trim() !== "") {
@@ -1294,10 +1407,11 @@ function main(): void {
     // that reads it for rendering AND execution. Never build a second list
     // of commands, and never render the JSON form by hand next to
     // renderJson (#2748 review, finding 1).
-    const plan = classifyLane(
-        changedPaths(base, cwd, true),
-        changedPaths(base, cwd, false)
-    );
+    const present = changedPaths(base, cwd, false);
+    const lanePlan = classifyLane(changedPaths(base, cwd, true), present);
+    // Still ONE plan: the preflight is derived from the lane plan, never
+    // classified a second time (issue #4967).
+    const plan = preflight ? preflightPlan(lanePlan, present) : lanePlan;
 
     // The classification read the tree; assert it is still the tree the
     // start snapshot described before anything is printed or run.

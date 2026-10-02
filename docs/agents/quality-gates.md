@@ -619,7 +619,7 @@ cost over `LANE_COST_BUDGET_S`. Today that list is `check:ui` alone (its
 `--all` walk: 14m39s green, 45m37s red). A guard in neither place reds the
 census.
 
-### No preflight, no pre-PR gate — `land` pays the lane once (ADR 0136 §1–2)
+### No pre-PR gate — `land` pays the lane once (ADR 0136 §1–2)
 
 Issue #3286 gave `check:lane` a preflight that refused a tree behind the base
 tip or a RED base, so a hand-run PRE-PR lane gate was not paid twice (`land`
@@ -637,6 +637,38 @@ each run dir, and `land` writes the same record after its own green lane.
 Only a record whose command is exactly `check:lane` counts; the receipt says
 `lane: ran` or `lane: skipped (gated <sha> against <base>)`. A hand-run
 `check:lane` gates whatever HEAD is, stale or not.
+
+### `land`'s preflight — the deterministic failures, before the queue (issue #4967)
+
+Before `land` registers as a waiter on the mutex it runs
+`check:lane --preflight` on the PR's **un-rebased** head, at the light tier,
+after machine admission (issue #4966 — the light tier does not ask on its
+own). The plan is `preflightPlan`: the lane's own plan filtered to its static
+half — `format(diff)`, `lint(diff)`, the lane's type-check, `check:index`,
+`check:stubs`, `check:oracle`, `cr:lint`, the cheap census guards — plus the
+`node-tooling` vitest project when the diff touches `scripts/**` or
+`.claude/**`. `full` spells the same static half out (its lane is `check:pr`,
+opaque); `docs` runs its lane whole. A red preflight exits before queuing,
+with the lane's own output shape. It proves nothing about the rebased tip and
+skips nothing: the lane inside the mutex is unchanged. `--no-preflight` is for
+the retry after a merge-only failure.
+
+**Replay** of the non-green `land` runs in `~/.cache/tolaria/gate-runs`, 14
+days to 2026-10-02 (445 runs, 185 PRs, 73 not green): **20 caught for
+certain** (`cr:lint` 10, type-check 7, lint 2, oracle drift 1), **7 more if
+they red on the head** (`node-tooling`, every one on a `scripts/**` or
+`.claude/**` diff), and 46 the preflight does not reach — 22 vitest failures in
+`node-engine` / bot projects (minutes each, left in the mutex), 14 rebase
+conflicts, 3 tree-moved refusals, 1 `check:convex-bundle`, 6 refusals,
+merge-only failures and killed runs.
+
+**Cost**, measured on this change's own `engine` + `scripts/**` diff at load
+9–23 on 8 cores: 235 s cold (`tsc` 92 s, `node-tooling` 128 s) and 106 s warm
+(`node-tooling` 100 s, the rest 7 s, guard caches hit). Zero mutex time. A
+diff without `scripts/**` or `.claude/**` pays the static half alone — ~107 s
+cold, seconds warm. `bundle` and every vitest project but `node-tooling` stay
+in the mutex only. A failed `git fetch` or a run past 15 min reaches no verdict
+and is skipped as INFRA — the lane still runs.
 
 ## The base branch, the batch, and `release` — where the full gate went (ADR 0116, re-cadenced by ADR 0136 §6)
 
