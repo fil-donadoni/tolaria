@@ -230,7 +230,9 @@ let strays: number[] = [];
  */
 function frozenTree(roots: number[]): number[] {
     const seen = new Set<number>();
-    let frontier = roots;
+    // A root already gone may be a recycled pid by now: walking it would
+    // freeze an unrelated subtree.
+    let frontier = roots.filter(alive);
     while (frontier.length) {
         for (const pid of frontier) {
             seen.add(pid);
@@ -292,7 +294,9 @@ afterEach(async () => {
     }
     rmSync(root, { recursive: true, force: true });
     expect(survivors, "processes outlived the test's cleanup").toEqual([]);
-});
+    // Above vitest's 10 s default: the survivor wait alone is 5 s, plus the
+    // `ps` walks, on a loaded machine.
+}, 30_000);
 
 describe("gate.ts — tier dispatch", () => {
     it("light tier runs the command without setting a worker override", () => {
