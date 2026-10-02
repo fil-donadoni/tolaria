@@ -29,6 +29,7 @@ import {
     reclaimableInMs,
     stallJudgeable,
     subtreeFromPs,
+    survivorLines,
     waiterLive,
     waiterSince,
     type BeatVerdict,
@@ -1098,6 +1099,81 @@ describe("gate.ts — the wrapped tree dies with the gate (issue #3821)", () => 
         expect(existsSync(join(lockRoot, "gate.lock"))).toBe(false);
     }, 60_000);
 
+    it("an unconfirmed teardown names every survivor of its last pass — pid, stat, command; a confirmed one names nothing (issue #4976)", async () => {
+        // A survivor cannot be made for real: SIGKILL is not ignorable, and a
+        // process in a protected group is reached by pid. So the gate's `ps`
+        // is wrapped — the real rows plus, once the test plants it, one row
+        // that never leaves, sitting in the wrapped child's group.
+        const bin = join(lockRoot, "bin");
+        mkdirSync(bin);
+        const planted = join(lockRoot, "planted-row");
+        const realPs = spawnSync("which", ["ps"], {
+            encoding: "utf8",
+        }).stdout.trim();
+        writeFileSync(
+            join(bin, "ps"),
+            [
+                "#!/bin/sh",
+                `'${realPs}' "$@" || exit $?`,
+                `case "$*" in *stat=*) cat '${planted}' 2>/dev/null ;; esac`,
+                "exit 0",
+                "",
+            ].join("\n"),
+            { mode: 0o755 }
+        );
+
+        const teardown = async (plant: boolean) => {
+            const gate = spawn("bun", [GATE, "light", "sleep 120"], {
+                cwd: tmpdir(),
+                env: env({
+                    PATH: `${bin}:${process.env.PATH}`,
+                    TOLARIA_GATE_KILL_GRACE_MS: "100",
+                }),
+                stdio: ["ignore", "ignore", "pipe"],
+            });
+            let err = "";
+            gate.stderr.on("data", (c: Buffer) => (err += c.toString()));
+            const gatePid = gate.pid!;
+            strays.push(gatePid);
+            // The wrapped command: the gate's child that leads its own group.
+            let root: Proc | undefined;
+            const wrapped = () =>
+                (root = procs().find(
+                    (p) => p.ppid === gatePid && p.pgid === p.pid
+                )) !== undefined;
+            expect(await waitFor(wrapped)).toBe(true);
+            strays.push(...descendants(gatePid));
+            // pid 999999 is above any pid this OS hands out, and its group is
+            // one the teardown signals as a group — never a pid it kills.
+            if (plant)
+                writeFileSync(
+                    planted,
+                    `999999     1 ${root!.pid} E    planted-survivor --never-dies\n`
+                );
+            process.kill(gatePid, "SIGTERM");
+            await exited(gate);
+            return { err, root: root!.pid };
+        };
+
+        const stuck = await teardown(true);
+        expect(stuck.err).toContain(
+            `could NOT confirm the tree of pid ${stuck.root} is gone (SIGTERM)`
+        );
+        expect(stuck.err).toContain(
+            `survivor pid 999999 ppid 1 pgid ${stuck.root} stat E — planted-survivor --never-dies`
+        );
+
+        // The same wrapped `ps`, nothing planted: survivors are named exactly
+        // when the teardown went unconfirmed — which a machine loaded past
+        // the teardown's own bound can still make it, and then says so.
+        rmSync(planted);
+        const calm = await teardown(false);
+        expect(calm.err).not.toContain("999999");
+        expect(calm.err.includes("survivor")).toBe(
+            calm.err.includes("could NOT confirm")
+        );
+    }, 60_000);
+
     it("gives the wrapped command its own process group, so the group is the handle", async () => {
         const gate = spawn("bun", [GATE, "light", "sleep 120"], {
             cwd: tmpdir(),
@@ -1312,17 +1388,56 @@ describe("gate-liveness — the tree a teardown kills, pure (issue #4965)", () =
         "garbage",
     ].join("\n");
 
-    it("parses pid, ppid, pgid and the zombie flag; garbage is no row, nothing is null", () => {
-        const rows = parsePsRows(PS + "\n   99    50    60 Z+")!;
-        expect(rows).toHaveLength(10);
+    it("parses pid, ppid, pgid, the state and the command line; garbage is no row, nothing is null", () => {
+        const rows = parsePsRows(
+            [
+                PS,
+                "   99    50    60 Z+   <defunct>",
+                "   72    70    70 R+   node /a b/vitest.mjs run  ",
+            ].join("\n")
+        )!;
+        expect(rows).toHaveLength(11);
+        // A row with no command column is still a row.
         expect(rows.find((r) => r.pid === 71)).toEqual({
             pid: 71,
             ppid: 70,
             pgid: 70,
             zombie: false,
+            stat: "R",
+            command: "",
         });
-        expect(rows.find((r) => r.pid === 99)!.zombie).toBe(true);
+        // The command keeps its inner spaces — it is the last column.
+        expect(rows.find((r) => r.pid === 72)).toMatchObject({
+            stat: "R+",
+            command: "node /a b/vitest.mjs run",
+        });
+        expect(rows.find((r) => r.pid === 99)).toMatchObject({
+            zombie: true,
+            stat: "Z+",
+        });
         expect(parsePsRows("no rows here")).toBeNull();
+    });
+
+    it("names a survivor by pid, parentage, group, state and command; a long command is cut, a missing pass is said (issue #4976)", () => {
+        const rows = parsePsRows(
+            [
+                "   71     1    70 E    (bun)",
+                `   72     1    70 U    ${"x".repeat(400)}`,
+                "   73     1    70 R",
+            ].join("\n")
+        )!;
+        const lines = survivorLines(rows);
+        expect(lines).toHaveLength(3);
+        expect(lines[0]).toBe(
+            "[gate]   survivor pid 71 ppid 1 pgid 70 stat E — (bun)"
+        );
+        expect(lines[1]).toBe(
+            `[gate]   survivor pid 72 ppid 1 pgid 70 stat U — ${"x".repeat(160)}…`
+        );
+        expect(lines[2]).toContain("stat R — (no command)");
+        expect(survivorLines(null)).toEqual([
+            "[gate]   no survivor can be named — `ps` gave no rows",
+        ]);
     });
 
     it("walks into the nested gate's group — the one the outer group signal never reached", () => {

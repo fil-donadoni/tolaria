@@ -408,7 +408,7 @@ export function waiterLive(
 // TREE TEARDOWN (issue #4965)
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** One row of `ps -Ao pid=,ppid=,pgid=,stat=`. */
+/** One row of `ps -Ao pid=,ppid=,pgid=,stat=,args=`. */
 export interface PsRow {
     pid: number;
     ppid: number;
@@ -417,22 +417,53 @@ export interface PsRow {
      *  holder blocked in its own teardown cannot reap, so it must not count
      *  as a survivor. */
     zombie: boolean;
+    /** The raw state column (`S`, `R+`, `E`, …) and the command line — what
+     *  an unconfirmed teardown names its survivors by (issue #4976). The
+     *  command is empty when `ps` printed none. */
+    stat: string;
+    command: string;
 }
 
 /** Null when the output carries no parseable row — "unmeasurable". */
 export function parsePsRows(psOutput: string): PsRow[] | null {
     const rows: PsRow[] = [];
     for (const line of psOutput.split("\n")) {
-        const m = /^\s*(\d+)\s+(\d+)\s+(\d+)\s+(\S+)\s*$/.exec(line);
+        const m = /^\s*(\d+)\s+(\d+)\s+(\d+)\s+(\S+)(?:\s+(.*?))?\s*$/.exec(
+            line
+        );
         if (!m) continue;
         rows.push({
             pid: Number(m[1]),
             ppid: Number(m[2]),
             pgid: Number(m[3]),
             zombie: m[4].startsWith("Z"),
+            stat: m[4],
+            command: m[5] ?? "",
         });
     }
     return rows.length ? rows : null;
+}
+
+/** How much of a survivor's command line its warning carries. */
+const SURVIVOR_COMMAND_MAX = 160;
+
+/**
+ * What an unconfirmed teardown owes its log (issue #4976): one line per
+ * process the LAST `ps` pass still listed as the tree's. The warning used to
+ * name the root alone — dead by then — so the class of the survivor (2 of 3
+ * `land`s printed it after PR #4973) could not be read back afterwards.
+ * `null` is "no pass to read them from": `ps` gave no rows.
+ */
+export function survivorLines(survivors: readonly PsRow[] | null): string[] {
+    if (!survivors)
+        return ["[gate]   no survivor can be named — `ps` gave no rows"];
+    return survivors.map((r) => {
+        const command =
+            r.command.length > SURVIVOR_COMMAND_MAX
+                ? `${r.command.slice(0, SURVIVOR_COMMAND_MAX)}…`
+                : r.command || "(no command)";
+        return `[gate]   survivor pid ${r.pid} ppid ${r.ppid} pgid ${r.pgid} stat ${r.stat} — ${command}`;
+    });
 }
 
 /**
