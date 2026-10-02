@@ -92,6 +92,25 @@ const BOT_SOURCE_DIR = "convex/gre/ai";
 const BOT_SOURCE_EXCLUDED_DIRS = new Set(["__tests__", "verdicts"]);
 const BOT_BLADE_INCLUDED = new Set(["baseState.ts"]);
 
+/**
+ * Is `rel` (repo-relative, `/`-separated) one of the files {@link botHash}
+ * covers? The ONE definition of the set: {@link botSourceFiles} walks the tree
+ * through it, and `deny-guard.sh` § 7 asks it (via `bot-sweep-inputs.ts`)
+ * whether a worktree's diff moved the Bot hash (issue #4942).
+ */
+export function isBotSourceFile(rel: string): boolean {
+    if ((BOT_SOURCE_FILES as readonly string[]).includes(rel)) return true;
+    if (!rel.startsWith(`${BOT_SOURCE_DIR}/`) || !rel.endsWith(".ts")) {
+        return false;
+    }
+    const parts = rel.split("/");
+    const entry = parts[parts.length - 1]!;
+    const dirs = parts.slice(0, -1);
+    if (dirs.some((d) => BOT_SOURCE_EXCLUDED_DIRS.has(d))) return false;
+    if (BOT_SOURCE_EXCLUDED_FILES.has(entry)) return false;
+    return dirs[dirs.length - 1] !== "blade" || BOT_BLADE_INCLUDED.has(entry);
+}
+
 /** Every file {@link botHash} covers, in a stable order. */
 export function botSourceFiles(root: string): string[] {
     const out: string[] = [];
@@ -101,11 +120,7 @@ export function botSourceFiles(root: string): string[] {
             if (statSync(join(root, rel)).isDirectory()) {
                 if (BOT_SOURCE_EXCLUDED_DIRS.has(entry)) continue;
                 walk(rel);
-            } else if (
-                entry.endsWith(".ts") &&
-                !BOT_SOURCE_EXCLUDED_FILES.has(entry) &&
-                (!dir.endsWith("/blade") || BOT_BLADE_INCLUDED.has(entry))
-            ) {
+            } else if (isBotSourceFile(rel)) {
                 out.push(rel);
             }
         }
