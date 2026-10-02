@@ -6,7 +6,10 @@
         "useDefineForClassFields": true,
         "lib": ["ES2023", "DOM", "DOM.Iterable"],
         "module": "ESNext",
-        "types": ["vite/client"],
+        // `node` because `@convex/*` lets this program reach Convex server
+        // modules, which read `process.env` (issue #4949) — guarded by
+        // scripts/__tests__/tsconfig-convex-node-types.test.ts.
+        "types": ["vite/client", "node"],
         "skipLibCheck": true,
 
         /* Bundler mode */
