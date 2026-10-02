@@ -607,3 +607,108 @@ describe("health-main — a saturated machine is INFRA, never RED (issue #4966)"
         expect(last.infraCause).not.toBe("machine-saturated");
     }, 60_000);
 });
+describe("the consumers, driven for real (issue #4989)", () => {
+    const MACHINE = path.join(REPO_ROOT, "scripts", "machine.ts");
+    const CONSUMERS = [
+        {
+            pid: 901,
+            ppid: 900,
+            cpu: 398.5,
+            ageS: 129,
+            command: "node vitest run",
+            owner: "session pid 76889 · gate.ts pid 900",
+        },
+    ];
+    const BUSY_NAMED = JSON.stringify({
+        ...JSON.parse(BUSY),
+        consumers: CONSUMERS,
+    });
+    const LINE =
+        "   399% pid 901 (ppid 900, up 2m) node vitest run — session pid 76889 · gate.ts pid 900";
+
+    it("a gate's busy wait names the consumers and records its peak with them", () => {
+        const r = runGate(
+            "heavy",
+            "true",
+            gateEnv({ TOLARIA_MACHINE_PROBE: BUSY_NAMED })
+        );
+        expect(r.status).toBe(MACHINE_SATURATED_EXIT);
+        expect(r.stderr).toContain(
+            `[gate] machine busy — load 14.5, swap 6054 MB (load 14.5 > 8.0); waiting, bound 0s\n${LINE}`
+        );
+        const rows = fs
+            .readFileSync(
+                path.join(tmp, ".claude", "telemetry", "gate-lock.jsonl"),
+                "utf8"
+            )
+            .trim()
+            .split("\n")
+            .map((l) => JSON.parse(l) as Record<string, unknown>)
+            .filter((l) => l.event === "machine-wait");
+        expect(rows).toHaveLength(1);
+        expect(rows[0]).toMatchObject({
+            tier: "heavy",
+            outcome: "refused",
+            peak_load: 14.5,
+            consumers: [{ pid: 901, owner: CONSUMERS[0].owner }],
+        });
+    });
+
+    it("an unreadable probe says so, and the wait runs exactly as before", () => {
+        const r = runGate(
+            "heavy",
+            "true",
+            gateEnv({ TOLARIA_MACHINE_PROBE: BUSY })
+        );
+        expect(r.status).toBe(MACHINE_SATURATED_EXIT);
+        expect(r.stderr).toContain("waiting, bound 0s\n  consumers unreadable");
+    });
+
+    it("`bun run machine` lists the consumers when a threshold reads over", () => {
+        const r = spawnSync("bun", [MACHINE], {
+            cwd: tmp,
+            env: { ...process.env, TOLARIA_MACHINE_PROBE: BUSY_NAMED },
+            encoding: "utf8",
+            timeout: 30_000,
+        });
+        expect(r.status).toBe(0);
+        expect(r.stdout).toMatch(/ {2}top consumers {4}\(probe \d+ ms\)\n/);
+        expect(r.stdout).toContain(`  ${LINE}`);
+    });
+
+    it("`bun run machine` prints nothing extra on a calm machine", () => {
+        const r = spawnSync("bun", [MACHINE], {
+            cwd: tmp,
+            env: {
+                ...process.env,
+                TOLARIA_MACHINE_PROBE: probe([], { consumers: CONSUMERS }),
+            },
+            encoding: "utf8",
+            timeout: 30_000,
+        });
+        expect(r.status).toBe(0);
+        expect(r.stdout).toContain("a gate start     is admitted");
+        expect(r.stdout).not.toContain("consumers");
+        expect(r.stdout).not.toContain("pid 901");
+    });
+
+    it("the live probe answers from a cwd that has been removed (the class of issue #4974)", () => {
+        const gone = path.join(fs.realpathSync(tmp), "gone");
+        fs.mkdirSync(gone);
+        const script = `import { readConsumers } from ${JSON.stringify(path.join(REPO_ROOT, "scripts", "lib", "machine-admission.ts"))};
+require("fs").rmSync(${JSON.stringify(gone)}, { recursive: true });
+const s = readConsumers({});
+console.log(JSON.stringify({ ok: s !== null, n: s?.consumers.length ?? -1 }));`;
+        const env = { ...process.env };
+        delete env.TOLARIA_MACHINE_PROBE;
+        const r = spawnSync("bun", ["-e", script], {
+            cwd: gone,
+            env,
+            encoding: "utf8",
+            timeout: 30_000,
+        });
+        expect(r.status, r.stderr).toBe(0);
+        expect(fs.existsSync(gone)).toBe(false);
+        expect(JSON.parse(r.stdout.trim())).toMatchObject({ ok: true });
+    });
+});

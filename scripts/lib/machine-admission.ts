@@ -69,14 +69,16 @@
  * and `null` never saturates: like `readLastSleepAt`, the reading may only
  * ever hold back a run the machine provably cannot carry, never invent one.
  *
- * Node builtins plus `lib/branches.ts` (itself builtins only): `health-main.ts`
- * imports this before `node_modules` may exist.
+ * Node builtins plus `lib/branches.ts` and `lib/primary-checkout.ts` (both
+ * builtins only): `health-main.ts` imports this before `node_modules` may
+ * exist.
  */
 import { spawnSync } from "node:child_process";
-import { appendFileSync, mkdirSync, readFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import { loadavg } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { CONFIG_PATH, sessionCap } from "./branches";
+import { primaryCheckout } from "./primary-checkout";
 
 /** What a gate exits with when the machine stayed saturated past the bound:
  *  nothing ran, so this is no verdict on the tree. `health-verdict.ts` reads
@@ -171,6 +173,9 @@ export interface LiveSession {
 
 interface InjectedProbe extends Partial<MachineSample> {
     sessions?: LiveSession[];
+    /** The top consumers a busy line names; absent, the probe reads
+     *  unreadable. */
+    consumers?: Consumer[];
 }
 
 /** `total = 6144.00M  used = 4497.69M  free = 1646.31M  (encrypted)` → MB. */
@@ -326,6 +331,142 @@ export function liveProjectSessions(
                 : [];
         })
         .sort((a, b) => a.pid - b.pid);
+}
+
+// ── the consumers — who holds the load (issue #4989) ────────────────────────
+//
+// A busy line used to say how loaded the machine was and never who loaded it:
+// load 63 on 8 cores, 2026-10-02 18:20, with no gate run recorded and one
+// session editing files, could not be attributed afterwards. So every
+// `machine busy` line names the few processes with the highest CPU in that
+// sample, each with the project session or gate run it belongs to.
+
+/** One row of `ps -axo pid=,ppid=,pcpu=,etime=,args=`. */
+export interface CpuRow {
+    pid: number;
+    ppid: number;
+    /** `ps`'s %CPU — one core is 100. */
+    cpu: number;
+    ageS: number | null;
+    /** The full command line. */
+    args: string;
+}
+
+const CPU_PS_FORMAT = "pid=,ppid=,pcpu=,etime=,args=";
+
+/** `ps -axo pid=,ppid=,pcpu=,etime=,args=` → rows. `args` is last: it carries
+ *  spaces. A decimal comma (a locale `LC_ALL=C` did not reach) reads too. */
+export function parseCpuRows(out: string): CpuRow[] {
+    const rows: CpuRow[] = [];
+    for (const line of out.split("\n")) {
+        const m = /^\s*(\d+)\s+(\d+)\s+([\d.,]+)\s+(\S+)\s+(.*\S)\s*$/.exec(
+            line
+        );
+        if (!m) continue;
+        const cpu = Number(m[3].replace(",", "."));
+        if (!Number.isFinite(cpu)) continue;
+        rows.push({
+            pid: Number(m[1]),
+            ppid: Number(m[2]),
+            cpu,
+            ageS: parseEtime(m[4]),
+            args: m[5],
+        });
+    }
+    return rows;
+}
+
+/** A process that runs a gate — the scripts that hold or wait on the heavy
+ *  mutex — named by its script. */
+const GATE_RUN_SCRIPT = /\bscripts\/(gate|health-main|land)\.ts\b/;
+
+/** One process a busy line names. */
+export interface Consumer {
+    pid: number;
+    ppid: number;
+    cpu: number;
+    ageS: number | null;
+    command: string;
+    /** `session pid S`, `gate.ts pid G`, both joined by ` · `; null when
+     *  nothing of the project's is among its ancestors. */
+    owner: string | null;
+}
+
+export interface ConsumerSnapshot {
+    consumers: Consumer[];
+    /** Whether the project sessions could be read: without them a consumer
+     *  with no gate-run ancestor is `owner unread`, not outside the project. */
+    ownersRead: boolean;
+}
+
+/** How many consumers a busy line names. */
+export const TOP_CONSUMERS = 5;
+
+/**
+ * Who a process belongs to: its nearest project session (the pid is one of
+ * `sessions`, itself included) and its nearest gate run (an ancestor running
+ * `scripts/gate.ts`, `health-main.ts` or `land.ts`) — a detached health run
+ * has a gate and no session. Null when it has neither.
+ */
+export function processOwner(
+    rows: readonly CpuRow[],
+    pid: number,
+    sessions: ReadonlySet<number>
+): string | null {
+    const byPid = new Map(rows.map((r) => [r.pid, r]));
+    let session: string | null = null;
+    let gate: string | null = null;
+    let at = byPid.get(pid);
+    for (let depth = 0; at && depth < 64 && session === null; depth++) {
+        if (sessions.has(at.pid)) session = `session pid ${at.pid}`;
+        const script = GATE_RUN_SCRIPT.exec(at.args);
+        if (gate === null && script) gate = `${script[1]}.ts pid ${at.pid}`;
+        if (at.ppid === at.pid) break;
+        at = byPid.get(at.ppid);
+    }
+    const labels = [session, gate].filter((l): l is string => l !== null);
+    return labels.length === 0 ? null : labels.join(" · ");
+}
+
+/** The `n` processes with the highest CPU in one listing, each with its
+ *  owner. A process at 0% holds no load and is never named. */
+export function topConsumers(
+    rows: readonly CpuRow[],
+    sessions: ReadonlySet<number>,
+    n: number = TOP_CONSUMERS
+): Consumer[] {
+    return rows
+        .filter((r) => r.cpu > 0)
+        .sort((a, b) => b.cpu - a.cpu || a.pid - b.pid)
+        .slice(0, n)
+        .map((r) => ({
+            pid: r.pid,
+            ppid: r.ppid,
+            cpu: r.cpu,
+            ageS: r.ageS,
+            command: r.args,
+            owner: processOwner(rows, r.pid, sessions),
+        }));
+}
+
+const COMMAND_WIDTH = 100;
+
+/** The lines a busy announcement carries under its headline: one per
+ *  consumer, or the one line saying the probe could not be read. */
+export function consumerLines(snapshot: ConsumerSnapshot | null): string[] {
+    if (snapshot === null) return ["  consumers unreadable"];
+    if (snapshot.consumers.length === 0)
+        return ["  consumers: no process above 0% CPU"];
+    return snapshot.consumers.map((c) => {
+        const cmd =
+            c.command.length > COMMAND_WIDTH
+                ? `${c.command.slice(0, COMMAND_WIDTH - 1)}…`
+                : c.command;
+        const owner =
+            c.owner ??
+            (snapshot.ownersRead ? "outside the project" : "owner unread");
+        return `  ${c.cpu.toFixed(0).padStart(4)}% pid ${c.pid} (ppid ${c.ppid}, up ${fmtAge(c.ageS)}) ${cmd} — ${owner}`;
+    });
 }
 
 // ── the decisions — pure ────────────────────────────────────────────────────
@@ -621,6 +762,88 @@ export function readSessionCensus(
     return { all, self, others: all.filter((s) => s.pid !== self), rows };
 }
 
+/** Each spawn of the consumers probe: it runs once per announced line of a
+ *  wait, and a slow `ps` must not hold the wait up. */
+export const CONSUMER_PROBE_TIMEOUT_MS = 2000;
+
+/** A cwd that exists for `git worktree list`: this module's checkout, or `/`
+ *  (where git fails, and the owners read unread) once that is gone — `land`
+ *  removes the worktree its gate runs in (issue #4974). */
+function checkoutDir(): string {
+    const dir = dirname(CONFIG_PATH);
+    return existsSync(dir) ? dir : "/";
+}
+
+/**
+ * The top consumers, read from the live machine: ONE `ps` listing for the CPU
+ * and the ancestry, then `lsof` + `git worktree list` for which `claude`
+ * processes are project sessions — the census's own test. Null when `ps`
+ * cannot be read; a failed session read still names the consumers, owners
+ * unread. Every spawn is bounded and runs from a directory that exists.
+ * Under an injected probe, the injected `consumers` (or null).
+ */
+export function readConsumers(
+    env: NodeJS.ProcessEnv = process.env
+): ConsumerSnapshot | null {
+    const fake = injected(env);
+    if (fake)
+        return fake.consumers
+            ? { consumers: fake.consumers, ownersRead: true }
+            : null;
+    const opts = {
+        encoding: "utf8" as const,
+        timeout: CONSUMER_PROBE_TIMEOUT_MS,
+        // `args=` is unbounded: past the 1 MiB default a long process table
+        // would read as an unreadable probe.
+        maxBuffer: 16 * 1024 * 1024,
+        cwd: "/",
+        env: { ...process.env, LC_ALL: "C" },
+    };
+    const ps = spawnSync("ps", ["-axo", CPU_PS_FORMAT], opts);
+    if (ps.status !== 0 || !ps.stdout) return null;
+    const rows = parseCpuRows(ps.stdout);
+    const candidates = rows.filter(
+        (r) => (r.args.split(" ")[0].split("/").pop() ?? "") === SESSION_COMM
+    );
+    let sessions: Set<number> | null = new Set();
+    if (candidates.length > 0) {
+        const worktrees = spawnSync(
+            "git",
+            ["worktree", "list", "--porcelain"],
+            {
+                ...opts,
+                cwd: checkoutDir(),
+            }
+        );
+        const lsof = spawnSync(
+            "lsof",
+            [
+                "-a",
+                "-d",
+                "cwd",
+                "-p",
+                candidates.map((r) => r.pid).join(","),
+                "-Fpn",
+            ],
+            opts
+        );
+        if (worktrees.status !== 0 || !lsof.stdout) sessions = null;
+        else {
+            const roots = parseWorktreeRoots(worktrees.stdout);
+            const cwds = parseLsofCwd(lsof.stdout);
+            for (const r of candidates) {
+                const cwd = cwds.get(r.pid);
+                if (cwd !== undefined && roots.some((root) => under(cwd, root)))
+                    sessions.add(r.pid);
+            }
+        }
+    }
+    return {
+        consumers: topConsumers(rows, sessions ?? new Set()),
+        ownersRead: sessions !== null,
+    };
+}
+
 export interface SessionAdmissionNow {
     decision: SessionAdmission;
     /** Null when the process table could not be read: admitted, uncounted. */
@@ -738,6 +961,29 @@ export interface WaitForMachineInput {
      *  the wait stops explaining the load. `lib/ui-admission.ts` owns the
      *  probe (`heavyHolderRunning`); this module reads no lock. */
     heavyHolder?: () => string | null;
+    /** The top consumers, read once per announced `machine busy` line (issue
+     *  #4989); null is an unreadable probe. Defaults to `readConsumers` when
+     *  `probe` does too — a suite that injects samples names no consumers
+     *  unless it injects them. */
+    consumers?: () => ConsumerSnapshot | null;
+    /** Where a saturated wait's one `machine-wait` row goes (issue #4989).
+     *  Defaults to `gate-lock.jsonl` under the telemetry root, when `probe`
+     *  is the live machine's — an injected sample measured nothing. */
+    record?: (row: Record<string, unknown>) => void;
+}
+
+/** The highest-load sample a saturated wait announced, with the consumers
+ *  that line named. */
+export interface MachinePeak {
+    sample: MachineSample;
+    /** How far into the wait it was taken. */
+    waitedMs: number;
+    reasons: string[];
+    /** Null: unreadable, or no consumers probe. */
+    consumers: ConsumerSnapshot | null;
+    /** The highest load of ANY saturated poll — a spike between two
+     *  announced lines is read here, without its consumers. */
+    maxLoad: number;
 }
 
 export interface WaitForMachineResult {
@@ -751,6 +997,70 @@ export interface WaitForMachineResult {
     /** The running heavy gate whose load was NOT waited on: admitted over
      *  `loadMax`, beside it. Null on a calm machine and on every other path. */
     beside: string | null;
+    /** The peak of a saturated wait; null when no poll was saturated. */
+    peak: MachinePeak | null;
+}
+
+/** The one `gate-lock.jsonl` row a saturated wait leaves (issue #4989): its
+ *  outcome, its peak load and the consumers named at that peak — what the
+ *  KPIs (issue #4968) and the next `loadMax` derivation read. */
+export function machineWaitRow(
+    tag: string,
+    result: WaitForMachineResult
+): Record<string, unknown> | null {
+    const peak = result.peak;
+    if (peak === null) return null;
+    return {
+        event: "machine-wait",
+        tag,
+        outcome: result.overridden
+            ? "overridden"
+            : result.admitted
+              ? "admitted"
+              : "refused",
+        waited_ms: result.waitedMs,
+        peak_load: peak.sample.load1,
+        max_load: peak.maxLoad,
+        peak_at_ms: peak.waitedMs,
+        peak_swap_mb: peak.sample.swapUsedMb,
+        peak_pressure: peak.sample.pressure,
+        peak_reasons: peak.reasons,
+        owners_read: peak.consumers?.ownersRead ?? null,
+        consumers:
+            peak.consumers?.consumers.map((c) => ({
+                pid: c.pid,
+                ppid: c.ppid,
+                cpu: c.cpu,
+                age_s: c.ageS,
+                cmd: c.command.slice(0, 200),
+                owner: c.owner,
+            })) ?? null,
+    };
+}
+
+/** The root whose `.claude/telemetry/` a wait records into when its caller
+ *  names none: the session's project, else the primary checkout. */
+function defaultTelemetryRoot(env: NodeJS.ProcessEnv): string {
+    return env.CLAUDE_PROJECT_DIR ?? primaryCheckout(checkoutDir());
+}
+
+/** Append one row to `<root>/.claude/telemetry/gate-lock.jsonl`. Never
+ *  load-bearing, and never resurrects a root that is gone. */
+export function appendGateLockRow(
+    root: string,
+    row: Record<string, unknown>
+): void {
+    try {
+        if (!existsSync(root)) return;
+        const dir = join(root, ".claude", "telemetry");
+        mkdirSync(dir, { recursive: true });
+        appendFileSync(
+            join(dir, "gate-lock.jsonl"),
+            JSON.stringify({ ts: Math.floor(Date.now() / 1000), ...row }) + "\n"
+        );
+    } catch {
+        /* telemetry is never load-bearing */
+    }
 }
 
 const WAIT_POLL_MS = 5000;
@@ -759,7 +1069,9 @@ const WAIT_POLL_MS = 5000;
  * Hold a run until the machine can carry it, or until the bound. The line it
  * prints names what it is waiting on — `machine busy — load L, swap S` — on
  * the first poll and once a minute after, so a queued session reads a reason
- * and not a hang.
+ * and not a hang. Every `machine busy` line carries the top consumers of that
+ * sample (issue #4989) — one probe per announced line, never per poll — and a
+ * saturated wait records its peak once it ends.
  *
  * `TOLARIA_MACHINE_WAIT_MAX_MS` / `TOLARIA_MACHINE_POLL_MS` are the suite's
  * seams, the same convention as `gate.ts`'s `TOLARIA_GATE_*`.
@@ -768,7 +1080,16 @@ export async function waitForMachine(
     input: WaitForMachineInput
 ): Promise<WaitForMachineResult> {
     const env = input.env ?? process.env;
+    const live = input.probe === undefined;
     const probe = input.probe ?? (() => readMachineSample(env));
+    const readTop =
+        input.consumers ?? (live ? () => readConsumers(env) : undefined);
+    const record =
+        input.record ??
+        (live && !probeInjected(env)
+            ? (row: Record<string, unknown>) =>
+                  appendGateLockRow(defaultTelemetryRoot(env), row)
+            : undefined);
     const now = input.now ?? Date.now;
     const sleep =
         input.sleep ?? ((ms) => new Promise<void>((r) => setTimeout(r, ms)));
@@ -781,6 +1102,52 @@ export async function waitForMachine(
                   ...input.thresholds,
                   waitMaxS: Number(env.TOLARIA_MACHINE_WAIT_MAX_MS) / 1000,
               };
+    let peak: MachinePeak | null = null;
+    /** The highest load any saturated poll read, announced or not. */
+    let maxLoad = 0;
+    /** Announce a `machine busy` headline with its consumers; a saturated
+     *  poll's sample competes for the peak. */
+    const busy = (
+        headline: string,
+        sample: MachineSample,
+        waitedMs: number,
+        saturated: string[] | null
+    ) => {
+        if (saturated) maxLoad = Math.max(maxLoad, sample.load1);
+        let top: ConsumerSnapshot | null = null;
+        if (readTop) {
+            try {
+                top = readTop();
+            } catch {
+                top = null;
+            }
+        }
+        input.announce(
+            readTop ? [headline, ...consumerLines(top)].join("\n") : headline
+        );
+        if (saturated && (peak === null || sample.load1 > peak.sample.load1))
+            peak = {
+                sample,
+                waitedMs,
+                reasons: saturated,
+                consumers: top,
+                maxLoad,
+            };
+    };
+    const done = (result: Omit<WaitForMachineResult, "peak">) => {
+        const out = {
+            ...result,
+            peak: peak === null ? null : { ...peak, maxLoad },
+        };
+        const row = machineWaitRow(input.tag, out);
+        if (row !== null && record)
+            try {
+                record(row);
+            } catch {
+                /* telemetry is never load-bearing */
+            }
+        return out;
+    };
     const t0 = now();
     let lastAnnounce: number | null = null;
     for (;;) {
@@ -798,52 +1165,65 @@ export async function waitForMachine(
             // Over `loadMax` and admitted: only ever beside a running holder.
             const beside = sample.load1 > thresholds.loadMax ? holder : null;
             if (beside !== null)
-                input.announce(
-                    `${input.tag} machine busy — ${sampleLine(sample)} — beside a running heavy gate (${beside}): its load is not waited on`
+                busy(
+                    `${input.tag} machine busy — ${sampleLine(sample)} — beside a running heavy gate (${beside}): its load is not waited on`,
+                    sample,
+                    waitedMs,
+                    null
                 );
             else if (lastAnnounce !== null)
                 input.announce(
                     `${input.tag} machine calm after ${Math.round(waitedMs / 1000)}s — ${sampleLine(sample)}`
                 );
-            return {
+            return done({
                 admitted: true,
                 overridden: false,
                 waitedMs,
                 sample,
                 reasons: [],
                 beside,
-            };
+            });
         }
         if (env[GATE_OVERRIDE_ENV] === "1") {
-            input.announce(
-                `${input.tag} machine busy — ${sampleLine(sample)} (${decision.reasons.join("; ")}) — starting anyway: ${GATE_OVERRIDE_ENV}=1`
+            busy(
+                `${input.tag} machine busy — ${sampleLine(sample)} (${decision.reasons.join("; ")}) — starting anyway: ${GATE_OVERRIDE_ENV}=1`,
+                sample,
+                waitedMs,
+                decision.reasons
             );
-            return {
+            return done({
                 admitted: true,
                 overridden: true,
                 waitedMs,
                 sample,
                 reasons: decision.reasons,
                 beside: null,
-            };
+            });
         }
         if (decision.verdict === "refuse") {
-            input.announce(
-                `${input.tag} machine still busy after ${Math.round(waitedMs / 1000)}s — ${sampleLine(sample)} (${decision.reasons.join("; ")}). Nothing ran: this is INFRA (machine-saturated), not a verdict on the tree. See \`bun run machine\`; the escape is ${GATE_OVERRIDE_ENV}=1.`
+            busy(
+                `${input.tag} machine still busy after ${Math.round(waitedMs / 1000)}s — ${sampleLine(sample)} (${decision.reasons.join("; ")}). Nothing ran: this is INFRA (machine-saturated), not a verdict on the tree. See \`bun run machine\`; the escape is ${GATE_OVERRIDE_ENV}=1.`,
+                sample,
+                waitedMs,
+                decision.reasons
             );
-            return {
+            return done({
                 admitted: false,
                 overridden: false,
                 waitedMs,
                 sample,
                 reasons: decision.reasons,
                 beside: null,
-            };
+            });
         }
+        maxLoad = Math.max(maxLoad, sample.load1);
         const t = now();
         if (lastAnnounce === null || t - lastAnnounce >= 60_000) {
-            input.announce(
-                `${input.tag} machine busy — ${sampleLine(sample)} (${decision.reasons.join("; ")}); waiting, bound ${Math.round(thresholds.waitMaxS)}s`
+            busy(
+                `${input.tag} machine busy — ${sampleLine(sample)} (${decision.reasons.join("; ")}); waiting, bound ${Math.round(thresholds.waitMaxS)}s`,
+                sample,
+                waitedMs,
+                decision.reasons
             );
             lastAnnounce = t;
         }

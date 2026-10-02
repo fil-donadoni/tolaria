@@ -1438,6 +1438,25 @@ it was admitted beside, even if that one has released by then.
 | off the mutex          | yes                  | **starts beside it** | waits → 77      |
 | off the mutex          | no                   | waits, bounded → 77  | waits → 77      |
 
+**A busy line names who holds the load** (issue #4989). A load reading alone
+cannot be attributed afterwards: load 63 on 8 cores at 18:20 on 2026-10-02,
+with no gate run recorded and one session editing files, stayed unexplained.
+So every `machine busy` line — waiting, refused, overridden, beside a holder —
+carries, one line each, the top five processes by CPU in that sample: CPU
+share, pid, parent pid, elapsed time, command, and the owner — `session pid S`
+(its nearest `claude` ancestor that is a project session, the census's own
+test), `gate.ts pid G` / `health-main.ts` / `land.ts` (its nearest gate-run
+ancestor; a detached health run has one and no session), both, or `outside
+the project`. The probe is ONE `ps -axo pid=,ppid=,pcpu=,etime=,args=` plus
+`lsof` + `git worktree list` for which `claude` pids are project sessions,
+each spawn bounded at 2 s and run from a directory that exists (`/` for `ps`
+and `lsof`, issue #4974); it runs once per announced line — once a minute —
+never once per poll, measured at 79 ms p50 / 84 ms max over ten reads at load
+37 on this machine. A probe that cannot be read prints `consumers unreadable`
+and the wait goes on unchanged; sessions that cannot be read leave the
+consumers named, `owner unread`. `bun run machine` prints the same lines when
+load or memory pressure reads over, and nothing extra when calm.
+
 "Running" is narrower than "live": the owner stamp carries `childPid` only
 once the holder has spawned its command. A holder still waiting for the
 machine under its hold runs nothing — the load is not its own, and a caller
@@ -1596,7 +1615,12 @@ worktree, never by a gate. No PR-phase step was added.
 both ends, exit and duration — for every run that ends on its command's own
 exit, in every tier (a run killed by a signal, and one that never started,
 write no `run` row; the latter writes `machine-saturated`), plus
-`machine-override`. The file is under `CLAUDE_PROJECT_DIR` — the primary
+`machine-override`, plus ONE `machine-wait` row per saturated wait (issue
+#4989) — outcome, `peak_load` and when in the wait it was read, and the
+`consumers` its line named at that peak (`owners_read` false when the
+sessions were unread; `consumers` null when the probe was) — written by the
+heavy gate beside its tier and command, and by every other caller (`land`'s
+preflight, `check:ui`, `health-main`) to the same file. The file is under `CLAUDE_PROJECT_DIR` — the primary
 checkout, for a session — else the primary checkout of the gate's cwd,
 resolved ONCE before the command runs (issue #4984): `land` removes the
 worktree its gate runs in, and a root read from the cwd when the row is

@@ -27,9 +27,11 @@ import { join } from "node:path";
 import {
     OVER_CAP_ENV,
     admitSessionNow,
+    consumerLines,
     logSessionAdmission,
     memorySaturation,
     parseProcRows,
+    readConsumers,
     readMachineSample,
     readSessionCensus,
     sampleLine,
@@ -150,6 +152,16 @@ function report(): number {
     console.log(
         `  a gate start     ${busy.length === 0 ? "is admitted" : `WAITS up to ${t.waitMaxS}s — ${busy.join("; ")}`} (${sampleLine(sample)})`
     );
+    // Who holds it (issue #4989) — the same lines a gate's busy wait prints,
+    // and only when a threshold reads over: a calm report probes nothing.
+    if (busy.length > 0) {
+        const t3 = performance.now();
+        const top = readConsumers();
+        console.log(
+            `  top consumers    (probe ${(performance.now() - t3).toFixed(0)} ms)`
+        );
+        for (const line of consumerLines(top)) console.log(`  ${line}`);
+    }
     console.log(
         `  a new session    ${now.decision.verdict === "admit" ? "is admitted" : `is REFUSED — ${now.decision.reasons.join("; ")}`}${census?.self != null ? " (counted from this session: the others)" : ""}`
     );
