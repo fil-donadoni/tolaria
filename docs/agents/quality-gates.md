@@ -597,9 +597,13 @@ session and a full health run per further landing.
 `check:lane` now runs the three as `CHEAP_GUARDS` (`scripts/check-lane.ts`),
 each **admitted** by a changed path that is one of its inputs (ADR 0104 — whole
 or not at all, never a slice): `check:test-hygiene` by a test file,
-`__tests__/` support, `convex/cards/**` or `scripts/lib/**` (classifier and
-allow-list); `check:gaps` / `check:targets` by `data/**`, `convex/cards/**` or
-`scripts/lib/**`. The `full` lane runs all three after `check:pr`
+`__tests__/` support, `convex/**` / `data/**` (the card registry) or
+`scripts/lib/**` (classifier and allow-list); `check:gaps` / `check:targets` by
+`data/**`, `convex/**` (registry, `convex/oracle/**`, the Bot sources
+`botHash` keys the verdict merge on), `scripts/lib/**` or `scripts/oracle-*.ts`.
+Wide on purpose — each costs seconds, and a missed input is a violation that
+slips back to health. In practice every `engine`/`cards` landing admits all
+three; a `skin` one admits only `check:test-hygiene`, and only with a test file. The `full` lane runs all three after `check:pr`
 unconditionally — the fallback cannot say what moved. They run after
 `check:oracle`, so lockfile drift is the error seen first. They stay in
 `HEALTH_SCRIPTS`: health is the full gate.

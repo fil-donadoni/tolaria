@@ -696,12 +696,17 @@ export function classifyLane(
  *   - `check:test-hygiene` reads every test file and its `__tests__/`
  *     support, the card registry (which decides pure-DSL), and its
  *     classifier and allow-list under `scripts/lib/**` — the guard cache's
- *     own declaration (`TEST_CORPUS_GLOBS` ∪ the registry's `convex/cards/`
- *     half), narrowed to the paths a lane diff can carry.
+ *     own declaration (`TEST_CORPUS_GLOBS` ∪ `CARD_REGISTRY_GLOBS`; the
+ *     latter's `package.json` / `tsconfig*` / lockfile are `full`-lane paths).
  *   - `check:gaps` / `check:targets` read the committed Oracle lockfile, the
  *     claims allow-list and the Target Lists under `data/**`, the registry
- *     and the card sources under `convex/cards/**`, and their readers under
- *     `scripts/lib/**`.
+ *     and card sources, `convex/oracle/**` and the Bot sources whose hash
+ *     keys the verdict merge (`botHash`) — so `convex/**` whole — their
+ *     readers under `scripts/lib/**`, and `scripts/oracle-*.ts`
+ *     (`poolOracleIds`, `REPORTED_FORMATS`).
+ *
+ * Wide on purpose: each costs seconds, and a missed input is a violation
+ * that slips back to `health` — the failure this exists to remove.
  *
  * Order: after `check:oracle` wherever the lane runs it — lockfile DRIFT is
  * the error a reader must see first, not a census over a stale file.
@@ -715,18 +720,18 @@ export const CHEAP_GUARDS: readonly {
 }[] = [
     {
         id: "check:gaps",
-        admits: /^(data\/|convex\/cards\/|scripts\/lib\/|scripts\/check-gaps\.ts$)/,
-        lacks: "no changed path under data/**, convex/cards/** or scripts/lib/** — the lockfile, the claims and the registry it censuses did not move",
+        admits: /^(data\/|convex\/|scripts\/lib\/|scripts\/oracle-[^/]*\.ts$|scripts\/check-gaps\.ts$)/,
+        lacks: "no changed path under data/**, convex/**, scripts/lib/** or scripts/oracle-*.ts — the lockfile, the claims, the registry and the Bot hash it censuses did not move",
     },
     {
         id: "check:targets",
-        admits: /^(data\/|convex\/cards\/|scripts\/lib\/|scripts\/check-targets\.ts$)/,
-        lacks: "no changed path under data/**, convex/cards/** or scripts/lib/** — the Target Lists, the lockfile and the claims did not move",
+        admits: /^(data\/|convex\/|scripts\/lib\/|scripts\/oracle-[^/]*\.ts$|scripts\/check-targets\.ts$)/,
+        lacks: "no changed path under data/**, convex/**, scripts/lib/** or scripts/oracle-*.ts — the Target Lists, the lockfile and the claims did not move",
     },
     {
         id: "check:test-hygiene",
-        admits: /(\.test\.tsx?$|(^|\/)__tests__\/|^convex\/cards\/|^scripts\/lib\/|^scripts\/(check-test-hygiene|purge-identity-tests)\.ts$)/,
-        lacks: "no test file, no __tests__/ support, nothing under convex/cards/** or scripts/lib/** — the census's corpus, registry and allow-list did not move",
+        admits: /(\.test\.tsx?$|(^|\/)__tests__\/|^convex\/|^data\/|^scripts\/lib\/|^scripts\/(check-test-hygiene|purge-identity-tests)\.ts$)/,
+        lacks: "no test file, no __tests__/ support, nothing under convex/**, data/** or scripts/lib/** — the census's corpus, registry and allow-list did not move",
     },
 ];
 

@@ -826,14 +826,13 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
             "cr:lint",
             "bot fast lane",
             "node-engine",
-        ]);
-        expect(ids(engine.skip)).toEqual([
-            "dom",
-            "node-tooling",
+            // convex/** feeds the registry and the Bot hash every census
+            // reads (issue #4963).
             "check:gaps",
             "check:targets",
             "check:test-hygiene",
         ]);
+        expect(ids(engine.skip)).toEqual(["dom", "node-tooling"]);
         // src/** imports convex/gre (ADR 0074), so an engine diff CAN break
         // the app project — the whole type-check is one of the three
         // backstops that make dropping `dom` safe (#2738).
@@ -1893,7 +1892,6 @@ describe("check-lane — cheap census guards run in the lane (issue #4963)", () 
     it("a diff that moves no census input skips all three, by name", () => {
         for (const file of [
             "src/components/board/Card.tsx",
-            "convex/gre/engine.ts",
             "scripts/land.ts",
         ]) {
             const plan = classifyLane([file]);
