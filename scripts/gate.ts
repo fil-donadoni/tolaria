@@ -356,9 +356,21 @@ function alive(pid: number): boolean {
  * output). Callers must treat null as "unknown" and keep the holder, never as
  * "stalled": reclaiming a healthy holder is the worse failure.
  */
+/**
+ * The cwd of every probe this process spawns AFTER its command started
+ * (issue #4974). `land` deletes its own worktree when it merges, and that
+ * worktree is this process's cwd: Bun cannot spawn from a cwd that no longer
+ * exists (`posix_spawn 'ps'` → ENOENT), so without this every `ps` past the
+ * removal failed — the teardown fell back to its blind group signal and the
+ * heartbeat read "unmeasurable", which never stalls. None of these probes
+ * reads its cwd.
+ */
+const SPAWN_CWD = "/";
+
 function subtreeCpu(pid: number): Map<number, number> | null {
     const r = spawnSync("ps", ["-Ao", "pid=,ppid=,time="], {
         encoding: "utf8",
+        cwd: SPAWN_CWD,
     });
     if (r.status !== 0 || !r.stdout) return null;
     return subtreeFromPs(r.stdout, pid, r.pid);
@@ -784,6 +796,7 @@ function reclaim(
 function psRows(): PsRow[] | null {
     const r = spawnSync("ps", ["-Ao", "pid=,ppid=,pgid=,stat="], {
         encoding: "utf8",
+        cwd: SPAWN_CWD,
     });
     if (r.status !== 0 || !r.stdout) return null;
     return parsePsRows(r.stdout);
@@ -914,7 +927,7 @@ function detachedRunLines(): string[] {
     const r = spawnSync(
         "sh",
         [join(import.meta.dir, "gate-run.sh"), "--list"],
-        { encoding: "utf8", timeout: 60_000 }
+        { encoding: "utf8", timeout: 60_000, cwd: SPAWN_CWD }
     );
     const out = `${r.stdout ?? ""}${r.stderr ?? ""}`.trim();
     if (r.status !== 0 || out === "")
