@@ -666,8 +666,9 @@ merge-only failures and killed runs.
 9–23 on 8 cores: 235 s cold (`tsc` 92 s, `node-tooling` 128 s) and 106 s warm
 (`node-tooling` 100 s, the rest 7 s, guard caches hit). Zero mutex time. A
 diff without `scripts/**` or `.claude/**` pays the static half alone — ~107 s
-cold, seconds warm — and the cold `tsc` is not new: it is the build the lane's
-own incremental type-check reuses inside the mutex.
+cold, seconds warm. `bundle` and every vitest project but `node-tooling` stay
+in the mutex only. A failed `git fetch` or a run past 15 min reaches no verdict
+and is skipped as INFRA — the lane still runs.
 
 ## The base branch, the batch, and `release` — where the full gate went (ADR 0116, re-cadenced by ADR 0136 §6)
 

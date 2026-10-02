@@ -2241,6 +2241,19 @@ describe("land.ts — preflight before queuing (issue #4967)", () => {
         expect(calls).toEqual(["admit"]);
     });
 
+    it("a run that reached no verdict (failed fetch, timeout) is skipped as INFRA, never a refusal", async () => {
+        const out = await preflightGate({
+            mode: "full",
+            enabled: true,
+            admit: async () => true,
+            run: () => ({ infra: "`git fetch origin x` failed" }),
+        });
+        expect(out).toEqual({
+            kind: "skipped",
+            why: "`git fetch origin x` failed",
+        });
+    });
+
     it("--no-preflight and the housekeeping mode run nothing and ask nothing", async () => {
         for (const [mode, enabled] of [
             ["full", false],

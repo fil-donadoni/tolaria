@@ -2098,6 +2098,22 @@ describe("check-lane.ts — preflightPlan (issue #4967)", () => {
         expect(pre.skip.map((s) => s.id)).toContain("check:pr");
     });
 
+    it("never drops a static lane check — every format/lint/tsc/check:*/cr:lint id the lane runs is preflighted", () => {
+        const noReach = () => ({ dom: [], node: [] });
+        const STATIC =
+            /^(format\(diff\)|lint\(diff\)|tsc\[|check:(?!pr$)|cr:lint$)/;
+        for (const files of [
+            ["convex/gre/sba.ts", "scripts/land.ts", "data/x.json"],
+            ["src/lib/card-utils.ts", "scripts/land.ts"],
+            ["convex/cards/sets/arn/white.cards.ts", "data/card-index.json"],
+        ]) {
+            const lane = classifyLane(files, files, noReach);
+            const pre = ids(preflightPlan(lane, files));
+            for (const id of ids(lane).filter((i) => STATIC.test(i)))
+                expect(pre, `${lane.lane}: ${id}`).toContain(id);
+        }
+    });
+
     it("is the lane itself for docs — check:docs is seconds and all static", () => {
         const lane = classifyLane(["docs/agents/quality-gates.md"]);
         expect(ids(preflightPlan(lane))).toEqual(ids(lane));

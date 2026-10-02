@@ -1306,6 +1306,16 @@ export function buildLockedCommand(opts: LockedCommandOptions): string {
 // PREFLIGHT (issue #4967) — the deterministic failures, found before queuing.
 // ─────────────────────────────────────────────────────────────────────────
 
+/** One preflight run: an exit code, or the reason it reached no verdict. */
+export type PreflightRun =
+    | { status: number | null; ms: number }
+    | { infra: string };
+
+/** A hung `tsc` or vitest before the queue blocks `land` with nothing in
+ *  `gate:who` to name it — so the run is bounded, and the bound is INFRA. */
+const PREFLIGHT_TIMEOUT_MS = 15 * 60_000;
+const PREFLIGHT_FETCH_TIMEOUT_MS = 120_000;
+
 export type PreflightOutcome =
     | { kind: "skipped"; why: string }
     | { kind: "pass"; ms: number }
@@ -1340,7 +1350,7 @@ export async function preflightGate(opts: {
     mode: LandMode;
     enabled: boolean;
     admit: () => Promise<boolean>;
-    run: () => { status: number | null; ms: number };
+    run: () => PreflightRun;
 }): Promise<PreflightOutcome> {
     if (opts.mode === "housekeeping")
         return {
@@ -1349,7 +1359,11 @@ export async function preflightGate(opts: {
         };
     if (!opts.enabled) return { kind: "skipped", why: "--no-preflight" };
     if (!(await opts.admit())) return { kind: "saturated" };
-    const { status, ms } = opts.run();
+    const ran = opts.run();
+    // The preflight could not give a verdict on the tree (a failed fetch, a
+    // hung check): INFRA, never a red — the lane in the mutex still runs.
+    if ("infra" in ran) return { kind: "skipped", why: ran.infra };
+    const { status, ms } = ran;
     if (status === 0) return { kind: "pass", ms };
     return {
         kind: "refuse",
@@ -1370,19 +1384,31 @@ async function admitPreflight(): Promise<boolean> {
 
 /** Fetch the base so the merge-base diff is the PR's own, then run the
  *  preflight plan at the light tier. Thin plumbing; `preflightGate` decides. */
-function runPreflight(cwd: string): { status: number | null; ms: number } {
+function runPreflight(cwd: string): PreflightRun {
     const t0 = Date.now();
     const env = netEnv(process.env);
-    spawnSync("git", ["fetch", "origin", BASE_BRANCH, "-q"], {
+    // A stale `origin/<base>` moves the merge-base back and the plan would
+    // cover other PRs' files — a false red on code that is not this PR's.
+    const fetch = spawnSync("git", ["fetch", "origin", BASE_BRANCH, "-q"], {
         cwd,
         env,
         stdio: "inherit",
+        timeout: PREFLIGHT_FETCH_TIMEOUT_MS,
     });
+    if (fetch.status !== 0)
+        return {
+            infra: `\`git fetch origin ${BASE_BRANCH}\` failed — the diff base would be stale`,
+        };
     const r = spawnSync("bun", [CHECK_LANE, "--preflight"], {
         cwd,
         env,
         stdio: "inherit",
+        timeout: PREFLIGHT_TIMEOUT_MS,
     });
+    if (r.error || (r.status === null && r.signal === "SIGTERM"))
+        return {
+            infra: `\`check:lane --preflight\` reached no verdict (${r.error?.message ?? `killed after ${PREFLIGHT_TIMEOUT_MS / 60_000} min`})`,
+        };
     return { status: r.status, ms: Date.now() - t0 };
 }
 
@@ -1677,5 +1703,7 @@ async function main(): Promise<void> {
 }
 
 if (import.meta.main) {
-    void main();
+    main().catch((e: unknown) =>
+        fail(e instanceof Error ? (e.stack ?? e.message) : String(e))
+    );
 }
