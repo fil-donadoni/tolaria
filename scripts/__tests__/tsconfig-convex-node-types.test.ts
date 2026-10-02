@@ -70,11 +70,13 @@ describe("tsconfig — a project that can reach Convex server code has Node type
         );
     });
 
-    it.each(PROJECTS.filter((p) => p.compiles && p.mapsConvex))(
-        "$file lists node whenever it restricts types",
-        (p) => {
-            if (p.types === undefined) return; // unrestricted: every @types loads
-            expect(p.types).toContain("node");
-        }
-    );
+    it.each(
+        PROJECTS.filter((p) => p.compiles && p.mapsConvex).map((p) => p.file)
+    )("%s lists node whenever it restricts types", (file) => {
+        // Re-read here: the block exercises the reader it relies on, never a
+        // value computed at load (check:test-hygiene, issue #4955).
+        const { types } = readProject(file);
+        if (types === undefined) return; // unrestricted: every @types loads
+        expect(types).toContain("node");
+    });
 });
