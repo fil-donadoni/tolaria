@@ -108,6 +108,7 @@ export const CLAIM_VERDICT_STATES = [
     "live",
     "orphan",
     "recoverable",
+    "stranded",
     "suspect",
 ] as const;
 
@@ -142,9 +143,30 @@ export function classifyClaim(
     minAgeHours = DEFAULT_MIN_AGE_HOURS,
     localOnlyBranchHours = 24
 ): ClaimVerdict {
-    if (facts.hasOpenPr) return { state: "live", reason: "open PR" };
-    if (facts.hasRemoteBranch)
-        return { state: "live", reason: "branch pushed" };
+    // Work that left this machine — an open PR, a pushed branch — is live
+    // unless the owner is PROVABLY gone (issue #4763). Before, both returned
+    // `live` ahead of the liveness reading, so a pass that pushed its PR and
+    // then ended its turn waiting on a background job (`claude -p`: the end of
+    // the turn is the end of the process) held a cap slot with no time bound;
+    // two such corpses refused the next pick at `3/3 live claims` with one
+    // session running. `stranded` is NOT `recoverable` (that work is on no
+    // remote) and NOT `orphan` (the label must stand — the PR is usually one
+    // `land` away). Same `=== false` as `recoverable` below: `null` keeps the
+    // `live` verdict it always had.
+    if (facts.hasOpenPr || facts.hasRemoteBranch) {
+        if (facts.ownerAlive === false) {
+            return {
+                state: "stranded",
+                reason: facts.hasOpenPr
+                    ? "owning process is gone and its PR is open — resume it (usually one `land` away); the label is NOT released"
+                    : "owning process is gone and its branch is pushed with no PR — resume the branch; the label is NOT released",
+            };
+        }
+        return {
+            state: "live",
+            reason: facts.hasOpenPr ? "open PR" : "branch pushed",
+        };
+    }
 
     // A live owning process outranks every age rule below (#2627). Note the
     // explicit `=== true`: `null` means "we could not tell", and only a
@@ -499,7 +521,16 @@ export function fetchClaimedIssues(runner: ShRunner = sh): ClaimedIssue[] {
 /** Head branch names of every currently OPEN pull request. See
  *  `fetchClaimedIssues` for the `runner` default/override convention. */
 export function fetchOpenPrBranches(runner: ShRunner = sh): Set<string> {
-    return new Set(
+    return new Set(fetchOpenPrs(runner).keys());
+}
+
+/** Open PRs, head branch → PR number (`null` when the read carried none).
+ *  The number is what a `stranded` claim is surfaced by (issue #4763): the
+ *  operator — or the next pass — acts on a PR, not on a branch name. */
+export function fetchOpenPrs(
+    runner: ShRunner = sh
+): Map<string, number | null> {
+    return new Map(
         (
             JSON.parse(
                 runner("gh", [
@@ -510,11 +541,25 @@ export function fetchOpenPrBranches(runner: ShRunner = sh): Set<string> {
                     "--limit",
                     "300",
                     "--json",
-                    "headRefName",
+                    "headRefName,number",
                 ]) || "[]"
-            ) as { headRefName: string }[]
-        ).map((p) => p.headRefName)
+            ) as { headRefName: string; number?: unknown }[]
+        ).map((p) => [
+            p.headRefName,
+            Number.isInteger(p.number) ? (p.number as number) : null,
+        ])
     );
+}
+
+/** The open PR whose head branch ends in `issue-N` — the same suffix rule
+ *  `buildClaimFacts` uses for `hasOpenPr`, so the two cannot disagree. */
+export function openPrFor(
+    issue: number,
+    prs: Map<string, number | null>
+): number | null {
+    const suffix = new RegExp(`(^|/)issue-${issue}$`);
+    for (const [branch, pr] of prs) if (suffix.test(branch)) return pr;
+    return null;
 }
 
 /**
@@ -646,6 +691,9 @@ export type ClaimClassification = {
     issue: number;
     title: string;
     verdict: ClaimVerdict;
+    /** The claim's open PR, when `deps.prs` was given and one matched —
+     *  how a `stranded` claim is surfaced (issue #4763). */
+    pr: number | null;
 };
 
 /**
@@ -657,6 +705,8 @@ export function classifyClaims(
     issues: ClaimedIssue[],
     deps: {
         prBranches: Set<string>;
+        /** Head branch → PR number (`fetchOpenPrs`); only names `pr`. */
+        prs?: Map<string, number | null>;
         branches: BranchNames;
         owners: Map<number, ClaimOwner>;
         baseRef: string;
@@ -686,6 +736,7 @@ export function classifyClaims(
             issue: issue.number,
             title: issue.title,
             verdict: classifyClaim(facts),
+            pr: deps.prs ? openPrFor(issue.number, deps.prs) : null,
         };
     });
 }
@@ -734,19 +785,40 @@ export function claimVerdicts(
     /** Fail-CLOSED by default — see the paragraph above. The tests' seam. */
     runner: ShRunner = shChecked
 ): Map<number, ClaimVerdictState> {
-    if (issues.length === 0) return new Map();
+    return new Map(
+        claimClassifications(issues, baseRef, root, now, runner).map((c) => [
+            c.issue,
+            c.verdict.state,
+        ])
+    );
+}
+
+/**
+ * `claimVerdicts`' full rows — verdict AND the open PR — for the caller that
+ * must NAME a stranded claim's PR (`queue:plan`'s `resume` list, issue
+ * #4763). Same scans, same fail-closed contract: any failed read → `[]`.
+ */
+export function claimClassifications(
+    issues: ClaimedIssue[],
+    baseRef: string,
+    root = process.env.CLAUDE_PROJECT_DIR ?? ".",
+    now: number = Date.now(),
+    runner: ShRunner = shChecked
+): ClaimClassification[] {
+    if (issues.length === 0) return [];
     try {
-        const classified = classifyClaims(issues, {
-            prBranches: fetchOpenPrBranches(runner),
+        const prs = fetchOpenPrs(runner);
+        return classifyClaims(issues, {
+            prBranches: new Set(prs.keys()),
+            prs,
             branches: fetchBranchNames(runner),
             owners: readClaimOwners(root),
             baseRef,
             now,
             countRunner: runner,
         });
-        return new Map(classified.map((c) => [c.issue, c.verdict.state]));
     } catch {
-        return new Map();
+        return [];
     }
 }
 
@@ -760,7 +832,7 @@ if (import.meta.main) {
         process.exit(0);
     }
 
-    const prBranches = fetchOpenPrBranches();
+    const prs = fetchOpenPrs();
     const branches = fetchBranchNames();
 
     // The claim journal is the only place a claim's owning process is named.
@@ -771,23 +843,30 @@ if (import.meta.main) {
 
     const orphans: { issue: number; verdict: ClaimVerdict }[] = [];
     const recoverable: { issue: number; verdict: ClaimVerdict }[] = [];
+    const stranded: { issue: number; pr: number | null }[] = [];
     // The SAME call the queue verbs make (issue #4384) — this CLI is not
     // allowed a private spelling of its own classification.
-    for (const { issue: number, title, verdict: v } of classifyClaims(issues, {
-        prBranches,
-        branches,
-        owners,
-        baseRef: ORIGIN_BASE,
-    })) {
+    for (const { issue: number, title, verdict: v, pr } of classifyClaims(
+        issues,
+        {
+            prBranches: new Set(prs.keys()),
+            prs,
+            branches,
+            owners,
+            baseRef: ORIGIN_BASE,
+        }
+    )) {
         const issue = { number, title };
         const mark =
             v.state === "orphan"
                 ? "×"
                 : v.state === "recoverable"
                   ? "!"
-                  : v.state === "suspect"
-                    ? "?"
-                    : "·";
+                  : v.state === "stranded"
+                    ? "~"
+                    : v.state === "suspect"
+                      ? "?"
+                      : "·";
         console.log(
             `  ${mark} #${issue.number} ${issue.title.slice(0, 52).padEnd(52)} ${v.reason}`
         );
@@ -795,6 +874,7 @@ if (import.meta.main) {
             orphans.push({ issue: issue.number, verdict: v });
         if (v.state === "recoverable")
             recoverable.push({ issue: issue.number, verdict: v });
+        if (v.state === "stranded") stranded.push({ issue: issue.number, pr });
     }
 
     console.log(
@@ -811,6 +891,19 @@ if (import.meta.main) {
         );
         for (const { issue: n, verdict } of recoverable) {
             console.log(`  ! #${n} (branch *issue-${n}) — ${verdict.reason}`);
+        }
+    }
+    // Named by PR number (issue #4763): pushed work with no process behind
+    // it. Not released and not counted against the cap; `queue:plan` hands
+    // it to the next pass as `resume`, and `loop-drain` resumes it first.
+    if (stranded.length > 0) {
+        console.log(
+            `\n${stranded.length} STRANDED — a dead pass left pushed work behind. Not released; the next pass resumes it:`
+        );
+        for (const { issue: n, pr } of stranded) {
+            console.log(
+                `  ~ #${n} ${pr === null ? "(branch pushed, no PR)" : `PR #${pr}`}`
+            );
         }
     }
     if (orphans.length === 0) process.exit(0);

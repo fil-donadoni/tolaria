@@ -258,6 +258,10 @@ export const GLOSSARY = {
         label: "recoverable",
         tip: "The process that took this claim is provably gone, but its local branch holds commits that exist nowhere else. Not released — releasing the label alone would send the next pass at the same issue while that work sits in a worktree nobody points at.",
     },
+    "claim.stranded": {
+        label: "stranded",
+        tip: "The process that took this claim is provably gone, but its work was pushed — an open PR or a pushed branch. Not released and not counted against the session cap; the next AFK pass resumes it, usually one land away.",
+    },
     "claim.suspect": {
         label: "suspect",
         tip: "Something does not line up — artefacts exist but the claim is old, or they disagree with each other. Worth a look before unclaiming, not safe to reap automatically.",

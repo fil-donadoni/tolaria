@@ -308,7 +308,10 @@ async function main(): Promise<void> {
         // nothing here writes a release, which stays `loop:doctor --release`'s
         // call alone. No verdict at all counts as live: uncertainty never
         // authorises more concurrency.
-        const { live, recoverable } = capCensus(
+        // `stranded` (issue #4763: owner gone, work pushed) gives up its slot
+        // the same way — and is NOT in `live`, so a resuming pass may take
+        // the dead pass's claim over (the journal row moves the owner).
+        const { live, recoverable, stranded } = capCensus(
             reconciled,
             claimVerdicts(
                 claimed.filter((i) => reconciled.includes(i.number)),
@@ -322,6 +325,7 @@ async function main(): Promise<void> {
             cap: sessionCap(),
             noCap,
             recoverable,
+            stranded,
         });
         if (!decision.admitted) return decision;
         gh([
@@ -334,7 +338,7 @@ async function main(): Promise<void> {
             "@me",
         ]);
         appendJournalRow(root, issue, session);
-        return { admitted: true as const, live, recoverable };
+        return { admitted: true as const, live, recoverable, stranded };
     });
 
     if (!outcome.admitted) {
@@ -346,8 +350,12 @@ async function main(): Promise<void> {
         outcome.recoverable.length === 0
             ? ""
             : `, ${outcome.recoverable.length} recoverable not counted (${outcome.recoverable.map((n) => `#${n}`).join(", ")} — \`bun run loop:doctor\`)`;
+    const strandedNote =
+        outcome.stranded.length === 0
+            ? ""
+            : `, ${outcome.stranded.length} stranded not counted (${outcome.stranded.map((n) => `#${n}`).join(", ")} — \`bun run loop:doctor\`)`;
     console.log(
-        `queue:claim: claimed issue #${issue} (${outcome.live.length + 1}/${cap} live claims${noCap && outcome.live.length >= cap ? ", past the cap by --no-cap" : ""}${recovered})`
+        `queue:claim: claimed issue #${issue} (${outcome.live.length + 1}/${cap} live claims${noCap && outcome.live.length >= cap ? ", past the cap by --no-cap" : ""}${recovered}${strandedNote})`
     );
 }
 

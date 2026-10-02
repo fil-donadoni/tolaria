@@ -354,7 +354,7 @@ function glyphLine(env: RenderEnv, tag: DriverTag, message: string): string {
  * #4718: mark + issue number, which is all the signature keeps — the title
  * and the free-text reason (which carries the claim age) are read but
  * discarded. */
-const SWEEP_ROW_RE = /^ {2}([·!×?]) #(\d+)\b/;
+const SWEEP_ROW_RE = /^ {2}([·!×?~]) #(\d+)\b/;
 /** `loop-doctor.ts`'s own count line — the one line that carries claimed and
  * orphaned. */
 const SWEEP_COUNT_RE =
@@ -431,7 +431,8 @@ function collapsedSweepText(sig: SweepSignature): string {
 function colorSweepRow(env: RenderEnv, text: string): string {
     const m = SWEEP_ROW_RE.exec(text);
     if (!m) return text;
-    if (m[1] === "!") return paint(env, "yellow", text);
+    // `~` = stranded (issue #4763): actionable like `!`.
+    if (m[1] === "!" || m[1] === "~") return paint(env, "yellow", text);
     if (m[1] === "·") return paint(env, "dim", text);
     return text;
 }

@@ -28,6 +28,7 @@ export const MIN_AGE_HOURS = 2;
 export const VERDICT_WORD: Record<ClaimVerdictState, string> = {
     orphan: "orphaned",
     recoverable: "recoverable",
+    stranded: "stranded",
     suspect: "unsure",
     live: "working",
 };
@@ -35,6 +36,7 @@ export const VERDICT_WORD: Record<ClaimVerdictState, string> = {
 export const VERDICT_TONE: Record<ClaimVerdictState, Tone> = {
     orphan: "bad",
     recoverable: "bad",
+    stranded: "bad",
     suspect: "warn",
     live: "good",
 };
@@ -42,6 +44,7 @@ export const VERDICT_TONE: Record<ClaimVerdictState, Tone> = {
 export const VERDICT_TERM: Record<ClaimVerdictState, TermId> = {
     orphan: "claim.orphan",
     recoverable: "claim.recoverable",
+    stranded: "claim.stranded",
     suspect: "claim.suspect",
     live: "claim.live",
 };

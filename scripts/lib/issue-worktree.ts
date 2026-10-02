@@ -23,3 +23,23 @@ export function issueWorktree(
         ),
     };
 }
+
+/**
+ * Which branch a `wt:new N --resume` checks out (issue #4763) — pure, for the
+ * test. A stranded claim's work is on `feat/issue-N` or `fix/issue-N`; the
+ * LOCAL branch wins when both exist, because a dead pass can leave commits it
+ * never pushed (observed: three, on a pushed branch). `null` = nothing to
+ * resume.
+ */
+export function pickResumeBranch(
+    issue: number,
+    local: string[],
+    remote: string[]
+): { branch: string; from: "local" | "remote" } | null {
+    const names = (["feat", "fix"] as const).map((k) => `${k}/issue-${issue}`);
+    for (const branch of names)
+        if (local.includes(branch)) return { branch, from: "local" };
+    for (const branch of names)
+        if (remote.includes(branch)) return { branch, from: "remote" };
+    return null;
+}
