@@ -30,6 +30,7 @@ import {
     effectivePriority,
     bandIsInherited,
     lineageRefusal,
+    resumeItems,
     UNPRIORITIZED,
     type AdmissionInput,
     type BatchPlan,
@@ -3175,5 +3176,57 @@ describe("readWholeQueue — the planner reads the whole queue, never a window (
         expect(() => readWholeQueue(gh([]), 100, 200)).toThrow(
             /--limit 200 \(200 issues\)/
         );
+    });
+});
+
+describe("resumeItems — stranded claims go to the next pass (issue #4763)", () => {
+    const row = (
+        n: number,
+        state: "live" | "stranded" | "recoverable",
+        pr: number | null
+    ) => ({ issue: n, verdict: { state }, pr });
+
+    it("lists ONLY stranded claims, oldest issue first, with PR and the label-routed tier", () => {
+        const items = resumeItems(
+            [
+                row(4761, "live", 4770),
+                row(4506, "stranded", 4760),
+                row(4470, "stranded", null),
+                row(4117, "recoverable", null),
+            ],
+            [
+                issue(4761),
+                issue(4506, {
+                    labels: ["bug", "ready-for-agent", "model:opus"],
+                }),
+                issue(4470),
+                issue(4117),
+            ],
+            CONFIG
+        );
+        expect(items).toEqual([
+            { number: 4470, pr: null, model: "sonnet" },
+            { number: 4506, pr: 4760, model: "opus" },
+        ]);
+    });
+
+    it("drops a stranded issue the queue read no longer carries — no labels to route by", () => {
+        expect(resumeItems([row(4506, "stranded", 4760)], [], CONFIG)).toEqual(
+            []
+        );
+    });
+
+    it("honours --exclude-hitl: a resumed pass ends in `land`, which merges", () => {
+        const hitl = { ...CONFIG, excludeHitl: true };
+        const body = (n: number) =>
+            n === 4506 ? "⚠️ HITL — a human looks first" : "";
+        expect(
+            resumeItems(
+                [row(4506, "stranded", 4760), row(4470, "stranded", 4762)],
+                [issue(4506), issue(4470)],
+                hitl,
+                body
+            ).map((r) => r.number)
+        ).toEqual([4470]);
     });
 });

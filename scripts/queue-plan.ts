@@ -863,7 +863,12 @@ function main(): void {
     // and `loop-drain` reads a non-zero exit as "stop", which is the point.
     if (!admission.admitted) die(admission.message);
 
-    plan.resume = resumeItems(classified, issues, config);
+    plan.resume = resumeItems(
+        classified,
+        issues,
+        config,
+        (n) => port.issueDetail(n).body
+    );
 
     writePlanArtefact(plan, config.now, lineage);
 

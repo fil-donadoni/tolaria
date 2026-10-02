@@ -1372,6 +1372,11 @@ export interface ResumeItem {
  * quietly finished on the default tier. A stranded issue missing from the
  * queue read (label dropped meanwhile) has no labels to route by and is left
  * out rather than guessed.
+ *
+ * `--exclude-hitl` holds here too: a resumed pass ends in `land`, which
+ * merges, so an HITL issue a dead pass stranded is left for its human exactly
+ * as an unstarted one is (#3088). `bodyOf` is the wrapper's cached detail
+ * read, asked only for a stranded claim under that flag.
  */
 export function resumeItems(
     classified: {
@@ -1380,7 +1385,8 @@ export function resumeItems(
         pr: number | null;
     }[],
     issues: QueueIssue[],
-    config: PlanConfig
+    config: PlanConfig,
+    bodyOf: (issue: number) => string = () => ""
 ): ResumeItem[] {
     const byNumber = new Map(issues.map((i) => [i.number, i]));
     return classified
@@ -1388,6 +1394,7 @@ export function resumeItems(
         .flatMap((c) => {
             const issue = byNumber.get(c.issue);
             if (!issue) return [];
+            if (config.excludeHitl && isHitl(bodyOf(c.issue))) return [];
             return [
                 {
                     number: c.issue,
