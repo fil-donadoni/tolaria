@@ -45,8 +45,21 @@
 # `.claude/skills/next-issue/SKILL.md`;
 # `scripts/__tests__/gate-rule-parity.test.ts` fails if the two texts drift.
 #
+# ONE LIVE RUN PER (cwd, script) (issue #4940). The run key is the caller's
+# choice, so nothing above stops a session from "retrying" under a NEW key
+# while the old run keeps burning CPU unread — measured over one week: ~13
+# extra `check:ui` runs and ~11 extra `oracle:compile` runs started that way,
+# cleaned up (when at all) by hand-typed `pkill`. So a START that would
+# duplicate a live run of the same script from the same cwd under another key
+# is REFUSED, naming the live key; `--replace` terminates the old run's whole
+# process group first. And every call REAPS the runs nobody can read any more:
+# a run whose cwd is gone (the worktree was removed) and a run older than
+# REAP_SECS that nobody re-attached to for IDLE_SECS. `--list` reaps, then
+# prints the live runs — `bun run gate:who` shows it.
+#
 # Usage:
-#   sh scripts/gate-run.sh <bun-script> [args...]     # e.g. check:lane
+#   sh scripts/gate-run.sh [--replace] <bun-script> [args...]   # e.g. check:lane
+#   sh scripts/gate-run.sh --list           # reap, then list live detached runs
 #   bun run gate:run check:lane
 #
 # Env:
@@ -57,14 +70,28 @@
 #   TOLARIA_GATE_RUN_KEEP_DAYS  prune run dirs older than this (default 7)
 #   TOLARIA_GATE_RUN_KEY        name this run instead of keying it on the cwd
 #                               (for `land`, which deletes the cwd it ran from)
+#   TOLARIA_GATE_RUN_REAP_SECS  age past which an unattended run is reaped
+#                               (default 7200)
+#   TOLARIA_GATE_RUN_IDLE_SECS  ...when nobody re-attached for this long
+#                               (default 3600)
+#   TOLARIA_GATE_RUN_KILL_GRACE seconds between TERM and KILL (default 10)
 #
 # Exit codes: the gate's own on completion; 75 = still running, call again;
-# 2 = usage; 70 = the detached runner vanished without writing an exit code.
+# 2 = usage; 70 = the detached runner vanished without writing an exit code;
+# 76 = refused, a live run of this script from this cwd exists under another
+# key (re-attach with that key, or pass --replace).
 # ─────────────────────────────────────────────────────────────────────────────
 set -eu
 
-if [ $# -eq 0 ]; then
-    echo "gate-run: usage: gate-run.sh <bun-script> [args...]" >&2
+MODE=run
+REPLACE=0
+case "${1:-}" in
+    --list) MODE=list; shift ;;
+    --replace) REPLACE=1; shift ;;
+esac
+
+if [ "$MODE" = run ] && [ $# -eq 0 ]; then
+    echo "gate-run: usage: gate-run.sh [--replace] <bun-script> [args...] | gate-run.sh --list" >&2
     exit 2
 fi
 
@@ -72,13 +99,17 @@ WAIT_SECS="${TOLARIA_GATE_RUN_WAIT_SECS:-480}"
 POLL_SECS="${TOLARIA_GATE_RUN_POLL_SECS:-2}"
 TAIL_LINES="${TOLARIA_GATE_RUN_TAIL:-60}"
 KEEP_DAYS="${TOLARIA_GATE_RUN_KEEP_DAYS:-7}"
+REAP_SECS="${TOLARIA_GATE_RUN_REAP_SECS:-7200}"
+IDLE_SECS="${TOLARIA_GATE_RUN_IDLE_SECS:-3600}"
+KILL_GRACE="${TOLARIA_GATE_RUN_KILL_GRACE:-10}"
 # NOT inside the worktree: `bun run land` removes the worktree (with anything
 # written in it) the moment it merges, and a run's log is most wanted exactly
 # when the pass that produced it is gone.
 RUN_ROOT="${TOLARIA_GATE_RUN_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/tolaria/gate-runs}"
 
 for _v in "wait-secs:$WAIT_SECS" "poll-secs:$POLL_SECS" "tail:$TAIL_LINES" \
-    "keep-days:$KEEP_DAYS"; do
+    "keep-days:$KEEP_DAYS" "reap-secs:$REAP_SECS" "idle-secs:$IDLE_SECS" \
+    "kill-grace:$KILL_GRACE"; do
     case "${_v#*:}" in
         '' | *[!0-9]*)
             echo "gate-run: ${_v%%:*} must be a non-negative integer, got: '${_v#*:}'" >&2
@@ -87,38 +118,6 @@ for _v in "wait-secs:$WAIT_SECS" "poll-secs:$POLL_SECS" "tail:$TAIL_LINES" \
     esac
 done
 [ "$POLL_SECS" -gt 0 ] || POLL_SECS=1
-
-# One run dir per (cwd, command). The cwd is part of the key because two
-# worktrees gating concurrently are two different runs of the same script —
-# attaching one to the other's log would report the wrong tree's verdict.
-#
-# TOLARIA_GATE_RUN_KEY replaces the cwd component when the cwd is not a stable
-# name for the run (issue #3706). The case that forces this is `land`: it runs
-# from the PR's own worktree — it refuses to run from the base branch — and it
-# DELETES that worktree when it merges. So a `land` that returns 75 leaves the
-# next call with a cwd that no longer exists, and a call from anywhere else
-# computes a different key and starts a SECOND `land`, re-paying the whole
-# gate. With an explicit key the same run is addressable from any directory.
-_key_scope="${TOLARIA_GATE_RUN_KEY:-}"
-[ -n "$_key_scope" ] || _key_scope="$(pwd)"
-# A NEWLINE between scope and command, not `|`: the scope is now free text a
-# caller chooses, and `a|b` + `c` must not hash the same as `a` + `b|c`.
-_key=$(printf '%s\n%s' "$_key_scope" "$*" | cksum | tr -cd '0-9')
-_safe=$(printf '%s' "$1" | tr -c 'A-Za-z0-9._-' '-')
-RUN_DIR="$RUN_ROOT/$_safe-$_key"
-LOG="$RUN_DIR/log"
-RC="$RUN_DIR/rc"
-PIDF="$RUN_DIR/pid"
-PIDSTART="$RUN_DIR/pidstart"
-HEAD_F="$RUN_DIR/head"
-BASE_F="$RUN_DIR/base"
-END_HEAD_F="$RUN_DIR/end-head"
-CMD_F="$RUN_DIR/command"
-GREEN_F="$RUN_DIR/green"
-STARTF="$RUN_DIR/started"
-LOCK="$RUN_DIR/.lock"
-
-mkdir -p "$RUN_DIR"
 
 # One gate log per (cwd, command) and worktree paths are ephemeral, so the set
 # grows without bound otherwise — and "disk full kills gates" is a failure this
@@ -196,6 +195,189 @@ lock_release() {
     rmdir "$LOCK" 2>/dev/null || rm -rf "$LOCK" 2>/dev/null || true
 }
 
+# ── the run registry: who is live, who is unreadable (issue #4940) ──────────
+#
+# A run dir records what the reaper and the duplicate check need beside the
+# pid: `cwd` (where it was started — NOT the key, which may be free text),
+# `script` (the `bun run` script name), `key` (the explicit
+# TOLARIA_GATE_RUN_KEY, empty for a cwd-keyed run) and `attached` (epoch of the
+# last call that started or re-attached to it). A run dir written before this
+# existed has no `cwd`, and is judged on its age alone.
+
+# Scripts that DELETE their own cwd as part of succeeding: `land` and
+# `docs:ship` remove the worktree they run from, then keep going (ref cleanup,
+# housekeeping) — and the follow-up call re-attaches to them from elsewhere
+# under an explicit key, which is the whole of issue #3706. "Its cwd is gone"
+# is their normal end state, not an orphan's, so the cwd rule never reaps
+# them; the age rule still does.
+SELF_REMOVING_SCRIPTS="land docs:ship"
+
+# Prints the pid of the live gate a run dir holds, or nothing. Live = an
+# unread run (no `rc`) whose pid still carries the identity stamped at start
+# (see `pid_ident`).
+run_live_pid() {
+    [ ! -f "$1/rc" ] || return 0
+    _rp=$(cat "$1/pid" 2>/dev/null || echo "")
+    is_alive "$_rp" || return 0
+    _rs=$(cat "$1/pidstart" 2>/dev/null || echo "")
+    [ -n "$_rs" ] && [ "$(pid_ident "$_rp")" = "$_rs" ] || return 0
+    echo "$_rp"
+}
+
+# Terminate a run's WHOLE process group — the gate's `bun`, its vitest
+# workers, its browser — never just the leader: `set -m` made the runner
+# subshell the group leader, so its pid IS the pgid. TERM, a grace period,
+# then KILL; it returns only once no member of the group is left, so a caller
+# that starts a replacement next never overlaps the old one. The run dir is
+# left holding a `reaped` note in place of a pid, and the reap is logged.
+# A group that SURVIVES both signals (EPERM, a runner that is not a group
+# leader) is not reaped: its pid files stay, so it stays visible to `--list`
+# and to the twin check, and the call returns 1.
+# (`kill "-$pgid"`, never `kill -- -$pgid`: dash's builtin rejects the `--`.)
+reap_run() {
+    _dir="$1"
+    _rp="$2"
+    _why="$3"
+    kill -TERM "-$_rp" 2>/dev/null || true
+    _g=0
+    while kill -0 "-$_rp" 2>/dev/null && [ "$_g" -lt "$KILL_GRACE" ]; do
+        sleep 1
+        _g=$((_g + 1))
+    done
+    kill -KILL "-$_rp" 2>/dev/null || true
+    _g=0
+    while kill -0 "-$_rp" 2>/dev/null && [ "$_g" -lt 10 ]; do
+        sleep 1
+        _g=$((_g + 1))
+    done
+    if kill -0 "-$_rp" 2>/dev/null; then
+        echo "gate-run: could NOT terminate pgid $_rp ($_dir) — left in place: $_why" >&2
+        return 1
+    fi
+    rm -f "$_dir/pid" "$_dir/pidstart"
+    _line="$(date '+%Y-%m-%dT%H:%M:%S') reaped pgid $_rp ($(cat "$_dir/command" 2>/dev/null || echo '?'), cwd $(cat "$_dir/cwd" 2>/dev/null || echo '?')): $_why"
+    printf '%s\n' "$_line" >"$_dir/reaped"
+    printf '%s\n' "$_line" >>"$RUN_ROOT/reaped.log" 2>/dev/null || true
+    echo "gate-run: $_line" >&2
+}
+
+# Reap every live run nobody can read any more (issue #4940): its cwd is gone
+# (the worktree was removed — and nothing will ever re-attach from a
+# directory that does not exist), or it is older than REAP_SECS and nobody
+# re-attached to it in the last IDLE_SECS. `$1` is a run dir to spare — the
+# caller's own, which it is about to attach to. Non-fatal by construction,
+# like the janitor above.
+reap_orphans() {
+    [ -d "$RUN_ROOT" ] || return 0
+    _now=$(date +%s)
+    for _d in "$RUN_ROOT"/*/; do
+        _d="${_d%/}"
+        [ -d "$_d" ] && [ "$_d" != "${1:-}" ] || continue
+        _rp=$(run_live_pid "$_d")
+        [ -n "$_rp" ] || continue
+        _cwd=$(cat "$_d/cwd" 2>/dev/null || echo "")
+        _scr=$(cat "$_d/script" 2>/dev/null || echo "")
+        if [ -n "$_cwd" ] && [ ! -d "$_cwd" ]; then
+            case " $SELF_REMOVING_SCRIPTS " in
+                *" $_scr "*) ;;
+                *)
+                    reap_run "$_d" "$_rp" "its cwd no longer exists" || true
+                    continue
+                    ;;
+            esac
+        fi
+        _st=$(cat "$_d/started" 2>/dev/null || echo "")
+        _at=$(cat "$_d/attached" 2>/dev/null || echo "$_st")
+        case "$_st$_at" in '' | *[!0-9]*) continue ;; esac
+        if [ $((_now - _st)) -gt "$REAP_SECS" ] && [ $((_now - _at)) -gt "$IDLE_SECS" ]; then
+            reap_run "$_d" "$_rp" "older than ${REAP_SECS}s and unattended for ${IDLE_SECS}s" || true
+        fi
+    done
+}
+
+# Every live run of script `$1` started from cwd `$2`, other than run dir
+# `$3`: one `<dir>\t<pid>` line each.
+live_twins() {
+    [ -d "$RUN_ROOT" ] || return 0
+    for _d in "$RUN_ROOT"/*/; do
+        _d="${_d%/}"
+        [ -d "$_d" ] && [ "$_d" != "$3" ] || continue
+        [ "$(cat "$_d/script" 2>/dev/null || echo "")" = "$1" ] || continue
+        [ "$(cat "$_d/cwd" 2>/dev/null || echo "")" = "$2" ] || continue
+        _rp=$(run_live_pid "$_d")
+        [ -n "$_rp" ] || continue
+        printf '%s\t%s\n' "$_d" "$_rp"
+    done
+}
+
+# How a run is re-attached to: its explicit key, or "no key" from its cwd.
+key_hint() {
+    _k=$(cat "$1/key" 2>/dev/null || echo "")
+    if [ -n "$_k" ]; then
+        echo "TOLARIA_GATE_RUN_KEY=$_k"
+    else
+        echo "no TOLARIA_GATE_RUN_KEY (keyed on its cwd)"
+    fi
+}
+
+if [ "$MODE" = list ]; then
+    reap_orphans ""
+    _now=$(date +%s)
+    _n=0
+    for _d in "$RUN_ROOT"/*/; do
+        _d="${_d%/}"
+        [ -d "$_d" ] || continue
+        _rp=$(run_live_pid "$_d")
+        [ -n "$_rp" ] || continue
+        _st=$(cat "$_d/started" 2>/dev/null || echo "")
+        case "$_st" in '' | *[!0-9]*) _age="?" ;; *) _age="$((_now - _st))s" ;; esac
+        _k=$(cat "$_d/key" 2>/dev/null || echo "")
+        echo "[gate] detached run — key ${_k:-(cwd)} · \`bun run $(cat "$_d/command" 2>/dev/null || echo '?')\` · cwd $(cat "$_d/cwd" 2>/dev/null || echo '?') · age $_age · pid $_rp · log $_d/log"
+        _n=$((_n + 1))
+    done
+    [ "$_n" -gt 0 ] || echo "[gate] no live detached gate-run runs"
+    exit 0
+fi
+
+# One run dir per (cwd, command). The cwd is part of the key because two
+# worktrees gating concurrently are two different runs of the same script —
+# attaching one to the other's log would report the wrong tree's verdict.
+#
+# TOLARIA_GATE_RUN_KEY replaces the cwd component when the cwd is not a stable
+# name for the run (issue #3706). The case that forces this is `land`: it runs
+# from the PR's own worktree — it refuses to run from the base branch — and it
+# DELETES that worktree when it merges. So a `land` that returns 75 leaves the
+# next call with a cwd that no longer exists, and a call from anywhere else
+# computes a different key and starts a SECOND `land`, re-paying the whole
+# gate. With an explicit key the same run is addressable from any directory.
+_key_scope="${TOLARIA_GATE_RUN_KEY:-}"
+[ -n "$_key_scope" ] || _key_scope="$(pwd)"
+# A NEWLINE between scope and command, not `|`: the scope is now free text a
+# caller chooses, and `a|b` + `c` must not hash the same as `a` + `b|c`.
+_key=$(printf '%s\n%s' "$_key_scope" "$*" | cksum | tr -cd '0-9')
+_safe=$(printf '%s' "$1" | tr -c 'A-Za-z0-9._-' '-')
+RUN_DIR="$RUN_ROOT/$_safe-$_key"
+LOG="$RUN_DIR/log"
+RC="$RUN_DIR/rc"
+PIDF="$RUN_DIR/pid"
+PIDSTART="$RUN_DIR/pidstart"
+HEAD_F="$RUN_DIR/head"
+BASE_F="$RUN_DIR/base"
+END_HEAD_F="$RUN_DIR/end-head"
+CMD_F="$RUN_DIR/command"
+GREEN_F="$RUN_DIR/green"
+STARTF="$RUN_DIR/started"
+LOCK="$RUN_DIR/.lock"
+
+CWD_F="$RUN_DIR/cwd"
+SCRIPT_F="$RUN_DIR/script"
+KEY_F="$RUN_DIR/key"
+ATTACHED_F="$RUN_DIR/attached"
+
+mkdir -p "$RUN_DIR"
+
+reap_orphans "$RUN_DIR"
+
 lock_acquire
 trap 'lock_release' EXIT INT TERM
 
@@ -231,7 +413,33 @@ elif [ -f "$RC" ] &&
 fi
 
 if [ "$attached" -eq 0 ] && [ "$finished" -eq 0 ]; then
-    rm -f "$RC" "$PIDF" "$PIDSTART" "$GREEN_F" "$END_HEAD_F"
+    # ONE LIVE RUN PER (cwd, script) (issue #4940): a start that would run
+    # beside a live run of the same script from the same cwd under another
+    # key is a "retry" that leaves the first run burning CPU unread. Refuse
+    # and name the live run, so the caller re-attaches to it; `--replace`
+    # kills the old process group first, and returns only once it is gone.
+    _twins=$(live_twins "$1" "$(pwd)" "$RUN_DIR")
+    if [ -n "$_twins" ]; then
+        if [ "$REPLACE" -eq 0 ]; then
+            echo "gate-run: REFUSED — \`bun run $1\` is already running from this cwd under another key; nothing was started." >&2
+            printf '%s\n' "$_twins" | while IFS="$(printf '\t')" read -r _td _tp; do
+                echo "gate-run:   live run: $(key_hint "$_td") · pid $_tp · log $_td/log" >&2
+            done
+            echo "gate-run: re-attach with that key, or pass --replace to terminate it and start this one." >&2
+            exit 76
+        fi
+        printf '%s\n' "$_twins" | while IFS="$(printf '\t')" read -r _td _tp; do
+            reap_run "$_td" "$_tp" "replaced by a --replace start under key ${TOLARIA_GATE_RUN_KEY:-(cwd)}" || true
+        done
+        if [ -n "$(live_twins "$1" "$(pwd)" "$RUN_DIR")" ]; then
+            echo "gate-run: REFUSED — --replace could not terminate the live run; nothing was started." >&2
+            exit 76
+        fi
+    fi
+    rm -f "$RC" "$PIDF" "$PIDSTART" "$GREEN_F" "$END_HEAD_F" "$RUN_DIR/reaped"
+    pwd >"$CWD_F"
+    printf '%s\n' "$1" >"$SCRIPT_F"
+    printf '%s\n' "${TOLARIA_GATE_RUN_KEY:-}" >"$KEY_F"
     : >"$LOG"
     date +%s >"$STARTF"
     git_head >"$HEAD_F"
@@ -287,11 +495,14 @@ if [ "$attached" -eq 0 ] && [ "$finished" -eq 0 ]; then
     pid_ident "$_pid" >"$PIDSTART"
     echo "gate-run: started \`bun run $*\` detached (pid $_pid, log: $LOG)." >&2
 elif [ "$attached" -eq 1 ]; then
+    [ "$REPLACE" -eq 0 ] ||
+        echo "gate-run: --replace ignored — the live run IS this key's run; re-attaching to it. Replace it from another key, or let it finish." >&2
     echo "gate-run: re-attached to the running \`bun run $*\` (pid $_pid, log: $LOG)." >&2
 else
     echo "gate-run: \`bun run $*\` already finished while nobody was waiting — reporting its exit code." >&2
 fi
 
+date +%s >"$ATTACHED_F"
 lock_release
 trap - EXIT INT TERM
 
