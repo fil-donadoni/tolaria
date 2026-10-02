@@ -277,8 +277,9 @@ describe("health RED — the green-main invariant (ADR 0110)", () => {
 
     it("stops before running any pass when the marker exists", () => {
         // "A RED marker means fix-forward FIRST — never stack unrelated work
-        // on a red tip" (ADR 0110). `land` only WARNS, which is the right
-        // strength for a human who can read it; unattended there is nobody to.
+        // on a red tip" (ADR 0110). `land` refuses a non-repair PR without
+        // `--red-ok` (issue #4964), a flag a human states; unattended there
+        // is nobody to state it.
         stubGhCountingFrom(5);
         stubClaudeProgress();
         writeRed();

@@ -127,7 +127,9 @@ the rendering of either for the rest of the session.
   durable release-health marker is up; the refusal names the sha and the
   failing step, and the exit is `bun run health:fix` — fixing the base tip
   comes before taking new work, so do that instead of picking another issue.
-  (`land` still only WARNS on RED, so a session already mid-issue finishes.)
+  (Under RED `land` refuses a PR that is not a declared repair unless it is
+  run with `--red-ok`, so a session already mid-issue finishes as a stated,
+  counted act — issue #4964.)
 - Read the issue and its comments IN FULL before touching anything. The
   body's `Target files:` section (one path per line) is the declared blast
   radius — use it to scope your reading and to route the review in §4; a
