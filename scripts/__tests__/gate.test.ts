@@ -1143,8 +1143,9 @@ describe("gate.ts — the wrapped tree dies with the gate (issue #3821)", () => 
                 )) !== undefined;
             expect(await waitFor(wrapped)).toBe(true);
             strays.push(...descendants(gatePid));
-            // pid 999999 is above any pid this OS hands out, and its group is
-            // one the teardown signals as a group — never a pid it kills.
+            // The planted pid is never signalled: its group is one the
+            // teardown signals as a group, so no kill goes to 999999 by pid —
+            // above macOS's pid ceiling, and harmless where one could exist.
             if (plant)
                 writeFileSync(
                     planted,
