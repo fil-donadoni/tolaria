@@ -793,6 +793,9 @@ export function readConsumers(
     const opts = {
         encoding: "utf8" as const,
         timeout: CONSUMER_PROBE_TIMEOUT_MS,
+        // `args=` is unbounded: past the 1 MiB default a long process table
+        // would read as an unreadable probe.
+        maxBuffer: 16 * 1024 * 1024,
         cwd: "/",
         env: { ...process.env, LC_ALL: "C" },
     };
@@ -978,6 +981,9 @@ export interface MachinePeak {
     reasons: string[];
     /** Null: unreadable, or no consumers probe. */
     consumers: ConsumerSnapshot | null;
+    /** The highest load of ANY saturated poll — a spike between two
+     *  announced lines is read here, without its consumers. */
+    maxLoad: number;
 }
 
 export interface WaitForMachineResult {
@@ -1014,6 +1020,7 @@ export function machineWaitRow(
               : "refused",
         waited_ms: result.waitedMs,
         peak_load: peak.sample.load1,
+        max_load: peak.maxLoad,
         peak_at_ms: peak.waitedMs,
         peak_swap_mb: peak.sample.swapUsedMb,
         peak_pressure: peak.sample.pressure,
@@ -1096,6 +1103,8 @@ export async function waitForMachine(
                   waitMaxS: Number(env.TOLARIA_MACHINE_WAIT_MAX_MS) / 1000,
               };
     let peak: MachinePeak | null = null;
+    /** The highest load any saturated poll read, announced or not. */
+    let maxLoad = 0;
     /** Announce a `machine busy` headline with its consumers; a saturated
      *  poll's sample competes for the peak. */
     const busy = (
@@ -1104,6 +1113,7 @@ export async function waitForMachine(
         waitedMs: number,
         saturated: string[] | null
     ) => {
+        if (saturated) maxLoad = Math.max(maxLoad, sample.load1);
         let top: ConsumerSnapshot | null = null;
         if (readTop) {
             try {
@@ -1116,10 +1126,19 @@ export async function waitForMachine(
             readTop ? [headline, ...consumerLines(top)].join("\n") : headline
         );
         if (saturated && (peak === null || sample.load1 > peak.sample.load1))
-            peak = { sample, waitedMs, reasons: saturated, consumers: top };
+            peak = {
+                sample,
+                waitedMs,
+                reasons: saturated,
+                consumers: top,
+                maxLoad,
+            };
     };
     const done = (result: Omit<WaitForMachineResult, "peak">) => {
-        const out = { ...result, peak };
+        const out = {
+            ...result,
+            peak: peak === null ? null : { ...peak, maxLoad },
+        };
         const row = machineWaitRow(input.tag, out);
         if (row !== null && record)
             try {
@@ -1197,6 +1216,7 @@ export async function waitForMachine(
                 beside: null,
             });
         }
+        maxLoad = Math.max(maxLoad, sample.load1);
         const t = now();
         if (lastAnnounce === null || t - lastAnnounce >= 60_000) {
             busy(

@@ -870,6 +870,7 @@ describe("waitForMachine — the consumers a busy wait names (issue #4989)", () 
                 outcome: "admitted",
                 waited_ms: 125_000,
                 peak_load: 63.3,
+                max_load: 63.3,
                 peak_at_ms: 60_000,
                 peak_swap_mb: 6054,
                 peak_pressure: 1,
@@ -887,6 +888,30 @@ describe("waitForMachine — the consumers a busy wait names (issue #4989)", () 
                 ],
             },
         ]);
+    });
+
+    it("a spike between two announced lines is still the row's `max_load`", async () => {
+        // Announced at 0 s (9.1) and 60 s (12); 61.2 at 30 s was never announced.
+        const samples = [
+            at(9.1),
+            ...Array.from({ length: 5 }, () => at(20)),
+            at(61.2),
+            ...Array.from({ length: 5 }, () => at(20)),
+            at(12),
+            calm,
+        ];
+        const { rows } = await run(samples, () => TOP);
+        expect(rows).toMatchObject([{ peak_load: 12, max_load: 61.2 }]);
+    });
+
+    it("the refusing poll counts toward `max_load`", async () => {
+        const samples = [
+            at(9.1),
+            ...Array.from({ length: 35 }, () => at(10)),
+            at(70),
+        ];
+        const { rows } = await run(samples, () => TOP);
+        expect(rows).toMatchObject([{ outcome: "refused", max_load: 70 }]);
     });
 
     it("a refused wait records `refused`; an overridden one `overridden`", async () => {
