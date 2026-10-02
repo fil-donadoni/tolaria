@@ -244,9 +244,11 @@ input or the Bot globs. Hatch, on the command itself:
 `TOLARIA_ALLOW_BOT_SWEEP=1 bun run oracle:compile`.
 
 Need FRESH verdicts for a few cards (the ones a blade entry or a refit is
-about)? No narrow replay exists yet — issue #4957 builds
-`--carry-bot --replay-card <name>`; until then it is the hatch, by owner
-request.
+about, or whose `frozen` status the change should flip)?
+`bun run oracle:compile --carry-bot --replay-card "<name>"` (repeatable,
+issue #4957): every other verdict is carried, only the named cards are
+played, and the header Bot hash stays the committed one. An unknown name, or
+a card that does not compile `ready`, exits non-zero and writes nothing.
 
 ## Reference
 

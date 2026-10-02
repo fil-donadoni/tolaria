@@ -16,6 +16,8 @@
  *   bun scripts/oracle-compile.ts --check    # regenerate into memory and diff
  *   bun scripts/oracle-compile.ts --replay-bot   # re-play every `ready` card
  *   bun scripts/oracle-compile.ts --carry-bot    # write, never play (`land`)
+ *   bun scripts/oracle-compile.ts --carry-bot --replay-card <name>
+ *                                    # carry, play only <name> (repeatable)
  *
  * The write path also runs the Bot-play sweep (ADR 0105 § 7.2, issue #3830):
  * every card that compiles `ready` is played by the Bot at both seats
@@ -70,6 +72,9 @@ import {
     carriedBotReach,
     playingBotReach,
     rankBotGaps,
+    replayingCardsBotReach,
+    resolveReplayCards,
+    type BotPlayer,
     type BotReachSource,
 } from "./lib/oracle-bot-reach";
 import { runUnderHeavyAdmission } from "./lib/heavy-admission";
@@ -448,58 +453,127 @@ export function readCommittedLockfile(): Lockfile | null {
 }
 
 /**
- * The write path's Bot-play source (ADR 0105 § 7.2). The Bot is imported
- * HERE, dynamically, and nowhere else in this file: `buildLockfile` is also
+ * The Bot-play player (ADR 0105 § 7.2). The Bot is imported HERE,
+ * dynamically, and nowhere else in this file: `buildLockfile` is also
  * the drift guard's regenerator (`check-oracle-lockfile.ts`, inside
  * `check:pr` / `land`), and a static import would put the whole search in
  * the gate's module graph for a path that must never play.
  */
+async function botPlayer(): Promise<BotPlayer> {
+    const { playBotReach } = await import("../convex/gre/ai/botReach");
+    const { preloadDefinitions } = await import("../convex/cards/registry");
+    return (oracleId, definition) => {
+        // A compiled definition is not a catalogue card: registered by id
+        // for the play, through the batch seam so an inset or split
+        // card's twins are registered with it.
+        const def = {
+            ...definition,
+            id: `oracle-bot-reach:${oracleId}`,
+            rarity: "common",
+        } as CardDefinition;
+        preloadDefinitions([def]);
+        try {
+            return playBotReach(def);
+        } catch (error) {
+            // A throw here is the SWEEP failing, never the card: without
+            // this catch it unwinds through `buildLockfile` to `main`,
+            // nothing is written, and the whole 21-minute run is lost
+            // with every verdict it had already earned (review of
+            // PR #4057, finding 7). Ship the card, rank the shape.
+            return {
+                outcome: "ignored",
+                cause: "harness-error",
+                form:
+                    error instanceof Error
+                        ? error.message.slice(0, 120)
+                        : String(error).slice(0, 120),
+            };
+        }
+    };
+}
+
+/** The write path's sweep: the incremental cache over {@link botPlayer}. */
 async function sweepingBotReach(
     previous: Lockfile | null,
     replay: boolean
 ): Promise<ReturnType<typeof playingBotReach>> {
-    const { playBotReach } = await import("../convex/gre/ai/botReach");
-    const { preloadDefinitions } = await import("../convex/cards/registry");
     const started = Date.now();
-    return playingBotReach(
-        previous,
-        botHash(ROOT),
-        (oracleId, definition) => {
-            // A compiled definition is not a catalogue card: registered by id
-            // for the play, through the batch seam so an inset or split
-            // card's twins are registered with it.
-            const def = {
-                ...definition,
-                id: `oracle-bot-reach:${oracleId}`,
-                rarity: "common",
-            } as CardDefinition;
-            preloadDefinitions([def]);
-            try {
-                return playBotReach(def);
-            } catch (error) {
-                // A throw here is the SWEEP failing, never the card: without
-                // this catch it unwinds through `buildLockfile` to `main`,
-                // nothing is written, and the whole 21-minute run is lost
-                // with every verdict it had already earned (review of
-                // PR #4057, finding 7). Ship the card, rank the shape.
-                return {
-                    outcome: "ignored",
-                    cause: "harness-error",
-                    form:
-                        error instanceof Error
-                            ? error.message.slice(0, 120)
-                            : String(error).slice(0, 120),
-                };
-            }
+    return playingBotReach(previous, botHash(ROOT), await botPlayer(), {
+        replay,
+        onPlay: () => {
+            const s = Math.round((Date.now() - started) / 1000);
+            process.stderr.write(`\roracle:compile — bot-play sweep ${s}s`);
         },
-        {
-            replay,
-            onPlay: () => {
-                const s = Math.round((Date.now() - started) / 1000);
-                process.stderr.write(`\roracle:compile — bot-play sweep ${s}s`);
-            },
+    });
+}
+
+/**
+ * `--replay-card`'s source over the corpus: refuses an unknown name before
+ * anything plays, and — once the lockfile is built — a named card the build
+ * never offered to the Bot (it did not compile `ready`), so a replay never
+ * reports success for a card it did not play.
+ */
+async function replayingNamedCards(
+    previous: Lockfile | null,
+    corpus: readonly CorpusCard[],
+    names: readonly string[]
+): Promise<{
+    source: ReturnType<typeof replayingCardsBotReach>;
+    refuseUnplayed: () => void;
+}> {
+    const { ids, unknown } = resolveReplayCards(corpus, names);
+    if (unknown.length > 0) {
+        process.stderr.write(
+            `oracle:compile — --replay-card: no corpus card named ${unknown
+                .map((n) => JSON.stringify(n))
+                .join(", ")}\n`
+        );
+        process.exit(1);
+    }
+    const source = replayingCardsBotReach(previous, ids, await botPlayer());
+    const nameOf = new Map(corpus.map((c) => [c.oracleId, c.name]));
+    return {
+        source,
+        refuseUnplayed: () => {
+            const unplayed = [...ids].filter(
+                (id) => !source.playedIds().has(id)
+            );
+            if (unplayed.length === 0) return;
+            process.stderr.write(
+                `oracle:compile — --replay-card: did not compile ready, ` +
+                    `nothing to play: ${unplayed
+                        .map((id) => JSON.stringify(nameOf.get(id)))
+                        .join(", ")} (lockfile not written)\n`
+            );
+            process.exit(1);
+        },
+    };
+}
+
+/** Every `--replay-card <name>` / `--replay-card=<name>` value, in argv
+ *  order (issue #4957). A spelling it cannot read is refused, never dropped:
+ *  a dropped name would carry everything and exit 0 having played nothing. */
+function replayCardNames(argv: readonly string[]): string[] {
+    const names: string[] = [];
+    const refuse = (why: string): never => {
+        process.stderr.write(`oracle:compile — --replay-card ${why}\n`);
+        process.exit(2);
+    };
+    argv.forEach((arg, i) => {
+        if (arg === "--replay-card") {
+            const name = argv[i + 1];
+            if (name === undefined || name.startsWith("--"))
+                refuse("needs a card name");
+            names.push(name!);
+        } else if (arg.startsWith("--replay-card=")) {
+            const name = arg.slice("--replay-card=".length);
+            if (name === "") refuse("needs a card name");
+            names.push(name);
+        } else if (arg.startsWith("--replay-card")) {
+            refuse(`— unknown flag ${JSON.stringify(arg)}`);
         }
-    );
+    });
+    return names;
 }
 
 async function main(): Promise<void> {
@@ -509,6 +583,17 @@ async function main(): Promise<void> {
     // verdicts are carried forward on unchanged definitions, a changed one is
     // left unswept. What `land`'s artifact resolver runs (ADR 0105 § 7.2).
     const carry = process.argv.includes("--carry-bot");
+    // `--carry-bot --replay-card <name>` (repeatable, issue #4957): carry
+    // every verdict, PLAY only the named cards. A handful of plays, not a
+    // sweep, so it does not queue for the heavy mutex either.
+    const replayNames = replayCardNames(process.argv.slice(2));
+    if (replayNames.length > 0 && (!carry || check || replay)) {
+        process.stderr.write(
+            "oracle:compile — --replay-card runs only with --carry-bot " +
+                "(and without --check / --replay-bot)\n"
+        );
+        process.exit(2);
+    }
     // The sweep is heavy work (mean 28 min, issue #4941): a run that will play
     // waits for the heavy gate's mutex instead of racing a `land`. `--check`
     // and `--carry-bot` never play and never queue.
@@ -520,14 +605,18 @@ async function main(): Promise<void> {
         if (code !== null) process.exit(code);
     }
     const previous = readCommittedLockfile();
+    const corpus = readCorpus();
     // `--check` never plays: it is the drift guard's question, asked from a
     // script (ADR 0105 § 7.2 — the sweep never runs inside a gate).
     const sweep =
         check || carry ? null : await sweepingBotReach(previous, replay);
-    const source = sweep ?? carriedBotReach(previous);
-    const text = serializeLockfile(
-        buildLockfile(readCorpus(), { botReach: source })
-    );
+    const narrowed =
+        replayNames.length > 0
+            ? await replayingNamedCards(previous, corpus, replayNames)
+            : null;
+    const source = sweep ?? narrowed?.source ?? carriedBotReach(previous);
+    const text = serializeLockfile(buildLockfile(corpus, { botReach: source }));
+    if (narrowed !== null) narrowed.refuseUnplayed();
     if (check) {
         const current = existsSync(LOCKFILE_PATH)
             ? readFileSync(LOCKFILE_PATH, "utf8")
@@ -545,7 +634,7 @@ async function main(): Promise<void> {
     const lock = JSON.parse(text) as Lockfile;
     const reach = { played: 0, ignored: 0, frozen: 0 };
     for (const row of lock.cards) if (row.botReach) reach[row.botReach] += 1;
-    const playedNow = sweep?.played() ?? 0;
+    const playedNow = sweep?.played() ?? narrowed?.source.playedIds().size ?? 0;
     process.stderr.write(
         `\noracle:compile — ${lock.header.counts.total} cards: ` +
             `${lock.header.counts.ready} ready, ${lock.header.counts.quarantine} quarantine, ` +
