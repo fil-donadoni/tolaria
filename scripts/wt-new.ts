@@ -71,21 +71,63 @@ function main(): void {
             );
             process.exit(1);
         }
-        if (pick.from === "local") {
-            git(["worktree", "add", worktree, pick.branch], primary);
-        } else {
-            git(["fetch", "origin", pick.branch, "-q"], primary);
-            git(
-                [
-                    "worktree",
-                    "add",
-                    worktree,
-                    "-b",
-                    pick.branch,
-                    `origin/${pick.branch}`,
-                ],
-                primary
+        try {
+            if (pick.from === "local") {
+                // A local branch BEHIND its pushed head (the PR moved after
+                // the dead pass's last fetch) is fast-forwarded first, or
+                // the resume works on stale code and its push is rejected.
+                // Diverged = local holds unpushed commits: keep it, say so.
+                if (remote.includes(pick.branch)) {
+                    git(["fetch", "origin", pick.branch, "-q"], primary);
+                    const behind =
+                        spawnSync(
+                            "git",
+                            [
+                                "merge-base",
+                                "--is-ancestor",
+                                pick.branch,
+                                `origin/${pick.branch}`,
+                            ],
+                            { cwd: primary }
+                        ).status === 0;
+                    if (behind)
+                        git(
+                            [
+                                "branch",
+                                "-f",
+                                pick.branch,
+                                `origin/${pick.branch}`,
+                            ],
+                            primary
+                        );
+                    else
+                        console.error(
+                            `wt:new --resume: local ${pick.branch} has commits origin/${pick.branch} lacks — resuming the LOCAL branch`
+                        );
+                }
+                git(["worktree", "add", worktree, pick.branch], primary);
+            } else {
+                git(["fetch", "origin", pick.branch, "-q"], primary);
+                git(
+                    [
+                        "worktree",
+                        "add",
+                        worktree,
+                        "-b",
+                        pick.branch,
+                        `origin/${pick.branch}`,
+                    ],
+                    primary
+                );
+            }
+        } catch (err) {
+            // The usual cause: the branch is still checked out in another
+            // worktree at a different path (`git worktree list` names it).
+            console.error(
+                `wt:new --resume: could not check out ${pick.branch} — ${(err as Error).message}\n` +
+                    `  If another worktree holds it, \`git worktree list\` names it: resume there.`
             );
+            process.exit(1);
         }
     } else {
         git(["fetch", "origin", BASE_BRANCH, "-q"], primary);
