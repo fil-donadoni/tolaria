@@ -550,9 +550,13 @@ function release() {
 let resolvedTelemetryRoot: string | undefined;
 function telemetryRoot(): string {
     resolvedTelemetryRoot ??=
-        process.env.CLAUDE_PROJECT_DIR ?? primaryCheckout();
+        process.env.CLAUDE_PROJECT_DIR ?? primaryCheckout(GATE_CWD);
     return resolvedTelemetryRoot;
 }
+
+/** Read at load, for the same reason: asked again once the cwd is gone,
+ *  `process.cwd()` is the runtime's to answer or to throw on. */
+const GATE_CWD = process.cwd();
 
 /** Telemetry: how long callers actually queue, so the tier split can be tuned,
  *  and every reclaim, so a lock freed because its holder went silent is
@@ -570,7 +574,7 @@ function logEvent(entry: Record<string, unknown>) {
             JSON.stringify({
                 ts: Math.floor(Date.now() / 1000),
                 tier,
-                cwd: process.cwd(),
+                cwd: GATE_CWD,
                 cmd: command.slice(0, 120),
                 ...entry,
             }) + "\n"

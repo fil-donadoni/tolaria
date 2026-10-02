@@ -223,6 +223,8 @@ describe("gate.ts — a run whose command removes the gate's own cwd (issue #498
                 "user.email=t@t",
                 "-c",
                 "user.name=t",
+                "-c",
+                "commit.gpgsign=false",
                 "commit",
                 "-q",
                 "--allow-empty",
