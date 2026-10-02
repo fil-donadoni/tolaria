@@ -22,12 +22,14 @@ import {
     botGapKey,
     botSourceFiles,
     carriedBotReach,
+    isBotSourceFile,
     playingBotReach,
     rankBotGaps,
     type BotReachSource,
 } from "../lib/oracle-bot-reach";
 import type { CardRow, Lockfile } from "../lib/oracle-lockfile";
 import { REGENERATED_ARTIFACTS } from "../lib/generated-artifacts";
+import { botSweepInputs } from "../bot-sweep-inputs";
 import { emptyRetirementLedger } from "../lib/oracle-retirements";
 
 const ROOT = join(import.meta.dirname, "..", "..");
@@ -194,6 +196,42 @@ describe("the Bot hash covers what decides a verdict", () => {
         // Label-only, and excluded on purpose: changing a gap key must not
         // replay 3,400 cards.
         expect(files).not.toContain("convex/gre/ai/botReachForm.ts");
+    });
+
+    // `deny-guard.sh` § 7 asks the predicate about a diff's PATHS, the hash
+    // walks the TREE: both must be the one set (issue #4942).
+    it("isBotSourceFile names exactly the files the hash walks", () => {
+        for (const file of botSourceFiles(ROOT))
+            expect(isBotSourceFile(file), file).toBe(true);
+        for (const file of [
+            "convex/gre/ai/botReachForm.ts",
+            "convex/gre/ai/__tests__/botReach.bot.test.ts",
+            "convex/gre/ai/verdicts/coverage.ts",
+            "convex/gre/ai/blade/registry.ts",
+            "convex/gre/combat.ts",
+            "scripts/oracle-compile.ts",
+        ])
+            expect(isBotSourceFile(file), file).toBe(false);
+        expect(isBotSourceFile("convex/gre/ai/blade/baseState.ts")).toBe(true);
+    });
+
+    it("botSweepInputs adds the Bot globs to the hash inputs, and nothing else", () => {
+        expect(
+            botSweepInputs([
+                "convex/gre/search.ts",
+                "convex/gre/rules.ts",
+                "src/lib/ai/selfplay/ladder.ts",
+                "convex/gre/difficulty.ts",
+                "convex/gre/combat.ts",
+                "src/components/Board.tsx",
+                "scripts/gate.ts",
+            ])
+        ).toEqual([
+            "convex/gre/search.ts",
+            "convex/gre/rules.ts",
+            "src/lib/ai/selfplay/ladder.ts",
+            "convex/gre/difficulty.ts",
+        ]);
     });
 });
 

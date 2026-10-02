@@ -228,6 +228,26 @@ before opening a PR.
 see) plus `bun run check:pr`. The `must`-tier blade suite must stay green — a
 regression there is a real regression, not noise.
 
+## Oracle lockfile — `--carry-bot`, never the sweep
+
+Every Bot PR edits a Bot hash input (`isBotSourceFile`,
+`scripts/lib/oracle-bot-reach.ts`), and after that a bare
+`bun run oracle:compile` replays the Bot-play sweep over every `ready` card —
+20–47 min of CPU no gate needs (ADR 0105 § 7.2). A Bot PR refreshes the
+lockfile with **`bun run oracle:compile --carry-bot`** only — what `land`
+itself runs. The sweep belongs to the batch health run, or to `--replay-bot`
+on explicit owner request.
+
+`deny-guard.sh` § 7 enforces it (issue #4942): a bare `oracle:compile` — also
+through `gate:run` — is denied in a checkout whose diff touches a Bot hash
+input or the Bot globs. Hatch, on the command itself:
+`TOLARIA_ALLOW_BOT_SWEEP=1 bun run oracle:compile`.
+
+Need FRESH verdicts for a few cards (the ones a blade entry or a refit is
+about)? No narrow replay exists yet — issue #4957 builds
+`--carry-bot --replay-card <name>`; until then it is the hatch, by owner
+request.
+
 ## Reference
 
 - Play bot: `convex/gre/{search,evaluate,moves,applyMove,determinize,difficulty,describeMove}.ts`, `convex/gre/ai/**`, `src/lib/ai/**`

@@ -832,4 +832,60 @@ Or, repairing by hand, remove both:
   gh issue edit <issue#> --remove-label in-progress --remove-assignee @me"
 fi
 
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 7. A Bot PR refreshes the Oracle lockfile with `--carry-bot`, never the
+#    sweep (issue #4942).
+#
+# Every Bot PR edits a Bot hash input (`isBotSourceFile`,
+# `scripts/lib/oracle-bot-reach.ts`), and after that a bare `oracle:compile`
+# REPLAYS every `ready` card — the Bot-play sweep, 20–47 min of CPU. ADR 0105
+# § 7.2 keeps the sweep out of every gate and `land` only ever runs
+# `--carry-bot`, yet 63 bare sweeps ran across 18 Bot issues in the week to
+# 2026-10-01 (5.2 h in the foreground alone), because nothing said not to.
+# The sweep belongs to the batch health run, or to `--replay-bot` asked for
+# by name.
+#
+# Denied: a bare `oracle:compile` — `bun run`, `bun scripts/oracle-compile.ts`
+# or through `gate:run` — with none of `--check`, `--carry-bot`,
+# `--replay-bot`, issued from a checkout whose diff against the base branch
+# (committed, uncommitted and untracked) touches a Bot hash input or the Bot
+# globs. Which paths count is asked of `scripts/bot-sweep-inputs.ts`, never
+# listed here, so the hook cannot drift off the hash. Cheap test first: the
+# `git` and `bun` processes are paid only by an `oracle:compile` command.
+# Matched as an INVOCATION — start of a segment or after a `|`, an env-var
+# prefix allowed — like § 6, so a commit message quoting it is not a run.
+# Fails OPEN on any error computing the diff — a guard that cannot read the
+# tree has no evidence the sweep is wasted.
+# Both path lists are ROOT-relative and whole-tree from any subdirectory
+# (`diff` is by default; `ls-files` needs `--full-name -- ":/"`), since
+# `isBotSourceFile` reads repo-relative paths.
+# ─────────────────────────────────────────────────────────────────────────────
+ORACLE_COMPILE_INVOKE='(^|\|)[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*(bun[[:space:]]+run[[:space:]]+(gate:run[[:space:]]+)?oracle:compile|bun[[:space:]]+[^[:space:]]*oracle-compile\.ts|sh[[:space:]]+[^[:space:]]*gate-run\.sh[[:space:]]+oracle:compile)([[:space:]]|$)'
+if seg_has "$ORACLE_COMPILE_INVOKE" &&
+    ! seg_has "$ORACLE_COMPILE_INVOKE" '[[:space:]]--(check|carry-bot|replay-bot)([[:space:]]|$)' &&
+    ! seg_has 'TOLARIA_ALLOW_BOT_SWEEP=1' "$ORACLE_COMPILE_INVOKE" &&
+    [ -n "$cwd" ] && [ -d "$cwd" ]; then
+    _base_ref="origin/$base_branch"
+    git -C "$cwd" rev-parse --verify -q "$_base_ref" >/dev/null 2>&1 || _base_ref="$base_branch"
+    _mb=$(git -C "$cwd" merge-base HEAD "$_base_ref" 2>/dev/null || true)
+    if [ -n "$_mb" ]; then
+        _touched=$({
+            git -C "$cwd" diff --name-only "$_mb" 2>/dev/null
+            git -C "$cwd" ls-files --others --exclude-standard --full-name -- ":/" 2>/dev/null
+        } | bun "$_hookdir/../../scripts/bot-sweep-inputs.ts" 2>/dev/null | head -5)
+        if [ -n "$_touched" ]; then
+            deny "BLOCKED: bare \`oracle:compile\` on a Bot diff replays every \`ready\` card (issue #4942).
+This checkout's diff moves the Bot hash, e.g.:
+$_touched
+so a bare run is the Bot-play sweep — 20–47 min of CPU that no gate needs
+(ADR 0105 § 7.2: the sweep belongs to the batch health run). Refresh the
+lockfile without playing, which is what \`land\` itself runs:
+  bun run oracle:compile --carry-bot
+The sweep on purpose, by explicit owner request:
+  TOLARIA_ALLOW_BOT_SWEEP=1 bun run oracle:compile    # or --replay-bot"
+        fi
+    fi
+fi
+
 exit 0
