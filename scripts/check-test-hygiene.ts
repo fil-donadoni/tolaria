@@ -8,15 +8,15 @@
  * Op-only blocks on pure-DSL cards in the card-set suites, and a stale or
  * ambiguous allow-list entry. The verdict itself is `lib/test-hygiene.ts`.
  *
- * A `health` step (`HEALTH_SCRIPTS`), never a PR-phase gate: the census
- * loads the whole catalogue to know which cards are pure-DSL and walks every
- * test file (~7s measured), and a PR diff cannot move its answer in a way the
- * classifier's own unit tests would not catch. Only the Op-only half needs
- * the catalogue; the identity half is cheap, and it still lives here, by the
- * issue's decision that no new guard joins a PR-phase gate. The price is
- * that a new constant-pin test lands green and reds the next `health` run,
- * which then names the block and the fix (delete it, or allow-list a census /
- * partition / domain pin by name with its reason). The `convex/cards/sets/**`
+ * A lane step AND a `health` step (issue #4963): measured at 2–3 s in
+ * `health`, it is under the ≤ 10 s lane budget, so `check:lane` runs it on
+ * any diff carrying a test file, `__tests__/` support, the registry or its
+ * allow-list (`CHEAP_GUARDS` in `check-lane.ts`). It was `health`-only by
+ * issue #4490's "no new guard joins a PR-phase gate", and the price was that
+ * a new constant-pin test landed green and redded the next `health` run — 16
+ * RED tips in 14 days. Now `land` refuses the PR instead, naming the block
+ * and the fix (delete it, or allow-list a census / partition / domain pin by
+ * name with its reason). The `convex/cards/sets/**`
  * identity guard that predates it (`scripts/__tests__/
  * identity-only-card-tests.test.ts`, issue #2363) stays where it is, in the
  * PR-phase suite, at its original scope.

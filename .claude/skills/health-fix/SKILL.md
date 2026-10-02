@@ -144,6 +144,14 @@ call_, so a sweep asserting that no test resolves a git-tracked path through
 If you cannot formulate a class guard, that is prohibition 3: ask. A guard that
 restates the instance is not a class guard.
 
+**Where the class guard runs is its measured cost, never its phase** (issue
+#4963): a guard that costs ≤ 10 s on the heavy tier goes in `check:lane`
+(`CHEAP_GUARDS`, admitted by the diff), so the next instance is refused at
+`land` instead of becoming the next RED tip; only a guard that costs more is
+health-only, listed in `HEALTH_ONLY_GUARDS` with its cost. State the measured
+cost in the PR. A red from a cheap guard already in the lane means the lane
+did not admit it for that diff — the admission path is the class to fix.
+
 **COMMIT BEFORE YOU BREAK ANYTHING.** Proof-of-failure means editing the
 subject and reverting it, and `git checkout <file>` on a file with uncommitted
 changes discards your implementation, not your break.

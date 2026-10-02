@@ -235,6 +235,10 @@ Rationale, lanes, measurements: `docs/agents/quality-gates.md`.
   settings, skill scripts) = `check:pr` **verbatim**. **No lane scopes a
   project's tests to the diff**: whole or not at all (ADR 0104).
 - **Never hand-pick a subset of `check:pr`.**
+- **Guard tier = measured cost, not phase** (issue #4963): ≤ 10 s → lane
+  (admitted by diff, e.g. `check:gaps`/`check:targets`/`check:test-hygiene`);
+  health-only above, in `HEALTH_ONLY_GUARDS` with its cost. A new guard's PR
+  states its measured cost.
 - **`check:all` VERIFIES formatting**, never repairs: drift → `bun run format`,
   re-run (#1807).
 - **`bun run test` = `test:app` → `test:bot` → `test:blade`.** **New bot/AI

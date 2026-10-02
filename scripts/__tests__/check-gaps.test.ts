@@ -36,10 +36,11 @@ import type { ClusterRow } from "../lib/targets";
  * PURE over fixtures, on purpose. The live census — the committed allowlist
  * against the committed lockfile — is `bun run check:gaps`, and this file must
  * not become a second copy of it: `scripts/__tests__` runs inside
- * `check:guards`, which runs inside `check:pr`, and the whole point of the
- * census living in `health` is that a PR pays nothing for it. Asserting the
- * real files here would reintroduce the cost the ADR removed, and would red
- * every branch the day an Op is added rather than the batch that lands it.
+ * `check:guards`, which runs inside `check:pr` on EVERY diff, while the census
+ * is admitted only by a diff that can move it (`CHEAP_GUARDS` in
+ * `check-lane.ts`, issue #4963) and runs in `health`. Asserting the real files
+ * here would red every branch the day an Op is added rather than the PR that
+ * lands it.
  */
 
 const ROOT = path.resolve(__dirname, "../..");
@@ -51,7 +52,7 @@ const row = (op: string, issue = 3820) => ({ key: opGapKey(op), op, issue });
 const list = (...ops: string[]): Allowlist => ({ ops: ops.map((o) => row(o)) });
 const kinds = (vs: readonly Violation[]) => vs.map((v) => `${v.kind}:${v.op}`);
 
-describe("check:gaps runs in health, and nowhere else", () => {
+describe("check:gaps runs in health and in the lane, composed by no package script", () => {
     it("is a script of its own", () => {
         expect(pkg.scripts["check:gaps"]).toBe("bun scripts/check-gaps.ts");
     });
@@ -74,8 +75,9 @@ describe("check:gaps runs in health, and nowhere else", () => {
         expect(src).toContain("const scripts = HEALTH_SCRIPTS;");
     });
 
-    // The census is offline but reads a 17 MB lockfile and answers a question
-    // no PR diff can change on its own. It stays out of every PR-phase gate.
+    // The census is offline and costs <1 s, so it runs in the lane, admitted
+    // by a diff that can move it (issue #4963) — never composed into
+    // `check:all`/`check:pr`, which every diff pays whole.
     //
     // Scanned rather than enumerated: an enumeration covers `check:all:inner`
     // and misses the `check:all` that wraps it, and stops covering anything

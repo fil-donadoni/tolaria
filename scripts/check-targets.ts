@@ -27,8 +27,10 @@
  * landed. Liveness of the issues the claims name is the network sweep's
  * question, as for Guard B — never health's.
  *
- * Offline. Runs in `health` ONLY (`HEALTH_SCRIPTS`), never in `check:all`,
- * `check:pr` or `land` — asserted by `check-targets.test.ts`.
+ * Offline, ~1 s. Runs in `check:lane` on a diff that can move it
+ * (`CHEAP_GUARDS`, issue #4963) and in `health` (`HEALTH_SCRIPTS`), never
+ * composed into `check:all` or `check:pr` — asserted by
+ * `check-targets.test.ts`.
  *
  * Run: bun run check:targets
  */

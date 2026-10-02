@@ -571,12 +571,12 @@
     },
     {
         "file": "scripts/__tests__/check-gaps.test.ts",
-        "test": "check:gaps runs in health, and nowhere else > is a health step",
+        "test": "check:gaps runs in health and in the lane, composed by no package script > is a health step",
         "reason": "Membership check: HEALTH_SCRIPTS (independent list) includes \"check:gaps\"."
     },
     {
         "file": "scripts/__tests__/check-gaps.test.ts",
-        "test": "check:gaps runs in health, and nowhere else > runs after check:all, which owns the lockfile drift guard",
+        "test": "check:gaps runs in health and in the lane, composed by no package script > runs after check:all, which owns the lockfile drift guard",
         "reason": "Ordering invariant: check:gaps runs after check:all in HEALTH_SCRIPTS."
     },
     {
@@ -595,8 +595,13 @@
         "reason": "Regression guard: vitest config's dom project block still includes src/**."
     },
     {
+        "file": "scripts/__tests__/check-lane.test.ts",
+        "test": "check-lane — cheap census guards run in the lane (issue #4963) > stays in health too — health is the full gate",
+        "reason": "Membership check: the lane's CHEAP_GUARDS are also HEALTH_SCRIPTS entries (two independent lists) — health stays the full gate (issue #4963)."
+    },
+    {
         "file": "scripts/__tests__/check-targets.test.ts",
-        "test": "check:targets runs in health, and nowhere else > is a health step, after check:all (lockfile drift) and check:gaps",
+        "test": "check:targets runs in health and in the lane, composed by no package script > is a health step, after check:all (lockfile drift) and check:gaps",
         "reason": "Membership + ordering invariant: check:targets is a health step after check:gaps/check:all."
     },
     {

@@ -35,7 +35,7 @@ const pkg = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8")) as {
     scripts: Record<string, string>;
 };
 
-describe("check:targets runs in health, and nowhere else", () => {
+describe("check:targets runs in health and in the lane, composed by no package script", () => {
     it("is a script of its own", () => {
         expect(pkg.scripts["check:targets"]).toBe(
             "bun scripts/check-targets.ts"
@@ -52,8 +52,9 @@ describe("check:targets runs in health, and nowhere else", () => {
         );
     });
 
-    // Scanned, not enumerated: `check:all`, `check:pr` and `land` — and any
-    // script composed from them — pay nothing (see check-gaps.test.ts).
+    // Scanned, not enumerated: `check:all`, `check:pr` — and any script
+    // composed from them — never compose it; the lane admits it by diff
+    // (issue #4963, see check-gaps.test.ts).
     it("no other package script invokes it", () => {
         const callers = Object.entries(pkg.scripts)
             .filter(

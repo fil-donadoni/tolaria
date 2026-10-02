@@ -42,8 +42,8 @@
  * The boundary is the classifier's rule: a block the sampled review disagrees
  * with is a classifier fix, never a hand exception here.
  *
- * `bun run check:test-hygiene` (a `health` step, never a PR-phase gate) is
- * the census that keeps both classes at zero after the purge.
+ * `bun run check:test-hygiene` (a `check:lane` and `health` step, issue
+ * #4963) is the census that keeps both classes at zero after the purge.
  *
  * `--keep <file:line>` (repeatable) spares one block — used during the triage
  * pass for the handful of identity blocks that were CONVERTED to behaviour
