@@ -573,6 +573,48 @@ with it. What stands in its place (issue #4913) is the full `check:ui --all`
 walk as the LAST batch-health step: a PR walks the surfaces its diff can reach,
 the batch walks them all.
 
+### Guard tier is measured cost, not phase — cheap guards ride the lane (issue #4963)
+
+**A guard whose measured cost is ≤ 10 s on the heavy tier belongs in the lane;
+health-only is for guards that cost more.** A new guard states its measured
+cost in its PR.
+
+The rule it replaced — "a new guard goes on `health`, never on a PR-phase
+gate" (issue #4490) — protected PRs from COST. Applied to guards that cost
+nothing, it only moved their failure to the most expensive place. Measured
+from `.claude/telemetry/health/detach.log` over the 14 days to 2026-10-02:
+
+| Guard                | Cost in health (median) | RED tips caused |
+| -------------------- | ----------------------- | --------------- |
+| `check:test-hygiene` | 2–3 s                   | 16              |
+| `check:gaps`         | <1 s                    | 3               |
+| `check:targets`      | ~1 s                    | 0               |
+
+19 of 40 RED tips were violations a 3-second check would have refused at
+`land`. Post-merge each became a RED marker, a stopped queue, a `/health-fix`
+session and a full health run per further landing.
+
+`check:lane` now runs the three as `CHEAP_GUARDS` (`scripts/check-lane.ts`),
+each **admitted** by a changed path that is one of its inputs (ADR 0104 — whole
+or not at all, never a slice): `check:test-hygiene` by a test file,
+`__tests__/` support, `convex/cards/**` or `scripts/lib/**` (classifier and
+allow-list); `check:gaps` / `check:targets` by `data/**`, `convex/cards/**` or
+`scripts/lib/**`. The `full` lane runs all three after `check:pr`
+unconditionally — the fallback cannot say what moved. They run after
+`check:oracle`, so lockfile drift is the error seen first. They stay in
+`HEALTH_SCRIPTS`: health is the full gate.
+
+Added lane cost, measured with the guard cache off at load 141 (2026-10-02):
+`check:gaps` 1.0 s, `check:targets` 2.0 s, `check:test-hygiene` 5.0 s — at
+most 8 s on a landing that admits all three, nothing on one that admits none.
+
+**The census** (`check-lane.test.ts`): every `check:*` package script is either
+reached by some lane's plan (directly or through the scripts it composes) or
+listed in `HEALTH_ONLY_GUARDS` (`scripts/lib/health-step.ts`) with a measured
+cost over `LANE_COST_BUDGET_S`. Today that list is `check:ui` alone (its
+`--all` walk: 14m39s green, 45m37s red). A guard in neither place reds the
+census.
+
 ### No preflight, no pre-PR gate — `land` pays the lane once (ADR 0136 §1–2)
 
 Issue #3286 gave `check:lane` a preflight that refused a tree behind the base
