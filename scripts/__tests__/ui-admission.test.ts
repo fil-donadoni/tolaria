@@ -10,10 +10,15 @@ import * as path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
     acquireUiLane,
+    admitUiMachine,
     heavyHolderLive,
+    heavyHolderRunning,
+    MachineSaturatedError,
     readUiLaneOwner,
     uiLaneWhoLines,
 } from "../lib/ui-admission";
+import type { MachineSample } from "../lib/machine-admission";
+import { viewportParallelism } from "../ui-gate/parallel";
 
 let root: string;
 beforeEach(() => {
@@ -172,6 +177,149 @@ describe("heavyHolderLive (issue #4941)", () => {
         expect(
             heavyHolderLive(root, { TOLARIA_GATE_HELD: "1" }, now, () => true)
         ).toBeNull();
+    });
+});
+
+/**
+ * Issue #4988 — `check:ui` asks the machine with no hold on the heavy mutex.
+ * A heavy gate that is RUNNING keeps the 1-minute load over `machine.loadMax`
+ * for its whole run, so waiting on that load is waiting for the holder to
+ * finish; the lane's rule beside a holder is one viewport, not INFRA.
+ */
+describe("check:ui's machine admission beside a heavy holder (issue #4988)", () => {
+    const T0 = 10_000_000;
+    const T = { loadMax: 8, sessionBudgetMb: 2500, waitMaxS: 900 };
+    const busy: MachineSample = {
+        load1: 14.5,
+        swapUsedMb: 6054,
+        pressure: 1,
+        reclaimableMb: 6400,
+    };
+    const stamp = (owner: object | null) => {
+        fs.rmSync(path.join(root, "gate.lock"), {
+            recursive: true,
+            force: true,
+        });
+        if (owner === null) return;
+        fs.mkdirSync(path.join(root, "gate.lock"), { recursive: true });
+        fs.writeFileSync(
+            path.join(root, "gate.lock", "owner.json"),
+            JSON.stringify(owner)
+        );
+    };
+    /** A holder still waiting for the machine under its hold: it has
+     *  spawned nothing, so its stamp carries no `childPid`. */
+    const waiting = {
+        pid: 4242,
+        label: "bun scripts/land.ts 4985",
+        cwd: "/wt",
+        ts: T0,
+    };
+    /** …and past that wait: `gate.ts` stamps `childPid` at the spawn. */
+    const running = { ...waiting, childPid: 4243 };
+
+    /** The admission over a counted clock: `sleep` IS the clock, so a wait
+     *  to the bound takes no wall time and a wait that should not happen is
+     *  a count, not a race. The holder heartbeats as the clock moves. */
+    const admit = async (sample: MachineSample, owner: object | null) => {
+        let clock = T0;
+        let sleeps = 0;
+        const lines: string[] = [];
+        stamp(owner);
+        const out = await admitUiMachine({
+            root,
+            thresholds: T,
+            announce: (l) => lines.push(l),
+            env: {},
+            isAlive: () => true,
+            probe: () => sample,
+            now: () => clock,
+            sleep: async (ms) => {
+                sleeps++;
+                clock += ms;
+                if (owner !== null) stamp({ ...owner, ts: clock });
+            },
+            pollMs: 5000,
+        });
+        return { out, lines, sleeps, waitedS: (clock - T0) / 1000 };
+    };
+
+    it("heavyHolderRunning: a live holder counts only once its command runs", () => {
+        const at = (owner: object, env: NodeJS.ProcessEnv = {}) => {
+            stamp(owner);
+            return heavyHolderRunning(root, env, T0, () => true);
+        };
+        expect(at(running)?.pid).toBe(4242);
+        // Still waiting for the machine under its hold: it runs nothing, the
+        // load is not its own — though it IS live for the pool's sizing.
+        expect(at(waiting)).toBeNull();
+        expect(heavyHolderLive(root, {}, T0, () => true)?.pid).toBe(4242);
+        // Declared its stall: a subtree burning no CPU raises no load.
+        expect(at({ ...running, stalledAt: T0 - 60_000 })).toBeNull();
+        expect(at(running, { TOLARIA_GATE_HELD: "1" })).toBeNull();
+        stamp(running);
+        expect(heavyHolderRunning(root, {}, T0, () => false)).toBeNull();
+    });
+
+    it("admits the walk beside a running holder, load over loadMax, at ONE viewport", async () => {
+        const { out, lines, sleeps } = await admit(busy, running);
+        expect(out.admitted).toBe(true);
+        expect(out.beside?.pid).toBe(4242);
+        expect(sleeps).toBe(0);
+        expect(lines).toEqual([
+            "[check:ui] machine busy — load 14.5, swap 6054 MB — beside a running heavy gate (pid 4242 · bun scripts/land.ts 4985): its load is not waited on",
+        ]);
+        // What `ui-gate/index.ts` sizes the pool from: the holder it was
+        // admitted beside, even had it released since.
+        stamp(null);
+        expect(
+            viewportParallelism(
+                8,
+                16 * 1024 ** 3,
+                (out.beside ?? heavyHolderLive(root, {}, T0)) !== null
+            )
+        ).toBe(1);
+    });
+
+    it("with no holder the same load is waited to the bound, and nothing is walked", async () => {
+        const { out, lines, waitedS } = await admit(busy, null);
+        expect(out).toEqual({ admitted: false, beside: null });
+        expect(waitedS).toBe(900);
+        expect(lines.at(-1)).toMatch(
+            /machine still busy after 900s .* INFRA \(machine-saturated\)/
+        );
+        // …which the lane turns into the saturated exit, lane given back.
+        await expect(
+            acquireUiLane(inProcess({ admitMachine: async () => out.admitted }))
+        ).rejects.toBeInstanceOf(MachineSaturatedError);
+        expect(fs.existsSync(lockDir())).toBe(false);
+    });
+
+    it("a holder still waiting for the machine explains no load: waited as if the mutex were free", async () => {
+        const { out, waitedS } = await admit(busy, waiting);
+        expect(out).toEqual({ admitted: false, beside: null });
+        expect(waitedS).toBe(900);
+    });
+
+    it("memory pressure past normal waits beside a running holder too", async () => {
+        const { out, lines, waitedS } = await admit(
+            { ...busy, pressure: 2 },
+            running
+        );
+        expect(out).toEqual({ admitted: false, beside: null });
+        expect(waitedS).toBe(900);
+        expect(lines[0]).toMatch(
+            /machine busy — load 14\.5, swap 6054 MB \(memory pressure WARNING/
+        );
+    });
+
+    it("a calm machine is admitted at full size, beside nobody", async () => {
+        const { out, lines } = await admit({ ...busy, load1: 2.5 }, null);
+        expect(out).toEqual({ admitted: true, beside: null });
+        expect(lines).toEqual([]);
+        expect(
+            viewportParallelism(8, 16 * 1024 ** 3, out.beside !== null)
+        ).toBeGreaterThan(1);
     });
 });
 

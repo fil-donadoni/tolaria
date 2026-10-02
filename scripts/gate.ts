@@ -96,7 +96,10 @@
  * never a red lane. It waits UNDER the hold on purpose: a saturated machine
  * is saturated for every waiter, and the queue's order is kept. A nested call
  * runs inside a hold that already asked, and the light tier adds two workers
- * to whatever is there — neither asks. Every run, of every tier, records the
+ * to whatever is there — neither asks. The two callers that ask with NO hold
+ * (`land`'s preflight, `check:ui`) do not wait on the load of a holder whose
+ * command is running — `childPid` on the owner stamp is how they tell it from
+ * one still waiting here (issue #4988). Every run, of every tier, records the
  * load and swap it started and ended on in `gate-lock.jsonl` (`event: "run"`),
  * so a verdict can be read beside the machine it was reached on.
  *
@@ -139,8 +142,11 @@
  *   TOLARIA_GATE_AGE_STEP_MS   queued time per class of ageing (tests only)
  *   TOLARIA_GATE_WAITER_STALE_MS  a waiter silent this long is not queued
  *                              (tests only)
- *   TOLARIA_GATE_WAITER_SINCE  this waiter's queue-entry time, epoch ms — the
- *                              injected clock of the ageing tests (tests only)
+ *   TOLARIA_GATE_WAITER_SINCE  this waiter's queue-entry time, epoch ms, when
+ *                              it is not the moment it registers: `land`
+ *                              passes the time it was issued (issue #4988);
+ *                              also the injected clock of the ageing tests.
+ *                              Never handed on to the command
  *   TOLARIA_GATE_KILL_GRACE_MS TERM → KILL grace of a teardown (tests only)
  *   TOLARIA_GATE_POLL_MS       a waiter's poll period (tests only)
  *   TOLARIA_GATE_OWNERLESS_GRACE_MS  how old a lock with no owner must be
@@ -172,11 +178,13 @@ import {
     heartbeatStep,
     parsePsRows,
     pollGap,
+    WAITER_SINCE_ENV,
     reclaimVerdict,
     reclaimableInMs,
     stallJudgeable,
     subtreeFromPs,
     waiterLive,
+    waiterSince,
     type GateWaiter,
     type PsRow,
 } from "./lib/gate-liveness";
@@ -437,16 +445,16 @@ let myEntry: GateWaiter | null = null;
 
 function registerWaiter(): GateWaiter {
     const now = Date.now();
-    // The injected clock of the ageing tests: a waiter that "has queued for
-    // an hour" without anyone waiting an hour for it.
-    const injected = Number(process.env.TOLARIA_GATE_WAITER_SINCE);
     myEntry = {
         pid: process.pid,
         role: ROLE,
         tier,
         label: command.slice(0, 120),
         cwd: process.cwd(),
-        since: Number.isFinite(injected) && injected > 0 ? injected : now,
+        // The caller's own entry time when it names one (`waiterSince`): a
+        // land's place dates from when it was issued, not from the end of
+        // its preflight (issue #4988).
+        since: waiterSince(process.env, now),
         seen: now,
     };
     stampWaiter(now);
@@ -1224,6 +1232,10 @@ async function main() {
     }
 
     const env = gateChildEnv(process.env, heavy, HEAVY_WORKERS);
+    // It dates THIS gate's place in the queue. A gate the command starts
+    // later — the batch health run `land` detaches — must not queue as if it
+    // had waited since that land was issued.
+    delete env[WAITER_SINCE_ENV];
 
     // While the cwd still exists — see `telemetryRoot`.
     telemetryRoot();

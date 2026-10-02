@@ -46,6 +46,20 @@
  * load at all. So load gates what is about to ADD load; memory — sustained,
  * and what a session does consume — gates the session.
  *
+ * THE HOLDER'S LOAD IS NOT WAITED ON BY WHAT RUNS BESIDE IT (issue #4988).
+ * The heavy tier asks UNDER its hold, where the load it reads is the previous
+ * holder's and decays in a minute or two. Two callers ask with no hold, BESIDE
+ * whoever has the mutex: `land`'s preflight (light tier) and `check:ui` (its
+ * own lane, one viewport beside a holder). For them the same paragraph above
+ * applies in full — the running gate holds the average past `loadMax` for its
+ * whole run, 9 to 35 minutes — so a wait on it is a wait for the holder to
+ * FINISH, which the bound was never derived to outlast: the first landing made
+ * with a preflight waited 492 s of the 900 beside a 12-minute lane. So such a
+ * caller names the holder (`heavyHolder`) and, while a heavy gate's command is
+ * RUNNING, the load is read as that gate's and is no reason to wait. Memory
+ * pressure still is, for everyone. With no running holder nothing of ours
+ * explains the load, and the wait and its bound stand as before.
+ *
  * Every threshold is `tolaria.config.json` § `machine`, derived in
  * `docs/agents/quality-gates.md` § Session admission, "The machine". Nothing
  * here is a literal.
@@ -362,8 +376,14 @@ export function gateAdmission(input: {
     sample: MachineSample;
     thresholds: MachineThresholds;
     waitedMs: number;
+    /** The caller holds no mutex and a heavy gate's command is running beside
+     *  it (issue #4988): the load is that gate's, and only memory saturates.
+     *  See the header. */
+    besideHolder?: boolean;
 }): GateAdmission {
-    const reasons = saturation(input.sample, input.thresholds);
+    const reasons = input.besideHolder
+        ? memorySaturation(input.sample)
+        : saturation(input.sample, input.thresholds);
     if (reasons.length === 0) return { verdict: "admit" };
     return input.waitedMs >= input.thresholds.waitMaxS * 1000
         ? { verdict: "refuse", reasons }
@@ -711,6 +731,12 @@ export interface WaitForMachineInput {
     /** Called on every poll, the admitting one included — a holder restamps
      *  its lock here, so a long wait never reads as a silent holder. */
     tick?: () => void;
+    /** ONLY for a caller that asks with no hold on the heavy mutex (issue
+     *  #4988): the heavy gate whose command is running right now, as the line
+     *  names it, or null. Asked on every poll — a holder that finishes during
+     *  the wait stops explaining the load. `lib/ui-admission.ts` owns the
+     *  probe (`heavyHolderRunning`); this module reads no lock. */
+    heavyHolder?: () => string | null;
 }
 
 export interface WaitForMachineResult {
@@ -721,6 +747,9 @@ export interface WaitForMachineResult {
     /** The sample the verdict was reached on. */
     sample: MachineSample;
     reasons: string[];
+    /** The running heavy gate whose load was NOT waited on: admitted over
+     *  `loadMax`, beside it. Null on a calm machine and on every other path. */
+    beside: string | null;
 }
 
 const WAIT_POLL_MS = 5000;
@@ -757,9 +786,21 @@ export async function waitForMachine(
         input.tick?.();
         const sample = probe();
         const waitedMs = now() - t0;
-        const decision = gateAdmission({ sample, thresholds, waitedMs });
+        const holder = input.heavyHolder?.() ?? null;
+        const decision = gateAdmission({
+            sample,
+            thresholds,
+            waitedMs,
+            besideHolder: holder !== null,
+        });
         if (decision.verdict === "admit") {
-            if (lastAnnounce !== null)
+            // Over `loadMax` and admitted: only ever beside a running holder.
+            const beside = sample.load1 > thresholds.loadMax ? holder : null;
+            if (beside !== null)
+                input.announce(
+                    `${input.tag} machine busy — ${sampleLine(sample)} — beside a running heavy gate (${beside}): its load is not waited on`
+                );
+            else if (lastAnnounce !== null)
                 input.announce(
                     `${input.tag} machine calm after ${Math.round(waitedMs / 1000)}s — ${sampleLine(sample)}`
                 );
@@ -769,6 +810,7 @@ export async function waitForMachine(
                 waitedMs,
                 sample,
                 reasons: [],
+                beside,
             };
         }
         if (env[GATE_OVERRIDE_ENV] === "1") {
@@ -781,6 +823,7 @@ export async function waitForMachine(
                 waitedMs,
                 sample,
                 reasons: decision.reasons,
+                beside: null,
             };
         }
         if (decision.verdict === "refuse") {
@@ -793,6 +836,7 @@ export async function waitForMachine(
                 waitedMs,
                 sample,
                 reasons: decision.reasons,
+                beside: null,
             };
         }
         const t = now();

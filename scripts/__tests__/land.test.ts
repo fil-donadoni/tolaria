@@ -42,7 +42,14 @@ import {
     type LockedCommandOptions,
     type HousekeepingOptions,
     preflightGate,
+    admitPreflight,
 } from "../land";
+import {
+    admissionOrder,
+    waiterSince,
+    type GateWaiter,
+} from "../lib/gate-liveness";
+import type { MachineSample } from "../lib/machine-admission";
 import { BASE_BRANCH, ORIGIN_BASE, RELEASE_BRANCH } from "../lib/branches";
 import { classifyLane } from "../check-lane";
 import {
@@ -2263,6 +2270,169 @@ describe("land.ts — preflight before queuing (issue #4967)", () => {
             expect(out.kind).toBe("skipped");
         }
         expect(calls).toEqual([]);
+    });
+
+    /**
+     * Issue #4988 — the preflight asks the machine with NO hold, beside
+     * whoever has the mutex, and a running heavy gate keeps the load over
+     * `machine.loadMax` for its whole run. Waiting on that load is waiting
+     * for the holder to finish, which the bound was never derived to outlast.
+     */
+    describe("beside a live heavy holder (issue #4988)", () => {
+        const T0 = 10_000_000;
+        const T = { loadMax: 8, sessionBudgetMb: 2500, waitMaxS: 900 };
+        const busy: MachineSample = {
+            load1: 12.1,
+            swapUsedMb: 5711,
+            pressure: 1,
+            reclaimableMb: 6400,
+        };
+        let lockRoot: string;
+        beforeEach(() => {
+            lockRoot = mkdtempSync(join(tmpdir(), "tolaria-land-preflight-"));
+        });
+        afterEach(() => rmSync(lockRoot, { recursive: true, force: true }));
+
+        /** The heavy mutex as `gate.ts` leaves it once its command runs.
+         *  The pid is this process: alive, as a real holder is. */
+        const hold = (at: number, over: object = {}) => {
+            mkdirSync(join(lockRoot, "gate.lock"), { recursive: true });
+            writeFileSync(
+                join(lockRoot, "gate.lock", "owner.json"),
+                JSON.stringify({
+                    pid: process.pid,
+                    label: "bun scripts/health-main.ts --phase=offline",
+                    cwd: "/repo",
+                    ts: at,
+                    acquiredAt: T0,
+                    childPid: process.pid,
+                    ...over,
+                })
+            );
+        };
+
+        /** `preflightGate` over the REAL `admitPreflight`, a fixed probe and
+         *  a counted clock: `sleep` is the clock, so "longer than the bound"
+         *  costs no wall time and races nothing. */
+        const land = async (
+            sample: MachineSample,
+            holder: object | null,
+            env: NodeJS.ProcessEnv = {}
+        ) => {
+            let clock = T0;
+            const lines: string[] = [];
+            if (holder !== null) hold(clock, holder);
+            const out = await preflightGate({
+                mode: "full",
+                enabled: true,
+                admit: () =>
+                    admitPreflight({
+                        lockRoot,
+                        thresholds: T,
+                        announce: (l) => lines.push(l),
+                        env,
+                        probe: () => sample,
+                        now: () => clock,
+                        sleep: async (ms) => {
+                            clock += ms;
+                            // The holder heartbeats for as long as it runs.
+                            if (holder !== null) hold(clock, holder);
+                        },
+                    }),
+                run: deps(0).run,
+            });
+            return { out, lines, waitedS: (clock - T0) / 1000 };
+        };
+
+        it("a running holder's load never ends the preflight `saturated`: it runs at once, beside it", async () => {
+            // The load never drops — behind a 35-minute health hold it does
+            // not, and the bound is 15.
+            const { out, lines, waitedS } = await land(busy, {});
+            expect(out).toEqual({ kind: "pass", ms: 1234 });
+            expect(calls).toEqual(["run"]);
+            expect(waitedS).toBe(0);
+            expect(lines).toEqual([
+                `land: preflight machine busy — load 12.1, swap 5711 MB — beside a running heavy gate (pid ${process.pid} · bun scripts/health-main.ts --phase=offline): its load is not waited on`,
+            ]);
+        });
+
+        it("with NO live holder the same load still waits its whole bound and ends `saturated` (exit 77)", async () => {
+            const { out, lines, waitedS } = await land(busy, null);
+            expect(out).toEqual({ kind: "saturated" });
+            expect(calls).toEqual([]);
+            expect(waitedS).toBe(900);
+            expect(lines.at(-1)).toMatch(/INFRA \(machine-saturated\)/);
+        });
+
+        it("memory pressure past normal still waits, holder or not", async () => {
+            const pressed = { ...busy, pressure: 2 };
+            for (const holder of [{}, null]) {
+                const { out, waitedS } = await land(pressed, holder);
+                expect(out, String(holder)).toEqual({ kind: "saturated" });
+                expect(waitedS).toBe(900);
+            }
+            expect(calls).toEqual([]);
+        });
+
+        it("a holder that runs nothing explains no load: still waiting for the machine, or the hold this process is under", async () => {
+            // `childPid` is stamped at the spawn — absent, the holder is
+            // itself waiting for the calm a preflight would hold up.
+            expect((await land(busy, { childPid: undefined })).out).toEqual({
+                kind: "saturated",
+            });
+            expect(
+                (await land(busy, {}, { TOLARIA_GATE_HELD: "1" })).out
+            ).toEqual({ kind: "saturated" });
+            expect(calls).toEqual([]);
+        });
+    });
+
+    /**
+     * Issue #4988 — the waiter entry is written only after the preflight, so
+     * a place dated from the entry put a land behind every land issued after
+     * it that reached the queue first. `land` hands the gate the time it was
+     * ISSUED; the real-process half is `gate.test.ts`.
+     */
+    it("a land that spent its preflight beside a holder queues by when it was ISSUED — ahead of a health waiter and of a land issued after it", () => {
+        const issuedAt = 50_000_000;
+        // The preflight ran ~2 min; this is when the entry is finally written.
+        const registeredAt = issuedAt + 115_000;
+        const waiter = (over: Partial<GateWaiter>): GateWaiter => ({
+            pid: 1,
+            role: "land",
+            tier: "heavy",
+            label: "",
+            cwd: "/repo",
+            since: registeredAt,
+            ...over,
+        });
+        const env = lockedEnv({}, issuedAt);
+        const queue = [
+            // Queued while the preflight ran: a health gate, and a land
+            // issued a minute AFTER ours whose preflight was skipped.
+            waiter({
+                pid: 10,
+                role: "health",
+                tier: "yield",
+                since: issuedAt + 5_000,
+            }),
+            waiter({ pid: 20, since: issuedAt + 60_000 }),
+            waiter({ pid: 30, since: waiterSince(env, registeredAt) }),
+        ];
+        expect(queue[2].since).toBe(issuedAt);
+        expect(admissionOrder(queue, registeredAt).map((w) => w.pid)).toEqual([
+            30, 20, 10,
+        ]);
+        // Without an issue time the entry dates from its own writing.
+        expect(waiterSince(lockedEnv({}), registeredAt)).toBe(registeredAt);
+        // main() is where the two meet: the time is read first, and handed
+        // to the gate it spawns.
+        const src = readFileSync(resolve(__dirname, "../land.ts"), "utf8");
+        const body = src.slice(src.indexOf("async function main("));
+        const issued = body.indexOf("const issuedAt = Date.now();");
+        expect(issued).toBeGreaterThan(-1);
+        expect(issued).toBeLessThan(body.indexOf("await preflightGate("));
+        expect(body).toMatch(/lockedEnv\(process\.env, issuedAt\)/);
     });
 
     it("main() settles the preflight before it spawns the heavy gate — a refusal never registers a waiter", () => {

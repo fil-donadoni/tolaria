@@ -111,7 +111,10 @@ import {
     MACHINE_SATURATED_EXIT,
     readMachineConfig,
     waitForMachine,
+    type WaitForMachineInput,
 } from "./lib/machine-admission";
+import { WAITER_SINCE_ENV } from "./lib/gate-liveness";
+import { gateLockRoot, runningHolderLine } from "./lib/ui-admission";
 import {
     LIVE_ORIGIN_BAND_DEPS,
     originBandOfIssue,
@@ -1334,8 +1337,8 @@ export type PreflightOutcome =
  * What runs is `check:lane --preflight` (`preflightPlan`): the same plan
  * the lane builds, filtered — never a second list. It runs at the LIGHT tier
  * (no lock), so it is admitted by the machine first (issue #4966): a light
- * gate does not ask on its own, and a saturated machine is waited out here
- * exactly as the heavy tier waits it out under the hold.
+ * gate does not ask on its own, and a saturated machine is waited out here —
+ * except on the load of a heavy gate that is running (`admitPreflight`).
  *
  * It PROVES NOTHING ABOUT THE REBASED TIP AND SKIPS NOTHING: the lane inside
  * the mutex is unchanged. Only the full landing path runs it — the
@@ -1371,13 +1374,41 @@ export async function preflightGate(opts: {
     };
 }
 
-/** The machine admission the preflight waits on — the heavy tier's own
- *  `waitForMachine`, since the light tier does not ask. */
-async function admitPreflight(): Promise<boolean> {
+/**
+ * The machine admission the preflight waits on — the heavy tier's own
+ * `waitForMachine`, since the light tier does not ask.
+ *
+ * It asks with NO hold, beside whoever has the mutex, and a running heavy
+ * gate keeps the 1-minute load over `machine.loadMax` for its whole run. So
+ * that gate's load is not waited on (issue #4988): the first landing made
+ * with a preflight waited 492 s of the 900 s bound beside a 12-minute lane,
+ * and behind a 35-minute health hold it would have ended INFRA having run
+ * nothing. The preflight is the light tier — two workers on top of whatever
+ * is there — which is the cost the light tier already has beside a holder.
+ * Memory pressure, and load no running holder explains, wait as before.
+ *
+ * Everything is injectable so the decision is tested against a temp lock
+ * root, a fixed probe and a counted clock.
+ */
+export async function admitPreflight(
+    deps: {
+        lockRoot?: string;
+        thresholds?: WaitForMachineInput["thresholds"];
+        announce?: WaitForMachineInput["announce"];
+    } & Pick<WaitForMachineInput, "env" | "probe" | "now" | "sleep"> = {}
+): Promise<boolean> {
+    const env = deps.env ?? process.env;
+    const now = deps.now ?? Date.now;
+    const lockRoot = deps.lockRoot ?? gateLockRoot(env);
     const machine = await waitForMachine({
-        thresholds: readMachineConfig(),
+        thresholds: deps.thresholds ?? readMachineConfig(),
         tag: "land: preflight",
-        announce: (line) => console.error(line),
+        announce: deps.announce ?? ((line) => console.error(line)),
+        env,
+        probe: deps.probe,
+        now,
+        sleep: deps.sleep,
+        heavyHolder: () => runningHolderLine(lockRoot, env, now()),
     });
     return machine.admitted;
 }
@@ -1426,7 +1457,11 @@ function runPreflight(cwd: string): PreflightRun {
  * `feat/issue-N` branch `land` runs from — `land` IS the merge-train, the
  * case that guard exempts.
  */
-export function lockedEnv(base: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+export function lockedEnv(
+    base: NodeJS.ProcessEnv,
+    /** When this `land` was issued, epoch ms. */
+    issuedAt?: number
+): NodeJS.ProcessEnv {
     return {
         ...netEnv(base),
         TOLARIA_ALLOW_FULL_SUITE: "1",
@@ -1434,6 +1469,13 @@ export function lockedEnv(base: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
         // issue #4965): a `land` is admitted before every other class, and a
         // queued land is only recognisable as one because of this.
         TOLARIA_GATE_ROLE: "land",
+        // WHEN it joined that order (issue #4988): the moment it was issued.
+        // The preflight runs before the waiter entry exists, and a place
+        // dated from its end put this land behind every land issued after it
+        // that reached the queue first.
+        ...(issuedAt === undefined
+            ? {}
+            : { [WAITER_SINCE_ENV]: String(issuedAt) }),
     };
 }
 
@@ -1482,6 +1524,8 @@ function readRepairIssues(primary: string): number[] {
 }
 
 async function main(): Promise<void> {
+    // The land's place in the mutex's order dates from here (`lockedEnv`).
+    const issuedAt = Date.now();
     const cwd = process.cwd();
     const [, , ...argv] = process.argv;
     const { pr, merge, teardown, repair, redOk, preflight } = parseArgs(argv);
@@ -1588,7 +1632,8 @@ async function main(): Promise<void> {
     const mode = landMode(prState);
 
     // BEFORE the waiter entry (issue #4967): a red here exits having never
-    // queued, so `gate:who` never shows this PR.
+    // queued, so `gate:who` never shows this PR. The entry, once written, is
+    // dated `issuedAt` — the preflight does not cost the land its place.
     const pre = await preflightGate({
         mode,
         enabled: preflight,
@@ -1687,7 +1732,7 @@ async function main(): Promise<void> {
         stdio: "inherit",
         cwd,
         env: {
-            ...lockedEnv(process.env),
+            ...lockedEnv(process.env, issuedAt),
             // Housekeeping is `git` and `gh` on a PR that already merged: it
             // starts nothing heavy, so it does not wait for the machine.
             ...(mode === "housekeeping" ? { [GATE_OVERRIDE_ENV]: "1" } : {}),

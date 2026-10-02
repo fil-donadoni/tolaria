@@ -22,6 +22,9 @@
  * asks `lib/machine-admission.ts` before it starts a browser (`admitMachine`):
  * it waits, bounded, and past the bound gives the lane back and throws
  * `MachineSaturatedError` — nothing walked, exit `MACHINE_SATURATED_EXIT`.
+ * It asks with no hold on the heavy mutex, so the load of a heavy gate that
+ * is running is not waited on (`admitUiMachine`, issue #4988): beside a live
+ * holder the lane's rule is one viewport at a time, not INFRA.
  *
  * EVERY EXIT PATH. `acquireUiLane` releases on the `exit` event (normal end,
  * `process.exit`, an uncaught throw) and on SIGINT / SIGTERM / SIGHUP; where
@@ -33,6 +36,11 @@ import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { reclaimVerdict } from "./gate-liveness";
+import {
+    waitForMachine,
+    type MachineThresholds,
+    type WaitForMachineInput,
+} from "./machine-admission";
 
 /** The lock root the heavy gate uses, so `gate:who` and this lane agree. */
 export function gateLockRoot(env: NodeJS.ProcessEnv = process.env): string {
@@ -149,6 +157,9 @@ export interface HeavyGateOwner {
     /** Set once the holder declared its own stall: reclaimable minutes
      *  later, not after `HEAVY_STALE_MS` (issue #4965). */
     stalledAt?: number;
+    /** The pid of the holder's command, stamped at the spawn: absent while
+     *  the holder still waits for the machine under its hold. */
+    childPid?: number;
 }
 
 /** `gate.ts`'s STALE_MS default: a holder silent this long is reclaimable,
@@ -185,6 +196,101 @@ export function heavyHolderLive(
     return reclaimVerdict(owner, isAlive(owner.pid), now, staleMs) === null
         ? owner
         : null;
+}
+
+/**
+ * The live heavy holder whose COMMAND IS RUNNING, or null (issue #4988) — the
+ * one a 1-minute load over `machine.loadMax` is accounted to by a caller that
+ * asks the machine with no hold on the mutex (`land`'s preflight, `check:ui`).
+ *
+ * Narrower than `heavyHolderLive` on purpose. A holder still waiting for the
+ * machine under its hold has spawned nothing (`gate.ts` stamps `childPid` at
+ * the spawn): the load is not its own, and a caller that started beside it
+ * would hold up the very calm that holder waits for. A holder that declared
+ * its stall burns no CPU, so it raises no load either. Beside those two the
+ * off-mutex caller waits as it would with the mutex free.
+ */
+export function heavyHolderRunning(
+    root: string,
+    env: NodeJS.ProcessEnv = process.env,
+    now: number = Date.now(),
+    isAlive: (pid: number) => boolean = pidAlive,
+    staleMs: number = HEAVY_STALE_MS
+): HeavyGateOwner | null {
+    const owner = heavyHolderLive(root, env, now, isAlive, staleMs);
+    return owner !== null &&
+        typeof owner.childPid === "number" &&
+        owner.stalledAt === undefined
+        ? owner
+        : null;
+}
+
+/** The holder, as a machine-wait line names it. */
+export function heavyHolderLine(owner: HeavyGateOwner): string {
+    return `pid ${owner.pid} · ${owner.label}`;
+}
+
+/** `waitForMachine`'s `heavyHolder` probe for an off-mutex caller. */
+export function runningHolderLine(
+    root: string,
+    env: NodeJS.ProcessEnv = process.env,
+    now: number = Date.now(),
+    isAlive?: (pid: number) => boolean
+): string | null {
+    const owner = heavyHolderRunning(root, env, now, isAlive);
+    return owner === null ? null : heavyHolderLine(owner);
+}
+
+export interface UiMachineAdmission {
+    admitted: boolean;
+    /** The running heavy holder the walk was admitted BESIDE, over
+     *  `machine.loadMax`: the walk is sized to one viewport for it even when
+     *  it has released by the time the pool is sized — the load it left has
+     *  not. Null on a calm machine. */
+    beside: HeavyGateOwner | null;
+}
+
+/**
+ * `check:ui`'s machine admission, asked once the lane is held (issue #4966)
+ * and with no hold on the heavy mutex — so a running heavy holder's load is
+ * not waited on (issue #4988): the lane's rule for a live holder is "walk one
+ * viewport at a time" (issue #4941), never "wait for it to finish". Memory
+ * pressure, and load nothing of ours explains, wait as before, bounded.
+ */
+export async function admitUiMachine(
+    input: {
+        root: string;
+        thresholds: MachineThresholds;
+        announce: (line: string) => void;
+        isAlive?: (pid: number) => boolean;
+    } & Pick<WaitForMachineInput, "env" | "probe" | "now" | "sleep" | "pollMs">
+): Promise<UiMachineAdmission> {
+    const env = input.env ?? process.env;
+    const now = input.now ?? Date.now;
+    const seen: { holder: HeavyGateOwner | null } = { holder: null };
+    const machine = await waitForMachine({
+        thresholds: input.thresholds,
+        tag: "[check:ui]",
+        announce: input.announce,
+        env,
+        probe: input.probe,
+        now,
+        sleep: input.sleep,
+        pollMs: input.pollMs,
+        heavyHolder: () => {
+            seen.holder = heavyHolderRunning(
+                input.root,
+                env,
+                now(),
+                input.isAlive
+            );
+            return seen.holder === null ? null : heavyHolderLine(seen.holder);
+        },
+    });
+    return {
+        admitted: machine.admitted,
+        beside: machine.beside === null ? null : seen.holder,
+    };
 }
 
 /** `gate:who`'s lines for this lane. Empty is never printed as "free": the

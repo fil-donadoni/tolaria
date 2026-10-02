@@ -183,14 +183,15 @@ import {
 import { renderUiScope, type UiScope } from "../lib/ui-scope.ts";
 import {
     acquireUiLane,
+    admitUiMachine,
     gateLockRoot,
     heavyHolderLive,
     MachineSaturatedError,
+    type UiMachineAdmission,
 } from "../lib/ui-admission.ts";
 import {
     MACHINE_SATURATED_EXIT,
     readMachineConfig,
-    waitForMachine,
 } from "../lib/machine-admission.ts";
 import { classifyWalkFailure, type RetryPolicy } from "./infra-verdict.ts";
 import {
@@ -829,20 +830,25 @@ async function main(): Promise<number> {
     // share one Convex backend, and contention there reads as UI failures. Taken
     // only now, so `--scope-only` and an empty scope never queue; released by
     // the hold's own exit / signal handlers on every path out.
+    const machine: UiMachineAdmission = { admitted: false, beside: null };
     await acquireUiLane({
         root: gateLockRoot(),
         label: `check:ui ${process.argv.slice(2).join(" ")}`.trim(),
         announce: log,
         // The lane is ours; the machine may not be (issue #4966). Waits,
-        // bounded, and past the bound nothing is walked.
-        admitMachine: async () =>
-            (
-                await waitForMachine({
+        // bounded, and past the bound nothing is walked — except on a
+        // running heavy holder's load, which is walked beside (issue #4988).
+        admitMachine: async () => {
+            Object.assign(
+                machine,
+                await admitUiMachine({
+                    root: gateLockRoot(),
                     thresholds: readMachineConfig(),
-                    tag: "[check:ui]",
                     announce: log,
                 })
-            ).admitted,
+            );
+            return machine.admitted;
+        },
     });
     loadAtStart = loadAverage();
 
@@ -853,10 +859,11 @@ async function main(): Promise<number> {
     // cores and memory — never from the load, which on a shared machine is the
     // neighbours' (issue #4687): the lane just acquired the one browser slot.
     // A live heavy-gate holder caps it to one context (issue #4941): the
-    // browser slot is ours, the machine is not.
+    // browser slot is ours, the machine is not. So does the holder the
+    // machine admission just walked past, should it have released since.
     const ncpu = os.cpus().length;
     const totalMem = os.totalmem();
-    const heavyHolder = heavyHolderLive(gateLockRoot());
+    const heavyHolder = machine.beside ?? heavyHolderLive(gateLockRoot());
     const parallel =
         opts.parallel ??
         viewportParallelism(ncpu, totalMem, heavyHolder !== null);

@@ -276,6 +276,38 @@ describe("gate admission — load/memory → admit / wait / refuse", () => {
         ).toEqual({ verdict: "refuse", reasons: ["load 12.0 > 8.0"] });
     });
 
+    it("beside a running heavy holder the load is the holder's: only memory saturates (issue #4988)", () => {
+        const busy = { ...calm, load1: 14.5 };
+        // Past the bound, and still admitted: the load is not the reason.
+        expect(
+            gateAdmission({
+                sample: busy,
+                thresholds: T,
+                waitedMs: 900_000,
+                besideHolder: true,
+            })
+        ).toEqual({ verdict: "admit" });
+        expect(
+            gateAdmission({
+                sample: { ...busy, pressure: 2 },
+                thresholds: T,
+                waitedMs: 0,
+                besideHolder: true,
+            })
+        ).toEqual({
+            verdict: "wait",
+            reasons: ["memory pressure WARNING (kernel level 2)"],
+        });
+        expect(
+            gateAdmission({
+                sample: { ...busy, pressure: 2 },
+                thresholds: T,
+                waitedMs: 900_000,
+                besideHolder: true,
+            }).verdict
+        ).toBe("refuse");
+    });
+
     it("never saturates on a probe it could not read", () => {
         expect(
             saturation(
@@ -470,10 +502,14 @@ describe("waitForMachine — the bounded wait", () => {
     let ticks = 0;
     const drive = async (
         samples: MachineSample[],
-        env: NodeJS.ProcessEnv = {}
+        env: NodeJS.ProcessEnv = {},
+        /** The running heavy holder at each poll (the last entry repeats);
+         *  absent, the caller names none — the heavy tier's own wait. */
+        holders?: (string | null)[]
     ) => {
         let clock = 0;
         let i = 0;
+        let h = 0;
         const lines: string[] = [];
         const result = await waitForMachine({
             thresholds: { ...T, waitMaxS: 60 },
@@ -487,6 +523,8 @@ describe("waitForMachine — the bounded wait", () => {
             pollMs: 5000,
             env,
             tick: () => ticks++,
+            heavyHolder:
+                holders && (() => holders[Math.min(h++, holders.length - 1)]),
         });
         return { result, lines, polls: i, ticks };
     };
@@ -522,6 +560,81 @@ describe("waitForMachine — the bounded wait", () => {
         expect(lines.at(-1)).toMatch(
             /machine still busy after 60s .* INFRA \(machine-saturated\)/
         );
+    });
+
+    const HOLDER = "pid 4242 · bun scripts/land.ts 4985";
+
+    it("does not wait on a running heavy holder's load, and names the holder (issue #4988)", async () => {
+        // The load never drops: beside a 35-minute hold it would not.
+        const { result, lines, polls } = await drive(
+            [{ ...calm, load1: 14.5 }],
+            {},
+            [HOLDER]
+        );
+        expect(result).toMatchObject({
+            admitted: true,
+            overridden: false,
+            waitedMs: 0,
+            beside: HOLDER,
+        });
+        expect(polls).toBe(1);
+        expect(lines).toEqual([
+            `[gate] machine busy — load 14.5, swap 6054 MB — beside a running heavy gate (${HOLDER}): its load is not waited on`,
+        ]);
+    });
+
+    it("with no running holder the same load still runs out the bound — refused", async () => {
+        const { result, polls } = await drive([{ ...calm, load1: 14.5 }], {}, [
+            null,
+        ]);
+        expect(result).toMatchObject({
+            admitted: false,
+            waitedMs: 60_000,
+            reasons: ["load 14.5 > 8.0"],
+            beside: null,
+        });
+        expect(polls).toBe(13);
+    });
+
+    it("memory pressure waits beside a holder too, to the bound", async () => {
+        const { result, lines } = await drive(
+            [{ ...calm, load1: 14.5, pressure: 2 }],
+            {},
+            [HOLDER]
+        );
+        expect(result).toMatchObject({
+            admitted: false,
+            waitedMs: 60_000,
+            reasons: ["memory pressure WARNING (kernel level 2)"],
+            beside: null,
+        });
+        expect(lines[0]).toBe(
+            "[gate] machine busy — load 14.5, swap 6054 MB (memory pressure WARNING (kernel level 2)); waiting, bound 60s"
+        );
+    });
+
+    it("a holder that finishes during the wait stops explaining the load", async () => {
+        const busy = { ...calm, load1: 14.5 };
+        const { result, lines, polls } = await drive(
+            // Pressure beside the holder; then the holder is gone and the
+            // load is nobody's; then the machine calms.
+            [{ ...busy, pressure: 2 }, busy, busy, calm],
+            {},
+            [HOLDER, null]
+        );
+        expect(polls).toBe(4);
+        expect(result).toMatchObject({
+            admitted: true,
+            waitedMs: 15_000,
+            beside: null,
+        });
+        expect(lines.at(-1)).toMatch(/^\[gate\] machine calm after 15s/);
+    });
+
+    it("a calm machine beside a holder is admitted in silence, beside nobody", async () => {
+        const { result, lines } = await drive([calm], {}, [HOLDER]);
+        expect(result).toMatchObject({ admitted: true, beside: null });
+        expect(lines).toEqual([]);
     });
 
     it("starts anyway under the GATE's own override, and says so", async () => {
