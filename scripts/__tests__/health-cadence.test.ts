@@ -6,14 +6,24 @@ import {
     MAX_BATCH_AGE_MS,
     afterFire,
     afterGreen,
+    clearPending,
+    closingIssueRefs,
+    describeLastDecision,
     healthRunInFlight,
     healthTrigger,
+    landingsSinceFire,
     parseCadence,
+    pendingHealthRun,
+    recordDecision,
     recordLanding,
+    recordRepairIssue,
     reconcileHealthRun,
+    redLandGate,
     serializeCadence,
+    withPending,
     type CadenceState,
     type HealthRecord,
+    type LandingKind,
 } from "../lib/health-cadence";
 
 /**
@@ -142,23 +152,6 @@ describe("health cadence — the batch trigger (ADR 0136 §6)", () => {
         });
         expect(v.kind).toBe("hold");
         expect(v.reason).toContain("already started");
-    });
-
-    it("fires again on the NEXT tip after a RED — the fix-forward is gated at once", () => {
-        // RED leaves the counter alone deliberately: it refuses the next PICK,
-        // not the next LAND, so the landing carrying the repair moves the tip
-        // past the dedup and re-gates immediately (scenario C).
-        const after = afterFire(
-            state({ landings: landings(LANDINGS_PER_BATCH) }),
-            "tipRed",
-            T0
-        );
-        expect(
-            healthTrigger({ state: after, tip: "tipRed", now: T0 }).kind
-        ).toBe("hold");
-        expect(
-            healthTrigger({ state: after, tip: "tipFix", now: T0 }).kind
-        ).toBe("fire");
     });
 
     it("honours injected thresholds (the defaults are a policy, not a constant the test re-states)", () => {
@@ -466,4 +459,413 @@ describe("health cadence — one run in flight at a time (issue #3780 review, fi
             )
         ).toBeNull();
     });
+});
+
+describe("health cadence — under RED, one coalesced run, never one per landing (issue #4964)", () => {
+    /** RED was found on landing #5's tip by the run fired at T0. */
+    function redAfterFire(extra = 0, kinds: (LandingKind | undefined)[] = []) {
+        let st = afterFire(
+            state({ landings: landings(5) }),
+            landings(5)[4].sha,
+            T0
+        );
+        for (let i = 0; i < extra; i++)
+            st = recordLanding(
+                st,
+                `x${i}`.padEnd(40, "0"),
+                T0 + (i + 1) * MIN,
+                kinds[i]
+            );
+        return st;
+    }
+
+    it("three non-repair landings in a row fire at most once", () => {
+        // The old trigger counted from the last GREEN, so under RED every
+        // landing past the 5th cleared the per-tip dedup and fired again.
+        let st = afterFire(
+            state({ landings: landings(5) }),
+            landings(5)[4].sha,
+            T0
+        );
+        let fires = 0;
+        for (let i = 0; i < 3; i++) {
+            const tip = `n${i}`.padEnd(40, "0");
+            const now = T0 + (i + 1) * 10 * MIN;
+            st = recordLanding(st, tip, now);
+            const v = healthTrigger({ state: st, tip, now, red: true });
+            if (v.kind === "fire") {
+                fires++;
+                st = afterFire(st, tip, now);
+            }
+        }
+        expect(fires).toBeLessThanOrEqual(1);
+    });
+
+    it("holds on non-repair landings until the batch refills, counted from the last FIRE", () => {
+        const four = redAfterFire(LANDINGS_PER_BATCH - 1);
+        const hold = healthTrigger({
+            state: four,
+            tip: "tip",
+            now: T0 + 5 * MIN,
+            red: true,
+        });
+        expect(hold.kind).toBe("hold");
+        expect(hold.reason).toContain(`RED: 4/${LANDINGS_PER_BATCH}`);
+        expect(
+            healthTrigger({
+                state: redAfterFire(LANDINGS_PER_BATCH),
+                tip: "tip",
+                now: T0 + 6 * MIN,
+                red: true,
+            })
+        ).toMatchObject({ kind: "fire", trigger: "count" });
+        expect(
+            healthTrigger({
+                state: redAfterFire(1),
+                tip: "tip",
+                now: T0 + MIN + MAX_BATCH_AGE_MS,
+                red: true,
+            })
+        ).toMatchObject({ kind: "fire", trigger: "age" });
+    });
+
+    it("a repair landing fires once", () => {
+        const st = redAfterFire(1, ["repair"]);
+        const tip = st.landings[st.landings.length - 1].sha;
+        const v = healthTrigger({
+            state: st,
+            tip,
+            now: T0 + 2 * MIN,
+            red: true,
+        });
+        expect(v).toMatchObject({ kind: "fire", trigger: "repair", sha: tip });
+        // Fired: the repair is behind the last fire now, and the next
+        // ordinary landing does not re-fire on its account.
+        const after = recordLanding(
+            afterFire(st, tip, T0 + 2 * MIN),
+            "next".padEnd(40, "0"),
+            T0 + 3 * MIN
+        );
+        expect(
+            healthTrigger({
+                state: after,
+                tip: "next".padEnd(40, "0"),
+                now: T0 + 3 * MIN,
+                red: true,
+            }).kind
+        ).toBe("hold");
+    });
+
+    it("a red-ok landing is counted, never a reason to fire on its own", () => {
+        const v = healthTrigger({
+            state: redAfterFire(1, ["red-ok"]),
+            tip: "tip",
+            now: T0 + 2 * MIN,
+            red: true,
+        });
+        expect(v.kind).toBe("hold");
+    });
+
+    it("a fire with a queued waiter holds — even for a repair, even past the batch", () => {
+        const st = redAfterFire(LANDINGS_PER_BATCH, ["repair"]);
+        const v = healthTrigger({
+            state: st,
+            tip: "tip",
+            now: T0 + 10 * MIN,
+            red: true,
+            pending:
+                "a health run fired 3m ago is still queued or running (pid 7)",
+        });
+        expect(v.kind).toBe("hold");
+        expect(v.reason).toContain("covers this landing");
+        // The same holds off RED: one run at a time is the invariant.
+        expect(
+            healthTrigger({
+                state: state({ landings: landings(LANDINGS_PER_BATCH) }),
+                tip: "tip",
+                now: T0,
+                pending: "queued",
+            }).kind
+        ).toBe("hold");
+    });
+
+    it("counts since the fire by the gated sha, else by the fire's time", () => {
+        const rows = landings(4);
+        const byShaSt = afterFire(state({ landings: rows }), rows[1].sha, T0);
+        expect(landingsSinceFire(byShaSt)).toEqual(rows.slice(2));
+        // The gated sha is no recorded landing: cut at the fire's time.
+        const byTime = afterFire(state({ landings: rows }), "gone", rows[2].at);
+        expect(landingsSinceFire(byTime)).toEqual(rows.slice(3));
+    });
+});
+
+describe("health cadence — a queued or running run is pending (issue #4964)", () => {
+    const alive = () => true;
+    const dead = () => false;
+
+    it("a fire waiting on the mutex is pending while its process lives", () => {
+        const st = withPending(EMPTY_CADENCE, 4242, T0);
+        expect(pendingHealthRun(st, null, T0 + 30 * MIN, alive)).toContain(
+            "pid 4242"
+        );
+        expect(pendingHealthRun(st, null, T0 + 30 * MIN, dead)).toBeNull();
+        expect(
+            pendingHealthRun(clearPending(st), null, T0 + MIN, alive)
+        ).toBeNull();
+    });
+
+    it("a pid older than any run is assumed reused", () => {
+        const st = withPending(EMPTY_CADENCE, 4242, T0);
+        expect(pendingHealthRun(st, null, T0 + 7 * 60 * MIN, alive)).toBeNull();
+    });
+
+    it("a running record is pending whatever the ledger says", () => {
+        const running: HealthRecord = {
+            sha: "r".repeat(40),
+            status: "running",
+            startedAt: new Date(T0).toISOString(),
+        };
+        expect(
+            pendingHealthRun(EMPTY_CADENCE, running, T0 + MIN, dead)
+        ).toContain("in flight");
+    });
+
+    it("the reconcile clears the pending fire, whatever the verdict", () => {
+        const st = withPending(afterFire(EMPTY_CADENCE, "a", T0), 9, T0);
+        for (const status of ["green", "red"] as const) {
+            const action = reconcileHealthRun(st, {
+                last: {
+                    sha: "a",
+                    status,
+                    startedAt: new Date(T0 + MIN).toISOString(),
+                },
+                firedAt: T0,
+            });
+            expect(action.kind).toBe(status);
+            if (action.kind !== "none")
+                expect(action.state.pendingPid).toBeNull();
+        }
+    });
+});
+
+describe("health cadence — land under RED (issue #4964)", () => {
+    const base = {
+        red: true,
+        prBody: "",
+        repairIssues: [4999],
+        repairFlag: false,
+        redOkFlag: false,
+    };
+
+    it("lands as before off RED", () => {
+        expect(redLandGate({ ...base, red: false })).toEqual({
+            kind: "proceed",
+        });
+    });
+
+    it("lands the PR closing the /health-fix issue as a repair, with no flag", () => {
+        expect(
+            redLandGate({ ...base, prBody: "Fix the gate.\n\nCloses #4999" })
+        ).toMatchObject({ kind: "proceed", landing: "repair" });
+    });
+
+    it("refuses any other PR unless --red-ok, which is counted", () => {
+        const refused = redLandGate({ ...base, prBody: "Closes #1234" });
+        expect(refused.kind).toBe("refuse");
+        if (refused.kind === "refuse") {
+            expect(refused.reason).toContain("--red-ok");
+            expect(refused.reason).toContain("#4999");
+        }
+        expect(redLandGate({ ...base, redOkFlag: true })).toMatchObject({
+            kind: "proceed",
+            landing: "red-ok",
+        });
+        expect(redLandGate({ ...base, repairFlag: true })).toMatchObject({
+            kind: "proceed",
+            landing: "repair",
+        });
+    });
+
+    it("reads closing refs as GitHub does — a bare #N only", () => {
+        expect(
+            closingIssueRefs(
+                "Closes #1, fixes #2\nResolved: #3 and Closes issue #4"
+            )
+        ).toEqual([1, 2, 3]);
+    });
+
+    it("the repair issues live in the ledger until GREEN", () => {
+        const st = recordRepairIssue(recordRepairIssue(EMPTY_CADENCE, 7), 7);
+        expect(st.repairIssues).toEqual([7]);
+        expect(parseCadence(serializeCadence(st)).repairIssues).toEqual([7]);
+        expect(afterGreen(st, "a", T0).repairIssues).toEqual([]);
+    });
+});
+
+describe("health cadence — health:status says why the last landing did or did not fire (issue #4964)", () => {
+    it("names the decision, the tip and the landing's kind, through the file format", () => {
+        const st = recordDecision(
+            recordLanding(EMPTY_CADENCE, "f".repeat(40), T0, "repair"),
+            {
+                at: T0,
+                tip: "f".repeat(40),
+                kind: "fire",
+                reason: "RED: ffffffff is a declared repair",
+            }
+        );
+        const line = describeLastDecision(parseCadence(serializeCadence(st)));
+        expect(line).toContain("FIRED");
+        expect(line).toContain("(repair)");
+        expect(line).toContain("declared repair");
+        expect(describeLastDecision(EMPTY_CADENCE)).toContain("no cadence");
+    });
+});
+
+/**
+ * The 2026-09-30 → 2026-10-02 RED window, replayed (issue #4964). The landings
+ * are the real ledger rows (`cadence.json`, sha prefixes); the first run fired
+ * on 7b9ed220 and found RED, and every run after it found RED or INFRA. What
+ * the replay cannot know is how long each run held the mutex, nor which
+ * landings a `/health-fix` issue would have declared repairs — so it bounds
+ * both: run lengths from 15 to 60 min, and either no repair or every PR that
+ * fixed a red the window's runs reported.
+ */
+const RED_WINDOW: [string, number][] = [
+    ["5f5a978d", 1790755082960],
+    ["e1890249", 1790756643007],
+    ["820001c8", 1790761991610],
+    ["7b9ed220", 1790768963147],
+    ["2e1e2c94", 1790771674643],
+    ["02bd75cc", 1790779612424],
+    ["d8077be9", 1790795721208],
+    ["e1902d33", 1790796149241],
+    ["d2b28195", 1790797936697],
+    ["a124c930", 1790803582372],
+    ["35ae12aa", 1790832067338],
+    ["9033fac4", 1790839314990],
+    ["8873c7a6", 1790840758015],
+    ["44808a35", 1790845585536],
+    ["b0b39155", 1790849172218],
+    ["a15195d8", 1790852565476],
+    ["7c96560a", 1790872796258],
+    ["abbce2d1", 1790884863991],
+    ["ec54045e", 1790886076438],
+    ["ab6e7250", 1790919190314],
+    ["c91ce048", 1790920218052],
+    ["7abe7d9a", 1790921159035],
+    ["a5a205ac", 1790921807038],
+    ["c8c1aa46", 1790922409581],
+    ["aa785cf0", 1790923375733],
+    ["d0a9af03", 1790929392839],
+    ["7bc59629", 1790934655957],
+    ["66bdcf69", 1790941924285],
+    ["f61bfddc", 1790942641503],
+];
+/** PRs #4950 and #4956 — each closes an issue a `/health-fix` session filed
+ *  against one of the window's reds (issue #4949 "health RED @ ec54045",
+ *  issue #4955 "health RED @ ab6e725"): the landings the new rule declares
+ *  repairs. */
+const WINDOW_REPAIRS = new Set(["ab6e7250", "aa785cf0"]);
+/** Index of 7b9ed220, whose run opened the RED window. */
+const FIRST_RED = 3;
+
+/**
+ * Drive the trigger over the window. `rules: "old"` is the pre-#4964 cadence:
+ * no RED branch, only a RUNNING record holds, no re-decision after a run.
+ */
+function replayRedWindow(opts: {
+    runMs: number;
+    repairs: ReadonlySet<string>;
+    rules: "new" | "old";
+}): number {
+    const rows = RED_WINDOW.map(([sha, at]) => ({
+        sha: sha.padEnd(40, "0"),
+        at,
+    }));
+    const first = rows[FIRST_RED];
+    let st: CadenceState = afterFire(
+        { ...EMPTY_CADENCE, landings: rows.slice(0, FIRST_RED + 1) },
+        first.sha,
+        first.at
+    );
+    let run: { sha: string; start: number; end: number } | null = {
+        sha: first.sha,
+        start: first.at,
+        end: first.at + opts.runMs,
+    };
+    let fires = 0;
+    let tip = first.sha;
+
+    const decide = (now: number) => {
+        const busy = run !== null && now < run.end;
+        const v = healthTrigger({
+            state: st,
+            tip,
+            now,
+            red: opts.rules === "new",
+            pending: busy ? "a run is queued or running" : null,
+        });
+        if (v.kind === "fire") {
+            fires++;
+            st = afterFire(st, tip, now);
+            run = { sha: tip, start: now, end: now + opts.runMs };
+        }
+    };
+    const finishRunsBefore = (t: number) => {
+        while (run !== null && run.end <= t) {
+            const done = run;
+            run = null;
+            const action = reconcileHealthRun(st, {
+                last: {
+                    sha: done.sha,
+                    status: "red",
+                    startedAt: new Date(done.start).toISOString(),
+                },
+                firedAt: done.start,
+            });
+            if (action.kind !== "none") st = action.state;
+            if (opts.rules === "new") decide(done.end);
+        }
+    };
+
+    for (const row of rows.slice(FIRST_RED + 1)) {
+        finishRunsBefore(row.at);
+        const short = row.sha.slice(0, 8);
+        st = recordLanding(
+            st,
+            row.sha,
+            row.at,
+            opts.repairs.has(short) ? "repair" : undefined
+        );
+        tip = row.sha;
+        decide(row.at);
+    }
+    finishRunsBefore(Number.POSITIVE_INFINITY);
+    return fires;
+}
+
+describe("health cadence — the 2026-09-30 → 2026-10-02 RED window, replayed (issue #4964)", () => {
+    const NONE = new Set<string>();
+    it("the old trigger fires once per landing — the regime the issue measured", () => {
+        // 25 landings after the first RED; the issue counted 22 runs, and so
+        // does the replay at 15-min runs — the model reproduces the history.
+        expect(
+            replayRedWindow({ runMs: 15 * MIN, repairs: NONE, rules: "old" })
+        ).toBe(22);
+    });
+
+    for (const runMin of [15, 30, 60])
+        for (const [label, repairs] of [
+            ["no repair", NONE],
+            ["the two /health-fix repairs", WINDOW_REPAIRS],
+        ] as const)
+            it(`the new trigger fires at most 8 times (${runMin}-min runs, ${label})`, () => {
+                expect(
+                    replayRedWindow({
+                        runMs: runMin * MIN,
+                        repairs,
+                        rules: "new",
+                    })
+                ).toBeLessThanOrEqual(8);
+            });
 });

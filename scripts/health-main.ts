@@ -90,6 +90,7 @@ import {
     type InfraCause,
 } from "./lib/health-verdict";
 import { reachable, readEnvLocal } from "./lib/convex-reachable";
+import { describeLastDecision, parseCadence } from "./lib/health-cadence";
 import {
     copyFileSync,
     existsSync,
@@ -210,6 +211,11 @@ function status(root: string): never {
         console.log(
             `  last: ${last.status.toUpperCase()} @ ${last.sha.slice(0, 8)} (started ${last.startedAt}${last.finishedAt ? `, finished ${last.finishedAt}` : ""})${last.failedStep ? ` — failed at ${last.failedStep}` : ""}${last.reason ? `\n  why:  ${last.reason}` : ""}${last.log ? `\n  log:  ${last.log}` : ""}`
         );
+    // Why the last landing did or did not fire the batch gate (issue #4964).
+    const cadence = join(dir, "cadence.json");
+    console.log(
+        `  cadence: ${describeLastDecision(parseCadence(existsSync(cadence) ? readFileSync(cadence, "utf8") : null))}`
+    );
     const stale = staleWorktrees(root);
     if (stale.length > 0) {
         console.log(

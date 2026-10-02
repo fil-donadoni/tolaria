@@ -259,8 +259,8 @@ Rationale, lanes, measurements: `docs/agents/quality-gates.md`.
   live `in-progress` claims hit `sessions.cap` (3 = measured PR/h knee; config,
   not literal; `--no-cap` = announced escape) or a health `RED` marker stands.
   **Claim = `bun run queue:claim N`, one locked act** re-reading the cap
-  (#4375; hand-typed label denied). `land` only warns: mid-issue sessions
-  finish.
+  (#4375; hand-typed label denied). Under RED `land` refuses a non-repair PR
+  without `--red-ok` (#4964).
 
 **Worktree isolation — shared checkout is read-only.** Every authored file →
 worktree, **even one markdown line** (unfinished ADR there reds `check:all` for

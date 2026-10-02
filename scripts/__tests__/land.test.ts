@@ -195,6 +195,13 @@ describe("land.ts — refusal matrix", () => {
     // base must not drag the primary checkout's base branch around) and drops
     // the three BODY facts, which are pre-merge gates that can now only refuse
     // to clean up after a PR already sitting on the base branch.
+    it("refuses a non-repair PR under RED, before the lock — but never a MERGED one (issue #4964)", () => {
+        const red = { ...clean, redRefusal: "the health gate is RED …" };
+        expect(refusalReason(red)).toBe("the health gate is RED …");
+        expect(refusalReason({ ...red, prState: "MERGED" })).toBeNull();
+        expect(refusalReason({ ...clean, redRefusal: null })).toBeNull();
+    });
+
     describe("housekeeping mode (a MERGED PR)", () => {
         const merged: LandFacts = { ...clean, prState: "MERGED" };
 
@@ -524,6 +531,15 @@ describe("land.ts — the locked command", () => {
         // detaches is the DECISION, which fires `health-main.ts` only when a
         // threshold trips (ADR 0136 §6).
         expect(cmd).not.toContain("health-main.ts");
+    });
+
+    it("records how a landing under RED declared itself — repair or red-ok (issue #4964)", () => {
+        expect(recordLandingStep("/repo")).not.toContain("--kind=");
+        expect(recordLandingStep("/repo", "repair")).toContain(
+            'record --sha="$(git rev-parse ' + ORIGIN_BASE + ')" --kind=repair'
+        );
+        const cmd = buildLockedCommand({ ...base, landingKind: "red-ok" });
+        expect(cmd).toContain(recordLandingStep("/repo", "red-ok"));
     });
 
     it("counts the landing in the batch-health ledger, past the merged-tip verification (ADR 0136 §6, issue #3780)", () => {

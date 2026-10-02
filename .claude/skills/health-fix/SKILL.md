@@ -115,8 +115,16 @@ carries `## Band` / `P1 — base tip RED` (a RED tip blocks every landing).
 
 ```bash
 gh issue create --title '…' --body '…' --label bug --label area:<area>
+bun run health:cadence repair-issue --issue=<N>
 cd "$(bun run --silent wt:new <N> --fix)"
 ```
+
+`repair-issue` records `<N>` in the health ledger as the repair of the
+standing RED (issue #4964): under RED, `land` refuses every PR that is not a
+declared repair unless it is run with `--red-ok`, and the PR that closes `<N>`
+is how it recognises yours — with no flag — and fires the health gate on its
+tip at once instead of waiting out a batch. A repair with no recorded issue
+lands with `bun run land <PR#> --repair`.
 
 The shared checkout is read-only (`deny-guard.sh` § 0); the repro worktree is
 for reading, not for authoring.
