@@ -47,3 +47,9 @@ export function localInstanceName(
     const m = /^local:(\S+)/.exec((deployment ?? "").trim());
     return m ? m[1] : null;
 }
+
+/** `check:ui`'s exit code when the deployment does not answer (issue
+ *  #4943). Its own, because exit 2 is also usage and every other fatal
+ *  error: the health gate maps exactly this code on its `check:ui` step to
+ *  `infra` — the machine's backend is down, the tree is not red. */
+export const DEPLOYMENT_DOWN_EXIT = 3;

@@ -706,6 +706,18 @@ while :; do
         break
     fi
 
+    # 2c. health INFRA (issue #4943) — the last run proved nothing about the
+    # tip (the machine slept, or the Convex backend did not answer). Not a
+    # stop: the tip is unproven, not red, and the next health run re-gates
+    # it. Printed so the morning's log names the machine, not the tree, with
+    # the remedy `health-main` recorded beside the verdict (`reason`).
+    _health_last="$(dirname "$HEALTH_RED_FILE")/last.json"
+    if [ -f "$_health_last" ] && grep -q '"status": "infra"' "$_health_last"; then
+        _infra_at=$(sed -n 's/^ *"failedStep": "\(.*\)",\{0,1\}$/\1/p' "$_health_last" | head -n 1)
+        _infra_why=$(sed -n 's/^ *"reason": "\(.*\)",\{0,1\}$/\1/p' "$_health_last" | head -n 1)
+        echo "loop-drain[warn]: release health is INFRA (at ${_infra_at:-unknown step}) — the tip is unproven, not red: ${_infra_why:-re-run 'bun run health'}" >&2
+    fi
+
     # 3. budget — a local proxy for relative burn, not a real quota reading
     # (see ADR 0097 and scripts/lib/usage-window.ts). FAILS CLOSED: a
     # non-zero exit, unparsable output, or a non-numeric/`null` pct all stop
