@@ -11,6 +11,7 @@ import {
     executePlan,
     renderClassification,
     parseArgs,
+    preflightPlan,
     shellStdio,
     treeMoved,
     hasLintStagedStash,
@@ -1481,11 +1482,13 @@ describe("check-lane — `--plan`: the classification without the gate (ADR 0136
             base: ORIGIN_BASE,
             json: false,
             planOnly: true,
+            preflight: false,
         });
         expect(parseArgs(["--plan", "--json", "--base=origin/x"])).toEqual({
             base: "origin/x",
             json: true,
             planOnly: true,
+            preflight: false,
         });
         expect(parseArgs([]).planOnly).toBe(false);
     });
@@ -1830,7 +1833,7 @@ describe("check-lane — the tree may not move under the run (issue #4379, findi
             resolve(ROOT, "scripts/check-lane.ts"),
             "utf8"
         );
-        const classify = src.indexOf("const plan = classifyLane(");
+        const classify = src.indexOf("const lanePlan = classifyLane(");
         const planOnly = src.indexOf("if (planOnly) {");
         const exec = src.indexOf("const result = executePlan(");
         expect(classify).toBeGreaterThan(-1);
@@ -2011,5 +2014,111 @@ describe("check-lane — every check:* script is in a lane or health-only by cos
         const reach = laneReachable();
         for (const n of ["check:oracle", "check:convex-bundle", "check:guards"])
             expect(reach.has(n), n).toBe(true);
+    });
+});
+
+/**
+ * `preflightPlan` (issue #4967) — `land`'s static half of the lane, run on
+ * the PR's un-rebased head before it queues for the mutex.
+ *
+ * Proof-of-failure, one break per test (each reverted): see the PR body.
+ */
+describe("check-lane.ts — preflightPlan (issue #4967)", () => {
+    const ids = (p: { run: { id: string }[] }) => p.run.map((c) => c.id);
+
+    it("is a subset of the lane's own run list, in the lane's order, for every narrowed code lane", () => {
+        for (const files of [
+            ["convex/gre/sba.ts"],
+            ["src/lib/card-utils.ts"],
+            ["convex/cards/sets/arn/white.cards.ts", "data/card-index.json"],
+        ]) {
+            const lane = classifyLane(files, files, () => ({
+                dom: [],
+                node: [],
+            }));
+            const pre = preflightPlan(lane, files);
+            const laneIds = ids(lane);
+            expect(ids(pre).every((id) => laneIds.includes(id))).toBe(true);
+            expect(ids(pre)).toEqual(
+                laneIds.filter((id) => ids(pre).includes(id))
+            );
+        }
+    });
+
+    it("runs no vitest project and no bundle on a convex-only engine diff — those need the rebased tip", () => {
+        const lane = classifyLane(["convex/gre/sba.ts"]);
+        const pre = preflightPlan(lane);
+        expect(ids(pre)).toEqual([
+            "format(diff)",
+            "lint(diff)",
+            "tsc[all]",
+            "check:index",
+            "check:stubs",
+            "check:oracle",
+            "cr:lint",
+            "check:gaps",
+            "check:targets",
+            "check:test-hygiene",
+        ]);
+        expect(pre.run.some((c) => c.command.includes("vitest"))).toBe(false);
+        // Everything the preflight leaves out is named in its skip list, so
+        // the receipt accounts for the whole lane.
+        expect(pre.skip.map((s) => s.id).sort()).toEqual(
+            ["bundle", "bot fast lane", "node-engine"].sort()
+        );
+    });
+
+    it("adds node-tooling for a scripts/** or .claude/** diff — where the drift-guard census lives", () => {
+        const scripts = preflightPlan(classifyLane(["scripts/land.ts"]));
+        expect(ids(scripts)).toContain("node-tooling");
+        expect(scripts.run.find((c) => c.id === "node-tooling")?.command).toBe(
+            "bunx vitest run --project node-tooling"
+        );
+        expect(ids(scripts)).not.toContain("node-engine");
+
+        const hooks = preflightPlan(
+            classifyLane([".claude/hooks/deny-guard.sh"])
+        );
+        expect(hooks.lane).toBe("full");
+        expect(ids(hooks)).toContain("node-tooling");
+    });
+
+    it("spells out the static half of `full`, whose lane run list is check:pr verbatim", () => {
+        const files = ["package.json", "src/a.ts"];
+        const lane = classifyLane(files);
+        expect(lane.lane).toBe("full");
+        const pre = preflightPlan(lane, files);
+        expect(ids(pre)).not.toContain("check:pr");
+        expect(ids(pre)).toEqual(
+            expect.arrayContaining(["tsc[all]", "lint(diff)", "check:oracle"])
+        );
+        expect(pre.run.find((c) => c.id === "format(diff)")?.command).toBe(
+            "bunx prettier --check 'package.json' 'src/a.ts'"
+        );
+        expect(pre.skip.map((s) => s.id)).toContain("check:pr");
+    });
+
+    it("is the lane itself for docs — check:docs is seconds and all static", () => {
+        const lane = classifyLane(["docs/agents/quality-gates.md"]);
+        expect(ids(preflightPlan(lane))).toEqual(ids(lane));
+    });
+
+    it("says it is a preflight in the header it renders", () => {
+        const pre = preflightPlan(classifyLane(["convex/gre/sba.ts"]));
+        expect(renderPlan(pre, "c0ffee1")).toMatch(
+            /^lane: {2}engine {3}\(HEAD c0ffee1, preflight on the un-rebased head — /
+        );
+    });
+
+    it("keeps one classifyLane call site — the preflight is derived, never re-classified", () => {
+        const src = readFileSync(
+            resolve(__dirname, "../check-lane.ts"),
+            "utf8"
+        );
+        const body = src.slice(
+            src.indexOf("export function preflightPlan("),
+            src.indexOf("function appendDocsGuards(")
+        );
+        expect(body).not.toMatch(/classifyLane\(/);
     });
 });
