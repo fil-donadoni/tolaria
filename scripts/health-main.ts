@@ -394,7 +394,7 @@ async function runWalk(ctx: RunCtx, walk: readonly string[]): Promise<void> {
         branch: ctx.branch,
         phase: "walk",
         offline: "green",
-        ui: "pending",
+        ui: "walking",
         log: ctx.logPath,
     });
     // Never the caller's hold, whatever it passed: the walk is off the mutex.
@@ -481,7 +481,10 @@ async function walkPhase(root: string, dir: string): Promise<void> {
         last === null ||
         last.status !== "running" ||
         last.phase !== "walk" ||
-        last.offline !== "green"
+        last.offline !== "green" ||
+        // Only an OWED walk: one already walking belongs to a live process
+        // (a `release` that reached its walk first) and is not walked twice.
+        last.ui !== "pending"
     ) {
         console.log(
             `health-main: no walk owed${last ? ` (last: ${last.status} @ ${last.sha.slice(0, 8)})` : ""}`

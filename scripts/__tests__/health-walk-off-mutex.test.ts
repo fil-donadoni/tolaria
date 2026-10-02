@@ -20,6 +20,7 @@ import { UI_WALK_FILE, UI_WALK_PROBATION_RUNS } from "../lib/health-verdict";
  */
 const REPO_ROOT = path.resolve(__dirname, "..", "..");
 const CADENCE = path.join(REPO_ROOT, "scripts", "health-cadence.ts");
+const HEALTH_MAIN = path.join(REPO_ROOT, "scripts", "health-main.ts");
 const GATE = path.join(REPO_ROOT, "scripts", "gate.ts");
 const UI_ADMISSION = path.join(REPO_ROOT, "scripts", "lib", "ui-admission.ts");
 
@@ -238,5 +239,34 @@ describe("health-cadence detach — the walk runs off the heavy mutex (issue #49
                 fs.readFileSync(path.join(healthDir(), UI_WALK_FILE), "utf8")
             )
         ).toEqual({ streak: 0 });
+    }, 120_000);
+
+    it("--phase=walk never starts a second walk on a record another process is walking", () => {
+        const record = {
+            sha: git(["rev-parse", "HEAD"], primary),
+            status: "running",
+            startedAt: new Date().toISOString(),
+            phase: "walk",
+            offline: "green",
+            ui: "walking",
+        };
+        fs.writeFileSync(
+            path.join(healthDir(), "last.json"),
+            JSON.stringify(record)
+        );
+        const r = spawnSync("bun", [HEALTH_MAIN, "--phase=walk"], {
+            cwd: primary,
+            encoding: "utf8",
+            timeout: 60_000,
+            env: {
+                ...process.env,
+                TOLARIA_GATE_LOCK_ROOT: lockRoot,
+                WHO_WALK: path.join(tmp, "who-walk.txt"),
+            },
+        });
+        expect(r.status, r.stderr).toBe(0);
+        expect(r.stdout).toMatch(/no walk owed/);
+        expect(fs.existsSync(path.join(tmp, "who-walk.txt"))).toBe(false);
+        expect(lastJson()).toEqual(record);
     }, 120_000);
 });

@@ -283,7 +283,10 @@ export type UiWalkState =
     | "red"
     | "infra"
     | "unproven"
+    /** The offline gates passed and the walk is owed (`--phase=walk`). */
     | "pending"
+    /** A process is walking now — another `--phase=walk` must not start. */
+    | "walking"
     | "not run";
 
 export function uiWalkStateOf(
