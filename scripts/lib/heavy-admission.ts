@@ -16,9 +16,11 @@
  * for it again from inside the hold would wait on itself forever.
  */
 import { spawn } from "node:child_process";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const GATE = resolve(import.meta.dir, "..", "gate.ts");
+// `import.meta.url`, not Bun's `import.meta.dir`: vitest loads this under node.
+const GATE = resolve(dirname(fileURLToPath(import.meta.url)), "..", "gate.ts");
 
 /** POSIX single-quote one word, so `sh -c` sees it as exactly that word. */
 function shellQuote(word: string): string {
