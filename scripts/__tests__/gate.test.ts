@@ -220,12 +220,55 @@ function exited(child: ReturnType<typeof spawn>): Promise<void> {
  *  which is why this is SIGKILL: nothing else reaches a stopped process. */
 let strays: number[] = [];
 
+/**
+ * `roots` and everything under them, every member SIGSTOPped before it is
+ * returned (issue #4978). A gate spawns its command DETACHED, so SIGKILLing
+ * the gate alone runs no teardown and reparents that command to launchd,
+ * where no parentage walk can find it again. Frozen first, the tree can
+ * neither fork past the walk nor lose a member to reparenting; the walk
+ * repeats until a round finds nobody new.
+ */
+function frozenTree(roots: number[]): number[] {
+    const seen = new Set<number>();
+    let frontier = roots;
+    while (frontier.length) {
+        for (const pid of frontier) {
+            seen.add(pid);
+            try {
+                process.kill(pid, "SIGSTOP");
+            } catch {
+                /* already gone */
+            }
+        }
+        frontier = [...new Set(frontier.flatMap(descendants))].filter(
+            (pid) => !seen.has(pid)
+        );
+    }
+    return [...seen];
+}
+
+/** Live processes whose command line names `path` — the test's own commands
+ *  all embed `lockRoot`, so after cleanup this must come back empty. */
+function naming(path: string): { pid: number; args: string }[] {
+    const r = spawnSync("ps", ["-Ao", "pid=,stat=,args="], {
+        encoding: "utf8",
+    });
+    const out: { pid: number; args: string }[] = [];
+    for (const line of r.stdout.split("\n")) {
+        const m = /^\s*(\d+)\s+(\S+)\s+(.*)$/.exec(line);
+        if (!m || m[2].startsWith("Z") || !m[3].includes(path)) continue;
+        if (Number(m[1]) !== process.pid)
+            out.push({ pid: Number(m[1]), args: m[3] });
+    }
+    return out;
+}
+
 beforeEach(() => {
     lockRoot = mkdtempSync(join(tmpdir(), "tolaria-gate-test-"));
 });
 
-afterEach(() => {
-    for (const pid of strays) {
+afterEach(async () => {
+    for (const pid of frozenTree(strays)) {
         try {
             process.kill(pid, "SIGKILL");
         } catch {
@@ -233,7 +276,22 @@ afterEach(() => {
         }
     }
     strays = [];
-    rmSync(lockRoot, { recursive: true, force: true });
+    // A failing test exits before it lets its commands go: whatever still
+    // names `lockRoot` once the tree is dead would poll a deleted directory
+    // forever (issue #4978). Killed so the run leaks nothing — and a red, so
+    // the cleanup that missed it is fixed rather than outlived.
+    const root = lockRoot;
+    await waitFor(() => naming(root).length === 0, 5_000);
+    const survivors = naming(root);
+    for (const { pid } of survivors) {
+        try {
+            process.kill(pid, "SIGKILL");
+        } catch {
+            /* already gone */
+        }
+    }
+    rmSync(root, { recursive: true, force: true });
+    expect(survivors, "processes outlived the test's cleanup").toEqual([]);
 });
 
 describe("gate.ts — tier dispatch", () => {
@@ -749,9 +807,10 @@ describe("gate.ts — liveness wiring (issue #2999)", () => {
         // threshold. And the proof of ORDER is the reclaimer's own command —
         // it runs under the mutex it just took, and looks. It then HOLDS
         // until the test lets go, so the stalled holder ends while the lock
-        // is the reclaimer's.
+        // is the reclaimer's. The hold is bounded (600 x 0.1 s, the test's
+        // own timeout): a cleanup that missed it still ends (issue #4978).
         const letGo = join(lockRoot, "let-go");
-        const probe = `for p in ${tree.join(" ")}; do ps -o stat= -p $p; done | grep -v Z | grep -q . && echo SUBTREE-ALIVE || echo SUBTREE-DEAD; while [ ! -f ${letGo} ]; do sleep 0.1; done`;
+        const probe = `for p in ${tree.join(" ")}; do ps -o stat= -p $p; done | grep -v Z | grep -q . && echo SUBTREE-ALIVE || echo SUBTREE-DEAD; i=0; while [ ! -f ${letGo} ] && [ $i -lt 600 ]; do sleep 0.1; i=$((i+1)); done`;
         const reclaimer = spawn("bun", [GATE, "heavy", probe], {
             cwd: lockRoot,
             env: env({ TOLARIA_GATE_STALLED_RECLAIM_MS: "1" }),
@@ -791,12 +850,17 @@ describe("gate.ts — liveness wiring (issue #2999)", () => {
         // back". Before, the stall latched and the reclaimer killed it.
         // Blocked on a FIFO, not polling for a file: a blocked read burns NO
         // CPU, where a `sleep` loop ticks `ps` over every couple of seconds
-        // and would recover by itself.
+        // and would recover by itself. The open blocks until cleanup kills
+        // it; the spin after it ends by itself at 60 s (issue #4978).
         const go = join(lockRoot, "go");
         expect(spawnSync("mkfifo", [go]).status).toBe(0);
         const child = spawn(
             "bun",
-            [GATE, "heavy", `read _ < ${go}; while :; do :; done`],
+            [
+                GATE,
+                "heavy",
+                `read _ < ${go}; while [ $SECONDS -lt 60 ]; do :; done`,
+            ],
             {
                 cwd: lockRoot,
                 env: stallEnv(),
