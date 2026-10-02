@@ -1549,8 +1549,15 @@ describe("gate.ts — the queue: ordered admission (issue #4965)", () => {
         // registered a minute ago, while the other land was still in its
         // preflight. That one was issued two minutes ago and registers NOW,
         // with exactly the environment `land.ts` hands its gate.
+        // A health gate queued meanwhile too: behind both, by class.
         const now = Date.now();
         seedWaiter({ pid: process.pid, role: "land", since: now - 60_000 });
+        seedWaiter({
+            pid: process.ppid,
+            role: "health",
+            tier: "yield",
+            since: now - 110_000,
+        });
         const r = run(["heavy", "echo RAN"], {
             env: lockedEnv(env(), now - 120_000),
             timeout: 20_000,

@@ -129,6 +129,7 @@ import {
     type WalkOutcome,
 } from "./lib/health-verdict";
 import { reachable, readEnvLocal } from "./lib/convex-reachable";
+import { gateLockRoot, runningHolderLine } from "./lib/ui-admission";
 import {
     readMachineConfig,
     readMachineSample,
@@ -664,13 +665,18 @@ async function main(): Promise<void> {
 
     // The machine, asked before ~40 minutes of gates start on it (issue
     // #4966). Under a caller's hold the gate that took the mutex has already
-    // asked, and waited: asking again would only wait twice.
+    // asked, and waited: asking again would only wait twice. With no hold
+    // (`release`, by hand) a running heavy gate's load is not waited on
+    // (issue #4988): every step below queues for the mutex behind it and
+    // asks again under its own hold, so waiting here only adds a bound that
+    // holder can outlast.
     const thresholds = readMachineConfig();
     if (process.env.TOLARIA_GATE_HELD !== "1") {
         const machine = await waitForMachine({
             thresholds,
             tag: "health-main:",
             announce: (line) => console.error(line),
+            heavyHolder: () => runningHolderLine(gateLockRoot()),
         });
         if (!machine.admitted)
             finishInfra(
