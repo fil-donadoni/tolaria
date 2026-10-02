@@ -72,7 +72,8 @@
  *
  * SPEED IS SIZED TO THE MACHINE (issue #3653, re-sized in #4687). The five
  * viewports are walked `viewportParallelism(ncpu, totalMemory)` at a time —
- * five contexts on an 8-core box, never fewer than two (`MIN_PARALLELISM`),
+ * five contexts on an 8-core box, never fewer than two (`MIN_PARALLELISM`)
+ * — except ONE while a heavy gate holds the machine (issue #4941),
  * the load average not consulted — each in its own browser context, each parallel LANE
  * signed in as its own lane account (a lane walks its viewports one after
  * another, so the account is the LANE's), because the one-game-per-account
@@ -180,7 +181,11 @@ import {
     readEnvLocal,
 } from "../lib/convex-reachable.ts";
 import { renderUiScope, type UiScope } from "../lib/ui-scope.ts";
-import { acquireUiLane, gateLockRoot } from "../lib/ui-admission.ts";
+import {
+    acquireUiLane,
+    gateLockRoot,
+    heavyHolderLive,
+} from "../lib/ui-admission.ts";
 import { classifyWalkFailure, type RetryPolicy } from "./infra-verdict.ts";
 import {
     DeadlineExpired,
@@ -831,15 +836,22 @@ async function main(): Promise<number> {
     // How many viewports at once (issue #3653), sized ONCE from the machine's
     // cores and memory — never from the load, which on a shared machine is the
     // neighbours' (issue #4687): the lane just acquired the one browser slot.
+    // A live heavy-gate holder caps it to one context (issue #4941): the
+    // browser slot is ours, the machine is not.
     const ncpu = os.cpus().length;
     const totalMem = os.totalmem();
-    const parallel = opts.parallel ?? viewportParallelism(ncpu, totalMem);
+    const heavyHolder = heavyHolderLive(gateLockRoot());
+    const parallel =
+        opts.parallel ??
+        viewportParallelism(ncpu, totalMem, heavyHolder !== null);
     const parallelLine =
         `viewport parallelism: ${parallel} of ${VIEWPORTS.length} at a time, ` +
         `${parallel} lane account(s) — ` +
-        (opts.parallel === null
-            ? `sized from ${ncpu} cpus and ${(totalMem / 1024 ** 3).toFixed(0)} GiB (load ${loadAtStart.toFixed(1)} not consulted)`
-            : `--parallel=${opts.parallel}`);
+        (opts.parallel !== null
+            ? `--parallel=${opts.parallel}`
+            : heavyHolder
+              ? `capped: heavy gate held by pid ${heavyHolder.pid} (${heavyHolder.label})`
+              : `sized from ${ncpu} cpus and ${(totalMem / 1024 ** 3).toFixed(0)} GiB (load ${loadAtStart.toFixed(1)} not consulted)`);
     log(`ui-gate: ${parallelLine}`);
 
     // The run's own accounts (issue #3626, one per lane since issue #3653).

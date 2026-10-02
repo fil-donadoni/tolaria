@@ -21,7 +21,7 @@
         "check:targets": "bun scripts/check-targets.ts",
         "check:test-hygiene": "bun scripts/check-test-hygiene.ts",
         "backlog:triage": "bun scripts/backlog-triage.ts",
-        "bot:reach": "bun scripts/target-bot-reach.ts",
+        "bot:reach": "bun scripts/gate.ts job 'bun scripts/target-bot-reach.ts'",
         "blade:card-index": "bun scripts/build-blade-card-index.ts",
         "blade:robustness": "bun scripts/gate.ts heavy 'BLADE_ROBUSTNESS=1 vitest run --config vitest.blade.config.ts robustness.shard'",
         "gaps:sync": "bun scripts/gaps-sync.ts",
@@ -115,7 +115,7 @@
         "verdicts:validate": "bun scripts/verdicts-validate.ts",
         "verdicts:promote": "bun scripts/verdicts-promote.ts",
         "verdicts:testers": "bun scripts/verdicts-testers.ts",
-        "verdicts:search": "BLADE_VERDICT_SEARCH=1 vitest run --config vitest.blade.config.ts convex/gre/ai/blade/__tests__/verdict-search.spec.ts",
+        "verdicts:search": "bun scripts/gate.ts job 'BLADE_VERDICT_SEARCH=1 vitest run --config vitest.blade.config.ts convex/gre/ai/blade/__tests__/verdict-search.spec.ts'",
         "scenario:ls": "bun scripts/scenario-admin.ts ls",
         "scenario:rm": "bun scripts/scenario-admin.ts rm"
     },

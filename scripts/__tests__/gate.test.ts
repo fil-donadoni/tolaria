@@ -933,3 +933,117 @@ describe("gate.ts — the waiter registry and the yield tier (ADR 0136 §6, issu
         await new Promise((resolve) => holder.on("exit", resolve));
     });
 });
+
+describe("gate.ts — the job tier and the jobs it admits (issue #4941)", () => {
+    const REPO = resolve(__dirname, "..", "..");
+
+    /** A heavy holder for the duration of a test; SIGTERM so the gate reaps
+     *  its own `sleep` group on the way out. */
+    async function holdMutex() {
+        const holder = spawn("bun", [GATE, "heavy", "sleep 60"], {
+            cwd: lockRoot,
+            env: env(),
+            stdio: "ignore",
+        });
+        await waitForLock();
+        return async () => {
+            holder.kill("SIGTERM");
+            await new Promise((r) => holder.on("exit", r));
+        };
+    }
+
+    /**
+     * Start `cmd` in its own process group and collect stderr until `done`
+     * holds, then kill the WHOLE group: a correctly admitted job is blocked
+     * by design and never exits on its own, and an unadmitted one is the real
+     * job — a sweep, a search — which must not outlive the test.
+     */
+    async function stderrUntil(
+        cmd: string[],
+        done: (err: string) => boolean,
+        extraEnv: Record<string, string> = {}
+    ): Promise<string> {
+        const p = spawn(cmd[0], cmd.slice(1), {
+            cwd: REPO,
+            env: env(extraEnv),
+            stdio: ["ignore", "ignore", "pipe"],
+            detached: true,
+        });
+        let err = "";
+        p.stderr!.on("data", (d) => (err += d));
+        try {
+            await waitFor(() => done(err), 30_000);
+        } finally {
+            try {
+                process.kill(-p.pid!, "SIGKILL");
+            } catch {
+                /* already gone */
+            }
+        }
+        return err;
+    }
+
+    const WAITING = /\[gate\] waiting \S+ for the heavy mutex/;
+
+    it("the job tier queues behind a heavy holder like any heavy gate", async () => {
+        const release = await holdMutex();
+        try {
+            const err = await stderrUntil(
+                ["bun", GATE, "job", "echo SHOULD-WAIT >&2"],
+                (e) => WAITING.test(e) || e.includes("SHOULD-WAIT")
+            );
+            expect(err).toMatch(WAITING);
+            expect(err).not.toContain("SHOULD-WAIT");
+        } finally {
+            await release();
+        }
+    }, 40_000);
+
+    it("the job tier runs in an issue worktree — the jobs ARE the session's work", () => {
+        const d = join(lockRoot, "tolaria-issue-4242");
+        mkdirSync(d, { recursive: true });
+        const r = run(
+            [
+                "job",
+                "echo JOB-OK held=[$TOLARIA_GATE_HELD] w=[$TOLARIA_VITEST_WORKERS]",
+            ],
+            { cwd: d }
+        );
+        expect(r.status, r.stderr).toBe(0);
+        expect(r.stdout).toContain("JOB-OK held=[1]");
+        expect(r.stdout).toMatch(/w=\[[2-9]\d*\]/);
+        expect(existsSync(join(lockRoot, "gate.lock"))).toBe(false);
+    });
+
+    it("a nested job under a hold passes straight through — land and health-main never self-deadlock", async () => {
+        const release = await holdMutex();
+        try {
+            const r = run(["job", "echo NESTED-OK"], {
+                env: env({ TOLARIA_GATE_HELD: "1" }),
+                timeout: 20_000,
+            });
+            expect(r.status, r.stderr).toBe(0);
+            expect(r.stdout).toContain("NESTED-OK");
+            expect(r.stderr).not.toMatch(WAITING);
+        } finally {
+            await release();
+        }
+    }, 40_000);
+
+    // The wiring itself: each script, spelled as an agent types it, waits.
+    for (const [name, cmd] of [
+        ["bot:reach", ["bun", "run", "bot:reach"]],
+        ["verdicts:search", ["bun", "run", "verdicts:search"]],
+        ["oracle:compile (the sweep)", ["bun", "scripts/oracle-compile.ts"]],
+    ] as const) {
+        it(`\`${name}\` waits for the heavy mutex instead of starting`, async () => {
+            const release = await holdMutex();
+            try {
+                const err = await stderrUntil([...cmd], (e) => WAITING.test(e));
+                expect(err).toMatch(WAITING);
+            } finally {
+                await release();
+            }
+        }, 60_000);
+    }
+});

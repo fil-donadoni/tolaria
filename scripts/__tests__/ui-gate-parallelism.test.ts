@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import {
     collectRun,
     CONTEXT_MEMORY_BYTES,
+    HEAVY_HELD_PARALLELISM,
     MAX_PARALLELISM,
     MEMORY_RESERVE_BYTES,
     MIN_PARALLELISM,
@@ -54,6 +55,18 @@ describe("viewportParallelism (issue #3653, re-sized by issue #4687)", () => {
         expect(viewportParallelism(Number.NaN, 16 * GIB)).toBe(MIN_PARALLELISM);
         expect(viewportParallelism(8, Number.NaN)).toBe(MIN_PARALLELISM);
         expect(viewportParallelism(0, 0)).toBe(MIN_PARALLELISM);
+    });
+});
+
+describe("viewportParallelism under a heavy-gate holder (issue #4941)", () => {
+    it("walks ONE viewport — no Chrome pool — while a heavy gate holds the machine", () => {
+        expect(HEAVY_HELD_PARALLELISM).toBe(1);
+        expect(viewportParallelism(8, 16 * GIB, true)).toBe(1);
+        expect(viewportParallelism(64, 256 * GIB, true)).toBe(1);
+    });
+
+    it("sizes from the machine as before when no heavy holder is live", () => {
+        expect(viewportParallelism(8, 16 * GIB, false)).toBe(MAX_PARALLELISM);
     });
 });
 
