@@ -15,10 +15,12 @@
  *
  * Plain appended lines, no TTY tricks, so the output stays greppable.
  *
- * Node builtins only — `health-main.ts` carries the same constraint.
+ * Node builtins plus `lib/health-verdict.ts` (builtins and import-free
+ * modules only) — `health-main.ts` carries the same constraint.
  */
 import { spawn } from "node:child_process";
 import { appendFileSync } from "node:fs";
+import { isWalkStep } from "./health-verdict";
 
 export interface HealthStep {
     /** 1-based position in the run, and the run's step count. */
@@ -48,6 +50,9 @@ export interface StepResult {
     /** The signal that killed it, when one did — an OOM-killed `test` says so. */
     signal: NodeJS.Signals | null;
     elapsedMs: number;
+    /** The child's stdout then stderr, as the log received them — what the
+     *  walk's verdict is read from (`walkRunVerdict`, issue #4962). */
+    output: string;
 }
 
 const PREFIX = "health-main:";
@@ -65,6 +70,15 @@ export const DEFAULT_LIVENESS_MS = 60_000;
  * surfaces its diff can reach, the batch walks them all. It takes the
  * machine-wide `check:ui` lane (`ui-admission.ts`), a separate mutex from the
  * heavy gate's, so a PR's own run and this one never overlap on the backend.
+ *
+ * The walk runs OUTSIDE the heavy-mutex hold (issue #4962): the per-batch gate
+ * takes the mutex for the offline gates only (`health-main --phase=offline`),
+ * releases it, and walks afterwards (`--phase=walk`) under the `check:ui` lane
+ * alone — a 12–60 min browser walk needs no suite's CPU budget, and every
+ * queued `land` used to wait it out. `splitHealthGates` is that cut. The
+ * verdict is still ONE record per tip: offline green + walk green = GREEN.
+ * A walk the environment cut short is `infra`, and a walk still in probation
+ * raises no RED marker (`lib/health-verdict.ts`).
  *
  * THE RULE IS COST, NOT PHASE (issue #4963): a guard whose measured cost is
  * ≤ 10 s on the heavy tier belongs in the lane (`check:lane`, paid once by
@@ -158,6 +172,24 @@ export function healthGates(
     touchesBot: boolean
 ): readonly string[] {
     return touchesBot ? [...base, ...BOT_HEALTH_SCRIPTS] : base;
+}
+
+/** The browser walk's own steps: a fresh worktree needs its bootstrap first. */
+export const WALK_BOOTSTRAP = "worktree:init";
+
+/**
+ * One run's gates cut in two (issue #4962): `offline` — everything that is not
+ * the browser walk, in order, the Bot gates included — and `walk`, the
+ * `check:ui` entries, which run after the heavy mutex is released.
+ */
+export function splitHealthGates(gates: readonly string[]): {
+    offline: string[];
+    walk: string[];
+} {
+    return {
+        offline: gates.filter((g) => !isWalkStep(g)),
+        walk: gates.filter((g) => isWalkStep(g)),
+    };
 }
 
 /**
@@ -289,7 +321,13 @@ export function runHealthStep(
                       ? `killed by ${signal}`
                       : "no exit code (spawn failure)";
             out(`${tag} — ${how} after ${fmtElapsed(elapsedMs)}\n`);
-            resolvePromise({ ok: status === 0, status, signal, elapsedMs });
+            resolvePromise({
+                ok: status === 0,
+                status,
+                signal,
+                elapsedMs,
+                output: `${stdout}${stderr}`,
+            });
         };
         // `close`, not `exit`: it fires after both pipes have drained, so the
         // log never loses a tail the child wrote just before exiting.

@@ -475,6 +475,9 @@ export interface HealthRecord {
     failedStep?: string;
     /** `infra` only: why, and what to do (`INFRA_REMEDY`, issue #4943). */
     reason?: string;
+    /** ISO: when the run's current PHASE began — the browser walk, after the
+     *  offline gates released the mutex (issue #4962). Liveness reads it. */
+    phaseStartedAt?: string;
 }
 
 export type ReconcileAction =
@@ -573,7 +576,10 @@ export function reconcileHealthRun(
  * gated by the re-decision its `detach` makes once the run is done.
  *
  * `staleMs` mirrors `health-main.ts`'s own `STALE_RUNNING_MS`: a `running`
- * record older than that belongs to a run that died.
+ * record older than that belongs to a run that died. Its age counts from the
+ * current PHASE (`phaseStartedAt`, issue #4962) when there is one: offline
+ * gates plus the browser walk can outlast `staleMs` together while each phase
+ * stays well inside it.
  */
 export function healthRunInFlight(
     last: HealthRecord | null,
@@ -581,7 +587,7 @@ export function healthRunInFlight(
     staleMs: number = FIRE_DEDUP_MS
 ): string | null {
     if (last === null || last.status !== "running") return null;
-    const startedAt = Date.parse(last.startedAt);
+    const startedAt = Date.parse(last.phaseStartedAt ?? last.startedAt);
     if (!Number.isFinite(startedAt) || now - startedAt >= staleMs) return null;
     return `a health run on ${short(last.sha)} is already in flight`;
 }

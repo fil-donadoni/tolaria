@@ -23,20 +23,25 @@
  *      reach the surface ON A QUIET MACHINE — so a signature that still fails
  *      with the load under the threshold is the walk's own failure, not the
  *      machine's, and is reported as such (its signature kept in the reason).
+ *   4. `walkRunVerdict` — the WHOLE run, as the batch health gate reads it
+ *      (issue #4962): its exit code plus its printed receipt, `pass`, `infra`
+ *      (the environment cut it short) or `red` (the tree is wrong).
  *
  * `index.ts` owns the impure half: collecting console errors per attempt,
  * sampling `os.loadavg()`, sleeping, and recreating a game before a retry.
  */
 
 /** The failure shapes the machine produces. Stable ids: they are printed on
- *  the receipt. */
-export type InfraSignature =
-    | "function-timeout"
-    | "server-error"
-    | "navigation-timeout"
-    | "step-timeout"
-    | "unsettled"
-    | "cell-deadline";
+ *  the receipt, and `walkRunVerdict` reads them back. */
+export const INFRA_SIGNATURES = [
+    "function-timeout",
+    "server-error",
+    "navigation-timeout",
+    "step-timeout",
+    "unsettled",
+    "cell-deadline",
+] as const;
+export type InfraSignature = (typeof INFRA_SIGNATURES)[number];
 
 /** One failed walk attempt, as the lane captured it. */
 export interface WalkFailure {
@@ -202,4 +207,76 @@ export function standingVerdict(
  *  prints them after `INFRA —`. */
 export function infraDetail(signature: InfraSignature, load: number): string {
     return `${signature}, load ${load.toFixed(1)}`;
+}
+
+/**
+ * The whole `check:ui` run as the batch health gate reads it (issue #4962):
+ * `pass`, `infra` — the environment, never the tree, cut it short — or `red`.
+ *
+ * WHY. Of the first ten walks inside health, nine failed and none on a product
+ * defect: a down backend, a sign-in the auth backend refused, and walks whose
+ * own rows said `INFRA` at load 7–12.5. Each wrote a RED marker that stopped
+ * the queue. The walk already says, row by row, which failures were the
+ * machine's; this reads that back instead of treating every non-zero exit as
+ * the tree's.
+ *
+ *   - exit 0 → `pass`.
+ *   - exit 2 (fatal: configuration, sign-in, a thrown run) and exit 3
+ *     (`DEPLOYMENT_DOWN_EXIT`) → `infra`: no surface was judged.
+ *   - exit 1 → `infra` iff it printed at least one failing row and EVERY
+ *     failing row is the machine's: an `INFRA` row, or an `UNWALKED` surface
+ *     whose diagnostic `unwalked` line carries an infra signature — the walk
+ *     itself classified the failure (`classifyWalkFailure`) and only the
+ *     quiet-machine rule (`standingVerdict`) stood it as `UNWALKED`.
+ *     A `FAIL` row (a broken Floor on a cell that settled), an `assert … FAIL`
+ *     row, or an `UNWALKED` with no signature (`View Table did not open …`)
+ *     is `red`. An exit 1 with no failing row to read is `red`: fail closed.
+ *   - any other code (a signal, an unknown exit) → `red`.
+ */
+export type WalkRunVerdict = "pass" | "infra" | "red";
+
+export const WALK_FATAL_EXIT = 2;
+/** `DEPLOYMENT_DOWN_EXIT` (`scripts/lib/convex-reachable.ts`), restated: this
+ *  module imports nothing. `health-verdict.test.ts` pins the two together. */
+export const WALK_DEPLOYMENT_DOWN_EXIT = 3;
+
+/** A verdict row (`formatRow` in `receipt.ts`): `VERDICT surface viewport …`. */
+const VERDICT_ROW = /^(PASS|FAIL|INFRA|UNWALKED) +(\S+) +(\S+)/;
+/** An assertion row (`formatAssertRow`): `assert surface viewport FAIL label`. */
+const ASSERT_FAIL_ROW = /^assert +\S+ +\S+ +FAIL\b/;
+/** A diagnostic `unwalked` line: `unwalked surface — reason`. */
+const UNWALKED_LINE = /^unwalked +(\S+) +\S+ +(.*)$/;
+/** The `(signature, load N…` a walk's own reason carries — `infraDetail`. */
+const SIGNATURE_IN_REASON = new RegExp(
+    `\\((?:${INFRA_SIGNATURES.join("|")}), load \\d`
+);
+
+export function walkRunVerdict(
+    exitCode: number | null,
+    output: string
+): WalkRunVerdict {
+    if (exitCode === 0) return "pass";
+    if (exitCode === WALK_FATAL_EXIT || exitCode === WALK_DEPLOYMENT_DOWN_EXIT)
+        return "infra";
+    if (exitCode !== 1) return "red";
+
+    const lines = output.split("\n").map((l) => l.replace(/\r$/, ""));
+    const machineUnwalked = new Set<string>();
+    for (const line of lines) {
+        const m = UNWALKED_LINE.exec(line);
+        if (m && SIGNATURE_IN_REASON.test(m[2])) machineUnwalked.add(m[1]);
+    }
+    let failing = 0;
+    for (const line of lines) {
+        if (ASSERT_FAIL_ROW.test(line)) return "red";
+        const m = VERDICT_ROW.exec(line);
+        if (!m) continue;
+        const [, verdict, surface] = m;
+        if (verdict === "PASS") continue;
+        failing++;
+        if (verdict === "FAIL") return "red";
+        if (verdict === "UNWALKED" && !machineUnwalked.has(surface))
+            return "red";
+    }
+    return failing > 0 ? "infra" : "red";
 }

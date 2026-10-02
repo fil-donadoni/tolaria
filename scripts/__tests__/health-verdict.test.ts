@@ -151,9 +151,8 @@ describe("health verdict — the Convex deployment is down (issue #4943)", () =>
         ).toBe("convex-down");
     });
 
-    it("is RED for a genuine check:ui failure — a non-PASS verdict, or a fatal", () => {
+    it("is RED for a genuine check:ui failure — a non-PASS verdict it cannot attribute, or a signal", () => {
         expect(failed("check:ui --all", 1)).toBe("red");
-        expect(failed("check:ui --all", 2)).toBe("red");
         expect(failed("check:ui --all", null)).toBe("red");
     });
 

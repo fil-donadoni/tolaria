@@ -53,6 +53,14 @@
  * hold rather than queuing three times. The scenarios:
  * `docs/guides/next-issue-flow.md` § 2 A/B/C.
  *
+ * THE HOLD COVERS THE OFFLINE GATES ONLY (issue #4962). The browser walk
+ * (`check:ui --all`, 12–60 min) needs the local deployment and a browser, not
+ * the suites' CPU budget, and it takes its own `check:ui` lane. So the yield
+ * wraps `health-main --phase=offline`; once that hold is released, this
+ * process runs `health-main --phase=walk`, which finds the walk owed in
+ * `last.json` and writes the run's one verdict. A queued `land` waits for the
+ * offline block, never for the walk.
+ *
  * RED reuses `health-fix.ts` unchanged: `health-main` has already written the
  * durable marker and `last.json`, so the handover is the same one `release`
  * makes. Detached, there is no TTY, so `health:fix` refuses with its own line
@@ -346,15 +354,27 @@ function decideAndRun(root: string, branch: string): Round {
     // `gate.ts`), off the mutex and with no heartbeat.
     delete env.TOLARIA_GATE_HELD;
     delete env.TOLARIA_ALLOW_FULL_SUITE;
-    const r = spawnSync(
+    const offline = spawnSync(
         "bun",
         [
             GATE,
             "yield",
-            `bun ${JSON.stringify(HEALTH_MAIN)} --branch=${branch} --under-lock`,
+            `bun ${JSON.stringify(HEALTH_MAIN)} --branch=${branch} --under-lock --phase=offline`,
         ],
         { stdio: "inherit", cwd: root, env }
     );
+    // The hold is released. The walk runs only if the offline phase left it
+    // owed in the record; otherwise `--phase=walk` says so and exits 0.
+    const walkEnv: NodeJS.ProcessEnv = { ...env };
+    delete walkEnv.TOLARIA_GATE_ROLE;
+    const r =
+        offline.status === 0
+            ? spawnSync("bun", [HEALTH_MAIN, "--phase=walk"], {
+                  stdio: "inherit",
+                  cwd: root,
+                  env: walkEnv,
+              })
+            : offline;
 
     // The RECORD is the verdict, never the exit status, and never the sha this
     // run SNAPSHOTTED: `health-main` re-resolves the tip when it finally gets
