@@ -577,11 +577,26 @@ reap_orphan_claims() {
 # which already stops it for the strictly milder failure of not being able to
 # COUNT the queue. A safety that yields the moment it is inconvenient is not
 # a safety.
+#
+# RESUME BEFORE NEW WORK (issue #4763). A pass that pushed its branch or
+# opened its PR and then ended its turn waiting on a background job dies with
+# the turn (`claude -p`), leaving a `stranded` claim: owner gone, work pushed,
+# usually one `land` away. The plan names those as `resume`, and the head is
+# `resume[0]` before `batch[0]` — handed to a fresh pass as
+# `/next-issue N --resume`, not landed here: the observed recoveries needed
+# `oracle:compile --carry-bot`, a catalogue repack and a gold fixup after the
+# rebase, which is judgment a pass has and this script does not. BOUNDED to
+# one resume per issue per run (`RESUMED_THIS_RUN`): a stranded issue whose
+# resume also died is skipped thereafter — `loop:doctor` keeps naming it on
+# every sweep — so one wedged PR cannot eat the whole run.
 RESOLVED_ISSUE=""
 RESOLVED_MODEL=""
+RESOLVED_RESUME=""
+RESUMED_THIS_RUN=""
 resolve_head() {
     RESOLVED_ISSUE=""
     RESOLVED_MODEL=""
+    RESOLVED_RESUME=""
     # stderr goes to a FILE, never into `$_plan`: `bun run <script>` prints a
     # `$ bun scripts/… ` banner on stderr, and folding that into the captured
     # stdout makes the JSON unparseable — a real dry run against a 230-issue
@@ -598,25 +613,35 @@ resolve_head() {
     # `bun -e` reads the plan off the environment, never argv: a plan is
     # multi-KB of JSON with quotes in it, and interpolating that into a shell
     # word is how a quoting bug becomes an arbitrary-command bug.
-    _head=$(LOOP_PLAN="$_plan" bun -e '
+    # Third word: `new`, or `pr:<N>` / `branch` for a resume (see above).
+    _head=$(LOOP_PLAN="$_plan" LOOP_RESUMED="$RESUMED_THIS_RUN" bun -e '
 const plan = JSON.parse(process.env.LOOP_PLAN || "{}");
+const done = new Set((process.env.LOOP_RESUMED || "").split(/\s+/).filter(Boolean).map(Number));
+const ok = (x) => x && Number.isInteger(x.number) && typeof x.model === "string" && x.model !== "";
+const resume = (plan.resume || []).find((x) => ok(x) && !done.has(x.number));
 const head = (plan.batch || [])[0];
-if (head && Number.isInteger(head.number) && typeof head.model === "string") {
-    process.stdout.write(head.number + " " + head.model);
+if (resume) {
+    process.stdout.write(resume.number + " " + resume.model + " " + (Number.isInteger(resume.pr) ? "pr:" + resume.pr : "branch"));
+} else if (ok(head)) {
+    process.stdout.write(head.number + " " + head.model + " new");
 }
 ' 2>/dev/null) || _head=""
     if [ -z "$_head" ]; then
         echo "loop-drain[error]: pre-flight resolved no ELIGIBLE head issue from the plan — stopping rather than letting a pass pick for itself." >&2
         return 1
     fi
-    RESOLVED_ISSUE=${_head% *}
-    RESOLVED_MODEL=${_head#* }
-    if ! is_uint "$RESOLVED_ISSUE" || [ -z "$RESOLVED_MODEL" ]; then
+    RESOLVED_ISSUE=${_head%% *}
+    _rest=${_head#* }
+    RESOLVED_MODEL=${_rest%% *}
+    _kind=${_rest#* }
+    if ! is_uint "$RESOLVED_ISSUE" || [ -z "$RESOLVED_MODEL" ] ||
+        [ "$_kind" = "$_rest" ]; then
         echo "loop-drain[error]: pre-flight returned an unusable head ('$_head') — stopping rather than letting a pass pick for itself." >&2
         RESOLVED_ISSUE=""
         RESOLVED_MODEL=""
         return 1
     fi
+    [ "$_kind" = "new" ] || RESOLVED_RESUME="$_kind"
     return 0
 }
 
@@ -789,6 +814,15 @@ while :; do
         if resolve_head; then
             pass_prompt="$PASS_PROMPT $RESOLVED_ISSUE"
             pass_model_arg="--model $RESOLVED_MODEL"
+            if [ -n "$RESOLVED_RESUME" ]; then
+                pass_prompt="$pass_prompt --resume"
+                RESUMED_THIS_RUN="$RESUMED_THIS_RUN $RESOLVED_ISSUE"
+                case "$RESOLVED_RESUME" in
+                pr:*) _resume_what="PR #${RESOLVED_RESUME#pr:}" ;;
+                *) _resume_what="pushed branch, no PR" ;;
+                esac
+                echo "loop-drain[warn]: resuming stranded claim #${RESOLVED_ISSUE} (${_resume_what}) — its pass died with pushed work; one resume per issue per run." >&2
+            fi
         else
             stop_reason="preflight-error"
             break

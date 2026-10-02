@@ -33,7 +33,12 @@ export type ClaimStage =
     | "PR open"
     | "merging";
 
-export type ClaimVerdictState = "live" | "suspect" | "orphan" | "recoverable";
+export type ClaimVerdictState =
+    | "live"
+    | "suspect"
+    | "orphan"
+    | "recoverable"
+    | "stranded";
 
 export interface ClaimVerdict {
     state: ClaimVerdictState;

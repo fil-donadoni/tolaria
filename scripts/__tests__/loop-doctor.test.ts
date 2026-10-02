@@ -11,6 +11,9 @@ import {
     DEFAULT_MIN_AGE_HOURS,
     CLAIM_VERDICT_STATES,
     countUnpushedCommits,
+    classifyClaims,
+    fetchOpenPrs,
+    openPrFor,
     type ClaimFacts,
     type ClaimedIssue,
     type ClaimOwner,
@@ -206,7 +209,7 @@ describe("loop-doctor — recoverable: a dead owner that left commits (#3698)", 
         ).toBe("orphan");
     });
 
-    it("a PUSHED branch is still live — its commits are not unpushed at all", () => {
+    it("a PUSHED branch is never `recoverable` — its commits are not unpushed at all (a dead owner makes it `stranded`, issue #4763)", () => {
         expect(
             classifyClaim({
                 ...dead,
@@ -214,7 +217,72 @@ describe("loop-doctor — recoverable: a dead owner that left commits (#3698)", 
                 hasRemoteBranch: true,
                 unpushedCommits: 5,
             }).state
-        ).toBe("live");
+        ).toBe("stranded");
+    });
+});
+
+describe("loop-doctor — stranded: a dead owner that left PUSHED work (issue #4763)", () => {
+    // Observed 2026-09-27: two passes opened their PRs, ended their turns
+    // "waiting" on a background job and died with them (`claude -p`). Both
+    // claims read `live` on `open PR` alone, and the cap refused the next
+    // pick at 3/3 with one session running.
+    const pushed = (extra: Partial<ClaimFacts>): ClaimFacts => ({
+        ...base,
+        ...extra,
+    });
+
+    for (const [what, facts] of [
+        ["an open PR", { hasOpenPr: true }],
+        ["a pushed branch", { hasRemoteBranch: true }],
+    ] as const) {
+        it(`${what} + a PROVABLY dead owner is \`stranded\` — not live, not orphan, not recoverable`, () => {
+            const v = classifyClaim(pushed({ ...facts, ownerAlive: false }));
+            expect(v.state).toBe("stranded");
+            expect(v.reason).toMatch(/label is NOT released/);
+        });
+
+        it(`${what} with an UNKNOWN or live owner stays \`live\``, () => {
+            // `null` = could not tell; only a positive death reading moves it.
+            for (const ownerAlive of [null, true]) {
+                expect(
+                    classifyClaim(pushed({ ...facts, ownerAlive })).state
+                ).toBe("live");
+            }
+        });
+    }
+
+    it("classifyClaims names the stranded claim's PR number", () => {
+        const issues: ClaimedIssue[] = [
+            { number: 4506, title: "a", updatedAt: new Date(0).toISOString() },
+            { number: 4470, title: "b", updatedAt: new Date(0).toISOString() },
+        ];
+        const prs = new Map<string, number | null>([["fix/issue-4506", 4760]]);
+        const rows = classifyClaims(issues, {
+            prBranches: new Set(prs.keys()),
+            prs,
+            branches: { local: [], remote: ["feat/issue-4470"] },
+            owners: new Map(),
+            baseRef: "origin/staging",
+            now: 0,
+            countRunner: () => "0",
+        });
+        expect(rows.map((r) => [r.issue, r.pr])).toEqual([
+            [4506, 4760],
+            [4470, null],
+        ]);
+    });
+
+    it("fetchOpenPrs reads head → number, and openPrFor uses the issue-N suffix rule", () => {
+        const prs = fetchOpenPrs(() =>
+            JSON.stringify([
+                { headRefName: "fix/issue-4506", number: 4760 },
+                { headRefName: "feat/issue-45060", number: 1 },
+                { headRefName: "feat/issue-4470" },
+            ])
+        );
+        expect(openPrFor(4506, prs)).toBe(4760);
+        expect(openPrFor(4470, prs)).toBeNull();
+        expect(openPrFor(999, prs)).toBeNull();
     });
 });
 
@@ -377,10 +445,11 @@ describe("loop-doctor — owner liveness (#2627)", () => {
         expect(v.reason).toMatch(/no branch, no PR/);
     });
 
-    it("AC2 — a PUSHED branch is left alone whatever its age, dead owner or not", () => {
-        // The owner process of a pushed branch is routinely gone — the pass
-        // ended, the branch is waiting on review or the merge-train. Age and
-        // owner-death together must still not touch it.
+    it("AC2 — a PUSHED branch is never released whatever its age; a dead owner makes it `stranded`, not `orphan` (issue #4763)", () => {
+        // Age and owner-death together must still not RELEASE pushed work.
+        // Since issue #4763 they no longer read `live` either: under ADR 0110
+        // nothing lands a PR whose pass is gone, so that pass holds no session
+        // — `stranded` keeps the label and gives up the cap slot.
         expect(
             classifyClaim({
                 ...base,
@@ -388,10 +457,10 @@ describe("loop-doctor — owner liveness (#2627)", () => {
                 ageHours: 500,
                 ownerAlive: false,
             }).state
-        ).toBe("live");
+        ).toBe("stranded");
         expect(
             classifyClaim({ ...base, hasOpenPr: true, ownerAlive: false }).state
-        ).toBe("live");
+        ).toBe("stranded");
     });
 
     it("AC3 — a claim younger than the classifier's threshold survives a dead owner reading", () => {

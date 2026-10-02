@@ -51,6 +51,7 @@ import {
 } from "./lib/board-priority";
 import {
     capCensus,
+    resumeItems,
     capRefusal,
     buildPlanRecord,
     lineageRefusal,
@@ -69,7 +70,7 @@ import {
 import { ORIGIN_BASE, sessionCap } from "./lib/branches";
 import { primaryCheckout } from "./lib/primary-checkout";
 import { infraNotice, type InfraRecord } from "./lib/health-verdict";
-import { claimLedgerPath, claimVerdicts } from "./loop-doctor";
+import { claimClassifications, claimLedgerPath } from "./loop-doctor";
 
 // Computed the same way scripts/__tests__/land.test.ts computes it (from a
 // FILE's own directory, not from `import.meta.dir`, which is bun-only and
@@ -833,30 +834,41 @@ function main(): void {
     // gone, committed work on a local branch) burns no CPU. The label stays:
     // releasing it is `loop:doctor --release`'s call alone. An issue with no
     // verdict counts as live — uncertainty never authorises more concurrency.
+    // A `stranded` claim (issue #4763: owner gone, work pushed) gives up its
+    // slot the same way, and is handed to the next pass as `resume`.
+    const classified = claimClassifications(
+        issues
+            .filter((i) => reconciled.includes(i.number))
+            .map((i) => ({
+                number: i.number,
+                title: i.title,
+                updatedAt: i.updatedAt,
+            })),
+        ORIGIN_BASE,
+        process.env.CLAUDE_PROJECT_DIR ?? primaryCheckout()
+    );
     const census = capCensus(
         reconciled,
-        claimVerdicts(
-            issues
-                .filter((i) => reconciled.includes(i.number))
-                .map((i) => ({
-                    number: i.number,
-                    title: i.title,
-                    updatedAt: i.updatedAt,
-                })),
-            ORIGIN_BASE,
-            process.env.CLAUDE_PROJECT_DIR ?? primaryCheckout()
-        )
+        new Map(classified.map((c) => [c.issue, c.verdict.state]))
     );
     const admission = capRefusal(
         census.live,
         sessionCap(),
         process.argv.includes("--no-cap"),
-        census.recoverable
+        census.recoverable,
+        census.stranded
     );
     // Refuse BEFORE the artefact is written and before anything reaches
     // stdout: no plan was handed out, so no plan record should claim one was,
     // and `loop-drain` reads a non-zero exit as "stop", which is the point.
     if (!admission.admitted) die(admission.message);
+
+    plan.resume = resumeItems(
+        classified,
+        issues,
+        config,
+        (n) => port.issueDetail(n).body
+    );
 
     writePlanArtefact(plan, config.now, lineage);
 

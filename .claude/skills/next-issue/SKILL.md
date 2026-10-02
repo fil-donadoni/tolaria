@@ -87,6 +87,16 @@ Waiting inside ONE foreground call is not polling: `gate:run` blocks in the
 shell, so the transcript grows by one line per call, not by one turn per
 `sleep`.
 
+**A pass never ends its turn waiting** (issue #4763) — at ANY point: before
+the PR or after it, on a gate, a regenerator (`oracle:compile`), a test suite
+or a `land` retry. Under `claude -p` the end of the turn is the end of the
+process, so "waiting for X to finish" or "it'll notify when done" is the pass
+dying with its claim held; observed four times in two runs, twice leaving a
+`MERGEABLE` PR nothing landed. Whatever the pass needs the result of runs in
+the FOREGROUND — `gate:run` for a gate, a foreground call with `timeout` up to
+600000ms otherwise — and the turn ends only on a verdict: landed, or a failure
+reported as a failure.
+
 None of this narrows what you may read. It is about the SHAPE of what enters
 the transcript: read the whole issue, run the whole gate — just don't carry
 the rendering of either for the rest of the session.
@@ -123,6 +133,14 @@ the rendering of either for the rest of the session.
   radius — use it to scope your reading and to route the review in §4; a
   missing or comma-joined section is worth fixing in the issue while you are
   there.
+- **`/next-issue N --resume` — a STRANDED claim** (issue #4763). The AFK
+  driver hands this when `queue:plan`'s `resume` list names N: a pass pushed
+  its branch or opened its PR, then died. The work exists — do not start over.
+  `queue:claim N` takes the claim over (a stranded claim holds no cap slot, so
+  it admits), and the worktree is `cd "$(bun run --silent wt:new N --resume)"`:
+  the dead pass's branch, never a fresh one. Open PR → read it against the
+  issue, then straight to §5. Branch with no PR → finish §3–§4 on it, open the
+  PR, §5.
 
 ## 1. Model check (before any work)
 
@@ -270,6 +288,11 @@ wrong-mental-model defect, see §1's escalation note.
   anywhere — including the primary checkout — and it re-attaches.
 - Exit 75 means "still running": issue the identical command again, as many
   times as it takes, until an exit code comes back. Never end the turn on a 75.
+- **A `land` that reds on a regenerable artefact** (oracle lockfile, catalogue
+  hash, after the rebase) is fixed in THIS turn — run the regenerator in the
+  foreground, commit, push, re-issue `land` through `gate:run` — or reported
+  as a failure in §6. Never "waiting for `oracle:compile`" (see § Context
+  hygiene: a pass never ends its turn waiting).
 - `bun run gate:run land <PR#>` rebases onto the base branch, runs the lane
   gate under the machine mutex, merges into the base branch, tears down the
   worktree and both branch refs. Its log says `lane: ran`, or

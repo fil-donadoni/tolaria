@@ -46,6 +46,9 @@ export interface ClaimInput {
      *  points at the branches to resume. Not part of the decision: they are
      *  already absent from `live`. */
     recoverable?: number[];
+    /** Same, for `stranded` claims (issue #4763). Not in `live` either — so
+     *  the collision check below admits a pass RESUMING one. */
+    stranded?: number[];
 }
 
 /**
@@ -68,7 +71,8 @@ export function claimDecision(input: ClaimInput): ClaimDecision {
         input.live,
         input.cap,
         input.noCap,
-        input.recoverable ?? []
+        input.recoverable ?? [],
+        input.stranded ?? []
     );
 }
 

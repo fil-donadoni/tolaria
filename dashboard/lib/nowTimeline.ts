@@ -133,12 +133,14 @@ const PASS_GLYPH: Record<PassOutcome, string> = {
 const CLAIM_TONE: Record<ClaimVerdictState, Tone> = {
     orphan: "bad",
     recoverable: "bad",
+    stranded: "bad",
     suspect: "warn",
     live: "good",
 };
 const CLAIM_MARK: Record<ClaimVerdictState, string> = {
     orphan: "×",
     recoverable: "!",
+    stranded: "~",
     suspect: "?",
     live: "·",
 };

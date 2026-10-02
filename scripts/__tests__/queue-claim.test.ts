@@ -292,7 +292,11 @@ describe("queue:claim — the cap counts LIVE SESSIONS, not labels (issue #4384)
                 [30, "recoverable"],
             ])
         );
-        expect(census).toEqual({ live: [10], recoverable: [20, 30] });
+        expect(census).toEqual({
+            live: [10],
+            recoverable: [20, 30],
+            stranded: [],
+        });
         const d = claimDecision({
             issue: 40,
             live: census.live,
@@ -316,7 +320,11 @@ describe("queue:claim — the cap counts LIVE SESSIONS, not labels (issue #4384)
                 // #30 deliberately absent — no reading at all.
             ])
         );
-        expect(census).toEqual({ live: [10, 20, 30], recoverable: [] });
+        expect(census).toEqual({
+            live: [10, 20, 30],
+            recoverable: [],
+            stranded: [],
+        });
         const d = claimDecision({
             issue: 40,
             live: census.live,
@@ -341,7 +349,7 @@ describe("queue:claim — the cap counts LIVE SESSIONS, not labels (issue #4384)
                     [30, "recoverable"],
                 ])
             )
-        ).toEqual({ live: [10, 20], recoverable: [30] });
+        ).toEqual({ live: [10, 20], recoverable: [30], stranded: [] });
     });
 
     it("the refusal breaks the count into live / recoverable and names `bun run loop:doctor`", () => {
@@ -447,7 +455,94 @@ describe("queue:claim — the cap counts LIVE SESSIONS, not labels (issue #4384)
         ).toEqual({
             live: [4400],
             recoverable: [4117, 4306],
+            stranded: [],
         });
+    });
+});
+
+describe("queue:claim — a STRANDED claim holds no slot (issue #4763)", () => {
+    // The observed wedge: #4470 and #4506 each had an open PR and a dead
+    // owner, #4761 a live pass — and the cap refused at 3/3. End to end over
+    // the SAME classifier the verbs import, not a hand-written verdict map.
+    const probe: ProcessProbe = (pid) =>
+        pid === 999 ? "Sun Sep 27 09:00:00 2026" : "";
+    const owner = (session: string, pid: number) => ({
+        session,
+        pid,
+        startedAt:
+            pid === 999
+                ? "Sun Sep 27 09:00:00 2026"
+                : "Sun Sep 27 08:00:00 2026",
+    });
+    const classified = () =>
+        classifyClaims(
+            [
+                { number: 4470, title: "a", updatedAt: "2026-09-27T11:00:00Z" },
+                { number: 4506, title: "b", updatedAt: "2026-09-27T11:00:00Z" },
+                { number: 4761, title: "c", updatedAt: "2026-09-27T11:00:00Z" },
+            ],
+            {
+                prBranches: new Set([
+                    "feat/issue-4470",
+                    "fix/issue-4506",
+                    "feat/issue-4761",
+                ]),
+                branches: { local: [], remote: [] },
+                owners: new Map([
+                    [4470, owner("s1", 111)],
+                    [4506, owner("s2", 222)],
+                    [4761, owner("s3", 999)],
+                ]),
+                baseRef: "origin/staging",
+                now: Date.parse("2026-09-27T12:00:00Z"),
+                probe,
+                countRunner: () => "0",
+            }
+        );
+
+    it("2 stranded + 1 live at a cap of 3 admits a pick", () => {
+        const states = new Map(
+            classified().map((c) => [c.issue, c.verdict.state])
+        );
+        expect([...states]).toEqual([
+            [4470, "stranded"],
+            [4506, "stranded"],
+            [4761, "live"],
+        ]);
+        const census = capCensus([4470, 4506, 4761], states);
+        expect(census).toEqual({
+            live: [4761],
+            recoverable: [],
+            stranded: [4470, 4506],
+        });
+        expect(
+            claimDecision({ issue: 4800, cap: 3, noCap: false, ...census })
+                .admitted
+        ).toBe(true);
+    });
+
+    it("a pass RESUMING a stranded claim is not refused as a collision", () => {
+        const census = capCensus(
+            [4470, 4506, 4761],
+            new Map(classified().map((c) => [c.issue, c.verdict.state]))
+        );
+        expect(
+            claimDecision({ issue: 4506, cap: 3, noCap: false, ...census })
+                .admitted
+        ).toBe(true);
+    });
+
+    it("the refusal names stranded claims when the cap is still full", () => {
+        const d = claimDecision({
+            issue: 40,
+            live: [10, 20, 30],
+            cap: 3,
+            noCap: false,
+            stranded: [4470],
+        });
+        expect(d.admitted).toBe(false);
+        if (!d.admitted)
+            expect(d.message).toMatch(/1 stranded \(not counted\): #4470/);
     });
 });
 
@@ -483,6 +578,7 @@ describe("queue:claim — a FAILED read may only make the cap stricter (issue #4
         expect(capCensus([10, 20], verdicts)).toEqual({
             live: [10, 20],
             recoverable: [],
+            stranded: [],
         });
     });
 
@@ -524,7 +620,9 @@ describe("queue:claim — ONE liveness definition, imported (issue #4384)", () =
     for (const verb of ["queue-claim.ts", "queue-plan.ts"]) {
         it(`${verb} imports the classifier from loop-doctor and re-implements nothing`, () => {
             const source = read(verb);
-            expect(source).toMatch(/claimVerdicts/);
+            // `claimVerdicts`, or its full-row form `claimClassifications`
+            // (queue:plan needs the stranded claims' PR numbers, issue #4763).
+            expect(source).toMatch(/claimVerdicts|claimClassifications/);
             expect(source).toMatch(/from "\.\/loop-doctor"/);
             expect(source).toMatch(/capCensus/);
             // No private opinion on liveness: the facts and the thresholds

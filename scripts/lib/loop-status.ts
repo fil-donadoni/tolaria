@@ -990,7 +990,17 @@ export function gatherSection<T>(fn: () => T, label: string): Section<T> {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function verdictMark(state: ClaimVerdict["state"]): string {
-    return state === "orphan" ? "×" : state === "suspect" ? "?" : "·";
+    // Same marks as `loop:doctor`'s roster (`!` recoverable, `~` stranded,
+    // issue #4763).
+    return state === "orphan"
+        ? "×"
+        : state === "suspect"
+          ? "?"
+          : state === "recoverable"
+            ? "!"
+            : state === "stranded"
+              ? "~"
+              : "·";
 }
 
 /**

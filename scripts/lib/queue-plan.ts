@@ -469,6 +469,13 @@ export interface BatchPlan {
      * umbrella as `skipped`.
      */
     activeClaims: number[];
+    /**
+     * Stranded claims for the next pass to RESUME before it starts anything
+     * new (issue #4763) — set by the wrapper from the liveness classifier,
+     * never by `planBatch` (which holds no process evidence). `loop-drain`
+     * takes `resume[0]` over `batch[0]`.
+     */
+    resume?: ResumeItem[];
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -740,7 +747,7 @@ function lintAction(blocking: Finding[]): SkipAction {
 // Model routing
 // ─────────────────────────────────────────────────────────────────────────────
 
-function resolveModel(
+export function resolveModel(
     issue: QueueIssue,
     config: PlanConfig
 ): { model: string; ambiguity?: string[] } {
@@ -1315,7 +1322,14 @@ export function releasedClaims(ledgerText: string): number[] {
  * drop, and the 24-hour stale rule already removes the abandoned ones before
  * they reach here.
  *
- * Both lists sorted, so a refusal message is reproducible.
+ * A `stranded` claim (issue #4763) is the same corpse one step later: owner
+ * provably gone, but the work was PUSHED — an open PR or a pushed branch.
+ * Before it had a state of its own it read `live` on the PR alone, and two of
+ * them refused every pick at `3/3 live claims` with one session running. It
+ * gives up its slot on the same evidence; the label stands, and the plan
+ * hands it to the next pass as `resume`.
+ *
+ * All lists sorted, so a refusal message is reproducible.
  */
 export function capCensus(
     claims: number[],
@@ -1323,11 +1337,14 @@ export function capCensus(
 ): CapCensus {
     const live: number[] = [];
     const recoverable: number[] = [];
+    const stranded: number[] = [];
     for (const n of [...new Set(claims)].sort((a, b) => a - b)) {
-        if (verdicts.get(n) === "recoverable") recoverable.push(n);
+        const state = verdicts.get(n);
+        if (state === "recoverable") recoverable.push(n);
+        else if (state === "stranded") stranded.push(n);
         else live.push(n);
     }
-    return { live, recoverable };
+    return { live, recoverable, stranded };
 }
 
 export interface CapCensus {
@@ -1335,6 +1352,58 @@ export interface CapCensus {
     live: number[];
     /** Claims proved recoverable — the label stands, the slot does not. */
     recoverable: number[];
+    /** Claims proved stranded (pushed work, dead owner, issue #4763) — the
+     *  label stands, the slot does not. */
+    stranded: number[];
+}
+
+/** A stranded claim handed to the next pass (issue #4763): the issue, its
+ *  open PR (`null` = branch pushed, no PR) and the tier its labels route to. */
+export interface ResumeItem {
+    number: number;
+    pr: number | null;
+    model: string;
+}
+
+/**
+ * The plan's `resume` list (issue #4763): every `stranded` claim, oldest
+ * issue first, on the tier its own `model:*` labels route to — the SAME
+ * `resolveModel` the batch uses, so a resumed `model:opus` issue is not
+ * quietly finished on the default tier. A stranded issue missing from the
+ * queue read (label dropped meanwhile) has no labels to route by and is left
+ * out rather than guessed.
+ *
+ * `--exclude-hitl` holds here too: a resumed pass ends in `land`, which
+ * merges, so an HITL issue a dead pass stranded is left for its human exactly
+ * as an unstarted one is (#3088). `bodyOf` is the wrapper's cached detail
+ * read, asked only for a stranded claim under that flag.
+ */
+export function resumeItems(
+    classified: {
+        issue: number;
+        verdict: { state: ClaimVerdictState };
+        pr: number | null;
+    }[],
+    issues: QueueIssue[],
+    config: PlanConfig,
+    bodyOf: (issue: number) => string = () => ""
+): ResumeItem[] {
+    const byNumber = new Map(issues.map((i) => [i.number, i]));
+    return classified
+        .filter((c) => c.verdict.state === "stranded")
+        .flatMap((c) => {
+            const issue = byNumber.get(c.issue);
+            if (!issue) return [];
+            if (config.excludeHitl && isHitl(bodyOf(c.issue))) return [];
+            return [
+                {
+                    number: c.issue,
+                    pr: c.pr,
+                    model: resolveModel(issue, config).model,
+                },
+            ];
+        })
+        .sort((a, b) => a.number - b.number);
 }
 
 export interface AdmissionInput {
@@ -1351,6 +1420,8 @@ export interface AdmissionInput {
      *  here too, so the combined decision and `capRefusal` cannot disagree
      *  about what a refusal SAYS if a caller ever reaches for this one. */
     recoverable?: number[];
+    /** Same, for `stranded` claims (issue #4763). */
+    stranded?: number[];
 }
 
 export type Admission =
@@ -1401,15 +1472,22 @@ export function capRefusal(
     /** Claims excluded from the count by `capCensus` — named in the message so
      *  the refusal points at the branches to resume, not only at `--no-cap`
      *  (issue #4384). */
-    recoverable: number[] = []
+    recoverable: number[] = [],
+    /** Same, for `stranded` claims (issue #4763). */
+    stranded: number[] = []
 ): Admission {
     if (noCap || claims.length < cap) return { admitted: true };
-    const breakdown =
+    const recoverableLine =
         recoverable.length === 0
             ? ""
             : `  ${claims.length + recoverable.length} claimed, ${claims.length} live, ${recoverable.length} recoverable (not counted): ` +
               `${recoverable.map((n) => `#${n}`).join(", ")} — a dead pass left committed work on branch *issue-N.\n` +
               `  \`bun run loop:doctor\` names them; resume or salvage those branches (the label is not released by hand).\n`;
+    const strandedLine =
+        stranded.length === 0
+            ? ""
+            : `  ${stranded.length} stranded (not counted): ${stranded.map((n) => `#${n}`).join(", ")} — a dead pass left pushed work (PR or branch); the plan's \`resume\` hands it to the next pass.\n`;
+    const breakdown = recoverableLine + strandedLine;
     return {
         admitted: false,
         refusal: "cap",
@@ -1491,6 +1569,7 @@ export function admitPick(input: AdmissionInput): Admission {
         input.claims,
         input.cap,
         input.noCap,
-        input.recoverable ?? []
+        input.recoverable ?? [],
+        input.stranded ?? []
     );
 }

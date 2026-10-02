@@ -131,6 +131,16 @@ describe("next-issue consumes the planner (issue #2184, re-homed by ADR 0110)", 
         expect(body()).not.toMatch(/health:main/);
     });
 
+    it("a pass never ends its turn waiting, and resumes a stranded claim through `wt:new --resume` (issue #4763)", () => {
+        // Under `claude -p` the end of the turn is the end of the process: a
+        // pass that "waits for oracle:compile" dies holding its claim, PR and
+        // all. The rule holds at ANY point of the pass, not only in `land`.
+        expect(body()).toMatch(/A pass never ends its turn waiting/);
+        expect(body()).toMatch(/at ANY point/);
+        expect(body()).toMatch(/\/next-issue N --resume/);
+        expect(body()).toMatch(/wt:new N --resume/);
+    });
+
     it("§3's cards short path is keyed on the LANE, not on how simple the card reads (ADR 0136 §8, issue #3781)", () => {
         // The failure this guards: a session deciding by eye that a card is
         // "simple enough" to skip its test. The lane is the only thing that
