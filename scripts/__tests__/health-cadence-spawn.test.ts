@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
@@ -22,6 +22,11 @@ import { join, resolve } from "node:path";
  * disk after the gate is gone. The decision itself is replaced by
  * `TOLARIA_HEALTH_DETACH_CMD` (a real one would fetch from origin); what is
  * under test is the process topology, not the decision.
+ *
+ * Why `nohup … &` is not enough is stated in `health-cadence.ts`'s header. It
+ * used to be restated here as a CONTROL test that raced a 2 s `sleep` against
+ * the group kill; that race lost under load often enough to red health and
+ * `land` alone (issue #4961), so the hazard is documented, not executed.
  */
 const GATE = resolve(__dirname, "..", "gate.ts");
 const CADENCE = resolve(__dirname, "..", "health-cadence.ts");
@@ -64,15 +69,23 @@ describe("health-cadence spawn — the decision outlives land's process group", 
     /** The marker the overridden decision writes after the gate is long gone. */
     const marker = () => join(root, "decided.marker");
 
-    it("survives the gate's group kill, which a backgrounded child does not", async () => {
+    it("survives the gate's group kill", async () => {
+        // The decision blocks on a file only the test creates, so "the landing
+        // did not wait for it" is a fact about ordering, never a race between
+        // a `sleep` and a loaded machine (issue #4961). It also stops once
+        // `afterEach` removes `root`, so a red run leaves no immortal poller.
+        const release = join(root, "release");
         const step =
             `(cd ${JSON.stringify(root)} && bun ${JSON.stringify(CADENCE)} spawn || ` +
             `echo "land: could not start the batch health decision" >&2; true)`;
         const r = spawnSync("bun", [GATE, "light", `echo merged && ${step}`], {
             encoding: "utf8",
             cwd: lockRoot,
+            timeout: 60_000,
             env: env({
-                TOLARIA_HEALTH_DETACH_CMD: `sleep 2; printf decided > ${JSON.stringify(marker())}`,
+                TOLARIA_HEALTH_DETACH_CMD:
+                    `while [ ! -e ${JSON.stringify(release)} ] && [ -d ${JSON.stringify(root)} ]; do sleep 0.05; done; ` +
+                    `printf decided > ${JSON.stringify(marker())}`,
             }),
         });
         // The landing itself is green and did not wait for the decision.
@@ -81,27 +94,12 @@ describe("health-cadence spawn — the decision outlives land's process group", 
         expect(existsSync(marker())).toBe(false);
 
         // …and the decision, orphaned by the gate's exit, still runs.
+        writeFileSync(release, "");
         expect(
             await waitFor(() => existsSync(marker())),
             "the detached decision was killed with land's process group"
         ).toBe(true);
-    });
-
-    it("CONTROL — the same work merely backgrounded IS killed (why `nohup … &` is not enough)", async () => {
-        // Not a test of our code: the executable statement of the hazard the
-        // test above guards, so a future reader can see that `nohup … &` was
-        // rejected for a measured reason rather than a stylistic one.
-        const doomed = join(root, "backgrounded.marker");
-        const r = spawnSync(
-            "bun",
-            [
-                GATE,
-                "light",
-                `echo merged && ((cd ${JSON.stringify(root)} && nohup sh -c ${JSON.stringify(`sleep 2; printf x > ${doomed}`)} >/dev/null 2>&1 &) || true)`,
-            ],
-            { encoding: "utf8", cwd: lockRoot, env: env() }
-        );
-        expect(r.status).toBe(0);
-        expect(await waitFor(() => existsSync(doomed), 5_000)).toBe(false);
-    });
+        // Above the 60 s spawn bound plus the 20 s wait, so either of those
+        // names the failure before vitest's own timeout does.
+    }, 90_000);
 });
