@@ -20,10 +20,7 @@ import {
     uiWalkStateOf,
     walkFailureCause,
 } from "../lib/health-verdict";
-import {
-    WALK_DEPLOYMENT_DOWN_EXIT,
-    walkRunVerdict,
-} from "../ui-gate/infra-verdict";
+import { walkRunVerdict } from "../ui-gate/infra-verdict";
 
 /** Rows in the exact shapes `receipt.ts` prints them, lifted from the health
  *  logs of aa785cf0 (all machine) and e1902d33 (one surface the walk could
@@ -115,10 +112,6 @@ describe("walkRunVerdict — the walk's own receipt says whose failure it was (i
         expect(walkRunVerdict(1, "")).toBe("red");
         expect(walkRunVerdict(null, run(INFRA_ROW))).toBe("red");
         expect(walkRunVerdict(4, run(INFRA_ROW))).toBe("red");
-    });
-
-    it("restates DEPLOYMENT_DOWN_EXIT exactly (the module imports nothing)", () => {
-        expect(WALK_DEPLOYMENT_DOWN_EXIT).toBe(DEPLOYMENT_DOWN_EXIT);
     });
 });
 

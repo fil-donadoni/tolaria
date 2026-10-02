@@ -76,7 +76,7 @@
  * `lib/health-verdict.ts`, `lib/convex-reachable.ts` and
  * `lib/health-bot-refresh.ts` (builtins and the import-free
  * `lib/bot-globs.ts` only), and through `lib/health-verdict.ts` the
- * import-free `ui-gate/infra-verdict.ts` — same constraint as
+ * `ui-gate/infra-verdict.ts` (builtins and `lib/convex-reachable.ts`) — same constraint as
  * bootstrap-worktree.
  */
 import { spawnSync } from "node:child_process";

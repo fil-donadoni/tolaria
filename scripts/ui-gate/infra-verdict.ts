@@ -8,7 +8,7 @@
  * to report the surface `UNWALKED` with a reason that blamed the surface. A UI
  * change read as broken because another session was running a gate.
  *
- * WHAT IS HERE. Three pure decisions, no browser, no clock, no `os`:
+ * WHAT IS HERE. Pure decisions, no browser, no clock, no `os`:
  *
  *   1. `classifyWalkFailure` — a failed attempt, by its SIGNATURE (the console
  *      errors the page logged during the attempt, then the thrown message), is
@@ -30,6 +30,7 @@
  * `index.ts` owns the impure half: collecting console errors per attempt,
  * sampling `os.loadavg()`, sleeping, and recreating a game before a retry.
  */
+import { DEPLOYMENT_DOWN_EXIT } from "../lib/convex-reachable";
 
 /** The failure shapes the machine produces. Stable ids: they are printed on
  *  the receipt, and `walkRunVerdict` reads them back. */
@@ -236,9 +237,6 @@ export function infraDetail(signature: InfraSignature, load: number): string {
 export type WalkRunVerdict = "pass" | "infra" | "red";
 
 export const WALK_FATAL_EXIT = 2;
-/** `DEPLOYMENT_DOWN_EXIT` (`scripts/lib/convex-reachable.ts`), restated: this
- *  module imports nothing. `health-verdict.test.ts` pins the two together. */
-export const WALK_DEPLOYMENT_DOWN_EXIT = 3;
 
 /** A verdict row (`formatRow` in `receipt.ts`): `VERDICT surface viewport …`. */
 const VERDICT_ROW = /^(PASS|FAIL|INFRA|UNWALKED) +(\S+) +(\S+)/;
@@ -256,7 +254,7 @@ export function walkRunVerdict(
     output: string
 ): WalkRunVerdict {
     if (exitCode === 0) return "pass";
-    if (exitCode === WALK_FATAL_EXIT || exitCode === WALK_DEPLOYMENT_DOWN_EXIT)
+    if (exitCode === WALK_FATAL_EXIT || exitCode === DEPLOYMENT_DOWN_EXIT)
         return "infra";
     if (exitCode !== 1) return "red";
 

@@ -15,7 +15,7 @@
  *
  * Plain appended lines, no TTY tricks, so the output stays greppable.
  *
- * Node builtins plus `lib/health-verdict.ts` (builtins and import-free
+ * Node builtins plus `lib/health-verdict.ts` (builtins and builtins-only
  * modules only) — `health-main.ts` carries the same constraint.
  */
 import { spawn } from "node:child_process";

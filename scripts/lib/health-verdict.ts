@@ -38,8 +38,8 @@
  * gate that has not yet shown it can tell the two apart may not stop the
  * queue. `release` reads only `green`, so it still requires the walk to pass.
  *
- * Node builtins plus `lib/convex-reachable.ts` (itself builtins only) and the
- * import-free `ui-gate/infra-verdict.ts` — `health-main.ts` carries the same
+ * Node builtins plus `lib/convex-reachable.ts` (itself builtins only) and
+ * `ui-gate/infra-verdict.ts` (which adds only `lib/convex-reachable.ts`) — `health-main.ts` carries the same
  * constraint.
  */
 import { spawnSync } from "node:child_process";
