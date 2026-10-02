@@ -1357,28 +1357,53 @@ they wait, printing `machine busy — load L, swap S` with the reason, bounded b
 in `health-verdict.ts` — never a `RED` marker — and `land` prints that the PR
 is untouched: not landed, not failed, re-issue. The heavy gate waits UNDER the
 mutex, so the queue's order holds and no second gate starts on the machine the
-first one is waiting for. A nested call and the light tier do not ask.
+first one is waiting for, restamping its owner record on every poll so a long
+wait never reads as a silent holder. A nested call and the light tier do not
+ask, and neither does `land`'s housekeeping pass over an already-merged PR
+(`git` and `gh` only). The gate's escape is `TOLARIA_GATE_SATURATED_OK=1`,
+announced on the gate's own line and logged — deliberately NOT the session's
+variable below: a session admitted past the cap hands its environment to every
+gate it runs, and those must still wait.
+
+On the batch path the gate that never starts is `gate.ts yield`, and
+`health-main` — the only writer of `last.json` — never runs under it. So
+`health-cadence` writes the `infra` record in its place (`preflight:machine`);
+otherwise `health:status` would go on showing the previous verdict for a tip
+nothing gated.
 
 **Session.** A session's first prompt (`.claude/hooks/session-admission.sh`, a
 `UserPromptSubmit` hook: exit 2 blocks the prompt), `queue:claim` and `wt:new`
 take the same decision: the OTHER live project sessions against the effective
-cap, plus memory pressure. A session is refused, not queued, and the refusal
+cap, plus memory pressure. Pressure refuses a session only BESIDE others —
+alone it is the session that would relieve it — and only when sustained: the
+kernel's level flickers (one reading at 2, then six at 1 over thirty seconds,
+2026-10-02), so a reading past normal is taken up to three times half a second
+apart and the calmest stands. A session is refused, not queued, and the refusal
 names every live session (pid, cwd, age) and the one escape —
 `TOLARIA_OVER_CAP=1 claude`, announced and logged like `--no-cap`. A live
 project session is a `claude` process whose cwd is the primary checkout or one
 of its worktrees; the cwd is what excludes the background daemon (`$HOME`), its
 pty hosts and an unclaimed spare (the daemon's scratch directory), and a
 session on another project. Once admitted a session is stamped under
-`~/.cache/tolaria/sessions/` and never asked again.
+`~/.cache/tolaria/sessions/` with the pid of its `claude` process, and is not
+asked again while that process lives: `claude --resume` keeps the session id
+and is a new process — a new arrival on the machine — so it is asked again.
+
+Two callers that are not a person at a terminal. `health:fix` starts its fixer
+with `TOLARIA_OVER_CAP=1`: a RED tip is repaired first, and a repair refused
+because three sessions are stacking work on that tip is the cap defeating its
+own purpose. An AFK pass (`claude -p`) gets no exemption — it is a session —
+so a pass refused at its first prompt ends having done nothing, which
+`loop-drain` already bounds (its error and no-progress streaks).
 
 **Saturated means two things, and swap is not one of them.**
 
-| Signal          | Saturated when                        | Gates | Sessions |
-| --------------- | ------------------------------------- | :---: | :------: |
-| 1-minute load   | over `machine.loadMax`                |  yes  |    no    |
-| Memory pressure | the kernel's level is past 1 (normal) |  yes  |   yes    |
-| Reclaimable RAM | holds no further `sessionBudgetMb`    |  no   |   yes    |
-| Swap in use     | never — recorded beside every run     |  no   |    no    |
+| Signal          | Saturated when                        | Gates |   Sessions    |
+| --------------- | ------------------------------------- | :---: | :-----------: |
+| 1-minute load   | over `machine.loadMax`                |  yes  |      no       |
+| Memory pressure | the kernel's level is past 1 (normal) |  yes  | beside others |
+| Reclaimable RAM | holds no further `sessionBudgetMb`    |  no   |      yes      |
+| Swap in use     | never — recorded beside every run     |  no   |      no       |
 
 Load gates what is about to ADD load. An admitted gate itself holds the
 1-minute average past `loadMax` for its whole run, so a session's first prompt
@@ -1456,13 +1481,25 @@ worktree, never by a gate. No PR-phase step was added.
 
 **What it records.** `gate-lock.jsonl` gains `event: "run"` — `load_start`,
 `load_end`, `swap_start_mb`, `swap_end_mb`, pressure and reclaimable RAM at
-both ends, exit and duration — for every run of every tier, plus
-`machine-saturated` and `machine-override`. `session-admission.jsonl` holds
-every session decision (`admitted`, `refused`, `override`). With the samples
-in hand, a failure the machine can explain is read as the machine's: a suite
-whose every failed test timed out, or a walk whose every failing row is INFRA,
-in a step whose own samples were saturated, is `infra` / `machine-saturated`.
-One assertion that failed beside the timeouts keeps the step RED.
+both ends, exit and duration — for every run that ends on its command's own
+exit, in every tier (a run killed by a signal, and one that never started,
+write no `run` row; the latter writes `machine-saturated`), plus
+`machine-override`. The file is the one `gate.ts` already wrote: under
+`CLAUDE_PROJECT_DIR` — the primary checkout, for a session — else the cwd, so
+a detached run in a worktree `land` later removes takes its rows with it.
+`session-admission.jsonl` holds every session decision (`admitted`, `refused`,
+`override`).
+
+**A timeout on a saturated machine is excused once.** A suite step whose EVERY
+failed test timed out — read per failed test, each one's own error line, never
+as two counts over the output — while the step's samples read saturated is
+`infra` / `machine-timeout`, not RED. One assertion beside the timeouts keeps
+it RED. And the excuse does not repeat: a step's own workers raise the load its
+end sample reads, so "saturated" alone cannot tell a busy machine from a
+regression that hangs the suite. What tells them apart is the next run — the
+same step failing the same way twice in a row is the tree's, and is RED
+(`repeatedMachineTimeout`). An unsettled walk needed no new rule: every failing
+row INFRA was already `ui-walk`.
 
 **Fails open.** A probe that cannot be read — another platform, a failed
 spawn — reads as null, and null never saturates; the hook admits on a missing

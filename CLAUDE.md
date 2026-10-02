@@ -266,7 +266,8 @@ Rationale, lanes, measurements: `docs/agents/quality-gates.md`.
   the kernel reports memory pressure; past `machine.waitMaxS` → **exit 77 =
   INFRA, nothing ran, never a red lane** (re-issue). A session's first prompt,
   `queue:claim`, `wt:new` are refused past the effective cap (`sessions.cap`
-  ∧ RAM). **`bun run machine`** shows it; hatch `TOLARIA_OVER_CAP=1` (logged).
+  ∧ RAM). **`bun run machine`** shows it; hatches (logged):
+  `TOLARIA_OVER_CAP=1 claude` (session), `TOLARIA_GATE_SATURATED_OK=1` (gate).
 
 **Worktree isolation — shared checkout is read-only.** Every authored file →
 worktree, **even one markdown line** (unfinished ADR there reds `check:all` for
