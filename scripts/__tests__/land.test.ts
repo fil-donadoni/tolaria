@@ -29,6 +29,7 @@ import {
     gapsSyncStep,
     originBandForBranch,
     healthDetachStep,
+    telemetryIngestStep,
     lockedEnv,
     laneStep,
     greenLaneRunOf,
@@ -711,6 +712,24 @@ describe("land.ts — the locked command", () => {
     it("syncs gaps even under --keep — teardown is about the worktree, not the sync", () => {
         const cmd = buildLockedCommand({ ...base, teardown: false });
         expect(cmd).toContain("gaps-sync.ts");
+    });
+
+    it("ingests the telemetry after every merge, from the primary checkout, before the health decision (issue #4968)", () => {
+        const cmd = buildLockedCommand(base);
+        const step = telemetryIngestStep("/repo");
+        expect(cmd).toContain(step);
+        expect(step).toContain("bun 'scripts/telemetry-ingest.ts' --quick");
+        // The session's CLAUDE_PROJECT_DIR may name the worktree this very
+        // command removes; the DB everyone reads is the primary checkout's.
+        expect(step).toContain("CLAUDE_PROJECT_DIR='/repo' ");
+        expect(step.startsWith("(cd '/repo' && ")).toBe(true);
+        // A fired decision prints KPIs that count this landing.
+        expect(cmd.indexOf(step)).toBeLessThan(
+            cmd.indexOf(healthDetachStep("/repo"))
+        );
+        expect(cmd.indexOf(step)).toBeLessThan(cmd.indexOf("worktree remove"));
+        // Non-gating: the PR is already merged.
+        expect(step.endsWith("; true)")).toBe(true);
     });
 
     it("starts the batch-health decision LAST, through `spawn` and never by backgrounding it", () => {

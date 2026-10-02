@@ -200,6 +200,57 @@ CREATE TABLE IF NOT EXISTS health_runs (
     red   INTEGER NOT NULL,
     ts    INTEGER NOT NULL             -- the log file's mtime, epoch seconds
 );
+
+-- One row per gate-run ATTEMPT (issue #4968). gate_runs is keyed by the run
+-- dir, and gate-run.sh REUSES a dir for every run under the same key, so a
+-- failed land retried under TOLARIA_GATE_RUN_KEY=land-N overwrote its own
+-- failure: the attempt history -- what "% failed lands" counts -- lives here.
+-- bucket is the stage a non-green land stopped in (lib/workflow-kpi.ts
+-- classifyLandFailure); NULL on green rows and on rows backfilled from
+-- gate_runs, whose log was never kept.
+CREATE TABLE IF NOT EXISTS gate_attempts (
+    run     TEXT NOT NULL,
+    started INTEGER NOT NULL,          -- epoch seconds, the run dir's started file
+    cmd     TEXT NOT NULL,
+    green   INTEGER NOT NULL,          -- 1 iff green marker, or the log shows the merge
+    bucket  TEXT,
+    PRIMARY KEY (run, started)
+);
+
+-- .claude/telemetry/gate-lock.jsonl, one row per line (issue #4968): heavy
+-- mutex waits (waited_ms) and, since issue #4966, each run's load / swap /
+-- memory-pressure samples at start and end.
+CREATE TABLE IF NOT EXISTS gate_lock (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts             INTEGER NOT NULL,   -- epoch seconds
+    tier           TEXT,
+    event          TEXT,               -- acquired | run | NULL (pre-#4966 acquisition)
+    cmd            TEXT,
+    cwd            TEXT,
+    waited_ms      INTEGER,
+    exit           INTEGER,
+    duration_ms    INTEGER,
+    load_start     REAL,
+    load_end       REAL,
+    swap_start_mb  REAL,
+    swap_end_mb    REAL,
+    pressure_start INTEGER,
+    pressure_end   INTEGER
+);
+
+-- .claude/telemetry/health/detach.log, the lines worth keeping (issue #4968):
+-- per-step durations, the cadence's fire reasons, verdicts. The log carries
+-- no timestamps, so ts is the INGEST time -- one landing late at most, since
+-- land ingests after every merge.
+CREATE TABLE IF NOT EXISTS health_detach (
+    id    INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts    INTEGER NOT NULL,
+    kind  TEXT NOT NULL,               -- step | fire | verdict
+    step  TEXT,                        -- step name / fire trigger / GREEN|RED
+    exit  TEXT,
+    secs  INTEGER,
+    text  TEXT                         -- fire reason / verdict sha
+);
 `;
 
 /**
@@ -491,6 +542,10 @@ export function openDb(path: string): Database {
     }
     // After the widening — an index in SCHEMA would run before it on old DBs.
     db.exec("CREATE INDEX IF NOT EXISTS agent_runs_issue ON agent_runs(issue)");
+    db.exec(
+        "CREATE INDEX IF NOT EXISTS gate_attempts_started ON gate_attempts(started)"
+    );
+    db.exec("CREATE INDEX IF NOT EXISTS gate_lock_ts ON gate_lock(ts)");
     return db;
 }
 

@@ -101,6 +101,7 @@ import { HEALTH_ROLE } from "./lib/gate-liveness";
 import { recordMachineSaturated } from "./lib/health-verdict";
 import { MACHINE_SATURATED_EXIT } from "./lib/machine-admission";
 import { primaryCheckout } from "./lib/primary-checkout";
+import { kpiReport } from "./workflow-kpi";
 
 const SELF = resolve(__dirname, "health-cadence.ts");
 const HEALTH_MAIN = resolve(__dirname, "health-main.ts");
@@ -329,6 +330,10 @@ function decideAndRun(root: string, branch: string): Round {
     console.log(
         `health-cadence: firing on ${verdict.trigger} — ${verdict.reason}; gating ${tip.slice(0, 8)}`
     );
+    // The four workflow KPIs (issue #4968), so every fire leaves in
+    // detach.log the numbers the batch exists to move. Read-only and never
+    // throws: a missing telemetry DB is one line, not a held gate.
+    for (const line of kpiReport(root)) console.log(`health-cadence: ${line}`);
     // The dedup stamp and the pending pid go in BEFORE the gate, not after: a
     // second landing during the wait or the run detaches a second decision,
     // and these are what make that one hold — `last.json` says `running` only

@@ -6,16 +6,33 @@
  *   ~/.claude/projects/<proj>/<session>.jsonl  → llm (main-thread messages)
  *   ~/.claude/projects/<proj>/<session>/subagents/agent-*.jsonl → llm (subagents)
  *
+ *   ~/.cache/tolaria/gate-runs/*               → gate_runs, gate_attempts
+ *   .claude/telemetry/health/*.log             → health_runs
+ *   .claude/telemetry/health/detach.log        → health_detach
+ *   .claude/telemetry/gate-lock.jsonl          → gate_lock
+ *
  * Each file carries a byte-offset cursor in `ingest_state`, so a re-run parses
  * only what was appended. A truncated or rotated file (size < stored offset)
  * resets its cursor and re-reads from zero.
  *
- * Usage: bun run telemetry:ingest [--reset]
+ * `tool-events.jsonl` is ROTATED once fully ingested and past
+ * `ROTATE_BYTES` (issue #4968): left alone it reached 329 MB, and every reader
+ * that is not this one pays for it.
+ *
+ * `--quick` is what `land` runs after every merge (issue #4968): the workflow
+ * sources plus the spans backlog, read in `QUICK_CHUNK_BYTES` slices until
+ * `--budget-ms` is spent — never the transcripts or the `gh` metadata fetches,
+ * which are the slow half. A backlog larger than one budget drains over
+ * several landings, each slice's cursor committed as it goes.
+ *
+ * Usage: bun run telemetry:ingest [--reset] [--quick] [--budget-ms=N]
+ *        [--rotate-bytes=N]   (--quick only; the tests' small threshold)
  */
 
 import {
     readdirSync,
     readFileSync,
+    renameSync,
     rmSync,
     statSync,
     existsSync,
@@ -45,6 +62,11 @@ import {
     parseLaneForcingPath,
     parseHealthLogRed,
 } from "./lib/telemetry-latency.ts";
+import {
+    classifyLandFailure,
+    landLogMerged,
+    parseDetachLine,
+} from "./lib/workflow-kpi.ts";
 
 const PROJECT_DIR = process.env.CLAUDE_PROJECT_DIR ?? process.cwd();
 const DB_PATH = join(PROJECT_DIR, ".claude/telemetry/telemetry.db");
@@ -54,6 +76,16 @@ const OPENCODE_EVENTS = join(
     ".opencode/telemetry/tool-events.jsonl"
 );
 const OPENCODE_FACTS = join(PROJECT_DIR, ".opencode/telemetry/facts.jsonl");
+const GATE_LOCK = join(PROJECT_DIR, ".claude/telemetry/gate-lock.jsonl");
+const DETACH_LOG = join(PROJECT_DIR, ".claude/telemetry/health/detach.log");
+
+/** `tool-events.jsonl` is rotated once ingested past this size (issue #4968:
+ *  the acceptance bound is 20 MB; ~2 days of events at the 2026-09 rate). */
+export const ROTATE_BYTES = 16 * 1024 * 1024;
+/** One `--quick` read slice — a cursor is committed after each. */
+const QUICK_CHUNK_BYTES = 16 * 1024 * 1024;
+/** `--quick`'s default wall budget: inside `land`'s locked housekeeping. */
+const QUICK_BUDGET_MS = 5000;
 const PROJECTS_ROOT = join(homedir(), ".claude/projects");
 const PROJECT_SLUG = PROJECT_DIR.replace(/\//g, "-");
 
@@ -79,10 +111,31 @@ interface PendingPre {
  * Read the un-consumed tail of a file, stopping at the last complete line so a
  * concurrently-appending writer never leaves us with half a JSON object.
  */
+interface ReadOptions {
+    /** Read at most this many bytes past the cursor (a slice ends on a line). */
+    maxBytes?: number;
+    /** The `ingest_state` key, when it is not `path` — the rotation reads the
+     *  renamed file under the live file's cursor. */
+    cursorKey?: string;
+}
+
+function cursorOf(db: Sqlite, key: string): number {
+    return (
+        db
+            .query<
+                { offset: number },
+                [string]
+            >("SELECT offset FROM ingest_state WHERE path = ?")
+            .get(key)?.offset ?? 0
+    );
+}
+
 async function readDelta(
     db: Sqlite,
-    path: string
+    path: string,
+    opts: ReadOptions = {}
 ): Promise<{ lines: string[]; commit: () => void } | null> {
+    const key = opts.cursorKey ?? path;
     let size: number;
     let mtime: number;
     try {
@@ -93,17 +146,19 @@ async function readDelta(
         return null;
     }
 
-    const row = db
-        .query<
-            { offset: number },
-            [string]
-        >("SELECT offset FROM ingest_state WHERE path = ?")
-        .get(path);
-    let offset = row?.offset ?? 0;
+    let offset = cursorOf(db, key);
     if (offset > size) offset = 0; // truncated or rotated
     if (offset === size) return null;
 
-    const text = await Bun.file(path).slice(offset).text();
+    const end =
+        opts.maxBytes === undefined
+            ? size
+            : Math.min(size, offset + opts.maxBytes);
+    let text = await Bun.file(path).slice(offset, end).text();
+    // A slice with no newline at all would stall the cursor for ever: one
+    // line longer than the slice is read whole instead.
+    if (end < size && !text.includes("\n"))
+        text = await Bun.file(path).slice(offset).text();
     const lastNl = text.lastIndexOf("\n");
     if (lastNl < 0) return null;
     const consumed = Buffer.byteLength(text.slice(0, lastNl + 1), "utf8");
@@ -114,7 +169,7 @@ async function readDelta(
         commit: () =>
             db.run(
                 "INSERT OR REPLACE INTO ingest_state (path, offset, mtime) VALUES (?, ?, ?)",
-                [path, offset + consumed, mtime]
+                [key, offset + consumed, mtime]
             ),
     };
 }
@@ -122,9 +177,10 @@ async function readDelta(
 export async function ingestSpans(
     db: Sqlite,
     eventsPath: string,
-    harness: string
+    harness: string,
+    opts: ReadOptions = {}
 ): Promise<number> {
-    const delta = await readDelta(db, eventsPath);
+    const delta = await readDelta(db, eventsPath, opts);
     if (!delta) return 0;
 
     // Pending pre-events survive between runs: a Bash call can straddle the
@@ -1028,6 +1084,27 @@ function ingestGateRuns(db: Sqlite): number {
             .filter((r) => r.forced !== null)
             .map((r) => [r.run, r.started])
     );
+    // The attempt history (issue #4968). Rows ingested before gate_attempts
+    // existed are carried over once, bucket unknown — their logs are gone.
+    db.run(
+        `INSERT OR IGNORE INTO gate_attempts (run, started, cmd, green, bucket)
+         SELECT run, started, cmd, green, NULL FROM gate_runs WHERE started IS NOT NULL`
+    );
+    // A non-green land whose attempt has no bucket yet is re-read while its
+    // dir survives, so a backfilled row still gets the stage it failed in.
+    const unbucketed = new Set(
+        db
+            .query<{ k: string }, []>(
+                `SELECT run || '@' || started AS k FROM gate_attempts
+                 WHERE green = 0 AND bucket IS NULL AND cmd LIKE 'land %'`
+            )
+            .all()
+            .map((r) => r.k)
+    );
+    const putAttempt = db.prepare(
+        `INSERT OR REPLACE INTO gate_attempts (run, started, cmd, green, bucket)
+         VALUES (?, ?, ?, ?, ?)`
+    );
     const put = db.prepare(
         `INSERT OR REPLACE INTO gate_runs
          (run, cmd, head, base, lane, lane_forced_by, green, started, ingested)
@@ -1049,7 +1126,12 @@ function ingestGateRuns(db: Sqlite): number {
         const startedStr = readOpt("started");
         if (!cmd || startedStr === null) continue;
         const started = Number(startedStr);
-        if (seenStarted.has(run) && seenStarted.get(run) === started) continue;
+        if (
+            seenStarted.has(run) &&
+            seenStarted.get(run) === started &&
+            !unbucketed.has(`${run}@${started}`)
+        )
+            continue;
 
         const pidStr = readOpt("pid");
         const pid = pidStr ? Number(pidStr) : null;
@@ -1072,6 +1154,16 @@ function ingestGateRuns(db: Sqlite): number {
             existsSync(join(dir, "green")) ? 1 : 0,
             started,
             now
+        );
+        const isLand = /^land /.test(cmd);
+        const green =
+            existsSync(join(dir, "green")) || (isLand && landLogMerged(log));
+        putAttempt.run(
+            run,
+            started,
+            cmd,
+            green ? 1 : 0,
+            isLand && !green ? classifyLandFailure(log) : null
         );
         n++;
     }
@@ -1119,6 +1211,154 @@ function ingestHealthRuns(db: Sqlite): number {
         n++;
     }
     return n;
+}
+
+/** `gate-lock.jsonl` → `gate_lock`, incremental by offset (issue #4968). */
+async function ingestGateLock(db: Sqlite, path: string): Promise<number> {
+    const delta = await readDelta(db, path);
+    if (!delta) return 0;
+    const put = db.prepare(
+        `INSERT INTO gate_lock (ts, tier, event, cmd, cwd, waited_ms, exit, duration_ms,
+           load_start, load_end, swap_start_mb, swap_end_mb, pressure_start, pressure_end)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    );
+    const num = (v: unknown): number | null =>
+        typeof v === "number" && Number.isFinite(v) ? v : null;
+    const str = (v: unknown): string | null =>
+        typeof v === "string" ? v : null;
+    let n = 0;
+    db.transaction(() => {
+        for (const line of delta.lines) {
+            let e: Record<string, unknown>;
+            try {
+                e = JSON.parse(line);
+            } catch {
+                continue;
+            }
+            const ts = num(e.ts);
+            if (ts === null) continue;
+            put.run(
+                ts,
+                str(e.tier),
+                str(e.event),
+                str(e.cmd),
+                str(e.cwd),
+                num(e.waited_ms),
+                num(e.exit),
+                num(e.duration_ms),
+                num(e.load_start),
+                num(e.load_end),
+                num(e.swap_start_mb),
+                num(e.swap_end_mb),
+                num(e.pressure_start),
+                num(e.pressure_end)
+            );
+            n++;
+        }
+        delta.commit();
+    })();
+    return n;
+}
+
+/** `health/detach.log` → `health_detach`: step durations, fire reasons,
+ *  verdicts (issue #4968). The log has no timestamps; the row carries the
+ *  ingest time. */
+async function ingestHealthDetach(db: Sqlite, path: string): Promise<number> {
+    const delta = await readDelta(db, path);
+    if (!delta) return 0;
+    const put = db.prepare(
+        "INSERT INTO health_detach (ts, kind, step, exit, secs, text) VALUES (?, ?, ?, ?, ?, ?)"
+    );
+    const now = Math.floor(Date.now() / 1000);
+    let n = 0;
+    db.transaction(() => {
+        for (const line of delta.lines) {
+            const ev = parseDetachLine(line.trim());
+            if (!ev) continue;
+            if (ev.kind === "step")
+                put.run(now, "step", ev.step, ev.exit, ev.secs, null);
+            else if (ev.kind === "fire")
+                put.run(now, "fire", ev.trigger, null, null, ev.reason);
+            else put.run(now, "verdict", ev.verdict, null, null, ev.sha);
+            n++;
+        }
+        delta.commit();
+    })();
+    return n;
+}
+
+/**
+ * Rotate `tool-events.jsonl` once it is fully ingested and past
+ * `rotateBytes` (issue #4968). The hook appends with a shell `>>` per event —
+ * open, append, close — so a rename never strands an open descriptor: the
+ * next event creates a fresh file. Lines appended between the last read and
+ * the rename are in the renamed file past the cursor, and are ingested from
+ * it under the LIVE file's cursor before it is deleted; the cursor then
+ * restarts at zero for the new file.
+ *
+ * A run that died between the rename and the delete leaves `<path>.rotating`
+ * behind; `recoverRotation` finishes it before the live file is read.
+ */
+export async function rotateEvents(
+    db: Sqlite,
+    path: string,
+    harness: string,
+    rotateBytes = ROTATE_BYTES
+): Promise<boolean> {
+    let size: number;
+    try {
+        size = statSync(path).size;
+    } catch {
+        return false;
+    }
+    if (size < rotateBytes || cursorOf(db, path) < size) return false;
+    renameSync(path, `${path}.rotating`);
+    await recoverRotation(db, path, harness);
+    return true;
+}
+
+export async function recoverRotation(
+    db: Sqlite,
+    path: string,
+    harness: string
+): Promise<void> {
+    const tmp = `${path}.rotating`;
+    if (!existsSync(tmp)) return;
+    await ingestSpans(db, tmp, harness, { cursorKey: path });
+    rmSync(tmp, { force: true });
+    db.run(
+        "INSERT OR REPLACE INTO ingest_state (path, offset, mtime) VALUES (?, 0, 0)",
+        [path]
+    );
+}
+
+/**
+ * The spans backlog in `QUICK_CHUNK_BYTES` slices until `deadline` — each
+ * slice commits its cursor, so a backlog bigger than one budget drains over
+ * several runs instead of holding `land`'s housekeeping hostage.
+ */
+async function ingestSpansBounded(
+    db: Sqlite,
+    path: string,
+    harness: string,
+    deadline: number
+): Promise<number> {
+    let n = 0;
+    while (Date.now() < deadline) {
+        const before = cursorOf(db, path);
+        n += await ingestSpans(db, path, harness, {
+            maxBytes: QUICK_CHUNK_BYTES,
+        });
+        if (cursorOf(db, path) === before) break;
+    }
+    return n;
+}
+
+function numFlag(name: string): number | null {
+    const a = process.argv.find((x) => x.startsWith(`--${name}=`));
+    if (!a) return null;
+    const v = Number(a.slice(name.length + 3));
+    return Number.isFinite(v) && v > 0 ? v : null;
 }
 
 const reset = process.argv.includes("--reset");
@@ -1374,9 +1614,55 @@ export async function ingestOpencodeFacts(
     return n;
 }
 
-async function main(): Promise<void> {
+/**
+ * `--quick` (issue #4968): what `land` runs after every merge. The workflow
+ * sources first — they are small and they are what `workflow:kpi` reads —
+ * then the spans backlog against the budget, then the rotation.
+ */
+async function quick(): Promise<void> {
     const db = openDb(DB_PATH);
     const t0 = Date.now();
+    const deadline = t0 + (numFlag("budget-ms") ?? QUICK_BUDGET_MS);
+    await recoverRotation(db, EVENTS, HARNESS_CLAUDE);
+    const gateRuns = ingestGateRuns(db);
+    const healthRuns = ingestHealthRuns(db);
+    const detach = await ingestHealthDetach(db, DETACH_LOG);
+    const lock = await ingestGateLock(db, GATE_LOCK);
+    const spans = await ingestSpansBounded(
+        db,
+        EVENTS,
+        HARNESS_CLAUDE,
+        deadline
+    );
+    const rotated = await rotateEvents(
+        db,
+        EVENTS,
+        HARNESS_CLAUDE,
+        numFlag("rotate-bytes") ?? ROTATE_BYTES
+    );
+    let backlog = 0;
+    try {
+        backlog = statSync(EVENTS).size - cursorOf(db, EVENTS);
+    } catch {
+        /* no events file yet */
+    }
+    db.run("INSERT OR REPLACE INTO meta (k, v) VALUES ('last_ingest', ?)", [
+        String(Date.now()),
+    ]);
+    db.close();
+    console.log(
+        `telemetry:ingest --quick: +${spans} spans, +${gateRuns} gate runs, +${healthRuns} health runs, ` +
+            `+${detach} detach lines, +${lock} gate-lock rows${rotated ? ", tool-events.jsonl rotated" : ""}` +
+            `${backlog > 0 ? `, ${(backlog / 1048576).toFixed(0)} MB of spans still to ingest` : ""} ` +
+            `in ${((Date.now() - t0) / 1000).toFixed(1)}s`
+    );
+}
+
+async function main(): Promise<void> {
+    if (process.argv.includes("--quick")) return quick();
+    const db = openDb(DB_PATH);
+    const t0 = Date.now();
+    await recoverRotation(db, EVENTS, HARNESS_CLAUDE);
     const spans = await ingestSpans(db, EVENTS, HARNESS_CLAUDE);
     const opencodeSpans = await ingestSpans(
         db,
@@ -1396,6 +1682,9 @@ async function main(): Promise<void> {
     const fetchedPrs = refreshPrMeta(db);
     const gateRuns = ingestGateRuns(db);
     const healthRuns = ingestHealthRuns(db);
+    const detach = await ingestHealthDetach(db, DETACH_LOG);
+    const lock = await ingestGateLock(db, GATE_LOCK);
+    const rotated = await rotateEvents(db, EVENTS, HARNESS_CLAUDE);
     db.run("INSERT OR REPLACE INTO meta (k, v) VALUES ('last_ingest', ?)", [
         String(Date.now()),
     ]);
@@ -1416,7 +1705,8 @@ async function main(): Promise<void> {
             (reclassified ? `${reclassified} spans reclassified, ` : "") +
             `${attributed} issue-attributed, +${fetched} issue metas, ` +
             `+${fetchedPrs} PR metas, +${gateRuns} gate runs, ` +
-            `+${healthRuns} health runs) → ${DB_PATH}`
+            `+${healthRuns} health runs, +${detach} detach lines, +${lock} gate-lock rows` +
+            `${rotated ? ", tool-events.jsonl rotated" : ""}) → ${DB_PATH}`
     );
     db.close();
 }
