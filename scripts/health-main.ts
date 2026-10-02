@@ -42,7 +42,9 @@
  *
  * Deduplicated by sha: a tip that is already green, or already being gated
  * (a `running` record younger than 90 minutes), is not re-gated — so N
- * quick successive lands cost ONE health run on the final tip.
+ * quick successive lands cost ONE health run on the final tip. Under
+ * `--under-lock` (the cadence's waiter) a RED or INFRA tip is not re-gated
+ * either; by hand it is (`gateSkipReason`, issue #4960).
  *
  * The gate runs in its own worktree at the tip, never in the primary
  * checkout's working tree (which may hold anything), and with
@@ -117,7 +119,11 @@ import {
     type WalkOutcome,
 } from "./lib/health-verdict";
 import { reachable, readEnvLocal } from "./lib/convex-reachable";
-import { describeLastDecision, parseCadence } from "./lib/health-cadence";
+import {
+    describeLastDecision,
+    gateSkipReason,
+    parseCadence,
+} from "./lib/health-cadence";
 import {
     copyFileSync,
     existsSync,
@@ -579,21 +585,18 @@ async function main(): Promise<void> {
     const tip = git(["rev-parse", `origin/${branch}`], root);
 
     const last = readLast(dir);
-    if (last?.sha === tip) {
-        if (last.status === "green") {
-            console.log(`health-main: tip ${tip.slice(0, 8)} already green`);
-            return;
-        }
-        if (
-            last.status === "running" &&
-            Date.now() - Date.parse(last.phaseStartedAt ?? last.startedAt) <
-                STALE_RUNNING_MS
-        ) {
-            console.log(
-                `health-main: tip ${tip.slice(0, 8)} already being gated`
-            );
-            return;
-        }
+    // Only the cadence's waiter runs `--under-lock`; by hand, a RED or INFRA
+    // tip is re-gated on purpose (issue #4960).
+    const skip = gateSkipReason({
+        last,
+        tip,
+        now: Date.now(),
+        retryTerminal: !underLock,
+        staleMs: STALE_RUNNING_MS,
+    });
+    if (skip !== null) {
+        console.log(`health-main: ${skip}`);
+        return;
     }
 
     const startedAt = new Date().toISOString();
