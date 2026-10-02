@@ -264,7 +264,9 @@ Rationale, lanes, measurements: `docs/agents/quality-gates.md`.
   without `--red-ok` (#4964).
 - **Machine admission** (issue #4966, `lib/machine-admission.ts`): a heavy
   gate, `check:ui` and `health-main` WAIT while load > `machine.loadMax` or
-  the kernel reports memory pressure; past `machine.waitMaxS` → **exit 77 =
+  the kernel reports memory pressure (off the mutex — `land`'s preflight,
+  `check:ui` — a RUNNING heavy holder's load is not waited on, issue #4988);
+  past `machine.waitMaxS` → **exit 77 =
   INFRA, nothing ran, never a red lane** (re-issue). A session's first prompt,
   `queue:claim`, `wt:new` are refused past the effective cap (`sessions.cap`
   ∧ RAM). **`bun run machine`** shows it; hatches (logged):
