@@ -17,7 +17,12 @@
 //
 // What this does NOT catch, by design: a pin created or cleared by a weight or
 // search change whose PR closes no owner. That is the audit's accepted
-// health-only blind spot (`healthGates` in `health-step.ts`).
+// health-only blind spot (`healthGates` in `health-step.ts`). Nor an owner
+// closed outside the PR body (a sidebar link, a commit message): the body's
+// closing keywords are the same reading the RED gate makes (`closingIssueRefs`).
+//
+// The baseline read is the PR's tree BEFORE `land` rebases: a row the base
+// already deleted or re-pointed still refuses a stale branch — rebase it first.
 
 /** The row shape this gate needs — a structural subset of
  *  `RobustnessBaselineRow`, so `scripts/` does not type-depend on the blade. */
