@@ -280,21 +280,24 @@ export function recordMachineSaturated(input: {
     dir: string;
     sha: string;
     startedAt: string;
-    previous: (HealthRecordLike & Record<string, unknown>) | null;
+    previous: HealthRecordLike | null;
     redMarkerStanding: boolean;
 }): void {
-    recordInfra<HealthRecordLike & Record<string, unknown>>({
+    // A variable, not a literal: `last.json` carries more than the two
+    // fields `HealthRecordLike` reasons about.
+    const infra = {
+        sha: input.sha,
+        status: "infra" as const,
+        startedAt: input.startedAt,
+        finishedAt: new Date().toISOString(),
+        failedStep: PREFLIGHT_MACHINE_STEP,
+        infraCause: "machine-saturated" satisfies InfraCause,
+        reason: INFRA_REMEDY["machine-saturated"],
+        ui: "not run",
+    };
+    recordInfra<HealthRecordLike>({
         dir: input.dir,
-        infra: {
-            sha: input.sha,
-            status: "infra",
-            startedAt: input.startedAt,
-            finishedAt: new Date().toISOString(),
-            failedStep: PREFLIGHT_MACHINE_STEP,
-            infraCause: "machine-saturated",
-            reason: INFRA_REMEDY["machine-saturated"],
-            ui: "not run",
-        },
+        infra,
         previous: input.previous,
         redMarkerStanding: input.redMarkerStanding,
     });
