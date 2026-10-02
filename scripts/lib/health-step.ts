@@ -66,22 +66,25 @@ export const DEFAULT_LIVENESS_MS = 60_000;
  * machine-wide `check:ui` lane (`ui-admission.ts`), a separate mutex from the
  * heavy gate's, so a PR's own run and this one never overlap on the backend.
  *
- * `check:targets` (the Coverage Invariant, issue #3868) lives here on the
- * same terms and after `check:gaps`: it reads the same lockfile and allowlist.
+ * THE RULE IS COST, NOT PHASE (issue #4963): a guard whose measured cost is
+ * ≤ 10 s on the heavy tier belongs in the lane (`check:lane`, paid once by
+ * `land`); health-only is for guards that cost more, and each one is named in
+ * `HEALTH_ONLY_GUARDS` below with its measured cost. A new guard states its
+ * measured cost in its PR. The rule it replaced — "a new guard goes on
+ * `health`, never on a PR-phase gate" (issue #4490) — protected PRs from
+ * COST, and applied to guards that cost nothing it only moved their failure
+ * to the most expensive place: 19 of 40 RED tips in 14 days were violations
+ * a 3-second check would have refused at `land`.
  *
- * `check:test-hygiene` (the test-suite hygiene census, issue #4490) lives here
- * too: it keeps the identity-test classifier's two purge classes at zero
- * across every test file, and its Op-only half loads the whole catalogue —
- * a cost no PR diff should pay, and a verdict a new constant-pin test can only
- * change by being written (issue #4490: a new guard goes on `health`, never
- * on a PR-phase gate).
- *
- * `check:gaps` (the derived Op census, ADR 0105 § 7.3) lives HERE and nowhere
- * else: it is a census over the committed lockfile, so a PR gate would pay for
- * it on every diff that cannot move it. It runs AFTER `check:all`, because
- * `check:all` holds `check:oracle` — an un-regenerated lockfile is lockfile
- * DRIFT, and that is the error a reader must see, not a census computed off a
- * stale file.
+ * `check:gaps`, `check:targets` and `check:test-hygiene` are those cheap
+ * guards (`CHEAP_GUARDS` in `check-lane.ts`, with their measured costs and
+ * admission paths). They run in the lane on every diff that can move them
+ * AND stay here, because health is the full gate — the lane is only where a
+ * violation is first seen. Here they run AFTER `check:all`, which holds
+ * `check:oracle`: an un-regenerated lockfile is lockfile DRIFT, and that is
+ * the error a reader must see, not a census computed off a stale file.
+ * `check:targets` reads the same lockfile and allowlist as `check:gaps`, and
+ * follows it.
  *
  * Exported so `check-gaps.test.ts` can assert the membership rather than
  * re-derive it from a regex over `health-main.ts` (which carries the gate's
@@ -98,6 +101,31 @@ export const HEALTH_SCRIPTS: readonly string[] = [
     "check:ui --all",
 ];
 
+/**
+ * The `check:*` guards that run in NO lane, each with its MEASURED cost — the
+ * only legal reason to keep a guard out of `check:lane` (issue #4963: ≤ 10 s
+ * on the heavy tier belongs in the lane). `check-lane.test.ts`'s census reds
+ * on a `check:*` package script that is in neither a lane plan nor this list,
+ * and on an entry here whose measured cost is within the lane budget.
+ *
+ * `check:lane` itself is not a guard but the lane's runner, and is the one
+ * name the census exempts.
+ */
+export const LANE_COST_BUDGET_S = 10;
+
+export const HEALTH_ONLY_GUARDS: Readonly<
+    Record<string, { measuredCostS: number; measured: string }>
+> = {
+    // The full browser walk (issue #4913). A PR pays its own SCOPED run by
+    // hand and pastes the receipt (`chrome-debug.md`); the lane cannot,
+    // because it needs a deployment and a browser and `check:lane` is offline.
+    "check:ui": {
+        measuredCostS: 879,
+        measured:
+            "`check:ui --all` in health: 14m39s green, 45m37s red (detach.log, 2026-10)",
+    },
+};
+
 /** The `bun run` argv for one `HEALTH_SCRIPTS` entry: the script name, then
  *  the flags the entry carries after it (`check:ui --all`). */
 export function healthStepArgs(entry: string): string[] {
@@ -112,8 +140,8 @@ export function healthStepArgs(entry: string): string[] {
  * `blade:robustness` (issue #4875): the blade `must` tier re-run over a wide
  * seed list and jittered weight vectors, redding on an entry that passes by
  * seed noise and is not in its shrink-only baseline. ~15 min of search on a
- * loaded machine, so a health cost by the issue-#4490 rule (never `check:pr` /
- * `check:lane` / `land`), and only for a batch that can have moved it: a pin
+ * loaded machine — far over the lane budget, so a health cost by the
+ * issue-#4963 rule (never `check:pr` / `check:lane` / `land`), and only for a batch that can have moved it: a pin
  * appears when the search, the evaluator, the weights or the registry change —
  * every one of them under the Bot's globs.
  */

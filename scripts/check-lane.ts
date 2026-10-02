@@ -415,7 +415,15 @@ export function classifyLane(
             // Verbatim delegation: the fallback path is `check:pr` exactly as
             // it is today, so it cannot rot while the lanes get attention
             // (#2738 § Explicitly unchanged).
-            run: [{ id: "check:pr", command: "bun run check:pr" }],
+            // The cheap census guards ride AFTER it, unconditionally: the
+            // fallback lane cannot say which paths moved them (issue #4963).
+            run: [
+                { id: "check:pr", command: "bun run check:pr" },
+                ...CHEAP_GUARDS.map(({ id }) => ({
+                    id,
+                    command: `bun run ${id}`,
+                })),
+            ],
             skip: [],
         };
     }
@@ -562,6 +570,7 @@ export function classifyLane(
                 reason: "no changed code under convex/** — the engine tests cannot go red",
             }
         );
+        appendCheapGuards(files, run, skip);
         appendDocsGuards(files, run);
         return { lane, rationale: skinRationale(files), files, run, skip };
     }
@@ -614,6 +623,7 @@ export function classifyLane(
                 reason: "no changed code under src/** — no component, style or asset changed",
             }
         );
+        appendCheapGuards(files, run, skip);
         appendDocsGuards(files, run);
         return { lane, rationale: cardsRationale(files), files, run, skip };
     }
@@ -661,8 +671,75 @@ export function classifyLane(
             reason: "no changed code under scripts/** — no tooling test imports convex/ or data/, and neither it nor a module it imports names either as a path (scripts/test-env-split.ts)",
         });
     }
+    appendCheapGuards(files, run, skip);
     appendDocsGuards(files, run);
     return { lane, rationale: engineRationale(files), files, run, skip };
+}
+
+/**
+ * The census guards that cost seconds (issue #4963): measured in `health`
+ * (`.claude/telemetry/health/detach.log`, 14 days to 2026-10-02) at <1 s
+ * (`check:gaps`), ~1 s (`check:targets`) and 2–3 s (`check:test-hygiene`,
+ * whose guard cache makes an unchanged tree a cached PASS). Between them they
+ * caused 19 of 40 RED base tips in that window — violations a lane would
+ * have refused at `land`, which `health` only found after the merge.
+ *
+ * THE RULE IS COST, NOT PHASE: a guard whose measured cost is ≤ 10 s on the
+ * heavy tier belongs in the lane; `health`-only is for guards that cost more
+ * (`HEALTH_ONLY_GUARDS` in `lib/health-step.ts`, each with its measured
+ * cost). These stay in `HEALTH_SCRIPTS` too — health is the full gate; the
+ * lane is only no longer the place a violation is first SEEN late.
+ *
+ * ADMISSION, NOT SCOPING (ADR 0104): each guard runs whole, and runs when the
+ * diff holds a path that is one of its inputs — never on a slice.
+ *
+ *   - `check:test-hygiene` reads every test file and its `__tests__/`
+ *     support, the card registry (which decides pure-DSL), and its
+ *     classifier and allow-list under `scripts/lib/**` — the guard cache's
+ *     own declaration (`TEST_CORPUS_GLOBS` ∪ the registry's `convex/cards/`
+ *     half), narrowed to the paths a lane diff can carry.
+ *   - `check:gaps` / `check:targets` read the committed Oracle lockfile, the
+ *     claims allow-list and the Target Lists under `data/**`, the registry
+ *     and the card sources under `convex/cards/**`, and their readers under
+ *     `scripts/lib/**`.
+ *
+ * Order: after `check:oracle` wherever the lane runs it — lockfile DRIFT is
+ * the error a reader must see first, not a census over a stale file.
+ */
+export const CHEAP_GUARDS: readonly {
+    id: string;
+    /** A changed path that is one of the guard's inputs. */
+    admits: RegExp;
+    /** What the diff lacks, for the skip line. */
+    lacks: string;
+}[] = [
+    {
+        id: "check:gaps",
+        admits: /^(data\/|convex\/cards\/|scripts\/lib\/|scripts\/check-gaps\.ts$)/,
+        lacks: "no changed path under data/**, convex/cards/** or scripts/lib/** — the lockfile, the claims and the registry it censuses did not move",
+    },
+    {
+        id: "check:targets",
+        admits: /^(data\/|convex\/cards\/|scripts\/lib\/|scripts\/check-targets\.ts$)/,
+        lacks: "no changed path under data/**, convex/cards/** or scripts/lib/** — the Target Lists, the lockfile and the claims did not move",
+    },
+    {
+        id: "check:test-hygiene",
+        admits: /(\.test\.tsx?$|(^|\/)__tests__\/|^convex\/cards\/|^scripts\/lib\/|^scripts\/(check-test-hygiene|purge-identity-tests)\.ts$)/,
+        lacks: "no test file, no __tests__/ support, nothing under convex/cards/** or scripts/lib/** — the census's corpus, registry and allow-list did not move",
+    },
+];
+
+function appendCheapGuards(
+    files: string[],
+    run: PlannedCheck[],
+    skip: SkippedCheck[]
+): void {
+    for (const { id, admits, lacks } of CHEAP_GUARDS) {
+        if (files.some((p) => admits.test(p)))
+            run.push({ id, command: `bun run ${id}` });
+        else skip.push({ id, reason: lacks });
+    }
 }
 
 /**

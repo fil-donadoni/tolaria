@@ -14,12 +14,18 @@ import {
     shellStdio,
     treeMoved,
     hasLintStagedStash,
+    CHEAP_GUARDS,
     type LanePlan,
     type TreeSnapshot,
     type RunResult,
 } from "../check-lane";
 import { DOC_GATE_TESTS } from "../lib/doc-gate-tests";
 import { ORIGIN_BASE } from "../lib/branches";
+import {
+    HEALTH_ONLY_GUARDS,
+    HEALTH_SCRIPTS,
+    LANE_COST_BUDGET_S,
+} from "../lib/health-step";
 
 /**
  * `bun run check:lane` (issue #2741, wiring execution onto the classifier
@@ -447,7 +453,12 @@ describe("check-lane — lane selection, named cases (issue #2740)", () => {
             "convex/gre/phases.ts",
         ]);
         expect(plan.lane).toBe("full");
-        expect(ids(plan.run)).toEqual(["check:pr"]);
+        expect(ids(plan.run)).toEqual([
+            "check:pr",
+            "check:gaps",
+            "check:targets",
+            "check:test-hygiene",
+        ]);
         expect(plan.rationale).toContain("spanning src/**");
         expect(plan.rationale).not.toContain("prose");
     });
@@ -647,6 +658,12 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
             "bot-dom",
             "bot-node",
             "node[convex]",
+            // A board component is none of the census guards' inputs
+            // (issue #4963): no test file, nothing under convex/cards/**,
+            // data/** or scripts/lib/**.
+            "check:gaps",
+            "check:targets",
+            "check:test-hygiene",
         ]);
     });
 
@@ -780,7 +797,13 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
         expect(tooling.run.at(-1)!.command).toBe(
             "bunx vitest run --project node-tooling"
         );
-        expect(ids(tooling.skip)).toEqual(["dom"]);
+        // scripts/land.ts is none of the census guards' inputs either.
+        expect(ids(tooling.skip)).toEqual([
+            "dom",
+            "check:gaps",
+            "check:targets",
+            "check:test-hygiene",
+        ]);
         for (const files of [
             ["convex/gre/engine.ts"],
             ["data/card-index.json"],
@@ -804,7 +827,13 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
             "bot fast lane",
             "node-engine",
         ]);
-        expect(ids(engine.skip)).toEqual(["dom", "node-tooling"]);
+        expect(ids(engine.skip)).toEqual([
+            "dom",
+            "node-tooling",
+            "check:gaps",
+            "check:targets",
+            "check:test-hygiene",
+        ]);
         // src/** imports convex/gre (ADR 0074), so an engine diff CAN break
         // the app project — the whole type-check is one of the three
         // backstops that make dropping `dom` safe (#2738).
@@ -823,6 +852,11 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
             "cr:lint",
             "node[cards]",
             "bot[cards]",
+            // A card diff moves every census input (issue #4963) — after
+            // check:oracle, so lockfile drift is the error seen first.
+            "check:gaps",
+            "check:targets",
+            "check:test-hygiene",
         ]);
         expect(ids(cards.skip)).toEqual([
             "tsc[app,scripts]",
@@ -838,8 +872,13 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
         }
     });
 
-    it("full delegates to check:pr verbatim and skips nothing", () => {
-        expect(ids(full.run)).toEqual(["check:pr"]);
+    it("full delegates to check:pr verbatim, then the census guards, and skips nothing", () => {
+        expect(ids(full.run)).toEqual([
+            "check:pr",
+            "check:gaps",
+            "check:targets",
+            "check:test-hygiene",
+        ]);
         expect(full.skip).toEqual([]);
     });
 
@@ -1045,7 +1084,7 @@ describe("check-lane — every planned check is invokable today (issue #2740)", 
         for (const plan of plans) {
             for (const check of plan.run) {
                 for (const [, script] of check.command.matchAll(
-                    /bun run ([a-z:]+)/g
+                    /bun run ([a-z:-]+)/g
                 )) {
                     expect(
                         pkg.scripts,
@@ -1800,5 +1839,179 @@ describe("check-lane — the tree may not move under the run (issue #4379, findi
         expect(exec).toBeGreaterThan(planOnly);
         expect(src.slice(classify, planOnly)).toContain("assertQuiet();");
         expect(src.slice(exec)).toContain("assertQuiet");
+    });
+});
+
+/**
+ * Issue #4963 — the cheap census guards run in the lane, admitted by the diff.
+ *
+ * `check:test-hygiene`, `check:gaps` and `check:targets` cost seconds and
+ * caused 19 of 40 RED base tips in 14 days from `health`, after the merge.
+ * In the lane `land` refuses the PR instead. Each is ADMITTED (ADR 0104) by
+ * a changed path that is one of its inputs, and runs whole.
+ */
+describe("check-lane — cheap census guards run in the lane (issue #4963)", () => {
+    const CENSUS = ["check:gaps", "check:targets", "check:test-hygiene"];
+    const census = (plan: LanePlan) =>
+        ids(plan.run).filter((id) => CENSUS.includes(id));
+
+    it("a PR adding a test block owes check:test-hygiene in every code lane", () => {
+        for (const file of [
+            "src/lib/foo.test.ts",
+            "src/components/board/Card.test.tsx",
+            "convex/gre/__tests__/phases.test.ts",
+            "scripts/__tests__/land.test.ts",
+            "convex/cards/sets/lea/__tests__/red.test.ts",
+        ]) {
+            expect(census(classifyLane([file])), file).toContain(
+                "check:test-hygiene"
+            );
+        }
+    });
+
+    it("an allow-list edit owes check:test-hygiene", () => {
+        expect(
+            census(classifyLane(["scripts/lib/identity-test-allowlist.json"]))
+        ).toContain("check:test-hygiene");
+    });
+
+    it("a lockfile, claims or Target List edit owes check:gaps and check:targets", () => {
+        for (const file of [
+            "data/oracle-compiled.json",
+            "data/grammar-gaps.json",
+            "data/targets.json",
+            "convex/cards/mechanicsRegistry.ts",
+            "scripts/check-gaps.ts",
+        ]) {
+            const plan = classifyLane([file]);
+            expect(census(plan), file).toContain("check:gaps");
+            if (file !== "scripts/check-gaps.ts")
+                expect(census(plan), file).toContain("check:targets");
+        }
+    });
+
+    it("a diff that moves no census input skips all three, by name", () => {
+        for (const file of [
+            "src/components/board/Card.tsx",
+            "convex/gre/engine.ts",
+            "scripts/land.ts",
+        ]) {
+            const plan = classifyLane([file]);
+            expect(census(plan), file).toEqual([]);
+            for (const id of CENSUS)
+                expect(ids(plan.skip), `${file}: ${id}`).toContain(id);
+        }
+    });
+
+    it("the docs lane runs none — prose is no census input", () => {
+        expect(census(classifyLane(["docs/adr/0111.md"]))).toEqual([]);
+    });
+
+    it("runs after check:oracle wherever the lane runs it — drift is seen first", () => {
+        for (const plan of [
+            classifyLane(["data/oracle-compiled.json"]),
+            classifyLane([
+                "convex/cards/sets/lea/red.cards.ts",
+                "data/card-index.json",
+            ]),
+        ]) {
+            const run = ids(plan.run);
+            expect(census(plan).length).toBeGreaterThan(0);
+            for (const id of census(plan))
+                expect(run.indexOf(id), id).toBeGreaterThan(
+                    run.indexOf("check:oracle")
+                );
+        }
+    });
+
+    it("stays in health too — health is the full gate", () => {
+        for (const id of CENSUS) expect(HEALTH_SCRIPTS).toContain(id);
+        expect(CHEAP_GUARDS.map((g) => g.id)).toEqual(CENSUS);
+    });
+});
+
+/**
+ * Issue #4963 — the census: every `check:*` package script is either reached
+ * by some lane's plan (directly, or through the scripts that plan's commands
+ * compose) or named in `HEALTH_ONLY_GUARDS` with a measured cost over the
+ * lane budget. A new guard in neither place reds here, so "where does it
+ * run, and why not in the lane" is answered by the PR that adds it.
+ */
+describe("check-lane — every check:* script is in a lane or health-only by cost (issue #4963)", () => {
+    const pkg = JSON.parse(
+        readFileSync(resolve(__dirname, "../../package.json"), "utf8")
+    ) as { scripts: Record<string, string> };
+
+    /** One plan per lane, each admitting every conditional entry it has. */
+    const plans: LanePlan[] = [
+        classifyLane(["package.json"]),
+        classifyLane(["docs/adr/0111.md"]),
+        classifyLane(["src/components/board/Card.test.tsx"]),
+        classifyLane([
+            "convex/cards/sets/lea/red.cards.ts",
+            "data/card-index.json",
+        ]),
+        classifyLane(["scripts/lib/targets.ts", "data/oracle-compiled.json"]),
+    ];
+
+    /** Every package script a plan reaches, closing over `bun run X` inside
+     *  script bodies (`check:pr` → `check:all:inner` → `check:oracle`). */
+    function laneReachable(): Set<string> {
+        const seen = new Set<string>();
+        const queue: string[] = [];
+        const visit = (text: string) => {
+            for (const [, name] of text.matchAll(/bun run ([a-z:-]+)/g))
+                if (!seen.has(name)) {
+                    seen.add(name);
+                    queue.push(name);
+                }
+        };
+        for (const plan of plans)
+            for (const check of plan.run) visit(check.command);
+        while (queue.length > 0) visit(pkg.scripts[queue.pop()!] ?? "");
+        // A script that is only a CPU-admission wrapper around a reached one
+        // (`check:all` = `gate.ts heavy 'bun run check:all:inner'`) is the
+        // same guard under another tier, and the lane runs it.
+        for (const [name, body] of Object.entries(pkg.scripts)) {
+            const inner = body.match(
+                /^bun scripts\/gate\.ts (?:heavy|light) 'bun run ([a-z:-]+)'$/
+            )?.[1];
+            if (inner && seen.has(inner)) seen.add(name);
+        }
+        return seen;
+    }
+
+    const checks = () =>
+        Object.keys(pkg.scripts).filter(
+            (n) => n.startsWith("check:") && n !== "check:lane"
+        );
+
+    it("every check:* script is in a lane or in HEALTH_ONLY_GUARDS", () => {
+        const reach = laneReachable();
+        const orphans = checks().filter(
+            (n) => !reach.has(n) && !(n in HEALTH_ONLY_GUARDS)
+        );
+        expect(
+            orphans,
+            "a check:* script in no lane must be listed in HEALTH_ONLY_GUARDS (scripts/lib/health-step.ts) with its measured cost — over 10 s, or it belongs in check:lane"
+        ).toEqual([]);
+    });
+
+    it("a health-only guard is one the lane does not run, and costs more than the budget", () => {
+        const reach = laneReachable();
+        for (const [name, { measuredCostS, measured }] of Object.entries(
+            HEALTH_ONLY_GUARDS
+        )) {
+            expect(pkg.scripts, name).toHaveProperty(name);
+            expect(reach.has(name), `${name} is in a lane`).toBe(false);
+            expect(measuredCostS, name).toBeGreaterThan(LANE_COST_BUDGET_S);
+            expect(measured.length, name).toBeGreaterThan(10);
+        }
+    });
+
+    it("the census reaches through composed scripts, not only plan commands", () => {
+        const reach = laneReachable();
+        for (const n of ["check:oracle", "check:convex-bundle", "check:guards"])
+            expect(reach.has(n), n).toBe(true);
     });
 });
