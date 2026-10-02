@@ -21,16 +21,17 @@
  *           speed. Callers queue.
  *   yield — heavy, but lands go first. See YIELD below.
  *   job   — heavy, for the long CPU-bound JOBS an issue session legitimately
- *           runs itself: the `oracle:compile` Bot-play sweep (bare or
- *           `--replay-bot`; `--check` and `--carry-bot` never play and stay
- *           unadmitted), `verdicts:search` and `bot:reach`. Same mutex, same
- *           worker count, same heartbeat — but NOT refused in an issue
- *           worktree, because the guard below exists to stop a session
- *           re-paying the merge-train's gate, and these are not that gate:
- *           they are the work itself (a grammar slice recompiles, a bot
- *           slice searches verdicts). Issue #4941 measured them running
- *           outside the mutex entirely — a sweep averaging 28 min beside a
- *           `land` and two `check:ui` pools put the load at 20–38.
+ *           runs itself: the Oracle compiler's Bot-play sweep (it re-execs
+ *           itself here only when it will play — `lib/heavy-admission.ts`; its
+ *           drift-guard and carry-forward modes stay unadmitted),
+ *           `verdicts:search` and `bot:reach`. Same mutex, same worker count,
+ *           same heartbeat — but NOT refused in an issue worktree, because the
+ *           guard below exists to stop a session re-paying the merge-train's
+ *           gate, and these are not that gate: they are the work itself (a
+ *           grammar slice recompiles, a bot slice searches verdicts). Issue
+ *           #4941 measured them running outside the mutex entirely — a sweep
+ *           averaging 28 min beside a `land` and two `check:ui` pools put the
+ *           load at 20–38.
  *   light — targeted vitest, `check:ts`, `lint`. No lock, but vitest is capped
  *           at TOLARIA_VITEST_WORKERS (default 2, see vitest.config.ts), so
  *           four concurrent light jobs fit in ncpu.
