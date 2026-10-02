@@ -122,6 +122,8 @@ export const DOC_GATE_TESTS_EXCLUDED: Record<string, string> = {
         "the `.claude/receipts/` path is the RUNTIME review-receipt directory, gitignored and per-batch; it reads no repo document",
     "scripts/__tests__/session-origin.test.ts":
         "the `.claude/telemetry/sessions.jsonl` path is the RUNTIME session journal, gitignored; it reads no repo document",
+    "scripts/__tests__/telemetry-ingest-quick.test.ts":
+        "the `.claude/telemetry` paths are the RUNTIME store `telemetry-ingest --quick` writes, built in a scratch project per test; it reads no repo document",
     "scripts/__tests__/telemetry-serve.test.ts":
         "the `.claude/telemetry/` paths are the RUNTIME mirror the dashboard serves, gitignored; it reads no repo document",
     "scripts/__tests__/usage-window.test.ts":

@@ -326,6 +326,9 @@ const PR_MERGE = resolve(__dirname, "pr-merge.ts");
  * detached decision must keep reading from long after this worktree is gone.
  */
 const HEALTH_CADENCE_REL = "scripts/health-cadence.ts";
+const TELEMETRY_INGEST_REL = "scripts/telemetry-ingest.ts";
+/** `telemetryIngestStep`'s hard wall, seconds — its budget is 5 s. */
+const TELEMETRY_INGEST_WALL_S = 30;
 const SEED_SCENARIO = resolve(__dirname, "seed-scenario.ts");
 const RESOLVE_ARTIFACTS = resolve(__dirname, "resolve-generated-artifacts.ts");
 const GAPS_SYNC = resolve(__dirname, "gaps-sync.ts");
@@ -1092,6 +1095,36 @@ export function healthDetachStep(primaryCheckout: string): string {
 }
 
 /**
+ * Ingest the telemetry (issue #4968): `telemetry.db` had gone two weeks
+ * unread when the 2026-10-02 audit needed it, because ingesting was a thing
+ * someone had to remember. Every landing now runs `telemetry-ingest --quick`
+ * — the gate runs, health verdicts, `detach.log`, `gate-lock.jsonl` and the
+ * spans backlog under a wall budget, rotating `tool-events.jsonl` once it is
+ * read — so the DB is never more than one landing old.
+ *
+ * In the PRIMARY checkout, by a RELATIVE path, for the reason
+ * `HEALTH_CADENCE_REL` gives; and with `CLAUDE_PROJECT_DIR` pinned to it,
+ * because the session's own value may name the worktree this command is
+ * about to remove — its `.claude/telemetry/` is not the one anyone reads.
+ * BEFORE the health detach, so a decision that fires prints KPIs that count
+ * this landing. Non-gating like every post-merge step.
+ *
+ * HARD-WALLED: `--budget-ms` is checked between spans slices only, and this
+ * step runs holding the heavy mutex — a hung read or a stuck SQLite lock
+ * must not hold every other `land` with it. `perl`'s `alarm` survives the
+ * `exec` (macOS ships no `timeout`); a SIGALRM'd ingest leaves its lock to
+ * the next run's stale-pid takeover.
+ */
+export function telemetryIngestStep(primaryCheckout: string): string {
+    return (
+        `(cd ${shQuote(primaryCheckout)} && CLAUDE_PROJECT_DIR=${shQuote(primaryCheckout)} ` +
+        `perl -e 'alarm shift; exec @ARGV or die' ${TELEMETRY_INGEST_WALL_S} ` +
+        `bun ${shQuote(TELEMETRY_INGEST_REL)} --quick || ` +
+        `echo "land: telemetry ingest failed — telemetry.db is one landing staler" >&2; true)`
+    );
+}
+
+/**
  * Register the PR's preset scenario in the local Convex deployment (ADR 0044)
  * — the step ADR 0110 dropped when it retired the orchestrator and CLAUDE.md
  * § step 7 still names. In the PRIMARY checkout (a linked worktree has no
@@ -1182,6 +1215,7 @@ export function postMergeHousekeepingSteps(
     // decision, once it has the mutex — so there is nothing here to
     // contend with the `worktree remove`, and everything to lose by
     // running after it.
+    steps.push(telemetryIngestStep(opts.primaryCheckout));
     steps.push(healthDetachStep(opts.primaryCheckout));
     // Ref cleanup — cosmetic, not gating. `(… || true)` so a failure here
     // (stale remote state, an already-deleted branch, …) can never turn

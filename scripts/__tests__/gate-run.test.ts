@@ -807,3 +807,51 @@ describe("gate-run — one live run per (cwd, script), and the orphans are reape
         expect(r.stdout).toContain(`pid ${pgid}`);
     });
 });
+
+describe("gate-run — a land retried under the same key keeps its earlier attempt (issue #4968)", () => {
+    /**
+     * Every run under one key reuses one dir, and a start rewrites `started`,
+     * `log` and `green` — so a failed `land` retried before anything read the
+     * dir vanished, and `workflow:kpi`'s failed-land share counted only
+     * survivors. The start now copies the attempt it overwrites into
+     * `attempts/<started>/`, which `telemetry-ingest` reads.
+     */
+    it("archives the overwritten attempt's command, started and log — and no green on a red one", () => {
+        fixtureScript("slow", 'echo "ATTEMPT-ONE"\nexit 1');
+        expect(run({ args: ["land", "7"] }).status).toBe(1);
+        fixtureScript("slow", 'echo "ATTEMPT-TWO"\nexit 0');
+        expect(run({ args: ["land", "7"] }).status).toBe(0);
+
+        const [dir] = fs
+            .readdirSync(runDir)
+            .filter((d) => d.startsWith("land-"));
+        const attempts = path.join(runDir, dir, "attempts");
+        const kept = fs.readdirSync(attempts);
+        expect(kept).toHaveLength(1);
+        const a = path.join(attempts, kept[0]);
+        expect(fs.readFileSync(path.join(a, "command"), "utf8").trim()).toBe(
+            "land 7"
+        );
+        expect(fs.readFileSync(path.join(a, "started"), "utf8").trim()).toBe(
+            kept[0]
+        );
+        expect(fs.readFileSync(path.join(a, "log"), "utf8")).toContain(
+            "ATTEMPT-ONE"
+        );
+        expect(fs.existsSync(path.join(a, "green"))).toBe(false);
+        // The live record is the retry's.
+        expect(
+            fs.readFileSync(path.join(runDir, dir, "log"), "utf8")
+        ).toContain("ATTEMPT-TWO");
+    });
+
+    it("archives nothing for a command that is not a land", () => {
+        fixtureScript("fail", "exit 1");
+        run({ args: ["fail"] });
+        run({ args: ["fail"] });
+        const [dir] = fs
+            .readdirSync(runDir)
+            .filter((d) => d.startsWith("fail-"));
+        expect(fs.existsSync(path.join(runDir, dir, "attempts"))).toBe(false);
+    });
+});
