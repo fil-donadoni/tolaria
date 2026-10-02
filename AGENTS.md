@@ -262,6 +262,12 @@ Rationale, lanes, measurements: `docs/agents/quality-gates.md`.
   **Claim = `bun run queue:claim N`, one locked act** re-reading the cap
   (#4375; hand-typed label denied). Under RED `land` refuses a non-repair PR
   without `--red-ok` (#4964).
+- **Machine admission** (issue #4966, `lib/machine-admission.ts`): a heavy
+  gate, `check:ui` and `health-main` WAIT while load > `machine.loadMax` or
+  the kernel reports memory pressure; past `machine.waitMaxS` → **exit 77 =
+  INFRA, nothing ran, never a red lane** (re-issue). A session's first prompt,
+  `queue:claim`, `wt:new` are refused past the effective cap (`sessions.cap`
+  ∧ RAM). **`bun run machine`** shows it; hatch `TOLARIA_OVER_CAP=1` (logged).
 
 **Worktree isolation — shared checkout is read-only.** Every authored file →
 worktree, **even one markdown line** (unfinished ADR there reds `check:all` for

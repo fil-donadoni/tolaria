@@ -74,8 +74,15 @@
  * The two refresh steps NEVER fail the batch — a stale page is marked stale, not a
  * red tip — and neither `land` nor `check:pr` runs them.
  *
+ * The MACHINE is asked before the gates start (issue #4966,
+ * `lib/machine-admission.ts`): over a `machine.*` threshold the run waits,
+ * bounded, then ends `infra` at `preflight:machine` — and a step that only
+ * timed out while its own load / swap samples were over threshold is `infra`
+ * too (`machine-saturated`), never a `RED` marker.
+ *
  * Zero imports beyond node builtins, `lib/branches.ts`, `lib/health-step.ts`,
- * `lib/health-verdict.ts`, `lib/convex-reachable.ts` and
+ * `lib/health-verdict.ts`, `lib/convex-reachable.ts`,
+ * `lib/machine-admission.ts` (builtins and `lib/branches.ts`) and
  * `lib/health-bot-refresh.ts` (builtins and the import-free
  * `lib/bot-globs.ts` only), and through `lib/health-verdict.ts` the
  * `ui-gate/infra-verdict.ts` (builtins and `lib/convex-reachable.ts`) — same constraint as
@@ -105,6 +112,7 @@ import {
     nextUiWalkLedger,
     parseUiWalkLedger,
     PREFLIGHT_CONVEX_STEP,
+    PREFLIGHT_MACHINE_STEP,
     readLastSleepAt,
     recordInfra,
     UI_WALK_FILE,
@@ -119,6 +127,12 @@ import {
     type WalkOutcome,
 } from "./lib/health-verdict";
 import { reachable, readEnvLocal } from "./lib/convex-reachable";
+import {
+    readMachineConfig,
+    readMachineSample,
+    runSaturated,
+    waitForMachine,
+} from "./lib/machine-admission";
 import {
     describeLastDecision,
     gateSkipReason,
@@ -427,6 +441,7 @@ async function runWalk(ctx: RunCtx, walk: readonly string[]): Promise<void> {
         args: healthStepArgs(name),
     }));
     const wt = join(ctx.root, "..", `tolaria-health-walk-${process.pid}`);
+    const thresholds = readMachineConfig();
     let failed: { step: string; cause: InfraCause | null } | undefined;
     let walked = false;
     let current = "worktree add";
@@ -435,6 +450,7 @@ async function runWalk(ctx: RunCtx, walk: readonly string[]): Promise<void> {
         for (const step of steps) {
             current = step.name;
             const stepStartedAt = Date.now();
+            const machineAtStart = readMachineSample();
             const r = await runHealthStep(step, {
                 cwd: wt,
                 env,
@@ -451,6 +467,10 @@ async function runWalk(ctx: RunCtx, walk: readonly string[]): Promise<void> {
                     step: step.name,
                     exitCode: r.status,
                     output: r.output,
+                    machineSaturated: runSaturated(
+                        [machineAtStart, readMachineSample()],
+                        thresholds
+                    ),
                 }),
             };
             break;
@@ -646,6 +666,26 @@ async function main(): Promise<void> {
             ui: "not run",
         });
 
+    // The machine, asked before ~40 minutes of gates start on it (issue
+    // #4966). Under a caller's hold the gate that took the mutex has already
+    // asked, and waited: asking again would only wait twice.
+    const thresholds = readMachineConfig();
+    if (process.env.TOLARIA_GATE_HELD !== "1") {
+        const machine = await waitForMachine({
+            thresholds,
+            tag: "health-main:",
+            announce: (line) => console.error(line),
+        });
+        if (!machine.admitted)
+            finishInfra(
+                ctx,
+                "machine-saturated",
+                PREFLIGHT_MACHINE_STEP,
+                undefined,
+                { ui: "not run" }
+            );
+    }
+
     const steps: HealthStep[] = offline.map((name, i) => ({
         ordinal: i + 1,
         total: offline.length,
@@ -667,6 +707,7 @@ async function main(): Promise<void> {
         git(["worktree", "add", "--detach", wt, tip], root);
         for (const step of steps) {
             const stepStartedAt = Date.now();
+            const machineAtStart = readMachineSample();
             const r = await runHealthStep(step, { cwd: wt, env, logPath });
             if (!r.ok) {
                 failedStep = step.name;
@@ -678,6 +719,10 @@ async function main(): Promise<void> {
                     step: step.name,
                     exitCode: r.status,
                     output: r.output,
+                    machineSaturated: runSaturated(
+                        [machineAtStart, readMachineSample()],
+                        thresholds
+                    ),
                 });
                 break;
             }

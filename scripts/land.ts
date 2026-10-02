@@ -106,6 +106,7 @@ import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { gh, netEnv } from "./lib/gh";
 import { primaryCheckout } from "./lib/primary-checkout";
+import { MACHINE_SATURATED_EXIT } from "./lib/machine-admission";
 import {
     LIVE_ORIGIN_BAND_DEPS,
     originBandOfIssue,
@@ -1530,6 +1531,12 @@ function main(): void {
         cwd,
         env: lockedEnv(process.env),
     });
+    // The gate held the mutex and the machine never calmed (issue #4966):
+    // nothing was rebased, gated or merged, so this is not a failed land.
+    if (result.status === MACHINE_SATURATED_EXIT)
+        console.error(
+            `land: NOT landed, and NOT failed — the machine stayed saturated past the bound, so no gate ran and PR #${pr} is untouched. Re-issue the same command once \`bun run machine\` reads calm.`
+        );
     process.exit(result.status ?? 1);
 }
 

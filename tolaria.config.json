@@ -1,10 +1,15 @@
 {
-    "$comment": "Repository-level workflow configuration. `branches.base` is the integration branch every issue PR targets and `bun run land` merges into; `branches.release` is the production branch `bun run release` fast-forwards after the full health gate passes on the base tip (ADR 0116). `sessions.cap` is how many live claims the queue admits at once (ADR 0136 §7) — a MEASURED number, derived in `docs/agents/quality-gates.md` § Session admission, never a feeling. `branches.*` is read by scripts/lib/branches.ts and, via jq, by .claude/hooks/deny-guard.sh and scripts/gate-run.sh — no script or hook names a branch by literal. `sessions.cap` is read by scripts/lib/branches.ts ONLY: no hook enforces it, the claim is one locked act (`queue:claim`, PRD #4373).",
+    "$comment": "Repository-level workflow configuration. `branches.base` is the integration branch every issue PR targets and `bun run land` merges into; `branches.release` is the production branch `bun run release` fast-forwards after the full health gate passes on the base tip (ADR 0116). `sessions.cap` is how many live claims the queue admits at once (ADR 0136 §7) — a MEASURED number, derived in `docs/agents/quality-gates.md` § Session admission, never a feeling. `branches.*` is read by scripts/lib/branches.ts and, via jq, by .claude/hooks/deny-guard.sh and scripts/gate-run.sh — no script or hook names a branch by literal. `sessions.cap` is read by scripts/lib/branches.ts ONLY; it is the CEILING on live project sessions — `queue:claim` enforces it on claims, and `.claude/hooks/session-admission.sh`, `queue:claim` and `wt:new` on sessions (issue #4966). `machine.*` is what scripts/lib/machine-admission.ts holds the machine against, read by that module ONLY: `loadMax` (1-minute load above which nothing heavy starts), `waitMaxS` (how long a gate waits for the machine before the run is given up as INFRA), `sessionBudgetMb` (RAM one working session needs; the effective session cap is the ceiling or what reclaimable RAM still holds, whichever is lower). Each is MEASURED — `docs/agents/quality-gates.md` § Session admission, The machine — and `bun run machine` prints them beside the live readings.",
     "branches": {
         "base": "staging",
         "release": "main"
     },
     "sessions": {
         "cap": 3
+    },
+    "machine": {
+        "loadMax": 8,
+        "sessionBudgetMb": 2500,
+        "waitMaxS": 900
     }
 }

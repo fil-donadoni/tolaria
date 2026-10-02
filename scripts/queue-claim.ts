@@ -11,6 +11,12 @@
 // Then release the lock. Exit 0 on a claim, 1 on a refusal (the message names
 // the way out), 2 on a usage error.
 //
+// Before any of it, the MACHINE is asked (issue #4966): the claim cap counts
+// claims, and a claim taken beside three sessions that hold none is a fourth
+// session at work. `lib/machine-admission.ts` decides — the same decision a
+// session's first prompt and `wt:new` get — and `--no-cap` (or
+// `TOLARIA_OVER_CAP=1`) is the announced, logged escape for both caps.
+//
 // `queue:plan` stays read-only. `deny-guard.sh` § 5 counts planner runs
 // (MAX_PASSES = 1) — this verb is not one and must never be matched by that
 // rule; § 6 denies the hand-typed claim and names this verb as the exit.
@@ -29,6 +35,12 @@ import { spawnSync } from "node:child_process";
 import { gh } from "./lib/gh";
 import { ORIGIN_BASE, sessionCap } from "./lib/branches";
 import { primaryCheckout } from "./lib/primary-checkout";
+import {
+    OVER_CAP_ENV,
+    admitSessionNow,
+    logSessionAdmission,
+    sessionRefusal,
+} from "./lib/machine-admission";
 import {
     claimLedgerPath,
     claimVerdicts,
@@ -289,6 +301,28 @@ async function main(): Promise<void> {
     if (session === "")
         console.error(
             "queue:claim: no CLAUDE_CODE_SESSION_ID — this claim is recorded with an empty session, so the end-of-session sweep will not release it; `loop:doctor` will, by evidence"
+        );
+
+    const machine = admitSessionNow({
+        override: noCap || process.env[OVER_CAP_ENV] === "1",
+    });
+    if (
+        machine.decision.verdict === "refuse" ||
+        machine.decision.overridden.length > 0
+    )
+        logSessionAdmission(root, machine, {
+            source: `queue:claim #${issue}`,
+            session,
+        });
+    if (machine.decision.verdict === "refuse") {
+        console.error(
+            `✗ queue:claim: ${sessionRefusal(machine.decision.reasons, machine.census?.others ?? [])}\n  (for this claim alone: --no-cap)`
+        );
+        process.exit(1);
+    }
+    if (machine.decision.overridden.length > 0)
+        console.error(
+            `queue:claim: machine admission OVERRIDDEN (${noCap ? "--no-cap" : `${OVER_CAP_ENV}=1`}) — ${machine.decision.overridden.join("; ")}`
         );
 
     const outcome = await withClaimLock(`claim #${issue}`, () => {

@@ -16,6 +16,13 @@
  * holder is reclaimed, and a live one that stopped heartbeating is reclaimed
  * after `staleMs`. `gate:who` prints it (`uiLaneWhoLines`).
  *
+ * THE MACHINE (issue #4966). Holding the lane is not the same as having a
+ * machine to walk on: the full walk of aa785cf0 took the lane at load 14.5 and
+ * ended with 37 cells `INFRA` and 48 `UNWALKED`. So a run that holds the lane
+ * asks `lib/machine-admission.ts` before it starts a browser (`admitMachine`):
+ * it waits, bounded, and past the bound gives the lane back and throws
+ * `MachineSaturatedError` — nothing walked, exit `MACHINE_SATURATED_EXIT`.
+ *
  * EVERY EXIT PATH. `acquireUiLane` releases on the `exit` event (normal end,
  * `process.exit`, an uncaught throw) and on SIGINT / SIGTERM / SIGHUP; where
  * another handler owns the signal it leaves the exit to that handler, whose
@@ -72,6 +79,20 @@ export interface AcquireUiLaneInput {
     heartbeatMs?: number;
     /** Tests drive the hold in-process and release by hand. */
     installExitHandlers?: boolean;
+    /** Asked once the lane is held: may a browser start on this machine?
+     *  `false` — the bounded wait ran out — frees the lane and throws
+     *  `MachineSaturatedError`. Absent, the machine is not asked. */
+    admitMachine?: () => Promise<boolean>;
+}
+
+/** The lane was taken and the machine stayed saturated past the bound: no
+ *  browser started, and the lane has been given back. */
+export class MachineSaturatedError extends Error {
+    constructor() {
+        super(
+            "the machine stayed saturated past the bound — nothing was walked"
+        );
+    }
 }
 
 function lockDir(root: string): string {
@@ -298,6 +319,12 @@ export async function acquireUiLane(
                 }
             });
         }
+    }
+    // After the handlers: the wait is minutes long, and a signal during it
+    // must still give the lane back.
+    if (input.admitMachine && !(await input.admitMachine())) {
+        release();
+        throw new MachineSaturatedError();
     }
     return { release };
 }

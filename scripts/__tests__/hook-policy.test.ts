@@ -2162,6 +2162,7 @@ describe("hooks are wired into settings.json", () => {
             "claim-ledger.sh": "PreToolUse",
             "claim-sweep.sh": "SessionEnd",
             "deny-guard.sh": "PreToolUse",
+            "session-admission.sh": "UserPromptSubmit",
             "session-origin.sh": "SessionStart",
             "spawn-guard.sh": "PreToolUse",
             "timing-log.sh": "PreToolUse", // also PostToolUse; asserted below

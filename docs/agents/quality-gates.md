@@ -1339,6 +1339,144 @@ it through — the one flag reached for in a hurry must not silently opt out of
 that. `land` is unchanged: it WARNS and proceeds, so a session already
 mid-issue finishes and the fix-forward has a way in.
 
+### The machine — what none of the above looked at (issue #4966)
+
+Everything above rations the gates and the claims **among themselves**. Nothing
+looked at the machine: a gate that took the mutex at load 14 ran anyway, the
+only load reading in the system was taken after a `check:ui` cell had already
+failed, and `sessions.cap` counted CLAIMS — a session opened by hand, an
+interactive audit or a fourth terminal claims nothing and was counted by
+nothing. `scripts/lib/machine-admission.ts` is the one module that reads the
+machine, and it makes two decisions over one set of probes.
+
+**Gate start.** A heavy acquisition (`gate.ts heavy` / `job` / `yield`), the
+`check:ui` lane and `health-main` ask before they start. On a saturated machine
+they wait, printing `machine busy — load L, swap S` with the reason, bounded by
+`machine.waitMaxS`; past the bound nothing runs and the run exits **77**
+(`MACHINE_SATURATED_EXIT`). That exit is `infra` with cause `machine-saturated`
+in `health-verdict.ts` — never a `RED` marker — and `land` prints that the PR
+is untouched: not landed, not failed, re-issue. The heavy gate waits UNDER the
+mutex, so the queue's order holds and no second gate starts on the machine the
+first one is waiting for. A nested call and the light tier do not ask.
+
+**Session.** A session's first prompt (`.claude/hooks/session-admission.sh`, a
+`UserPromptSubmit` hook: exit 2 blocks the prompt), `queue:claim` and `wt:new`
+take the same decision: the OTHER live project sessions against the effective
+cap, plus memory pressure. A session is refused, not queued, and the refusal
+names every live session (pid, cwd, age) and the one escape —
+`TOLARIA_OVER_CAP=1 claude`, announced and logged like `--no-cap`. A live
+project session is a `claude` process whose cwd is the primary checkout or one
+of its worktrees; the cwd is what excludes the background daemon (`$HOME`), its
+pty hosts and an unclaimed spare (the daemon's scratch directory), and a
+session on another project. Once admitted a session is stamped under
+`~/.cache/tolaria/sessions/` and never asked again.
+
+**Saturated means two things, and swap is not one of them.**
+
+| Signal          | Saturated when                        | Gates | Sessions |
+| --------------- | ------------------------------------- | :---: | :------: |
+| 1-minute load   | over `machine.loadMax`                |  yes  |    no    |
+| Memory pressure | the kernel's level is past 1 (normal) |  yes  |   yes    |
+| Reclaimable RAM | holds no further `sessionBudgetMb`    |  no   |   yes    |
+| Swap in use     | never — recorded beside every run     |  no   |    no    |
+
+Load gates what is about to ADD load. An admitted gate itself holds the
+1-minute average past `loadMax` for its whole run, so a session's first prompt
+read against it would be refused during every `land` — for a start that adds
+no load at all. Memory is what a session does consume, and it is sustained:
+that is what gates the session.
+
+Swap in use was the issue's proposed memory threshold, and the measurement
+retired it. On this machine, 2026-10-02: **4498 MB at load 22.4**, then
+**6054 MB twenty minutes later at load 2.5** with 6.4 GB reclaimable and the
+kernel at pressure level 1. It is a high-water mark — what the machine once
+needed — and a threshold on it refuses a calm machine for as long as the mark
+stands. `kern.memorystatus_vm_pressure_level` is the state: 1 normal, 2
+warning (the compressor and swap are working now), 4 critical. Swap is still
+sampled and written beside every run, because a run during which it GREW is
+evidence worth having.
+
+**The effective cap.** `sessions.cap` is the ceiling. Under it,
+`min(cap, others + floor(reclaimable / sessionBudgetMb))`, never below 1:
+reclaimable RAM (free + inactive) is what is left WITH the others already
+running, so it measures room for more, not a total; and a machine too full for
+one session is not something a hook may decide — refusing the only session
+refuses the one that would fix it. An unread probe leaves the ceiling.
+
+**The derivation.** Three numbers, in `tolaria.config.json` § `machine`.
+
+`loadMax` = **8**, from every full walk the health logs hold a start load for
+(`.claude/telemetry/health/*.log`, the `load N not consulted` line against the
+step's exit) — six, which is all there are:
+
+| Load at start | Verdict |   Wall | Unwalked / INFRA cells |
+| ------------: | ------- | -----: | ---------------------- |
+|           4.4 | pass    |  870 s | —                      |
+|           5.8 | pass    |  635 s | —                      |
+|           9.2 | FAIL    |  573 s | 2 unwalked             |
+|          12.2 | pass    |  631 s | —                      |
+|          14.5 | FAIL    | 2729 s | 48 unwalked, 37 INFRA  |
+|          99.4 | pass    |  708 s | —                      |
+
+No walk that started at or under 5.8 failed; the lowest start that did was
+9.2; above 9 the record is two failures in four. Eight — the core count, where
+runnable processes begin to outnumber cores — sits in that gap and admits only
+the region with no failure on record. **Six rows is a thin table**, and the
+two passes above the line are why the rule is a WAIT and not a refusal: a walk
+that follows the suites starts on THEIR load, which decays in a minute or two
+(from 14.5 to 8 in about 50 s on a 60 s average), and the pass at 99.4 is that
+decay. Until now no verdict was recorded beside a load; from this change every
+gate run writes `load_start` / `load_end`, so the next derivation reads
+`gate-lock.jsonl` instead of six logs:
+
+```bash
+jq -c 'select(.event=="run") | [.load_start, .exit, .duration_ms, .cmd]' \
+    .claude/telemetry/gate-lock.jsonl
+```
+
+`waitMaxS` = **900**: the bound must outlast the longest thing that
+legitimately holds the load up without holding the mutex, and that is the full
+browser walk — 573–870 s over the five walks above that were not themselves
+saturated. Fifteen minutes covers it; a machine still busy after that is busy
+with something no gate started.
+
+`sessionBudgetMb` = **2500**: a session at work is its process tree plus its
+targeted vitest. Measured 2026-10-02 — four live sessions at 383, 643, 642 and
+718 MB (`bun run machine`, each tree without the sessions it spawned), and a
+targeted run peaking at 1455 MB (two `convex/gre` files) and 1800 MB
+(`convex/cards/__tests__`, 55 files, two workers) by
+`bun run machine measure bunx vitest run <paths>`. The larger of each:
+718 + 1800 = 2518 MB.
+
+**What it costs.** The sample a gate takes — one `sysctl` for swap and
+pressure, one `vm_stat`, `os.loadavg()` — measured 5 ms, at the start and the
+end of a run. The session census (`ps`, `lsof` for the `claude` pids' cwds,
+`git worktree list`) measured 69–121 ms and is paid once per session, claim or
+worktree, never by a gate. No PR-phase step was added.
+
+**What it records.** `gate-lock.jsonl` gains `event: "run"` — `load_start`,
+`load_end`, `swap_start_mb`, `swap_end_mb`, pressure and reclaimable RAM at
+both ends, exit and duration — for every run of every tier, plus
+`machine-saturated` and `machine-override`. `session-admission.jsonl` holds
+every session decision (`admitted`, `refused`, `override`). With the samples
+in hand, a failure the machine can explain is read as the machine's: a suite
+whose every failed test timed out, or a walk whose every failing row is INFRA,
+in a step whose own samples were saturated, is `infra` / `machine-saturated`.
+One assertion that failed beside the timeouts keeps the step RED.
+
+**Fails open.** A probe that cannot be read — another platform, a failed
+spawn — reads as null, and null never saturates; the hook admits on a missing
+`bun`, a thrown probe or a payload with no session id. This inverts the
+claim cap's fail-safe on purpose: there a broken probe only makes a queue
+stricter, here it would lock every session out, including the one that fixes
+the probe.
+
+**In the suites.** `vitest.setup.node.ts` sets `TOLARIA_MACHINE_PROBE` to a
+calm machine, so a gate, claim, worktree or hook a test spawns reads that
+instead of the real one: a suite run on a saturated machine neither waits on
+it nor passes because of it. A run under an injected probe writes no `run`
+row.
+
 ## Worktree isolation, and the documentation lane
 
 Measured over the 30 days to 2026-08-17: **~40 documentation-only commits

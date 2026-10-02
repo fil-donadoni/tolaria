@@ -38,24 +38,45 @@
  * gate that has not yet shown it can tell the two apart may not stop the
  * queue. `release` reads only `green`, so it still requires the walk to pass.
  *
- * Node builtins plus `lib/convex-reachable.ts` (itself builtins only) and
- * `ui-gate/infra-verdict.ts` (which adds only `lib/convex-reachable.ts`) — `health-main.ts` carries the same
- * constraint.
+ * `infra` is ALSO a run the MACHINE could not carry (issue #4966): a gate that
+ * waited out `machine.waitMaxS` on a saturated machine and never started
+ * (`MACHINE_SATURATED_EXIT`), and a step that failed ONLY by timing out — every
+ * failed test a timeout, or a walk whose every failing row is INFRA — while
+ * its own load / swap samples were over threshold (`machineSaturated`). A
+ * single assertion that failed beside the timeouts keeps the step RED.
+ *
+ * Node builtins plus `lib/convex-reachable.ts` (itself builtins only),
+ * `ui-gate/infra-verdict.ts` (which adds only `lib/convex-reachable.ts`) and
+ * `lib/machine-admission.ts` (builtins plus `lib/branches.ts`) —
+ * `health-main.ts` carries the same constraint.
  */
 import { spawnSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { DEPLOYMENT_DOWN_EXIT } from "./convex-reachable";
 import { walkRunVerdict } from "../ui-gate/infra-verdict";
+import {
+    MACHINE_SATURATED_EXIT,
+    timeoutOnlyFailure,
+} from "./machine-admission";
 
 export type HealthStatus = "running" | "green" | "red" | "infra";
 
 /** Why a run is `infra` — the machine, never the tree. */
-export type InfraCause = "sleep" | "convex-down" | "ui-walk" | "ui-unproven";
+export type InfraCause =
+    | "sleep"
+    | "convex-down"
+    | "ui-walk"
+    | "ui-unproven"
+    | "machine-saturated";
 
 /** The step name `last.json` records when the preflight found the backend
  *  down before any gate ran. */
 export const PREFLIGHT_CONVEX_STEP = "preflight:convex";
+
+/** The step name `last.json` records when the machine stayed saturated past
+ *  the bound before any gate ran (issue #4966). */
+export const PREFLIGHT_MACHINE_STEP = "preflight:machine";
 
 /** What to do about each cause — one sentence `last.json` carries as
  *  `reason`, so every reader (`health:status`, `queue:plan`, `loop-drain`)
@@ -69,6 +90,8 @@ export const INFRA_REMEDY: Record<InfraCause, string> = {
         "the browser walk was cut short by the environment (a fatal check:ui error, or every failing row INFRA); the next health run re-walks the tip",
     "ui-unproven":
         "the browser walk failed while still in probation, so it raises no RED marker; read the log, and the next health run re-walks the tip",
+    "machine-saturated":
+        "the machine was over its load or swap threshold (machine.* in tolaria.config.json), so nothing ran or what ran only timed out; see `bun run machine`, and the next health run re-gates the tip",
 };
 
 /** `{ sec = 1790866381, usec = 538510 } Thu Oct  1 …` → epoch ms, or null. */
@@ -100,8 +123,12 @@ export interface StepOutcome {
     step?: string;
     /** The child's exit code; null when a signal killed it. */
     exitCode?: number | null;
-    /** The child's stdout + stderr — read for a `check:ui` step only. */
+    /** The child's stdout + stderr — read for a `check:ui` step, and for a
+     *  step that failed on a saturated machine. */
     output?: string;
+    /** The step's own load / swap samples crossed a `machine.*` threshold
+     *  (`runSaturated`). Absent reads as a calm machine. */
+    machineSaturated?: boolean;
 }
 
 /** The `HEALTH_SCRIPTS` entry's script name: `check:ui --all` → `check:ui`. */
@@ -121,13 +148,21 @@ export function infraCause(input: StepOutcome): InfraCause | null {
     if (input.ok) return null;
     const walk = isWalkStep(input.step);
     if (walk && input.exitCode === DEPLOYMENT_DOWN_EXIT) return "convex-down";
+    // A gate that never started: the machine stayed saturated past the bound.
+    if (input.exitCode === MACHINE_SATURATED_EXIT) return "machine-saturated";
     if (input.lastSleepAt !== null && input.lastSleepAt >= input.startedAt)
         return "sleep";
-    if (
+    const walkInfra =
         walk &&
-        walkRunVerdict(input.exitCode ?? null, input.output ?? "") === "infra"
+        walkRunVerdict(input.exitCode ?? null, input.output ?? "") === "infra";
+    // The machine explains a failure only when the failure is one it can
+    // cause: an unsettled walk, or a suite whose every failed test timed out.
+    if (
+        input.machineSaturated &&
+        (walkInfra || (!walk && timeoutOnlyFailure(input.output ?? "")))
     )
-        return "ui-walk";
+        return "machine-saturated";
+    if (walkInfra) return "ui-walk";
     return null;
 }
 
