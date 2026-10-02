@@ -11,26 +11,26 @@
  * (a new pin — file its issue, or rewrite the entry in the same PR) and on a
  * listed entry that has become robust (delete its row). A label is matched
  * verbatim, so retitling a listed entry is a delete plus an add.
+ *
+ * `land` refuses a PR that closes a row's owning issue while the row is still
+ * here (issue #4980): delete it, or re-point it to its next owner.
  */
 
 import type { RobustnessBaselineRow } from "./robustness";
 
 export const ROBUSTNESS_BASELINE: readonly RobustnessBaselineRow[] = [
-    // First run (issue #4875), wide seeds 0..9 × default / jitter+ / jitter-.
-    // Noise-pinned behind a search defect: the tree walk and the rollout
-    // stop at the opponent's mandatory discard (issue #4917), so the cast
-    // line is scored mid-resolution, before Tendrils' discard is made, and
-    // its rollouts never reach the opponent's turn. Issue #4877 moved the
-    // sibling sacrifice entries to the postcombat main; this one waits on
-    // the stall fix, which owns the entry.
+    // Robust at the health runs of 2026-09-30, pinned by a Bot landing since
+    // (not bisected); found by the health RED that issue #4980 repairs, on
+    // tip f61bfddc: jitter− 9/10.
     {
-        label: "Discard sorcery with a sacrifice cost: casts it into a full hand",
-        issue: 4917,
+        label: "opponent's choice: casts Ravenous Rats into a two-card hand",
+        issue: 4981,
     },
-    // Robust at health GREEN 143e46bb, jitter− 9/10 on the base tip after the
-    // refits of issue #4758 and issue #4880; found landing issue #4878.
+    // Pinned since it landed (PR #4906, issue #4895), same RED: jitter+ and
+    // jitter− 9/10, each failing run decided by material-tiebreak where every
+    // passing run is mean-reward.
     {
-        label: "storm: Grapeshot is lethal because the search counts the spell cast before it",
-        issue: 4893,
+        label: "granted flashback: casts Stingcaster Mage to flash back Lightning Bolt for lethal",
+        issue: 4982,
     },
 ];

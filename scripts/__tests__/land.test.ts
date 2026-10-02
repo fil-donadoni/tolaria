@@ -278,6 +278,21 @@ describe("land.ts — refusal matrix", () => {
             ).not.toBeNull();
         });
 
+        it("refuses an OPEN PR that closes a robustness baseline row's owner (issue #4980)", () => {
+            expect(
+                refusalReason({
+                    ...clean,
+                    robustnessBaselineRefusal: "row still in the tree",
+                })
+            ).toBe("row still in the tree");
+            expect(
+                refusalReason({
+                    ...merged,
+                    robustnessBaselineRefusal: "row still in the tree",
+                })
+            ).toBeNull();
+        });
+
         it("selects the mode from the PR state alone", () => {
             expect(landMode("MERGED")).toBe("housekeeping");
             expect(landMode("OPEN")).toBe("full");
