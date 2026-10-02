@@ -143,6 +143,19 @@ is not, because each of them then debugs a failure that is not theirs.
    from the primary checkout (tsc validates by hash, a stale file is safe);
    `lint` runs with `--cache`.
 
+### Amendment — issue #4965 (2026-10-02): the bound becomes ageing
+
+§6's "bounded yield" is replaced by an ORDERED queue. Measured the day it was
+replaced: three health waiters past the 30 min bound each took the mutex for
+a full gate in turn while two lands waited 25–35 min — past its bound a
+yielding gate competed as an equal, and a polled lock has no order. Now only
+the head of the queue may take the mutex; classes are `land` > `job` >
+hand-run heavy > `health`, and a waiter rises one class per 30 min queued, so
+health still cannot starve (a land's equal after 90 min, and the oldest).
+Everything else in §6 stands: per batch, deduplicated by sha, gating the tip
+current at its start, never interrupted once running.
+`docs/agents/quality-gates.md` § The queue has an order.
+
 ## Consequences
 
 - Gate per landing: 19 min measured → ~6 min projected (`engine` 2.5–3 min at

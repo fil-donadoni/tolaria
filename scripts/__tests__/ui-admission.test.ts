@@ -159,6 +159,14 @@ describe("heavyHolderLive (issue #4941)", () => {
         expect(heavyHolderLive(root, {}, now, () => true)).toBeNull();
     });
 
+    it("ignores a holder that declared its stall past the short reclaim threshold (issue #4965)", () => {
+        // The stamp is fresh; the declaration is what makes it reclaimable.
+        stamp({ ...holder, stalledAt: now - 4 * 60 * 1000 });
+        expect(heavyHolderLive(root, {}, now, () => true)?.pid).toBe(4242);
+        stamp({ ...holder, stalledAt: now - 6 * 60 * 1000 });
+        expect(heavyHolderLive(root, {}, now, () => true)).toBeNull();
+    });
+
     it("ignores the hold this process runs under (TOLARIA_GATE_HELD=1)", () => {
         stamp(holder);
         expect(

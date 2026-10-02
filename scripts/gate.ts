@@ -19,7 +19,7 @@
  *           mutex and get the full worker count, CAPPED (see below). One at a
  *           time, but each runs at solo speed instead of N running at 1/N
  *           speed. Callers queue.
- *   yield — heavy, but lands go first. See YIELD below.
+ *   yield — heavy, queued in the `health` class. See ORDER below.
  *   job   — heavy, for the long CPU-bound JOBS an issue session legitimately
  *           runs itself: the Oracle compiler's Bot-play sweep (it re-execs
  *           itself here only when it will play — `lib/heavy-admission.ts`; its
@@ -55,34 +55,50 @@
  * never stale, so no waiter could ever reclaim it. The heartbeat therefore
  * attests to PROGRESS: it refreshes only while the held subtree's cumulative
  * CPU time is still advancing, and a subtree frozen for STALL_BEATS beats
- * stops the refresh, handing the lock to the existing STALE_MS reclaim path.
+ * stops the refresh and stamps `stalledAt`; STALLED_RECLAIM_MS (5 min) later
+ * the head of the queue kills the hung subtree and takes the lock (issue
+ * #4965 — it used to be the 45 min of STALE_MS, with the hung workers left
+ * running under the next holder). A subtree that burns CPU again before then
+ * withdraws the declaration. STALE_MS stays for the holder that cannot even
+ * declare: a gate process that is itself frozen. Both thresholds are
+ * wall-clock, so a waiter that was itself not running — a slept machine —
+ * judges no stall until it has polled a full beat (`stallJudgeable`).
  *
- * YIELD. A third spelling of the heavy tier, for the per-batch health gate
- * (ADR 0136 §6): identical in every way — same mutex, same worker count, same
- * heartbeat — except that it steps aside while any `land` is QUEUED. Health
- * holds the mutex ~10 min and a landing ~4, and the tip health is about does
- * not get staler while a land runs, so letting the landings through first
- * costs health nothing and saves each of them ten minutes. Bounded by
- * TOLARIA_GATE_YIELD_BOUND_MS so it cannot starve; the decision itself is
- * `yieldVerdict` in `lib/gate-liveness.ts`, tested pure. Every waiter records
- * itself under `gate.waiters/` while it queues, which is what makes the set of
- * queued lands readable at all — and what `who` now prints.
+ * ORDER (issue #4965). The mutex is a `mkdir` lock every waiter polls, and a
+ * polled lock has no order: whoever polls first after a release wins. PR
+ * #4956 — one test file — waited 24m22s behind two lands and a health run
+ * that arrived in arbitrary order; over 14 days 93 lands queued 10.6 h in
+ * total. So every waiter records itself under `gate.waiters/` (pid, role,
+ * tier, `since`, and `seen`, restamped on every poll) and ONLY THE HEAD of
+ * that queue may take or reclaim the lock. The head is the live waiter with
+ * the best (class, since): `land` > `job` > heavy (hand-run) > `health`, the
+ * class rising one step per AGE_STEP_MS (30 min) queued so health cannot
+ * starve. Every waiter computes the same order from the same registry —
+ * `admissionOrder` in `lib/gate-liveness.ts`, tested pure — so there is no
+ * coordinator, and a head that stops polling drops out of everyone's view
+ * after WAITER_STALE_MS. `yield` is the health gate's historical spelling of
+ * the heavy tier: same mutex, same worker count, same heartbeat, queued in
+ * the `health` class (ADR 0136 §6 — it used to step aside for queued lands
+ * until a 30 min bound and then compete as an equal, which on 2026-10-02 let
+ * three health waiters past their bound each take a full gate in turn while
+ * two lands waited 25–35 min).
+ *
+ * TEARDOWN (issue #4965). Before the lock is released every descendant of
+ * the wrapped command is dead, and that is verified — see `killTree`.
  *
  * Usage:
  *   bun scripts/gate.ts heavy '<shell command>'
- *   bun scripts/gate.ts yield '<shell command>'   # heavy, but lands go first
+ *   bun scripts/gate.ts yield '<shell command>'   # heavy, in the health class
  *   bun scripts/gate.ts job '<shell command>'     # heavy, allowed in a worktree
  *   bun scripts/gate.ts light '<shell command>'
- *   bun scripts/gate.ts who              # who holds the mutex, and is it alive?
+ *   bun scripts/gate.ts who              # the holder, and the queue in order
  *
  * Env:
  *   TOLARIA_GATE_HELD=1        set by this script for the child; a nested heavy
  *                              call passes straight through (no self-deadlock)
  *   TOLARIA_GATE_ROLE          what this caller is — `land`, `health`, or
  *                              unset; recorded on the waiter entry and read by
- *                              the yield decision
- *   TOLARIA_GATE_YIELD_BOUND_MS  how long a `yield` acquisition steps aside
- *                              before taking the mutex anyway (default 30 min)
+ *                              the admission order
  *   TOLARIA_ALLOW_FULL_SUITE=1 escape hatch for the issue-worktree guard
  *   TOLARIA_VITEST_WORKERS     worker cap read by vitest.config.ts
  *   TOLARIA_VITEST_FS_CACHE    forced to "0" for the child on EVERY tier: no
@@ -95,26 +111,49 @@
  *   TOLARIA_GATE_STALE_MS      staleness threshold override (tests only)
  *   TOLARIA_GATE_STALL_BEATS   no-progress beats before a holder stops
  *                              heartbeating (tests only)
+ *   TOLARIA_GATE_STALLED_RECLAIM_MS  declared stall → reclaimable (tests only)
+ *   TOLARIA_GATE_AGE_STEP_MS   queued time per class of ageing (tests only)
+ *   TOLARIA_GATE_WAITER_STALE_MS  a waiter silent this long is not queued
+ *                              (tests only)
+ *   TOLARIA_GATE_WAITER_SINCE  this waiter's queue-entry time, epoch ms — the
+ *                              injected clock of the ageing tests (tests only)
+ *   TOLARIA_GATE_KILL_GRACE_MS TERM → KILL grace of a teardown (tests only)
+ *   TOLARIA_GATE_POLL_MS       a waiter's poll period (tests only)
+ *   TOLARIA_GATE_OWNERLESS_GRACE_MS  how old a lock with no owner must be
+ *                              before it is an orphan (tests only)
  */
 import { spawn, spawnSync } from "node:child_process";
 import {
     mkdirSync,
     readdirSync,
+    renameSync,
     rmSync,
     readFileSync,
+    statSync,
     writeFileSync,
     appendFileSync,
 } from "node:fs";
 import { join } from "node:path";
 import { homedir, cpus } from "node:os";
 import {
+    AGE_STEP_MS,
     INITIAL_HEARTBEAT,
+    POLL_GAP_FACTOR,
+    STALLED_RECLAIM_MS,
     SubtreeProgress,
+    TrackedTree,
+    admissionOrder,
+    describeClass,
     heartbeatStep,
+    parsePsRows,
+    pollGap,
     reclaimVerdict,
+    reclaimableInMs,
+    stallJudgeable,
     subtreeFromPs,
-    yieldVerdict,
+    waiterLive,
     type GateWaiter,
+    type PsRow,
 } from "./lib/gate-liveness";
 import { gateChildEnv } from "./lib/vitest-fs-cache";
 import { uiLaneWhoLines } from "./lib/ui-admission";
@@ -127,26 +166,54 @@ const LOCK_DIR = join(LOCK_ROOT, "gate.lock");
 const OWNER_FILE = join(LOCK_DIR, "owner.json");
 /** One file per process currently QUEUED on the mutex — beside the lock, not
  *  inside it, because the lock directory IS the lock and is removed whole on
- *  release. The `yield` tier reads this set; nothing else depends on it, so a
- *  write that fails is ignored everywhere. */
+ *  release. This registry IS the queue: the admission order is computed from
+ *  it, by every waiter, on every poll. */
 const WAITERS_DIR = join(LOCK_ROOT, "gate.waiters");
-/** What this caller is, for the yield decision. `land` sets it in `lockedEnv`,
- *  the batch health gate in `health-cadence.ts`; everything else is "". */
+/** What this caller is, for the admission order. `land` sets it in
+ *  `lockedEnv`, the batch health gate in `health-cadence.ts`; everything else
+ *  is "". */
 const ROLE = process.env.TOLARIA_GATE_ROLE ?? "";
-/** How long a `yield` acquisition steps aside for queued lands before taking
- *  the mutex anyway. Thirty minutes is ~7 landings at the measured 4 min hold,
- *  so the bound only ever bites when the queue genuinely never empties — and
- *  when it does, health runs at most half an hour later than its trigger asked
- *  for, instead of never. Overridable so the test suite drives it in ms. */
-const YIELD_BOUND_MS = Number(
-    process.env.TOLARIA_GATE_YIELD_BOUND_MS ?? 30 * 60 * 1000
+/** Queued time per class of ageing — `AGE_STEP_MS` in `lib/gate-liveness.ts`
+ *  carries the arithmetic. Overridable so the suite drives it in ms. */
+const AGE_MS = Number(process.env.TOLARIA_GATE_AGE_STEP_MS ?? AGE_STEP_MS);
+/** A waiter that has not polled for this long is not in the queue, whatever
+ *  its pid says. A waiter polls every POLL_MS; a minute of silence is thirty
+ *  missed polls — a stopped or hung process, or a dead one whose pid was
+ *  reused — and it is the longest a head that will never acquire can hold
+ *  everyone behind it. */
+const WAITER_STALE_MS = Number(
+    process.env.TOLARIA_GATE_WAITER_STALE_MS ?? 60 * 1000
 );
+/** Declared stall → reclaimable. `STALLED_RECLAIM_MS` carries the derivation;
+ *  overridable so the suite reaches the reclaim in ms. */
+const STALLED_MS = Number(
+    process.env.TOLARIA_GATE_STALLED_RECLAIM_MS ?? STALLED_RECLAIM_MS
+);
+/** How long a teardown lets the wrapped tree act on the signal it was sent
+ *  before SIGKILL, and how long it then waits to SEE the tree gone. Both are
+ *  bounds on a foreground wait inside a signal handler, and together they
+ *  stay well under the 10 s `gate-run.sh` gives a run between its own TERM
+ *  and KILL — a gate killed mid-teardown is exactly the orphan this exists
+ *  to prevent. */
+const KILL_GRACE_MS = Number(process.env.TOLARIA_GATE_KILL_GRACE_MS ?? 2000);
+const KILL_VERIFY_MS = 3000;
+/** A lock directory with no `owner.json` is a gate caught between its
+ *  `mkdir` and its owner stamp — or between the two halves of a release —
+ *  for as long as it is YOUNGER than this, and an orphan only after. The
+ *  window it covers is microseconds wide; five seconds is the margin for a
+ *  machine at load 180. */
+const OWNERLESS_GRACE_MS = Number(
+    process.env.TOLARIA_GATE_OWNERLESS_GRACE_MS ?? 5000
+);
+const TEARDOWN_POLL_MS = 50;
 /** A lock whose owner stamp is older than this is assumed orphaned even if its
  *  pid still exists. `ts` is a HEARTBEAT, not the acquisition time: the holder
  *  refreshes it every HEARTBEAT_MS for as long as its subtree keeps making
  *  progress (issue #1924 — a ladder run legitimately holds for hours), so only
- *  a holder that stopped heartbeating for 45 min is pruned. Dead-pid pruning is
- *  unchanged and remains the primary path.
+ *  a holder that stopped heartbeating for 45 min is pruned. A holder that
+ *  DECLARED its stall is reclaimed far sooner (STALLED_MS); this is what is
+ *  left for the one that cannot declare. Dead-pid pruning is unchanged and
+ *  remains the primary path.
  *  Overridable so the test suite can drive the whole stall → reclaim path in
  *  milliseconds rather than in three quarters of an hour. */
 const STALE_MS = Number(process.env.TOLARIA_GATE_STALE_MS ?? 45 * 60 * 1000);
@@ -161,7 +228,13 @@ const HEARTBEAT_MS = Number(
  *  takes (a `gh` API call inside `land` is seconds), and far under the 2h13m
  *  issue #2999 measured. */
 const STALL_BEATS = Number(process.env.TOLARIA_GATE_STALL_BEATS ?? 3);
-const POLL_MS = 2000;
+/** How often a waiter looks at the queue and the lock. Overridable so the
+ *  suite's queue tests take poll rounds in ms, not in seconds. */
+const POLL_MS = Number(process.env.TOLARIA_GATE_POLL_MS ?? 2000);
+/** After a waiter notices it had not been running, how long it polls before
+ *  it acts on a `stalled` verdict again: one full beat of the holder, plus
+ *  the gap threshold itself. See `stallJudgeable`. */
+const SETTLE_MS = HEARTBEAT_MS + POLL_GAP_FACTOR * POLL_MS;
 const NCPU = cpus().length;
 /**
  * Ceiling on the heavy tier's worker count. The cap is RAM-bound, not
@@ -195,6 +268,22 @@ interface Owner {
     /** When the lock was taken. Optional: a lock written by an older gate (or
      *  by a test fixture) carries only `ts`, and held-for falls back to it. */
     acquiredAt?: number;
+    /** When the holder's heartbeat declared its subtree stalled. Written once;
+     *  STALLED_MS later the head of the queue may reclaim. */
+    stalledAt?: number;
+    /** The wrapped command's pid — the root a reclaimer walks to kill a
+     *  stalled subtree. Absent until the command is spawned, and on a lock
+     *  written by an older gate: no root, no kill, the lock alone is taken. */
+    childPid?: number;
+}
+
+/** Whole or absent, never torn: a stamp rewritten in place is, for an
+ *  instant, an empty file, and an unreadable owner reads as a DEAD holder —
+ *  one poll landing in that instant would reclaim a healthy gate's lock. */
+function writeJsonAtomic(file: string, value: unknown) {
+    const tmp = `${file}.${process.pid}.tmp`;
+    writeFileSync(tmp, JSON.stringify(value));
+    renameSync(tmp, file);
 }
 
 function readOwner(): Owner | null {
@@ -254,7 +343,14 @@ function holderLine(owner: Owner, now = Date.now()): string {
     ].join(" · ");
 }
 
-/** Atomic: mkdir fails if the directory exists. Returns true when acquired. */
+/**
+ * Atomic: `mkdir` fails if the directory exists — empty or not, which is why
+ * it is the arbiter rather than a rename of a staged directory (`rename(2)`
+ * REPLACES an empty target, and a lock is briefly empty in the middle of
+ * every release, and of every acquisition by a gate that predates this one).
+ * The owner stamp follows, written whole; the instant between the two is
+ * what OWNERLESS_GRACE_MS is for. Returns true when acquired.
+ */
 function tryAcquire(): boolean {
     try {
         mkdirSync(LOCK_DIR, { recursive: false });
@@ -269,39 +365,74 @@ function tryAcquire(): boolean {
         ts: now,
         acquiredAt: now,
     };
-    writeFileSync(OWNER_FILE, JSON.stringify(owner));
+    try {
+        writeJsonAtomic(OWNER_FILE, owner);
+    } catch {
+        // The directory was taken from under us (a gate that predates the
+        // grace reclaimed it as ownerless): it is not ours, leave it alone.
+        return false;
+    }
     return true;
 }
 
-// ── waiter registry ─────────────────────────────────────────────────────────
+/** Age of the lock directory, or null when there is none. */
+function lockAgeMs(now: number): number | null {
+    try {
+        return now - statSync(LOCK_DIR).mtimeMs;
+    } catch {
+        return null;
+    }
+}
+
+// ── waiter registry — the queue ─────────────────────────────────────────────
 // A queued gate is invisible from outside its own terminal: `owner.json` names
-// the HOLDER and nothing named the queue. The `yield` tier needs that queue —
-// "is a land waiting?" is its whole decision — so every heavy-tier caller
-// writes one small file while it waits and removes it the moment it acquires.
-// Best-effort throughout: a registry that cannot be written degrades a `yield`
-// acquisition to an ordinary `heavy` one, which is the safe direction.
+// the HOLDER and nothing named the queue. Every heavy-tier caller writes one
+// small file while it waits, restamps it on every poll, and removes it the
+// moment it acquires. A registry that cannot be written degrades ordered
+// admission to the unordered poll it replaced, which is the safe direction:
+// every waiter still sees ITSELF, so nobody waits on an entry it cannot read.
 
 function waiterFile(pid: number = process.pid): string {
     return join(WAITERS_DIR, `${pid}.json`);
 }
 
-function registerWaiter() {
+/** This process's own queue entry. Held in memory and counted from there:
+ *  what a waiter knows about itself must never depend on reading back a file
+ *  another gate may have pruned. */
+let myEntry: GateWaiter | null = null;
+
+function registerWaiter(): GateWaiter {
+    const now = Date.now();
+    // The injected clock of the ageing tests: a waiter that "has queued for
+    // an hour" without anyone waiting an hour for it.
+    const injected = Number(process.env.TOLARIA_GATE_WAITER_SINCE);
+    myEntry = {
+        pid: process.pid,
+        role: ROLE,
+        tier,
+        label: command.slice(0, 120),
+        cwd: process.cwd(),
+        since: Number.isFinite(injected) && injected > 0 ? injected : now,
+        seen: now,
+    };
+    stampWaiter(now);
+    return myEntry;
+}
+
+/** Restamp `seen` — this waiter's liveness in everyone else's view. */
+function stampWaiter(now: number) {
+    if (!myEntry) return;
+    myEntry.seen = now;
     try {
         mkdirSync(WAITERS_DIR, { recursive: true });
-        const entry: GateWaiter = {
-            pid: process.pid,
-            role: ROLE,
-            label: command.slice(0, 120),
-            cwd: process.cwd(),
-            since: Date.now(),
-        };
-        writeFileSync(waiterFile(), JSON.stringify(entry));
+        writeJsonAtomic(waiterFile(), myEntry);
     } catch {
-        /* the registry is never load-bearing */
+        /* see the header: an unwritable registry only loses the order */
     }
 }
 
 function unregisterWaiter() {
+    myEntry = null;
     try {
         rmSync(waiterFile(), { force: true });
     } catch {
@@ -309,10 +440,10 @@ function unregisterWaiter() {
     }
 }
 
-/** Every OTHER waiter whose pid is still alive. Dead entries are pruned as
- *  they are read — a session killed mid-queue must not keep a `yield`
- *  acquisition stepping aside for a land that no longer exists. */
-function liveWaiters(): GateWaiter[] {
+/** Every OTHER waiter still queued (`waiterLive`). Entries that are not are
+ *  pruned as they are read — a session killed mid-queue must not hold a place
+ *  in a queue it is no longer in. */
+function liveWaiters(now: number = Date.now()): GateWaiter[] {
     let names: string[];
     try {
         names = readdirSync(WAITERS_DIR);
@@ -322,25 +453,22 @@ function liveWaiters(): GateWaiter[] {
     const out: GateWaiter[] = [];
     for (const name of names) {
         const file = join(WAITERS_DIR, name);
+        if (!name.endsWith(".json")) {
+            // A stamp mid-rename — or what a gate killed mid-write left.
+            const writer = /\.json\.(\d+)\.tmp$/.exec(name);
+            if (writer && !alive(Number(writer[1])))
+                rmSync(file, { force: true });
+            continue;
+        }
         let entry: GateWaiter;
         try {
             entry = JSON.parse(readFileSync(file, "utf8")) as GateWaiter;
         } catch {
-            continue; // torn write or foreign file — never a verdict
+            continue; // foreign file — never a verdict
         }
         if (typeof entry.pid !== "number" || entry.pid === process.pid)
             continue;
-        // Dead pid, OR an entry too old to be a real queue. The age bound is
-        // not belt-and-braces: a gate killed while still QUEUED installs no
-        // teardown handler (`installTeardown` runs only once `acquire`
-        // returns), so its entry outlives it, and macOS reuses pids within
-        // hours on a busy machine. One reused pid on a long-lived process and
-        // every batch health run would yield the full bound, for ever. Same
-        // threshold the owner stamp already uses.
-        const stale =
-            typeof entry.since !== "number" ||
-            Date.now() - entry.since > STALE_MS;
-        if (!alive(entry.pid) || stale) {
+        if (!waiterLive(entry, alive(entry.pid), now, WAITER_STALE_MS)) {
             try {
                 rmSync(file, { force: true });
             } catch {
@@ -353,9 +481,21 @@ function liveWaiters(): GateWaiter[] {
     return out;
 }
 
+/** The queue in acquisition order — this process included while it waits. */
+function queueOrder(now: number = Date.now()): GateWaiter[] {
+    const others = liveWaiters(now);
+    return admissionOrder(myEntry ? [myEntry, ...others] : others, now, AGE_MS);
+}
+
+function waiterLine(w: GateWaiter, now: number): string {
+    return `pid ${w.pid} [${describeClass(w, now, AGE_MS)}] · waiting ${fmtDuration(now - w.since)} · ${w.cwd} · ${w.label}`;
+}
+
+/** Only ever our own lock. An unreadable owner is NOT ours: the reclaimer
+ *  that killed this holder's stalled subtree takes the lock at the very
+ *  moment the holder's child dies and this runs. */
 function release() {
-    const owner = readOwner();
-    if (owner && owner.pid !== process.pid) return; // not ours — never steal on exit
+    if (readOwner()?.pid !== process.pid) return;
     try {
         rmSync(LOCK_DIR, { recursive: true, force: true });
     } catch {
@@ -394,49 +534,55 @@ function logWait(waitedMs: number) {
     logEvent({ event: "acquired", waited_ms: waitedMs });
 }
 
-async function acquire(yielding: boolean) {
+async function acquire() {
     mkdirSync(LOCK_ROOT, { recursive: true });
     const t0 = Date.now();
-    let announcedFor: number | null = null;
+    let announced = "";
     let lastAnnounce = 0;
-    let lastYieldAnnounce = 0;
-    // Registered BEFORE the first attempt, not after the first failure: a
-    // `yield` acquisition reads this set to decide, and a land that has failed
-    // `tryAcquire` but not yet written its entry is a land the health gate
-    // would step over. Registering first closes that window in the safe
-    // direction — at worst health yields to a land that is about to acquire.
+    let waited = false;
+    let lastPollAt = t0;
+    /** When this waiter last noticed it had not been running. */
+    let resumedAt: number | null = null;
+    const pause = () =>
+        // Jittered, so waiters that started together do not poll together.
+        new Promise((r) => setTimeout(r, POLL_MS * (1 + Math.random() / 4)));
+    // Registered BEFORE the first attempt, not after the first failure: the
+    // order is computed from the registry, and a waiter that has not yet
+    // written its entry is one the others would step over.
     registerWaiter();
     for (;;) {
-        // The YIELD rule (ADR 0136 §6), consulted only BEFORE taking the
-        // mutex: nothing here can touch a gate that is already running, this
-        // one included.
-        if (yielding) {
-            const decision = yieldVerdict({
-                waiters: liveWaiters(),
-                yieldingSince: t0,
-                now: Date.now(),
-                boundMs: YIELD_BOUND_MS,
-            });
-            if (decision.verdict === "yield") {
-                const now = Date.now();
-                if (now - lastYieldAnnounce >= 60_000) {
-                    console.error(`[gate] yielding — ${decision.reason}`);
-                    lastYieldAnnounce = now;
-                }
-                await new Promise((r) =>
-                    setTimeout(r, POLL_MS + Math.random() * 500)
-                );
-                continue;
-            }
-            if (decision.bounded) console.error(`[gate] ${decision.reason}`);
+        const now = Date.now();
+        if (pollGap(lastPollAt, now, POLL_MS)) {
+            // The machine slept, or this process was stopped: every stamp
+            // on disk is as old as the gap, this waiter's own included, and
+            // none of that is evidence about anyone. Restamp, let the others
+            // do the same, and judge nothing this round (`stallJudgeable`).
+            console.error(
+                `[gate] resumed after a ${fmtDuration(now - lastPollAt)} pause — not judging the holder or the queue on stamps that old`
+            );
+            resumedAt = now;
+            lastPollAt = now;
+            stampWaiter(now);
+            await pause();
+            continue;
         }
-        if (tryAcquire()) {
+        lastPollAt = now;
+        stampWaiter(now);
+        const queue = queueOrder(now);
+        const head = queue[0]!;
+        const position = queue.findIndex((w) => w.pid === process.pid) + 1;
+        // ORDER (issue #4965): only the head of the queue touches the lock —
+        // to take it, and to reclaim it. Everyone else waits for the head,
+        // whatever the lock's state, which is what makes the order hold
+        // "regardless of poll timing": a free mutex is not an invitation.
+        const isHead = head.pid === process.pid;
+        if (isHead && tryAcquire()) {
             unregisterWaiter();
             const waitedMs = Date.now() - t0;
             // Close the wait the retry lines opened (issue #3487): without it
             // a terminal whose last line is "waiting …" still reads as queued
             // once the command is running under the lock.
-            if (announcedFor !== null)
+            if (waited)
                 console.error(
                     `[gate] acquired the heavy mutex after ${fmtDuration(waitedMs)}`
                 );
@@ -444,84 +590,254 @@ async function acquire(yielding: boolean) {
             return;
         }
         const owner = readOwner();
-        const now = Date.now();
-        // Prune a lock whose holder died, or one that stopped attesting to
-        // progress. The two are different failures and read differently:
-        // an absent pid is an orphan, a live pid that went silent is a HUNG
-        // holder (issue #2999) and the command it wrapped is still running.
-        const verdict = reclaimVerdict(
-            owner,
-            !!owner && alive(owner.pid),
-            now,
-            STALE_MS
-        );
-        // `!owner` is already "dead" — restated so the narrowing below holds.
-        if (verdict || !owner) {
-            const dead = verdict !== "stalled" || !owner;
-            const why = dead
-                ? `holder is gone (${owner ? holderLine(owner, now) : "no readable owner"})`
-                : `STALLED holder — pid ${owner.pid} is alive but has not attested to progress in ${fmtDuration(now - owner.ts)} (${holderLine(owner, now)})`;
-            console.error(`[gate] reclaiming the heavy mutex — ${why}`);
-            logEvent({
-                event: "reclaimed",
-                reason: dead ? "dead" : "stalled",
-                holder_pid: owner?.pid ?? null,
-                holder_cwd: owner?.cwd ?? null,
-                holder_label: owner?.label ?? null,
-                silent_ms: owner ? now - owner.ts : null,
-            });
-            try {
-                rmSync(LOCK_DIR, { recursive: true, force: true });
-            } catch {
-                /* another waiter pruned it first */
-            }
+        const lockAge = owner ? null : lockAgeMs(now);
+        if (isHead && !owner && lockAge === null) {
+            // Released between the failed attempt and this read: simply
+            // free, and nothing to reclaim. One quiet poll, not a retry loop
+            // — a lock root that cannot be written looks exactly like this.
+            await pause();
             continue;
         }
-        // Name the holder immediately, again whenever the holder changes, and
-        // on every retry line — a waiter that says only "still waiting" tells
-        // the blocked session nothing it can act on.
-        const retryDue = now - lastAnnounce >= 60_000;
-        if (announcedFor !== owner.pid || retryDue) {
-            const waited = fmtDuration(now - t0);
-            console.error(
-                `[gate] waiting ${waited} for the heavy mutex — ${holderLine(owner, now)}`
+        // A lock with no owner is a gate mid-acquire (or mid-release) until
+        // it is old enough to be an orphan — never a holder to reclaim on
+        // sight.
+        const settling =
+            !owner && lockAge !== null && lockAge < OWNERLESS_GRACE_MS;
+        if (isHead && !settling) {
+            // Prune a lock whose holder died, or one that stopped attesting to
+            // progress. The two are different failures and read differently:
+            // an absent pid is an orphan, a live pid that went silent is a
+            // HUNG holder (issue #2999) and the command it wrapped is still
+            // running — so it is killed before the lock changes hands.
+            const verdict = reclaimVerdict(
+                owner,
+                !!owner && alive(owner.pid),
+                now,
+                STALE_MS,
+                STALLED_MS
             );
-            announcedFor = owner.pid;
-            lastAnnounce = now;
+            if (
+                verdict === "dead" ||
+                (verdict === "stalled" &&
+                    stallJudgeable(resumedAt, now, SETTLE_MS))
+            ) {
+                reclaim(owner, verdict, now);
+                continue;
+            }
         }
-        await new Promise((r) => setTimeout(r, POLL_MS + Math.random() * 500));
+        // Name what this waiter is waiting FOR immediately, again whenever it
+        // changes, and on every retry line — a waiter that says only "still
+        // waiting" tells the blocked session nothing it can act on.
+        const blocker = owner
+            ? `holder ${owner.pid}`
+            : lockAge !== null
+              ? "ownerless"
+              : `head ${head.pid}`;
+        if (announced !== blocker || now - lastAnnounce >= 60_000) {
+            const place = `queue position ${position}/${queue.length}`;
+            const what = owner
+                ? `${holderLine(owner, now)} · ${place}`
+                : lockAge !== null
+                  ? `taken ${fmtDuration(lockAge)} ago with no owner yet · ${place}`
+                  : `free, but ${place}: next is ${waiterLine(head, now)}`;
+            console.error(
+                `[gate] waiting ${fmtDuration(now - t0)} for the heavy mutex — ${what}`
+            );
+            announced = blocker;
+            lastAnnounce = now;
+            waited = true;
+        }
+        await pause();
+    }
+}
+
+/**
+ * Take the lock from a holder `reclaimVerdict` condemned. Called by the HEAD
+ * of the queue only.
+ *
+ * A STALLED holder is a live gate whose command is hung and still holds its
+ * workers: reclaiming the lock alone hands the machine to the next gate with
+ * the previous one's processes still on it. So the subtree is killed FIRST —
+ * the same tree walk a holder's own teardown uses — rooted at the `childPid`
+ * the holder recorded. The root is only trusted while `ps` still shows it as
+ * a child of the holder's pid: a holder pid the OS has reused carries no such
+ * child, and an unrelated process's tree is never walked.
+ */
+function reclaim(
+    owner: Owner | null,
+    verdict: "dead" | "stalled",
+    now: number
+) {
+    const dead = verdict === "dead" || !owner;
+    const why = dead
+        ? `holder is gone (${owner ? holderLine(owner, now) : "no readable owner"})`
+        : `STALLED holder — pid ${owner.pid} is alive but has not attested to progress in ${fmtDuration(now - owner.ts)} (${holderLine(owner, now)})`;
+    console.error(`[gate] reclaiming the heavy mutex — ${why}`);
+    let subtree: "killed" | "survived" | "unrooted" | null = null;
+    if (!dead) {
+        const rows = psRows();
+        const root = rows?.find((r) => r.pid === owner.childPid);
+        const holder = rows?.find((r) => r.pid === owner.pid);
+        if (root && holder && root.ppid === owner.pid) {
+            subtree = killTree(root.pid, "SIGTERM", KILL_GRACE_MS, [
+                holder.pgid,
+            ])
+                ? "killed"
+                : "survived";
+            console.error(
+                subtree === "killed"
+                    ? `[gate] killed the stalled subtree of pid ${root.pid}`
+                    : `[gate] could NOT confirm the stalled subtree of pid ${root.pid} is gone — taking the mutex anyway`
+            );
+        } else subtree = "unrooted";
+    }
+    logEvent({
+        event: "reclaimed",
+        reason: dead ? "dead" : "stalled",
+        holder_pid: owner?.pid ?? null,
+        holder_cwd: owner?.cwd ?? null,
+        holder_label: owner?.label ?? null,
+        silent_ms: owner ? now - owner.ts : null,
+        subtree,
+    });
+    // Killing took seconds, and the holder releases by itself the moment its
+    // child dies: the lock on disk may by now be a NEW holder's. Remove only
+    // the one that was judged.
+    const current = readOwner();
+    if (
+        current &&
+        (current.pid !== owner?.pid || current.acquiredAt !== owner?.acquiredAt)
+    )
+        return;
+    try {
+        rmSync(LOCK_DIR, { recursive: true, force: true });
+    } catch {
+        /* the holder released it first */
+    }
+}
+
+// ── tree teardown ───────────────────────────────────────────────────────────
+function psRows(): PsRow[] | null {
+    const r = spawnSync("ps", ["-Ao", "pid=,ppid=,pgid=,stat="], {
+        encoding: "utf8",
+    });
+    if (r.status !== 0 || !r.stdout) return null;
+    return parsePsRows(r.stdout);
+}
+
+function signalQuietly(target: number, signal: NodeJS.Signals) {
+    try {
+        process.kill(target, signal);
+    } catch {
+        /* already gone — the outcome we wanted */
+    }
+}
+
+/**
+ * Kill the process tree rooted at `root` — every descendant, in every process
+ * group — and report whether it was SEEN to be gone (issue #4965).
+ *
+ * `signal` first, so a command that cleans up after itself gets to; SIGKILL
+ * once `graceMs` has passed; then up to KILL_VERIFY_MS for `ps` to show
+ * nothing left. Why one group is not the tree, and what is tracked instead:
+ * `TrackedTree` in `lib/gate-liveness.ts`.
+ *
+ * SYNCHRONOUS on purpose. It runs inside signal and `exit` handlers, and the
+ * caller's next statement is `release()`: the mutex must not change hands
+ * while a worker of the outgoing holder is still alive, and "after an await"
+ * is not a place a dying process reliably reaches.
+ *
+ * False means unverified, not failed: `ps` unavailable, or a survivor past
+ * the bound. The caller releases anyway — a holder that refused would only
+ * leave a dead-pid lock for the next waiter to reclaim — and says so.
+ */
+function killTree(
+    root: number,
+    signal: NodeJS.Signals,
+    graceMs: number,
+    protectedGroups: number[] = []
+): boolean {
+    let rows = psRows();
+    if (!rows) {
+        // No `ps`: the group of the direct child is the only handle there is.
+        signalQuietly(-root, signal);
+        if (signal !== "SIGKILL") {
+            Bun.sleepSync(graceMs);
+            signalQuietly(-root, "SIGKILL");
+        }
+        return false;
+    }
+    const own = rows.find((r) => r.pid === process.pid)?.pgid;
+    const tree = new TrackedTree(
+        root,
+        new Set(own === undefined ? protectedGroups : [own, ...protectedGroups])
+    );
+    // Each target gets the polite signal ONCE: a second SIGTERM is, to more
+    // than one tool, "stop cleaning up and die", and that is SIGKILL's job
+    // here. SIGKILL itself is repeated every pass — a group can gain a member
+    // between two of them.
+    const sent = new Set<number>();
+    const send = (target: number, sig: NodeJS.Signals) => {
+        if (sig !== "SIGKILL") {
+            if (sent.has(target)) return;
+            sent.add(target);
+        }
+        signalQuietly(target, sig);
+    };
+    const t0 = Date.now();
+    for (;;) {
+        const survivors = tree.absorb(rows);
+        if (survivors.length === 0) return true;
+        const elapsed = Date.now() - t0;
+        if (elapsed > graceMs + KILL_VERIFY_MS) return false;
+        const sig =
+            signal === "SIGKILL" || elapsed >= graceMs ? "SIGKILL" : signal;
+        for (const pgid of tree.groups) send(-pgid, sig);
+        // A survivor sitting in a group that is never signalled as a group
+        // (the gate's own) is reached by pid.
+        for (const r of survivors)
+            if (!tree.groups.has(r.pgid)) send(r.pid, sig);
+        Bun.sleepSync(TEARDOWN_POLL_MS);
+        rows = psRows();
+        if (!rows) return false;
     }
 }
 
 // ── `who` — the diagnosis in one command ────────────────────────────────────
 function who(): number {
     const owner = readOwner();
-    if (!owner) {
-        console.log("[gate] heavy mutex is free");
-        return 0;
-    }
     const now = Date.now();
-    console.log(`[gate] heavy mutex — ${holderLine(owner, now)}`);
-    const live = alive(owner.pid);
-    const cpu = new SubtreeProgress().observe(subtreeCpu(owner.pid));
-    console.log(
-        `[gate]   holder pid ${live ? "alive" : "GONE"} · subtree CPU ${
-            cpu === null ? "unmeasurable" : `${(cpu / 1000).toFixed(2)}s`
-        } · reclaimable in ${fmtDuration(STALE_MS - (now - owner.ts))}`
+    if (!owner) console.log("[gate] heavy mutex is free");
+    else {
+        console.log(`[gate] heavy mutex — ${holderLine(owner, now)}`);
+        const live = alive(owner.pid);
+        const cpu = new SubtreeProgress().observe(subtreeCpu(owner.pid));
+        const reclaimIn = reclaimableInMs(owner, now, STALE_MS, STALLED_MS);
+        console.log(
+            `[gate]   holder pid ${live ? "alive" : "GONE"} · subtree CPU ${
+                cpu === null ? "unmeasurable" : `${(cpu / 1000).toFixed(2)}s`
+            } · reclaimable in ${fmtDuration(reclaimIn)}${
+                owner.stalledAt === undefined
+                    ? ""
+                    : ` · STALLED ${fmtDuration(now - owner.stalledAt)} ago`
+            }`
+        );
+        if (!live)
+            console.log(
+                "[gate]   holder is dead — the head of the queue reclaims it"
+            );
+        else if (reclaimIn < 0)
+            console.log(
+                "[gate]   holder went silent — the head of the queue kills its subtree and reclaims it"
+            );
+    }
+    // The queue, in ACQUISITION ORDER (issue #4965): `#1` is the only waiter
+    // that may take the mutex next. Printed with or without a holder — under
+    // ordered admission a free mutex can still have a queue, for the two
+    // seconds until its head polls.
+    queueOrder(now).forEach((w, i) =>
+        console.log(`[gate]   queued #${i + 1} — ${waiterLine(w, now)}`)
     );
-    if (!live)
-        console.log("[gate]   holder is dead — the next waiter reclaims it");
-    else if (now - owner.ts > STALE_MS)
-        console.log(
-            "[gate]   holder went silent — the next waiter reclaims it"
-        );
-    // The queue behind the holder — what nothing printed before the waiter
-    // registry existed, and the thing a blocked session actually wants (and
-    // the batch health gate's `yield` decision reads).
-    for (const w of liveWaiters())
-        console.log(
-            `[gate]   queued — pid ${w.pid}${w.role ? ` [${w.role}]` : ""} · waiting ${fmtDuration(now - w.since)} · ${w.cwd} · ${w.label}`
-        );
     return 0;
 }
 
@@ -555,9 +871,10 @@ function whoAll(): number {
 
 if (tier === "who") process.exit(whoAll());
 
-/** `yield` is the heavy tier in every respect but its acquisition (ADR 0136
- *  §6), `job` in every respect but the issue-worktree guard (issue #4941):
- *  same mutex, same worker count, same heartbeat, same teardown. */
+/** `yield` is the heavy tier in every respect but the class it queues in (ADR
+ *  0136 §6, issue #4965), `job` in every respect but its class and the
+ *  issue-worktree guard (issue #4941): same mutex, same worker count, same
+ *  heartbeat, same teardown. */
 const HEAVY_TIERS = ["heavy", "yield", "job"] as const;
 const isHeavyTier = (t: string): boolean =>
     (HEAVY_TIERS as readonly string[]).includes(t);
@@ -619,9 +936,12 @@ if (
  * Refresh the owner stamp only while the held subtree is still burning CPU.
  *
  * A holder that has made no progress for STALL_BEATS consecutive beats stops
- * refreshing for good: the lock then ages past STALE_MS and the ordinary
- * reclaim path in `acquire()` takes it. Nothing here kills the wrapped command
- * — it may yet come back — it only stops the gate vouching for it.
+ * refreshing and stamps `stalledAt`: STALLED_MS later the head of the queue
+ * reclaims it (`reclaim`). Nothing HERE kills the wrapped command — it only
+ * stops the gate vouching for it, and it keeps sampling: a subtree that burns
+ * CPU again before the reclaim withdraws the declaration and keeps the mutex.
+ * The reclaimer is what kills it, so that it never runs beside the next
+ * holder (issue #4965).
  *
  * The first beat has no baseline to compare against, so detection costs
  * STALL_BEATS + 1 beats.
@@ -630,7 +950,6 @@ function startHeartbeat() {
     const progress = new SubtreeProgress();
     let state = INITIAL_HEARTBEAT;
     const hb = setInterval(() => {
-        if (state.stalled) return;
         const owner = readOwner();
         if (!owner || owner.pid !== process.pid) return; // not ours
         const cpu = progress.observe(subtreeCpu(process.pid));
@@ -638,15 +957,43 @@ function startHeartbeat() {
         // `heartbeatStep` (scripts/lib/gate-liveness.ts), tested pure.
         const step = heartbeatStep(state, cpu, STALL_BEATS);
         state = step.state;
+        if (step.verdict === "latched") return; // declared, and still frozen
+        if (step.verdict === "recovered") {
+            // The subtree is working again and nobody has reclaimed it yet
+            // (the lock is still ours, checked above): withdraw the
+            // declaration before the reclaimer's five minutes run out.
+            console.error(
+                "[gate] RECOVERED — the held subtree is burning CPU again; heartbeating, stall withdrawn."
+            );
+            logEvent({ event: "recovered", subtree_cpu_ms: cpu });
+            try {
+                writeJsonAtomic(OWNER_FILE, {
+                    ...owner,
+                    ts: Date.now(),
+                    stalledAt: undefined,
+                });
+            } catch {
+                /* lock may be mid-release — never crash the gate for this */
+            }
+            return;
+        }
         if (step.verdict === "stalled") {
             console.error(
                 [
                     `[gate] STALLED — the held subtree has burned no CPU for ${state.silentBeats} beats`,
                     `(${((cpu ?? 0) / 1000).toFixed(2)}s total, held ${fmtDuration(Date.now() - (owner.acquiredAt ?? owner.ts))}).`,
-                    `No longer heartbeating: the heavy mutex becomes reclaimable in ${fmtDuration(STALE_MS)}.`,
+                    `No longer heartbeating: in ${fmtDuration(STALLED_MS)} the head of the queue kills this subtree and takes the heavy mutex.`,
                     "See issue #2999.",
                 ].join(" ")
             );
+            try {
+                writeJsonAtomic(OWNER_FILE, {
+                    ...owner,
+                    stalledAt: Date.now(),
+                });
+            } catch {
+                /* unwritten, the STALE_MS path still reclaims — only later */
+            }
             logEvent({
                 event: "stalled",
                 silent_beats: state.silentBeats,
@@ -655,10 +1002,7 @@ function startHeartbeat() {
             return;
         }
         try {
-            writeFileSync(
-                OWNER_FILE,
-                JSON.stringify({ ...owner, ts: Date.now() })
-            );
+            writeJsonAtomic(OWNER_FILE, { ...owner, ts: Date.now() });
         } catch {
             /* lock may be mid-release — never crash the gate for this */
         }
@@ -667,46 +1011,45 @@ function startHeartbeat() {
 }
 
 /**
- * The wrapped command's process tree, killable as ONE unit.
+ * The wrapped command's process tree, and the one handle on it.
  *
  * `child` is only ever the `sh` wrapper; the CPU lives in its descendants —
  * vitest and its worker pool, `tsc -b`, eslint. `child.kill()` reaches `sh`
  * alone and leaves every one of them running, reparented to PID 1, where
- * nothing reclaims them: `gate:who` (issue #2999) reclaims the LOCK from a
- * dead holder, never the processes. Measured on issue #3821, a targeted
- * SIGTERM to the gate left three descendants of a single `sh` alive; the same
- * shape, from other tooling, held this machine at load average 181 with ~600%
- * of the CPU burned by sessions that had already exited.
+ * nothing reclaims them. Measured on issue #3821, a targeted SIGTERM to the
+ * gate left three descendants of a single `sh` alive; the same shape, from
+ * other tooling, held this machine at load average 181 with ~600% of the CPU
+ * burned by sessions that had already exited.
  *
  * So the child is spawned `detached`, making it the leader of its own process
- * group, and every teardown path signals the GROUP (`-pid`). The group id
- * survives reparenting, which is exactly why it is the only handle that still
- * works once the parent is gone. Playwright solves the identical problem the
- * identical way for the browser it launches (`detached` + `process.kill(-pid)`,
- * see `node_modules/playwright-core`), which is why an interrupted `check:ui`
- * leaves no orphan Chromium.
+ * group: the group id survives reparenting, which is why it is the handle
+ * that still works once a parent is gone. It is ONE handle, though, and the
+ * tree is not one group — a nested gate detaches its own child the same way —
+ * so teardown walks the tree and signals every group it meets (`killTree`).
  */
 let child: ReturnType<typeof spawn> | undefined;
 
-/**
- * Signal the child's whole process group. Idempotent: a throw means the group
- * is already gone (ESRCH), which is the outcome we wanted anyway.
- */
-function killChildTree(signal: NodeJS.Signals) {
+let tornDown = false;
+
+/** Kill the wrapped tree, once. Every path out of this process comes through
+ *  here before it releases; the `exit` handler's pass is the catch-all for
+ *  the paths that did not. */
+function teardownChild(signal: NodeJS.Signals, graceMs: number) {
     const pid = child?.pid;
-    if (pid === undefined) return;
-    try {
-        process.kill(-pid, signal);
-    } catch {
-        /* already reaped */
-    }
+    if (pid === undefined || tornDown) return;
+    tornDown = true;
+    if (!killTree(pid, signal, graceMs))
+        console.error(
+            `[gate] could NOT confirm the tree of pid ${pid} is gone (${signal}) — continuing`
+        );
 }
 
 /**
- * Teardown for every path out of this process: the wrapped tree dies, then —
- * for the tier that took it — the mutex is freed. That ORDER is load-bearing.
- * The reverse hands the lock to a waiter while the outgoing holder's workers
- * are still saturating the CPU the mutex exists to ration.
+ * Teardown for every path out of this process: the wrapped tree dies — ALL of
+ * it, seen to be gone — then, for the tier that took it, the mutex is freed.
+ * That ORDER is load-bearing. The reverse hands the lock to a waiter while
+ * the outgoing holder's workers are still saturating the CPU the mutex exists
+ * to ration.
  *
  * WHEN this is installed is load-bearing too, and the two tiers differ:
  *
@@ -717,24 +1060,26 @@ function killChildTree(signal: NodeJS.Signals) {
  *           poll loop rather than merely slow, and an early handler turns that
  *           into a clean `exit(130)` that proves nothing. Nothing is lost by
  *           waiting — before `acquire()` returns there is no child to reap and
- *           no lock of ours to free.
+ *           no lock of ours to free; the queue entry it leaves behind stops
+ *           being restamped and drops out of the order (`waiterLive`).
  *   light / nested — after the spawn, because there is no lock to guard and
  *           nothing to install before the child exists.
  *
- * For the non-holding tiers these handlers are new, and they are not optional:
- * detaching the child removed it from the terminal's foreground process group,
- * so a Ctrl-C no longer reaches it on its own and the gate is now the only
- * route a signal has to the command it wraps.
+ * For the non-holding tiers these handlers are not optional: detaching the
+ * child removed it from the terminal's foreground process group, so a Ctrl-C
+ * no longer reaches it on its own and the gate is the only route a signal has
+ * to the command it wraps. A NESTED gate is how a signal crosses into the
+ * second process group at all when the outer gate cannot walk the tree.
  */
 function installTeardown(holdsLock: boolean) {
     process.on("exit", () => {
-        killChildTree("SIGKILL");
+        teardownChild("SIGKILL", 0);
         unregisterWaiter();
         if (holdsLock) release();
     });
     for (const sig of ["SIGINT", "SIGTERM", "SIGHUP"] as const) {
         process.on(sig, () => {
-            killChildTree(sig);
+            teardownChild(sig, KILL_GRACE_MS);
             unregisterWaiter();
             if (holdsLock) release();
             process.exit(130);
@@ -747,10 +1092,8 @@ async function main() {
     const heavy = isHeavyTier(tier);
     const holdsLock = heavy && !nested;
     if (holdsLock) {
-        // A NESTED yield call would deadlock nothing but would also decide
-        // nothing: it already runs under a hold. Only the outermost
-        // acquisition yields.
-        await acquire(tier === "yield");
+        // A NESTED call already runs under a hold: it queues for nothing.
+        await acquire();
         startHeartbeat();
         installTeardown(true);
     }
@@ -762,8 +1105,20 @@ async function main() {
         env,
         detached: true,
     });
-    if (!holdsLock) installTeardown(false);
+    if (holdsLock) {
+        // The root a reclaimer walks, should this hold end as a stall.
+        const owner = readOwner();
+        if (owner?.pid === process.pid && child.pid !== undefined)
+            try {
+                writeJsonAtomic(OWNER_FILE, { ...owner, childPid: child.pid });
+            } catch {
+                /* no root recorded — a reclaim takes the lock alone */
+            }
+    } else installTeardown(false);
     child.on("exit", (code, signal) => {
+        // The command is done; whatever it left running is not. Same order
+        // as every other path: the tree, then the lock.
+        teardownChild("SIGKILL", 0);
         if (holdsLock) release();
         process.exit(signal ? 128 : (code ?? 1));
     });

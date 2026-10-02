@@ -653,12 +653,12 @@ queued behind it.
 So the full gate moved. `tolaria.config.json` names a **base** branch
 (`staging`) and a **release** branch (`main`):
 
-| Step                   | Runs                                                              | Mutex           |
-| ---------------------- | ----------------------------------------------------------------- | --------------- |
-| `bun run land <PR#>`   | rebase onto `origin/<base>` → `check:lane` → push → merge to base | 3-5 min         |
-| batch health, detached | `health` on the CURRENT `origin/<base>` tip, per 5 landings / 2 h | ~10 min, yields |
-| `bun run release`      | `health` on the `origin/<base>` tip → fast-forward `<release>`    | ~13 min, once   |
-| `bun run health`       | the same full gate, by hand, on the base tip                      | ~13 min         |
+| Step                   | Runs                                                              | Mutex                |
+| ---------------------- | ----------------------------------------------------------------- | -------------------- |
+| `bun run land <PR#>`   | rebase onto `origin/<base>` → `check:lane` → push → merge to base | 3-5 min              |
+| batch health, detached | `health` on the CURRENT `origin/<base>` tip, per 5 landings / 2 h | ~10 min, queues last |
+| `bun run release`      | `health` on the `origin/<base>` tip → fast-forward `<release>`    | ~13 min, once        |
+| `bun run health`       | the same full gate, by hand, on the base tip                      | ~13 min              |
 
 `land` refuses a PR whose base is not the base branch (the API merge lands
 wherever the PR points). `release` moves the release branch only on a GREEN
@@ -703,21 +703,25 @@ Amortised: ~10 min of full gate per 5 landings, against the ~17 min per landing
 ADR 0136 measured before it, and an exposure window of ≤ 5 landings or 2 h
 instead of ≤ 2 days.
 
-**The mutex gains a third acquisition for this: `yield`.** Health holds the
-lock ~10 min and a landing ~4, and the tip health is about does not get staler
-while a land runs — the land only adds a commit the next run covers anyway. So
-the batch gate steps aside while any waiter declares `TOLARIA_GATE_ROLE=land`
-(`land`'s `lockedEnv` sets it), and `health-main --under-lock` passes its three
-steps through that ONE acquisition instead of queuing three times, so the block
-a landing waits out is one block rather than three. Stepping aside is
-**bounded** — `TOLARIA_GATE_YIELD_BOUND_MS`, 30 min — because at the measured
-2.5 PR/h with three sessions there is frequently SOME land queued, and an
-unbounded yield means the tip is never gated at all. Worst case for a landing:
-10 min plus the lands ahead of it, ≤ 18 min at the admission cap of 3, at most
-once per 5 landings. The decision is `yieldVerdict` in
+**The mutex queues health LAST.** Health holds the lock ~10 min and a landing
+~4, and the tip health is about does not get staler while a land runs — the
+land only adds a commit the next run covers anyway. So the batch gate queues
+in the lowest admission class (`gate.ts yield`, `TOLARIA_GATE_ROLE=health`)
+and every queued `land` (`land`'s `lockedEnv` sets `TOLARIA_GATE_ROLE=land`)
+is admitted before it; `health-main --under-lock` passes its three steps
+through that ONE acquisition instead of queuing three times, so the block a
+landing waits out is one block rather than three. It cannot starve: a waiter
+rises one class per 30 min queued, so after 90 min health is a land's equal
+and, being older than every land still queued, goes next. Worst case for a
+landing BEHIND A HEALTH RUN: 10 min plus the lands ahead of it, ≤ 18 min at
+the admission cap of 3, at most once per 5 landings. The order is `admissionOrder` in
 `scripts/lib/gate-liveness.ts`, tested pure beside the stall and reclaim
 verdicts (issue #3792's shape: a starvable subprocess makes the verdict a
-property of the machine's load).
+property of the machine's load); the rule and what it replaced are in
+§ The queue has an order below. Admission is not preemptive: a land that
+queues behind a running `job` (a sweep averages 28 min, issue #4941) or a
+hand-run gate waits that hold out, and a waiter aged into the land class goes
+before the lands younger than it.
 
 **Branch names are not literals.** `scripts/lib/branches.ts` is the one
 reader; `deny-guard.sh` reads the same JSON with `jq`;
@@ -1075,7 +1079,10 @@ pid=,ppid=,time=`, summed over the subtree, the gate process itself excluded so
 it cannot vouch for its own existence). The stamp is refreshed only while that
 total is still advancing; after `STALL_BEATS` consecutive frozen beats (3 ≈
 15 min at the default period) the holder logs loudly, stops refreshing for
-good, and the ordinary staleness path reclaims the lock 45 minutes later.
+good and stamps `stalledAt` on its owner file; 5 minutes later
+(`STALLED_RECLAIM_MS`) the head of the queue kills the hung subtree and takes
+the lock. The 45-minute `STALE_MS` path is what is left for a holder that
+cannot even declare — a gate process that is itself frozen.
 
 Three properties are load-bearing:
 
@@ -1086,14 +1093,24 @@ Three properties are load-bearing:
 - **An unmeasurable subtree counts as progress.** If `ps` is missing or its
   output does not parse, the holder keeps beating: reclaiming a healthy holder
   is the worse failure, and the fallback is the pre-existing behaviour.
-- **Nothing kills the wrapped command.** The gate only stops vouching for it.
-  A holder that comes back to life still owns its own process; it simply no
-  longer owns the mutex, and `release()` already refuses to delete a lock whose
-  owner pid is not its own.
+- **The holder never kills the wrapped command; the reclaimer does.** The
+  holder only stops vouching for it, and keeps sampling: a subtree that burns
+  CPU again within the five minutes WITHDRAWS the declaration (`recovered`)
+  and keeps the mutex. The stall used to latch for good — harmless while it
+  only cost the lock, a kill of a resumed run once the reclaimer kills.
+  Past them the head of the queue walks the tree from the `childPid` the
+  holder recorded — trusted only while `ps` still shows it as a child of the
+  holder's pid, so a reused pid never gets an unrelated tree walked — signals
+  every process group in it, and takes the lock once the tree is seen gone
+  (issue #4965: until then a reclaimed lock left the hung run's workers on the
+  machine, beside the next holder). `release()` only ever deletes a lock whose
+  owner pid is its own, so the stalled holder, ending when its child dies,
+  cannot take the reclaimer's lock with it.
 
-`TOLARIA_GATE_STALE_MS` and `TOLARIA_GATE_STALL_BEATS` join
-`TOLARIA_GATE_HEARTBEAT_MS` as test-only overrides, which is what makes the
-whole stall → silence → reclaim path observable in milliseconds
+`TOLARIA_GATE_STALE_MS`, `TOLARIA_GATE_STALL_BEATS` and
+`TOLARIA_GATE_STALLED_RECLAIM_MS` join `TOLARIA_GATE_HEARTBEAT_MS` as
+test-only overrides, which is what makes the whole stall → silence → reclaim
+path observable in milliseconds
 (`scripts/__tests__/gate.test.ts` § liveness) instead of in three quarters of
 an hour.
 
@@ -1112,17 +1129,87 @@ measured descendant CPU and its time-to-reclaim, so the two-hour reconstruction
 above is one command.
 
 Since ADR 0136 §6 every heavy-tier waiter also writes itself into
-`~/.cache/tolaria/gate.waiters/<pid>.json` — pid, role, cwd, command, since —
-removed on acquisition and pruned on a dead pid by whoever reads it next. That
-made the QUEUE readable, not just the holder: `gate:who` prints it, and the
-`yield` acquisition above is the first thing that depends on it.
+`~/.cache/tolaria/gate.waiters/<pid>.json` — pid, role, tier, cwd, command,
+`since`, and `seen`, restamped on every poll — removed on acquisition and
+pruned by whoever reads it next once its pid is dead or it has stopped
+polling for a minute. That registry IS the queue: `gate:who` prints it in
+acquisition order (`queued #1` is the only waiter that may take the mutex
+next), and a waiter's own line says its position and, when the mutex is free
+but not its turn, who is next.
 
 Reclaims are loud and typed, in stderr and in `.claude/telemetry/gate-lock.jsonl`:
 a **dead** holder is an orphan, a **stalled** one is a live pid whose command is
 still running and hung. A normal release logs nothing at all, so either reclaim
 line in a log is a signal by itself.
 
-## Session admission — the cap, the RED refusal, and the number behind them
+### The queue has an order, and teardown reaches every process group
+
+Issue #4965. The mutex is a `mkdir`-style lock every waiter polls, and three
+things measured on 2026-10-02 were consequences of that shape alone:
+
+| Measured                                                                                             | Cause                                                                           |
+| ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| PR #4956 (one test file) waited 24m22s; 93 lands queued 10.6 h over 14 days, p90 13 min              | no order: whoever polled first after a release won                              |
+| three health waiters past their 30 min yield bound each took a full gate; two lands waited 25–35 min | `yield` stepped aside only until its bound, then competed as an equal           |
+| `vitest run --project node-engine` (own pgid, four workers) alive under the NEXT holder              | teardown signalled one process group; a nested `gate.ts` detaches its own child |
+| a stalled holder cost its queue 45 min after it had been detected                                    | the stall verdict only stopped the heartbeat; `STALE_MS` did the rest           |
+
+**Ordered admission.** Only the HEAD of the queue may take — or reclaim — the
+lock; everyone else waits for the head whatever the lock's state, so a free
+mutex is not an invitation. The head is the live waiter with the best (class,
+`since`, pid). Classes, best first: `land` > `job` > heavy (hand-run) >
+`health`; a waiter rises one class per 30 min queued (`AGE_STEP_MS`), never
+past the best, which replaces the yield bound. There is no coordinator: every
+waiter computes the same total order from the same registry
+(`admissionOrder`, pure). A head that will never acquire — stopped, hung, or
+a dead entry whose pid was reused — stops restamping `seen` and drops out of
+everyone's view after a minute (`waiterLive`); how long it has QUEUED is
+deliberately not read, because ageing makes a 90-minute wait legitimate.
+
+**Tree teardown.** Before `release()`, a holder walks `ps` from its child,
+remembers every process group it meets (`TrackedTree`), signals each one,
+escalates to SIGKILL after a 2 s grace, and releases once `ps` shows nothing
+left — 5 s at the outside, under the 10 s `gate-run.sh` allows between its
+own TERM and KILL. The walk finds what is nested; the groups keep hold of it
+once the signal has killed the parents the walk went through. The teardown is
+synchronous, inside the signal handler: "after an await" is not a place a
+dying process reliably reaches. A dead holder's orphans are still not chased
+— a holder that was SIGKILLed leaves a dead-pid lock and whatever it was
+running; only its own teardown and a stalled reclaim kill a tree.
+
+**A lock is never judged on a stamp that could not have been refreshed.**
+Three windows in which a healthy gate used to look reclaimable, each closed:
+
+- _A stamp mid-rewrite._ Owner and waiter stamps are written whole (temp file
+    - rename). An unreadable owner reads as a DEAD holder, so a stamp caught
+      truncated was one poll away from a healthy gate being reclaimed.
+- _A lock mid-acquire._ `mkdir` is the arbiter (it fails on an existing
+  directory, empty or not — a staged directory renamed into place would
+  REPLACE an empty one, and a lock is briefly empty in every release and in
+  every acquisition by an older `gate.ts`), and the owner stamp follows it. A
+  lock with no owner is therefore an orphan only once it is 5 s old
+  (`OWNERLESS_GRACE_MS`); younger, it is a gate between its two steps.
+- _A machine that slept._ Every stall threshold is wall-clock, and wall-clock
+  time runs while the lid is closed: on wake a healthy holder's stamp is as
+  old as the nap, and its overdue heartbeat races every waiter's overdue
+  poll. That cost a double hold while a stall only took the lock; with the
+  reclaimer killing, it would be a `land` killed by a nap. A waiter that
+  finds a gap of more than 15 poll periods between two of its own polls
+  (`pollGap`) restamps, judges nothing that round, and acts on no `stalled`
+  verdict until it has polled a full heartbeat period without another
+  (`stallJudgeable`). A DEAD holder is not a wall-clock judgment and is never
+  deferred.
+
+`release()` deletes only a lock it can read as its own, and `reclaim` re-reads
+the owner before removing a lock: the kill takes seconds, and the lock on disk
+may by then be a new holder's.
+
+The three wiring tests force the timing they are about rather than waiting
+for it (`gate.test.ts` § the queue): the waiters that should go first are
+SIGSTOPped, so the lowest class is the only one polling a free mutex, and
+"it polled twice and is still queued" is read off its own `seen` stamp.
+
+## Session admission — the cap, the RED refusal, and the number behind them## Session admission — the cap, the RED refusal, and the number behind them
 
 **The claim is one locked act (issue #4375, PRD #4373).** Until then the cap
 was enforced by a READ — `queue:plan` counted the live `in-progress` claims and

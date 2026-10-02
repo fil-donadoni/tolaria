@@ -125,6 +125,9 @@ export interface HeavyGateOwner {
     cwd: string;
     ts: number;
     acquiredAt?: number;
+    /** Set once the holder declared its own stall: reclaimable minutes
+     *  later, not after `HEAVY_STALE_MS` (issue #4965). */
+    stalledAt?: number;
 }
 
 /** `gate.ts`'s STALE_MS default: a holder silent this long is reclaimable,
@@ -136,8 +139,9 @@ const HEAVY_STALE_MS = 45 * 60 * 1000;
  * before it sizes its pool, so it never starts five Chrome contexts beside a
  * suite, a sweep or a `land` that holds the machine.
  *
- * Null when no lock is held, when the holder is dead or has gone silent past
- * the reclaim threshold (the next waiter takes it — it holds nothing), and
+ * Null when no lock is held, when the holder is dead, has gone silent past
+ * the reclaim threshold or declared its stall long enough ago to be reclaimed
+ * (the head of the queue takes it — it holds nothing), and
  * when THIS process runs under the hold itself (`TOLARIA_GATE_HELD=1`): the
  * holder is then our own ancestor, and the machine is ours.
  */
