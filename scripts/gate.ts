@@ -1220,6 +1220,9 @@ async function admitMachine() {
         // so the wait itself keeps the owner stamp fresh: a holder silent
         // for the whole bound is one a waiter that slept and woke may judge.
         tick: restampOwner,
+        // The saturated wait's peak and the consumers it named (issue #4989),
+        // beside this gate's tier and command.
+        record: logEvent,
     });
     if (machine.overridden || !machine.admitted)
         logEvent({
