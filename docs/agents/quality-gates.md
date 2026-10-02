@@ -1240,7 +1240,11 @@ left — 5 s at the outside, under the 10 s `gate-run.sh` allows between its
 own TERM and KILL. The walk finds what is nested; the groups keep hold of it
 once the signal has killed the parents the walk went through. The teardown is
 synchronous, inside the signal handler: "after an await" is not a place a
-dying process reliably reaches. A dead holder's orphans are still not chased
+dying process reliably reaches. A teardown that runs out its bound says
+`could NOT confirm the tree of pid N is gone` and names each survivor of its
+last `ps` pass on stderr — pid, ppid, pgid, `stat`, command line — so the
+class of what outlived a SIGKILL can be read from `land`'s run log (issue
+#4976). A dead holder's orphans are still not chased
 — a holder that was SIGKILLed leaves a dead-pid lock and whatever it was
 running; only its own teardown and a stalled reclaim kill a tree.
 

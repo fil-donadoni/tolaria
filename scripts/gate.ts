@@ -178,6 +178,7 @@ import {
     describeClass,
     heartbeatStep,
     parsePsRows,
+    survivorLines,
     pollGap,
     WAITER_SINCE_ENV,
     reclaimVerdict,
@@ -755,16 +756,19 @@ function reclaim(
         const root = rows?.find((r) => r.pid === owner.childPid);
         const holder = rows?.find((r) => r.pid === owner.pid);
         if (root && holder && root.ppid === owner.pid) {
-            subtree = killTree(root.pid, "SIGTERM", KILL_GRACE_MS, [
+            const kill = killTree(root.pid, "SIGTERM", KILL_GRACE_MS, [
                 holder.pgid,
-            ])
-                ? "killed"
-                : "survived";
-            console.error(
-                subtree === "killed"
-                    ? `[gate] killed the stalled subtree of pid ${root.pid}`
-                    : `[gate] could NOT confirm the stalled subtree of pid ${root.pid} is gone — taking the mutex anyway`
-            );
+            ]);
+            subtree = kill.gone ? "killed" : "survived";
+            if (kill.gone)
+                console.error(
+                    `[gate] killed the stalled subtree of pid ${root.pid}`
+                );
+            else
+                warnUnconfirmed(
+                    `[gate] could NOT confirm the stalled subtree of pid ${root.pid} is gone — taking the mutex anyway`,
+                    kill.survivors
+                );
         } else subtree = "unrooted";
     }
     logEvent({
@@ -794,12 +798,27 @@ function reclaim(
 
 // ── tree teardown ───────────────────────────────────────────────────────────
 function psRows(): PsRow[] | null {
-    const r = spawnSync("ps", ["-Ao", "pid=,ppid=,pgid=,stat="], {
+    // `-ww`: off a terminal `ps` cuts a row at 79 columns, and the command is
+    // what a survivor is diagnosed by. It costs ~20 ms a pass over the bare
+    // four columns (44 ms against 24, 650 processes) — paid so that the pass
+    // that convicts a survivor is the pass that names it.
+    const r = spawnSync("ps", ["-ww", "-Ao", "pid=,ppid=,pgid=,stat=,args="], {
         encoding: "utf8",
         cwd: SPAWN_CWD,
+        maxBuffer: 16 * 1024 * 1024,
     });
     if (r.status !== 0 || !r.stdout) return null;
     return parsePsRows(r.stdout);
+}
+
+/** What a teardown SAW. `survivors` is the last pass's — null when `ps` gave
+ *  no pass to read them from. */
+type TreeKill = { gone: true } | { gone: false; survivors: PsRow[] | null };
+
+/** The unconfirmed-teardown warning, survivors named (issue #4976). To
+ *  stderr: that is what reaches `land`'s log, where the next one is read. */
+function warnUnconfirmed(headline: string, survivors: PsRow[] | null) {
+    console.error([headline, ...survivorLines(survivors)].join("\n"));
 }
 
 function signalQuietly(target: number, signal: NodeJS.Signals) {
@@ -824,16 +843,17 @@ function signalQuietly(target: number, signal: NodeJS.Signals) {
  * while a worker of the outgoing holder is still alive, and "after an await"
  * is not a place a dying process reliably reaches.
  *
- * False means unverified, not failed: `ps` unavailable, or a survivor past
+ * Not gone means unverified, not failed: `ps` unavailable, or a survivor past
  * the bound. The caller releases anyway — a holder that refused would only
- * leave a dead-pid lock for the next waiter to reclaim — and says so.
+ * leave a dead-pid lock for the next waiter to reclaim — and says so, naming
+ * the survivors of the last pass (issue #4976).
  */
 function killTree(
     root: number,
     signal: NodeJS.Signals,
     graceMs: number,
     protectedGroups: number[] = []
-): boolean {
+): TreeKill {
     let rows = psRows();
     if (!rows) {
         // No `ps`: the group of the direct child is the only handle there is.
@@ -842,7 +862,7 @@ function killTree(
             Bun.sleepSync(graceMs);
             signalQuietly(-root, "SIGKILL");
         }
-        return false;
+        return { gone: false, survivors: null };
     }
     const own = rows.find((r) => r.pid === process.pid)?.pgid;
     const tree = new TrackedTree(
@@ -864,9 +884,10 @@ function killTree(
     const t0 = Date.now();
     for (;;) {
         const survivors = tree.absorb(rows);
-        if (survivors.length === 0) return true;
+        if (survivors.length === 0) return { gone: true };
         const elapsed = Date.now() - t0;
-        if (elapsed > graceMs + KILL_VERIFY_MS) return false;
+        if (elapsed > graceMs + KILL_VERIFY_MS)
+            return { gone: false, survivors };
         const sig =
             signal === "SIGKILL" || elapsed >= graceMs ? "SIGKILL" : signal;
         for (const pgid of tree.groups) send(-pgid, sig);
@@ -876,7 +897,7 @@ function killTree(
             if (!tree.groups.has(r.pgid)) send(r.pid, sig);
         Bun.sleepSync(TEARDOWN_POLL_MS);
         rows = psRows();
-        if (!rows) return false;
+        if (!rows) return { gone: false, survivors: null };
     }
 }
 
@@ -1115,9 +1136,11 @@ function teardownChild(signal: NodeJS.Signals, graceMs: number) {
     const pid = child?.pid;
     if (pid === undefined || tornDown) return;
     tornDown = true;
-    if (!killTree(pid, signal, graceMs))
-        console.error(
-            `[gate] could NOT confirm the tree of pid ${pid} is gone (${signal}) — continuing`
+    const kill = killTree(pid, signal, graceMs);
+    if (!kill.gone)
+        warnUnconfirmed(
+            `[gate] could NOT confirm the tree of pid ${pid} is gone (${signal}) — continuing`,
+            kill.survivors
         );
 }
 
