@@ -9,6 +9,7 @@ import {
     clearPending,
     closingIssueRefs,
     describeLastDecision,
+    gateSkipReason,
     healthRunInFlight,
     healthTrigger,
     landingsSinceFire,
@@ -644,6 +645,103 @@ describe("health cadence — a queued or running run is pending (issue #4964)", 
             expect(action.kind).toBe(status);
             if (action.kind !== "none")
                 expect(action.state.pendingPid).toBeNull();
+        }
+    });
+});
+
+describe("health cadence — one live health waiter per checkout (issue #4960)", () => {
+    // The 2026-10-02 shape: three lands, three `detach` decisions, each on a
+    // new tip, the first fire still queued under `gate.ts yield`.
+    it("three successive detach decisions leave exactly one waiter", () => {
+        const alive = () => true;
+        let st = state({ landings: landings(LANDINGS_PER_BATCH - 1) });
+        let fires = 0;
+        for (let i = 0; i < 3; i++) {
+            const tip = `land${i}`.padEnd(40, "0");
+            const now = T0 + (20 + 12 * i) * MIN;
+            st = recordLanding(st, tip, now);
+            const v = healthTrigger({
+                state: st,
+                tip,
+                now,
+                pending: pendingHealthRun(st, null, now, alive),
+            });
+            if (v.kind === "fire") {
+                fires++;
+                st = withPending(afterFire(st, tip, now), 1000 + i, now);
+            } else {
+                expect(v.reason).toContain("still queued or running");
+            }
+        }
+        expect(fires).toBe(1);
+    });
+});
+
+describe("health-main — a waiter never re-gates a concluded tip (issue #4960)", () => {
+    const tip = "t".repeat(40);
+    const at = (status: HealthRecord["status"], sha = tip): HealthRecord => ({
+        sha,
+        status,
+        startedAt: new Date(T0).toISOString(),
+        failedStep:
+            status === "running" || status === "green"
+                ? undefined
+                : "check:ui --all",
+    });
+    const now = T0 + 50 * MIN;
+
+    it("a waiter waking to a RED or INFRA verdict on the same tip exits, saying why", () => {
+        for (const status of ["red", "infra"] as const) {
+            const why = gateSkipReason({
+                last: at(status),
+                tip,
+                now,
+                retryTerminal: false,
+            });
+            expect(why).toContain(status.toUpperCase());
+            expect(why).toContain("check:ui");
+        }
+    });
+
+    it("`bun run health` by hand re-gates a RED or INFRA tip", () => {
+        for (const status of ["red", "infra"] as const)
+            expect(
+                gateSkipReason({
+                    last: at(status),
+                    tip,
+                    now,
+                    retryTerminal: true,
+                })
+            ).toBeNull();
+    });
+
+    it("a tip that moved since the verdict is gated", () => {
+        expect(
+            gateSkipReason({
+                last: at("infra", "o".repeat(40)),
+                tip,
+                now,
+                retryTerminal: false,
+            })
+        ).toBeNull();
+    });
+
+    it("green and a live run skip either way; a stale run does not", () => {
+        for (const retryTerminal of [true, false]) {
+            expect(
+                gateSkipReason({ last: at("green"), tip, now, retryTerminal })
+            ).toContain("already green");
+            expect(
+                gateSkipReason({ last: at("running"), tip, now, retryTerminal })
+            ).toContain("already being gated");
+            expect(
+                gateSkipReason({
+                    last: at("running"),
+                    tip,
+                    now: T0 + FIRE_DEDUP_MS,
+                    retryTerminal,
+                })
+            ).toBeNull();
         }
     });
 });

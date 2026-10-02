@@ -597,6 +597,36 @@ export function healthRunInFlight(
 }
 
 /**
+ * Why `health-main` must NOT gate `tip` now, or null to gate it.
+ *
+ * A tip already green, or being gated by a live run, is never re-gated. A
+ * tip with a RED or INFRA verdict is re-gated only on an explicit decision
+ * (`retryTerminal`: `bun run health` or `release` by hand): a cadence waiter
+ * (`--under-lock`) that wakes after a 36–49 min queue to a tip some other
+ * run already concluded on exits instead (issue #4960). Before that, every
+ * leftover waiter re-ran the whole ~45 min gate on the same sha — an infra
+ * blip became a second full run, competing with every queued `land`. A tip
+ * that moved since the verdict is a different sha, and is gated.
+ */
+export function gateSkipReason(input: {
+    last: HealthRecord | null;
+    tip: string;
+    now: number;
+    retryTerminal: boolean;
+    staleMs?: number;
+}): string | null {
+    const { last, tip, now, retryTerminal } = input;
+    if (last === null || last.sha !== tip) return null;
+    if (last.status === "green") return `tip ${short(tip)} already green`;
+    if (last.status === "running")
+        return healthRunInFlight(last, now, input.staleMs) === null
+            ? null
+            : `tip ${short(tip)} already being gated`;
+    if (retryTerminal) return null;
+    return `tip ${short(tip)} already has a ${last.status.toUpperCase()} verdict${last.failedStep ? ` (${last.failedStep})` : ""} — a waiter never re-gates it; \`bun run health\` retries by hand`;
+}
+
+/**
  * Is a health run already queued OR running (issue #4964)? A `running` record
  * covers the run that holds the mutex; `pendingPid` covers the fire still
  * waiting for it, which `last.json` cannot see. `isAlive` is injected so the
