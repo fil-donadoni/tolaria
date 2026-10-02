@@ -127,6 +127,11 @@ import {
 import type { UiScope } from "./lib/ui-scope.ts";
 import { changedRetiredRows, retirementRefusal } from "./lib/retirement-ack";
 import { REGENERATE_MARKER } from "./lib/generated-artifacts";
+import {
+    parseCadence,
+    redLandGate,
+    type LandingKind,
+} from "./lib/health-cadence";
 
 /**
  * The one DECISION `land` makes about a `check:ui` receipt (issue #2760),
@@ -387,6 +392,12 @@ export interface LandFacts {
      * no hand-written definition left and the PR body does not name that card.
      */
     retirementRefusal: string | null;
+    /**
+     * Refusal string from `redLandGate` (issue #4964), or null: the RED marker
+     * stands and this PR is neither a declared repair nor landed with
+     * `--red-ok`. A pre-merge gate like the three above.
+     */
+    redRefusal?: string | null;
 }
 
 /**
@@ -485,6 +496,9 @@ export function refusalReason(facts: LandFacts): string | null {
     if (facts.retirementRefusal) {
         return facts.retirementRefusal;
     }
+    if (facts.redRefusal) {
+        return facts.redRefusal;
+    }
     return null;
 }
 
@@ -582,6 +596,12 @@ export interface HousekeepingOptions {
      * umbrella it would have under `land`.
      */
     originBand?: BoardPriority | null;
+    /**
+     * How this landing declared itself under RED (issue #4964) — recorded in
+     * the health ledger, where a `repair` fires the batch gate at once and a
+     * `red-ok` is counted. Absent off RED.
+     */
+    landingKind?: LandingKind;
 }
 
 export interface LockedCommandOptions extends HousekeepingOptions {
@@ -1006,10 +1026,13 @@ export function gapsSyncStep(
  * post-merge re-fetch and past `VERIFY_MERGED_TIP` — so it is the tip this
  * landing actually created, not whatever the remote held at `land`'s start.
  */
-export function recordLandingStep(primaryCheckout: string): string {
+export function recordLandingStep(
+    primaryCheckout: string,
+    kind?: LandingKind
+): string {
     return (
         `(cd ${shQuote(primaryCheckout)} && ` +
-        `bun ${shQuote(HEALTH_CADENCE_REL)} record --sha="$(git rev-parse ${ORIGIN_BASE})" || ` +
+        `bun ${shQuote(HEALTH_CADENCE_REL)} record --sha="$(git rev-parse ${ORIGIN_BASE})"${kind ? ` --kind=${kind}` : ""} || ` +
         `echo "land: could not record the landing in the health ledger" >&2; true)`
     );
 }
@@ -1102,7 +1125,7 @@ export function postMergeHousekeepingSteps(
         // landing still pays the LANE gate only; the FULL gate runs once per
         // BATCH — five landings, or two hours — detached below, never inside
         // the lock.
-        recordLandingStep(opts.primaryCheckout),
+        recordLandingStep(opts.primaryCheckout, opts.landingKind),
         // Local `main` catches up with the tip the API merge just created —
         // unconditional of `--keep`, which is about the WORKTREE, not about
         // leaving the checkout every session branches from one commit stale.
@@ -1293,23 +1316,44 @@ function parseArgs(argv: string[]): {
     pr: number;
     merge: boolean;
     teardown: boolean;
+    repair: boolean;
+    redOk: boolean;
 } {
     const positional = argv.filter((a) => !a.startsWith("--"));
     const pr = Number((positional[0] ?? "").replace(/^#/, ""));
     if (!Number.isInteger(pr) || pr <= 0) {
-        fail("usage: bun run land <PR#> [--no-merge] [--keep]");
+        fail(
+            "usage: bun run land <PR#> [--no-merge] [--keep] [--repair | --red-ok]"
+        );
     }
     return {
         pr,
         merge: !argv.includes("--no-merge"),
         teardown: !argv.includes("--keep"),
+        repair: argv.includes("--repair"),
+        redOk: argv.includes("--red-ok"),
     };
+}
+
+/** The `/health-fix` issues recorded against the standing RED — fail-soft,
+ *  like every other read of the health ledger. */
+function readRepairIssues(primary: string): number[] {
+    try {
+        return parseCadence(
+            readFileSync(
+                join(primary, ".claude/telemetry/health/cadence.json"),
+                "utf8"
+            )
+        ).repairIssues;
+    } catch {
+        return [];
+    }
 }
 
 function main(): void {
     const cwd = process.cwd();
     const [, , ...argv] = process.argv;
-    const { pr, merge, teardown } = parseArgs(argv);
+    const { pr, merge, teardown, repair, redOk } = parseArgs(argv);
 
     const branch = git(["rev-parse", "--abbrev-ref", "HEAD"], cwd);
     const dirty = git(["status", "--porcelain"], cwd) !== "";
@@ -1355,6 +1399,24 @@ function main(): void {
     // so a change to one is reviewed rather than merely diffed. Same shape.
     const retirementProblem = safeRetirementRefusal(cwd, prBody);
 
+    const primary = primaryCheckout(cwd);
+
+    // Health verdict (ADR 0136 §6): a RED marker means the full gate found the
+    // base tip broken. RED refuses the next PICK (`queue:plan`) and, since
+    // issue #4964, the next non-repair LAND: the fix-forward still lands as
+    // before (a PR closing the `/health-fix` issue, or `--repair`), and a
+    // session already mid-issue finishes with `--red-ok` — a stated act the
+    // health ledger counts, never the silent default that paid one full gate
+    // per landing for ~43 h (2026-09-30 → 2026-10-02).
+    const red = existsSync(join(primary, ".claude/telemetry/health/RED"));
+    const redGate = redLandGate({
+        red,
+        prBody,
+        repairIssues: red ? readRepairIssues(primary) : [],
+        repairFlag: repair,
+        redOkFlag: redOk,
+    });
+
     const reason = refusalReason({
         branch,
         dirty,
@@ -1364,21 +1426,14 @@ function main(): void {
         skinReceiptInvalid,
         scenarioRefusal: scenarioProblem,
         retirementRefusal: retirementProblem,
+        redRefusal: redGate.kind === "refuse" ? redGate.reason : null,
     });
     if (reason) fail(`refusing — ${reason}`);
-
-    const primary = primaryCheckout(cwd);
-
-    // Health verdict (ADR 0136 §6): a RED marker means the full gate found the
-    // base tip broken — at the last `bun run release`, or at the batch gate
-    // that now runs every five landings. RED refuses the next PICK
-    // (`queue:plan`), never the LAND: the fix-forward that repairs the tip
-    // arrives through a `land`, and a session already mid-issue must be able
-    // to finish. It still says so, because nobody should stack new work on a
-    // red tip without knowing.
-    if (existsSync(join(primary, ".claude/telemetry/health/RED"))) {
+    const landingKind =
+        redGate.kind === "proceed" ? redGate.landing : undefined;
+    if (red) {
         console.warn(
-            `land: WARNING — the health gate is RED on \`${BASE_BRANCH}\` (\`bun run health:status\`). Fixing it comes before landing unrelated work.`
+            `land: WARNING — the health gate is RED on \`${BASE_BRANCH}\` (\`bun run health:status\`)${redGate.kind === "proceed" && redGate.note ? `; landing ${redGate.note}` : ""}.`
         );
     }
 
@@ -1430,6 +1485,7 @@ function main(): void {
         worktree: landingWorktree,
         teardown,
         originBand: origin.band,
+        landingKind,
     };
     const command =
         mode === "housekeeping"

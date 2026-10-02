@@ -19,12 +19,36 @@
  */
 import type { HealthStatus } from "./health-verdict";
 
+/**
+ * How a landing made under a standing RED declared itself (issue #4964).
+ * Absent on an ordinary landing.
+ *
+ *  - `repair` — the PR closes the issue a `/health-fix` session opened (see
+ *    `repairIssues`), or `land --repair` declared it: the landing that can
+ *    turn the tip GREEN, so it is gated at once.
+ *  - `red-ok` — unrelated work landed on a red tip by `land --red-ok`: a
+ *    stated act, counted, and never on its own a reason to re-gate.
+ */
+export type LandingKind = "repair" | "red-ok";
+
 /** One landing on the base branch: the tip it created, and when it merged. */
 export interface Landing {
     /** The base-branch tip the squash produced — what a health run would gate. */
     sha: string;
     /** Epoch ms, from the `land` that merged it. */
     at: number;
+    kind?: LandingKind;
+}
+
+/** The last trigger decision, kept so `health:status` can say why the last
+ *  landing did or did not fire (issue #4964). */
+export interface CadenceDecision {
+    /** Epoch ms of the decision. */
+    at: number;
+    /** The base tip the decision was about. */
+    tip: string;
+    kind: "fire" | "hold";
+    reason: string;
 }
 
 /**
@@ -46,6 +70,21 @@ export interface CadenceState {
      *  otherwise wedge that tip's batch for ever, which is precisely the
      *  exposure §6 bounds at "≤ 5 landings or 2 h". */
     lastFiredAt: number | null;
+    /**
+     * The `detach` process that fired and has not yet reconciled — QUEUED on
+     * the mutex or running the gate. `last.json` only says `running` once
+     * `health-main` holds the mutex, so without this a fire waiting behind
+     * queued lands is invisible and every landing meanwhile queues another
+     * waiter for the same tip (issue #4960, issue #4964). Cleared by the
+     * reconcile, whatever its outcome.
+     */
+    pendingPid: number | null;
+    /** When that pending fire started — bounds a pid that outlived its run. */
+    pendingSince: number | null;
+    /** Issues `/health-fix` opened for the standing RED: a PR closing one is a
+     *  `repair` landing. Cleared by GREEN. */
+    repairIssues: number[];
+    lastDecision: CadenceDecision | null;
 }
 
 export const EMPTY_CADENCE: CadenceState = {
@@ -53,6 +92,10 @@ export const EMPTY_CADENCE: CadenceState = {
     lastGreenSha: null,
     lastFiredSha: null,
     lastFiredAt: null,
+    pendingPid: null,
+    pendingSince: null,
+    repairIssues: [],
+    lastDecision: null,
 };
 
 /** Landings since the last GREEN after which the batch gate fires. */
@@ -63,12 +106,16 @@ export const MAX_BATCH_AGE_MS = 2 * 60 * 60 * 1000;
  *  `health-main.ts` gives its own `running` record, and for the same reason:
  *  past it, a run that left no verdict is assumed gone rather than slow. */
 export const FIRE_DEDUP_MS = 90 * 60 * 1000;
+/** Past this, a pending fire's pid is assumed reused rather than still ours:
+ *  a full gate after a bounded `yield` wait never takes this long. */
+export const MAX_PENDING_MS = 6 * 60 * 60 * 1000;
 
 export type CadenceVerdict =
     | {
           kind: "fire";
-          /** Which of the two thresholds tripped — the reason a reader wants. */
-          trigger: "count" | "age";
+          /** Which threshold tripped — the reason a reader wants. `repair`
+           *  only under RED: a declared repair landed since the last fire. */
+          trigger: "count" | "age" | "repair";
           /** The tip to gate: the one CURRENT now, not the one that triggered. */
           sha: string;
           reason: string;
@@ -80,6 +127,11 @@ export interface TriggerInput {
     /** The base-branch tip as it is NOW — health gates this, per ADR 0136 §6. */
     tip: string;
     now: number;
+    /** The durable RED marker stands — see `redTrigger`. */
+    red?: boolean;
+    /** Why a health run is already queued or running (`pendingHealthRun`),
+     *  or null/absent when none is. */
+    pending?: string | null;
     landingsPerBatch?: number;
     maxAgeMs?: number;
     fireDedupMs?: number;
@@ -105,11 +157,14 @@ function minutes(ms: number): string {
  * `count` is checked before `age` so a full batch reports the threshold it
  * actually reached; a batch that is both full and old is a `count`.
  *
- * Note what is NOT here: a RED verdict does not change the state, so the next
- * landing — on a NEW tip, hence past the dedup — fires again. That is the
- * point: RED refuses the next PICK (`queue:plan`) but not the next LAND, so
- * the landing that carries the fix-forward is gated at once instead of waiting
- * out another batch.
+ * A run already queued or running holds every later decision: it re-resolves
+ * the tip when it takes the mutex, so a queued one already covers the new
+ * landing, and a running one is followed by a re-decision in the `detach`
+ * that owns it (issue #4964).
+ *
+ * Under RED the thresholds count from the last FIRE, not the last GREEN —
+ * `redTrigger`. Counting from GREEN fired one full gate per landing for as
+ * long as the base stayed red: 22 runs in ~43 h, 2026-09-30 → 2026-10-02.
  */
 export function healthTrigger(input: TriggerInput): CadenceVerdict {
     const {
@@ -137,6 +192,13 @@ export function healthTrigger(input: TriggerInput): CadenceVerdict {
             kind: "hold",
             reason: `health already started for tip ${short(tip)}`,
         };
+    if (input.pending)
+        return {
+            kind: "hold",
+            reason: `${input.pending} — it covers this landing`,
+        };
+    if (input.red)
+        return redTrigger(state, tip, now, landingsPerBatch, maxAgeMs);
 
     const count = state.landings.length;
     const ageMs = now - state.landings[0].at;
@@ -162,6 +224,78 @@ export function healthTrigger(input: TriggerInput): CadenceVerdict {
 }
 
 /**
+ * The landings no health run has STARTED on yet: those after the sha the last
+ * fire gated (`lastFiredSha`, rewritten by the reconcile to the sha the run
+ * actually gated). Falls back to the fire's timestamp when that sha is not a
+ * recorded landing — a push that bypassed `land`, or one pruned by GREEN.
+ */
+export function landingsSinceFire(state: CadenceState): Landing[] {
+    if (state.lastFiredSha === null) return state.landings;
+    const idx = state.landings.findIndex((l) => l.sha === state.lastFiredSha);
+    if (idx >= 0) return state.landings.slice(idx + 1);
+    const firedAt = state.lastFiredAt;
+    if (firedAt === null) return state.landings;
+    return state.landings.filter((l) => l.at > firedAt);
+}
+
+/**
+ * The trigger while the RED marker stands (issue #4964).
+ *
+ * RED refuses the next PICK, and `land` refuses the next non-repair LAND
+ * without `--red-ok`, but the sessions already mid-issue still land — and each
+ * of those used to clear the dedup on its new tip and pay a full gate that
+ * could only report the same red, or add one of its own. Now:
+ *
+ *  - a declared `repair` landing since the last fire fires at once — it is the
+ *    landing that can turn the tip GREEN, the reason RED never paused the
+ *    cadence outright;
+ *  - otherwise the batch thresholds apply, counted from the last FIRE: under
+ *    RED the base is gated at most once per batch, never once per landing.
+ */
+function redTrigger(
+    state: CadenceState,
+    tip: string,
+    now: number,
+    landingsPerBatch: number,
+    maxAgeMs: number
+): CadenceVerdict {
+    const since = landingsSinceFire(state);
+    if (since.length === 0)
+        return {
+            kind: "hold",
+            reason: "RED: no landing since the last health run started",
+        };
+    const repair = since.find((l) => l.kind === "repair");
+    if (repair !== undefined)
+        return {
+            kind: "fire",
+            trigger: "repair",
+            sha: tip,
+            reason: `RED: ${short(repair.sha)} is a declared repair`,
+        };
+    const count = since.length;
+    const ageMs = now - since[0].at;
+    if (count >= landingsPerBatch)
+        return {
+            kind: "fire",
+            trigger: "count",
+            sha: tip,
+            reason: `RED: ${count} landings since the last fire (threshold ${landingsPerBatch})`,
+        };
+    if (ageMs >= maxAgeMs)
+        return {
+            kind: "fire",
+            trigger: "age",
+            sha: tip,
+            reason: `RED: the oldest landing since the last fire is ${minutes(ageMs)} old (threshold ${minutes(maxAgeMs)})`,
+        };
+    return {
+        kind: "hold",
+        reason: `RED: ${count}/${landingsPerBatch} landings since the last fire, oldest ${minutes(ageMs)} of ${minutes(maxAgeMs)}, none a declared repair`,
+    };
+}
+
+/**
  * Record a landing. Idempotent on the tip already at the tail: a `land`
  * retried after a transient merge refusal re-runs its post-merge steps
  * against the SAME base tip (ADR 0136 §2 is the whole reason a retry is
@@ -170,11 +304,55 @@ export function healthTrigger(input: TriggerInput): CadenceVerdict {
 export function recordLanding(
     state: CadenceState,
     sha: string,
-    at: number
+    at: number,
+    kind?: LandingKind
 ): CadenceState {
     const last = state.landings[state.landings.length - 1];
     if (last?.sha === sha) return state;
-    return { ...state, landings: [...state.landings, { sha, at }] };
+    const landing: Landing =
+        kind === undefined ? { sha, at } : { sha, at, kind };
+    return { ...state, landings: [...state.landings, landing] };
+}
+
+/** `/health-fix` opened `issue` for the standing RED: a PR closing it is a
+ *  `repair` landing. Idempotent. */
+export function recordRepairIssue(
+    state: CadenceState,
+    issue: number
+): CadenceState {
+    if (state.repairIssues.includes(issue)) return state;
+    return { ...state, repairIssues: [...state.repairIssues, issue] };
+}
+
+/** A fire is now queued or running in process `pid` — see `pendingPid`. */
+export function withPending(
+    state: CadenceState,
+    pid: number,
+    at: number
+): CadenceState {
+    return { ...state, pendingPid: pid, pendingSince: at };
+}
+
+export function clearPending(state: CadenceState): CadenceState {
+    return { ...state, pendingPid: null, pendingSince: null };
+}
+
+export function recordDecision(
+    state: CadenceState,
+    decision: CadenceDecision
+): CadenceState {
+    return { ...state, lastDecision: decision };
+}
+
+/** The `health:status` line for the last decision (issue #4964). */
+export function describeLastDecision(state: CadenceState): string {
+    const d = state.lastDecision;
+    if (d === null) return "no cadence decision recorded yet";
+    const last = state.landings[state.landings.length - 1];
+    const kind = last?.kind ? ` (${last.kind})` : "";
+    const landing =
+        last === undefined ? "" : `last landing ${short(last.sha)}${kind}; `;
+    return `${landing}${d.kind === "fire" ? "FIRED" : "held"} on tip ${short(d.tip)} at ${new Date(d.at).toISOString()} — ${d.reason}`;
 }
 
 /** Health has been started for `sha` — the dedup stamp, written BEFORE the
@@ -212,7 +390,7 @@ export function afterGreen(
         idx >= 0
             ? state.landings.slice(idx + 1)
             : state.landings.filter((l) => l.at >= startedAt);
-    return { ...state, landings, lastGreenSha: gatedSha };
+    return { ...state, landings, lastGreenSha: gatedSha, repairIssues: [] };
 }
 
 /** Fail-soft: an absent, truncated or hand-mangled ledger reads as EMPTY —
@@ -235,9 +413,29 @@ export function parseCadence(raw: string | null): CadenceState {
               const e = entry as Record<string, unknown>;
               if (typeof e.sha !== "string" || e.sha.length === 0) return [];
               if (typeof e.at !== "number" || !Number.isFinite(e.at)) return [];
-              return [{ sha: e.sha, at: e.at }];
+              const kind =
+                  e.kind === "repair" || e.kind === "red-ok"
+                      ? e.kind
+                      : undefined;
+              return [
+                  kind === undefined
+                      ? { sha: e.sha, at: e.at }
+                      : { sha: e.sha, at: e.at, kind },
+              ];
           })
         : [];
+    const finite = (v: unknown): number | null =>
+        typeof v === "number" && Number.isFinite(v) ? v : null;
+    const d = record.lastDecision as Record<string, unknown> | null;
+    const lastDecision: CadenceDecision | null =
+        typeof d === "object" &&
+        d !== null &&
+        finite(d.at) !== null &&
+        typeof d.tip === "string" &&
+        (d.kind === "fire" || d.kind === "hold") &&
+        typeof d.reason === "string"
+            ? { at: d.at as number, tip: d.tip, kind: d.kind, reason: d.reason }
+            : null;
     return {
         landings,
         lastGreenSha:
@@ -248,11 +446,15 @@ export function parseCadence(raw: string | null): CadenceState {
             typeof record.lastFiredSha === "string"
                 ? record.lastFiredSha
                 : null,
-        lastFiredAt:
-            typeof record.lastFiredAt === "number" &&
-            Number.isFinite(record.lastFiredAt)
-                ? record.lastFiredAt
-                : null,
+        lastFiredAt: finite(record.lastFiredAt),
+        pendingPid: finite(record.pendingPid),
+        pendingSince: finite(record.pendingSince),
+        repairIssues: Array.isArray(record.repairIssues)
+            ? record.repairIssues.filter(
+                  (n): n is number => Number.isInteger(n) && n > 0
+              )
+            : [],
+        lastDecision,
     };
 }
 
@@ -336,10 +538,12 @@ export function reconcileHealthRun(
         return {
             kind: "green",
             sha: last.sha,
-            state: afterFire(
-                afterGreen(state, last.sha, startedAt),
-                last.sha,
-                startedAt
+            state: clearPending(
+                afterFire(
+                    afterGreen(state, last.sha, startedAt),
+                    last.sha,
+                    startedAt
+                )
             ),
             reason: `GREEN @ ${short(last.sha)} — batch reset`,
         };
@@ -352,7 +556,7 @@ export function reconcileHealthRun(
     return {
         kind: "red",
         sha: last.sha,
-        state: afterFire(state, last.sha, startedAt),
+        state: clearPending(afterFire(state, last.sha, startedAt)),
         reason: `RED @ ${short(last.sha)}${last.failedStep ? ` (${last.failedStep})` : ""}`,
     };
 }
@@ -365,8 +569,8 @@ export function reconcileHealthRun(
  * next PICK but not the next LAND, so the two or three sessions already
  * mid-issue each land, each lands on a new tip, and each new tip clears both
  * dedup checks. Up to ~30 mutex-minutes exactly when throughput matters most.
- * One run at a time is the invariant; the counter still is not reset on RED,
- * so the fix-forward is still gated as soon as the current run is done.
+ * One run at a time is the invariant; a repair that lands during the run is
+ * gated by the re-decision its `detach` makes once the run is done.
  *
  * `staleMs` mirrors `health-main.ts`'s own `STALE_RUNNING_MS`: a `running`
  * record older than that belongs to a run that died.
@@ -380,4 +584,98 @@ export function healthRunInFlight(
     const startedAt = Date.parse(last.startedAt);
     if (!Number.isFinite(startedAt) || now - startedAt >= staleMs) return null;
     return `a health run on ${short(last.sha)} is already in flight`;
+}
+
+/**
+ * Is a health run already queued OR running (issue #4964)? A `running` record
+ * covers the run that holds the mutex; `pendingPid` covers the fire still
+ * waiting for it, which `last.json` cannot see. `isAlive` is injected so the
+ * decision stays pure — `detach` passes a `kill(pid, 0)` probe.
+ */
+export function pendingHealthRun(
+    state: CadenceState,
+    last: HealthRecord | null,
+    now: number,
+    isAlive: (pid: number) => boolean,
+    maxPendingMs: number = MAX_PENDING_MS
+): string | null {
+    const running = healthRunInFlight(last, now);
+    if (running !== null) return running;
+    const { pendingPid, pendingSince } = state;
+    if (
+        pendingPid === null ||
+        pendingSince === null ||
+        now - pendingSince >= maxPendingMs ||
+        !isAlive(pendingPid)
+    )
+        return null;
+    return `a health run fired ${minutes(now - pendingSince)} ago is still queued or running (pid ${pendingPid})`;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// `land` under RED (issue #4964)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** The issues a PR body closes, by GitHub's own keywords. Only a BARE `#N`
+ *  closes — `Closes issue #N` does not, so it does not count here either. */
+export function closingIssueRefs(body: string): number[] {
+    const refs = new Set<number>();
+    const re = /\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?):?\s+#(\d+)\b/gi;
+    for (const m of body.matchAll(re)) refs.add(Number(m[1]));
+    return [...refs];
+}
+
+export type RedLandVerdict =
+    | {
+          kind: "proceed";
+          /** What the ledger records for this landing; absent off RED. */
+          landing?: LandingKind;
+          note?: string;
+      }
+    | { kind: "refuse"; reason: string };
+
+/**
+ * May `land` merge this PR while the RED marker stands?
+ *
+ * A repair — a PR closing an issue `/health-fix` opened, or `--repair` — lands
+ * as before. Anything else needs `--red-ok`: a session mid-issue can still
+ * finish, but as a stated act the ledger counts, not by default.
+ */
+export function redLandGate(input: {
+    red: boolean;
+    prBody: string;
+    repairIssues: readonly number[];
+    repairFlag: boolean;
+    redOkFlag: boolean;
+}): RedLandVerdict {
+    if (!input.red) return { kind: "proceed" };
+    const closed = closingIssueRefs(input.prBody).filter((n) =>
+        input.repairIssues.includes(n)
+    );
+    if (closed.length > 0)
+        return {
+            kind: "proceed",
+            landing: "repair",
+            note: `a declared repair — closes issue #${closed[0]}, opened by /health-fix`,
+        };
+    if (input.repairFlag)
+        return {
+            kind: "proceed",
+            landing: "repair",
+            note: "a declared repair (--repair)",
+        };
+    if (input.redOkFlag)
+        return {
+            kind: "proceed",
+            landing: "red-ok",
+            note: "unrelated work on a RED tip (--red-ok) — counted in the health ledger",
+        };
+    const known =
+        input.repairIssues.length === 0
+            ? "no /health-fix issue is recorded"
+            : `it closes none of the /health-fix issues (${input.repairIssues.map((n) => `#${n}`).join(", ")})`;
+    return {
+        kind: "refuse",
+        reason: `the health gate is RED and this PR is not a declared repair — ${known}. Pass --repair if it fixes the red tip, or --red-ok to land unrelated work anyway (counted)`,
+    };
 }

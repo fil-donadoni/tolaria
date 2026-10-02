@@ -7,12 +7,15 @@
  * (ADR 0116) or per landing (ADR 0110): after the 5th landing since the last
  * GREEN, or 2 h after the first un-healthed one, whichever comes first.
  *
- * Three subcommands; `land`'s locked command calls the first two, and both are
+ * Subcommands; `land`'s locked command calls `record` and `spawn`, and both are
  * non-gating there (a merged PR never fails on health bookkeeping):
  *
  *   record --sha=<tip>   append the landing to the ledger. Synchronous and
- *                        tiny: it must be durable before the next `land` can
- *                        take the mutex and read it.
+ *   [--kind=…]           tiny: it must be durable before the next `land` can
+ *                        take the mutex and read it. `--kind` is how a landing
+ *                        under RED declared itself (issue #4964).
+ *   repair-issue         `/health-fix` records the issue it opened, so the PR
+ *     --issue=<N>        closing it lands as a repair (issue #4964).
  *   spawn                re-launch THIS script's `detach` in its own session
  *                        and exit at once. Synchronous, ~60 ms.
  *   detach               decide, and on a FIRE run the gate. Never invoked
@@ -69,14 +72,20 @@ import { join, resolve } from "node:path";
 import { BASE_BRANCH } from "./lib/branches";
 import {
     afterFire,
-    healthRunInFlight,
+    clearPending,
+    describeLastDecision,
     healthTrigger,
     parseCadence,
+    pendingHealthRun,
+    recordDecision,
     recordLanding,
+    recordRepairIssue,
     reconcileHealthRun,
     serializeCadence,
+    withPending,
     type CadenceState,
     type HealthRecord,
+    type LandingKind,
 } from "./lib/health-cadence";
 import { HEALTH_ROLE } from "./lib/gate-liveness";
 import { primaryCheckout } from "./lib/primary-checkout";
@@ -153,12 +162,48 @@ function record(root: string): number {
         );
         return 2;
     }
-    const state = recordLanding(readCadence(root), sha, Date.now());
+    const rawKind = flag("kind");
+    if (rawKind !== null && rawKind !== "repair" && rawKind !== "red-ok") {
+        console.error(
+            `health-cadence: record --kind must be repair or red-ok, got ${JSON.stringify(rawKind)}`
+        );
+        return 2;
+    }
+    const kind: LandingKind | undefined = rawKind ?? undefined;
+    const state = recordLanding(readCadence(root), sha, Date.now(), kind);
     writeCadence(root, state);
     console.log(
-        `health-cadence: ${state.landings.length} landing(s) since the last GREEN (latest ${sha.slice(0, 8)})`
+        `health-cadence: ${state.landings.length} landing(s) since the last GREEN (latest ${sha.slice(0, 8)}${kind ? `, ${kind}` : ""})`
     );
     return 0;
+}
+
+/** `/health-fix` § 3: the issue it opened for the standing RED, so `land`
+ *  recognises the PR that closes it as a repair (issue #4964). */
+function repairIssue(root: string): number {
+    const issue = Number(flag("issue"));
+    if (!Number.isInteger(issue) || issue <= 0) {
+        console.error(
+            `health-cadence: repair-issue needs --issue=<N>, got ${JSON.stringify(flag("issue"))}`
+        );
+        return 2;
+    }
+    writeCadence(root, recordRepairIssue(readCadence(root), issue));
+    console.log(
+        `health-cadence: issue #${issue} recorded as a repair of the RED tip — a PR closing it lands without --red-ok`
+    );
+    return 0;
+}
+
+/** `kill(pid, 0)`: is the process that stamped a pending fire still alive? */
+function processAlive(pid: number): boolean {
+    try {
+        process.kill(pid, 0);
+        return true;
+    } catch (e) {
+        // EPERM: alive, owned by someone else.
+        return (e as NodeJS.ErrnoException).code === "EPERM";
+    }
 }
 
 /**
@@ -216,33 +261,64 @@ function spawnDetached(root: string): number {
     return 0;
 }
 
+/** A decision and, on a fire, the run it started. `ran` tells `detach` to
+ *  decide again: landings that merged DURING the run are not covered by it. */
+type Round = { code: number; ran: boolean };
+
+/** Bound on re-decisions after a run — each needs a landing the previous run
+ *  did not cover, so this is a safety net, not a policy. */
+const MAX_ROUNDS = 4;
+
 function detach(root: string): number {
     const branch = flag("branch") ?? BASE_BRANCH;
+    let code = 0;
+    for (let round = 0; round < MAX_ROUNDS; round++) {
+        const r = decideAndRun(root, branch);
+        code = Math.max(code, r.code);
+        if (!r.ran) break;
+    }
+    return code;
+}
+
+function decideAndRun(root: string, branch: string): Round {
     git(["fetch", "origin", branch, "-q"], root);
     const tip = git(["rev-parse", `origin/${branch}`], root);
 
-    // One run at a time, whatever sha it is about — see `healthRunInFlight`.
-    const inFlight = healthRunInFlight(readLast(root), Date.now());
-    if (inFlight !== null) {
-        console.log(`health-cadence: holding — ${inFlight}`);
-        return 0;
-    }
-
     const state = readCadence(root);
     const firedAt = Date.now();
-    const verdict = healthTrigger({ state, tip, now: firedAt });
+    // One run at a time, queued or running, whatever sha it is about — see
+    // `pendingHealthRun`. Under RED the thresholds count from the last fire,
+    // and a declared repair fires at once — see `healthTrigger`.
+    const verdict = healthTrigger({
+        state,
+        tip,
+        now: firedAt,
+        red: existsSync(join(root, HEALTH_DIR, "RED")),
+        pending: pendingHealthRun(state, readLast(root), firedAt, processAlive),
+    });
+    const decided = recordDecision(state, {
+        at: firedAt,
+        tip,
+        kind: verdict.kind,
+        reason: verdict.reason,
+    });
     if (verdict.kind === "hold") {
+        writeCadence(root, decided);
         console.log(`health-cadence: holding — ${verdict.reason}`);
-        return 0;
+        return { code: 0, ran: false };
     }
 
     console.log(
         `health-cadence: firing on ${verdict.trigger} — ${verdict.reason}; gating ${tip.slice(0, 8)}`
     );
-    // The dedup stamp goes in BEFORE the gate, not after: a second landing
-    // during the run detaches a second decision, and the stamp is what makes
-    // that one hold instead of racing `health-main`'s own running-record.
-    writeCadence(root, afterFire(state, tip, firedAt));
+    // The dedup stamp and the pending pid go in BEFORE the gate, not after: a
+    // second landing during the wait or the run detaches a second decision,
+    // and these are what make that one hold — `last.json` says `running` only
+    // once `health-main` holds the mutex (issue #4960).
+    writeCadence(
+        root,
+        withPending(afterFire(decided, tip, firedAt), process.pid, firedAt)
+    );
 
     // ONE acquisition for the whole run — see the WHY at the top.
     const env: NodeJS.ProcessEnv = {
@@ -275,25 +351,26 @@ function detach(root: string): number {
         firedAt,
     });
     if (action.kind === "none") {
+        writeCadence(root, clearPending(readCadence(root)));
         console.error(
             `health-cadence: ${action.reason} (gate exited ${r.status ?? "on a signal"}) — the ledger is left as it is`
         );
-        return 1;
+        return { code: 1, ran: false };
     }
     writeCadence(root, action.state);
     if (action.kind === "green") {
         console.log(`health-cadence: ${action.reason}`);
-        return 0;
+        return { code: 0, ran: true };
     }
     // RED. `health-main` has already written the marker and `last.json`; the
-    // handover is `release`'s, unchanged. The counter is deliberately NOT
-    // reset: the next landing is on a new tip, so it fires again — which is
-    // how the fix-forward gets gated at once instead of waiting out a batch.
+    // handover is `release`'s, unchanged. The counter is not reset: under RED
+    // the next decision counts from THIS fire, and a declared repair that
+    // landed during the run is gated by the re-decision `detach` makes next.
     console.error(
         `health-cadence: ${action.reason} — handing over to health:fix`
     );
     spawnSync("bun", [HEALTH_FIX], { stdio: "inherit", cwd: root });
-    return 1;
+    return { code: 1, ran: true };
 }
 
 function status(root: string): number {
@@ -305,10 +382,15 @@ function status(root: string): number {
     console.log(
         `  last fired: ${state.lastFiredSha?.slice(0, 8) ?? "none recorded"}${state.lastFiredAt ? ` @ ${new Date(state.lastFiredAt).toISOString()}` : ""}`
     );
+    console.log(`  last decision: ${describeLastDecision(state)}`);
+    if (state.repairIssues.length > 0)
+        console.log(
+            `  repair issues: ${state.repairIssues.map((n) => `#${n}`).join(", ")}`
+        );
     console.log(`  un-healthed landings: ${state.landings.length}`);
     for (const l of state.landings)
         console.log(
-            `    · ${l.sha.slice(0, 8)} @ ${new Date(l.at).toISOString()}`
+            `    · ${l.sha.slice(0, 8)} @ ${new Date(l.at).toISOString()}${l.kind ? ` (${l.kind})` : ""}`
         );
     return 0;
 }
@@ -319,6 +401,9 @@ function main(): void {
     switch (sub) {
         case "record":
             process.exit(record(root));
+            break;
+        case "repair-issue":
+            process.exit(repairIssue(root));
             break;
         case "spawn":
             process.exit(spawnDetached(root));
@@ -331,7 +416,7 @@ function main(): void {
             break;
         default:
             console.error(
-                "usage: bun scripts/health-cadence.ts <record --sha=<tip>|spawn [--branch=<name>]|detach [--branch=<name>]|status>"
+                "usage: bun scripts/health-cadence.ts <record --sha=<tip> [--kind=repair|red-ok]|repair-issue --issue=<N>|spawn [--branch=<name>]|detach [--branch=<name>]|status>"
             );
             process.exit(2);
     }
