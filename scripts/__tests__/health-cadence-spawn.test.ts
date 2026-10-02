@@ -99,5 +99,7 @@ describe("health-cadence spawn — the decision outlives land's process group", 
             await waitFor(() => existsSync(marker())),
             "the detached decision was killed with land's process group"
         ).toBe(true);
-    });
+        // Above the 60 s spawn bound plus the 20 s wait, so either of those
+        // names the failure before vitest's own timeout does.
+    }, 90_000);
 });
