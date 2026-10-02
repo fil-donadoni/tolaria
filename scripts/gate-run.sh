@@ -230,22 +230,30 @@ run_live_pid() {
 # then KILL; it returns only once no member of the group is left, so a caller
 # that starts a replacement next never overlaps the old one. The run dir is
 # left holding a `reaped` note in place of a pid, and the reap is logged.
+# A group that SURVIVES both signals (EPERM, a runner that is not a group
+# leader) is not reaped: its pid files stay, so it stays visible to `--list`
+# and to the twin check, and the call returns 1.
+# (`kill "-$pgid"`, never `kill -- -$pgid`: dash's builtin rejects the `--`.)
 reap_run() {
     _dir="$1"
     _rp="$2"
     _why="$3"
-    kill -TERM -- "-$_rp" 2>/dev/null || true
+    kill -TERM "-$_rp" 2>/dev/null || true
     _g=0
-    while kill -0 -- "-$_rp" 2>/dev/null && [ "$_g" -lt "$KILL_GRACE" ]; do
+    while kill -0 "-$_rp" 2>/dev/null && [ "$_g" -lt "$KILL_GRACE" ]; do
         sleep 1
         _g=$((_g + 1))
     done
-    kill -KILL -- "-$_rp" 2>/dev/null || true
+    kill -KILL "-$_rp" 2>/dev/null || true
     _g=0
-    while kill -0 -- "-$_rp" 2>/dev/null && [ "$_g" -lt 10 ]; do
+    while kill -0 "-$_rp" 2>/dev/null && [ "$_g" -lt 10 ]; do
         sleep 1
         _g=$((_g + 1))
     done
+    if kill -0 "-$_rp" 2>/dev/null; then
+        echo "gate-run: could NOT terminate pgid $_rp ($_dir) — left in place: $_why" >&2
+        return 1
+    fi
     rm -f "$_dir/pid" "$_dir/pidstart"
     _line="$(date '+%Y-%m-%dT%H:%M:%S') reaped pgid $_rp ($(cat "$_dir/command" 2>/dev/null || echo '?'), cwd $(cat "$_dir/cwd" 2>/dev/null || echo '?')): $_why"
     printf '%s\n' "$_line" >"$_dir/reaped"
@@ -273,7 +281,7 @@ reap_orphans() {
             case " $SELF_REMOVING_SCRIPTS " in
                 *" $_scr "*) ;;
                 *)
-                    reap_run "$_d" "$_rp" "its cwd no longer exists"
+                    reap_run "$_d" "$_rp" "its cwd no longer exists" || true
                     continue
                     ;;
             esac
@@ -282,7 +290,7 @@ reap_orphans() {
         _at=$(cat "$_d/attached" 2>/dev/null || echo "$_st")
         case "$_st$_at" in '' | *[!0-9]*) continue ;; esac
         if [ $((_now - _st)) -gt "$REAP_SECS" ] && [ $((_now - _at)) -gt "$IDLE_SECS" ]; then
-            reap_run "$_d" "$_rp" "older than ${REAP_SECS}s and unattended for ${IDLE_SECS}s"
+            reap_run "$_d" "$_rp" "older than ${REAP_SECS}s and unattended for ${IDLE_SECS}s" || true
         fi
     done
 }
@@ -421,8 +429,12 @@ if [ "$attached" -eq 0 ] && [ "$finished" -eq 0 ]; then
             exit 76
         fi
         printf '%s\n' "$_twins" | while IFS="$(printf '\t')" read -r _td _tp; do
-            reap_run "$_td" "$_tp" "replaced by a --replace start under key ${TOLARIA_GATE_RUN_KEY:-(cwd)}"
+            reap_run "$_td" "$_tp" "replaced by a --replace start under key ${TOLARIA_GATE_RUN_KEY:-(cwd)}" || true
         done
+        if [ -n "$(live_twins "$1" "$(pwd)" "$RUN_DIR")" ]; then
+            echo "gate-run: REFUSED — --replace could not terminate the live run; nothing was started." >&2
+            exit 76
+        fi
     fi
     rm -f "$RC" "$PIDF" "$PIDSTART" "$GREEN_F" "$END_HEAD_F" "$RUN_DIR/reaped"
     pwd >"$CWD_F"
@@ -483,6 +495,8 @@ if [ "$attached" -eq 0 ] && [ "$finished" -eq 0 ]; then
     pid_ident "$_pid" >"$PIDSTART"
     echo "gate-run: started \`bun run $*\` detached (pid $_pid, log: $LOG)." >&2
 elif [ "$attached" -eq 1 ]; then
+    [ "$REPLACE" -eq 0 ] ||
+        echo "gate-run: --replace ignored — the live run IS this key's run; re-attaching to it. Replace it from another key, or let it finish." >&2
     echo "gate-run: re-attached to the running \`bun run $*\` (pid $_pid, log: $LOG)." >&2
 else
     echo "gate-run: \`bun run $*\` already finished while nobody was waiting — reporting its exit code." >&2

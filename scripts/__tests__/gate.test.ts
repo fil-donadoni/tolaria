@@ -48,7 +48,13 @@ const GATE = resolve(__dirname, "..", "gate.ts");
 let lockRoot: string;
 
 function env(extra: Record<string, string> = {}) {
-    const base = { ...process.env, TOLARIA_GATE_LOCK_ROOT: lockRoot };
+    // `who` asks `gate-run.sh --list`, which REAPS (issue #4940): pointed at
+    // the real run registry, this suite would kill other sessions' runs.
+    const base = {
+        ...process.env,
+        TOLARIA_GATE_LOCK_ROOT: lockRoot,
+        TOLARIA_GATE_RUN_DIR: join(lockRoot, "gate-runs"),
+    };
     // Strip everything gate.ts itself sets: this suite may well be running
     // UNDER a heavy gate (`bun run test`), which exports these to its whole
     // process tree — inheriting them would make the child observe the outer
