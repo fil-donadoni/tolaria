@@ -68,11 +68,13 @@ export function loadKpiInputs(db: Sqlite): {
     return { lands, health, waits };
 }
 
-/** The last-7 and last-14-day windows ending at `nowS`. */
+/** The last-7 and last-14-day windows up to and INCLUDING the second
+ *  `nowS` (`to` is exclusive, and a row stamped this very second counts). */
 export function rollingWindows(nowS: number): Array<[string, KpiWindow]> {
+    const nowWhole = Math.floor(nowS);
     return [7, 14].map((d) => [
         `${String(d).padStart(2)}d`,
-        { from: nowS - d * DAY_S, to: nowS },
+        { from: nowWhole + 1 - d * DAY_S, to: nowWhole + 1 },
     ]);
 }
 
