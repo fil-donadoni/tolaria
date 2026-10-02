@@ -27,7 +27,7 @@
  * `infra` at step `preflight:convex` before any gate runs, in seconds rather
  * than after ~40 minutes of gates. Health never STARTS the backend: the AFK
  * loop's `convex:ensure` does (issue #4945). So is a walk the environment cut
- * short (a fatal `check:ui` exit, or every failing row the machine's), and a
+ * short (a fatal `check:ui` exit, or every failing row `INFRA`), and a
  * walk the tree failed while the walk is still in probation (issue #4962,
  * `ui-unproven`): `last.json` names the two halves, `offline` and `ui`.
  *
@@ -151,6 +151,18 @@ interface LastRun {
     phaseStartedAt?: string;
     /** The branch the tip was read from — the walk phase's RED marker names it. */
     branch?: string;
+    /** `running` only: the record this run replaced, carried across the two
+     *  phases so a walk-phase `infra` can keep a standing red one
+     *  (`infraRecordToKeep`). */
+    prior?: LastRun;
+}
+
+/** The record a run replaces, as it carries it: one level, never a chain. */
+function priorOf(last: LastRun | null): LastRun | undefined {
+    if (last === null) return undefined;
+    const rest = { ...last };
+    delete rest.prior;
+    return rest;
 }
 
 function git(args: string[], cwd: string): string {
@@ -396,6 +408,7 @@ async function runWalk(ctx: RunCtx, walk: readonly string[]): Promise<void> {
         offline: "green",
         ui: "walking",
         log: ctx.logPath,
+        prior: priorOf(ctx.previous),
     });
     // Never the caller's hold, whatever it passed: the walk is off the mutex.
     const env = healthGateEnv(process.env);
@@ -410,9 +423,11 @@ async function runWalk(ctx: RunCtx, walk: readonly string[]): Promise<void> {
     const wt = join(ctx.root, "..", `tolaria-health-walk-${process.pid}`);
     let failed: { step: string; cause: InfraCause | null } | undefined;
     let walked = false;
+    let current = "worktree add";
     try {
         git(["worktree", "add", "--detach", wt, ctx.tip], ctx.root);
         for (const step of steps) {
+            current = step.name;
             const stepStartedAt = Date.now();
             const r = await runHealthStep(step, {
                 cwd: wt,
@@ -434,10 +449,34 @@ async function runWalk(ctx: RunCtx, walk: readonly string[]): Promise<void> {
             };
             break;
         }
+    } catch (err) {
+        // A throw (spawn error, full disk, a worktree that would not add)
+        // must still end in a verdict: a `running` record left behind would
+        // hold every health run for `STALE_RUNNING_MS`.
+        console.error(
+            `health-main: the walk threw at ${current}: ${String(err)}`
+        );
+        failed = { step: current, cause: "ui-walk" };
+        walked = false;
     } finally {
         spawnSync("git", ["worktree", "remove", "--force", wt], {
             cwd: ctx.root,
         });
+    }
+
+    // The verdict is this run's only while the record is still its own: a
+    // `bun run health` on another tip may have replaced it during the walk,
+    // and writing over that one would green or red a run this one never saw.
+    const now = readLast(ctx.dir);
+    if (
+        now?.sha !== ctx.tip ||
+        now.startedAt !== ctx.startedAt ||
+        now.ui !== "walking"
+    ) {
+        console.error(
+            `health-main: the record was replaced during the walk (now ${now ? `${now.status} @ ${now.sha.slice(0, 8)}` : "none"}) — this walk's verdict is not written`
+        );
+        process.exit(1);
     }
 
     // A bootstrap that passed in the offline phase on this very sha and
@@ -500,7 +539,9 @@ async function walkPhase(root: string, dir: string): Promise<void> {
             tip: last.sha,
             startedAt: last.startedAt,
             logPath: last.log ?? join(dir, `${last.sha.slice(0, 12)}.log`),
-            previous: last,
+            // The record the RUN replaced, not the `running` one between
+            // its phases: an infra walk must keep a standing red record.
+            previous: last.prior ?? null,
         },
         walk
     );
@@ -567,7 +608,13 @@ async function main(): Promise<void> {
         previous: last,
     };
 
-    writeLast(dir, { sha: tip, status: "running", startedAt, branch });
+    writeLast(dir, {
+        sha: tip,
+        status: "running",
+        startedAt,
+        branch,
+        prior: priorOf(last),
+    });
 
     const wt = join(root, "..", `tolaria-health-${process.pid}`);
     const logPath = ctx.logPath;
@@ -695,6 +742,7 @@ async function main(): Promise<void> {
             offline: "green",
             ui: "pending",
             log: logPath,
+            prior: priorOf(last),
         });
         console.log(
             `health-main: offline gates GREEN @ ${tip.slice(0, 8)} — the walk is owed (--phase=walk, off the heavy mutex)`

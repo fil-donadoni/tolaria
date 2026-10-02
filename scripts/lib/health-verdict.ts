@@ -30,7 +30,7 @@
  * `infra` is ALSO a browser walk the ENVIRONMENT cut short (issue #4962):
  * `check:ui` exiting 2 (a fatal error before any surface was judged — the
  * sign-in the auth backend refused on aa785cf0), or exiting 1 with every
- * failing row the machine's (`walkRunVerdict`, `ui-gate/infra-verdict.ts`).
+ * failing row `INFRA` (`walkRunVerdict`, `ui-gate/infra-verdict.ts`).
  * And until the walk has earned `UI_WALK_PROBATION_RUNS` consecutive
  * non-infra verdicts (`uiWalkArmed`), even a walk the tree failed is recorded
  * `infra` with cause `ui-unproven` — `ui: unproven` in `health:status` —

@@ -4,7 +4,7 @@
 // can run off the heavy mutex.
 import { describe, expect, it } from "vitest";
 import { DEPLOYMENT_DOWN_EXIT } from "../lib/convex-reachable";
-import { healthRunInFlight } from "../lib/health-cadence";
+import { healthRunInFlight, walkOwedSince } from "../lib/health-cadence";
 import {
     BOT_HEALTH_SCRIPTS,
     HEALTH_SCRIPTS,
@@ -71,7 +71,7 @@ describe("walkRunVerdict — the walk's own receipt says whose failure it was (i
         ).toBe("infra");
     });
 
-    it("exit 1 whose UNWALKED surface the walk attributed to a machine signature is infra", () => {
+    it("exit 1 with an UNWALKED surface is red — the walk's own word that it failed on a quiet machine", () => {
         expect(
             walkRunVerdict(
                 1,
@@ -79,6 +79,20 @@ describe("walkRunVerdict — the walk's own receipt says whose failure it was (i
                     BANNER,
                     INFRA_ROW,
                     UNWALKED_MACHINE_ROW,
+                    PROGRESS_ASSERT_FAIL,
+                    UNWALKED_MACHINE_LINE
+                )
+            )
+        ).toBe("red");
+    });
+
+    it("progress lines and diagnostic lines are never read as rows", () => {
+        expect(
+            walkRunVerdict(
+                1,
+                run(
+                    BANNER,
+                    INFRA_ROW,
                     PROGRESS_ASSERT_FAIL,
                     UNWALKED_MACHINE_LINE
                 )
@@ -222,5 +236,36 @@ describe("healthRunInFlight counts from the current phase", () => {
                 T0 + 2 * HOUR
             )
         ).toContain("in flight");
+    });
+});
+
+describe("walkOwedSince — the cadence walks only what its own fire left owed", () => {
+    const FIRED = Date.parse("2026-10-02T10:00:00Z");
+    const owed = (startedAt: number, ui = "pending") => ({
+        sha: "abc",
+        status: "running" as const,
+        startedAt: new Date(startedAt).toISOString(),
+        phase: "walk" as const,
+        ui,
+    });
+
+    it("is true for a pending walk this fire's offline phase recorded", () => {
+        expect(walkOwedSince(owed(FIRED + 1), FIRED)).toBe(true);
+    });
+
+    it("is false for another run's walk, one already walking, or no walk", () => {
+        expect(walkOwedSince(owed(FIRED - 1), FIRED)).toBe(false);
+        expect(walkOwedSince(owed(FIRED + 1, "walking"), FIRED)).toBe(false);
+        expect(
+            walkOwedSince(
+                {
+                    sha: "abc",
+                    status: "green",
+                    startedAt: new Date(FIRED + 1).toISOString(),
+                },
+                FIRED
+            )
+        ).toBe(false);
+        expect(walkOwedSince(null, FIRED)).toBe(false);
     });
 });

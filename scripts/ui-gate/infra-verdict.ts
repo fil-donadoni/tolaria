@@ -33,16 +33,14 @@
 import { DEPLOYMENT_DOWN_EXIT } from "../lib/convex-reachable";
 
 /** The failure shapes the machine produces. Stable ids: they are printed on
- *  the receipt, and `walkRunVerdict` reads them back. */
-export const INFRA_SIGNATURES = [
-    "function-timeout",
-    "server-error",
-    "navigation-timeout",
-    "step-timeout",
-    "unsettled",
-    "cell-deadline",
-] as const;
-export type InfraSignature = (typeof INFRA_SIGNATURES)[number];
+ *  the receipt. */
+export type InfraSignature =
+    | "function-timeout"
+    | "server-error"
+    | "navigation-timeout"
+    | "step-timeout"
+    | "unsettled"
+    | "cell-deadline";
 
 /** One failed walk attempt, as the lane captured it. */
 export interface WalkFailure {
@@ -225,13 +223,15 @@ export function infraDetail(signature: InfraSignature, load: number): string {
  *   - exit 2 (fatal: configuration, sign-in, a thrown run) and exit 3
  *     (`DEPLOYMENT_DOWN_EXIT`) → `infra`: no surface was judged.
  *   - exit 1 → `infra` iff it printed at least one failing row and EVERY
- *     failing row is the machine's: an `INFRA` row, or an `UNWALKED` surface
- *     whose diagnostic `unwalked` line carries an infra signature — the walk
- *     itself classified the failure (`classifyWalkFailure`) and only the
- *     quiet-machine rule (`standingVerdict`) stood it as `UNWALKED`.
+ *     failing row is `INFRA` — the walk's own verdict that the machine cut the
+ *     cell short and was still busy after the retries (`standingVerdict`).
  *     A `FAIL` row (a broken Floor on a cell that settled), an `assert … FAIL`
- *     row, or an `UNWALKED` with no signature (`View Table did not open …`)
- *     is `red`. An exit 1 with no failing row to read is `red`: fail closed.
+ *     row, or any `UNWALKED` row is `red`: an `UNWALKED` is the walk's own
+ *     word that it failed on a QUIET machine (`… under the retry threshold:
+ *     the walk itself failed`), or never produced the cell at all. Every exit-1
+ *     failure has a row (`printReceipt` exits 1 only on `ev.failures`, and
+ *     `evaluate` pushes a row beside each), so an exit 1 with no failing row
+ *     to read is `red`: fail closed.
  *   - any other code (a signal, an unknown exit) → `red`.
  */
 export type WalkRunVerdict = "pass" | "infra" | "red";
@@ -239,15 +239,9 @@ export type WalkRunVerdict = "pass" | "infra" | "red";
 export const WALK_FATAL_EXIT = 2;
 
 /** A verdict row (`formatRow` in `receipt.ts`): `VERDICT surface viewport …`. */
-const VERDICT_ROW = /^(PASS|FAIL|INFRA|UNWALKED) +(\S+) +(\S+)/;
+const VERDICT_ROW = /^(PASS|FAIL|INFRA|UNWALKED) +\S+ +\S+/;
 /** An assertion row (`formatAssertRow`): `assert surface viewport FAIL label`. */
 const ASSERT_FAIL_ROW = /^assert +\S+ +\S+ +FAIL\b/;
-/** A diagnostic `unwalked` line: `unwalked surface — reason`. */
-const UNWALKED_LINE = /^unwalked +(\S+) +\S+ +(.*)$/;
-/** The `(signature, load N…` a walk's own reason carries — `infraDetail`. */
-const SIGNATURE_IN_REASON = new RegExp(
-    `\\((?:${INFRA_SIGNATURES.join("|")}), load \\d`
-);
 
 export function walkRunVerdict(
     exitCode: number | null,
@@ -258,23 +252,14 @@ export function walkRunVerdict(
         return "infra";
     if (exitCode !== 1) return "red";
 
-    const lines = output.split("\n").map((l) => l.replace(/\r$/, ""));
-    const machineUnwalked = new Set<string>();
-    for (const line of lines) {
-        const m = UNWALKED_LINE.exec(line);
-        if (m && SIGNATURE_IN_REASON.test(m[2])) machineUnwalked.add(m[1]);
-    }
     let failing = 0;
-    for (const line of lines) {
+    for (const raw of output.split("\n")) {
+        const line = raw.replace(/\r$/, "");
         if (ASSERT_FAIL_ROW.test(line)) return "red";
         const m = VERDICT_ROW.exec(line);
-        if (!m) continue;
-        const [, verdict, surface] = m;
-        if (verdict === "PASS") continue;
+        if (!m || m[1] === "PASS") continue;
+        if (m[1] !== "INFRA") return "red";
         failing++;
-        if (verdict === "FAIL") return "red";
-        if (verdict === "UNWALKED" && !machineUnwalked.has(surface))
-            return "red";
     }
     return failing > 0 ? "infra" : "red";
 }

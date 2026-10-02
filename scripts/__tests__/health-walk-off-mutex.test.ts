@@ -241,6 +241,26 @@ describe("health-cadence detach — the walk runs off the heavy mutex (issue #49
         ).toEqual({ streak: 0 });
     }, 120_000);
 
+    it("an infra walk under a standing RED keeps the red record the marker names", async () => {
+        const red = {
+            sha: "0".repeat(40),
+            status: "red",
+            startedAt: new Date(Date.now() - 60_000).toISOString(),
+            finishedAt: new Date(Date.now() - 30_000).toISOString(),
+            failedStep: "test",
+            log: "/somewhere/red.log",
+        };
+        fs.writeFileSync(
+            path.join(healthDir(), "last.json"),
+            JSON.stringify(red)
+        );
+        fs.writeFileSync(path.join(healthDir(), "RED"), "red at test\n");
+        const r = await detach({ exit: 2, output: "sign-in failed" });
+        expect(r.code, r.out).toBe(1);
+        expect(lastJson()).toEqual(red);
+        expect(redMarker()).toBe(true);
+    }, 120_000);
+
     it("--phase=walk never starts a second walk on a record another process is walking", () => {
         const record = {
             sha: git(["rev-parse", "HEAD"], primary),

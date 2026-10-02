@@ -92,6 +92,7 @@ import {
     reconcileHealthRun,
     serializeCadence,
     withPending,
+    walkOwedSince,
     type CadenceState,
     type HealthRecord,
     type LandingKind,
@@ -363,12 +364,13 @@ function decideAndRun(root: string, branch: string): Round {
         ],
         { stdio: "inherit", cwd: root, env }
     );
-    // The hold is released. The walk runs only if the offline phase left it
-    // owed in the record; otherwise `--phase=walk` says so and exits 0.
+    // The hold is released. The walk runs only when THIS fire's offline
+    // phase left it owed — a no-op offline exit ("already green", "already
+    // being gated") must not re-enter a walk some other run owns.
     const walkEnv: NodeJS.ProcessEnv = { ...env };
     delete walkEnv.TOLARIA_GATE_ROLE;
     const r =
-        offline.status === 0
+        offline.status === 0 && walkOwedSince(readLast(root), firedAt)
             ? spawnSync("bun", [HEALTH_MAIN, "--phase=walk"], {
                   stdio: "inherit",
                   cwd: root,

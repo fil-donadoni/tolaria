@@ -237,7 +237,7 @@ Three costs of that placement, priced rather than hidden:
 > hold: nine of the walk's first ten health verdicts were RED on the
 > environment. The per-batch gate now releases the heavy mutex before the walk
 > (`health-main --phase=offline`, then `--phase=walk`); a fatal exit, a down
-> deployment, or a walk whose failing rows are all the machine's records
+> deployment, or a walk whose failing rows are all `INFRA` records
 > `infra`, not `RED`; and a walk failure raises the marker only after 5
 > consecutive non-infra walks. The rule lives in `docs/agents/quality-gates.md`
 > § check:ui; `release` still requires the walk green.

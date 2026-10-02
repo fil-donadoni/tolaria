@@ -921,12 +921,12 @@ block every queued `land` waits on. Three rules:
    it names the two halves (`offline`, `ui`), which `health:status` prints.
 2. **An environment failure is `infra`, never `RED`.** `check:ui` exit 2 (a
    fatal before any surface was judged) and exit 3 (deployment down), and an
-   exit 1 whose failing rows are ALL the machine's — `INFRA` rows, or
-   `UNWALKED` surfaces whose reason carries an infra signature
-   (`walkRunVerdict`, `scripts/ui-gate/infra-verdict.ts`) — record `infra`:
-   no marker, re-walked on the next trigger. One `FAIL` row (a broken Floor on
-   a settled cell), one `assert … FAIL` row, or an `UNWALKED` with no
-   signature is the tree's.
+   exit 1 whose failing rows are ALL `INFRA` — the walk's own verdict that the
+   machine was still busy after the retries (`walkRunVerdict`,
+   `scripts/ui-gate/infra-verdict.ts`) — record `infra`: no marker, re-walked
+   on the next trigger. One `FAIL` row (a broken Floor on a settled cell), one
+   `assert … FAIL` row, or any `UNWALKED` row (the walk failed on a quiet
+   machine, by its own classification) is the tree's.
 3. **Probation.** Until the walk has shown 5 consecutive non-infra verdicts
    (`UI_WALK_PROBATION_RUNS`, ledger `ui-walk.json` beside `last.json`; an
    `infra` walk restarts it), even a failure the tree owns is recorded
