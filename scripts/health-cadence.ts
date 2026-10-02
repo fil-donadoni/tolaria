@@ -98,6 +98,8 @@ import {
     type LandingKind,
 } from "./lib/health-cadence";
 import { HEALTH_ROLE } from "./lib/gate-liveness";
+import { recordMachineSaturated } from "./lib/health-verdict";
+import { MACHINE_SATURATED_EXIT } from "./lib/machine-admission";
 import { primaryCheckout } from "./lib/primary-checkout";
 
 const SELF = resolve(__dirname, "health-cadence.ts");
@@ -364,6 +366,19 @@ function decideAndRun(root: string, branch: string): Round {
         ],
         { stdio: "inherit", cwd: root, env }
     );
+    // The gate held the mutex, the machine never calmed, and `health-main`
+    // never ran (issue #4966): nothing wrote a record, so this does —
+    // otherwise `health:status` shows the previous verdict for a tip nothing
+    // gated. INFRA: no marker, and the reconcile below leaves the ledger so
+    // the next landing re-fires.
+    if (offline.status === MACHINE_SATURATED_EXIT)
+        recordMachineSaturated({
+            dir: join(root, HEALTH_DIR),
+            sha: tip,
+            startedAt: new Date(firedAt).toISOString(),
+            previous: readLast(root),
+            redMarkerStanding: existsSync(join(root, HEALTH_DIR, "RED")),
+        });
     // The hold is released. The walk runs only when THIS fire's offline
     // phase left it owed — a no-op offline exit ("already green", "already
     // being gated") must not re-enter a walk some other run owns.

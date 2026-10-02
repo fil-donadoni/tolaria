@@ -49,14 +49,20 @@ function stampDir(): string {
     );
 }
 
-/** A stamp outlives its session by design (the hook only ever reads its own);
- *  a week is far past any session, and keeps the directory from growing. */
+/** A week is far past any session, and keeps the directory from growing. */
 const STAMP_TTL_MS = 7 * 24 * 3600 * 1000;
 
-function stampSession(session: string): void {
+/**
+ * Stamp an admitted session with the `claude` PROCESS that was admitted. The
+ * hook honours a stamp only while that pid is alive: `claude --resume` keeps
+ * the session id and is a new process — a new arrival on the machine — so it
+ * is asked again. `-` when the caller runs under no `claude` (an injected
+ * probe, an unread process table): honoured for the stamp's lifetime.
+ */
+function stampSession(session: string, pid: number | null): void {
     const dir = stampDir();
     mkdirSync(dir, { recursive: true });
-    writeFileSync(join(dir, session), `${Date.now()}\n`);
+    writeFileSync(join(dir, session), `${pid ?? "-"}\n`);
     for (const name of readdirSync(dir)) {
         try {
             if (Date.now() - statSync(join(dir, name)).mtimeMs > STAMP_TTL_MS)
@@ -93,7 +99,7 @@ function admitSession(session: string): number {
         console.log(
             `machine admission OVERRIDDEN by ${OVER_CAP_ENV}=1 — ${now.decision.overridden.join("; ")}. This session runs past what the machine was measured to carry; the override is logged.`
         );
-    stampSession(session);
+    stampSession(session, now.census?.self ?? null);
     return 0;
 }
 
@@ -163,6 +169,7 @@ async function measure(argv: string[]): Promise<number> {
     const timer = setInterval(() => {
         const ps = spawnSync("ps", ["-axo", "pid=,ppid=,etime=,rss=,comm="], {
             encoding: "utf8",
+            timeout: 5000,
         });
         if (ps.status !== 0 || child.pid === undefined) return;
         peakMb = Math.max(

@@ -120,8 +120,11 @@
  *                              on for a bare targeted run (issue #4614)
  *   TOLARIA_HEAVY_WORKERS_CAP  ceiling on the heavy tier's worker count
  *                              (default 4) — RAM-bound, see HEAVY_WORKERS
- *   TOLARIA_OVER_CAP=1         start on a saturated machine anyway — announced
- *                              on the gate's own line and logged
+ *   TOLARIA_GATE_SATURATED_OK=1  start on a saturated machine anyway —
+ *                              announced on the gate's own line and logged.
+ *                              NOT the session's `TOLARIA_OVER_CAP`: a session
+ *                              started past the cap passes that one to every
+ *                              gate it runs, and they must still wait
  *   TOLARIA_MACHINE_PROBE      a JSON machine sample read instead of the
  *                              machine (tests only); such a run logs no
  *                              `run` row
@@ -1145,6 +1148,10 @@ async function admitMachine() {
         thresholds: readMachineConfig(),
         tag: "[gate]",
         announce: (line) => console.error(line),
+        // The heartbeat has not started — there is no subtree to attest to —
+        // so the wait itself keeps the owner stamp fresh: a holder silent
+        // for the whole bound is one a waiter that slept and woke may judge.
+        tick: restampOwner,
     });
     if (machine.overridden || !machine.admitted)
         logEvent({
@@ -1157,6 +1164,26 @@ async function admitMachine() {
         });
     // The `exit` handler `installTeardown` put in frees the mutex.
     if (!machine.admitted) process.exit(MACHINE_SATURATED_EXIT);
+    // Reclaimed during the wait (a slept machine, a stopped process): the
+    // mutex is someone else's now, and spawning would be a second holder.
+    if (readOwner()?.pid !== process.pid) {
+        console.error(
+            "[gate] lost the heavy mutex while waiting for the machine — nothing ran; re-run."
+        );
+        process.exit(MACHINE_SATURATED_EXIT);
+    }
+}
+
+/** Refresh this holder's owner stamp; a lock that is no longer ours is left
+ *  alone. */
+function restampOwner() {
+    const owner = readOwner();
+    if (owner?.pid !== process.pid) return;
+    try {
+        writeJsonAtomic(OWNER_FILE, { ...owner, ts: Date.now() });
+    } catch {
+        /* mid-release — never crash the gate for a stamp */
+    }
 }
 
 async function main() {

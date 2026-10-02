@@ -20,6 +20,7 @@ import {
     sessionAdmission,
     sessionRefusal,
     subtreeRssMb,
+    sustainedSample,
     timeoutOnlyFailure,
     waitForMachine,
     MACHINE_SATURATED_EXIT,
@@ -27,7 +28,7 @@ import {
     type MachineSample,
     type MachineThresholds,
 } from "../lib/machine-admission";
-import { infraCause } from "../lib/health-verdict";
+import { infraCause, repeatedMachineTimeout } from "../lib/health-verdict";
 
 /**
  * Machine admission (issue #4966) — the decisions, pure: what the machine
@@ -375,16 +376,29 @@ describe("session admission — sessions/memory → admit / refuse", () => {
         );
     });
 
-    it("refuses under memory pressure, and does NOT refuse on load", () => {
+    it("refuses under memory pressure beside another session, never the only one, and never on load", () => {
         expect(
             sessionAdmission({
-                others: [],
+                others: [session(1)],
                 cap: 3,
                 sample: { ...calm, pressure: 2 },
                 thresholds: T,
                 override: false,
+            })
+        ).toMatchObject({
+            verdict: "refuse",
+            reasons: ["memory pressure WARNING (kernel level 2)"],
+        });
+        // Alone, it is the session that would relieve the pressure.
+        expect(
+            sessionAdmission({
+                others: [],
+                cap: 3,
+                sample: { ...calm, pressure: 4 },
+                thresholds: T,
+                override: false,
             }).verdict
-        ).toBe("refuse");
+        ).toBe("admit");
         // A `land` mid-gate holds the load over loadMax by design: a session
         // opened beside it adds none, and is admitted.
         expect(
@@ -396,6 +410,33 @@ describe("session admission — sessions/memory → admit / refuse", () => {
                 override: false,
             }).verdict
         ).toBe("admit");
+    });
+
+    it("a pressure reading must be sustained: the calmest of three stands", () => {
+        const readings = [2, 2, 1].map((pressure) => ({ ...calm, pressure }));
+        let i = 0;
+        const pauses: number[] = [];
+        const s = sustainedSample(
+            () => readings[i++],
+            (ms) => pauses.push(ms)
+        );
+        expect(s.pressure).toBe(1);
+        expect(pauses).toEqual([500, 500]);
+        // A calm first reading is taken once; a level that holds is kept.
+        i = 2;
+        expect(
+            sustainedSample(
+                () => readings[i++],
+                () => {}
+            ).pressure
+        ).toBe(1);
+        expect(i).toBe(3);
+        expect(
+            sustainedSample(
+                () => ({ ...calm, pressure: 2 }),
+                () => {}
+            ).pressure
+        ).toBe(2);
     });
 
     it("the override admits, and carries what it overrode", () => {
@@ -426,6 +467,7 @@ describe("session admission — sessions/memory → admit / refuse", () => {
 });
 
 describe("waitForMachine — the bounded wait", () => {
+    let ticks = 0;
     const drive = async (
         samples: MachineSample[],
         env: NodeJS.ProcessEnv = {}
@@ -444,8 +486,9 @@ describe("waitForMachine — the bounded wait", () => {
             },
             pollMs: 5000,
             env,
+            tick: () => ticks++,
         });
-        return { result, lines, polls: i };
+        return { result, lines, polls: i, ticks };
     };
 
     it("admits at once, and silently, on a calm machine", async () => {
@@ -466,6 +509,7 @@ describe("waitForMachine — the bounded wait", () => {
 
     it("gives the run up at the bound — refused, never started", async () => {
         const busy = { ...calm, load1: 14.5 };
+        const before = ticks;
         const { result, lines, polls } = await drive([busy]);
         expect(result).toMatchObject({
             admitted: false,
@@ -474,17 +518,29 @@ describe("waitForMachine — the bounded wait", () => {
             reasons: ["load 14.5 > 8.0"],
         });
         expect(polls).toBe(13); // one per 5 s, the 13th at the bound
+        expect(ticks - before).toBe(13); // the holder's stamp, every poll
         expect(lines.at(-1)).toMatch(
             /machine still busy after 60s .* INFRA \(machine-saturated\)/
         );
     });
 
-    it("starts anyway under TOLARIA_OVER_CAP=1, and says so", async () => {
+    it("starts anyway under the GATE's own override, and says so", async () => {
         const { result, lines } = await drive([{ ...calm, load1: 14.5 }], {
-            TOLARIA_OVER_CAP: "1",
+            TOLARIA_GATE_SATURATED_OK: "1",
         });
         expect(result).toMatchObject({ admitted: true, overridden: true });
-        expect(lines[0]).toMatch(/starting anyway: TOLARIA_OVER_CAP=1/);
+        expect(lines[0]).toMatch(
+            /starting anyway: TOLARIA_GATE_SATURATED_OK=1/
+        );
+    });
+
+    it("the SESSION's override does not start a gate", async () => {
+        // A session admitted past the cap passes TOLARIA_OVER_CAP to every
+        // gate it runs; they still wait for the machine.
+        const { result } = await drive([{ ...calm, load1: 14.5 }], {
+            TOLARIA_OVER_CAP: "1",
+        });
+        expect(result).toMatchObject({ admitted: false, overridden: false });
     });
 });
 
@@ -528,10 +584,55 @@ describe("verdict hygiene — what a saturated machine may explain", () => {
         expect(timeoutOnlyFailure("error TS2322: nope")).toBe(false);
     });
 
-    it("timeouts on a saturated machine are INFRA, machine-saturated", () => {
+    it("reads each failed test's own error, not two counts over the output", () => {
+        // Two failed: one timeout whose message is printed twice, one real
+        // assertion. Counting timeout lines against failures reads 2 >= 2.
+        const twice = [
+            "      Tests  2 failed | 10 passed (12)",
+            " FAIL  |node| a.test.ts > x",
+            "Error: Test timed out in 60000ms.",
+            "stderr | a.test.ts > x: Error: Test timed out in 60000ms.",
+            " FAIL  |node| b.test.ts > y",
+            "AssertionError: expected 1 to be 2",
+        ].join("\n");
+        expect(timeoutOnlyFailure(twice)).toBe(false);
+        // A failed test with no block of its own is one nothing vouches for.
+        expect(
+            timeoutOnlyFailure(
+                [
+                    "      Tests  2 failed | 10 passed (12)",
+                    " FAIL  |node| a.test.ts > x",
+                    "Error: Test timed out in 60000ms.",
+                ].join("\n")
+            )
+        ).toBe(false);
+    });
+
+    it("timeouts on a saturated machine are INFRA, machine-timeout", () => {
         expect(
             infraCause({ ...step, output: timeouts, machineSaturated: true })
-        ).toBe("machine-saturated");
+        ).toBe("machine-timeout");
+    });
+
+    it("the excuse is the machine's ONCE: the same step timing out again is the tree's", () => {
+        const first = {
+            status: "infra" as const,
+            infraCause: "machine-timeout",
+            failedStep: "test",
+        };
+        expect(repeatedMachineTimeout(first, "test")).toBe(true);
+        expect(repeatedMachineTimeout(first, "check:all")).toBe(false);
+        expect(repeatedMachineTimeout(null, "test")).toBe(false);
+        // A gate that never started excuses nothing about the next run.
+        expect(
+            repeatedMachineTimeout(
+                { ...first, infraCause: "machine-saturated" },
+                "test"
+            )
+        ).toBe(false);
+        expect(
+            repeatedMachineTimeout({ ...first, status: "green" }, "test")
+        ).toBe(false);
     });
 
     it("the same timeouts on a calm machine stay RED", () => {

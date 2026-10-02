@@ -106,7 +106,10 @@ import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { gh, netEnv } from "./lib/gh";
 import { primaryCheckout } from "./lib/primary-checkout";
-import { MACHINE_SATURATED_EXIT } from "./lib/machine-admission";
+import {
+    GATE_OVERRIDE_ENV,
+    MACHINE_SATURATED_EXIT,
+} from "./lib/machine-admission";
 import {
     LIVE_ORIGIN_BAND_DEPS,
     originBandOfIssue,
@@ -1529,7 +1532,12 @@ function main(): void {
     const result = spawnSync("bun", [GATE, "heavy", command], {
         stdio: "inherit",
         cwd,
-        env: lockedEnv(process.env),
+        env: {
+            ...lockedEnv(process.env),
+            // Housekeeping is `git` and `gh` on a PR that already merged: it
+            // starts nothing heavy, so it does not wait for the machine.
+            ...(mode === "housekeeping" ? { [GATE_OVERRIDE_ENV]: "1" } : {}),
+        },
     });
     // The gate held the mutex and the machine never calmed (issue #4966):
     // nothing was rebased, gated or merged, so this is not a failed land.

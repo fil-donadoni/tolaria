@@ -76,9 +76,10 @@
  *
  * The MACHINE is asked before the gates start (issue #4966,
  * `lib/machine-admission.ts`): over a `machine.*` threshold the run waits,
- * bounded, then ends `infra` at `preflight:machine` — and a step that only
- * timed out while its own load / swap samples were over threshold is `infra`
- * too (`machine-saturated`), never a `RED` marker.
+ * bounded, then ends `infra` at `preflight:machine` — and a suite step whose
+ * every failed test timed out while its own samples read saturated is `infra`
+ * too (`machine-timeout`), ONCE: the same step timing out on the next run is
+ * RED.
  *
  * Zero imports beyond node builtins, `lib/branches.ts`, `lib/health-step.ts`,
  * `lib/health-verdict.ts`, `lib/convex-reachable.ts`,
@@ -115,6 +116,7 @@ import {
     PREFLIGHT_MACHINE_STEP,
     readLastSleepAt,
     recordInfra,
+    repeatedMachineTimeout,
     UI_WALK_FILE,
     UI_WALK_PROBATION_RUNS,
     uiWalkArmed,
@@ -441,7 +443,6 @@ async function runWalk(ctx: RunCtx, walk: readonly string[]): Promise<void> {
         args: healthStepArgs(name),
     }));
     const wt = join(ctx.root, "..", `tolaria-health-walk-${process.pid}`);
-    const thresholds = readMachineConfig();
     let failed: { step: string; cause: InfraCause | null } | undefined;
     let walked = false;
     let current = "worktree add";
@@ -450,7 +451,6 @@ async function runWalk(ctx: RunCtx, walk: readonly string[]): Promise<void> {
         for (const step of steps) {
             current = step.name;
             const stepStartedAt = Date.now();
-            const machineAtStart = readMachineSample();
             const r = await runHealthStep(step, {
                 cwd: wt,
                 env,
@@ -467,10 +467,6 @@ async function runWalk(ctx: RunCtx, walk: readonly string[]): Promise<void> {
                     step: step.name,
                     exitCode: r.status,
                     output: r.output,
-                    machineSaturated: runSaturated(
-                        [machineAtStart, readMachineSample()],
-                        thresholds
-                    ),
                 }),
             };
             break;
@@ -724,6 +720,13 @@ async function main(): Promise<void> {
                         thresholds
                     ),
                 });
+                // The machine's excuse does not repeat: the same step timing
+                // out on two runs in a row is the tree's.
+                if (
+                    failedCause === "machine-timeout" &&
+                    repeatedMachineTimeout(last, step.name)
+                )
+                    failedCause = null;
                 break;
             }
         }

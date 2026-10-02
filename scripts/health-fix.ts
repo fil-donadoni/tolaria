@@ -48,6 +48,7 @@ import { existsSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { BASE_BRANCH, ORIGIN_BASE } from "./lib/branches";
 import type { HealthStatus } from "./lib/health-verdict";
+import { OVER_CAP_ENV } from "./lib/machine-admission";
 
 /** Health telemetry directory, relative to the primary checkout. */
 export const HEALTH_DIR = join(".claude", "telemetry", "health");
@@ -270,7 +271,15 @@ function main(): void {
 
     // stdio inherited: the session is genuinely interactive, which is the
     // whole point of the TTY refusal above.
-    spawnSync("claude", claudeArgs(decision.sha), { stdio: "inherit", cwd });
+    // The fixer is admitted past the session cap (issue #4966): a RED tip is
+    // repaired FIRST, and a repair refused because three sessions are stacking
+    // work on that tip is the cap defeating its own purpose. The hook
+    // announces and logs the override like any other.
+    spawnSync("claude", claudeArgs(decision.sha), {
+        stdio: "inherit",
+        cwd,
+        env: { ...process.env, [OVER_CAP_ENV]: "1" },
+    });
 
     const verdict = parseVerdict(readVerdictFile(cwd), decision.sha);
     if (verdict.outcome === "landed") {

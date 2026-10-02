@@ -25,8 +25,10 @@
  *   session — `sessionAdmission`. A session's first prompt, `queue:claim` and
  *       `wt:new` ask whether the machine has room for one more: the OTHER
  *       live project sessions against the effective cap, and the same memory
- *       pressure reading. A session does not wait — it is refused, naming the
- *       live sessions and the one escape (`TOLARIA_OVER_CAP=1`).
+ *       pressure reading (sustained, and only beside other sessions — the
+ *       only session is never refused). A session does not wait — it is
+ *       refused, naming the live sessions and the one escape
+ *       (`TOLARIA_OVER_CAP=1`).
  *
  * MEMORY IS THE KERNEL'S VERDICT, NOT A SWAP LEVEL. Swap in use is recorded
  * beside every run and printed on every busy line, and it is not a threshold:
@@ -45,8 +47,8 @@
  * and what a session does consume — gates the session.
  *
  * Every threshold is `tolaria.config.json` § `machine`, derived in
- * `docs/agents/quality-gates.md` § Machine admission. Nothing here is a
- * literal.
+ * `docs/agents/quality-gates.md` § Session admission, "The machine". Nothing
+ * here is a literal.
  *
  * A probe that cannot be read (another platform, a failed spawn) reads `null`
  * and `null` never saturates: like `readLastSleepAt`, the reading may only
@@ -66,9 +68,15 @@ import { CONFIG_PATH, sessionCap } from "./branches";
  *  it as `infra` / `machine-saturated`; `gate-run.sh` owns 75 and 76. */
 export const MACHINE_SATURATED_EXIT = 77;
 
-/** The announced escape, for a session and for a gate alike — the machine
- *  equivalent of `--no-cap`. Every use is logged. */
+/** The announced escape for a SESSION — `TOLARIA_OVER_CAP=1 claude`, the
+ *  machine equivalent of `--no-cap`. Every use is logged. It is read by the
+ *  session decision alone: a session started past the cap passes the variable
+ *  to every gate it runs, and those must still wait for the machine. */
 export const OVER_CAP_ENV = "TOLARIA_OVER_CAP";
+
+/** The announced escape for a GATE: start on a saturated machine anyway.
+ *  Deliberately a different variable from the session's (see above). */
+export const GATE_OVERRIDE_ENV = "TOLARIA_GATE_SATURATED_OK";
 
 /** Tests only: a JSON `InjectedProbe` read INSTEAD of the machine, so a suite
  *  run on a saturated machine neither waits on it nor passes because of it. */
@@ -412,7 +420,10 @@ export function sessionAdmission(input: {
                 ? `${others.length} live project session(s) and no RAM for another — effective cap ${eff} of ${cap} (reclaimable ${mb(sample.reclaimableMb ?? 0)}, ${mb(thresholds.sessionBudgetMb)} per session)`
                 : `${others.length} live project session(s) at the cap of ${cap}`
         );
-    reasons.push(...memorySaturation(sample));
+    // Memory pressure refuses a session only BESIDE others: alone, it is the
+    // session that would relieve the pressure, and refusing it is the
+    // lock-out `effectiveCap`'s floor of one already rules out.
+    if (others.length > 0) reasons.push(...memorySaturation(sample));
     if (reasons.length === 0 || input.override)
         return { verdict: "admit", effectiveCap: eff, overridden: reasons };
     return { verdict: "refuse", effectiveCap: eff, reasons };
@@ -464,9 +475,22 @@ export function timeoutOnlyFailure(output: string): boolean {
         (n, m) => n + Number(m[1]),
         0
     );
-    const timedOut = [...output.matchAll(/(?:Test|Hook) timed out in \d+ms/g)]
-        .length;
-    return failed > 0 && timedOut >= failed;
+    // Vitest's "Failed Tests" section: one ` FAIL  <file> > <test>` line per
+    // failed test, its error on the next line. Read per block, never as two
+    // counts over the whole output — a timeout message printed twice must
+    // not stand in for an assertion printed once.
+    const lines = output.split("\n");
+    let blocks = 0;
+    for (let i = 0; i < lines.length; i++) {
+        if (!/^\s*FAIL\s+\S/.test(lines[i])) continue;
+        blocks++;
+        const error = lines.slice(i + 1).find((l) => l.trim() !== "") ?? "";
+        if (!/^\s*Error: (?:Test|Hook) timed out in \d+ms/.test(error))
+            return false;
+    }
+    // Every failed test accounted for: a failure with no block of its own is
+    // one this cannot vouch for.
+    return failed > 0 && blocks === failed;
 }
 
 // ── the probes — thin ───────────────────────────────────────────────────────
@@ -583,6 +607,28 @@ export interface SessionAdmissionNow {
 }
 
 /**
+ * A sample whose memory pressure is SUSTAINED. The kernel's level flickers —
+ * measured 2026-10-02: one reading at 2, then six at 1 over the next thirty
+ * seconds — and a session is refused on one decision, not waited out like a
+ * gate. So a reading past normal is taken again, up to `retries` times
+ * `gapMs` apart, and the calmest of them stands.
+ */
+export function sustainedSample(
+    read: () => MachineSample,
+    pause: (ms: number) => void = (ms) =>
+        void Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms),
+    retries = 2,
+    gapMs = 500
+): MachineSample {
+    let sample = read();
+    for (let i = 0; i < retries && memorySaturation(sample).length > 0; i++) {
+        pause(gapMs);
+        sample = read();
+    }
+    return sample;
+}
+
+/**
  * The session decision on the live machine — the ONE composition the hook,
  * `queue:claim` and `wt:new` share, so the three cannot disagree about who is
  * counted or what the cap is.
@@ -595,7 +641,7 @@ export function admitSessionNow(input: {
     const env = input.env ?? process.env;
     const thresholds = readMachineConfig();
     const cap = sessionCap();
-    const sample = readMachineSample(env);
+    const sample = sustainedSample(() => readMachineSample(env));
     const census = readSessionCensus(input.cwd, env);
     const decision = sessionAdmission({
         others: census?.others ?? [],
@@ -659,6 +705,9 @@ export interface WaitForMachineInput {
     sleep?: (ms: number) => Promise<void>;
     pollMs?: number;
     env?: NodeJS.ProcessEnv;
+    /** Called on every poll, the admitting one included — a holder restamps
+     *  its lock here, so a long wait never reads as a silent holder. */
+    tick?: () => void;
 }
 
 export interface WaitForMachineResult {
@@ -702,6 +751,7 @@ export async function waitForMachine(
     const t0 = now();
     let lastAnnounce: number | null = null;
     for (;;) {
+        input.tick?.();
         const sample = probe();
         const waitedMs = now() - t0;
         const decision = gateAdmission({ sample, thresholds, waitedMs });
@@ -718,9 +768,9 @@ export async function waitForMachine(
                 reasons: [],
             };
         }
-        if (env[OVER_CAP_ENV] === "1") {
+        if (env[GATE_OVERRIDE_ENV] === "1") {
             input.announce(
-                `${input.tag} machine busy — ${sampleLine(sample)} (${decision.reasons.join("; ")}) — starting anyway: ${OVER_CAP_ENV}=1`
+                `${input.tag} machine busy — ${sampleLine(sample)} (${decision.reasons.join("; ")}) — starting anyway: ${GATE_OVERRIDE_ENV}=1`
             );
             return {
                 admitted: true,
@@ -732,7 +782,7 @@ export async function waitForMachine(
         }
         if (decision.verdict === "refuse") {
             input.announce(
-                `${input.tag} machine still busy after ${Math.round(waitedMs / 1000)}s — ${sampleLine(sample)} (${decision.reasons.join("; ")}). Nothing ran: this is INFRA (machine-saturated), not a verdict on the tree. See \`bun run machine\`; the escape is ${OVER_CAP_ENV}=1.`
+                `${input.tag} machine still busy after ${Math.round(waitedMs / 1000)}s — ${sampleLine(sample)} (${decision.reasons.join("; ")}). Nothing ran: this is INFRA (machine-saturated), not a verdict on the tree. See \`bun run machine\`; the escape is ${GATE_OVERRIDE_ENV}=1.`
             );
             return {
                 admitted: false,

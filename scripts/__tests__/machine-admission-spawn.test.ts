@@ -7,6 +7,7 @@ import { BASE_BRANCH } from "../lib/branches";
 import { INFRA_REMEDY, PREFLIGHT_MACHINE_STEP } from "../lib/health-verdict";
 import { MACHINE_SATURATED_EXIT } from "../lib/machine-admission";
 import { acquireUiLane, MachineSaturatedError } from "../lib/ui-admission";
+import { EMPTY_CADENCE, serializeCadence } from "../lib/health-cadence";
 
 /**
  * Machine admission, driven for real (issue #4966): the gate's bounded wait,
@@ -18,6 +19,7 @@ import { acquireUiLane, MachineSaturatedError } from "../lib/ui-admission";
 const REPO_ROOT = path.resolve(__dirname, "..", "..");
 const GATE = path.join(REPO_ROOT, "scripts", "gate.ts");
 const HEALTH_MAIN = path.join(REPO_ROOT, "scripts", "health-main.ts");
+const HEALTH_CADENCE = path.join(REPO_ROOT, "scripts", "health-cadence.ts");
 const HOOK = path.join(REPO_ROOT, ".claude", "hooks", "session-admission.sh");
 
 const BUSY = JSON.stringify({
@@ -61,7 +63,7 @@ function gateEnv(extra: Record<string, string>): NodeJS.ProcessEnv {
         ...extra,
     };
     delete env.TOLARIA_GATE_HELD;
-    delete env.TOLARIA_OVER_CAP;
+    delete env.TOLARIA_GATE_SATURATED_OK;
     for (const [k, v] of Object.entries(extra)) if (v === "") delete env[k];
     return env;
 }
@@ -138,14 +140,24 @@ describe("gate.ts — nothing heavy starts on a saturated machine (issue #4966)"
         expect(fs.existsSync(nested)).toBe(true);
     });
 
-    it("TOLARIA_OVER_CAP=1 starts on the saturated machine, announced and logged", () => {
+    it("a session admitted past the cap does not carry its override into its gates", () => {
         const ran = path.join(tmp, "ran");
         const env = gateEnv({ TOLARIA_MACHINE_PROBE: BUSY });
         env.TOLARIA_OVER_CAP = "1";
+        expect(runGate("heavy", `touch ${ran}`, env).status).toBe(
+            MACHINE_SATURATED_EXIT
+        );
+        expect(fs.existsSync(ran)).toBe(false);
+    });
+
+    it("TOLARIA_GATE_SATURATED_OK=1 starts on the saturated machine, announced and logged", () => {
+        const ran = path.join(tmp, "ran");
+        const env = gateEnv({ TOLARIA_MACHINE_PROBE: BUSY });
+        env.TOLARIA_GATE_SATURATED_OK = "1";
         const r = runGate("heavy", `touch ${ran}`, env);
         expect(r.status).toBe(0);
         expect(r.stderr).toMatch(
-            /machine busy .* starting anyway: TOLARIA_OVER_CAP=1/
+            /machine busy .* starting anyway: TOLARIA_GATE_SATURATED_OK=1/
         );
         expect(fs.existsSync(ran)).toBe(true);
         expect(
@@ -303,12 +315,42 @@ describe("session-admission.sh — the cap applies to every session (issue #4966
         expect(later.status).toBe(0);
     });
 
-    it("refuses under memory pressure even with no other session", () => {
-        const r = prompt("s-1", {
+    it("honours a stamp only while the admitted `claude` process lives — a resumed session is asked again", () => {
+        fs.mkdirSync(path.dirname(stamp("s-9")), { recursive: true });
+        // The stamped process is alive (this test's own): admitted, unasked.
+        fs.writeFileSync(stamp("s-9"), `${process.pid}\n`);
+        expect(
+            prompt("s-9", { TOLARIA_MACHINE_PROBE: probe(three) }).status
+        ).toBe(0);
+        // `claude --resume`: same session id, and the process that was
+        // admitted is gone. A pid no process holds stands in for it.
+        const gone = spawnSync("sh", ["-c", "echo $$"], {
+            encoding: "utf8",
+            timeout: 10_000,
+        }).stdout.trim();
+        fs.writeFileSync(stamp("s-9"), `${gone}\n`);
+        const resumed = prompt("s-9", { TOLARIA_MACHINE_PROBE: probe(three) });
+        expect(resumed.status).toBe(2);
+        expect(resumed.stderr).toContain("3 live project session(s)");
+    });
+
+    it("refuses under memory pressure beside another session, never the only one", () => {
+        const beside = prompt("s-2", {
+            TOLARIA_MACHINE_PROBE: probe([three[0]], { pressure: 2 }),
+        });
+        expect(beside.status).toBe(2);
+        expect(beside.stderr).toContain("memory pressure WARNING");
+        const alone = prompt("s-1", {
             TOLARIA_MACHINE_PROBE: probe([], { pressure: 2 }),
         });
-        expect(r.status).toBe(2);
-        expect(r.stderr).toContain("memory pressure WARNING");
+        expect(alone.status).toBe(0);
+    });
+
+    it("fails open when the probe throws — and does not stamp, so it is asked again", () => {
+        const r = prompt("s-5", { TOLARIA_MACHINE_PROBE: "{not json" });
+        expect(r.status).toBe(0);
+        expect(r.stderr).toMatch(/session-admission: the probe failed/);
+        expect(fs.existsSync(stamp("s-5"))).toBe(false);
     });
 
     it("fails open on a payload with no session id", () => {
@@ -323,7 +365,7 @@ describe("session-admission.sh — the cap applies to every session (issue #4966
 });
 
 describe("health-main — a saturated machine is INFRA, never RED (issue #4966)", () => {
-    const git = (args: string[], cwd: string): void => {
+    const git = (args: string[], cwd: string): string => {
         const r = spawnSync("git", args, {
             cwd,
             encoding: "utf8",
@@ -331,9 +373,11 @@ describe("health-main — a saturated machine is INFRA, never RED (issue #4966)"
         });
         if (r.status !== 0)
             throw new Error(`git ${args.join(" ")}: ${r.stderr}`);
+        return r.stdout.trim();
     };
 
-    it("waits, then records infra / machine-saturated at preflight:machine — no RED marker, no gate run", () => {
+    /** A scratch primary checkout whose `origin` carries the base branch. */
+    const scratchPrimary = (): { primary: string; tip: string } => {
         const bare = path.join(tmp, "origin.git");
         const primary = path.join(tmp, "primary");
         git(["init", "-q", "--bare", bare], tmp);
@@ -354,9 +398,14 @@ describe("health-main — a saturated machine is INFRA, never RED (issue #4966)"
         );
         git(["remote", "add", "origin", bare], primary);
         git(["push", "-q", "origin", BASE_BRANCH], primary);
+        return { primary, tip: git(["rev-parse", "HEAD"], primary) };
+    };
 
+    /** A machine that never calms, a bound in milliseconds, no hold. */
+    const busyEnv = (): NodeJS.ProcessEnv => {
         const env: NodeJS.ProcessEnv = {
             ...process.env,
+            TOLARIA_GATE_LOCK_ROOT: path.join(tmp, "locks"),
             TOLARIA_MACHINE_PROBE: BUSY,
             TOLARIA_MACHINE_WAIT_MAX_MS: "300",
             TOLARIA_MACHINE_POLL_MS: "50",
@@ -365,7 +414,50 @@ describe("health-main — a saturated machine is INFRA, never RED (issue #4966)"
             VITE_CONVEX_URL: "",
         };
         delete env.TOLARIA_GATE_HELD;
-        delete env.TOLARIA_OVER_CAP;
+        delete env.TOLARIA_GATE_SATURATED_OK;
+        delete env.CLAUDE_PROJECT_DIR;
+        return env;
+    };
+
+    it("the batch gate's path: `gate.ts yield` never starts, and the cadence writes the infra record health-main could not", () => {
+        const { primary, tip } = scratchPrimary();
+        const dir = path.join(primary, ".claude", "telemetry", "health");
+        fs.mkdirSync(dir, { recursive: true });
+        // One landing, three hours un-healthed: past the batch's age bound,
+        // so `detach` fires.
+        fs.writeFileSync(
+            path.join(dir, "cadence.json"),
+            serializeCadence({
+                ...EMPTY_CADENCE,
+                landings: [{ sha: tip, at: Date.now() - 3 * 3600 * 1000 }],
+            })
+        );
+        const r = spawnSync("bun", [HEALTH_CADENCE, "detach"], {
+            cwd: primary,
+            env: busyEnv(),
+            encoding: "utf8",
+            timeout: 45_000,
+        });
+        expect(r.stderr).toContain("[gate] machine busy — load 14.5");
+        const last = JSON.parse(
+            fs.readFileSync(path.join(dir, "last.json"), "utf8")
+        ) as Record<string, unknown>;
+        expect(last).toMatchObject({
+            sha: tip,
+            status: "infra",
+            failedStep: PREFLIGHT_MACHINE_STEP,
+            infraCause: "machine-saturated",
+            reason: INFRA_REMEDY["machine-saturated"],
+        });
+        expect(fs.existsSync(path.join(dir, "RED"))).toBe(false);
+        expect(fs.readdirSync(dir).filter((f) => f.endsWith(".log"))).toEqual(
+            []
+        );
+    }, 60_000);
+
+    it("waits, then records infra / machine-saturated at preflight:machine — no RED marker, no gate run", () => {
+        const { primary } = scratchPrimary();
+        const env = busyEnv();
         const r = spawnSync("bun", [HEALTH_MAIN], {
             cwd: primary,
             env,

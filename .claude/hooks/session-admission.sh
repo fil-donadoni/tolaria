@@ -9,11 +9,14 @@
 #
 # It refuses the FIRST prompt of a session — exit 2, which blocks the prompt
 # and shows stderr to the user — when the live project sessions already fill
-# the effective cap, or swap is over its threshold. The refusal names the live
-# sessions and the one escape: `TOLARIA_OVER_CAP=1 claude`, announced and
-# logged like `--no-cap`. Until it is admitted a session is asked again on
-# every prompt; once admitted it is stamped and never asked again, so the cost
-# after the first prompt is one `jq` and one `test`.
+# the effective cap, or memory is under sustained pressure beside them. The
+# refusal names the live sessions and the one escape: `TOLARIA_OVER_CAP=1
+# claude`, announced and logged like `--no-cap`. Until it is admitted a session
+# is asked again on every prompt; once admitted it is stamped with the pid of
+# its `claude` process and not asked again while that process lives, so the
+# cost after the first prompt is one `jq`, one `read` and one `kill -0`. A
+# `claude --resume` keeps the session id and is a NEW process — a new arrival
+# on the machine — so its stamp no longer holds and it is asked again.
 #
 # The DECISION is not here: `scripts/lib/machine-admission.ts` owns it, and
 # `queue:claim` and `wt:new` take the same one. This file only finds the
@@ -34,7 +37,14 @@ esac
 # Same root as the gate's locks (`scripts/gate.ts` LOCK_ROOT): outside the
 # repo, so the hook of every worktree reads the same stamps.
 stamps="${TOLARIA_GATE_LOCK_ROOT:-$HOME/.cache/tolaria}/sessions"
-[ -e "$stamps/$session" ] && exit 0
+if [ -r "$stamps/$session" ]; then
+    read -r admitted <"$stamps/$session" || admitted=""
+    case "$admitted" in
+    -) exit 0 ;; # admitted under no `claude` process: nothing to outlive
+    '' | *[!0-9]*) ;; # unreadable: ask again
+    *) kill -0 "$admitted" 2>/dev/null && exit 0 ;;
+    esac
+fi
 
 # The scripts beside THIS hook, not `$CLAUDE_PROJECT_DIR`'s: a session started
 # in a worktree runs that worktree's copy of both.
