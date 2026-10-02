@@ -5,7 +5,11 @@ import * as http from "http";
 import * as os from "os";
 import * as path from "path";
 import { BASE_BRANCH } from "../lib/branches";
-import { UI_WALK_FILE, UI_WALK_PROBATION_RUNS } from "../lib/health-verdict";
+import {
+    PREFLIGHT_CONVEX_STEP,
+    UI_WALK_FILE,
+    UI_WALK_PROBATION_RUNS,
+} from "../lib/health-verdict";
 
 /**
  * The per-batch health run, driven for real through `health-cadence detach`
@@ -288,5 +292,71 @@ describe("health-cadence detach — the walk runs off the heavy mutex (issue #49
         expect(r.stdout).toMatch(/no walk owed/);
         expect(fs.existsSync(path.join(tmp, "who-walk.txt"))).toBe(false);
         expect(lastJson()).toEqual(record);
+    }, 120_000);
+});
+
+/**
+ * The CALL of `gateSkipReason` in `health-main.ts` (issue #4977): its pure
+ * rule is pinned in `health-cadence.test.ts`, but `retryTerminal: !underLock`
+ * is what makes the cadence's waiter skip a terminal tip while `bun run
+ * health` by hand re-gates it (issue #4960). Either inversion was invisible.
+ */
+describe("health-main — a terminal verdict on the tip: the waiter skips it, a hand run re-gates it (issue #4977)", () => {
+    const INFRA_STARTED_AT = new Date(Date.now() - 60_000).toISOString();
+    const seedInfra = () => {
+        const record = {
+            sha: git(["rev-parse", "HEAD"], primary),
+            status: "infra",
+            startedAt: INFRA_STARTED_AT,
+            finishedAt: new Date(Date.now() - 30_000).toISOString(),
+            failedStep: "check:ui --all",
+        };
+        fs.writeFileSync(
+            path.join(healthDir(), "last.json"),
+            JSON.stringify(record)
+        );
+        return record;
+    };
+    const healthMain = (args: string[], env: NodeJS.ProcessEnv = {}) => {
+        const childEnv: NodeJS.ProcessEnv = {
+            ...process.env,
+            TOLARIA_GATE_LOCK_ROOT: lockRoot,
+            WHO_OFFLINE: path.join(tmp, "who-offline.txt"),
+            ...env,
+        };
+        delete childEnv.TOLARIA_GATE_HELD;
+        delete childEnv.TOLARIA_ALLOW_FULL_SUITE;
+        delete childEnv.TOLARIA_GATE_ROLE;
+        return spawnSync(
+            "bun",
+            [HEALTH_MAIN, `--branch=${BASE_BRANCH}`, ...args],
+            { cwd: primary, encoding: "utf8", timeout: 60_000, env: childEnv }
+        );
+    };
+
+    it("--under-lock (the cadence's waiter) never re-gates an INFRA tip", () => {
+        const record = seedInfra();
+        const r = healthMain(["--under-lock", "--phase=offline"], {
+            VITE_CONVEX_URL: convexUrl,
+        });
+        expect(r.status, r.stderr).toBe(0);
+        expect(r.stdout).toMatch(/already has a INFRA verdict/);
+        expect(fs.existsSync(path.join(tmp, "who-offline.txt"))).toBe(false);
+        expect(lastJson()).toEqual(record);
+    }, 120_000);
+
+    it("by hand (no --under-lock) the same INFRA tip is gated again", () => {
+        seedInfra();
+        // An unreachable deployment ends the run at its Convex preflight —
+        // AFTER the skip decision and the new `running` record, before any
+        // gate: the cheapest run that still proves a gate was attempted.
+        const r = healthMain([], { VITE_CONVEX_URL: "http://127.0.0.1:1" });
+        expect(r.stdout).not.toMatch(/already has a INFRA verdict/);
+        const last = lastJson();
+        expect(last.startedAt).not.toBe(INFRA_STARTED_AT);
+        expect(last).toMatchObject({
+            status: "infra",
+            failedStep: PREFLIGHT_CONVEX_STEP,
+        });
     }, 120_000);
 });
