@@ -547,6 +547,64 @@ function classifyBody(
     return { verdict: "identity", reason: null };
 }
 
+/**
+ * The shared-setup rule through a parameter (issue #4953). In
+ * `it.each(table)(title, (row) => …)` / `describe.each(table)(…)` the callback
+ * parameters are the table's rows: reading `row` is reading whatever built the
+ * table, one `.each` away. Each parameter is bound to the table's behavioural
+ * call — a real call inside the table expression, or an outer binding produced
+ * by one — or to `null` (plain data, and a shadow of any same-named outer one).
+ * Not an `.each` call → no bindings.
+ */
+function eachParameterBindings(
+    node: ts.CallExpression,
+    fn: ts.ArrowFunction | ts.FunctionExpression,
+    outer: BehaviouralBindings
+): BehaviouralBindings {
+    const params: BehaviouralBindings = new Map();
+    const head = unwrap(node.expression);
+    if (
+        !ts.isCallExpression(head) ||
+        !ts.isPropertyAccessExpression(head.expression) ||
+        head.expression.name.text !== "each"
+    )
+        return params;
+
+    let via: string | null = null;
+    for (const table of head.arguments) {
+        via = initialiserIsBehavioural(table);
+        for (const name of via ? [] : freeIdentifiers(table)) {
+            const bound = outer.get(name);
+            if (bound) {
+                via = `${name} (via ${bound})`;
+                break;
+            }
+        }
+        if (via) break;
+    }
+    const bind = (name: ts.BindingName) => {
+        if (ts.isIdentifier(name)) {
+            params.set(name.text, via && `.each table ${via}`);
+            return;
+        }
+        for (const el of name.elements) {
+            if (ts.isBindingElement(el)) bind(el.name);
+        }
+    };
+    for (const p of fn.parameters) bind(p.name);
+    return params;
+}
+
+/** The test / suite callback of a block or suite call. */
+function callbackOf(
+    node: ts.CallExpression
+): ts.ArrowFunction | ts.FunctionExpression | undefined {
+    return node.arguments.find(
+        (a): a is ts.ArrowFunction | ts.FunctionExpression =>
+            ts.isArrowFunction(a) || ts.isFunctionExpression(a)
+    );
+}
+
 /** A card named by a literal: `getDefinition("<uuid>")`, `getCardByName("Name")`, a bare uuid. */
 interface CardRef {
     id?: string;
@@ -1071,7 +1129,16 @@ export function classifyTestBlocks(
 
             if (keyword && SUITE_FNS.has(keyword)) {
                 describeChain.push(literalTitle(node) ?? "<dynamic>");
-                behaviourScopes.push(new Map());
+                const suiteFn = callbackOf(node);
+                behaviourScopes.push(
+                    suiteFn
+                        ? eachParameterBindings(
+                              node,
+                              suiteFn,
+                              merge(behaviourScopes)
+                          )
+                        : new Map()
+                );
                 bindingScopes.push(new Map());
                 ts.forEachChild(node, visit);
                 bindingScopes.pop();
@@ -1081,16 +1148,12 @@ export function classifyTestBlocks(
             }
 
             if (keyword && BLOCK_FNS.has(keyword)) {
-                const fn = node.arguments.find(
-                    (a) => ts.isArrowFunction(a) || ts.isFunctionExpression(a)
-                );
-                if (
-                    fn &&
-                    (ts.isArrowFunction(fn) || ts.isFunctionExpression(fn))
-                ) {
+                const fn = callbackOf(node);
+                if (fn) {
+                    const outer = merge(behaviourScopes);
                     const { verdict, reason } = classifyBody(
                         fn.body,
-                        merge(behaviourScopes)
+                        merge([outer, eachParameterBindings(node, fn, outer)])
                     );
                     const bindings = merge(bindingScopes);
                     const behavioural = verdict === "behavioural";

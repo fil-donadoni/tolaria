@@ -179,6 +179,60 @@ describe("identity-test classifier", () => {
             expect(blocks[0].verdict).toBe("identity");
         });
 
+        // Issue #4953: an `.each` callback parameter is a table row — reading it
+        // reads whatever built the table (base tip RED on an it.each over a
+        // tsconfig sweep).
+        it("an it.each row over a table built by a real call is NOT identity", () => {
+            const source = src(`
+                const PROJECTS = fs.readdirSync(ROOT).map(readProject);
+                describe("d", () => {
+                    it.each(PROJECTS.filter((p) => p.compiles))("$file", (p) => {
+                        expect(p.types).toContain("node");
+                    });
+                    it.each(listFiles())("%s", ({ file }) => {
+                        expect(file).toMatch(/x/);
+                    });
+                });
+            `);
+            const blocks = classifyTestBlocks("x.test.ts", source);
+            expect(blocks.map((b) => b.verdict)).toEqual([
+                "behavioural",
+                "behavioural",
+            ]);
+            expect(blocks[0].reason).toContain("PROJECTS");
+        });
+
+        it("a describe.each row over a computed table reaches the blocks inside", () => {
+            const source = src(`
+                describe.each(buildCases())("%s", (c) => {
+                    it("holds", () => {
+                        expect(c.ok).toBe(true);
+                    });
+                });
+            `);
+            const blocks = classifyTestBlocks("x.test.ts", source);
+            expect(blocks[0].verdict).toBe("behavioural");
+        });
+
+        it("an .each over a literal table stays identity", () => {
+            const source = src(`
+                const ROWS = [{ power: 1 }, { power: 2 }];
+                it.each(ROWS)("$power", (row) => {
+                    expect(row.power).toBeGreaterThan(0);
+                });
+                describe.each([[DEF]])("%s", (d) => {
+                    it("is 4/4", () => {
+                        expect(d.power).toBe(4);
+                    });
+                });
+            `);
+            const blocks = classifyTestBlocks("x.test.ts", source);
+            expect(blocks.map((b) => b.verdict)).toEqual([
+                "identity",
+                "identity",
+            ]);
+        });
+
         it("a property named like an outer binding does not count as a read", () => {
             const source = src(`
                 const state = makeState();
