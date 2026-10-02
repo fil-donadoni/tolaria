@@ -209,7 +209,7 @@ describe("the Bot hash covers what decides a verdict", () => {
             "convex/gre/ai/verdicts/coverage.ts",
             "convex/gre/ai/blade/registry.ts",
             "convex/gre/combat.ts",
-            "docs/adr/README.md",
+            "scripts/oracle-compile.ts",
         ])
             expect(isBotSourceFile(file), file).toBe(false);
         expect(isBotSourceFile("convex/gre/ai/blade/baseState.ts")).toBe(true);
@@ -224,7 +224,7 @@ describe("the Bot hash covers what decides a verdict", () => {
                 "convex/gre/difficulty.ts",
                 "convex/gre/combat.ts",
                 "src/components/Board.tsx",
-                "docs/x.md",
+                "scripts/gate.ts",
             ])
         ).toEqual([
             "convex/gre/search.ts",
