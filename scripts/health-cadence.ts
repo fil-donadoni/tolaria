@@ -47,10 +47,11 @@
  * moment it came free would put every queued landing behind ten minutes of
  * full gate for nothing: the tip health is about does not get staler while a
  * land runs — the land only adds a commit the NEXT health run covers anyway.
- * So the whole run goes through ONE `yield` acquisition (lands first, bounded
- * so health cannot starve) and `health-main --under-lock` passes its three
- * steps through that single hold rather than queuing three times. The
- * scenarios: `docs/guides/next-issue-flow.md` § 2 A/B/C.
+ * So the whole run goes through ONE `yield` acquisition (the lowest admission
+ * class: queued lands first, ageing so health cannot starve — issue #4965)
+ * and `health-main --under-lock` passes its three steps through that single
+ * hold rather than queuing three times. The scenarios:
+ * `docs/guides/next-issue-flow.md` § 2 A/B/C.
  *
  * RED reuses `health-fix.ts` unchanged: `health-main` has already written the
  * durable marker and `last.json`, so the handover is the same one `release`
@@ -357,7 +358,7 @@ function decideAndRun(root: string, branch: string): Round {
 
     // The RECORD is the verdict, never the exit status, and never the sha this
     // run SNAPSHOTTED: `health-main` re-resolves the tip when it finally gets
-    // the mutex, which after yielding to queued lands is routinely a later
+    // the mutex, which after queuing behind every land is routinely a later
     // commit. `reconcileHealthRun` owns that — see its header for what an
     // equality check against `tip` would silently cost.
     const action = reconcileHealthRun(readCadence(root), {

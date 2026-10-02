@@ -5,19 +5,30 @@ import {
     mkdirSync,
     rmSync,
     existsSync,
+    utimesSync,
     readFileSync,
     writeFileSync,
 } from "node:fs";
 import { cpus, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import {
+    AGE_STEP_MS,
     INITIAL_HEARTBEAT,
+    POLL_GAP_FACTOR,
+    STALLED_RECLAIM_MS,
     SubtreeProgress,
+    TrackedTree,
+    admissionOrder,
+    describeClass,
     heartbeatStep,
     parseCpuMs,
+    parsePsRows,
+    pollGap,
     reclaimVerdict,
+    reclaimableInMs,
+    stallJudgeable,
     subtreeFromPs,
-    yieldVerdict,
+    waiterLive,
     type BeatVerdict,
     type GateWaiter,
 } from "../lib/gate-liveness";
@@ -133,11 +144,91 @@ async function waitFor(done: () => boolean, timeoutMs = 20_000) {
     return done();
 }
 
+/** Live? `signal 0` performs the permission and existence check only. */
+function alive(pid: number): boolean {
+    try {
+        process.kill(pid, 0);
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * Every descendant of `root`, by walking `ps` — not by matching a command
+ * line. The processes under test are plain `sleep`s, indistinguishable from
+ * any other session's on this shared machine; parentage is the only thing
+ * that identifies them, and it is also exactly what the fix is about.
+ */
+function descendants(root: number): number[] {
+    const r = spawnSync("ps", ["-Ao", "pid,ppid"], { encoding: "utf8" });
+    const kids = new Map<number, number[]>();
+    for (const line of r.stdout.split("\n").slice(1)) {
+        const [pid, ppid] = line.trim().split(/\s+/).map(Number);
+        if (!Number.isFinite(pid) || !Number.isFinite(ppid)) continue;
+        kids.set(ppid, [...(kids.get(ppid) ?? []), pid]);
+    }
+    const out: number[] = [];
+    const queue = [...(kids.get(root) ?? [])];
+    while (queue.length) {
+        const pid = queue.shift()!;
+        out.push(pid);
+        queue.push(...(kids.get(pid) ?? []));
+    }
+    return out;
+}
+
+/** One live (non-zombie) process, as `ps` sees it. */
+interface Proc {
+    pid: number;
+    ppid: number;
+    pgid: number;
+    comm: string;
+}
+
+function procs(): Proc[] {
+    const r = spawnSync("ps", ["-Ao", "pid=,ppid=,pgid=,stat=,comm="], {
+        encoding: "utf8",
+    });
+    const out: Proc[] = [];
+    for (const line of r.stdout.split("\n")) {
+        const m = /^\s*(\d+)\s+(\d+)\s+(\d+)\s+(\S+)\s+(.*)$/.exec(line);
+        if (!m || m[4].startsWith("Z")) continue;
+        out.push({
+            pid: Number(m[1]),
+            ppid: Number(m[2]),
+            pgid: Number(m[3]),
+            comm: m[5].trim(),
+        });
+    }
+    return out;
+}
+
+/** Resolves once `child` has exited — an event, never a guessed window. */
+function exited(child: ReturnType<typeof spawn>): Promise<void> {
+    return new Promise((r) => {
+        if (child.exitCode !== null || child.signalCode !== null) r();
+        else child.on("exit", () => r());
+    });
+}
+
+/** Every process a test started and must not leak — SIGSTOPped ones included,
+ *  which is why this is SIGKILL: nothing else reaches a stopped process. */
+let strays: number[] = [];
+
 beforeEach(() => {
     lockRoot = mkdtempSync(join(tmpdir(), "tolaria-gate-test-"));
 });
 
 afterEach(() => {
+    for (const pid of strays) {
+        try {
+            process.kill(pid, "SIGKILL");
+        } catch {
+            /* already gone */
+        }
+    }
+    strays = [];
     rmSync(lockRoot, { recursive: true, force: true });
 });
 
@@ -286,13 +377,76 @@ describe("gate.ts — machine-wide mutex", () => {
         expect(err).not.toContain("STALLED");
     }, 30_000);
 
+    it("a holder frees only a lock it can read as its own (issue #4965)", () => {
+        // The reclaimer of a stalled holder takes the mutex at the moment the
+        // holder's child dies and the holder releases: "no readable owner"
+        // must never be read as "mine to delete".
+        const lock = join(lockRoot, "gate.lock");
+        const r = run(["heavy", `rm ${join(lock, "owner.json")}`]);
+        expect(r.status, r.stderr).toBe(0);
+        expect(existsSync(lock)).toBe(true);
+        // …and what it leaves is an orphan the next gate reclaims, once it
+        // is old enough to be one (next test).
+        const next = run(["heavy", "echo OK"], {
+            env: env({ TOLARIA_GATE_OWNERLESS_GRACE_MS: "0" }),
+        });
+        expect(next.stdout).toContain("OK");
+        expect(next.stderr).toContain("no readable owner");
+        expect(existsSync(lock)).toBe(false);
+    });
+
+    it("a lock with no owner is a gate mid-acquire while it is young, an orphan only once it is old (issue #4965)", async () => {
+        // `mkdir`, then the owner stamp: for an instant every acquisition is
+        // a lock directory with nothing in it. Reclaimed on sight, that is a
+        // second gate under the mutex.
+        const lock = join(lockRoot, "gate.lock");
+        mkdirSync(lock);
+        const waiter = spawn("bun", [GATE, "heavy", "echo RAN"], {
+            cwd: lockRoot,
+            // The grace is the default five seconds; the poll is fast, so
+            // "still waiting" is many rounds, not one slow one.
+            env: env({ TOLARIA_GATE_POLL_MS: "50" }),
+            stdio: ["ignore", "pipe", "pipe"],
+        });
+        strays.push(waiter.pid!);
+        let out = "";
+        let err = "";
+        waiter.stdout.on("data", (c: Buffer) => (out += c.toString()));
+        waiter.stderr.on("data", (c: Buffer) => (err += c.toString()));
+
+        expect(await waitFor(() => err.includes("with no owner yet"))).toBe(
+            true
+        );
+        expect(err).not.toContain("reclaiming");
+        expect(out).not.toContain("RAN");
+
+        // The same directory, an hour old: nobody is coming to stamp it.
+        const hourAgo = new Date(Date.now() - 3_600_000);
+        utimesSync(lock, hourAgo, hourAgo);
+        await exited(waiter);
+        expect(err).toContain("no readable owner");
+        expect(out).toContain("RAN");
+    }, 60_000);
+
     it("prunes a lock whose holder is dead instead of waiting for it", () => {
-        // A lock dir with no readable owner is indistinguishable from an
-        // orphan: the acquirer must prune it rather than block forever.
+        // An owner whose pid is gone is an orphan: the acquirer must prune it
+        // rather than block forever. (A lock with NO owner is the next-but-
+        // one test: an orphan too, but only once it is old enough.)
+        const dead = spawnSync("sh", ["-c", "exit 0"]);
         mkdirSync(join(lockRoot, "gate.lock"), { recursive: true });
+        writeFileSync(
+            join(lockRoot, "gate.lock", "owner.json"),
+            JSON.stringify({
+                pid: dead.pid,
+                label: "a gate that was killed",
+                cwd: "/repo",
+                ts: Date.now(),
+            })
+        );
         const r = run(["heavy", "echo acquired"]);
         expect(r.status).toBe(0);
         expect(r.stdout).toContain("acquired");
+        expect(r.stderr).toContain("holder is gone");
     }, 20_000);
 });
 
@@ -343,14 +497,29 @@ describe("gate-liveness — the stall decision, pure (issue #3792)", () => {
         expect(beats([700, 700], 1)).toEqual(["progress", "stalled"]);
     });
 
-    it("a stall latches — a later rise never re-arms the heartbeat", () => {
-        expect(beats([700, 700, 700, 700, 9000, 9999])).toEqual([
+    it("a declared stall stands while the total is flat or unmeasurable, and a MEASURED rise withdraws it (issue #4965)", () => {
+        // It used to latch for good. With the reclaimer killing a stalled
+        // subtree, a latch would kill a run that resumed minutes earlier.
+        expect(beats([700, 700, 700, 700, 700, null, 9000, 9999])).toEqual([
             "progress",
             "silent",
             "silent",
             "stalled",
             "latched",
-            "latched",
+            "latched", // no evidence is not a recovery
+            "recovered",
+            "progress",
+        ]);
+        // …and a recovered holder can stall again, from a fresh count.
+        expect(beats([1, 1, 1, 1, 2, 2, 2, 2])).toEqual([
+            "progress",
+            "silent",
+            "silent",
+            "stalled",
+            "recovered",
+            "silent",
+            "silent",
+            "stalled",
         ]);
     });
 
@@ -405,6 +574,58 @@ describe("gate-liveness — the stall decision, pure (issue #3792)", () => {
             reclaimVerdict({ ts: now - stale }, true, now, stale)
         ).toBeNull();
         expect(reclaimVerdict({ ts: now }, true, now, stale)).toBeNull();
+    });
+
+    it("a DECLARED stall is reclaimable after the short threshold, not after STALE_MS (issue #4965)", () => {
+        const now = 10_000_000;
+        const stale = 45 * 60 * 1000;
+        const short = STALLED_RECLAIM_MS;
+        expect(short).toBe(5 * 60 * 1000);
+        // The stamp itself is nowhere near stale: only the declaration counts.
+        const declared = (agoMs: number) => ({
+            ts: now - 60_000,
+            stalledAt: now - agoMs,
+        });
+        expect(reclaimVerdict(declared(short + 1), true, now, stale)).toBe(
+            "stalled"
+        );
+        expect(reclaimVerdict(declared(short), true, now, stale)).toBeNull();
+        expect(reclaimVerdict(declared(0), true, now, stale)).toBeNull();
+        // A dead pid is an orphan whatever it declared.
+        expect(reclaimVerdict(declared(0), false, now, stale)).toBe("dead");
+        // The threshold is a parameter, which is what the wiring test drives.
+        expect(reclaimVerdict(declared(50), true, now, stale, 10)).toBe(
+            "stalled"
+        );
+        // `gate:who` prints the SAME number the verdict branches on: the
+        // sooner of the two thresholds, negative once reclaimable.
+        expect(reclaimableInMs(declared(1000), now, stale)).toBe(short - 1000);
+        expect(reclaimableInMs({ ts: now - 1000 }, now, stale)).toBe(
+            stale - 1000
+        );
+        expect(
+            reclaimableInMs(
+                { ts: now - stale - 5, stalledAt: now - 1 },
+                now,
+                stale
+            )
+        ).toBe(-5);
+    });
+
+    it("a waiter that was not running judges no stall until it has polled a full beat (issue #4965)", () => {
+        const poll = 2000;
+        const t = 50_000_000;
+        // Jitter and a loaded machine are not a gap; a closed lid is.
+        expect(pollGap(t, t + poll * 1.25, poll)).toBe(false);
+        expect(pollGap(t, t + POLL_GAP_FACTOR * poll, poll)).toBe(false);
+        expect(pollGap(t, t + POLL_GAP_FACTOR * poll + 1, poll)).toBe(true);
+        expect(pollGap(t, t + 60 * 60_000, poll)).toBe(true);
+        // Never paused: judge at once. Paused: only after the settle time.
+        const settle = 5 * 60_000;
+        expect(stallJudgeable(null, t, settle)).toBe(true);
+        expect(stallJudgeable(t, t, settle)).toBe(false);
+        expect(stallJudgeable(t, t + settle - 1, settle)).toBe(false);
+        expect(stallJudgeable(t, t + settle, settle)).toBe(true);
     });
 
     it("parses `ps` CPU time on both platforms, and refuses garbage", () => {
@@ -508,6 +729,173 @@ describe("gate.ts — liveness wiring (issue #2999)", () => {
         expect(waiter.stderr).toContain("reclaiming the heavy mutex");
         expect(waiter.stderr).toContain("STALLED holder");
     }, 40_000);
+
+    it("a stalled holder is reclaimed after the SHORT threshold, and its subtree is dead before the lock changes hands (issue #4965)", async () => {
+        const { child, out } = spawnSilentHolder();
+        strays.push(child.pid!);
+        expect(await waitFor(() => out.err.includes("STALLED"))).toBe(true);
+        // The hung command: what used to keep running, with its workers,
+        // under whoever took the mutex next.
+        const tree = descendants(child.pid!);
+        strays.push(...tree);
+        expect(tree.length).toBeGreaterThanOrEqual(1);
+
+        // STALE_MS is left at its 45 min: only the stall DECLARATION can make
+        // this lock reclaimable, so a reclaimer that runs proves the short
+        // threshold. And the proof of ORDER is the reclaimer's own command —
+        // it runs under the mutex it just took, and looks. It then HOLDS
+        // until the test lets go, so the stalled holder ends while the lock
+        // is the reclaimer's.
+        const letGo = join(lockRoot, "let-go");
+        const probe = `for p in ${tree.join(" ")}; do ps -o stat= -p $p; done | grep -v Z | grep -q . && echo SUBTREE-ALIVE || echo SUBTREE-DEAD; while [ ! -f ${letGo} ]; do sleep 0.1; done`;
+        const reclaimer = spawn("bun", [GATE, "heavy", probe], {
+            cwd: lockRoot,
+            env: env({ TOLARIA_GATE_STALLED_RECLAIM_MS: "1" }),
+            stdio: ["ignore", "pipe", "pipe"],
+        });
+        strays.push(reclaimer.pid!);
+        const got = { out: "", err: "" };
+        reclaimer.stdout.on("data", (c: Buffer) => (got.out += c.toString()));
+        reclaimer.stderr.on("data", (c: Buffer) => (got.err += c.toString()));
+
+        expect(
+            await waitFor(() => got.out.includes("SUBTREE-"), 30_000),
+            got.err
+        ).toBe(true);
+        expect(got.out).toContain("SUBTREE-DEAD");
+        expect(got.err).toContain("STALLED holder");
+        expect(got.err).toContain("killed the stalled subtree");
+
+        // The holder was never signalled: its child died, so it ends by
+        // itself. The lock is the reclaimer's by then, and still is once
+        // the holder is gone. (A sanity check, not the guard on `release()`:
+        // the holder normally exits before the reclaimer acquires. The guard
+        // is "a holder frees only a lock it can read as its own".)
+        await exited(child);
+        const owner = JSON.parse(
+            readFileSync(join(lockRoot, "gate.lock", "owner.json"), "utf8")
+        ) as { pid: number };
+        expect(owner.pid).toBe(reclaimer.pid);
+
+        writeFileSync(letGo, "");
+        await exited(reclaimer);
+        expect(existsSync(join(lockRoot, "gate.lock"))).toBe(false);
+    }, 60_000);
+
+    it("a stalled holder that burns CPU again withdraws its declaration and keeps the mutex (issue #4965)", async () => {
+        // Frozen until the test says go, then busy: the command that "came
+        // back". Before, the stall latched and the reclaimer killed it.
+        // Blocked on a FIFO, not polling for a file: a blocked read burns NO
+        // CPU, where a `sleep` loop ticks `ps` over every couple of seconds
+        // and would recover by itself.
+        const go = join(lockRoot, "go");
+        expect(spawnSync("mkfifo", [go]).status).toBe(0);
+        const child = spawn(
+            "bun",
+            [GATE, "heavy", `read _ < ${go}; while :; do :; done`],
+            {
+                cwd: lockRoot,
+                env: stallEnv(),
+                stdio: ["ignore", "ignore", "pipe"],
+            }
+        );
+        strays.push(child.pid!);
+        let err = "";
+        child.stderr.on("data", (d: Buffer) => (err += d.toString()));
+        const owner = () =>
+            JSON.parse(
+                readFileSync(join(lockRoot, "gate.lock", "owner.json"), "utf8")
+            ) as { ts: number; stalledAt?: number };
+
+        expect(await waitFor(() => err.includes("STALLED"))).toBe(true);
+        expect(
+            await waitFor(() => {
+                try {
+                    return owner().stalledAt !== undefined;
+                } catch {
+                    return false;
+                }
+            })
+        ).toBe(true);
+        const stalledTs = owner().ts;
+        strays.push(...descendants(child.pid!));
+
+        expect(err).not.toContain("RECOVERED");
+        writeFileSync(go, "go\n");
+        expect(await waitFor(() => err.includes("RECOVERED"))).toBe(true);
+        expect(owner().stalledAt).toBeUndefined();
+        expect(owner().ts).toBeGreaterThan(stalledTs);
+    }, 60_000);
+
+    it("a waiter that was paused — a slept machine — does not reclaim a holder on stamps that aged while it was not running (issue #4965)", async () => {
+        // A live holder, stamped now. Nothing here is a gate: the test plays
+        // the holder, so it decides exactly what the stamp says and when.
+        const holder = spawn("sleep", ["60"]);
+        strays.push(holder.pid!);
+        const lock = join(lockRoot, "gate.lock");
+        const stamp = (ts: number) =>
+            writeFileSync(
+                join(lock, "owner.json"),
+                JSON.stringify({
+                    pid: holder.pid,
+                    label: "a healthy land",
+                    cwd: "/repo",
+                    ts,
+                    acquiredAt: ts,
+                })
+            );
+        mkdirSync(lock);
+        stamp(Date.now());
+
+        const POLL = 100;
+        const waiter = spawn("bun", [GATE, "heavy", "echo RAN"], {
+            cwd: lockRoot,
+            env: env({ TOLARIA_GATE_POLL_MS: String(POLL) }),
+            stdio: ["ignore", "pipe", "pipe"],
+        });
+        strays.push(waiter.pid!);
+        let out = "";
+        let err = "";
+        waiter.stdout.on("data", (c: Buffer) => (out += c.toString()));
+        waiter.stderr.on("data", (c: Buffer) => (err += c.toString()));
+        expect(await waitFor(() => err.includes("a healthy land"))).toBe(true);
+
+        // The lid closes: the waiter stops, and wall-clock time runs on —
+        // an hour of it, as far as the holder's stamp can tell.
+        process.kill(waiter.pid!, "SIGSTOP");
+        const stoppedAt = Date.now();
+        stamp(Date.now() - 3_600_000);
+        // A FLOOR, not a window: the pause must be long enough to be a gap,
+        // and a longer one is only more of the same.
+        await waitFor(
+            () => Date.now() - stoppedAt > 2 * POLL_GAP_FACTOR * POLL
+        );
+        process.kill(waiter.pid!, "SIGCONT");
+
+        expect(await waitFor(() => err.includes("resumed after"))).toBe(true);
+        // It polls on — the "resumed" line is one round, these are more —
+        // and the hour-old stamp of a live holder is not acted on.
+        const waiterFile = join(lockRoot, "gate.waiters", `${waiter.pid}.json`);
+        const stamps = new Set<number>();
+        const resumedAt = Date.now();
+        expect(
+            await waitFor(() => {
+                try {
+                    const seen = (
+                        JSON.parse(readFileSync(waiterFile, "utf8")) as {
+                            seen: number;
+                        }
+                    ).seen;
+                    if (seen > resumedAt) stamps.add(seen);
+                } catch {
+                    /* gone: it acquired — the assertion below says so */
+                }
+                return stamps.size >= 3;
+            })
+        ).toBe(true);
+        expect(err).not.toContain("reclaiming");
+        expect(out).not.toContain("RAN");
+    }, 60_000);
 
     it("a waiter's first line names the holder — pid, cwd, label and held-for", async () => {
         const holder = spawn("bun", [GATE, "heavy", "sleep 60"], {
@@ -625,55 +1013,6 @@ describe("gate.ts — issue-worktree guard", () => {
 });
 
 describe("gate.ts — the wrapped tree dies with the gate (issue #3821)", () => {
-    /** Live? `signal 0` performs the permission and existence check only. */
-    function alive(pid: number): boolean {
-        try {
-            process.kill(pid, 0);
-            return true;
-        } catch {
-            return false;
-        }
-    }
-
-    /**
-     * Every descendant of `root`, by walking `ps` — not by matching a command
-     * line. The processes under test are plain `sleep`s, indistinguishable from
-     * any other session's on this shared machine; parentage is the only thing
-     * that identifies them, and it is also exactly what the fix is about.
-     */
-    function descendants(root: number): number[] {
-        const r = spawnSync("ps", ["-Ao", "pid,ppid"], { encoding: "utf8" });
-        const kids = new Map<number, number[]>();
-        for (const line of r.stdout.split("\n").slice(1)) {
-            const [pid, ppid] = line.trim().split(/\s+/).map(Number);
-            if (!Number.isFinite(pid) || !Number.isFinite(ppid)) continue;
-            kids.set(ppid, [...(kids.get(ppid) ?? []), pid]);
-        }
-        const out: number[] = [];
-        const queue = [...(kids.get(root) ?? [])];
-        while (queue.length) {
-            const pid = queue.shift()!;
-            out.push(pid);
-            queue.push(...(kids.get(pid) ?? []));
-        }
-        return out;
-    }
-
-    let strays: number[] = [];
-
-    afterEach(() => {
-        // This suite is about not leaking processes; it does not get to leak
-        // its own when it fails.
-        for (const pid of strays) {
-            try {
-                process.kill(pid, "SIGKILL");
-            } catch {
-                /* already gone */
-            }
-        }
-        strays = [];
-    });
-
     it("a targeted signal reaps the grandchildren, not just the shell", async () => {
         // Two `sleep`s under one `sh`: `child.kill()` reaches the shell alone,
         // so before the fix both of these outlived the gate, reparented to
@@ -701,6 +1040,60 @@ describe("gate.ts — the wrapped tree dies with the gate (issue #3821)", () => 
             true
         );
     });
+
+    it("a SIGTERMed holder reaps a NESTED gate's tree — a second process group — before it frees the lock (issue #4965)", async () => {
+        // The observed orphan: `land` holds the mutex and runs `bun run test`,
+        // i.e. a nested `gate.ts heavy`, which detaches ITS child into a new
+        // process group. The holder signalled its one group, released, and a
+        // vitest with four workers ran on under the next holder.
+        const gate = spawn(
+            "bun",
+            [GATE, "heavy", `bun ${GATE} heavy 'sleep 120'`],
+            { cwd: lockRoot, env: env(), stdio: ["ignore", "ignore", "pipe"] }
+        );
+        let gateErr = "";
+        gate.stderr.on("data", (c: Buffer) => (gateErr += c.toString()));
+        const gatePid = gate.pid!;
+        strays.push(gatePid);
+
+        // The tree is built once the sleeper runs in a group that is not the
+        // outer child's — anything less and the assertion below would pass on
+        // a tree with nothing nested in it.
+        let tree: Proc[] = [];
+        const nestedSleeper = () => {
+            const all = procs();
+            const ids = new Set(descendants(gatePid));
+            tree = all.filter((p) => ids.has(p.pid));
+            const outer = tree.find((p) => p.ppid === gatePid);
+            return tree.some(
+                (p) =>
+                    p.comm.endsWith("sleep") &&
+                    outer !== undefined &&
+                    p.pgid !== outer.pgid
+            );
+        };
+        expect(await waitFor(nestedSleeper)).toBe(true);
+        strays.push(...tree.map((p) => p.pid));
+        const pids = new Set(tree.map((p) => p.pid));
+        const groups = new Set(tree.map((p) => p.pgid));
+        expect(groups.size).toBeGreaterThanOrEqual(2);
+
+        // The signal a session teardown sends: the holder's pid alone.
+        process.kill(gatePid, "SIGTERM");
+        await exited(gate);
+
+        // The holder exits only after it has SEEN the tree gone, so the very
+        // first look must find nothing, in either group. The one exception
+        // is a machine so loaded that the teardown ran out its own bound —
+        // which the gate says, and which is then a matter of waiting.
+        const alive = () =>
+            procs().filter((p) => pids.has(p.pid) || groups.has(p.pgid));
+        if (gateErr.includes("could NOT confirm"))
+            await waitFor(() => alive().length === 0);
+        const survivors = alive();
+        expect(survivors).toEqual([]);
+        expect(existsSync(join(lockRoot, "gate.lock"))).toBe(false);
+    }, 60_000);
 
     it("gives the wrapped command its own process group, so the group is the handle", async () => {
         const gate = spawn("bun", [GATE, "light", "sleep 120"], {
@@ -733,170 +1126,436 @@ describe("gate.ts — the wrapped tree dies with the gate (issue #3821)", () => 
     });
 });
 
-describe("gate-liveness — the yield decision, pure (ADR 0136 §6, issue #3780)", () => {
-    const NOW = 1_000_000;
+describe("gate-liveness — the admission order, pure (issue #4965)", () => {
+    const NOW = 100 * AGE_STEP_MS;
 
     function waiter(over: Partial<GateWaiter> = {}): GateWaiter {
         return {
             pid: 4242,
-            role: "land",
-            label: "unset GITHUB_TOKEN && git fetch …",
-            cwd: "/repo-issue-1",
-            since: NOW - 1000,
+            role: "",
+            tier: "heavy",
+            label: "bun run test",
+            cwd: "/repo",
+            since: NOW,
             ...over,
         };
     }
 
-    const decide = (waiters: GateWaiter[], yieldedMs = 0, boundMs = 60_000) =>
-        yieldVerdict({
-            waiters,
-            yieldingSince: NOW - yieldedMs,
-            now: NOW,
-            boundMs,
-        });
+    const land = (pid: number, queuedMs = 0) =>
+        waiter({ pid, role: "land", since: NOW - queuedMs });
+    const job = (pid: number, queuedMs = 0) =>
+        waiter({ pid, tier: "job", since: NOW - queuedMs });
+    const heavy = (pid: number, queuedMs = 0) =>
+        waiter({ pid, since: NOW - queuedMs });
+    const health = (pid: number, queuedMs = 0) =>
+        waiter({ pid, role: "health", tier: "yield", since: NOW - queuedMs });
+    const pids = (ws: GateWaiter[], now = NOW) =>
+        admissionOrder(ws, now).map((w) => w.pid);
 
-    it("acquires when nothing is queued", () => {
-        expect(decide([])).toMatchObject({
-            verdict: "acquire",
-            bounded: false,
-        });
-    });
-
-    it("yields while ANY land is queued", () => {
-        const d = decide([waiter()]);
-        expect(d.verdict).toBe("yield");
-        expect(d.reason).toContain("pid 4242");
-    });
-
-    it("yields to a land, never to another heavy gate or to itself", () => {
-        // The rule buys the LANDINGS their four minutes; an ordinary
-        // `bun run test` queued behind health gets no such favour, or two
-        // gates would each wait for the other to stop waiting.
-        expect(decide([waiter({ role: "" })]).verdict).toBe("acquire");
-        expect(decide([waiter({ role: "health" })]).verdict).toBe("acquire");
+    it("land > job > heavy > health, whatever order they arrived in", () => {
+        // Arrival order is the exact reverse of the admission order.
         expect(
-            decide([waiter({ role: "health" }), waiter({ role: "land" })])
-                .verdict
-        ).toBe("yield");
+            pids([health(1, 4000), heavy(2, 3000), job(3, 2000), land(4, 1000)])
+        ).toEqual([4, 3, 2, 1]);
     });
 
-    it("STARVATION BOUND: past it, health takes the mutex with lands still queued", () => {
-        // Unbounded yielding is not politeness, it is starvation: at the
-        // measured 2.5 PR/h with three sessions there is frequently SOME land
-        // in the queue, and the base tip would then never be gated at all —
-        // the exposure ADR 0136 §6 exists to bound.
-        expect(decide([waiter()], 59_999)).toMatchObject({
-            verdict: "yield",
-            bounded: false,
-        });
-        const d = decide([waiter()], 60_000);
-        expect(d).toMatchObject({ verdict: "acquire", bounded: true });
-        expect(d.reason).toContain("starvation bound");
+    it("inside one class the longest-queued goes first, and a tie falls to the pid", () => {
+        expect(pids([land(7, 100), land(8, 900), land(9, 500)])).toEqual([
+            8, 9, 7,
+        ]);
+        expect(pids([land(31), land(30)])).toEqual([30, 31]);
     });
 
-    it("`bounded` is a field, not a phrase — the ordinary acquire is quiet", () => {
-        expect(decide([]).bounded).toBe(false);
-        expect(decide([waiter()], 120_000).bounded).toBe(true);
+    it("the order is a property of the registry, not of who reads it", () => {
+        const a = [health(1, 9000), land(2, 10), land(3, 20)];
+        expect(pids(a)).toEqual(pids([...a].reverse()));
+        expect(pids(a)).toEqual([3, 2, 1]);
     });
 
-    it("counts down the bound it has left, so a yielding run says when it will stop", () => {
-        expect(decide([waiter()], 20_000, 60_000).reason).toContain("40s");
+    it("the health class is the role OR the `yield` spelling; a land is a land under any tier", () => {
+        expect(describeClass(waiter({ role: "health" }), NOW)).toBe("health");
+        expect(describeClass(waiter({ tier: "yield" }), NOW)).toBe("health");
+        expect(describeClass(waiter({ role: "land", tier: "job" }), NOW)).toBe(
+            "land"
+        );
+        expect(describeClass(waiter({ tier: "job" }), NOW)).toBe("job");
+        // An entry written by a gate that predates `tier` is a plain heavy.
+        expect(describeClass(waiter({ tier: undefined }), NOW)).toBe("heavy");
+    });
+
+    it("AGEING: a waiter rises one class per 30 min queued — health cannot starve", () => {
+        const lands = [land(2, 1000), land(3, 500)];
+        // Under one step health is still last; each step lifts it one class.
+        expect(pids([health(1, AGE_STEP_MS - 1), ...lands])).toEqual([2, 3, 1]);
+        expect(pids([health(1, AGE_STEP_MS), heavy(4), job(5)])).toEqual([
+            5, 1, 4,
+        ]);
+        expect(pids([health(1, 2 * AGE_STEP_MS), heavy(4), job(5)])).toEqual([
+            1, 5, 4,
+        ]);
+        // Three steps: a land's equal — and older than every land queued.
+        expect(pids([...lands, health(1, 3 * AGE_STEP_MS)])).toEqual([1, 2, 3]);
+        expect(describeClass(health(1, 3 * AGE_STEP_MS), NOW)).toBe(
+            "health, aged to land"
+        );
+    });
+
+    it("ageing stops at the best class: a land that waited longer still goes first", () => {
+        expect(
+            pids([health(1, 5 * AGE_STEP_MS), land(2, 6 * AGE_STEP_MS)])
+        ).toEqual([2, 1]);
+    });
+
+    it("a waiter is queued while its pid lives AND it keeps polling — not by how long it has queued", () => {
+        const stale = 60_000;
+        const w = { since: NOW - 2 * AGE_STEP_MS, seen: NOW - 1000 };
+        // An hour in the queue is a legitimate wait under ageing.
+        expect(waiterLive(w, true, NOW, stale)).toBe(true);
+        expect(waiterLive(w, false, NOW, stale)).toBe(false);
+        // A reused pid, or a stopped process: alive, and silent.
+        expect(
+            waiterLive({ ...w, seen: NOW - stale - 1 }, true, NOW, stale)
+        ).toBe(false);
+        // An entry with no `seen` (an older gate's) is judged on `since`.
+        expect(waiterLive({ since: NOW - 1000 }, true, NOW, stale)).toBe(true);
+        expect(waiterLive({ since: NOW - stale - 1 }, true, NOW, stale)).toBe(
+            false
+        );
     });
 });
 
-describe("gate.ts — the waiter registry and the yield tier (ADR 0136 §6, issue #3780)", () => {
-    const waitersDir = () => join(lockRoot, "gate.waiters");
+describe("gate-liveness — the tree a teardown kills, pure (issue #4965)", () => {
+    // pid ppid pgid stat — the observed shape: a holder (50) whose child (60)
+    // runs a NESTED gate (62) that detached its own child (70) into group 70.
+    const PS = [
+        "    1     0     1 Ss",
+        "   50     1    50 S", //   the holder gate, in the session's group
+        "   60    50    60 Ss", //  its child `sh` — leader of group 60
+        "   61    60    60 S", //   bun run test
+        "   62    61    60 S", //   the nested gate
+        "   70    62    70 Ss", //  the nested gate's child — leader of group 70
+        "   71    70    70 R", //   a vitest worker
+        "   90    50    50 R", //   the holder's own `ps`
+        "  200     1   200 S", //   another session entirely
+        "garbage",
+    ].join("\n");
 
-    /** A hand-written waiter entry, with a pid that is genuinely alive (this
-     *  test process): the gate's own liveness pruning must not remove it. */
-    function seedWaiter(role: string, pid = process.pid) {
+    it("parses pid, ppid, pgid and the zombie flag; garbage is no row, nothing is null", () => {
+        const rows = parsePsRows(PS + "\n   99    50    60 Z+")!;
+        expect(rows).toHaveLength(10);
+        expect(rows.find((r) => r.pid === 71)).toEqual({
+            pid: 71,
+            ppid: 70,
+            pgid: 70,
+            zombie: false,
+        });
+        expect(rows.find((r) => r.pid === 99)!.zombie).toBe(true);
+        expect(parsePsRows("no rows here")).toBeNull();
+    });
+
+    it("walks into the nested gate's group — the one the outer group signal never reached", () => {
+        const tree = new TrackedTree(60, new Set([50]));
+        const live = tree.absorb(parsePsRows(PS)!);
+        expect(live.map((r) => r.pid).sort()).toEqual([60, 61, 62, 70, 71]);
+        expect([...tree.groups].sort()).toEqual([60, 70]);
+    });
+
+    it("keeps hold of a group once the parents the walk went through are dead", () => {
+        const tree = new TrackedTree(60, new Set([50]));
+        tree.absorb(parsePsRows(PS)!);
+        // The signal landed: 60–62 and 70 are gone, the worker was reparented
+        // to pid 1. No parent link leads to it any more; its group does.
+        const after = ["   50     1    50 S", "   71     1    70 R"].join("\n");
+        expect(tree.absorb(parsePsRows(after)!).map((r) => r.pid)).toEqual([
+            71,
+        ]);
+        expect(tree.absorb(parsePsRows("   50     1    50 S")!)).toEqual([]);
+    });
+
+    it("a root that already exited is still reached through the group it led", () => {
+        // The normal-exit path: `sh` is gone, a backgrounded child lives on.
+        const tree = new TrackedTree(60);
+        const rows = parsePsRows("   65     1    60 S\n  200     1   200 S")!;
+        expect(tree.absorb(rows).map((r) => r.pid)).toEqual([65]);
+    });
+
+    it("a zombie is not a survivor — a holder blocked in its teardown cannot reap its own child", () => {
+        const tree = new TrackedTree(60);
+        expect(tree.absorb(parsePsRows("   60    50    60 Z")!)).toEqual([]);
+    });
+
+    it("never adopts a protected group: the signaller's own is not a target", () => {
+        // A descendant that stayed in the holder's group (50) is reached by
+        // pid; group 50 — the gate, its session — is never signalled whole.
+        const rows = parsePsRows(
+            [
+                "   50     1    50 S",
+                "   60    50    60 S",
+                "   63    60    50 S",
+            ].join("\n")
+        )!;
+        const tree = new TrackedTree(60, new Set([50]));
+        expect(
+            tree
+                .absorb(rows)
+                .map((r) => r.pid)
+                .sort()
+        ).toEqual([60, 63]);
+        expect([...tree.groups]).toEqual([60]);
+    });
+});
+
+describe("gate.ts — the queue: ordered admission (issue #4965)", () => {
+    const waitersDir = () => join(lockRoot, "gate.waiters");
+    const waiterPath = (pid: number) => join(waitersDir(), `${pid}.json`);
+
+    /** A hand-written queue entry. `seen` sits an hour in the future, so it
+     *  never reads as a waiter that stopped polling — the suite, not a
+     *  clock, decides when it leaves. */
+    function seedWaiter(over: Partial<GateWaiter> & { pid: number }) {
         mkdirSync(waitersDir(), { recursive: true });
         const entry: GateWaiter = {
-            pid,
-            role,
+            role: "",
+            tier: "heavy",
             label: "seeded by the suite",
             cwd: "/repo",
             since: Date.now(),
+            seen: Date.now() + 3_600_000,
+            ...over,
         };
-        writeFileSync(join(waitersDir(), `${pid}.json`), JSON.stringify(entry));
-        return join(waitersDir(), `${pid}.json`);
+        writeFileSync(waiterPath(over.pid), JSON.stringify(entry));
+        return waiterPath(over.pid);
     }
 
-    it("a queued heavy gate registers itself under its role, and leaves nothing behind", async () => {
-        const holder = spawn("bun", [GATE, "heavy", "sleep 30"], {
+    function readWaiter(pid: number): GateWaiter | null {
+        try {
+            return JSON.parse(
+                readFileSync(waiterPath(pid), "utf8")
+            ) as GateWaiter;
+        } catch {
+            return null;
+        }
+    }
+
+    /**
+     * True once `pid` has gone round its poll loop TWICE after `after` and is
+     * still queued. One stamp past `after` says a poll BEGAN on the state the
+     * test set up; the second says that poll ended without taking the mutex
+     * (a waiter that acquires removes its entry). This is the suite's
+     * condition for "it looked at a free mutex and did not take it" — an
+     * event, where "nothing happened for N ms" would be a race.
+     */
+    async function polledTwiceSince(pid: number, after: number) {
+        const stamps = new Set<number>();
+        return waitFor(() => {
+            const seen = readWaiter(pid)?.seen;
+            if (seen !== undefined && seen > after) stamps.add(seen);
+            return stamps.size >= 2;
+        });
+    }
+
+    /** A real queued gate that appends its name to `order.log` when it runs.
+     *  `queuedAgoMs` is the injected clock: when it ENTERED the queue. */
+    function queue(
+        name: string,
+        tier: "heavy" | "yield" | "job",
+        role: string,
+        queuedAgoMs: number
+    ) {
+        const child = spawn(
+            "bun",
+            [GATE, tier, `echo ${name} >> ${join(lockRoot, "order.log")}`],
+            {
+                cwd: lockRoot,
+                env: env({
+                    TOLARIA_GATE_ROLE: role,
+                    TOLARIA_GATE_WAITER_SINCE: String(Date.now() - queuedAgoMs),
+                    // A SIGSTOPped waiter stops stamping; it must stay in
+                    // the queue for as long as the test keeps it frozen.
+                    TOLARIA_GATE_WAITER_STALE_MS: "3600000",
+                    // Poll rounds are what these tests wait for; the period
+                    // changes how long that takes, never what is decided.
+                    TOLARIA_GATE_POLL_MS: "100",
+                }),
+                stdio: "ignore",
+            }
+        );
+        strays.push(child.pid!);
+        return child;
+    }
+
+    function spawnHolder() {
+        const holder = spawn("bun", [GATE, "heavy", "sleep 60"], {
             cwd: lockRoot,
             env: env(),
             stdio: "ignore",
         });
+        strays.push(holder.pid!);
+        return holder;
+    }
+
+    const ranOrder = () =>
+        readFileSync(join(lockRoot, "order.log"), "utf8").trim().split("\n");
+    const nothingRan = () => !existsSync(join(lockRoot, "order.log"));
+
+    it("three waiters behind a holder acquire land, land, health — even when health is the only one polling a free mutex", async () => {
+        const holder = spawnHolder();
+        await waitForLock();
+        // Health entered the queue FIRST: any first-come order runs it first.
+        const health = queue("health", "yield", "health", 30_000);
+        const landA = queue("landA", "heavy", "land", 20_000);
+        const landB = queue("landB", "heavy", "land", 10_000);
+        const all = [health, landA, landB];
+        expect(
+            await waitFor(() => all.every((w) => readWaiter(w.pid!) !== null))
+        ).toBe(true);
+
+        // The WORST poll timing there is: both lands frozen, so the lowest
+        // class is the only waiter that polls when the mutex comes free.
+        process.kill(landA.pid!, "SIGSTOP");
+        process.kill(landB.pid!, "SIGSTOP");
+        holder.kill("SIGTERM");
+        await exited(holder);
+        expect(await polledTwiceSince(health.pid!, Date.now())).toBe(true);
+        expect(nothingRan()).toBe(true);
+
+        // The younger land thaws alone: it is not the head either.
+        process.kill(landB.pid!, "SIGCONT");
+        expect(await polledTwiceSince(landB.pid!, Date.now())).toBe(true);
+        expect(nothingRan()).toBe(true);
+
+        process.kill(landA.pid!, "SIGCONT");
+        await Promise.all(all.map(exited));
+        expect(ranOrder()).toEqual(["landA", "landB", "health"]);
+    }, 90_000);
+
+    it("with ageing injected, health goes first — the lands poll a free mutex and leave it", async () => {
+        const holder = spawnHolder();
+        await waitForLock();
+        // 91 min queued: three classes of ageing, a land's equal and older.
+        const health = queue(
+            "health",
+            "yield",
+            "health",
+            3 * AGE_STEP_MS + 60_000
+        );
+        const landA = queue("landA", "heavy", "land", 20_000);
+        const landB = queue("landB", "heavy", "land", 10_000);
+        const all = [health, landA, landB];
+        expect(
+            await waitFor(() => all.every((w) => readWaiter(w.pid!) !== null))
+        ).toBe(true);
+
+        process.kill(health.pid!, "SIGSTOP");
+        holder.kill("SIGTERM");
+        await exited(holder);
+        const freed = Date.now();
+        expect(await polledTwiceSince(landA.pid!, freed)).toBe(true);
+        expect(await polledTwiceSince(landB.pid!, freed)).toBe(true);
+        expect(nothingRan()).toBe(true);
+
+        process.kill(health.pid!, "SIGCONT");
+        await Promise.all(all.map(exited));
+        expect(ranOrder()).toEqual(["health", "landA", "landB"]);
+    }, 90_000);
+
+    it("a queued gate registers its role and tier, restamps itself, and leaves nothing behind", async () => {
+        const holder = spawnHolder();
         await waitForLock();
 
-        const queued = spawn("bun", [GATE, "heavy", "true"], {
+        const queued = spawn("bun", [GATE, "job", "true"], {
             cwd: lockRoot,
-            env: env({ TOLARIA_GATE_ROLE: "land" }),
+            env: env({
+                TOLARIA_GATE_ROLE: "land",
+                TOLARIA_GATE_POLL_MS: "100",
+            }),
             stdio: "ignore",
         });
-        const file = join(waitersDir(), `${queued.pid}.json`);
-        expect(await waitFor(() => existsSync(file))).toBe(true);
-        expect(
-            (JSON.parse(readFileSync(file, "utf8")) as GateWaiter).role
-        ).toBe("land");
+        strays.push(queued.pid!);
+        expect(await waitFor(() => readWaiter(queued.pid!) !== null)).toBe(
+            true
+        );
+        const entry = readWaiter(queued.pid!)!;
+        expect(entry.role).toBe("land");
+        expect(entry.tier).toBe("job");
+        // The stamp is what keeps it in the queue: it moves on every poll.
+        expect(await polledTwiceSince(queued.pid!, entry.seen!)).toBe(true);
 
         holder.kill("SIGTERM");
-        await new Promise((r) => queued.on("exit", r));
-        expect(existsSync(file)).toBe(false);
-    });
+        await exited(queued);
+        expect(existsSync(waiterPath(queued.pid!))).toBe(false);
+    }, 60_000);
 
-    it("the yield tier steps aside while a land is queued, and runs once it is gone", async () => {
-        const seeded = seedWaiter("land");
-        const yielded = spawn("bun", [GATE, "yield", "echo RAN"], {
+    it("a free mutex is not an invitation: a health gate waits behind a queued land, and says for whom", async () => {
+        const seeded = seedWaiter({ pid: process.pid, role: "land" });
+        const queued = spawn("bun", [GATE, "yield", "echo RAN"], {
             cwd: lockRoot,
-            env: env(),
+            env: env({ TOLARIA_GATE_ROLE: "health" }),
             stdio: ["ignore", "pipe", "pipe"],
         });
+        strays.push(queued.pid!);
         let out = "";
         let err = "";
-        yielded.stdout.on("data", (c: Buffer) => (out += c.toString()));
-        yielded.stderr.on("data", (c: Buffer) => (err += c.toString()));
+        queued.stdout.on("data", (c: Buffer) => (out += c.toString()));
+        queued.stderr.on("data", (c: Buffer) => (err += c.toString()));
 
-        // The yielding LINE is the event — not a wall-clock window in which
-        // nothing happened.
-        expect(await waitFor(() => err.includes("[gate] yielding"))).toBe(true);
+        // The LINE is the event — not a window in which nothing happened.
+        expect(
+            await waitFor(() => err.includes("free, but queue position 2/2"))
+        ).toBe(true);
+        expect(err).toContain(`next is pid ${process.pid} [land]`);
         expect(out).not.toContain("RAN");
-        // The mutex is free the whole time: yielding is not holding.
         expect(existsSync(join(lockRoot, "gate.lock"))).toBe(false);
 
         rmSync(seeded, { force: true });
-        await new Promise((r) => yielded.on("exit", r));
+        await exited(queued);
         expect(out).toContain("RAN");
-    });
+    }, 60_000);
 
-    it("the starvation bound gets the yield tier through a permanently queued land", async () => {
-        // The seeded waiter is THIS process: it never goes away, so without a
-        // bound the gate yields for ever. `run`'s timeout turns that into a
-        // failed assertion rather than a wedged worker.
-        seedWaiter("land");
+    it("ageing gets health through a land that never leaves the queue", () => {
+        // The seeded land is THIS process: it never acquires and never goes
+        // away. `run`'s timeout turns a starved gate into a failed assertion
+        // rather than a wedged worker.
+        seedWaiter({ pid: process.pid, role: "land" });
         const r = run(["yield", "echo RAN"], {
-            env: env({ TOLARIA_GATE_YIELD_BOUND_MS: "0" }),
+            env: env({
+                TOLARIA_GATE_ROLE: "health",
+                TOLARIA_GATE_WAITER_SINCE: String(
+                    Date.now() - 3 * AGE_STEP_MS - 60_000
+                ),
+            }),
             timeout: 20_000,
         });
         expect(r.status, `signal=${r.signal} stderr=${r.stderr}`).toBe(0);
         expect(r.stdout).toContain("RAN");
-        expect(r.stderr).toContain("starvation bound");
     });
 
-    it("yields to a land and to nothing else", () => {
-        seedWaiter("");
-        const r = run(["yield", "echo RAN"], { timeout: 20_000 });
+    it("a land goes ahead of a hand-run heavy gate that queued before it", () => {
+        seedWaiter({ pid: process.pid, since: Date.now() - 60_000 });
+        const r = run(["heavy", "echo RAN"], {
+            env: env({ TOLARIA_GATE_ROLE: "land" }),
+            timeout: 20_000,
+        });
         expect(r.status, `signal=${r.signal} stderr=${r.stderr}`).toBe(0);
         expect(r.stdout).toContain("RAN");
     });
 
-    it("prunes a waiter whose pid is gone — a killed session must not starve health", () => {
-        // A session killed mid-queue leaves its entry behind. Without the
-        // liveness prune the yield tier would step aside for a land that no
-        // longer exists, for the whole bound, every time.
+    it("prunes a waiter whose pid is gone — a killed session holds no place in the queue", () => {
         const dead = spawnSync("sh", ["-c", "exit 0"]);
-        const file = seedWaiter("land", dead.pid!);
+        const file = seedWaiter({ pid: dead.pid!, role: "land" });
+        const r = run(["yield", "echo RAN"], { timeout: 20_000 });
+        expect(r.status, `signal=${r.signal} stderr=${r.stderr}`).toBe(0);
+        expect(r.stdout).toContain("RAN");
+        expect(existsSync(file)).toBe(false);
+    });
+
+    it("prunes a waiter that stopped polling — a live pid at the head must not block the queue for ever", () => {
+        // A reused pid, or a stopped session: the pid answers, nothing polls.
+        const file = seedWaiter({
+            pid: process.pid,
+            role: "land",
+            seen: Date.now() - 10 * 60_000,
+        });
         const r = run(["yield", "echo RAN"], { timeout: 20_000 });
         expect(r.status, `signal=${r.signal} stderr=${r.stderr}`).toBe(0);
         expect(r.stdout).toContain("RAN");
@@ -918,19 +1577,53 @@ describe("gate.ts — the waiter registry and the yield tier (ADR 0136 §6, issu
         expect(existsSync(join(lockRoot, "gate.lock"))).toBe(false);
     });
 
-    it("`who` names the queue, not just the holder", async () => {
-        const holder = spawn("bun", [GATE, "heavy", "sleep 30"], {
-            cwd: lockRoot,
-            env: env(),
-            stdio: "ignore",
-        });
+    it("`who` prints the queue in ACQUISITION order, not in arrival order", async () => {
+        const holder = spawnHolder();
         await waitForLock();
-        seedWaiter("land", process.pid);
-        const r = run(["who"]);
-        expect(r.stdout).toContain("queued — pid");
-        expect(r.stdout).toContain("[land]");
+        // Five live pids to hang entries on; none of them is a gate.
+        const sleepers = [0, 1, 2].map(() => spawn("sleep", ["60"]));
+        strays.push(...sleepers.map((c) => c.pid!));
+        const [s1, s2, s3] = sleepers.map((c) => c.pid!);
+        const now = Date.now();
+        // Seeded oldest-first — the reverse of how they must print.
+        seedWaiter({
+            pid: s1,
+            role: "health",
+            tier: "yield",
+            since: now - 50_000,
+        });
+        seedWaiter({ pid: process.ppid, since: now - 40_000 });
+        seedWaiter({ pid: s2, tier: "job", since: now - 30_000 });
+        seedWaiter({ pid: s3, role: "land", since: now - 20_000 });
+        seedWaiter({ pid: process.pid, role: "land", since: now - 10_000 });
+
+        const queued = run(["who"])
+            .stdout.split("\n")
+            .filter((l) => l.includes("queued #"))
+            .map((l) =>
+                /queued #(\d+) — pid (\d+) \[([^\]]+)\]/.exec(l)?.slice(1)
+            );
+        expect(queued).toEqual([
+            ["1", String(s3), "land"],
+            ["2", String(process.pid), "land"],
+            ["3", String(s2), "job"],
+            ["4", String(process.ppid), "heavy"],
+            ["5", String(s1), "health"],
+        ]);
         holder.kill("SIGTERM");
-        await new Promise((resolve) => holder.on("exit", resolve));
+        await exited(holder);
+    }, 60_000);
+
+    it("`who` says what ageing did to a waiter's class", () => {
+        seedWaiter({
+            pid: process.pid,
+            role: "health",
+            tier: "yield",
+            since: Date.now() - 3 * AGE_STEP_MS - 60_000,
+        });
+        const out = run(["who"]).stdout;
+        expect(out).toContain("heavy mutex is free");
+        expect(out).toMatch(/queued #1 — pid \d+ \[health, aged to land\]/);
     });
 });
 

@@ -90,8 +90,8 @@
  * and then detaches `health-cadence.ts detach`, which fires `health-main.ts`
  * after the 5th landing since the last GREEN or 2 h after the first
  * un-healthed one. Both steps are non-gating, and the detached run takes the
- * mutex through `gate.ts yield`, so it steps aside for any `land` queued
- * behind this one.
+ * mutex through `gate.ts yield`, the lowest admission class, so any `land`
+ * queued behind this one goes first.
  *
  * Usage:
  *   bun run land <PR#>              fetch → rebase → gate → push → merge
@@ -1301,8 +1301,8 @@ export function lockedEnv(base: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
     return {
         ...netEnv(base),
         TOLARIA_ALLOW_FULL_SUITE: "1",
-        // What this caller IS, for the mutex's yield rule (ADR 0136 §6): the
-        // batch health gate steps aside while any `land` is queued, and a
+        // What this caller IS, for the mutex's admission order (ADR 0136 §6,
+        // issue #4965): a `land` is admitted before every other class, and a
         // queued land is only recognisable as one because of this.
         TOLARIA_GATE_ROLE: "land",
     };

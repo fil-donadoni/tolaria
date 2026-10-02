@@ -203,12 +203,13 @@ BATCH (ADR 0136 §6).
   ledger reconciles against the sha the health RECORD names, never the one the
   trigger saw, because yielding to queued lands is exactly what moves the tip
   between the two.
-- **Precedence.** It takes the mutex through `gate.ts yield`: it steps aside
-  while any `land` is queued, and once it holds the lock nothing interrupts it.
-  The stepping aside is **bounded** (`TOLARIA_GATE_YIELD_BOUND_MS`, 30 min), or
+- **Precedence.** It takes the mutex through `gate.ts yield`, the lowest
+  admission class: every queued `land` goes first, and once it holds the lock
+  nothing interrupts it. It cannot starve — a waiter rises one class per
+  30 min queued, so after 90 min health is a land's equal and the oldest — or
   a queue that never empties would mean the tip is never gated at all. Worst
-  case for a landing: 10 min of health plus the lands ahead of it, ≤ 18 min at
-  the admission cap of 3, at most once per 5 landings.
+  case for a landing behind it: 10 min of health plus the lands ahead, ≤ 18
+  min at the admission cap of 3, at most once per 5 landings.
 - **GREEN** resets the counter and rewrites `green-sha`, exactly as a release's
   health run does. **RED** writes the same durable marker, which makes
   `queue:plan` refuse the next PICK — never the next LAND, because the
@@ -370,6 +371,8 @@ on RED.
 anything that runs the full suites or `land`'s locked command. `bun run
 gate:who` names the holder AND the queue behind it; a holder that stops burning
 CPU is reclaimed. The light tier (`check:lane` by itself, targeted vitest)
-takes no lock. The `yield` tier is the heavy tier plus one rule: it steps aside
-(boundedly) while any waiter declares `TOLARIA_GATE_ROLE=land`, which is how
-the [batch health gate](#g-batch-health) lets landings through.
+takes no lock. The queue has an order — `land` > `job` > hand-run heavy >
+`health`, each waiter rising one class per 30 min queued — and only its head
+may take the mutex; the `yield` tier is the heavy tier queued in the `health`
+class, which is how the [batch health gate](#g-batch-health) lets landings
+through.
