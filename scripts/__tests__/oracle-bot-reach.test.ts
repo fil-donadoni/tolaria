@@ -25,6 +25,8 @@ import {
     isBotSourceFile,
     playingBotReach,
     rankBotGaps,
+    replayingCardsBotReach,
+    resolveReplayCards,
     type BotReachSource,
 } from "../lib/oracle-bot-reach";
 import type { CardRow, Lockfile } from "../lib/oracle-lockfile";
@@ -404,6 +406,54 @@ describe("buildLockfile with a Bot-play verdict (ADR 0105 § 7.2)", () => {
         expect(bare.cards.every((c) => c.botReach === undefined)).toBe(true);
         expect(bare.header.counts.ready).toBe(2);
         expect(bare.botGaps).toEqual([]);
+    });
+});
+
+describe("--carry-bot --replay-card: play only the named cards (issue #4957)", () => {
+    const previous = buildLockfile(CORPUS, {
+        botReach: fixedSource({
+            [BEAR_ID]: { outcome: "played" },
+            [BOLT_ID]: {
+                outcome: "ignored",
+                cause: "never-chosen",
+                form: "Instant target:any",
+            },
+        }),
+    });
+    const spy = spyPlayer({ outcome: "played" });
+    const next = buildLockfile(CORPUS, {
+        botReach: replayingCardsBotReach(
+            previous,
+            new Set([BOLT_ID]),
+            spy.play
+        ),
+    });
+    const rowOf = (lock: Lockfile, id: string) =>
+        JSON.stringify(lock.cards.find((c) => c.oracleId === id));
+
+    it("plays exactly the named card, even on a valid cache", () => {
+        expect(spy.calls).toEqual([BOLT_ID]);
+        expect(next.cards.find((c) => c.oracleId === BOLT_ID)!.botReach).toBe(
+            "played"
+        );
+    });
+
+    it("carries every other row byte-identical", () => {
+        expect(rowOf(next, BEAR_ID)).toBe(rowOf(previous, BEAR_ID));
+    });
+
+    it("leaves the header — the committed Bot hash — unchanged", () => {
+        expect(next.header).toEqual(previous.header);
+        expect(next.header.botHash).toBe("sha256:fixed");
+    });
+
+    it("resolves names case-insensitively and names every unknown one", () => {
+        const resolved = resolveReplayCards(CORPUS, [
+            "test bolt",
+            "No Such Card",
+        ]);
+        expect([...resolved.ids]).toEqual([BOLT_ID]);
+        expect(resolved.unknown).toEqual(["No Such Card"]);
     });
 });
 

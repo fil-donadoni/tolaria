@@ -221,6 +221,56 @@ export function carriedBotReach(previous: Lockfile | null): BotReachSource {
     };
 }
 
+/**
+ * `--carry-bot --replay-card <name>`'s source (issue #4957): carry every
+ * committed verdict forward like {@link carriedBotReach}, and PLAY only the
+ * cards in `replay` — whatever their cache says. The header keeps the
+ * committed Bot hash: a partial replay must not claim the whole lockfile was
+ * played under the Bot of this tree. `playedIds` names what was actually
+ * played, so the caller can refuse a named card that never reached the sweep
+ * (one that did not compile `ready`).
+ */
+export function replayingCardsBotReach(
+    previous: Lockfile | null,
+    replay: ReadonlySet<string>,
+    play: BotPlayer
+): BotReachSource & { readonly playedIds: () => ReadonlySet<string> } {
+    const carried = carriedBotReach(previous);
+    const playedIds = new Set<string>();
+    return {
+        hash: carried.hash,
+        playedIds: () => playedIds,
+        verdictFor(oracleId, definition) {
+            if (!replay.has(oracleId))
+                return carried.verdictFor(oracleId, definition);
+            playedIds.add(oracleId);
+            return play(oracleId, definition);
+        },
+    };
+}
+
+/**
+ * Resolves `--replay-card` names to oracle ids over the corpus — exact name,
+ * case-insensitive (a face name of a split or MDFC card is not a card name).
+ * `unknown` lists every name that matched nothing, for the caller to refuse.
+ */
+export function resolveReplayCards(
+    corpus: readonly { readonly oracleId: string; readonly name: string }[],
+    names: readonly string[]
+): { readonly ids: ReadonlySet<string>; readonly unknown: string[] } {
+    const byName = new Map(
+        corpus.map((card) => [card.name.toLowerCase(), card.oracleId])
+    );
+    const ids = new Set<string>();
+    const unknown: string[] = [];
+    for (const name of names) {
+        const id = byName.get(name.toLowerCase());
+        if (id === undefined) unknown.push(name);
+        else ids.add(id);
+    }
+    return { ids, unknown };
+}
+
 // ── Bot Gaps ──────────────────────────────────────────────────────────────
 
 const GAP_SEPARATOR = " › ";

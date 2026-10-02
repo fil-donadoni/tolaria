@@ -1567,12 +1567,13 @@ describe("deny-guard — a Bot diff refreshes the lockfile with --carry-bot, nev
         expect(r.stderr).toMatch(/convex\/gre\/search\.ts/);
     });
 
-    it("allows --carry-bot, --check and --replay-bot on the same Bot diff", () => {
+    it("allows --carry-bot (also with --replay-card), --check and --replay-bot on the same Bot diff", () => {
         for (const cmd of [
             "bun run oracle:compile --carry-bot",
             "bun run oracle:compile --check",
             "bun run oracle:compile --replay-bot",
             "bun run gate:run oracle:compile --carry-bot",
+            'bun run oracle:compile --carry-bot --replay-card "Ogre Arsonist"',
             "bun scripts/oracle-compile.ts --check",
         ]) {
             const r = runHook(DENY_GUARD, bash(cmd, botCommitted), env());
