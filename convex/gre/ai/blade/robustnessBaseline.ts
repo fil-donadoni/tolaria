@@ -11,6 +11,9 @@
  * (a new pin — file its issue, or rewrite the entry in the same PR) and on a
  * listed entry that has become robust (delete its row). A label is matched
  * verbatim, so retitling a listed entry is a delete plus an add.
+ *
+ * `land` refuses a PR that closes a row's owning issue while the row is still
+ * here (issue #4980): delete it, or re-point it to its next owner.
  */
 
 import type { RobustnessBaselineRow } from "./robustness";
