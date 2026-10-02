@@ -56,6 +56,13 @@ const fixtureScript = (name: string, body: string): void => {
     });
 };
 
+/** A fixture line that blocks until the test creates `release` — ordering the
+ *  test controls, never a `sleep N` raced against a loaded machine (issue
+ *  #4961). It also returns once `tmp` is gone, so a red test leaves no
+ *  immortal poller behind. */
+const awaitRelease = (release: string): string =>
+    `while [ ! -e "${release}" ] && [ -d "${tmp}" ]; do sleep 0.1; done`;
+
 beforeEach(() => {
     tmp = fs.mkdtempSync(path.join(os.tmpdir(), "gate-run-"));
     runDir = path.join(tmp, "runs");
@@ -225,9 +232,10 @@ describe("gate-run — the run outlives the call that started it (#3698 AC1)", (
         // reach its end, and the next foreground call must hand back its real
         // exit code.
         const done = path.join(tmp, "done");
+        const release = path.join(tmp, "release");
         fixtureScript(
             "slow",
-            `sleep 4\necho "MARKER-LATE"\ntouch "${done}"\nexit 3`
+            `${awaitRelease(release)}\necho "MARKER-LATE"\ntouch "${done}"\nexit 3`
         );
 
         const first = run({
@@ -237,6 +245,7 @@ describe("gate-run — the run outlives the call that started it (#3698 AC1)", (
         expect(first.status, `${first.stdout}${first.stderr}`).toBe(75);
         expect(fs.existsSync(done)).toBe(false);
 
+        fs.writeFileSync(release, "");
         expect(waitForFile(done), "the detached gate never finished").toBe(
             true
         );
@@ -261,7 +270,12 @@ describe("gate-run — the run outlives the call that started it (#3698 AC1)", (
         // is what used to SIGTERM the gate mid-run. `set -m` inside the script
         // puts the GATE in a third group, and that is what this asserts.
         const done = path.join(tmp, "done");
-        fixtureScript("slow", `sleep 5\ntouch "${done}"\nexit 4`);
+        const started = path.join(tmp, "started");
+        const release = path.join(tmp, "release");
+        fixtureScript(
+            "slow",
+            `touch "${started}"\n${awaitRelease(release)}\ntouch "${done}"\nexit 4`
+        );
 
         const child = spawn("sh", [GATE_RUN, "slow"], {
             cwd: tmp,
@@ -274,14 +288,15 @@ describe("gate-run — the run outlives the call that started it (#3698 AC1)", (
                 TOLARIA_GATE_RUN_WAIT_SECS: "60",
             },
         });
-        // Let the script reach its wait loop, then kill its whole group.
-        await new Promise((r) => setTimeout(r, 2000));
+        // Once the gate is running, kill the caller's whole group.
+        expect(waitForFile(started), "the gate never started").toBe(true);
         process.kill(-child.pid!, "SIGTERM");
         await new Promise((r) => setTimeout(r, 500));
         expect(
             fs.existsSync(done),
             "the gate finished too early to prove anything"
         ).toBe(false);
+        fs.writeFileSync(release, "");
 
         expect(
             waitForFile(done),
