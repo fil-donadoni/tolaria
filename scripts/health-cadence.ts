@@ -195,15 +195,17 @@ function repairIssue(root: string): number {
     return 0;
 }
 
-/** `kill(pid, 0)`: is the process that stamped a pending fire still alive? */
+/**
+ * Is the process that stamped a pending fire still a `health-cadence` run?
+ * The command line, not just `kill(pid, 0)`: after a reboot or a long uptime
+ * the pid can belong to anything, and a reused pid read as "alive" would hold
+ * every decision — a repair's included — until `MAX_PENDING_MS`.
+ */
 function processAlive(pid: number): boolean {
-    try {
-        process.kill(pid, 0);
-        return true;
-    } catch (e) {
-        // EPERM: alive, owned by someone else.
-        return (e as NodeJS.ErrnoException).code === "EPERM";
-    }
+    const r = spawnSync("ps", ["-p", String(pid), "-o", "command="], {
+        encoding: "utf8",
+    });
+    return r.status === 0 && r.stdout.includes("health-cadence");
 }
 
 /**
@@ -296,14 +298,18 @@ function decideAndRun(root: string, branch: string): Round {
         red: existsSync(join(root, HEALTH_DIR, "RED")),
         pending: pendingHealthRun(state, readLast(root), firedAt, processAlive),
     });
-    const decided = recordDecision(state, {
+    const decision = {
         at: firedAt,
         tip,
         kind: verdict.kind,
         reason: verdict.reason,
-    });
+    };
+    // Every write below applies its change to a FRESH read, never to `state`:
+    // a `land` `record` or `repair-issue` that lands between the read above
+    // and this write would otherwise be overwritten — a lost landing, or a
+    // lost repair declaration.
     if (verdict.kind === "hold") {
-        writeCadence(root, decided);
+        writeCadence(root, recordDecision(readCadence(root), decision));
         console.log(`health-cadence: holding — ${verdict.reason}`);
         return { code: 0, ran: false };
     }
@@ -317,7 +323,15 @@ function decideAndRun(root: string, branch: string): Round {
     // once `health-main` holds the mutex (issue #4960).
     writeCadence(
         root,
-        withPending(afterFire(decided, tip, firedAt), process.pid, firedAt)
+        withPending(
+            afterFire(
+                recordDecision(readCadence(root), decision),
+                tip,
+                firedAt
+            ),
+            process.pid,
+            firedAt
+        )
     );
 
     // ONE acquisition for the whole run — see the WHY at the top.
@@ -355,7 +369,10 @@ function decideAndRun(root: string, branch: string): Round {
         console.error(
             `health-cadence: ${action.reason} (gate exited ${r.status ?? "on a signal"}) — the ledger is left as it is`
         );
-        return { code: 1, ran: false };
+        // Still re-decide: a repair that landed while this run was pending
+        // held on it, and nothing else would revisit it before the next
+        // landing. The tip dedup keeps an INFRA tip from re-firing at once.
+        return { code: 1, ran: true };
     }
     writeCadence(root, action.state);
     if (action.kind === "green") {
