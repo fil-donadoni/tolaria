@@ -313,14 +313,14 @@ describe("workflow:kpi (issue #4968)", () => {
     it("exits 0 when every KPI is within its ceiling", () => {
         const now = Math.floor(Date.now() / 1000);
         // A machine-admission wait is not a MUTEX wait (review, issue #4968):
-        // 15 minutes of it must not read as a p90 over the ceiling.
+        // 30 minutes of it must not read as a p90 over the ceiling.
         writeFileSync(
             join(tel, "gate-lock.jsonl"),
             JSON.stringify({
                 ts: now,
                 tier: "heavy",
                 event: "machine-saturated",
-                waited_ms: 900_000,
+                waited_ms: 1_800_000,
             }) +
                 "\n" +
                 JSON.stringify({
