@@ -857,6 +857,9 @@ fi
 # prefix allowed — like § 6, so a commit message quoting it is not a run.
 # Fails OPEN on any error computing the diff — a guard that cannot read the
 # tree has no evidence the sweep is wasted.
+# Both path lists are ROOT-relative and whole-tree from any subdirectory
+# (`diff` is by default; `ls-files` needs `--full-name -- ":/"`), since
+# `isBotSourceFile` reads repo-relative paths.
 # ─────────────────────────────────────────────────────────────────────────────
 ORACLE_COMPILE_INVOKE='(^|\|)[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*(bun[[:space:]]+run[[:space:]]+(gate:run[[:space:]]+)?oracle:compile|bun[[:space:]]+[^[:space:]]*oracle-compile\.ts|sh[[:space:]]+[^[:space:]]*gate-run\.sh[[:space:]]+oracle:compile)([[:space:]]|$)'
 if seg_has "$ORACLE_COMPILE_INVOKE" &&
@@ -869,7 +872,7 @@ if seg_has "$ORACLE_COMPILE_INVOKE" &&
     if [ -n "$_mb" ]; then
         _touched=$({
             git -C "$cwd" diff --name-only "$_mb" 2>/dev/null
-            git -C "$cwd" ls-files --others --exclude-standard 2>/dev/null
+            git -C "$cwd" ls-files --others --exclude-standard --full-name -- ":/" 2>/dev/null
         } | bun "$_hookdir/../../scripts/bot-sweep-inputs.ts" 2>/dev/null | head -5)
         if [ -n "$_touched" ]; then
             deny "BLOCKED: bare \`oracle:compile\` on a Bot diff replays every \`ready\` card (issue #4942).

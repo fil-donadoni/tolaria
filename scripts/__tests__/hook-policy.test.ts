@@ -1529,6 +1529,7 @@ describe("deny-guard — a Bot diff refreshes the lockfile with --carry-bot, nev
         "bun run gate:run oracle:compile",
         "TOLARIA_GATE_RUN_KEY=x bun run gate:run oracle:compile",
         "bun scripts/oracle-compile.ts",
+        "sh scripts/gate-run.sh oracle:compile",
         "git fetch && bun run oracle:compile >log 2>&1",
     ];
 
@@ -1543,6 +1544,18 @@ describe("deny-guard — a Bot diff refreshes the lockfile with --carry-bot, nev
                 expect(r.stderr).toMatch(/TOLARIA_ALLOW_BOT_SWEEP=1/);
             }
         }
+    });
+
+    it("reads the whole tree, root-relative, from a subdirectory too", () => {
+        // `git ls-files --others` is cwd-scoped and cwd-relative by default:
+        // from `docs/` it would miss `src/lib/ai/newThing.ts` and fail open.
+        const r = runHook(
+            DENY_GUARD,
+            bash("bun run oracle:compile", path.join(botUntracked, "docs")),
+            env()
+        );
+        expect(denied(r)).toBe(true);
+        expect(r.stderr).toMatch(/src\/lib\/ai\/newThing\.ts/);
     });
 
     it("names the Bot file that moved the hash", () => {
