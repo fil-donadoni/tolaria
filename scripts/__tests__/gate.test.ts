@@ -18,6 +18,7 @@ import {
     STALLED_RECLAIM_MS,
     SubtreeProgress,
     TrackedTree,
+    WAITER_SINCE_ENV,
     admissionOrder,
     describeClass,
     heartbeatStep,
@@ -29,9 +30,11 @@ import {
     stallJudgeable,
     subtreeFromPs,
     waiterLive,
+    waiterSince,
     type BeatVerdict,
     type GateWaiter,
 } from "../lib/gate-liveness";
+import { lockedEnv } from "../land";
 
 /**
  * CPU admission control (scripts/gate.ts) — see CLAUDE.md § Quality gates.
@@ -1152,6 +1155,17 @@ describe("gate-liveness — the admission order, pure (issue #4965)", () => {
     const pids = (ws: GateWaiter[], now = NOW) =>
         admissionOrder(ws, now).map((w) => w.pid);
 
+    it("a waiter's `since` is the caller's when it names a past one, and never the future (issue #4988)", () => {
+        const since = (v?: string) =>
+            waiterSince(v === undefined ? {} : { [WAITER_SINCE_ENV]: v }, NOW);
+        expect(since()).toBe(NOW);
+        expect(since(String(NOW - 115_000))).toBe(NOW - 115_000);
+        // Ahead of the clock it would sort behind waiters arriving later.
+        expect(since(String(NOW + 60_000))).toBe(NOW);
+        for (const junk of ["", "0", "-5", "soon"])
+            expect(since(junk), junk).toBe(NOW);
+    });
+
     it("land > job > heavy > health, whatever order they arrived in", () => {
         // Arrival order is the exact reverse of the admission order.
         expect(
@@ -1528,6 +1542,41 @@ describe("gate.ts — the queue: ordered admission (issue #4965)", () => {
         });
         expect(r.status, `signal=${r.signal} stderr=${r.stderr}`).toBe(0);
         expect(r.stdout).toContain("RAN");
+    });
+
+    it("a land queues by the time it was ISSUED, not the time it registered: ahead of a land that reached the queue first (issue #4988)", () => {
+        // The seeded land is THIS process and never leaves the queue: it
+        // registered a minute ago, while the other land was still in its
+        // preflight. That one was issued two minutes ago and registers NOW,
+        // with exactly the environment `land.ts` hands its gate.
+        // A health gate queued meanwhile too: behind both, by class.
+        const now = Date.now();
+        seedWaiter({ pid: process.pid, role: "land", since: now - 60_000 });
+        seedWaiter({
+            pid: process.ppid,
+            role: "health",
+            tier: "yield",
+            since: now - 110_000,
+        });
+        const r = run(["heavy", "echo RAN"], {
+            env: lockedEnv(env(), now - 120_000),
+            timeout: 20_000,
+        });
+        expect(r.status, `signal=${r.signal} stderr=${r.stderr}`).toBe(0);
+        expect(r.stdout).toContain("RAN");
+    });
+
+    it("the queue-entry time is this gate's alone: never handed on to its command", () => {
+        // `land` detaches the batch health run from inside its hold; with
+        // the variable inherited, that run would queue as if it had waited
+        // since the land was issued.
+        const r = run(["heavy", "echo since=[$TOLARIA_GATE_WAITER_SINCE]"], {
+            env: env({
+                TOLARIA_GATE_WAITER_SINCE: String(Date.now() - 60_000),
+            }),
+        });
+        expect(r.status, r.stderr).toBe(0);
+        expect(r.stdout).toContain("since=[]");
     });
 
     it("a land goes ahead of a hand-run heavy gate that queued before it", () => {

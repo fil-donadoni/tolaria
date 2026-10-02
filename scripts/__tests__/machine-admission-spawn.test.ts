@@ -568,4 +568,42 @@ describe("health-main — a saturated machine is INFRA, never RED (issue #4966)"
             []
         );
     }, 60_000);
+
+    it("beside a RUNNING heavy gate the same load is not waited on: the run goes past preflight:machine (issue #4988)", () => {
+        const { primary } = scratchPrimary();
+        const env = busyEnv();
+        // The heavy mutex as `gate.ts` leaves it once its command runs; the
+        // pid is this process — alive, as a real holder is.
+        const lock = path.join(tmp, "locks", "gate.lock");
+        fs.mkdirSync(lock, { recursive: true });
+        fs.writeFileSync(
+            path.join(lock, "owner.json"),
+            JSON.stringify({
+                pid: process.pid,
+                label: "bun scripts/land.ts 4985",
+                cwd: "/wt",
+                ts: Date.now(),
+                childPid: process.pid,
+            })
+        );
+        const r = spawnSync("bun", [HEALTH_MAIN], {
+            cwd: primary,
+            env,
+            encoding: "utf8",
+            // The scratch checkout has no scripts: the first gate fails at
+            // once. A run that waited on the machine instead ends INFRA.
+            timeout: 45_000,
+        });
+        const dir = path.join(primary, ".claude", "telemetry", "health");
+
+        expect(r.stderr).toContain(
+            `health-main: machine busy — load 14.5, swap 6054 MB — beside a running heavy gate (pid ${process.pid} · bun scripts/land.ts 4985): its load is not waited on`
+        );
+        expect(r.stderr).not.toMatch(/at preflight:machine/);
+        const last = JSON.parse(
+            fs.readFileSync(path.join(dir, "last.json"), "utf8")
+        ) as Record<string, unknown>;
+        expect(last.failedStep).not.toBe(PREFLIGHT_MACHINE_STEP);
+        expect(last.infraCause).not.toBe("machine-saturated");
+    }, 60_000);
 });

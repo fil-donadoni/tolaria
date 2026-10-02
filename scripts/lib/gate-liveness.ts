@@ -287,6 +287,24 @@ export interface GateWaiter {
     seen?: number;
 }
 
+/**
+ * A waiter's queue-entry time when it is NOT the moment it registered — epoch
+ * ms, set by the caller. `land` passes the time it was ISSUED (issue #4988):
+ * its preflight runs before it registers, and a place that dated from the end
+ * of the preflight ordered a land behind every land issued after it that
+ * reached the queue first. Also the injected clock of the ageing tests.
+ */
+export const WAITER_SINCE_ENV = "TOLARIA_GATE_WAITER_SINCE";
+
+/** The `since` a waiter registers with: the caller's, when it names one that
+ *  has already happened; `now` otherwise. Never the future — a waiter cannot
+ *  have queued later than the moment it registers, and a `since` ahead of the
+ *  clock would only sort it behind waiters that arrive after it. */
+export function waiterSince(env: NodeJS.ProcessEnv, now: number): number {
+    const named = Number(env[WAITER_SINCE_ENV]);
+    return Number.isFinite(named) && named > 0 ? Math.min(named, now) : now;
+}
+
 /** The role a landing queues under. */
 export const LAND_ROLE = "land";
 /** The role the per-batch health gate queues under. */

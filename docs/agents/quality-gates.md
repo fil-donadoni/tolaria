@@ -643,8 +643,9 @@ Only a record whose command is exactly `check:lane` counts; the receipt says
 Before `land` registers as a waiter on the mutex it runs
 `check:lane --preflight` on the PR's **un-rebased** head, at the light tier,
 after machine admission (issue #4966 — the light tier does not ask on its
-own). The plan is `preflightPlan`: the lane's own plan filtered to its static
-half — `format(diff)`, `lint(diff)`, the lane's type-check, `check:index`,
+own; beside a running heavy gate that gate's load is not waited on, issue
+#4988, § Session admission, "The machine"). The plan is `preflightPlan`: the
+lane's own plan filtered to its static half — `format(diff)`, `lint(diff)`, the lane's type-check, `check:index`,
 `check:stubs`, `check:oracle`, `cr:lint`, the cheap census guards — plus the
 `node-tooling` vitest project when the diff touches `scripts/**` or
 `.claude/**`. `full` spells the same static half out (its lane is `check:pr`,
@@ -652,6 +653,17 @@ opaque); `docs` runs its lane whole. A red preflight exits before queuing,
 with the lane's own output shape. It proves nothing about the rebased tip and
 skips nothing: the lane inside the mutex is unchanged. `--no-preflight` is for
 the retry after a merge-only failure.
+
+**The preflight does not cost the land its place** (issue #4988). The waiter
+entry is written only once the preflight has passed, so `land` hands its gate
+the time it was ISSUED (`TOLARIA_GATE_WAITER_SINCE`, clamped to the past by
+`waiterSince`) and the entry's `since` is that: among queued lands it orders
+by issue time, whichever registered first. What it does not do is reserve the
+mutex — a land is in nobody's view while its preflight runs (115 s on PR
+#4986; 106–235 s below), and a mutex released in that window goes to the head
+of whoever IS queued. Before, that window was the preflight plus up to 900 s
+of waiting beside the holder. Holding the place for it would mean a head that
+cannot take a free mutex, and every waiter idle behind it.
 
 **Replay** of the non-green `land` runs in `~/.cache/tolaria/gate-runs`, 14
 days to 2026-10-02 (445 runs, 185 PRs, 73 not green): **20 caught for
@@ -1397,6 +1409,40 @@ announced on the gate's own line and logged — deliberately NOT the session's
 variable below: a session admitted past the cap hands its environment to every
 gate it runs, and those must still wait.
 
+**A running holder's load is not waited on by what runs beside it** (issue
+#4988). The heavy tier asks under its hold, where the load it reads is the
+previous holder's and decays. Three callers ask with NO hold, beside whoever
+has the mutex: `land`'s preflight, `check:ui`, and `health-main` run with no
+hold (`release`, by hand — its steps then queue for the mutex one by one). A
+running gate keeps the 1-minute load over `loadMax` for its whole run — the
+rule below that exempts sessions — so for them a wait on the load is a wait
+for the holder to
+finish: the first landing made with a preflight (PR #4986) waited 492 s of the
+900 beside a 12-minute lane, and behind the 35-minute health hold of the same
+afternoon it would have exited 77 having run nothing. So an off-mutex caller
+names the holder (`heavyHolderRunning`, `lib/ui-admission.ts`) and, while one
+is running, load is no reason to wait; it prints
+`machine busy — load L, swap S — beside a running heavy gate (pid N · label):
+its load is not waited on` and starts. What it starts is what the tiers
+already allow beside a holder: the preflight is the light tier (two workers),
+`check:ui` walks one viewport at a time (issue #4941) — sized from the holder
+it was admitted beside, even if that one has released by then.
+
+| Asked by               | Holder running       | Load over `loadMax`  | Memory pressure |
+| ---------------------- | -------------------- | -------------------- | --------------- |
+| heavy tier, under hold | — (it is the holder) | waits, bounded → 77  | waits → 77      |
+| off the mutex          | yes                  | **starts beside it** | waits → 77      |
+| off the mutex          | no                   | waits, bounded → 77  | waits → 77      |
+
+"Running" is narrower than "live": the owner stamp carries `childPid` only
+once the holder has spawned its command. A holder still waiting for the
+machine under its hold runs nothing — the load is not its own, and a caller
+that started beside it would hold up the calm that holder is waiting for —
+and one that declared its stall burns no CPU. Beside either, the off-mutex
+caller waits as if the mutex were free. The load is not ATTRIBUTED (naming the
+processes behind a sample is a separate issue): beside a running gate it is
+simply not read, and memory pressure is the signal that still stops a start.
+
 On the batch path the gate that never starts is `gate.ts yield`, and
 `health-main` — the only writer of `last.json` — never runs under it. So
 `health-cadence` writes the `infra` record in its place (`preflight:machine`);
@@ -1491,11 +1537,41 @@ jq -c 'select(.event=="run") | [.load_start, .exit, .duration_ms, .cmd]' \
     .claude/telemetry/gate-lock.jsonl
 ```
 
-`waitMaxS` = **900**: the bound must outlast the longest thing that
-legitimately holds the load up without holding the mutex, and that is the full
-browser walk — 573–870 s over the five walks above that were not themselves
-saturated. Fifteen minutes covers it; a machine still busy after that is busy
-with something no gate started.
+`waitMaxS` = **900**: the bound must outlast the longest stretch the load
+stays over `loadMax` with **no heavy gate running** — the only load anyone
+still waits on (issue #4988). It never could outlast a holder: the four holds
+in the `run` rows (2026-10-02, 59 rows, the first day they exist) lasted 536,
+736, 804 and 2118 s, and the 30 steps those holders ran started at load
+4.4–16.3, 14 of them over `loadMax`. No light run started beside a recorded
+hold other than the holder's own steps, so the waits are read from the gate
+logs (`~/.cache/tolaria/gate-runs/*/log`, `machine calm after Ns`), which is
+every wait there is:
+
+|  Wait | Who                                   | A heavy gate running? | Under this rule |
+| ----: | ------------------------------------- | --------------------- | --------------- |
+| 200 s | PR #4979's gate, under its hold       | no                    | waits           |
+| 407 s | PR #4985's gate, under its hold       | no                    | waits           |
+| 406 s | the batch walk, beside that same gate | no — it was waiting   | waits           |
+| 492 s | PR #4986's preflight                  | yes — PR #4985's lane | starts          |
+
+What is left to outlast is the 407 s on record and the one thing that
+legitimately holds the load up with the mutex free: the full browser walk at
+full width — 573–870 s over the five walks above that were not themselves
+saturated. Fifteen minutes covers both; a machine still busy after that is
+busy with something no gate started.
+
+**What a walk admitted beside a holder does to the NEXT holder.** It runs one
+viewport at a time, takes far longer (2192 s on 2026-10-02, 18:26–19:02) and
+is still walking when its holder releases — so the next gate asks under its
+hold with that walk running, where before this rule the two would have waited
+for the same calm. The one walk on record says a single context does not hold
+the load over `loadMax`: PR #4986's gate took the mutex at 18:38, twelve
+minutes into it, and was admitted with no wait; 11 of that lane's 13 steps
+started at load 6.1–7.6, the two over (13.7, 9.5) straight after its own bot
+and `node-engine` projects; and PR #4986's preflight had read 7.8 with the
+walk AND PR #4985's lane both running. One walk is one row. If a gate's
+`machine busy` line under the hold ever coincides with a one-viewport walk,
+that is this term appearing, and the bound is re-derived from it.
 
 `sessionBudgetMb` = **2500**: a session at work is its process tree plus its
 targeted vitest. Measured 2026-10-02 — four live sessions at 383, 643, 642 and
