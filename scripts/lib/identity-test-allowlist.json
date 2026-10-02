@@ -125,16 +125,6 @@
         "reason": "Purity invariant: every card's effects[] must survive a JSON round-trip unchanged."
     },
     {
-        "file": "convex/cards/__tests__/kickerDeclarations.test.ts",
-        "test": "Kicker declarations (CR 702.33 / 702.33e, ADR 0079) > %s — kicker ids are unique and non-empty",
-        "reason": "Uniqueness/non-empty invariant over every card's kicker ids."
-    },
-    {
-        "file": "convex/cards/__tests__/kickerDeclarations.test.ts",
-        "test": "Kicker declarations (CR 702.33 / 702.33e, ADR 0079) > %s — permanent legs agree on one terminal action (one selection slot)",
-        "reason": "Consistency invariant: a card's permanent-kicker legs share one terminal action."
-    },
-    {
         "file": "convex/cards/__tests__/mechanicsRegistry.test.ts",
         "test": "Effect Script Op census (ADR 0045/0046, PRD #826) > backlog Op names are disjoint from the live registry and internally unique",
         "reason": "Disjointness/uniqueness invariant between backlog and live Op registry."
@@ -188,26 +178,6 @@
         "file": "convex/cards/__tests__/mechanicsRegistry.test.ts",
         "test": "Mechanics Registry (CR 701 keyword actions + CR 702 keyword abilities, ADR 0045/0046) > registry ids don't collide with engine-internal marker ids",
         "reason": "Cross-source check: registry ids must not collide with engine-internal marker ids."
-    },
-    {
-        "file": "convex/cards/__tests__/morphCards.test.ts",
-        "test": "morph cards (CR 702.37) > %s — a morph card is a creature card (CR 702.37c face-down spell timing)",
-        "reason": "Catalogue sweep: every morph card must be a Creature (CR 702.37c)."
-    },
-    {
-        "file": "convex/cards/__tests__/morphCards.test.ts",
-        "test": "morph cards (CR 702.37) > %s — declares no alternative cost colliding with the synthesized morph cast id",
-        "reason": "Catalogue sweep: no morph card's alt-cost id collides with the synthesized morph id."
-    },
-    {
-        "file": "convex/cards/__tests__/morphCards.test.ts",
-        "test": "morph cards (CR 702.37) > %s — declares no clause the face-down spell would lose (CR 702.37c 'no text')",
-        "reason": "Catalogue sweep: every morph card declares none of the lost-text clauses."
-    },
-    {
-        "file": "convex/cards/__tests__/morphCards.test.ts",
-        "test": "morph cards (CR 702.37) > %s — the morph TURN-UP cost is fixed (CR 702.37f X is unreachable)",
-        "reason": "Catalogue sweep: every morph card's turn-up cost has no {X}."
     },
     {
         "file": "convex/cards/__tests__/opBeneficenceCensus.bot.test.ts",
@@ -690,16 +660,6 @@
         "reason": "Every LADDER_PAIRINGS row's rung is one of the valid enum values"
     },
     {
-        "file": "scripts/__tests__/merge-driver-io.test.ts",
-        "test": "merge driver stderr survives process.exit (issue #3857) > $name names no queueing channel",
-        "reason": "Every driver source file checked against a denylist of queueing channels"
-    },
-    {
-        "file": "scripts/__tests__/merge-driver-io.test.ts",
-        "test": "merge driver stderr survives process.exit (issue #3857) > $name reports through writeStderrSync",
-        "reason": "Every driver source checked to report through the shared writeStderrSync helper"
-    },
-    {
         "file": "scripts/__tests__/oracle-compile.test.ts",
         "test": "oracle:compile classifies the synthetic corpus as expected > a keyword creature is ready with the keyword lowered",
         "reason": "Real compiler output: keyword text lowered into staticAbilities, a derived value"
@@ -733,11 +693,6 @@
         "file": "scripts/__tests__/purge-identity-tests.test.ts",
         "test": "the named allow-list (issue #4489) > every entry carries a reason and a unique name, and none sits in the card sets",
         "reason": "Census over this list: unique names, a non-empty reason per entry, no card-set entry"
-    },
-    {
-        "file": "scripts/__tests__/tier1-decks.test.ts",
-        "test": "M1 acceptance — every Tier 1 list is playable today (issue #2719) > %s — every card is `ours` or `ready`",
-        "reason": "Cross-checks real Tier-1 deck lists against the real lockfile and card-index pool"
     },
     {
         "file": "scripts/__tests__/tier1-smoke.test.ts",
