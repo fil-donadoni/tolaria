@@ -26,7 +26,8 @@
  * several landings, each slice's cursor committed as it goes.
  *
  * Usage: bun run telemetry:ingest [--reset] [--quick] [--budget-ms=N]
- *        [--rotate-bytes=N]   (--quick only; the tests' small threshold)
+ *        [--rotate-bytes=N] [--chunk-bytes=N]   (--quick only; the tests'
+ *        small thresholds)
  */
 
 import {
@@ -1341,13 +1342,14 @@ async function ingestSpansBounded(
     db: Sqlite,
     path: string,
     harness: string,
-    deadline: number
+    deadline: number,
+    chunkBytes = QUICK_CHUNK_BYTES
 ): Promise<number> {
     let n = 0;
     while (Date.now() < deadline) {
         const before = cursorOf(db, path);
         n += await ingestSpans(db, path, harness, {
-            maxBytes: QUICK_CHUNK_BYTES,
+            maxBytes: chunkBytes,
         });
         if (cursorOf(db, path) === before) break;
     }
@@ -1632,7 +1634,8 @@ async function quick(): Promise<void> {
         db,
         EVENTS,
         HARNESS_CLAUDE,
-        deadline
+        deadline,
+        numFlag("chunk-bytes") ?? QUICK_CHUNK_BYTES
     );
     const rotated = await rotateEvents(
         db,

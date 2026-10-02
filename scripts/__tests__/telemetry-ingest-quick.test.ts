@@ -197,6 +197,18 @@ describe("telemetry:ingest --quick (issue #4968)", () => {
         ).toBe(1);
     });
 
+    it("drains a backlog in slices without losing a line at a slice boundary", () => {
+        const now = Math.floor(Date.now() / 1000);
+        let body = "";
+        for (let i = 0; i < 40; i++) body += span(`c${i}`, now + i);
+        writeFileSync(join(tel, "tool-events.jsonl"), body);
+        // ~150-byte events in 200-byte slices: nearly every slice ends mid-line.
+        expect(run(INGEST, ["--quick", "--chunk-bytes=200"]).status).toBe(0);
+        expect(
+            query<{ n: number }>("SELECT count(*) AS n FROM spans")[0].n
+        ).toBe(40);
+    });
+
     it("rotates tool-events.jsonl once fully read, and keeps reading the new file", () => {
         const now = Math.floor(Date.now() / 1000);
         const events = join(tel, "tool-events.jsonl");
