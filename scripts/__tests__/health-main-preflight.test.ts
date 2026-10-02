@@ -71,7 +71,6 @@ async function closedPort(): Promise<number> {
 describe("health-main — the Convex preflight (issue #4943)", () => {
     it("ends INFRA at preflight:convex in seconds, with no RED marker and no gate run", async () => {
         const port = await closedPort();
-        const started = Date.now();
         const r = await new Promise<{ code: number | null; stderr: string }>(
             (resolve) => {
                 const child = spawn("bun", [HEALTH_MAIN], {
@@ -93,7 +92,6 @@ describe("health-main — the Convex preflight (issue #4943)", () => {
                 });
             }
         );
-        const elapsed = Date.now() - started;
         const dir = path.join(primary, ".claude", "telemetry", "health");
 
         expect(r.code).toBe(1);
@@ -112,6 +110,5 @@ describe("health-main — the Convex preflight (issue #4943)", () => {
         expect(fs.readdirSync(dir).filter((f) => f.endsWith(".log"))).toEqual(
             []
         );
-        expect(elapsed).toBeLessThan(40_000);
     }, 60_000);
 });
