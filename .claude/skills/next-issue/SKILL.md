@@ -293,6 +293,11 @@ wrong-mental-model defect, see §1's escalation note.
   anywhere — including the primary checkout — and it re-attaches.
 - Exit 75 means "still running": issue the identical command again, as many
   times as it takes, until an exit code comes back. Never end the turn on a 75.
+- Exit 77 means the MACHINE stayed saturated past the bound (issue #4966):
+  the gate held the mutex, waited `machine.waitMaxS` and ran NOTHING — not a
+  gate failure, the PR is untouched. `bun run machine` names what is over;
+  re-issue the identical command once it reads calm, and report it in §6 as
+  machine-saturated, never as a red lane.
 - **A `land` that reds on a regenerable artefact** (oracle lockfile, catalogue
   hash, after the rebase) is fixed in THIS turn — run the regenerator in the
   foreground, commit, push, re-issue `land` through `gate:run` — or reported

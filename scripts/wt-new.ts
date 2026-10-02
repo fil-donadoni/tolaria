@@ -13,6 +13,11 @@
 //
 // Prints the worktree path on its last line, so a caller can `cd "$(…)"`.
 //
+// A worktree is a session about to work, so the MACHINE is asked first (issue
+// #4966): the same decision a session's first prompt and `queue:claim` get
+// (`lib/machine-admission.ts`). Refused → exit 1, nothing created; the
+// announced, logged escape is `TOLARIA_OVER_CAP=1`.
+//
 // `--resume` (issue #4763): the worktree of a STRANDED claim — a dead pass's
 // pushed branch, not a fresh one. Checks out `feat|fix/issue-N` (the local
 // branch when it exists, else the remote one) instead of branching from base.
@@ -22,6 +27,12 @@ import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { BASE_BRANCH, ORIGIN_BASE } from "./lib/branches";
 import { issueWorktree, pickResumeBranch } from "./lib/issue-worktree";
+import {
+    OVER_CAP_ENV,
+    admitSessionNow,
+    logSessionAdmission,
+    sessionRefusal,
+} from "./lib/machine-admission";
 
 function git(args: string[], cwd: string): string {
     const r = spawnSync("git", args, { encoding: "utf8", cwd });
@@ -50,6 +61,31 @@ function main(): void {
         console.log(worktree);
         return;
     }
+    const machine = admitSessionNow({
+        override: process.env[OVER_CAP_ENV] === "1",
+        cwd: primary,
+    });
+    if (
+        machine.decision.verdict === "refuse" ||
+        machine.decision.overridden.length > 0
+    )
+        logSessionAdmission(
+            process.env.CLAUDE_PROJECT_DIR ?? primary,
+            machine,
+            {
+                source: `wt:new #${issue}`,
+            }
+        );
+    if (machine.decision.verdict === "refuse") {
+        console.error(
+            `✗ wt:new: ${sessionRefusal(machine.decision.reasons, machine.census?.others ?? [])}`
+        );
+        process.exit(1);
+    }
+    if (machine.decision.overridden.length > 0)
+        console.error(
+            `wt:new: machine admission OVERRIDDEN (${OVER_CAP_ENV}=1) — ${machine.decision.overridden.join("; ")}`
+        );
     if (argv.includes("--resume")) {
         // A dead worktree's directory may be gone while git still lists it.
         git(["worktree", "prune"], primary);

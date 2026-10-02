@@ -30,6 +30,18 @@ import {
 } from "./convex/oracle/behavioural";
 import { deepFreeze, freezeCatalogueOnce } from "./vitest.freeze-catalogue";
 
+// Machine admission (issue #4966): every gate, claim, worktree and hook a test
+// spawns reads this calm machine INSTEAD of the real one — a suite run on a
+// saturated machine must neither wait on it nor pass because of it. A test
+// that wants the real probes, or a busy machine, sets the variable itself.
+process.env.TOLARIA_MACHINE_PROBE ??= JSON.stringify({
+    load1: 0,
+    swapUsedMb: 0,
+    pressure: 1,
+    reclaimableMb: 16_384,
+    sessions: [],
+});
+
 // Vitest re-runs this file for every test file, but modules it imports stay
 // cached in a non-isolated worker — so the walk lives in an imported module
 // and runs once per worker (issue #4484), not once per file.

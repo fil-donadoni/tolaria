@@ -86,6 +86,20 @@
  * TEARDOWN (issue #4965). Before the lock is released every descendant of
  * the wrapped command is dead, and that is verified — see `killTree`.
  *
+ * MACHINE (issue #4966). The mutex rations the gates among themselves; it
+ * never looked at the machine. A heavy acquisition (all three spellings) now
+ * asks `lib/machine-admission.ts` once it HOLDS the mutex and before it
+ * spawns: on a saturated machine (1-min load over `machine.loadMax`, or the
+ * kernel reporting memory pressure) it waits, printing
+ * `[gate] machine busy — load L, swap S`, bounded by `machine.waitMaxS`; past
+ * the bound it exits `MACHINE_SATURATED_EXIT` having run nothing — `infra`,
+ * never a red lane. It waits UNDER the hold on purpose: a saturated machine
+ * is saturated for every waiter, and the queue's order is kept. A nested call
+ * runs inside a hold that already asked, and the light tier adds two workers
+ * to whatever is there — neither asks. Every run, of every tier, records the
+ * load and swap it started and ended on in `gate-lock.jsonl` (`event: "run"`),
+ * so a verdict can be read beside the machine it was reached on.
+ *
  * Usage:
  *   bun scripts/gate.ts heavy '<shell command>'
  *   bun scripts/gate.ts yield '<shell command>'   # heavy, in the health class
@@ -106,6 +120,16 @@
  *                              on for a bare targeted run (issue #4614)
  *   TOLARIA_HEAVY_WORKERS_CAP  ceiling on the heavy tier's worker count
  *                              (default 4) — RAM-bound, see HEAVY_WORKERS
+ *   TOLARIA_GATE_SATURATED_OK=1  start on a saturated machine anyway —
+ *                              announced on the gate's own line and logged.
+ *                              NOT the session's `TOLARIA_OVER_CAP`: a session
+ *                              started past the cap passes that one to every
+ *                              gate it runs, and they must still wait
+ *   TOLARIA_MACHINE_PROBE      a JSON machine sample read instead of the
+ *                              machine (tests only); such a run logs no
+ *                              `run` row
+ *   TOLARIA_MACHINE_WAIT_MAX_MS / TOLARIA_MACHINE_POLL_MS  the machine wait's
+ *                              bound and poll period (tests only)
  *   TOLARIA_GATE_LOCK_ROOT     lock location override (tests only)
  *   TOLARIA_GATE_HEARTBEAT_MS  owner-stamp refresh period override (tests only)
  *   TOLARIA_GATE_STALE_MS      staleness threshold override (tests only)
@@ -156,6 +180,14 @@ import {
     type PsRow,
 } from "./lib/gate-liveness";
 import { gateChildEnv } from "./lib/vitest-fs-cache";
+import {
+    MACHINE_SATURATED_EXIT,
+    probeInjected,
+    readMachineConfig,
+    readMachineSample,
+    waitForMachine,
+    type MachineSample,
+} from "./lib/machine-admission";
 import { uiLaneWhoLines } from "./lib/ui-admission";
 
 // Overridable so the test suite can exercise the mutex against a temp dir
@@ -1087,6 +1119,73 @@ function installTeardown(holdsLock: boolean) {
     }
 }
 
+/** The `run` row (issue #4966): the machine this run started and ended on.
+ *  A run under an injected probe measured nothing and logs nothing — the
+ *  suite must not write its fixtures into the file thresholds are re-derived
+ *  from. */
+function logRun(start: MachineSample, startedAt: number, exit: number) {
+    if (probeInjected()) return;
+    const end = readMachineSample();
+    logEvent({
+        event: "run",
+        exit,
+        duration_ms: Date.now() - startedAt,
+        load_start: start.load1,
+        load_end: end.load1,
+        swap_start_mb: start.swapUsedMb,
+        swap_end_mb: end.swapUsedMb,
+        pressure_start: start.pressure,
+        pressure_end: end.pressure,
+        reclaimable_start_mb: start.reclaimableMb,
+        reclaimable_end_mb: end.reclaimableMb,
+    });
+}
+
+/** Wait, under the hold, for a machine that can carry the run; exit
+ *  `MACHINE_SATURATED_EXIT` when the bound passes first. See MACHINE above. */
+async function admitMachine() {
+    const machine = await waitForMachine({
+        thresholds: readMachineConfig(),
+        tag: "[gate]",
+        announce: (line) => console.error(line),
+        // The heartbeat has not started — there is no subtree to attest to —
+        // so the wait itself keeps the owner stamp fresh: a holder silent
+        // for the whole bound is one a waiter that slept and woke may judge.
+        tick: restampOwner,
+    });
+    if (machine.overridden || !machine.admitted)
+        logEvent({
+            event: machine.admitted ? "machine-override" : "machine-saturated",
+            waited_ms: machine.waitedMs,
+            load: machine.sample.load1,
+            swap_mb: machine.sample.swapUsedMb,
+            pressure: machine.sample.pressure,
+            reasons: machine.reasons,
+        });
+    // The `exit` handler `installTeardown` put in frees the mutex.
+    if (!machine.admitted) process.exit(MACHINE_SATURATED_EXIT);
+    // Reclaimed during the wait (a slept machine, a stopped process): the
+    // mutex is someone else's now, and spawning would be a second holder.
+    if (readOwner()?.pid !== process.pid) {
+        console.error(
+            "[gate] lost the heavy mutex while waiting for the machine — nothing ran; re-run."
+        );
+        process.exit(MACHINE_SATURATED_EXIT);
+    }
+}
+
+/** Refresh this holder's owner stamp; a lock that is no longer ours is left
+ *  alone. */
+function restampOwner() {
+    const owner = readOwner();
+    if (owner?.pid !== process.pid) return;
+    try {
+        writeJsonAtomic(OWNER_FILE, { ...owner, ts: Date.now() });
+    } catch {
+        /* mid-release — never crash the gate for a stamp */
+    }
+}
+
 async function main() {
     const nested = process.env.TOLARIA_GATE_HELD === "1";
     const heavy = isHeavyTier(tier);
@@ -1094,12 +1193,17 @@ async function main() {
     if (holdsLock) {
         // A NESTED call already runs under a hold: it queues for nothing.
         await acquire();
-        startHeartbeat();
         installTeardown(true);
+        // Before the heartbeat: there is no subtree to attest to yet, and
+        // the wait's bound is far inside STALE_MS.
+        await admitMachine();
+        startHeartbeat();
     }
 
     const env = gateChildEnv(process.env, heavy, HEAVY_WORKERS);
 
+    const startedAt = Date.now();
+    const machineAtStart = readMachineSample();
     child = spawn("sh", ["-c", command], {
         stdio: "inherit",
         env,
@@ -1120,7 +1224,9 @@ async function main() {
         // as every other path: the tree, then the lock.
         teardownChild("SIGKILL", 0);
         if (holdsLock) release();
-        process.exit(signal ? 128 : (code ?? 1));
+        const exit = signal ? 128 : (code ?? 1);
+        logRun(machineAtStart, startedAt, exit);
+        process.exit(exit);
     });
 }
 

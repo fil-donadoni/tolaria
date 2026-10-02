@@ -38,24 +38,49 @@
  * gate that has not yet shown it can tell the two apart may not stop the
  * queue. `release` reads only `green`, so it still requires the walk to pass.
  *
- * Node builtins plus `lib/convex-reachable.ts` (itself builtins only) and
- * `ui-gate/infra-verdict.ts` (which adds only `lib/convex-reachable.ts`) — `health-main.ts` carries the same
- * constraint.
+ * `infra` is ALSO a run the MACHINE could not carry (issue #4966): a gate that
+ * waited out `machine.waitMaxS` on a saturated machine and never started
+ * (`MACHINE_SATURATED_EXIT` → `machine-saturated`), and a suite step whose
+ * EVERY failed test timed out while its own samples read saturated
+ * (`machine-timeout`). A single assertion that failed beside the timeouts
+ * keeps the step RED — and so does the same step timing out on the very next
+ * run (`repeatedMachineTimeout`): the excuse is the machine's once.
+ *
+ * Node builtins plus `lib/convex-reachable.ts` (itself builtins only),
+ * `ui-gate/infra-verdict.ts` (which adds only `lib/convex-reachable.ts`) and
+ * `lib/machine-admission.ts` (builtins plus `lib/branches.ts`) —
+ * `health-main.ts` carries the same constraint.
  */
 import { spawnSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { DEPLOYMENT_DOWN_EXIT } from "./convex-reachable";
 import { walkRunVerdict } from "../ui-gate/infra-verdict";
+import {
+    MACHINE_SATURATED_EXIT,
+    timeoutOnlyFailure,
+} from "./machine-admission";
 
 export type HealthStatus = "running" | "green" | "red" | "infra";
 
 /** Why a run is `infra` — the machine, never the tree. */
-export type InfraCause = "sleep" | "convex-down" | "ui-walk" | "ui-unproven";
+export type InfraCause =
+    | "sleep"
+    | "convex-down"
+    | "ui-walk"
+    | "ui-unproven"
+    /** A gate waited out its bound on a saturated machine: nothing ran. */
+    | "machine-saturated"
+    /** A step ran, and failed ONLY by timing out, on a saturated machine. */
+    | "machine-timeout";
 
 /** The step name `last.json` records when the preflight found the backend
  *  down before any gate ran. */
 export const PREFLIGHT_CONVEX_STEP = "preflight:convex";
+
+/** The step name `last.json` records when the machine stayed saturated past
+ *  the bound before any gate ran (issue #4966). */
+export const PREFLIGHT_MACHINE_STEP = "preflight:machine";
 
 /** What to do about each cause — one sentence `last.json` carries as
  *  `reason`, so every reader (`health:status`, `queue:plan`, `loop-drain`)
@@ -69,6 +94,10 @@ export const INFRA_REMEDY: Record<InfraCause, string> = {
         "the browser walk was cut short by the environment (a fatal check:ui error, or every failing row INFRA); the next health run re-walks the tip",
     "ui-unproven":
         "the browser walk failed while still in probation, so it raises no RED marker; read the log, and the next health run re-walks the tip",
+    "machine-saturated":
+        "the machine stayed over machine.loadMax or under memory pressure past machine.waitMaxS, so nothing ran; see `bun run machine`, and the next health run re-gates the tip",
+    "machine-timeout":
+        "every failed test timed out while the machine was saturated; the next health run re-gates the tip, and the same step timing out again is RED",
 };
 
 /** `{ sec = 1790866381, usec = 538510 } Thu Oct  1 …` → epoch ms, or null. */
@@ -100,8 +129,12 @@ export interface StepOutcome {
     step?: string;
     /** The child's exit code; null when a signal killed it. */
     exitCode?: number | null;
-    /** The child's stdout + stderr — read for a `check:ui` step only. */
+    /** The child's stdout + stderr — read for a `check:ui` step, and for a
+     *  step that failed on a saturated machine. */
     output?: string;
+    /** The step's own load / swap samples crossed a `machine.*` threshold
+     *  (`runSaturated`). Absent reads as a calm machine. */
+    machineSaturated?: boolean;
 }
 
 /** The `HEALTH_SCRIPTS` entry's script name: `check:ui --all` → `check:ui`. */
@@ -121,6 +154,8 @@ export function infraCause(input: StepOutcome): InfraCause | null {
     if (input.ok) return null;
     const walk = isWalkStep(input.step);
     if (walk && input.exitCode === DEPLOYMENT_DOWN_EXIT) return "convex-down";
+    // A gate that never started: the machine stayed saturated past the bound.
+    if (input.exitCode === MACHINE_SATURATED_EXIT) return "machine-saturated";
     if (input.lastSleepAt !== null && input.lastSleepAt >= input.startedAt)
         return "sleep";
     if (
@@ -128,7 +163,40 @@ export function infraCause(input: StepOutcome): InfraCause | null {
         walkRunVerdict(input.exitCode ?? null, input.output ?? "") === "infra"
     )
         return "ui-walk";
+    // The machine explains a failure only when the failure is one it can
+    // cause: a suite whose every failed test timed out. (An unsettled walk
+    // is `ui-walk` above, saturated or not.) The caller excuses it ONCE —
+    // `repeatedMachineTimeout`.
+    if (
+        !walk &&
+        input.machineSaturated &&
+        timeoutOnlyFailure(input.output ?? "")
+    )
+        return "machine-timeout";
     return null;
+}
+
+/**
+ * Whether a `machine-timeout` is the SECOND in a row at the same step — and
+ * so not excused. A step's own workers raise the load its end sample reads,
+ * so "saturated" cannot tell a busy machine from a regression that hangs the
+ * suite; what tells them apart is that the machine's excuse does not repeat.
+ * The first timeout-only failure is `infra` and the tip is gated again; the
+ * same step failing the same way on the very next run is the tree's.
+ */
+export function repeatedMachineTimeout(
+    previous: {
+        status: HealthStatus;
+        infraCause?: string;
+        failedStep?: string;
+    } | null,
+    step: string
+): boolean {
+    return (
+        previous?.status === "infra" &&
+        previous.infraCause === "machine-timeout" &&
+        previous.failedStep === step
+    );
 }
 
 /**
@@ -199,6 +267,40 @@ export function recordInfra<R extends HealthRecordLike>(input: {
     const kept = infraRecordToKeep(input);
     writeFileSync(join(input.dir, "last.json"), JSON.stringify(kept, null, 2));
     return kept;
+}
+
+/**
+ * The record of a health run whose GATE never started: the batch gate's
+ * `gate.ts yield` waited out the bound and exited `MACHINE_SATURATED_EXIT`
+ * before `health-main` ran, so `health-main` wrote nothing. `health-cadence`
+ * writes this in its place — otherwise `health:status` keeps showing the
+ * previous verdict for a tip nothing gated.
+ */
+export function recordMachineSaturated(input: {
+    dir: string;
+    sha: string;
+    startedAt: string;
+    previous: HealthRecordLike | null;
+    redMarkerStanding: boolean;
+}): void {
+    // A variable, not a literal: `last.json` carries more than the two
+    // fields `HealthRecordLike` reasons about.
+    const infra = {
+        sha: input.sha,
+        status: "infra" as const,
+        startedAt: input.startedAt,
+        finishedAt: new Date().toISOString(),
+        failedStep: PREFLIGHT_MACHINE_STEP,
+        infraCause: "machine-saturated" satisfies InfraCause,
+        reason: INFRA_REMEDY["machine-saturated"],
+        ui: "not run",
+    };
+    recordInfra<HealthRecordLike>({
+        dir: input.dir,
+        infra,
+        previous: input.previous,
+        redMarkerStanding: input.redMarkerStanding,
+    });
 }
 
 /** The `last.json` fields an INFRA notice prints. */

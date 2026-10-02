@@ -74,8 +74,16 @@
  * The two refresh steps NEVER fail the batch — a stale page is marked stale, not a
  * red tip — and neither `land` nor `check:pr` runs them.
  *
+ * The MACHINE is asked before the gates start (issue #4966,
+ * `lib/machine-admission.ts`): over a `machine.*` threshold the run waits,
+ * bounded, then ends `infra` at `preflight:machine` — and a suite step whose
+ * every failed test timed out while its own samples read saturated is `infra`
+ * too (`machine-timeout`), ONCE: the same step timing out on the next run is
+ * RED.
+ *
  * Zero imports beyond node builtins, `lib/branches.ts`, `lib/health-step.ts`,
- * `lib/health-verdict.ts`, `lib/convex-reachable.ts` and
+ * `lib/health-verdict.ts`, `lib/convex-reachable.ts`,
+ * `lib/machine-admission.ts` (builtins and `lib/branches.ts`) and
  * `lib/health-bot-refresh.ts` (builtins and the import-free
  * `lib/bot-globs.ts` only), and through `lib/health-verdict.ts` the
  * `ui-gate/infra-verdict.ts` (builtins and `lib/convex-reachable.ts`) — same constraint as
@@ -105,8 +113,10 @@ import {
     nextUiWalkLedger,
     parseUiWalkLedger,
     PREFLIGHT_CONVEX_STEP,
+    PREFLIGHT_MACHINE_STEP,
     readLastSleepAt,
     recordInfra,
+    repeatedMachineTimeout,
     UI_WALK_FILE,
     UI_WALK_PROBATION_RUNS,
     uiWalkArmed,
@@ -119,6 +129,12 @@ import {
     type WalkOutcome,
 } from "./lib/health-verdict";
 import { reachable, readEnvLocal } from "./lib/convex-reachable";
+import {
+    readMachineConfig,
+    readMachineSample,
+    runSaturated,
+    waitForMachine,
+} from "./lib/machine-admission";
 import {
     describeLastDecision,
     gateSkipReason,
@@ -646,6 +662,26 @@ async function main(): Promise<void> {
             ui: "not run",
         });
 
+    // The machine, asked before ~40 minutes of gates start on it (issue
+    // #4966). Under a caller's hold the gate that took the mutex has already
+    // asked, and waited: asking again would only wait twice.
+    const thresholds = readMachineConfig();
+    if (process.env.TOLARIA_GATE_HELD !== "1") {
+        const machine = await waitForMachine({
+            thresholds,
+            tag: "health-main:",
+            announce: (line) => console.error(line),
+        });
+        if (!machine.admitted)
+            finishInfra(
+                ctx,
+                "machine-saturated",
+                PREFLIGHT_MACHINE_STEP,
+                undefined,
+                { ui: "not run" }
+            );
+    }
+
     const steps: HealthStep[] = offline.map((name, i) => ({
         ordinal: i + 1,
         total: offline.length,
@@ -667,6 +703,7 @@ async function main(): Promise<void> {
         git(["worktree", "add", "--detach", wt, tip], root);
         for (const step of steps) {
             const stepStartedAt = Date.now();
+            const machineAtStart = readMachineSample();
             const r = await runHealthStep(step, { cwd: wt, env, logPath });
             if (!r.ok) {
                 failedStep = step.name;
@@ -678,7 +715,18 @@ async function main(): Promise<void> {
                     step: step.name,
                     exitCode: r.status,
                     output: r.output,
+                    machineSaturated: runSaturated(
+                        [machineAtStart, readMachineSample()],
+                        thresholds
+                    ),
                 });
+                // The machine's excuse does not repeat: the same step timing
+                // out on two runs in a row is the tree's.
+                if (
+                    failedCause === "machine-timeout" &&
+                    repeatedMachineTimeout(last, step.name)
+                )
+                    failedCause = null;
                 break;
             }
         }

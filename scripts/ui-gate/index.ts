@@ -185,7 +185,13 @@ import {
     acquireUiLane,
     gateLockRoot,
     heavyHolderLive,
+    MachineSaturatedError,
 } from "../lib/ui-admission.ts";
+import {
+    MACHINE_SATURATED_EXIT,
+    readMachineConfig,
+    waitForMachine,
+} from "../lib/machine-admission.ts";
 import { classifyWalkFailure, type RetryPolicy } from "./infra-verdict.ts";
 import {
     DeadlineExpired,
@@ -827,6 +833,16 @@ async function main(): Promise<number> {
         root: gateLockRoot(),
         label: `check:ui ${process.argv.slice(2).join(" ")}`.trim(),
         announce: log,
+        // The lane is ours; the machine may not be (issue #4966). Waits,
+        // bounded, and past the bound nothing is walked.
+        admitMachine: async () =>
+            (
+                await waitForMachine({
+                    thresholds: readMachineConfig(),
+                    tag: "[check:ui]",
+                    announce: log,
+                })
+            ).admitted,
     });
     loadAtStart = loadAverage();
 
@@ -1545,6 +1561,12 @@ async function main(): Promise<number> {
 try {
     process.exit(await main());
 } catch (err) {
+    if (err instanceof MachineSaturatedError) {
+        // Not a FatalError: exit 2 reads as a walk the environment cut short,
+        // and this one never started — `health-verdict` names the cause.
+        process.stderr.write(`\n✗ check:ui: ${err.message}\n`);
+        process.exit(MACHINE_SATURATED_EXIT);
+    }
     if (err instanceof FatalError || err instanceof LaneAccountError) {
         process.stderr.write(`\n✗ check:ui: ${err.message}\n`);
         process.exit(

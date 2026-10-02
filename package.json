@@ -49,6 +49,7 @@
         "format:check": "prettier --check --cache --cache-strategy content \"**/*.{ts,tsx,js,jsx,json,css,md}\"",
         "gate:run": "sh scripts/gate-run.sh",
         "gate:who": "bun scripts/gate.ts who",
+        "machine": "bun scripts/machine.ts",
         "health": "bun scripts/health-main.ts",
         "health:cadence": "bun scripts/health-cadence.ts",
         "health:fix": "bun scripts/health-fix.ts",
