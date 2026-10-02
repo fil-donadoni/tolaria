@@ -2,11 +2,14 @@ import { describe, it, expect } from "vitest";
 import * as fs from "fs";
 import * as path from "path";
 import {
+    consumerLines,
     effectiveCap,
     gateAdmission,
     liveProjectSessions,
+    machineWaitRow,
     memorySaturation,
     owningSession,
+    parseCpuRows,
     parseEtime,
     parseLsofCwd,
     parseMachineConfig,
@@ -15,6 +18,7 @@ import {
     parseSwapUsage,
     parseVmStat,
     parseWorktreeRoots,
+    processOwner,
     runSaturated,
     saturation,
     sessionAdmission,
@@ -22,8 +26,10 @@ import {
     subtreeRssMb,
     sustainedSample,
     timeoutOnlyFailure,
+    topConsumers,
     waitForMachine,
     MACHINE_SATURATED_EXIT,
+    type ConsumerSnapshot,
     type LiveSession,
     type MachineSample,
     type MachineThresholds,
@@ -654,6 +660,255 @@ describe("waitForMachine — the bounded wait", () => {
             TOLARIA_OVER_CAP: "1",
         });
         expect(result).toMatchObject({ admitted: false, overridden: false });
+    });
+});
+
+describe("the consumers — who holds the load (issue #4989)", () => {
+    // `ps -axo pid=,ppid=,pcpu=,etime=,args=` as this machine prints it: a
+    // session (76889) running a gate (900) whose vitest (901) burns CPU, a
+    // detached health run (700, reparented to launchd) and its walk (701),
+    // and Spotlight, which is nobody's.
+    const PS = [
+        "    1     0   0.0 15-00:13:00 /sbin/launchd",
+        "  414     1  52.0 15-00:07:00 /System/Library/Frameworks/CoreServices.framework/mds_stores",
+        "76889 76219  18.5    01:00:38 claude",
+        "  900 76889   0.4       02:10 bun scripts/gate.ts heavy bun run check:all:inner",
+        "  901   900 398,5       02:09 node /repo/node_modules/.bin/vitest run",
+        "  700     1   0.1       10:00 bun /repo/scripts/health-main.ts 05b5f80a",
+        "  701   700  88.0       01:00 /Applications/Google Chrome.app/Contents/MacOS/Google Chrome --headless",
+        "  555 55060   0.0       00:01 ps -axo pid=,ppid=,pcpu=,etime=,args=",
+        "55060     1   2.1    04:55:29 claude",
+        "garbage line",
+    ].join("\n");
+    const rows = parseCpuRows(PS);
+    const sessions = new Set([76889]);
+
+    it("parses every row, the command whole and a decimal comma as a point", () => {
+        expect(rows).toHaveLength(9);
+        expect(rows.find((r) => r.pid === 901)).toMatchObject({
+            ppid: 900,
+            cpu: 398.5,
+            ageS: 129,
+        });
+        expect(rows.find((r) => r.pid === 701)!.args).toBe(
+            "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome --headless"
+        );
+    });
+
+    it("labels a process with its project session and its gate run", () => {
+        expect(processOwner(rows, 901, sessions)).toBe(
+            "session pid 76889 · gate.ts pid 900"
+        );
+        // A detached health run has a gate and no session.
+        expect(processOwner(rows, 701, sessions)).toBe(
+            "health-main.ts pid 700"
+        );
+        // Another project's session, and the system, are nobody's.
+        expect(processOwner(rows, 555, sessions)).toBeNull();
+        expect(processOwner(rows, 414, sessions)).toBeNull();
+        // A pid that is its own parent ends the walk.
+        expect(
+            processOwner(
+                [{ pid: 5, ppid: 5, cpu: 1, ageS: 1, args: "x" }],
+                5,
+                sessions
+            )
+        ).toBeNull();
+    });
+
+    it("names the top consumers by CPU, never a process at 0%", () => {
+        const top = topConsumers(rows, sessions, 3);
+        expect(top.map((c) => [c.pid, c.owner])).toEqual([
+            [901, "session pid 76889 · gate.ts pid 900"],
+            [701, "health-main.ts pid 700"],
+            [414, null],
+        ]);
+        expect(topConsumers(rows, sessions, 99).some((c) => c.cpu === 0)).toBe(
+            false
+        );
+    });
+
+    it("prints one line per consumer, owned or outside the project", () => {
+        const snap: ConsumerSnapshot = {
+            consumers: topConsumers(rows, sessions, 3),
+            ownersRead: true,
+        };
+        expect(consumerLines(snap)).toEqual([
+            "   399% pid 901 (ppid 900, up 2m) node /repo/node_modules/.bin/vitest run — session pid 76889 · gate.ts pid 900",
+            "    88% pid 701 (ppid 700, up 1m) /Applications/Google Chrome.app/Contents/MacOS/Google Chrome --headless — health-main.ts pid 700",
+            "    52% pid 414 (ppid 1, up 360h07m) /System/Library/Frameworks/CoreServices.framework/mds_stores — outside the project",
+        ]);
+    });
+
+    it("says `owner unread` when the sessions could not be read, never `outside`", () => {
+        const [line] = consumerLines({
+            consumers: topConsumers(rows, new Set(), 3).slice(2),
+            ownersRead: false,
+        });
+        expect(line).toMatch(/mds_stores — owner unread$/);
+    });
+
+    it("says `consumers unreadable` for a probe that could not be read", () => {
+        expect(consumerLines(null)).toEqual(["  consumers unreadable"]);
+    });
+
+    it("cuts a long command to the line's width", () => {
+        const [line] = consumerLines({
+            consumers: [
+                {
+                    pid: 1,
+                    ppid: 0,
+                    cpu: 50,
+                    ageS: 5,
+                    command: "x".repeat(300),
+                    owner: null,
+                },
+            ],
+            ownersRead: true,
+        });
+        expect(line).toContain(`${"x".repeat(99)}… — outside the project`);
+        expect(line).not.toContain("x".repeat(100));
+    });
+});
+
+describe("waitForMachine — the consumers a busy wait names (issue #4989)", () => {
+    const TOP: ConsumerSnapshot = {
+        consumers: [
+            {
+                pid: 901,
+                ppid: 900,
+                cpu: 398.5,
+                ageS: 129,
+                command: "node vitest run",
+                owner: "session pid 76889 · gate.ts pid 900",
+            },
+        ],
+        ownersRead: true,
+    };
+    const run = async (
+        samples: MachineSample[],
+        consumers: () => ConsumerSnapshot | null,
+        extra: { env?: NodeJS.ProcessEnv; holder?: string } = {}
+    ) => {
+        let clock = 0;
+        let i = 0;
+        let probes = 0;
+        const lines: string[] = [];
+        const rows: Record<string, unknown>[] = [];
+        const result = await waitForMachine({
+            thresholds: { ...T, waitMaxS: 180 },
+            tag: "[gate]",
+            announce: (l) => lines.push(l),
+            probe: () => samples[Math.min(i++, samples.length - 1)],
+            now: () => clock,
+            sleep: async (ms) => {
+                clock += ms;
+            },
+            pollMs: 5000,
+            env: extra.env ?? {},
+            consumers: () => {
+                probes++;
+                return consumers();
+            },
+            record: (row) => rows.push(row),
+            heavyHolder: extra.holder ? () => extra.holder! : undefined,
+        });
+        return { result, lines, rows, probes, polls: i };
+    };
+    const at = (load1: number): MachineSample => ({ ...calm, load1 });
+
+    it("a busy line carries the consumers of its sample", async () => {
+        const { lines } = await run([at(14.5), calm], () => TOP);
+        expect(lines[0].split("\n")).toEqual([
+            "[gate] machine busy — load 14.5, swap 6054 MB (load 14.5 > 8.0); waiting, bound 180s",
+            "   399% pid 901 (ppid 900, up 2m) node vitest run — session pid 76889 · gate.ts pid 900",
+        ]);
+    });
+
+    it("probes once per announced line, never once per poll", async () => {
+        // 25 polls over two minutes of waiting: three announced lines.
+        const busy = Array.from({ length: 25 }, () => at(14.5));
+        const { probes, polls, lines } = await run([...busy, calm], () => TOP);
+        expect(polls).toBe(26);
+        expect(lines.filter((l) => l.includes("machine busy"))).toHaveLength(3);
+        expect(probes).toBe(3);
+    });
+
+    it("an unreadable or throwing probe prints `consumers unreadable` and the wait goes on", async () => {
+        for (const consumers of [
+            () => null,
+            () => {
+                throw new Error("ps timed out");
+            },
+        ]) {
+            const { result, lines } = await run([at(14.5), calm], consumers);
+            expect(lines[0].split("\n")[1]).toBe("  consumers unreadable");
+            expect(result).toMatchObject({ admitted: true, waitedMs: 5000 });
+        }
+    });
+
+    it("a saturated wait leaves ONE row: its peak load and that sample's consumers", async () => {
+        const low: ConsumerSnapshot = { consumers: [], ownersRead: true };
+        let n = 0;
+        // Announced at 0 s (9.1), 60 s (63.3), 120 s (33.6); then calm.
+        const samples = [
+            at(9.1),
+            ...Array.from({ length: 11 }, () => at(20)),
+            at(63.3),
+            ...Array.from({ length: 11 }, () => at(40)),
+            at(33.6),
+            calm,
+        ];
+        const { rows, result } = await run(samples, () =>
+            n++ === 1 ? TOP : low
+        );
+        expect(result.peak?.sample.load1).toBe(63.3);
+        expect(rows).toEqual([
+            {
+                event: "machine-wait",
+                tag: "[gate]",
+                outcome: "admitted",
+                waited_ms: 125_000,
+                peak_load: 63.3,
+                peak_at_ms: 60_000,
+                peak_swap_mb: 6054,
+                peak_pressure: 1,
+                peak_reasons: ["load 63.3 > 8.0"],
+                owners_read: true,
+                consumers: [
+                    {
+                        pid: 901,
+                        ppid: 900,
+                        cpu: 398.5,
+                        age_s: 129,
+                        cmd: "node vitest run",
+                        owner: "session pid 76889 · gate.ts pid 900",
+                    },
+                ],
+            },
+        ]);
+    });
+
+    it("a refused wait records `refused`; an overridden one `overridden`", async () => {
+        const refused = await run([at(14.5)], () => TOP);
+        expect(refused.rows).toMatchObject([{ outcome: "refused" }]);
+        const over = await run([at(14.5)], () => TOP, {
+            env: { TOLARIA_GATE_SATURATED_OK: "1" },
+        });
+        expect(over.lines[0]).toContain("399% pid 901");
+        expect(over.rows).toMatchObject([{ outcome: "overridden" }]);
+    });
+
+    it("a calm wait, and one admitted beside a holder, record nothing", async () => {
+        expect((await run([calm], () => TOP)).rows).toEqual([]);
+        const beside = await run([at(14.5)], () => TOP, {
+            holder: "pid 4242 · bun scripts/land.ts 4985",
+        });
+        // The busy line still names who holds the load…
+        expect(beside.lines[0]).toContain("399% pid 901");
+        // …but nothing was waited on.
+        expect(beside.rows).toEqual([]);
+        expect(machineWaitRow("[gate]", beside.result)).toBeNull();
     });
 });
 
