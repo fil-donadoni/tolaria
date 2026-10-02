@@ -26,7 +26,19 @@
  * code, issue #4943) — and a run whose PREFLIGHT finds it down records
  * `infra` at step `preflight:convex` before any gate runs, in seconds rather
  * than after ~40 minutes of gates. Health never STARTS the backend: the AFK
- * loop's `convex:ensure` does (issue #4945).
+ * loop's `convex:ensure` does (issue #4945). So is a walk the environment cut
+ * short (a fatal `check:ui` exit, or every failing row `INFRA`), and a
+ * walk the tree failed while the walk is still in probation (issue #4962,
+ * `ui-unproven`): `last.json` names the two halves, `offline` and `ui`.
+ *
+ * TWO PHASES (issue #4962). The offline gates and the browser walk are cut by
+ * `splitHealthGates`. `--phase=offline` runs the first and, when green, leaves
+ * a `running` record with `phase: "walk"` and exits; `--phase=walk` picks it
+ * up and writes the run's ONE verdict. `health-cadence detach` runs the first
+ * under its `gate.ts yield` hold and the second after releasing it, so no
+ * `land` queues behind a browser walk. With no `--phase` (`release`, by hand)
+ * one process runs both, and the walk is still off the mutex: only
+ * `--under-lock` ever passes a hold through, and the walk scrubs it.
  *
  * Deduplicated by sha: a tip that is already green, or already being gated
  * (a `running` record younger than 90 minutes), is not re-gated — so N
@@ -41,9 +53,10 @@
  * tolaria.config.json). `--status` prints the last verdict plus a
  * stale-worktree report (worktrees whose branch is merged into the base —
  * the corpses policy of ADR 0110). `--under-lock` says the CALLER already
- * holds the heavy mutex for the whole run and the steps must pass through it
+ * holds the heavy mutex for the OFFLINE gates and they must pass through it
  * rather than each queue for it — what `health-cadence.ts` passes under its
- * single `gate.ts yield` acquisition (ADR 0136 §6); `release` never does.
+ * single `gate.ts yield` acquisition (ADR 0136 §6); `release` never does. It
+ * implies `--phase=offline`: a hold is never carried into the walk.
  *
  * Each step reports to the terminal while it runs (issue #3487) — start and
  * end lines, the gate's `[gate]` mutex-wait lines live, a liveness line while
@@ -62,7 +75,9 @@
  * Zero imports beyond node builtins, `lib/branches.ts`, `lib/health-step.ts`,
  * `lib/health-verdict.ts`, `lib/convex-reachable.ts` and
  * `lib/health-bot-refresh.ts` (builtins and the import-free
- * `lib/bot-globs.ts` only) — same constraint as bootstrap-worktree.
+ * `lib/bot-globs.ts` only), and through `lib/health-verdict.ts` the
+ * `ui-gate/infra-verdict.ts` (builtins and `lib/convex-reachable.ts`) — same constraint as
+ * bootstrap-worktree.
  */
 import { spawnSync } from "node:child_process";
 import { BASE_BRANCH, ORIGIN_BASE, RELEASE_BRANCH } from "./lib/branches";
@@ -76,18 +91,30 @@ import {
     healthStepArgs,
     runHealthStep,
     healthGates,
+    splitHealthGates,
     HEALTH_SCRIPTS,
+    WALK_BOOTSTRAP,
     type HealthStep,
 } from "./lib/health-step";
 import {
     convexPreflight,
     INFRA_REMEDY,
     infraCause,
+    nextUiWalkLedger,
+    parseUiWalkLedger,
     PREFLIGHT_CONVEX_STEP,
     readLastSleepAt,
     recordInfra,
+    UI_WALK_FILE,
+    UI_WALK_PROBATION_RUNS,
+    uiWalkArmed,
+    uiWalkStateOf,
+    walkFailureCause,
     type HealthStatus,
     type InfraCause,
+    type UiWalkLedger,
+    type UiWalkState,
+    type WalkOutcome,
 } from "./lib/health-verdict";
 import { reachable, readEnvLocal } from "./lib/convex-reachable";
 import { describeLastDecision, parseCadence } from "./lib/health-cadence";
@@ -114,6 +141,28 @@ interface LastRun {
     /** `infra` only: why, and what to do (`INFRA_REMEDY`). */
     infraCause?: InfraCause;
     reason?: string;
+    /** The two halves of the verdict, each named on its own (issue #4962):
+     *  the offline gates, and the browser walk. */
+    offline?: "green" | "red" | "infra";
+    ui?: UiWalkState;
+    /** `running` only: `walk` once the offline gates passed and the walk is
+     *  owed, off the heavy mutex (`--phase=walk`). */
+    phase?: "walk";
+    phaseStartedAt?: string;
+    /** The branch the tip was read from — the walk phase's RED marker names it. */
+    branch?: string;
+    /** `running` only: the record this run replaced, carried across the two
+     *  phases so a walk-phase `infra` can keep a standing red one
+     *  (`infraRecordToKeep`). */
+    prior?: LastRun;
+}
+
+/** The record a run replaces, as it carries it: one level, never a chain. */
+function priorOf(last: LastRun | null): LastRun | undefined {
+    if (last === null) return undefined;
+    const rest = { ...last };
+    delete rest.prior;
+    return rest;
 }
 
 function git(args: string[], cwd: string): string {
@@ -216,6 +265,17 @@ function status(root: string): never {
     console.log(
         `  cadence: ${describeLastDecision(parseCadence(existsSync(cadence) ? readFileSync(cadence, "utf8") : null))}`
     );
+    // The two halves, each on its own (issue #4962): a walk the environment
+    // cut short, or one still in probation, says so instead of hiding inside
+    // the run's single status.
+    const ledger = readUiWalk(dir);
+    const probation = uiWalkArmed(ledger)
+        ? "armed — a walk failure is RED"
+        : `probation ${ledger.streak}/${UI_WALK_PROBATION_RUNS} non-infra walks — a walk failure is not RED`;
+    if (last)
+        console.log(
+            `  offline: ${last.offline ?? "unrecorded"} · ui: ${last.ui ?? "unrecorded"} (${probation})`
+        );
     const stale = staleWorktrees(root);
     if (stale.length > 0) {
         console.log(
@@ -224,6 +284,267 @@ function status(root: string): never {
         for (const s of stale) console.log(`    · ${s}`);
     }
     process.exit(red ? 1 : 0);
+}
+
+type Phase = "offline" | "walk" | "all";
+
+/** `--phase=offline|walk`; `--under-lock` alone means `offline` — the
+ *  caller's hold is for the offline gates only (issue #4962). */
+function phaseOf(argv: readonly string[], underLock: boolean): Phase {
+    const arg = argv.find((a) => a.startsWith("--phase="));
+    const v = arg?.slice("--phase=".length);
+    if (v === "offline" || v === "walk") return v;
+    if (v !== undefined) {
+        console.error(`health-main: unknown --phase=${v} (offline|walk)`);
+        process.exit(2);
+    }
+    return underLock ? "offline" : "all";
+}
+
+/** What a run's verdict record needs to know about the run. */
+interface RunCtx {
+    root: string;
+    dir: string;
+    branch: string;
+    tip: string;
+    startedAt: string;
+    logPath: string;
+    /** The record as it stood BEFORE this run's `running` record replaced
+     *  it — what an infra verdict may have to keep (`infraRecordToKeep`). */
+    previous: LastRun | null;
+}
+
+function finishInfra(
+    ctx: RunCtx,
+    cause: InfraCause,
+    failedStep: string,
+    log: string | undefined,
+    halves: Pick<LastRun, "offline" | "ui">
+): never {
+    recordInfra<LastRun>({
+        dir: ctx.dir,
+        infra: {
+            sha: ctx.tip,
+            status: "infra",
+            startedAt: ctx.startedAt,
+            finishedAt: new Date().toISOString(),
+            failedStep,
+            infraCause: cause,
+            reason: INFRA_REMEDY[cause],
+            ...halves,
+            ...(log ? { log } : {}),
+        },
+        previous: ctx.previous,
+        redMarkerStanding: existsSync(join(ctx.dir, "RED")),
+    });
+    console.error(
+        `health-main: INFRA @ ${ctx.tip.slice(0, 8)} at ${failedStep} — ${INFRA_REMEDY[cause]}${log ? ` — ${log}` : ""}`
+    );
+    process.exit(1);
+}
+
+function finishRed(
+    ctx: RunCtx,
+    failedStep: string,
+    halves: Pick<LastRun, "offline" | "ui">
+): never {
+    writeLast(ctx.dir, {
+        sha: ctx.tip,
+        status: "red",
+        startedAt: ctx.startedAt,
+        finishedAt: new Date().toISOString(),
+        failedStep,
+        log: ctx.logPath,
+        ...halves,
+    });
+    writeFileSync(
+        join(ctx.dir, "RED"),
+        `${ctx.branch} @ ${ctx.tip} red at ${failedStep} — log: ${ctx.logPath}\n`
+    );
+    console.error(
+        `health-main: RED @ ${ctx.tip.slice(0, 8)} (${failedStep}) — ${ctx.logPath}`
+    );
+    process.exit(1);
+}
+
+function finishGreen(ctx: RunCtx, ui: UiWalkState): void {
+    writeLast(ctx.dir, {
+        sha: ctx.tip,
+        status: "green",
+        startedAt: ctx.startedAt,
+        finishedAt: new Date().toISOString(),
+        log: ctx.logPath,
+        offline: "green",
+        ui,
+    });
+    rmSync(join(ctx.dir, "RED"), { force: true });
+    // The health gate IS the authoritative green record now (ADR 0110).
+    writeFileSync(
+        join(ctx.root, ".claude/telemetry/green-sha"),
+        `${ctx.tip}\n`
+    );
+    console.log(`health-main: GREEN @ ${ctx.tip.slice(0, 8)}`);
+}
+
+function readUiWalk(dir: string): UiWalkLedger {
+    const p = join(dir, UI_WALK_FILE);
+    return parseUiWalkLedger(existsSync(p) ? readFileSync(p, "utf8") : null);
+}
+
+/**
+ * The browser walk, in its own worktree at the tip the offline gates proved,
+ * with no heavy-mutex hold (issue #4962): `check:ui` takes its own lane. The
+ * verdict it writes is the run's ONE record — the offline half is already
+ * green when this runs.
+ */
+async function runWalk(ctx: RunCtx, walk: readonly string[]): Promise<void> {
+    writeLast(ctx.dir, {
+        sha: ctx.tip,
+        status: "running",
+        startedAt: ctx.startedAt,
+        phaseStartedAt: new Date().toISOString(),
+        branch: ctx.branch,
+        phase: "walk",
+        offline: "green",
+        ui: "walking",
+        log: ctx.logPath,
+        prior: priorOf(ctx.previous),
+    });
+    // Never the caller's hold, whatever it passed: the walk is off the mutex.
+    const env = healthGateEnv(process.env);
+    const names = [WALK_BOOTSTRAP, ...walk];
+    const steps: HealthStep[] = names.map((name, i) => ({
+        ordinal: i + 1,
+        total: names.length,
+        name,
+        cmd: "bun",
+        args: healthStepArgs(name),
+    }));
+    const wt = join(ctx.root, "..", `tolaria-health-walk-${process.pid}`);
+    let failed: { step: string; cause: InfraCause | null } | undefined;
+    let walked = false;
+    let current = "worktree add";
+    try {
+        git(["worktree", "add", "--detach", wt, ctx.tip], ctx.root);
+        for (const step of steps) {
+            current = step.name;
+            const stepStartedAt = Date.now();
+            const r = await runHealthStep(step, {
+                cwd: wt,
+                env,
+                logPath: ctx.logPath,
+            });
+            if (step.name !== WALK_BOOTSTRAP) walked = true;
+            if (r.ok) continue;
+            failed = {
+                step: step.name,
+                cause: infraCause({
+                    ok: false,
+                    startedAt: stepStartedAt,
+                    lastSleepAt: readLastSleepAt(),
+                    step: step.name,
+                    exitCode: r.status,
+                    output: r.output,
+                }),
+            };
+            break;
+        }
+    } catch (err) {
+        // A throw (spawn error, full disk, a worktree that would not add)
+        // must still end in a verdict: a `running` record left behind would
+        // hold every health run for `STALE_RUNNING_MS`.
+        console.error(
+            `health-main: the walk threw at ${current}: ${String(err)}`
+        );
+        failed = { step: current, cause: "ui-walk" };
+        walked = false;
+    } finally {
+        spawnSync("git", ["worktree", "remove", "--force", wt], {
+            cwd: ctx.root,
+        });
+    }
+
+    // The verdict is this run's only while the record is still its own: a
+    // `bun run health` on another tip may have replaced it during the walk,
+    // and writing over that one would green or red a run this one never saw.
+    const now = readLast(ctx.dir);
+    if (
+        now?.sha !== ctx.tip ||
+        now.startedAt !== ctx.startedAt ||
+        now.ui !== "walking"
+    ) {
+        console.error(
+            `health-main: the record was replaced during the walk (now ${now ? `${now.status} @ ${now.sha.slice(0, 8)}` : "none"}) — this walk's verdict is not written`
+        );
+        process.exit(1);
+    }
+
+    // A bootstrap that passed in the offline phase on this very sha and
+    // fails here is the environment's; the walk never ran, so the probation
+    // ledger does not move.
+    if (failed && !walked)
+        finishInfra(ctx, failed.cause ?? "ui-walk", failed.step, ctx.logPath, {
+            offline: "green",
+            ui: "not run",
+        });
+
+    const ledger = readUiWalk(ctx.dir);
+    const outcome: WalkOutcome =
+        failed === undefined
+            ? "green"
+            : failed.cause === null
+              ? "red"
+              : "infra";
+    writeFileSync(
+        join(ctx.dir, UI_WALK_FILE),
+        JSON.stringify(nextUiWalkLedger(ledger, outcome), null, 2)
+    );
+    if (failed === undefined) {
+        finishGreen(ctx, "green");
+        return;
+    }
+    const cause = walkFailureCause(failed.cause, ledger);
+    const halves = {
+        offline: "green",
+        ui: uiWalkStateOf(outcome, cause),
+    } as const;
+    if (cause !== null)
+        finishInfra(ctx, cause, failed.step, ctx.logPath, halves);
+    finishRed(ctx, failed.step, halves);
+}
+
+/** `--phase=walk`: the walk the offline phase left owed, or nothing. */
+async function walkPhase(root: string, dir: string): Promise<void> {
+    const last = readLast(dir);
+    if (
+        last === null ||
+        last.status !== "running" ||
+        last.phase !== "walk" ||
+        last.offline !== "green" ||
+        // Only an OWED walk: one already walking belongs to a live process
+        // (a `release` that reached its walk first) and is not walked twice.
+        last.ui !== "pending"
+    ) {
+        console.log(
+            `health-main: no walk owed${last ? ` (last: ${last.status} @ ${last.sha.slice(0, 8)})` : ""}`
+        );
+        return;
+    }
+    const walk = splitHealthGates(HEALTH_SCRIPTS).walk;
+    await runWalk(
+        {
+            root,
+            dir,
+            branch: last.branch ?? BASE_BRANCH,
+            tip: last.sha,
+            startedAt: last.startedAt,
+            logPath: last.log ?? join(dir, `${last.sha.slice(0, 12)}.log`),
+            // The record the RUN replaced, not the `running` one between
+            // its phases: an infra walk must keep a standing red record.
+            previous: last.prior ?? null,
+        },
+        walk
+    );
 }
 
 async function main(): Promise<void> {
@@ -244,6 +565,12 @@ async function main(): Promise<void> {
     mkdirSync(dir, { recursive: true });
 
     const underLock = process.argv.includes("--under-lock");
+    const phase = phaseOf(process.argv, underLock);
+    if (phase === "walk") {
+        await walkPhase(root, dir);
+        return;
+    }
+
     const branchArg = process.argv.find((a) => a.startsWith("--branch="));
     const branch = branchArg
         ? branchArg.slice("--branch=".length)
@@ -259,7 +586,8 @@ async function main(): Promise<void> {
         }
         if (
             last.status === "running" &&
-            Date.now() - Date.parse(last.startedAt) < STALE_RUNNING_MS
+            Date.now() - Date.parse(last.phaseStartedAt ?? last.startedAt) <
+                STALE_RUNNING_MS
         ) {
             console.log(
                 `health-main: tip ${tip.slice(0, 8)} already being gated`
@@ -269,48 +597,40 @@ async function main(): Promise<void> {
     }
 
     const startedAt = new Date().toISOString();
-    const finishInfra = (
-        cause: InfraCause,
-        failedStep: string,
-        log: string | undefined
-    ): never => {
-        recordInfra<LastRun>({
-            dir,
-            infra: {
-                sha: tip,
-                status: "infra",
-                startedAt,
-                finishedAt: new Date().toISOString(),
-                failedStep,
-                infraCause: cause,
-                reason: INFRA_REMEDY[cause],
-                ...(log ? { log } : {}),
-            },
-            // Read before this run's `running` record overwrote it.
-            previous: last,
-            redMarkerStanding: existsSync(join(dir, "RED")),
-        });
-        console.error(
-            `health-main: INFRA @ ${tip.slice(0, 8)} at ${failedStep} — ${INFRA_REMEDY[cause]}${log ? ` — ${log}` : ""}`
-        );
-        process.exit(1);
+    const ctx: RunCtx = {
+        root,
+        dir,
+        branch,
+        tip,
+        startedAt,
+        logPath: join(dir, `${tip.slice(0, 12)}.log`),
+        // Read before this run's `running` record overwrote it.
+        previous: last,
     };
 
-    writeLast(dir, { sha: tip, status: "running", startedAt });
+    writeLast(dir, {
+        sha: tip,
+        status: "running",
+        startedAt,
+        branch,
+        prior: priorOf(last),
+    });
 
     const wt = join(root, "..", `tolaria-health-${process.pid}`);
-    const logPath = join(dir, `${tip.slice(0, 12)}.log`);
+    const logPath = ctx.logPath;
     // Queues on the machine mutex, and bypasses the guard cache (issue #3646)
-    // — unless the caller already took the mutex FOR the whole run, which is
-    // what the per-batch gate does (`--under-lock`, ADR 0136 §6): there the
-    // three steps pass through that one hold instead of queuing three times,
-    // so the block a queued `land` waits for is one block, not three.
+    // — unless the caller already took the mutex FOR the offline gates, which
+    // is what the per-batch gate does (`--under-lock`, ADR 0136 §6): there the
+    // offline steps pass through that one hold instead of queuing each, so
+    // the block a queued `land` waits for is one block, not several. The walk
+    // is never inside it (issue #4962).
     const env = healthGateEnv(process.env, { keepHold: underLock });
 
     const refreshBot = batchTouchesBot(batchChangedFiles(root, tip));
     // A Bot batch also owes the Bot-only gates (issue #4875), after the rest.
     const scripts = HEALTH_SCRIPTS;
     const gates = healthGates(scripts, refreshBot);
+    const { offline, walk } = splitHealthGates(gates);
     // The deployment `check:ui` needs, asked BEFORE ~40 minutes of gates
     // (issue #4943) — the same probe `check:ui` makes, on the URL it reads.
     const preflight = await convexPreflight({
@@ -319,11 +639,13 @@ async function main(): Promise<void> {
         probe: (url) => reachable(url, 5000),
     });
     if (preflight !== null)
-        finishInfra(preflight, PREFLIGHT_CONVEX_STEP, undefined);
+        finishInfra(ctx, preflight, PREFLIGHT_CONVEX_STEP, undefined, {
+            ui: "not run",
+        });
 
-    const steps: HealthStep[] = gates.map((name, i) => ({
+    const steps: HealthStep[] = offline.map((name, i) => ({
         ordinal: i + 1,
-        total: gates.length,
+        total: offline.length,
         name,
         cmd: "bun",
         args: healthStepArgs(name),
@@ -352,13 +674,15 @@ async function main(): Promise<void> {
                     lastSleepAt: readLastSleepAt(),
                     step: step.name,
                     exitCode: r.status,
+                    output: r.output,
                 });
                 break;
             }
         }
         // Only a batch that passed re-measures, and a refresh that fails or
         // is cut short leaves the page stale (marked so) instead of the tip
-        // red: the measurement is a view of the Bot, not a gate on it.
+        // red: the measurement is a view of the Bot, not a gate on it. It
+        // stays in this phase: `bot:reach` takes the heavy mutex.
         if (failedStep === undefined) {
             try {
                 let refreshed = refreshSteps.length > 0;
@@ -394,38 +718,38 @@ async function main(): Promise<void> {
     }
 
     if (failedStep && failedCause !== null)
-        finishInfra(failedCause, failedStep, logPath);
+        finishInfra(ctx, failedCause, failedStep, logPath, {
+            offline: "infra",
+            ui: "not run",
+        });
+    if (failedStep)
+        finishRed(ctx, failedStep, { offline: "red", ui: "not run" });
 
-    if (failedStep) {
+    if (walk.length === 0) {
+        finishGreen(ctx, "not run");
+        return;
+    }
+    if (phase === "offline") {
+        // The walk is owed and the caller's hold must end first: the record
+        // says so, and `--phase=walk` picks it up (`health-cadence detach`).
         writeLast(dir, {
             sha: tip,
-            status: "red",
+            status: "running",
             startedAt,
-            finishedAt: new Date().toISOString(),
-            failedStep,
+            phaseStartedAt: new Date().toISOString(),
+            branch,
+            phase: "walk",
+            offline: "green",
+            ui: "pending",
             log: logPath,
+            prior: priorOf(last),
         });
-        writeFileSync(
-            join(dir, "RED"),
-            `${branch} @ ${tip} red at ${failedStep} — log: ${logPath}\n`
+        console.log(
+            `health-main: offline gates GREEN @ ${tip.slice(0, 8)} — the walk is owed (--phase=walk, off the heavy mutex)`
         );
-        console.error(
-            `health-main: RED @ ${tip.slice(0, 8)} (${failedStep}) — ${logPath}`
-        );
-        process.exit(1);
+        return;
     }
-
-    writeLast(dir, {
-        sha: tip,
-        status: "green",
-        startedAt,
-        finishedAt: new Date().toISOString(),
-        log: logPath,
-    });
-    rmSync(join(dir, "RED"), { force: true });
-    // The health gate IS the authoritative green record now (ADR 0110).
-    writeFileSync(join(root, ".claude/telemetry/green-sha"), `${tip}\n`);
-    console.log(`health-main: GREEN @ ${tip.slice(0, 8)}`);
+    await runWalk(ctx, walk);
 }
 
 main().catch((err: unknown) => {

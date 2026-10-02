@@ -900,16 +900,39 @@ its route closure, a type-only import counting as no edge. What the scoper
 accepts not to see (a mount a section renders unconditionally, a sibling
 section's frame under an open layer, the Tailwind class scan, base-branch graph
 drift) is what `check:ui --all` as the last `HEALTH_SCRIPTS` step exists to
-catch: it runs after every offline verdict on the batch's tip, and a failing
-surface leaves the same `RED` marker as any other step — an `INFRA` cell or
-an unreachable deployment included: `bun run health` re-run on the same tip
-clears a RED the machine caused. It is the one health step that is not
-offline, and the three reasons above still keep it out of `check:all`. Priced:
-under the per-batch `--under-lock` hold the walk (4–29 min measured, 60 min
-deadline) lengthens the block a queued `land` waits on, once per batch; and
-it walks the tip's frontend against whatever Convex functions the shared local
-deployment serves, since `check:ui` pushes none — on a PR as in health (ADR
-0131 § Amendment).
+catch: it runs after every offline verdict on the batch's tip. It is the one
+health step that is not offline, and the three reasons above still keep it out
+of `check:all`. It walks the tip's frontend against whatever Convex functions
+the shared local deployment serves, since `check:ui` pushes none — on a PR as
+in health (ADR 0131 § Amendment).
+
+**The walk runs off the heavy mutex, and the environment never makes it RED**
+(issue #4962). Of its first ten verdicts inside health, nine were RED and none
+was a product defect: a down backend, a sign-in the auth backend refused, walks
+whose own rows said `INFRA` at load 7–12.5 — and every one of them raised the
+marker that stops the queue, while the walk (4–60 min) held the `--under-lock`
+block every queued `land` waits on. Three rules:
+
+1. **Two phases.** `health-cadence detach` runs `health-main --phase=offline`
+   under its `gate.ts yield` hold, releases it, then runs
+   `health-main --phase=walk`, which holds only the `check:ui` lane — so
+   `gate:who` during the walk shows the heavy mutex free. The verdict is still
+   ONE `last.json` record per tip: offline green + walk green = `GREEN`, and
+   it names the two halves (`offline`, `ui`), which `health:status` prints.
+2. **An environment failure is `infra`, never `RED`.** `check:ui` exit 2 (a
+   fatal before any surface was judged) and exit 3 (deployment down), and an
+   exit 1 whose failing rows are ALL `INFRA` — the walk's own verdict that the
+   machine was still busy after the retries (`walkRunVerdict`,
+   `scripts/ui-gate/infra-verdict.ts`) — record `infra`: no marker, re-walked
+   on the next trigger. One `FAIL` row (a broken Floor on a settled cell), one
+   `assert … FAIL` row, or any `UNWALKED` row (the walk failed on a quiet
+   machine, by its own classification) is the tree's.
+3. **Probation.** Until the walk has shown 5 consecutive non-infra verdicts
+   (`UI_WALK_PROBATION_RUNS`, ledger `ui-walk.json` beside `last.json`; an
+   `infra` walk restarts it), even a failure the tree owns is recorded
+   `infra` with cause `ui-unproven` — `ui: unproven` in `health:status` —
+   and raises no marker. `bun run release` reads only `GREEN`, so it still
+   requires the walk to pass.
 
 So `check:ui` is a standalone command, and **its output is the receipt a UI PR
 pastes**. The enforcement is the same as it was for the manual browser check

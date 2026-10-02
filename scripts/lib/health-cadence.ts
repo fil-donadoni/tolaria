@@ -475,6 +475,13 @@ export interface HealthRecord {
     failedStep?: string;
     /** `infra` only: why, and what to do (`INFRA_REMEDY`, issue #4943). */
     reason?: string;
+    /** ISO: when the run's current PHASE began — the browser walk, after the
+     *  offline gates released the mutex (issue #4962). Liveness reads it. */
+    phaseStartedAt?: string;
+    /** `running` only: `walk` once the offline gates passed (issue #4962). */
+    phase?: "walk";
+    /** The browser walk's state; `pending` = owed, nobody walking yet. */
+    ui?: string;
 }
 
 export type ReconcileAction =
@@ -573,7 +580,10 @@ export function reconcileHealthRun(
  * gated by the re-decision its `detach` makes once the run is done.
  *
  * `staleMs` mirrors `health-main.ts`'s own `STALE_RUNNING_MS`: a `running`
- * record older than that belongs to a run that died.
+ * record older than that belongs to a run that died. Its age counts from the
+ * current PHASE (`phaseStartedAt`, issue #4962) when there is one: offline
+ * gates plus the browser walk can outlast `staleMs` together while each phase
+ * stays well inside it.
  */
 export function healthRunInFlight(
     last: HealthRecord | null,
@@ -581,7 +591,7 @@ export function healthRunInFlight(
     staleMs: number = FIRE_DEDUP_MS
 ): string | null {
     if (last === null || last.status !== "running") return null;
-    const startedAt = Date.parse(last.startedAt);
+    const startedAt = Date.parse(last.phaseStartedAt ?? last.startedAt);
     if (!Number.isFinite(startedAt) || now - startedAt >= staleMs) return null;
     return `a health run on ${short(last.sha)} is already in flight`;
 }
@@ -678,4 +688,26 @@ export function redLandGate(input: {
         kind: "refuse",
         reason: `the health gate is RED and this PR is not a declared repair — ${known}. Pass --repair if it fixes the red tip, or --red-ok to land unrelated work anyway (counted)`,
     };
+}
+
+/**
+ * Whether the offline phase of THIS fire left the browser walk owed (issue
+ * #4962): a `running` record in `phase: "walk"` that nobody walks yet, started
+ * no earlier than the fire. `health-main --phase=offline` exits 0 also when it
+ * did nothing ("already green", "already being gated"), and a walk owed by
+ * some other run is that run's to walk.
+ */
+export function walkOwedSince(
+    last: HealthRecord | null,
+    firedAt: number
+): boolean {
+    if (
+        last === null ||
+        last.status !== "running" ||
+        last.phase !== "walk" ||
+        last.ui !== "pending"
+    )
+        return false;
+    const startedAt = Date.parse(last.startedAt);
+    return Number.isFinite(startedAt) && startedAt >= firedAt;
 }

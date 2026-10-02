@@ -8,7 +8,7 @@
  * to report the surface `UNWALKED` with a reason that blamed the surface. A UI
  * change read as broken because another session was running a gate.
  *
- * WHAT IS HERE. Three pure decisions, no browser, no clock, no `os`:
+ * WHAT IS HERE. Pure decisions, no browser, no clock, no `os`:
  *
  *   1. `classifyWalkFailure` — a failed attempt, by its SIGNATURE (the console
  *      errors the page logged during the attempt, then the thrown message), is
@@ -23,10 +23,14 @@
  *      reach the surface ON A QUIET MACHINE — so a signature that still fails
  *      with the load under the threshold is the walk's own failure, not the
  *      machine's, and is reported as such (its signature kept in the reason).
+ *   4. `walkRunVerdict` — the WHOLE run, as the batch health gate reads it
+ *      (issue #4962): its exit code plus its printed receipt, `pass`, `infra`
+ *      (the environment cut it short) or `red` (the tree is wrong).
  *
  * `index.ts` owns the impure half: collecting console errors per attempt,
  * sampling `os.loadavg()`, sleeping, and recreating a game before a retry.
  */
+import { DEPLOYMENT_DOWN_EXIT } from "../lib/convex-reachable";
 
 /** The failure shapes the machine produces. Stable ids: they are printed on
  *  the receipt. */
@@ -202,4 +206,60 @@ export function standingVerdict(
  *  prints them after `INFRA —`. */
 export function infraDetail(signature: InfraSignature, load: number): string {
     return `${signature}, load ${load.toFixed(1)}`;
+}
+
+/**
+ * The whole `check:ui` run as the batch health gate reads it (issue #4962):
+ * `pass`, `infra` — the environment, never the tree, cut it short — or `red`.
+ *
+ * WHY. Of the first ten walks inside health, nine failed and none on a product
+ * defect: a down backend, a sign-in the auth backend refused, and walks whose
+ * own rows said `INFRA` at load 7–12.5. Each wrote a RED marker that stopped
+ * the queue. The walk already says, row by row, which failures were the
+ * machine's; this reads that back instead of treating every non-zero exit as
+ * the tree's.
+ *
+ *   - exit 0 → `pass`.
+ *   - exit 2 (fatal: configuration, sign-in, a thrown run) and exit 3
+ *     (`DEPLOYMENT_DOWN_EXIT`) → `infra`: no surface was judged.
+ *   - exit 1 → `infra` iff it printed at least one failing row and EVERY
+ *     failing row is `INFRA` — the walk's own verdict that the machine cut the
+ *     cell short and was still busy after the retries (`standingVerdict`).
+ *     A `FAIL` row (a broken Floor on a cell that settled), an `assert … FAIL`
+ *     row, or any `UNWALKED` row is `red`: an `UNWALKED` is the walk's own
+ *     word that it failed on a QUIET machine (`… under the retry threshold:
+ *     the walk itself failed`), or never produced the cell at all. Every exit-1
+ *     failure has a row (`printReceipt` exits 1 only on `ev.failures`, and
+ *     `evaluate` pushes a row beside each), so an exit 1 with no failing row
+ *     to read is `red`: fail closed.
+ *   - any other code (a signal, an unknown exit) → `red`.
+ */
+export type WalkRunVerdict = "pass" | "infra" | "red";
+
+export const WALK_FATAL_EXIT = 2;
+
+/** A verdict row (`formatRow` in `receipt.ts`): `VERDICT surface viewport …`. */
+const VERDICT_ROW = /^(PASS|FAIL|INFRA|UNWALKED) +\S+ +\S+/;
+/** An assertion row (`formatAssertRow`): `assert surface viewport FAIL label`. */
+const ASSERT_FAIL_ROW = /^assert +\S+ +\S+ +FAIL\b/;
+
+export function walkRunVerdict(
+    exitCode: number | null,
+    output: string
+): WalkRunVerdict {
+    if (exitCode === 0) return "pass";
+    if (exitCode === WALK_FATAL_EXIT || exitCode === DEPLOYMENT_DOWN_EXIT)
+        return "infra";
+    if (exitCode !== 1) return "red";
+
+    let failing = 0;
+    for (const raw of output.split("\n")) {
+        const line = raw.replace(/\r$/, "");
+        if (ASSERT_FAIL_ROW.test(line)) return "red";
+        const m = VERDICT_ROW.exec(line);
+        if (!m || m[1] === "PASS") continue;
+        if (m[1] !== "INFRA") return "red";
+        failing++;
+    }
+    return failing > 0 ? "infra" : "red";
 }
