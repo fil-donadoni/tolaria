@@ -550,19 +550,27 @@ async function replayingNamedCards(
     };
 }
 
-/** Every `--replay-card <name>` value, in argv order (issue #4957). */
+/** Every `--replay-card <name>` / `--replay-card=<name>` value, in argv
+ *  order (issue #4957). A spelling it cannot read is refused, never dropped:
+ *  a dropped name would carry everything and exit 0 having played nothing. */
 function replayCardNames(argv: readonly string[]): string[] {
     const names: string[] = [];
+    const refuse = (why: string): never => {
+        process.stderr.write(`oracle:compile — --replay-card ${why}\n`);
+        process.exit(2);
+    };
     argv.forEach((arg, i) => {
         if (arg === "--replay-card") {
             const name = argv[i + 1];
-            if (name === undefined || name.startsWith("--")) {
-                process.stderr.write(
-                    "oracle:compile — --replay-card needs a card name\n"
-                );
-                process.exit(2);
-            }
+            if (name === undefined || name.startsWith("--"))
+                refuse("needs a card name");
+            names.push(name!);
+        } else if (arg.startsWith("--replay-card=")) {
+            const name = arg.slice("--replay-card=".length);
+            if (name === "") refuse("needs a card name");
             names.push(name);
+        } else if (arg.startsWith("--replay-card")) {
+            refuse(`— unknown flag ${JSON.stringify(arg)}`);
         }
     });
     return names;

@@ -252,21 +252,25 @@ export function replayingCardsBotReach(
 /**
  * Resolves `--replay-card` names to oracle ids over the corpus — exact name,
  * case-insensitive (a face name of a split or MDFC card is not a card name).
- * `unknown` lists every name that matched nothing, for the caller to refuse.
+ * A name several oracle ids share (Un-set variants, a reprinted token name)
+ * replays every one of them, never only the last one indexed. `unknown` lists
+ * every name that matched nothing, for the caller to refuse.
  */
 export function resolveReplayCards(
     corpus: readonly { readonly oracleId: string; readonly name: string }[],
     names: readonly string[]
 ): { readonly ids: ReadonlySet<string>; readonly unknown: string[] } {
-    const byName = new Map(
-        corpus.map((card) => [card.name.toLowerCase(), card.oracleId])
-    );
+    const byName = new Map<string, string[]>();
+    for (const card of corpus) {
+        const key = card.name.toLowerCase();
+        byName.set(key, [...(byName.get(key) ?? []), card.oracleId]);
+    }
     const ids = new Set<string>();
     const unknown: string[] = [];
     for (const name of names) {
-        const id = byName.get(name.toLowerCase());
-        if (id === undefined) unknown.push(name);
-        else ids.add(id);
+        const matched = byName.get(name.toLowerCase());
+        if (matched === undefined) unknown.push(name);
+        else for (const id of matched) ids.add(id);
     }
     return { ids, unknown };
 }

@@ -455,6 +455,12 @@ describe("--carry-bot --replay-card: play only the named cards (issue #4957)", (
         expect([...resolved.ids]).toEqual([BOLT_ID]);
         expect(resolved.unknown).toEqual(["No Such Card"]);
     });
+
+    it("a name several oracle ids share replays every one of them", () => {
+        const twin = corpusCard({ oracleId: "twin-bear" });
+        const resolved = resolveReplayCards([...CORPUS, twin], ["Test Bear"]);
+        expect([...resolved.ids].sort()).toEqual([BEAR_ID, "twin-bear"].sort());
+    });
 });
 
 describe("the sweep never runs inside a gate (ADR 0105 § 7.2)", () => {
