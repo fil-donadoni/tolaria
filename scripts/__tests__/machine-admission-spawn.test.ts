@@ -198,6 +198,90 @@ describe("gate.ts — nothing heavy starts on a saturated machine (issue #4966)"
     });
 });
 
+describe("gate.ts — a run whose command removes the gate's own cwd (issue #4984)", () => {
+    // `land` deletes the worktree its gate runs in. The `run` row is written
+    // after that, so a telemetry root read from the cwd at the END recreated
+    // the deleted worktree, and the end sample's probes — spawned from a cwd
+    // that no longer existed — read null.
+    const git = (args: string[], cwd: string): void => {
+        const r = spawnSync("git", args, {
+            cwd,
+            encoding: "utf8",
+            timeout: 20_000,
+        });
+        if (r.status !== 0)
+            throw new Error(`git ${args.join(" ")}: ${r.stderr}`);
+    };
+
+    it("writes the row to the primary checkout, with a real end sample, and does not recreate the worktree", () => {
+        const primary = fs.realpathSync(tmp) + "/primary";
+        const worktree = fs.realpathSync(tmp) + "/primary-issue-7";
+        git(["init", "-q", primary], tmp);
+        git(
+            [
+                "-c",
+                "user.email=t@t",
+                "-c",
+                "user.name=t",
+                "-c",
+                "commit.gpgsign=false",
+                "commit",
+                "-q",
+                "--allow-empty",
+                "-m",
+                "tip",
+            ],
+            primary
+        );
+        git(["worktree", "add", "-q", worktree, "-b", "feat/x"], primary);
+
+        // The real probes (an injected sample logs no row), the light tier
+        // (so the real machine cannot hold the test), and no session: the
+        // root must come from the checkout, as it does under `gate:run`.
+        const env = gateEnv({ TOLARIA_MACHINE_PROBE: "" });
+        delete env.CLAUDE_PROJECT_DIR;
+        const r = spawnSync("bun", [GATE, "light", `rm -rf ${worktree}`], {
+            cwd: worktree,
+            env,
+            encoding: "utf8",
+            timeout: 30_000,
+        });
+        expect(r.status).toBe(0);
+        expect(fs.existsSync(worktree)).toBe(false);
+        const row = fs
+            .readFileSync(
+                path.join(primary, ".claude", "telemetry", "gate-lock.jsonl"),
+                "utf8"
+            )
+            .trim()
+            .split("\n")
+            .map((l) => JSON.parse(l) as Record<string, unknown>)
+            .find((l) => l.event === "run");
+        expect(row).toMatchObject({ tier: "light", exit: 0, cwd: worktree });
+        expect(typeof row!.load_end).toBe("number");
+        if (process.platform === "darwin") {
+            expect(typeof row!.swap_end_mb).toBe("number");
+            expect(typeof row!.pressure_end).toBe("number");
+        }
+    });
+
+    it("never resurrects a telemetry root that is gone", () => {
+        // No checkout to fall back to: the root IS the cwd, and it is deleted.
+        const scratch = path.join(fs.realpathSync(tmp), "scratch");
+        fs.mkdirSync(scratch);
+        const env = gateEnv({ TOLARIA_MACHINE_PROBE: "" });
+        delete env.CLAUDE_PROJECT_DIR;
+        const r = spawnSync("bun", [GATE, "light", `rm -rf ${scratch}`], {
+            cwd: scratch,
+            env,
+            encoding: "utf8",
+            timeout: 30_000,
+        });
+        expect(r.status).toBe(0);
+        expect(fs.existsSync(scratch)).toBe(false);
+    });
+});
+
 describe("check:ui lane — the lane is not the machine (issue #4966)", () => {
     it("gives the lane back and throws when the machine never calms", async () => {
         const root = path.join(tmp, "locks");

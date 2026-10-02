@@ -148,6 +148,7 @@
  */
 import { spawn, spawnSync } from "node:child_process";
 import {
+    existsSync,
     mkdirSync,
     readdirSync,
     renameSync,
@@ -180,6 +181,7 @@ import {
     type PsRow,
 } from "./lib/gate-liveness";
 import { gateChildEnv } from "./lib/vitest-fs-cache";
+import { primaryCheckout } from "./lib/primary-checkout";
 import {
     MACHINE_SATURATED_EXIT,
     probeInjected,
@@ -535,23 +537,44 @@ function release() {
     }
 }
 
+/**
+ * Where this gate's telemetry goes, resolved ONCE and before the command
+ * runs: the session's project directory, else the primary checkout of the
+ * cwd. `land`'s locked command REMOVES the worktree it runs in, so a root
+ * read from the cwd at the END of the run — when the `run` row is written —
+ * is a directory that no longer exists: `mkdir -p` recreated
+ * `../tolaria-issue-N/.claude/telemetry/` after every landing, and the row of
+ * the lane gate never reached the file the thresholds are re-derived from
+ * (issue #4984).
+ */
+let resolvedTelemetryRoot: string | undefined;
+function telemetryRoot(): string {
+    resolvedTelemetryRoot ??=
+        process.env.CLAUDE_PROJECT_DIR ?? primaryCheckout(GATE_CWD);
+    return resolvedTelemetryRoot;
+}
+
+/** Read at load, for the same reason: asked again once the cwd is gone,
+ *  `process.cwd()` is the runtime's to answer or to throw on. */
+const GATE_CWD = process.cwd();
+
 /** Telemetry: how long callers actually queue, so the tier split can be tuned,
  *  and every reclaim, so a lock freed because its holder went silent is
  *  distinguishable in a log from one released normally (which logs nothing). */
 function logEvent(entry: Record<string, unknown>) {
-    const dir = join(
-        process.env.CLAUDE_PROJECT_DIR ?? process.cwd(),
-        ".claude",
-        "telemetry"
-    );
+    const root = telemetryRoot();
+    const dir = join(root, ".claude", "telemetry");
     try {
+        // Never resurrect a root that is gone: a scratch checkout deleted
+        // under the run takes its telemetry with it, not a stray directory.
+        if (!existsSync(root)) return;
         mkdirSync(dir, { recursive: true });
         appendFileSync(
             join(dir, "gate-lock.jsonl"),
             JSON.stringify({
                 ts: Math.floor(Date.now() / 1000),
                 tier,
-                cwd: process.cwd(),
+                cwd: GATE_CWD,
                 cmd: command.slice(0, 120),
                 ...entry,
             }) + "\n"
@@ -1202,6 +1225,8 @@ async function main() {
 
     const env = gateChildEnv(process.env, heavy, HEAVY_WORKERS);
 
+    // While the cwd still exists — see `telemetryRoot`.
+    telemetryRoot();
     const startedAt = Date.now();
     const machineAtStart = readMachineSample();
     child = spawn("sh", ["-c", command], {

@@ -1484,9 +1484,13 @@ worktree, never by a gate. No PR-phase step was added.
 both ends, exit and duration — for every run that ends on its command's own
 exit, in every tier (a run killed by a signal, and one that never started,
 write no `run` row; the latter writes `machine-saturated`), plus
-`machine-override`. The file is the one `gate.ts` already wrote: under
-`CLAUDE_PROJECT_DIR` — the primary checkout, for a session — else the cwd, so
-a detached run in a worktree `land` later removes takes its rows with it.
+`machine-override`. The file is under `CLAUDE_PROJECT_DIR` — the primary
+checkout, for a session — else the primary checkout of the gate's cwd,
+resolved ONCE before the command runs (issue #4984): `land` removes the
+worktree its gate runs in, and a root read from the cwd when the row is
+written recreated `../tolaria-issue-N/.claude/telemetry/` after every landing
+and lost the lane gate's row. The probes are spawned from `/` for the same
+reason — from a deleted cwd they read null.
 `session-admission.jsonl` holds every session decision (`admitted`, `refused`,
 `override`).
 
