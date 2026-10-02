@@ -984,6 +984,7 @@ describe("gate.ts — the job tier and the jobs it admits (issue #4941)", () => 
     }
 
     const WAITING = /\[gate\] waiting \S+ for the heavy mutex/;
+    const LOCKFILE = join(REPO, "data", "oracle-compiled.json");
 
     it("the job tier queues behind a heavy holder like any heavy gate", async () => {
         const release = await holdMutex();
@@ -1037,12 +1038,19 @@ describe("gate.ts — the job tier and the jobs it admits (issue #4941)", () => 
         ["oracle:compile (the sweep)", ["bun", "scripts/oracle-compile.ts"]],
     ] as const) {
         it(`\`${name}\` waits for the heavy mutex instead of starting`, async () => {
+            // An UNadmitted run is the real job, and a sweep whose verdicts are
+            // all cached writes the committed lockfile within seconds: a red
+            // here must not leave the checkout dirty.
+            const before = readFileSync(LOCKFILE);
             const release = await holdMutex();
             try {
                 const err = await stderrUntil([...cmd], (e) => WAITING.test(e));
                 expect(err).toMatch(WAITING);
             } finally {
                 await release();
+                const after = readFileSync(LOCKFILE);
+                if (!after.equals(before)) writeFileSync(LOCKFILE, before);
+                expect(after.equals(before)).toBe(true);
             }
         }, 60_000);
     }
