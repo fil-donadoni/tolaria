@@ -14,7 +14,8 @@ import {
  *
  * What is tested here is the VERDICT and the WIRING, never the census over
  * the real tree: that scan loads the whole catalogue and walks every test
- * file, which is exactly the cost the issue keeps out of every PR-phase gate.
+ * file — `check:lane` runs it as its own step on a diff that can move it
+ * (issue #4963), and `scripts/__tests__` runs on every diff.
  * The classifier's own rules are proven in `identity-test-classifier.test.ts`
  * and the dry run in `purge-identity-tests.test.ts`; this file proves that a
  * non-zero count of either class, a bad allow-list entry, or a sweep that
@@ -127,8 +128,9 @@ describe("check:test-hygiene — the wiring", () => {
         );
     });
 
-    // Never a PR-phase gate (issue #4490): scanned rather than enumerated, so
-    // a script newly composed from `check:pr` or `check:all` is caught too.
+    // Never composed into `check:pr` / `check:all`, which every diff pays
+    // whole: the lane admits it by diff (issue #4963). Scanned rather than
+    // enumerated, so a script newly composed from either is caught too.
     it("no other package script invokes it", () => {
         const callers = Object.entries(pkg.scripts)
             .filter(
@@ -158,9 +160,10 @@ describe("check:test-hygiene — the wiring", () => {
 });
 
 /**
- * Issue #4686: the census is a `health` step, so the FIRST time an author
- * learns that a constant-pin or object-identity block owes an allow-list row
- * is when the base tip goes RED — unless the authoring tier says so first.
+ * Issue #4686: the census was a `health` step, so the FIRST time an author
+ * learned that a constant-pin or object-identity block owes an allow-list row
+ * was when the base tip went RED (issue #4963 moved it into the lane, so it is
+ * now `land` refusing the PR) — unless the authoring tier says so first.
  * Both PR #4666 (retitled an allow-listed block) and PR #4667 (added a
  * re-export identity guard) landed green while `convex/CLAUDE.md` still
  * described the pre-#4489 card-set guard ("allowlist empty, meant to stay

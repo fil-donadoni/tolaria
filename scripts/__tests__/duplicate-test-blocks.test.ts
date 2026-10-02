@@ -47,8 +47,8 @@ import {
  * `getDefinition("<uuid>")` locally) are not recognised as one. The guard
  * trades that recall for zero false positives; review catches the rest.
  *
- * Runs in the application suite, so `health` (whose `test` step runs it)
- * enforces it on every batch — no PR-phase gate (issue #4481's norm).
+ * Runs in the application suite: `health` (whose `test` step runs it)
+ * enforces it on every batch, and any lane that runs its partition on a PR.
  */
 
 const REPO_ROOT = path.resolve(__dirname, "..", "..");

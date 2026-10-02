@@ -41,13 +41,14 @@
  * A card carrying a `hand-tail:` marker AND a `hand-tail` claim row must name
  * the claim's issue in its marker: the marker names the claim, the writing PR
  * closes it. A card written by another issue (a C-cluster slice writing
- * several cards) otherwise leaves its claim open forever. Deliberately NOT a
- * PR-phase gate — the miss is caught within one `health` batch.
+ * several cards) otherwise leaves its claim open forever.
  *
  * Offline and ~1s: the committed lockfile, the registry, the Target Lists and
- * the card set sources, no network, no corpus. It runs in `health` ONLY — added to `scripts/lib/health-step.ts`'s
- * step list, never to `check:all` or `check:pr`, so a PR and `land` pay
- * nothing for it (ADR 0105 § 7.3, asserted by `check-gaps.test.ts`).
+ * the card set sources, no network, no corpus. Under the ≤ 10 s lane budget,
+ * so it runs in `check:lane` on any diff that can move it (`CHEAP_GUARDS`,
+ * issue #4963) and in `health` (`scripts/lib/health-step.ts`), and is never
+ * composed into `check:all` or `check:pr`, which every diff pays whole
+ * (asserted by `check-gaps.test.ts`).
  *
  * Run: bun run check:gaps
  */

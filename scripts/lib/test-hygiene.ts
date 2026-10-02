@@ -1,8 +1,8 @@
 /**
  * The test-suite hygiene verdict (issue #4490, PRD #4481): the pure half of
  * `scripts/check-test-hygiene.ts`, so a unit test can exercise every red
- * without scanning the tree (the scan itself is the census, which is a
- * `health` step and never a PR-phase gate).
+ * without scanning the tree (the scan itself is the census, a `check:lane`
+ * step admitted by the diff and a `health` step — issue #4963).
  *
  * The census keeps the identity-test classifier's two purge classes at zero
  * across every tracked test file:
