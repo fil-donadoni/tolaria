@@ -2213,6 +2213,17 @@ describe("land.ts — preflight before queuing (issue #4967)", () => {
         expect(calls).toEqual(["admit", "run"]);
     });
 
+    it("refuses ANY non-zero preflight, a signal included — only exit 0 passes", async () => {
+        for (const status of [2, 77, null]) {
+            const out = await preflightGate({
+                mode: "full",
+                enabled: true,
+                ...deps(status),
+            });
+            expect(out.kind, String(status)).toBe("refuse");
+        }
+    });
+
     it("passes a green preflight with its wall-clock", async () => {
         expect(
             await preflightGate({ mode: "full", enabled: true, ...deps(0) })
