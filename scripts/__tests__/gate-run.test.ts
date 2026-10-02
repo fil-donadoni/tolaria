@@ -68,23 +68,59 @@ beforeEach(() => {
                 fast: "sh ./fast.sh",
                 fail: "sh ./fail.sh",
                 slow: "sh ./slow.sh",
+                // A script that deletes its own cwd as part of succeeding —
+                // the reaper's cwd rule must spare it (issue #4940).
+                land: "sh ./slow.sh",
             },
         })
     );
 });
 
+/** Every process group a run under `runDir` still holds. */
+const liveRunPgids = (): number[] =>
+    fs.existsSync(runDir)
+        ? fs
+              .readdirSync(runDir)
+              .map((d) => path.join(runDir, d, "pid"))
+              .filter((f) => fs.existsSync(f))
+              .map((f) => Number(fs.readFileSync(f, "utf8").trim()))
+              .filter((pid) => pid > 0)
+        : [];
+
+const groupAlive = (pgid: number): boolean => {
+    try {
+        process.kill(-pgid, 0);
+        return true;
+    } catch {
+        return false;
+    }
+};
+
+const pidAlive = (pid: number): boolean => {
+    try {
+        process.kill(pid, 0);
+        return true;
+    } catch {
+        return false;
+    }
+};
+
 afterEach(() => {
+    // The #4940 tests leave long sleepers behind on purpose; never leak them.
+    for (const pgid of liveRunPgids())
+        if (groupAlive(pgid)) process.kill(-pgid, "SIGKILL");
     fs.rmSync(tmp, { recursive: true, force: true });
 });
 
 interface RunOpts {
     args: string[];
     env?: Record<string, string>;
+    cwd?: string;
 }
 
 const run = (opts: RunOpts) =>
     spawnSync("sh", [GATE_RUN, ...opts.args], {
-        cwd: tmp,
+        cwd: opts.cwd ?? tmp,
         encoding: "utf8",
         env: {
             ...hermeticEnv(),
@@ -549,5 +585,210 @@ describe("gate-run — a run records (head, base, command, green) for `land` (AD
         fs.writeFileSync(flag, "");
         expect(run({ args: ["fast"] }).status).toBe(1);
         expect(record("green")).toBeNull();
+    });
+});
+
+describe("gate-run — one live run per (cwd, script), and the orphans are reaped (#4940)", () => {
+    const KEY = "TOLARIA_GATE_RUN_KEY";
+    const short = {
+        TOLARIA_GATE_RUN_WAIT_SECS: "1",
+        TOLARIA_GATE_RUN_KILL_GRACE: "2",
+    };
+    const starts = () => path.join(tmp, "starts");
+    const startCount = () =>
+        fs.existsSync(starts())
+            ? fs.readFileSync(starts(), "utf8").trim().split("\n").length
+            : 0;
+    /** A gate whose process group outlives its leader's `sh`: a background
+     *  `sleep` (pid written to `child`) is what a stray `pkill` used to miss.
+     *  It also records whether the PREVIOUS run's child was still alive when
+     *  it started — the `--replace` overlap the acceptance criterion forbids. */
+    const groupFixture = (dir = tmp) =>
+        fs.writeFileSync(
+            path.join(dir, "slow.sh"),
+            [
+                "#!/bin/sh",
+                `C="${path.join(tmp, "child")}"`,
+                `if [ -f "$C" ] && kill -0 "$(cat "$C")" 2>/dev/null; then echo OVERLAP >>"${path.join(tmp, "overlap")}"; fi`,
+                "sleep 60 &",
+                'echo $! >"$C"',
+                `echo x >>"${starts()}"`,
+                "wait",
+            ].join("\n"),
+            { mode: 0o755 }
+        );
+    const childPid = () =>
+        Number(fs.readFileSync(path.join(tmp, "child"), "utf8").trim());
+    const waitForChild = () =>
+        expect(
+            waitForFile(path.join(tmp, "child"), 10),
+            "fixture never started"
+        ).toBe(true);
+
+    it("refuses a second key for the same script and cwd, naming the live key, and starts nothing", () => {
+        groupFixture();
+        const first = run({
+            args: ["slow"],
+            env: { ...short, [KEY]: "try-1" },
+        });
+        expect(first.status, `${first.stdout}${first.stderr}`).toBe(75);
+        waitForChild();
+
+        const second = run({
+            args: ["slow"],
+            env: { ...short, [KEY]: "try-2" },
+        });
+        expect(second.status, `${second.stdout}${second.stderr}`).toBe(76);
+        expect(second.stderr).toMatch(/REFUSED/);
+        expect(second.stderr).toContain(`${KEY}=try-1`);
+        expect(startCount()).toBe(1);
+        expect(liveRunPgids()).toHaveLength(1);
+    });
+
+    it("a keyless call is refused beside a keyed run of the same script and cwd too", () => {
+        groupFixture();
+        expect(
+            run({ args: ["slow"], env: { ...short, [KEY]: "named" } }).status
+        ).toBe(75);
+        waitForChild();
+        const keyless = run({ args: ["slow"], env: short });
+        expect(keyless.status, `${keyless.stdout}${keyless.stderr}`).toBe(76);
+        expect(startCount()).toBe(1);
+    });
+
+    it("--replace kills the old run's whole process group BEFORE the new run starts", () => {
+        groupFixture();
+        expect(
+            run({ args: ["slow"], env: { ...short, [KEY]: "old" } }).status
+        ).toBe(75);
+        waitForChild();
+        const [oldPgid] = liveRunPgids();
+        const oldChild = childPid();
+        expect(groupAlive(oldPgid)).toBe(true);
+
+        const r = run({
+            args: ["--replace", "slow"],
+            env: { ...short, [KEY]: "new" },
+        });
+        expect(r.status, `${r.stdout}${r.stderr}`).toBe(75);
+        expect(r.stderr).toMatch(/reaped pgid/);
+        expect(
+            groupAlive(oldPgid),
+            "old process group survived --replace"
+        ).toBe(false);
+        expect(pidAlive(oldChild), "old run's background child survived").toBe(
+            false
+        );
+        expect(waitForFile(starts(), 10)).toBe(true);
+        expect(
+            spawnSync("sh", [
+                "-c",
+                `i=0; while [ "$(wc -l <"$1")" -lt 2 ] && [ $i -lt 10 ]; do sleep 1; i=$((i+1)); done`,
+                "sh",
+                starts(),
+            ]).status
+        ).toBe(0);
+        expect(startCount()).toBe(2);
+        expect(
+            fs.existsSync(path.join(tmp, "overlap")),
+            "new run started while the old one lived"
+        ).toBe(false);
+    });
+
+    it("reaps a run whose cwd was deleted on the next gate-run call — a real process group", () => {
+        const wt = path.join(tmp, "wt");
+        fs.mkdirSync(wt);
+        fs.copyFileSync(
+            path.join(tmp, "package.json"),
+            path.join(wt, "package.json")
+        );
+        groupFixture(wt);
+        expect(run({ args: ["slow"], env: short, cwd: wt }).status).toBe(75);
+        waitForChild();
+        const [pgid] = liveRunPgids();
+        const child = childPid();
+        fs.rmSync(wt, { recursive: true, force: true });
+
+        fixtureScript("fast", "exit 0");
+        const r = run({ args: ["fast"], env: short });
+        expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
+        expect(r.stderr).toMatch(/its cwd no longer exists/);
+        expect(groupAlive(pgid), "orphan process group survived").toBe(false);
+        expect(pidAlive(child)).toBe(false);
+        expect(
+            fs.readFileSync(path.join(runDir, "reaped.log"), "utf8")
+        ).toMatch(/cwd no longer exists/);
+    });
+
+    it("spares a script that deletes its own cwd (land) from the cwd rule", () => {
+        const wt = path.join(tmp, "wt");
+        fs.mkdirSync(wt);
+        fs.copyFileSync(
+            path.join(tmp, "package.json"),
+            path.join(wt, "package.json")
+        );
+        groupFixture(wt);
+        expect(
+            run({ args: ["land"], env: { ...short, [KEY]: "land-1" }, cwd: wt })
+                .status
+        ).toBe(75);
+        waitForChild();
+        const [pgid] = liveRunPgids();
+        fs.rmSync(wt, { recursive: true, force: true });
+
+        fixtureScript("fast", "exit 0");
+        expect(run({ args: ["fast"], env: short }).status).toBe(0);
+        expect(groupAlive(pgid), "a landing was reaped mid-housekeeping").toBe(
+            true
+        );
+    });
+
+    it("reaps a run past the age ceiling that nobody re-attached to, and spares one re-attached recently", () => {
+        groupFixture();
+        expect(run({ args: ["slow"], env: short }).status).toBe(75);
+        waitForChild();
+        const [pgid] = liveRunPgids();
+        spawnSync("sleep", ["3"]);
+        fixtureScript("fast", "exit 0");
+
+        // Old, but attached 3s ago — inside a 100s idle window: spared.
+        const spared = run({
+            args: ["fast"],
+            env: {
+                ...short,
+                TOLARIA_GATE_RUN_REAP_SECS: "1",
+                TOLARIA_GATE_RUN_IDLE_SECS: "100",
+            },
+        });
+        expect(spared.status).toBe(0);
+        expect(groupAlive(pgid)).toBe(true);
+
+        const reaped = run({
+            args: ["fast"],
+            env: {
+                ...short,
+                TOLARIA_GATE_RUN_REAP_SECS: "1",
+                TOLARIA_GATE_RUN_IDLE_SECS: "1",
+            },
+        });
+        expect(reaped.status).toBe(0);
+        expect(reaped.stderr).toMatch(/unattended/);
+        expect(groupAlive(pgid)).toBe(false);
+    });
+
+    it("--list names each live run's key, script, cwd, age and pid", () => {
+        groupFixture();
+        expect(
+            run({ args: ["slow"], env: { ...short, [KEY]: "listed" } }).status
+        ).toBe(75);
+        waitForChild();
+        const [pgid] = liveRunPgids();
+        const r = run({ args: ["--list"], env: short });
+        expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
+        expect(r.stdout).toContain("key listed");
+        expect(r.stdout).toContain("`bun run slow`");
+        expect(r.stdout).toContain(`cwd ${fs.realpathSync(tmp)}`);
+        expect(r.stdout).toMatch(/age \d+s/);
+        expect(r.stdout).toContain(`pid ${pgid}`);
     });
 });

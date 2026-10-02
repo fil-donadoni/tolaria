@@ -504,11 +504,31 @@ function who(): number {
     return 0;
 }
 
+/** The detached `gate:run` runs (issue #4940): `gate-run.sh --list` reaps the
+ *  orphans first, then names every live run — key, script, cwd, age, pid — so
+ *  a session sees what a "retry" under a new key would duplicate. The registry
+ *  and the reaper live in the shell script alone; this only asks it. Bounded:
+ *  a reap waits out a TERM grace, and a hung child must not hang `who`. */
+function detachedRunLines(): string[] {
+    const r = spawnSync(
+        "sh",
+        [join(import.meta.dir, "gate-run.sh"), "--list"],
+        { encoding: "utf8", timeout: 60_000 }
+    );
+    const out = `${r.stdout ?? ""}${r.stderr ?? ""}`.trim();
+    if (r.status !== 0 || out === "")
+        return [
+            `[gate] detached runs unreadable (gate-run.sh --list exit ${r.status ?? r.signal})`,
+        ];
+    return out.split("\n");
+}
+
 /** `who` also names the `check:ui` lane (issue #4687) — a separate mutex, so
  *  a browser run never blocks a `land`, but the same one-command diagnosis. */
 function whoAll(): number {
     const code = who();
     for (const line of uiLaneWhoLines(LOCK_ROOT)) console.log(line);
+    for (const line of detachedRunLines()) console.log(line);
     return code;
 }
 
