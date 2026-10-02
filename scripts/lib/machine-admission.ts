@@ -506,7 +506,10 @@ export function probeInjected(env: NodeJS.ProcessEnv = process.env): boolean {
     return Boolean(env[PROBE_ENV]);
 }
 
-function run(cmd: string, args: string[], cwd?: string): string | null {
+/** Spawned from `/` unless the command reads its cwd: a probe must still
+ *  answer when the caller's own cwd has been deleted under it — `land`
+ *  removes the worktree its gate runs in (issue #4984). */
+function run(cmd: string, args: string[], cwd = "/"): string | null {
     const r = spawnSync(cmd, args, { encoding: "utf8", timeout: 5000, cwd });
     return r.status === 0 ? r.stdout : null;
 }
@@ -584,7 +587,7 @@ export function readSessionCensus(
             candidates.map((r) => r.pid).join(","),
             "-Fpn",
         ],
-        { encoding: "utf8", timeout: 5000 }
+        { encoding: "utf8", timeout: 5000, cwd: "/" }
     );
     // `lsof` exits 1 when ANY listed pid vanished between the two reads and
     // still prints the rest; only an empty answer is an unread probe.
