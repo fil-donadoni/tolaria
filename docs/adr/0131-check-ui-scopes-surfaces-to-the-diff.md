@@ -232,6 +232,16 @@ Three costs of that placement, priced rather than hidden:
    included. A PR receipt stays `SCOPED` (or FULL when a global input forces
    it); `check:ui` is still not in `check:pr` or `land`.
 
+> **Superseded in part by issue #4962.** The two bullets above on "any
+> non-`PASS` exit is a `RED`" and on the walk "under `--under-lock`" no longer
+> hold: nine of the walk's first ten health verdicts were RED on the
+> environment. The per-batch gate now releases the heavy mutex before the walk
+> (`health-main --phase=offline`, then `--phase=walk`); a fatal exit, a down
+> deployment, or a walk whose failing rows are all the machine's records
+> `infra`, not `RED`; and a walk failure raises the marker only after 5
+> consecutive non-infra walks. The rule lives in `docs/agents/quality-gates.md`
+> § check:ui; `release` still requires the walk green.
+
 Measured on the tree at the amendment (`landingDiffScope`): the two `src/**`
 files of PR #4911 — the ones its 34-surface receipt was scoped on — 34 → 3
 surfaces (`admin-scenarios`, `admin-bot-findings`,
