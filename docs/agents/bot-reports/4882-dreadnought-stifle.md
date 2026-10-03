@@ -297,9 +297,9 @@ cui entra" (Snapcaster, flash + ETB).
   ledger CR.
 - **Refit sul corpus combinato:** **0.546847** / **0.867212**, punto fisso in
   tre iterazioni.
-- **Audit:** metà 1, metà 2 e charter Stifle `ROBUST`, `mean-reward` 10/10 × 3. Le due righe della baseline (Ravenous Rats issue #4981, Stingcaster Mage
-  issue #5026) sono `ROBUST`: baseline di nuovo vuota. Rats resta decisa da
-  `material-tiebreak` (8/10).
+- **Audit:** metà 1, metà 2 e charter Stifle `ROBUST`, `mean-reward` 10/10 × 3. Audit completo: 202/203. Stingcaster Mage (issue #5026) è `ROBUST` ed
+  esce dalla baseline; Ravenous Rats (issue #4981) resta `NOISE-PINNED`
+  (default 9/10, `material-tiebreak`) e la sua riga resta.
 - Blade `must`: 216 verdi.
 - botReach "draw spell", metà sacrificio: con 48 iterazioni, seed 0..9 × due
   seat, cast 9/20 sulla base e 3/20 al refit (`material-tiebreak`, ma la
