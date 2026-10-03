@@ -940,6 +940,34 @@
         "landCount": 0,
         "libraryCount": 20
     },
+    "hybrid evoke: evokes Wistfulness on two Forests to exile an opposing artifact": {
+        "cards": [
+            {
+                "name": "Wistfulness",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Forest",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Forest",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Sol Ring",
+                "owner": "opp",
+                "zone": "battlefield"
+            }
+        ],
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 5,
+        "landCount": 0,
+        "libraryCount": 20
+    },
     "informed colour denial: the decklist, not the board, picks which land dies": {
         "cards": [
             {
