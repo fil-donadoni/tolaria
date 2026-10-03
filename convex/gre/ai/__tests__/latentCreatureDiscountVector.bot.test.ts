@@ -5,6 +5,7 @@
 // "as though it had flash" takes the flash discount (CR 601.3b / 702.8a).
 import { describe, expect, it } from "vitest";
 import { aluren } from "../../../cards/sets/tmp/green.cards";
+import { getCardByName } from "../../../cards";
 import { grizzlyBears } from "../../../cards/sets/lea/green.cards";
 import {
     makeInstance,
@@ -90,6 +91,36 @@ describe("the creature discounts follow the vector (issue #5012)", () => {
         const state = heldBears(false);
         const hand = evaluateBreakdown(state, "p1", HALVED).self.hand;
         expect(halved).toBeCloseTo(hand, 5);
+    });
+
+    it("the leaf's graveyard-reach term prices the pile at the evaluating vector", () => {
+        // Reanimate in hand = recursion access, so the Hill Giant in the
+        // graveyard is credited `graveyardReachFraction` of its latent worth.
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    hand: [
+                        makeInstance(getCardByName("Reanimate").id, {
+                            zone: "hand",
+                        }),
+                    ],
+                    graveyard: [
+                        makeInstance(getCardByName("Hill Giant").id, {
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "graveyard",
+                        }),
+                    ],
+                }),
+                makePlayer("p2", {}),
+            ],
+        });
+        const base = evaluateBreakdown(state, "p1", DEFAULT_EVAL_WEIGHTS).self
+            .graveyardReach;
+        const halved = evaluateBreakdown(state, "p1", HALVED).self
+            .graveyardReach;
+        expect(base).toBeGreaterThan(0);
+        expect(halved).toBeCloseTo(base / 2, 5);
     });
 
     it("a held creature under a cast-as-though-flash permission takes the flash discount", () => {
