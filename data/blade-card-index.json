@@ -307,6 +307,13 @@
             "needsSetup": false
         }
     ],
+    "Monk Realist": [
+        {
+            "label": "type-blind potential: casts Monk Realist into an opposing Glorious Anthem",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
     "Mother of Runes": [
         {
             "label": "activation payoff: Mother of Runes protects itself against removal on the stack",
