@@ -2997,6 +2997,18 @@ export function enumerateCastMoves(
                           m.targets.length > 0 ||
                           !castDefinitionHasSpellTarget(card)
                   )
+                  // Issue #4935 review — a permanent leg beside a NON-EMPTY tap
+                  // plan (a cost tax on the alternative cost: Thalia) fails
+                  // closed. The search charges the leg after the taps, and a
+                  // tapped land splits a pool of interchangeable victims
+                  // (`identityKey`), so it would re-plan victims the server
+                  // auto-resolved before the taps and drop the cast.
+                  .filter(
+                      (m) =>
+                          m.kind !== "cast-spell" ||
+                          !alt.permanent ||
+                          m.tapPlan.length === 0
+                  )
                   .map((m) =>
                       m.kind === "cast-spell"
                           ? { ...m, alternativeCostId: alt.id }

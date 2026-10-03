@@ -15,6 +15,7 @@
 import { describe, expect, it } from "vitest";
 import { announceCast, selectSacrifice, selectTargets } from "../game";
 import { fireblast } from "../cards/sets/vis/red.cards";
+import { thaliaGuardianOfThraben } from "../cards/sets/dka/white.cards";
 import { gush } from "../cards/sets/mmq/blue.cards";
 import { island, mountain } from "../cards/sets/lea/colorless.cards";
 import {
@@ -202,5 +203,25 @@ describe("Bot permanent-leg alternative cast, GRE → game.ts (issue #4935, CR 1
             expect(inHandOf(predicted, id)).toBe(true);
         }
         expect(live.stack.map((i) => i.id)).toEqual(["gush"]);
+    });
+
+    it("a cost tax on the alternative cost (Thalia) fails closed instead of dropping the cast mid-search", () => {
+        const state = board(fireblast.id, mountain.id, "fireblast", false);
+        state.players[0].battlefield.forEach((c) => (c.isTapped = false));
+        state.players[1].battlefield.push(
+            makeInstance(thaliaGuardianOfThraben.id, {
+                id: "thalia",
+                controllerId: "p2",
+                ownerId: "p2",
+                zone: "battlefield",
+            })
+        );
+        const taxed = enumerateMoves(state, "p1").filter(
+            (m): m is CastMove =>
+                m.kind === "cast-spell" &&
+                m.cardInstanceId === "fireblast" &&
+                m.alternativeCostId !== undefined
+        );
+        expect(taxed).toEqual([]);
     });
 });
