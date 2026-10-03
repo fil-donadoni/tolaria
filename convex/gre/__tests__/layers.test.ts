@@ -1089,7 +1089,7 @@ describe("Layer7Pass: a pass caches the source set and nothing else (CR 613.4c, 
     it("a pass that reads no creature never walks the board", () => {
         const { state, castleCard } = castleBoard();
         const pass = beginLayer7Pass(state);
-        // CR 208.2 — only creatures carry P/T-layer effects.
+        // CR 208.3 — a noncreature permanent has no power or toughness.
         getEffectivePT(state, castleCard, { pass });
         expect(pass.sources).toBeUndefined();
     });
