@@ -79,6 +79,34 @@ hand.
 - Cutover: `staging` created from the `main` tip; GitHub's default branch set
   to `staging` so `gh pr create` needs no `--base`; open PRs retargeted.
 
+## Amendment (issue #5016) — baseline drift is filed, not gated
+
+The blade robustness audit (`blade:robustness`, issue #4875) fails on four
+things and only one is the tree being wrong: a `must` entry failing its own
+seeds. The other three — an entry newly noise-pinned, a baseline row gone
+robust, a malformed row — are drift in the bookkeeping of which entries pass
+by seed: the `must` tier is green on that tree. They used to red the tip, and
+four repairs in a week were nothing else (issue #4777, issue #4877, issue
+#4980, issue #5016), each found after the refit that moved a near-tie had
+landed. Refusing them at `land` was measured and rejected: the audit's
+near-tie slice costs ~6 min under the mutex against the 10 s lane budget
+(issue #4963), and no cheaper admission separates a pin from a sound entry (a
+margin-gap threshold misses the two pins this issue repaired).
+
+So a health batch FILES drift — one stamped `ready-for-agent` issue per
+finding, deduplicated by title — and the tip stays green
+(`scripts/lib/health-robustness-drift.ts`). An entry failing its own seeds is
+RED as before; a malformed row is refused at `land` by a shape test that needs
+no search.
+
+What this gives up, both deliberately:
+
+- `release` may fast-forward to a tip that carries an uncensused pin. A pin
+  is a test that may flip at the next refit, never a behaviour shipped wrong.
+- An audit that crashes or times out (a timeout the machine is no longer
+  excused for included) used to be RED; it now leaves the tip green and files
+  a "no verdict" issue naming the tests that failed without a finding.
+
 ## Alternatives considered
 
 - **A two-slot heavy mutex.** Two concurrent 8 GB gates on a 16 GB machine

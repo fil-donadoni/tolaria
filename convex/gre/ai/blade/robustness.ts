@@ -268,6 +268,30 @@ export function compareRobustness(
     return findings;
 }
 
+/** The machine line the shard runner prints per finding, one JSON
+ *  `RobustnessFindingRecord` after it — what a health batch reads to tell a
+ *  `wrong` entry (RED) from baseline drift (filed as an issue, issue #5016).
+ *  `scripts/lib/health-robustness-drift.ts` holds the same string. */
+export const ROBUSTNESS_FINDING_PREFIX = "[blade:robustness:finding]";
+
+export type RobustnessFindingRecord = {
+    kind: keyof RobustnessFindings;
+    label: string;
+    /** Name of the test that printed it — what the reader matches against
+     *  the failed tests, so a failure with NO finding (a crash, a timeout) is
+     *  not mistaken for explained drift. */
+    test: string;
+};
+
+export function robustnessFindingRecords(
+    f: RobustnessFindings,
+    test: string
+): RobustnessFindingRecord[] {
+    return (["unlisted", "wrong", "cleared", "malformed"] as const).flatMap(
+        (kind) => f[kind].map((label) => ({ kind, label, test }))
+    );
+}
+
 /** Every finding as one message line, empty when the slice is clean. */
 export function describeRobustnessFindings(f: RobustnessFindings): string[] {
     return [

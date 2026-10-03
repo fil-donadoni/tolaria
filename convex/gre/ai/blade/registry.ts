@@ -9076,7 +9076,8 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         // SACRIFICE-FOR-DISCARD reachability (CR 701.21a, CR 701.9a, issue
-        // #4276). The sweep's own position for a creature whose only ability is
+        // #4276). The sweep's own board, moved to the postcombat main (below),
+        // for a creature whose only ability is
         // "Sacrifice a creature: Target player discards two cards": Sadistic
         // Hypnotist in hand, five Swamps, a spare body on each side.
         //
@@ -9086,6 +9087,14 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // cast, and those subtrees dragged the cast edge's mean margin under
         // `pass`'s. Fixed by class, not by card: `isDiscardExchangeSacrifice`
         // (`search.ts`).
+        //
+        // POSTCOMBAT, not the sweep's precombat main (issue #5016, the shape
+        // of issue #4777 and issue #4877): there the rollout casts the
+        // Hypnotist in the postcombat main after `pass`, so a refit moved the
+        // near-tie enough to lose 1 of 10 wide seeds on every vector. Here
+        // `pass` forgoes the deploy for the turn. The sweep
+        // (`botReach.bot.test.ts`) still asks "ever played?" in either main
+        // phase; "cast precombat?" is guarded by nothing, deliberately.
         label: "Sacrifice-for-discard outlet: casts the creature",
         spec: {
             cards: [
@@ -9104,7 +9113,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
                 { name: "Castle", owner: "opp", zone: "battlefield" },
                 { name: "Grizzly Bears", owner: "opp", zone: "graveyard" },
             ],
-            phase: "PRECOMBAT_MAIN",
+            phase: "POSTCOMBAT_MAIN",
             turn: 3,
             libraryCount: 20,
         },
@@ -9113,7 +9122,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // REACHABILITY claim, so a PREDICATE, kept out of the weight fit for
         // the reason the Nantuko Husk entry gives.
         budget: { iterations: 200 },
-        seeds: [4, 0x5eed, 1, 2, 3],
+        seeds: [0xb07, 0x5eed, 1, 2, 3],
         tier: "must",
         expect: {
             predicate: (move, state) =>
@@ -9124,7 +9133,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
                 ),
             describe: "casts Sadistic Hypnotist",
         },
-        note: "Bot Gap `never-chosen › Creature › choice+discard` (2 cards). Issue #4276. SEED 4, NOT 0xb07 (issue #4764): after that issue's refit seeds 0xb07 and 17 pick `pass` over seeds 0xb07, 0x5eed, 1..18 (20/20 cast before), while the 1-ply cast lead is +51.7 under both vectors — rollout noise, tracked by issue #4785.",
+        note: "Bot Gap `never-chosen › Creature › choice+discard` (2 cards). Issue #4276. Seed 0xb07 restored by issue #5016: at the precombat main it and seed 17 picked `pass` after issue #4764's refit (rollout noise, issue #4785), so the entry ran seed 4 instead; at the postcombat main the cast wins on all of 0xb07, 0x5eed and 1..18.",
     },
     {
         // SACRIFICE-FOR-RANDOM-DISCARD reachability (CR 701.21a, CR 701.9b,
@@ -9243,7 +9252,8 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         // SACRIFICE-FOR-DRAW reachability (CR 701.21a, CR 121.1, issue #4279).
-        // The sweep's own position for a creature whose only ability is "{2},
+        // The sweep's own board, moved to the postcombat main (below), for a
+        // creature whose only ability is "{2},
         // Sacrifice this creature: Target player draws a card": Limestone Golem
         // in hand, eight Plains (its cost plus the outlet's {2}), a spare body on
         // each side.
@@ -9253,6 +9263,14 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // random and the tree opened it at the node after the cast, and those
         // subtrees dragged the cast edge's mean margin under `pass`'s. Fixed by
         // class, not by card: `isDrawExchangeSacrifice` (`search.ts`).
+        //
+        // POSTCOMBAT, not the sweep's precombat main (issue #5016, the shape
+        // of issue #4777 and issue #4877): there the rollout casts the Golem
+        // in the postcombat main after `pass`, so a refit moved the near-tie
+        // enough to lose 2 of 10 wide seeds under jitter+. Here `pass`
+        // forgoes the deploy for the turn. The sweep (`botReach.bot.test.ts`)
+        // still asks "ever played?" in either main phase; "cast precombat?"
+        // is guarded by nothing, deliberately.
         label: "Sacrifice-for-draw outlet: casts the creature",
         spec: {
             cards: [
@@ -9274,7 +9292,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
                 { name: "Castle", owner: "opp", zone: "battlefield" },
                 { name: "Grizzly Bears", owner: "opp", zone: "graveyard" },
             ],
-            phase: "PRECOMBAT_MAIN",
+            phase: "POSTCOMBAT_MAIN",
             turn: 3,
             libraryCount: 20,
         },

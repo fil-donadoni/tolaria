@@ -152,15 +152,21 @@ export function healthStepArgs(entry: string): string[] {
 /**
  * Gates a batch owes ONLY when its diff touched the Bot's globs
  * (`batchTouchesBot`, the decision the Bot Findings refresh already makes) —
- * run after `HEALTH_SCRIPTS`, and red like any of them, unlike the refresh.
+ * run after `HEALTH_SCRIPTS`.
  *
  * `blade:robustness` (issue #4875): the blade `must` tier re-run over a wide
- * seed list and jittered weight vectors, redding on an entry that passes by
+ * seed list and jittered weight vectors, failing on an entry that passes by
  * seed noise and is not in its shrink-only baseline. ~15 min of search on a
  * loaded machine — far over the lane budget, so a health cost by the
- * issue-#4963 rule (never `check:pr` / `check:lane` / `land`), and only for a batch that can have moved it: a pin
- * appears when the search, the evaluator, the weights or the registry change —
- * every one of them under the Bot's globs.
+ * issue-#4963 rule (never `check:pr` / `check:lane` / `land`), and only for a
+ * batch that can have moved it: a pin appears when the search, the evaluator,
+ * the weights or the registry change — every one of them under the Bot's
+ * globs.
+ *
+ * Its failure is NOT red like the others' (issue #5016): baseline drift — a
+ * new pin, a row gone robust — is filed as an issue and the tip stays green;
+ * only an entry failing its own seeds reds. `lib/health-robustness-drift.ts`
+ * owns that reading.
  */
 export const BOT_HEALTH_SCRIPTS: readonly string[] = ["blade:robustness"];
 

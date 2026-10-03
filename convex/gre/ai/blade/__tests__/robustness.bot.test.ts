@@ -8,7 +8,8 @@ import { describe, expect, it } from "vitest";
 import { DEFAULT_EVAL_WEIGHTS } from "../../evalWeights";
 import { resolveEvalWeights } from "../../searchVariant";
 import { FITTABLE_WEIGHT_KEYS, weightValue } from "../../verdicts/features";
-import { findBladeScenario } from "../registry";
+import { bladeScenariosForTier, findBladeScenario } from "../registry";
+import { ROBUSTNESS_BASELINE } from "../robustnessBaseline";
 import {
     auditBladeScenario,
     classifyRobustness,
@@ -156,5 +157,17 @@ describe("auditBladeScenario — a real audit (issue #4875)", () => {
         expect(
             Object.values(result.legs[0].mechanisms).reduce((a, b) => a + b, 0)
         ).toBe(ROBUSTNESS_SEEDS.length);
+    });
+});
+
+describe("the committed baseline's shape (issue #5016)", () => {
+    // The audit itself is health-only and its drift is filed, not gated; the
+    // shape of the baseline needs no search, so a malformed row is refused
+    // here, at `land`.
+    it("names must entries, once each, with an issue", () => {
+        const findings = compareRobustness([], ROBUSTNESS_BASELINE, {
+            mustLabels: bladeScenariosForTier("must").map((s) => s.label),
+        });
+        expect(describeRobustnessFindings(findings)).toEqual([]);
     });
 });
