@@ -486,7 +486,7 @@ const ETB_DISCARDER: CardDefinition = {
  */
 const NOISE_PINNED_REACH_BUDGET: BotReachBudget = {
     iterations: BOT_REACH_BUDGET.iterations,
-    seeds: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+    seeds: Array.from({ length: 30 }, (_, i) => i),
 };
 
 describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
