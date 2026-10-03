@@ -123,6 +123,7 @@ import { stampModalBackFaceForPlay } from "./transform";
 import {
     evaluate,
     evaluateBreakdown,
+    evaluateWithMargin,
     declaredBlockDelta,
     declaredCombatDelta,
     lethalUnblockedDelta,
@@ -1268,16 +1269,16 @@ export function applyMoveInSearch(
  *  material `margin` (breaks outcome-equal ties), both from the bot's view. */
 type Leaf = { reward: number; margin: number };
 
-/** Score a stable leaf from the bot's perspective. */
+/** Score a stable leaf from the bot's perspective — ONE evaluation yields both
+ *  the value the reward band shapes and the material margin (issue #4459),
+ *  byte-identical to `reward` + `materialMargin` at half the player scores. */
 function scoreLeaf(
     state: GameState,
     botId: string,
     weights: EvalWeights
 ): Leaf {
-    return {
-        reward: reward(state, botId, weights),
-        margin: materialMargin(state, botId, weights),
-    };
+    const { value, margin } = evaluateWithMargin(state, botId, weights);
+    return { reward: rewardFromValue(value, weights), margin };
 }
 
 /** Bound on consecutive forced answers in one `advanceToDecision` call. A
