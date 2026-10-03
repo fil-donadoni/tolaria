@@ -24,6 +24,7 @@ import type {
     EffectOp,
     ModeSelection,
     PermanentView,
+    TargetRequirement,
     TriggeredAbility,
 } from "../../cards/types";
 import {
@@ -39,6 +40,7 @@ import {
 } from "./grounding";
 import type { LatentWeights } from "./evalWeights";
 import { SAC_SELF_COST, addValues, valueEffectScript } from "./opValuers";
+import { withTypedRepresentativeVictim } from "./representativeVictim";
 import type { OpValue, ValueTag } from "./featureBasis";
 
 /** A real `effects[]` script wins outright; otherwise fall back to the
@@ -463,6 +465,7 @@ function abilityScriptOpValue(
         zone?: TriggeredAbility["zone"];
         activateFromGraveyard?: boolean;
         etbAbility?: boolean;
+        targetRequirement?: TargetRequirement;
     }[] = [
         ...(def.activatedAbilities ?? []),
         ...(def.triggeredAbilities ?? []),
@@ -486,11 +489,13 @@ function abilityScriptOpValue(
         // Whiteout's sign (scored as a self-bounce cost instead of regrowth).
         // Every other ability (the overwhelming majority of both shapes)
         // keeps the outer `ctx` unchanged.
-        const abilityCtx =
+        const sourceCtx =
             ability.zone === "graveyard" ||
             ability.activateFromGraveyard === true
                 ? withGraveyardSource(ctx)
                 : ctx;
+        const abilityCtx =
+            selection === "etb" ? etbGrounding(sourceCtx, ability) : sourceCtx;
         const script = effectiveScript(ability);
         // CR 700.2 / 603.3c — a MODAL ability (activated, issue #1341; or
         // triggered, issue #2461) carries its resolution in per-mode scripts,
@@ -578,6 +583,22 @@ export function dslLatentAbilityScriptOpValue(
     return etb ? mergeOpValue(discounted, etb) : discounted;
 }
 
+/** Issue #4903 — the grounding an ETB Ability is valued under: `ctx` with
+ *  each target slot it cannot answer priced at a representative victim of
+ *  the ability's own target TYPE rather than the 2/2. One helper for both
+ *  readings of an ETB — its potential in hand and its value in flight — so
+ *  the two can never price the same ability differently. */
+function etbGrounding(
+    ctx: GroundingContext,
+    ability: { targetRequirement?: TargetRequirement }
+): GroundingContext {
+    if (!ability.targetRequirement) return ctx;
+    return withLatentLens(
+        ctx,
+        withTypedRepresentativeVictim(ctx.latent, ability.targetRequirement)
+    );
+}
+
 /** Issue #4758 — the value of ONE ETB Ability of `def` while it is IN FLIGHT:
  *  triggered, on the stack, not yet resolved. Spent on entering is a statement
  *  about the battlefield; between the two, the ability is neither in the
@@ -604,9 +625,10 @@ export function dslEtbAbilityInFlightValue(
     );
     if (ability?.etbAbility !== true) return 0;
     const script = effectiveScript(ability);
+    const etbCtx = etbGrounding(ctx, ability);
     const raw = script
-        ? valueEffectScript(script, ctx)
-        : bestModeCombinationOpValue(ability.modes, undefined, ctx);
+        ? valueEffectScript(script, etbCtx)
+        : bestModeCombinationOpValue(ability.modes, undefined, etbCtx);
     let points = raw?.points ?? 0;
     // A `mayPay` leaves the body's fate to its controller (see
     // `etbSelfSacrificeWeight`), so the sacrifice is not charged as certain.

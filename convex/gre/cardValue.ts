@@ -39,7 +39,7 @@ import { DEFAULT_EVAL_WEIGHTS, type LatentWeights } from "./ai/evalWeights";
 // Re-exported here VERBATIM to preserve this module's public surface
 // (`evaluate.ts` imports `creatureValueRaw` from `./cardValue`).
 export { creatureValueRaw } from "./creatureBody";
-import { creatureValueRaw } from "./creatureBody";
+import { creatureValueRaw, nonCreatureBodyRaw } from "./creatureBody";
 
 // --- Latent `cardValue` primitive (ADR 0018, issue #195) -------------------
 // The worth of a specific card while it is NOT in play (hand / library /
@@ -50,8 +50,6 @@ import { creatureValueRaw } from "./creatureBody";
 // creatures get `base + MV × k`. An `aiValue` override on the CardDefinition
 // replaces the derived value verbatim.
 const LATENT_DISCOUNT = 0.85; // latent creature worth = discounted realized
-const NONCREATURE_BASE = 8; // base latent worth of a non-creature card (MV 0)
-const W_NC_MV = 10; // per mana value, non-creature latent worth
 
 // Issue #1508 — bound on a NON-CREATURE's DSL spell-script value. Context-free
 // grounding (`gre/ai/grounding.ts`) always takes the `if` walker's `then`
@@ -205,7 +203,7 @@ export function latentValue(chars: {
     // removal spell rises far above it.
     const fallback = chars.dslSpellValueMeasured
         ? 0
-        : NONCREATURE_BASE + chars.manaValue * W_NC_MV;
+        : nonCreatureBodyRaw(chars.manaValue);
     // CR 603.7a (issue #3383) — the card's delayed-trigger templates. Added
     // INSIDE the `MAX_LATENT_SCRIPT_VALUE` clamp below, never after it: the cap
     // exists so no single hand card can pin the reward band (see its own doc),

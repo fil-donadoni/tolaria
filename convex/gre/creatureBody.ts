@@ -90,3 +90,16 @@ export function creatureValueRaw(
     }
     return value;
 }
+
+// The non-creature twin (issue #4903): the latent worth of a non-creature
+// card with no script, `base + MV × k`. Here rather than in `cardValue.ts` so
+// the Representative Victim (`ai/representativeVictim.ts`) prices a typical
+// artifact or enchantment from the same formula without importing the latent
+// card-value primitive.
+const NONCREATURE_BASE = 8; // base latent worth of a non-creature card (MV 0)
+const W_NC_MV = 10; // per mana value, non-creature latent worth
+
+/** `NONCREATURE_BASE + MV × W_NC_MV` — a script-less non-creature's worth. */
+export function nonCreatureBodyRaw(mv: number): number {
+    return NONCREATURE_BASE + mv * W_NC_MV;
+}

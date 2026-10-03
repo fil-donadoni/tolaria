@@ -56,7 +56,12 @@ export interface LatentLens {
      *  is what reproduces the pre-#3398 constants); `0` when a board IS
      *  attached and holds no legal victim at all — a removal spell facing an
      *  empty board is worth nothing, which is the case the old fixed constant
-     *  got most wrong. */
+     *  got most wrong.
+     *
+     *  Issue #4903 — an ETB Ability's lens (`withTypedRepresentativeVictim`,
+     *  `ai/representativeVictim.ts`) answers a slot of an artifact,
+     *  enchantment or land requirement with no board attached: one
+     *  representative victim of THAT type, never the creature-sized unit. */
     victimUnits(slot: number): number | undefined;
     /** Issue #4773 — units of `boardRemoval` a `forEach` over the battlefield
      *  takes off the board NET for the caster: the realised loss of every
