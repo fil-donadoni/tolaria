@@ -587,7 +587,11 @@ export function dslLatentAbilityScriptOpValue(
  *  each target slot it cannot answer priced at a representative victim of
  *  the ability's own target TYPE rather than the 2/2. One helper for both
  *  readings of an ETB — its potential in hand and its value in flight — so
- *  the two can never price the same ability differently. */
+ *  the two can never price the same ability differently — except that a
+ *  `ctx` carrying a board lens (a self-sacrificing creature in hand, issue
+ *  #5014) answers the ability's requirement against that board, while the
+ *  in-flight reading runs context-free: its trigger is already on the stack
+ *  and the search settles it before a leaf, so the split is deliberate. */
 function etbGrounding(
     ctx: GroundingContext,
     ability: { targetRequirement?: TargetRequirement }
@@ -600,10 +604,16 @@ function etbGrounding(
     // representative victim.
     const measured = ctx.latent.requirementUnits?.(requirement);
     if (measured === undefined) return withLatentLens(ctx, typed);
+    // A triggered ability declares ONE requirement, so only slot 0 is its.
+    const types = Array.isArray(requirement.type)
+        ? requirement.type
+        : [requirement.type];
+    const reachesFace = types.some((t) => t === "any" || t === "player");
     return withLatentLens(ctx, {
         ...typed,
-        victimUnits: () => measured,
-        faceOnly: () => measured === 0,
+        victimUnits: (slot) =>
+            slot === 0 ? measured : typed.victimUnits(slot),
+        faceOnly: (slot) => slot === 0 && measured === 0 && reachesFace,
     });
 }
 

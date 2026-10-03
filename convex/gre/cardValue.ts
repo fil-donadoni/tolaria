@@ -234,8 +234,10 @@ export function dslLatentPieces(
     /** Issue #3398 — the board the card is being valued against, when the
      *  caller has one. Only the SPELL script reads it (a targeted, board-
      *  affecting Op prices at its best legal victim's realised loss); a
-     *  creature's ABILITY scripts are valued context-free either way, since
-     *  their targets are chosen on a future board, not this one. */
+     *  creature's ABILITY scripts are valued context-free, since their
+     *  targets are chosen on a future board, not this one — except a
+     *  creature whose own ETB sacrifices it (issue #5014), which is a spell
+     *  when hard-cast and reads this board. */
     board?: LatentLens,
     /** Issue #3406 — the latent unit prices the caller's evaluation runs at.
      *  Defaulted to the production vector for every caller that has no vector
@@ -260,13 +262,15 @@ export function dslLatentPieces(
     // script is the whole payoff, so it is grounded on the board lens the
     // non-creature branch uses (issue #3398) rather than context-free
     // (issue #5014) — three damage with no creature to hit goes face, not at
-    // the representative victim's price.
+    // the representative victim's price. Creatures only: the non-creature
+    // branch never reads `dslAbilityValue`, and the lens's `measured` flag
+    // must stay its spell script's own.
     const abilityCtx = contextFreeGrounding(latent);
     return {
         dslSpellValue,
         dslAbilityValue: dslAbilityScriptValue(
             def,
-            board && selfSacrificeWeight > 0
+            board && selfSacrificeWeight > 0 && def.types.includes("Creature")
                 ? withLatentLens(abilityCtx, board)
                 : abilityCtx
         ),
