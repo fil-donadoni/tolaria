@@ -1396,8 +1396,9 @@ export type CardInstanceState = {
      *  effect. Stamped by `sendStackItemToGraveyard` and read ONLY by the
      *  evaluator's `manaDevelopmentTerm`, which keeps a cast spell's mana value
      *  on the player's curve the way a resolved permanent's stays on the
-     *  battlefield. Cleared when the card goes back on the stack
-     *  (`resetStackTransientState`); not cleared on other graveyard exits. */
+     *  battlefield. Cleared by `resetStackTransientState` when the card next
+     *  leaves the stack anywhere but the graveyard (a graveyard landing
+     *  re-stamps it); NOT cleared on other graveyard exits (hand, library). */
     castSpellInGraveyard?: boolean;
     /** CR 111 / 400.7 provenance link (issue #791) — the battlefield permanent
      *  instance id that exiled this card "with it", set when a card is exiled
