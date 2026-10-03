@@ -452,6 +452,10 @@ const ETB_DISCARDER: CardDefinition = {
     ...ETB_WALL_REMOVER,
     id: "bot-reach-test:etb-discarder",
     name: "Bot Reach ETB Discarder",
+    manaCost: { generic: 1, B: 1, R: 1 },
+    subtypes: ["Rat"],
+    power: 1,
+    toughness: 1,
     compiledTriggeredAbilities: [
         {
             id: "bot-reach-test:etb-discarder:trigger",
