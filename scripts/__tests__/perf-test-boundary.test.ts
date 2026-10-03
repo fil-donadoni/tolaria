@@ -27,9 +27,12 @@ import vitestConfig from "../../vitest.config";
  *      back into the gate while guard 1 keeps passing vacuously.
  *   3. The converse of 1 (issue #5001): every perf test READS a clock. A
  *      `*.perf.test.ts` that reads none asserts only machine-independent
- *      facts — a deterministic test parked in the one suite no gate runs. The
- *      search-cost counters sat there and went stale twice unseen (PR #4868
- *      landed red, PR #4883 moved them).
+ *      facts — a deterministic test parked in the one suite no gate runs.
+ *      It catches a file with NO clock read only: the search-cost counters
+ *      (stale twice unseen there, PR #4868 / PR #4883) shared their file with
+ *      a printed ms/iter and would have passed it; moving them to
+ *      `searchCost.bot.test.ts` is what fixed that. The detector is the same
+ *      plain regex as guard 1, so a clock named only in a comment counts.
  *
  * It lives under `scripts/` alongside the repo's other hygiene guards rather
  * than under `convex/`, whose bundler rejects Node builtins like `fs`.

@@ -92,8 +92,8 @@ import * as manaAvailability from "../manaAvailability";
  * fixture's last values: (1) the small and medium positions had already moved
  * on the base unseen — small 95→98 iterations, medium enumerations 624→629,
  * the very failure this move closes; (2) the spies see `gre/ai/dominance.ts`'s
- * clones and SBA sweeps (medium +34 / +24 over the perf run, large
- * +144 / +96), which the `vi.mock` never counted — that module was already
+ * clones and SBA sweeps (clones / sweeps over a `vi.mock` run on the same
+ * tree: medium +34 / +24, large +144 / +96), which the `vi.mock` never counted — that module was already
  * loaded unmocked through the setup file's catalogue import.
  */
 
@@ -246,7 +246,7 @@ describe("search cost counters (issue #4458, gated by issue #5001)", () => {
                 deckKnowledge
             );
 
-            // Some positions stop early (`settled`: 95/97 of 100). That stop
+            // Some positions stop early (`settled`: 98/97 of 100). That stop
             // reads visit counts only, so it is deterministic and asserted.
             const completed = trace?.iterationsCompleted ?? 0;
             expect(completed).toBeGreaterThan(0);
