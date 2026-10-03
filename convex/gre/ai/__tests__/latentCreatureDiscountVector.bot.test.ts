@@ -13,7 +13,7 @@ import {
     makeState,
 } from "../../../cards/__tests__/setup.helper";
 import { cardValueById } from "../../cardValue";
-import { evaluateBreakdown } from "../../evaluate";
+import { cardValue, evaluateBreakdown } from "../../evaluate";
 import { latentGraveyardValue } from "../graveyardReach";
 import { DEFAULT_EVAL_WEIGHTS, type EvalWeights } from "../evalWeights";
 
@@ -121,6 +121,19 @@ describe("the creature discounts follow the vector (issue #5012)", () => {
             .graveyardReach;
         expect(base).toBeGreaterThan(0);
         expect(halved).toBeCloseTo(base / 2, 5);
+    });
+
+    it("a permission covers a HAND cast alone: an exiled creature keeps the sorcery-speed discount", () => {
+        const state = heldBears(true);
+        const inHand = state.players[0].hand[0];
+        const exiled = { ...inHand, zone: "exile" as const };
+        expect(cardValue(state, exiled)).toBeCloseTo(
+            cardValue(heldBears(false), exiled),
+            5
+        );
+        expect(cardValue(state, inHand)).toBeGreaterThan(
+            cardValue(heldBears(false), inHand)
+        );
     });
 
     it("a held creature under a cast-as-though-flash permission takes the flash discount", () => {

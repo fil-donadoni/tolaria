@@ -46,6 +46,11 @@ import {
     type LatentCreatureDiscounts,
     type LatentWeights,
 } from "./evalWeights";
+import type { CardInstanceState, GameState, PlayerState } from "../state";
+import { graveyardCastMechanismForMember } from "../castCost";
+import { getPrintedEscape } from "../escape";
+import { canPlayLandsFromGraveyard } from "../rules";
+import { isLand } from "../constants";
 
 /** The committed vector's discounts — what a caller with no vector of its own
  *  (the choice-candidate pricing, which carries no `EvalWeights`) reads. */
@@ -53,11 +58,6 @@ const DEFAULT_CREATURE_DISCOUNTS: LatentCreatureDiscounts = Object.freeze({
     creature: DEFAULT_EVAL_WEIGHTS.latentCreatureDiscount,
     flash: DEFAULT_EVAL_WEIGHTS.latentFlashCreatureDiscount,
 });
-import type { CardInstanceState, GameState, PlayerState } from "../state";
-import { graveyardCastMechanismForMember } from "../castCost";
-import { getPrintedEscape } from "../escape";
-import { canPlayLandsFromGraveyard } from "../rules";
-import { isLand } from "../constants";
 // The DSL's nesting constructs, enumerated ONCE for every static script walk in
 // `gre/ai/**` (issue #3041 added a third caller — `searchDestination.ts`).
 import { childOpArrays } from "./effectOpChildren";

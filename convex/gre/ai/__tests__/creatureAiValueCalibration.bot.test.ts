@@ -1,7 +1,7 @@
 // A creature `aiValue` override replaces the WHOLE latent worth outright, so
 // it cannot follow the fitted `latentCreatureDiscount` by itself (issue #5012:
 // three overrides were hand-tuned against the removed fixed 0.85 and sat ~40%
-// high at the fitted 0.55). This pins each to "discounted body + the stated
+// high at the fitted ~0.55). This pins each to "discounted body + the stated
 // ability premium" at the COMMITTED discount: a refit that moves the discount
 // reds here, naming the override to re-derive.
 import { describe, expect, it } from "vitest";

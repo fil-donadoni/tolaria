@@ -292,11 +292,16 @@ export function cardValue(
         flashCreatureDiscount,
         // Issue #5012 — CR 601.3b / 702.8a: a held creature a battlefield
         // permission lets its holder cast as though it had flash enters at
-        // instant speed like a printed-flash one. Scanned only for a
-        // creature without printed flash — the hand term runs per leaf.
+        // instant speed like a printed-flash one. A permission covers a HAND
+        // cast alone (`collectCastPermissions`), so an exiled Adventure is
+        // not scanned; nor is a creature with printed flash or an `aiValue`
+        // (which `latentValue` returns before reading the flag) — the hand
+        // term runs per leaf. In hand the holder is the owner (CR 400.3).
         castAsThoughFlash:
+            card.zone === "hand" &&
             isCreature(card) &&
             !card.staticAbilities.includes("flash") &&
+            getInstanceAiValue(card) === undefined &&
             hasCastPermissionFlash(state, card.ownerId, card),
         isCreature: isCreature(card),
         power: pt.power,
