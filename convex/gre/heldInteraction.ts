@@ -27,7 +27,8 @@
 
 import type { GameState, PlayerState } from "./state";
 import { hasInstantSpeed } from "./constants";
-import { canPayCost, manaUnitsFor, type ManaUnits } from "./manaAvailability";
+import { canPayCost, type ManaUnits } from "./manaAvailability";
+import { censusOf, type ManaCensusMemo } from "./manaCensusMemo";
 import { getInstanceManaCost, getInstanceAiCombatHint } from "../cards/index";
 
 /** A pump the held interaction can apply to a single creature this combat. */
@@ -50,9 +51,10 @@ export type HeldInteraction = {
  *  interaction relevant at all". Pure. */
 export function hasCastableInstantHint(
     state: GameState | undefined,
-    player: PlayerState
+    player: PlayerState,
+    memo?: ManaCensusMemo
 ): boolean {
-    const units = manaUnitsFor(state, player);
+    const units = censusOf(state, player, memo).now;
     return player.hand.some((card) => {
         if (!hasInstantSpeed(card)) return false;
         if (!getInstanceAiCombatHint(card)) return false;
@@ -71,9 +73,10 @@ export function hasCastableInstantHint(
  *  any castable held instant is removal. */
 export function castableHeldInteraction(
     state: GameState | undefined,
-    player: PlayerState
+    player: PlayerState,
+    memo?: ManaCensusMemo
 ): HeldInteraction {
-    const units: ManaUnits = manaUnitsFor(state, player);
+    const units: ManaUnits = censusOf(state, player, memo).now;
     const result: HeldInteraction = { removal: false };
     for (const card of player.hand) {
         if (!hasInstantSpeed(card)) continue;

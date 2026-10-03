@@ -138,6 +138,7 @@ import { determinize } from "./determinize";
 import { deckColorsForSearch, type DeckKnowledgeBySeat } from "./deckKnowledge";
 import { makeRng } from "./rng";
 import { hasCastableInstantHint } from "./heldInteraction";
+import { newManaCensusMemo, type ManaCensusMemo } from "./manaCensusMemo";
 import { getEffectiveActivatedAbilities } from "./activatedAbilities";
 import { hasCardSelfFlashPermission } from "../cards/castRestrictions";
 import { isCreature, hasManaAbility, hasInstantSpeed } from "./constants";
@@ -1405,8 +1406,13 @@ export function advanceToDecision(state: GameState): string | null {
  *  `ROLLOUT_EPSILON_REACTIVE` on a reactive combat line — a declared combat in
  *  which EITHER player holds castable interaction — so the narrow ambush /
  *  cautious-block line plays out reliably instead of being diluted by random
- *  moves; the flat `ROLLOUT_EPSILON` otherwise. Pure read of `state`. */
-function rolloutEpsilonFor(state: GameState, weights: EvalWeights): number {
+ *  moves; the flat `ROLLOUT_EPSILON` otherwise. Pure read of `state`; `memo`
+ *  is the rollout ply's (issue #4461), shared with `selectRolloutMove`. */
+function rolloutEpsilonFor(
+    state: GameState,
+    weights: EvalWeights,
+    memo: ManaCensusMemo
+): number {
     // A reactive combat line: any combat phase (the attack declaration that
     // baits the block, the block, and the response window) while SOME player
     // holds castable interaction. Covering the whole combat — not only a
@@ -1420,7 +1426,9 @@ function rolloutEpsilonFor(state: GameState, weights: EvalWeights): number {
         state.phase === "BEGINNING_OF_COMBAT" ||
         state.phase === "END_OF_COMBAT";
     if (!inCombat) return weights.rolloutEpsilon;
-    const anyHeld = state.players.some((p) => hasCastableInstantHint(state, p));
+    const anyHeld = state.players.some((p) =>
+        hasCastableInstantHint(state, p, memo)
+    );
     return anyHeld ? weights.rolloutEpsilonReactive : weights.rolloutEpsilon;
 }
 
@@ -1473,8 +1481,14 @@ export function rollout(
         const moves = enumerateMoves(state, pid);
         if (moves.length === 0) break;
 
+        // One census per seat for the whole ply (issue #4461): `state` is only
+        // read until the chosen move is applied below.
+        const memo = newManaCensusMemo();
         let chosen: Move;
-        if (moves.length === 1 || rng() < rolloutEpsilonFor(state, weights)) {
+        if (
+            moves.length === 1 ||
+            rng() < rolloutEpsilonFor(state, weights, memo)
+        ) {
             // Exploration of lines the greedy probe undervalues, not a model
             // of typical play: never draws a transient sacrifice conversion, whose
             // variants (one per sacrificable permanent and target) would
@@ -1491,7 +1505,15 @@ export function rollout(
             const pool = drawn.length > 0 ? drawn : moves;
             chosen = pool[Math.floor(rng() * pool.length)];
         } else {
-            chosen = selectRolloutMove(state, pid, botId, moves, rng, weights);
+            chosen = selectRolloutMove(
+                state,
+                pid,
+                botId,
+                moves,
+                rng,
+                weights,
+                memo
+            );
         }
         applyMoveInSearch(state, pid, chosen, true);
     }
@@ -1895,14 +1917,17 @@ export function policyValueOfSettled(
     botId: string,
     weights: EvalWeights = DEFAULT_EVAL_WEIGHTS
 ): number {
-    let v = evaluate(settled, botId, weights);
+    // One census per seat for the evaluation AND the corrections below (issue
+    // #4461) — all three read the same settled state.
+    const memo = newManaCensusMemo();
+    let v = evaluate(settled, botId, weights, memo);
     const combat = settled.combat;
     if (
         combat &&
         combat.confirmed &&
         !combat.blockersConfirmed &&
         combat.attackerIds.length > 0 &&
-        hasCastableInstant(settled, settled.activePlayerId)
+        hasCastableInstant(settled, settled.activePlayerId, undefined, memo)
     ) {
         // Don't PRE-JUDGE the attacker's combat while the attacker holds a
         // castable trick (ADR 0021 slice 3): the held instant may swing the
@@ -1913,7 +1938,7 @@ export function policyValueOfSettled(
         // Strip it so the policy holds priority and lets the actual combat (with
         // the trick) resolve downstream. Policy-only, so the shared leaf
         // magnitudes / reward band are untouched.
-        v -= declaredCombatDelta(settled, botId, weights);
+        v -= declaredCombatDelta(settled, botId, weights, undefined, memo);
     }
     // Fold the declared block exchange in for ANY move taken at a confirmed,
     // pre-damage block — `declaredBlockDelta` reads effective P/T, so it covers
@@ -1923,7 +1948,7 @@ export function policyValueOfSettled(
     // `lethalUnblockedDelta` (issue #1489) reaches this sum EXACTLY ONCE, via
     // `evaluate` above: it is deliberately not inside `declaredBlockDelta`, so
     // this third consumer of the term cannot double it to ±2·WIN_SCORE.
-    return v + declaredBlockDelta(settled, botId, weights);
+    return v + declaredBlockDelta(settled, botId, weights, memo);
 }
 
 /** The reactive-aware rollout DEFAULT POLICY (ADR 0021 slice 2, issue #222): the
@@ -1948,9 +1973,12 @@ export function selectRolloutMove(
     botId: string,
     moves: Move[],
     rng: () => number,
-    weights: EvalWeights = DEFAULT_EVAL_WEIGHTS
+    weights: EvalWeights = DEFAULT_EVAL_WEIGHTS,
+    memo: ManaCensusMemo = newManaCensusMemo()
 ): Move {
     const moverIsBot = pid === botId;
+    // Asked once for the ply, not once per candidate (issue #4461).
+    const held = heldInstantProbe(state, pid, memo);
     let bestScore = -Infinity;
     let best: Move[] = [];
     for (const move of moves) {
@@ -1972,7 +2000,7 @@ export function selectRolloutMove(
         // even-looking setup (an attacker that merely trades) without forcing a
         // clearly-losing one (a creature that just dies in the block), the
         // mirror of the pre-block guardrail.
-        if (isAmbushSetupAttack(state, pid, move)) {
+        if (isAmbushSetupAttack(move, held)) {
             moverReward += weights.rolloutGuardrailPenalty;
         }
         if (moverReward > bestScore) {
@@ -2031,16 +2059,13 @@ export function isReactiveInstantCast(
  *  as a creature walking into death), so without a nudge the tree never explores
  *  the attack and the reactive subtree behind it is unreachable. Gated on
  *  holding a live trick so it never fires on a plain empty-handed attack (e.g.
- *  the suicidal-chump episode stays correct). */
-function isAmbushSetupAttack(
-    state: GameState,
-    pid: string,
-    move: Move
-): boolean {
+ *  the suicidal-chump episode stays correct). `held` is the mover's probe of
+ *  the position the move is taken from. */
+function isAmbushSetupAttack(move: Move, held: HeldInstantProbe): boolean {
     return (
         move.kind === "declare-attackers" &&
         move.attackerIds.length > 0 &&
-        hasCastableInstant(state, pid)
+        held.instant()
     );
 }
 
@@ -2073,19 +2098,50 @@ function isAmbushSetupAttack(
  *  `PRECOMBAT_MAIN`/`POSTCOMBAT_MAIN` there is no confirmed combat left to
  *  match the first branch — a position can satisfy at most one of the two
  *  `if`s below, never both and never neither incorrectly. */
-function isReactiveHold(state: GameState, pid: string, move: Move): boolean {
+function isReactiveHold(
+    state: GameState,
+    pid: string,
+    move: Move,
+    held: HeldInstantProbe
+): boolean {
     if (move.kind !== "pass") return false;
     if (pid !== state.activePlayerId) return false;
     const combat = state.combat;
     if (combat && combat.confirmed && !combat.blockersConfirmed) {
-        if (combat.attackerIds.length > 0 && hasCastableInstant(state, pid)) {
+        if (combat.attackerIds.length > 0 && held.instant()) {
             return true;
         }
     }
     const ownMain =
         state.phase === "PRECOMBAT_MAIN" || state.phase === "POSTCOMBAT_MAIN";
     if (!ownMain) return false;
-    return hasCastableFlashPermanent(state, pid);
+    return held.flashPermanent();
+}
+
+/** The mover's castable-instant reads of ONE position (issue #4461): each
+ *  answered on first ask and kept, off one shared census. A tree node's prior
+ *  loop asks them for every edge it scores and a rollout ply for every
+ *  candidate, of the same position and the same mover; the answer is the
+ *  position's, so it is computed once per node / ply instead of once per edge.
+ *  Valid only while `state` is not mutated. */
+export type HeldInstantProbe = {
+    instant: () => boolean;
+    flashPermanent: () => boolean;
+};
+
+function heldInstantProbe(
+    state: GameState,
+    pid: string,
+    memo: ManaCensusMemo = newManaCensusMemo()
+): HeldInstantProbe {
+    let instant: boolean | undefined;
+    let flashPermanent: boolean | undefined;
+    return {
+        instant: () =>
+            (instant ??= hasCastableInstant(state, pid, undefined, memo)),
+        flashPermanent: () =>
+            (flashPermanent ??= hasCastableFlashPermanent(state, pid, memo)),
+    };
 }
 
 /** Soft progressive-bias prior added to an edge's UCB1 score (ADR 0021 slice 3,
@@ -2097,18 +2153,23 @@ function isReactiveHold(state: GameState, pid: string, move: Move): boolean {
  *  bonus DECAYS as `REACTIVE_PRIOR_C / (1 + visits)`, so it can never dominate an
  *  edge's accumulated reward: a genuine no-payoff line is washed out once
  *  visited. Pure bias — NEVER a hard expansion rule, never a legality change.
- *  Zero for every other move. */
+ *  Zero for every other move.
+ *
+ *  `held` is the node's probe (issue #4461): the selection loop opens one
+ *  before scoring its edges, so the castable-instant reads are paid once per
+ *  node visit rather than once per edge. */
 export function reactivePrior(
     state: GameState,
     pid: string,
     move: Move,
     visits: number,
-    weights: EvalWeights = DEFAULT_EVAL_WEIGHTS
+    weights: EvalWeights = DEFAULT_EVAL_WEIGHTS,
+    held: HeldInstantProbe = heldInstantProbe(state, pid)
 ): number {
     if (
         !isReactiveInstantCast(state, pid, move) &&
-        !isAmbushSetupAttack(state, pid, move) &&
-        !isReactiveHold(state, pid, move)
+        !isAmbushSetupAttack(move, held) &&
+        !isReactiveHold(state, pid, move, held)
     ) {
         return 0;
     }
@@ -2640,6 +2701,8 @@ function puctDescend(
     let bestVal = -Infinity;
     let bestKeyed: KeyedMove | null = null;
     let bestEdge: Edge | null = null;
+    // The node's castable-instant probe, once for every edge (issue #4461).
+    const held = heldInstantProbe(world, pid);
     for (const k of keyed) {
         const edge = node.children.get(k.key);
         const visits = edge?.visits ?? 0;
@@ -2675,7 +2738,7 @@ function puctDescend(
                   weights.ucbC *
                       Math.sqrt(Math.log(Math.max(parentVisits, 2)))) +
             puctBonus(priors.get(k.key) ?? 0, parentVisits, visits, config) +
-            reactivePrior(world, pid, k.move, visits, weights);
+            reactivePrior(world, pid, k.move, visits, weights, held);
         if (val > bestVal) {
             bestVal = val;
             bestKeyed = k;
@@ -2848,12 +2911,21 @@ function iterate(
         let bestEdge: Edge | null = null;
         let bestKeyed: KeyedMove | null = null;
         let bestVal = -Infinity;
+        // The node's castable-instant probe, once for every edge (issue #4461).
+        const held = heldInstantProbe(world, pid);
         for (const k of keyed) {
             const edge = node.children.get(k.key)!;
             edge.avail += 1;
             const val =
                 ucb1(edge, weights) +
-                reactivePrior(world, pid, edge.move, edge.visits, weights) +
+                reactivePrior(
+                    world,
+                    pid,
+                    edge.move,
+                    edge.visits,
+                    weights,
+                    held
+                ) +
                 choicePriorBonus(k.prior, edge.visits, weights);
             if (val > bestVal) {
                 bestVal = val;
