@@ -522,15 +522,16 @@ function narrows(req: TargetRequirement): boolean {
  * #4904).
  */
 export function targetPose(def: CardDefinition): TargetPose {
-    const poses = [
-        spellPose(def),
-        ...etbAbilityScripts(def).map((script) => spellPose(script)),
-    ];
-    const library = etbLibraryCards(def);
+    const own = spellPose(def);
+    const etb = etbAbilityScripts(def).map((script) => spellPose(script));
+    const poses = [own, ...etb];
     return {
-        cards: [...poses.flatMap((p) => p.cards), ...library],
+        cards: [...poses.flatMap((p) => p.cards), ...etbLibraryCards(def)],
         omitToughnessBoost: poses.some((p) => p.omitToughnessBoost),
-        position: poses.find((p) => p.position.phase)?.position ?? {},
+        // The combat a target's role names is the SPELL's: a creature is cast
+        // in a main phase, so an ETB Ability's combat window would be one the
+        // card cannot be cast in.
+        position: own.position,
     };
 }
 
@@ -569,6 +570,7 @@ export function etbAbilityScripts(def: CardDefinition): CardDefinition[] {
         if (!t.targetRequirement && !(t.modes ?? []).length) continue;
         scripts.push({
             ...def,
+            subtypes: [],
             effects: t.effects,
             targetRequirement: t.targetRequirement,
             modes: t.modes,
@@ -579,6 +581,7 @@ export function etbAbilityScripts(def: CardDefinition): CardDefinition[] {
         if (!t.targetRequirement) continue;
         scripts.push({
             ...def,
+            subtypes: [],
             effects: [...t.effects],
             targetRequirement: t.targetRequirement,
             modes: undefined,
