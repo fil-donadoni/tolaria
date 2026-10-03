@@ -104,4 +104,15 @@ describe("forcedChoiceAnswer — a land-light player keeps its land (issue #4932
         expect(prospectiveCardWorth(s, land)).toBe(30);
         expect(shedIds(s)).toContain(FOREST);
     });
+
+    it("a land NOT in hand (battlefield) keeps its flat worth whatever the land count", () => {
+        const s = midMindRot(HAND, 0);
+        const opp = s.players.find((p) => p.id !== s.activePlayerId)!;
+        const inHand = opp.hand.find((c) => idOf(c) === FOREST)!;
+        const flat = prospectiveCardWorth(
+            { ...s, players: s.players.map((p) => ({ ...p, hand: [] })) },
+            inHand
+        );
+        expect(flat).toBe(30);
+    });
 });

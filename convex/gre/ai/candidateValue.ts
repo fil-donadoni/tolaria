@@ -174,14 +174,18 @@ export function prospectiveCardWorth(
     ctx?: GroundingContext
 ): number {
     // Issue #4932 — a land held in hand is the holder's next land drop, priced
-    // by the holder's land count; CR 400.7: it sits in its owner's hand.
-    if (card.types.includes("Land") && !card.types.includes("Creature"))
-        return landInHandWorth(
-            getPlayer(state, card.ownerId).battlefield.filter((c) =>
-                c.types.includes("Land")
-            ).length,
-            noncreatureCardWorth(card, ctx)
-        );
+    // by the holder's land count; CR 400.3: a card in hand is its owner's. The
+    // gate is the ZONE: this function also prices battlefield, graveyard and
+    // library pools (sacrifice / pick choices), where the curve is wrong.
+    if (card.types.includes("Land") && !card.types.includes("Creature")) {
+        const owner = getPlayer(state, card.ownerId);
+        if (owner.hand.some((c) => c.id === card.id))
+            return landInHandWorth(
+                owner.battlefield.filter((c) => c.types.includes("Land"))
+                    .length,
+                noncreatureCardWorth(card, ctx)
+            );
+    }
     return card.types.includes("Creature")
         ? permanentWorth(state, card)
         : noncreatureCardWorth(card, ctx);
