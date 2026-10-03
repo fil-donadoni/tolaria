@@ -11,6 +11,7 @@ import { enumerateMoves } from "../moves";
 import { searchWithTrace } from "../search";
 import type { GameState } from "../state";
 import * as registry from "../../cards/registry";
+import * as manaAvailability from "../manaAvailability";
 
 /**
  * Load-INDEPENDENT search-cost fixture (issue #4458, PRD #4454).
@@ -55,6 +56,14 @@ import * as registry from "../../cards/registry";
  * registry's own import graph reaches `gre/layers.ts`, and a module first
  * loaded inside a mock factory's `importOriginal` binds the ORIGINAL export —
  * measured, a `vi.mock` wrapper here counted zero.
+ *
+ * `censuses` (issue #4461) counts the mana censuses computed — every call
+ * from outside `gre/manaAvailability.ts` into `manaCensusFor`, `manaUnitsFor`
+ * or `boardCensusFor`, each of which walks a battlefield once (their calls
+ * into one another inside the module are one census, and are not seen). Spied
+ * like `ptWalkVisits`, for the same reason. An evaluation used to pay one per
+ * seat in the material terms and another per castable-interaction read in the
+ * combat terms, and every reactive-prior edge paid its own probe.
  *
  * `rngDraws` is the total `rngCounter` advance over every clone the search
  * made: game-PRNG draws only (in-game random effects). The search's own
@@ -169,6 +178,7 @@ type Position = {
         evaluations: number;
         sbaSweeps: number;
         ptWalkVisits: number;
+        censuses: number;
         rngDraws: number;
         searchDraws: number;
     };
@@ -188,6 +198,7 @@ const POSITIONS: Position[] = [
             evaluations: 353,
             sbaSweeps: 2459,
             ptWalkVisits: 7148,
+            censuses: 1184,
             rngDraws: 0,
             searchDraws: 5949,
         },
@@ -203,6 +214,7 @@ const POSITIONS: Position[] = [
             evaluations: 291,
             sbaSweeps: 1747,
             ptWalkVisits: 0,
+            censuses: 755,
             rngDraws: 0,
             searchDraws: 5720,
         },
@@ -218,6 +230,7 @@ const POSITIONS: Position[] = [
             evaluations: 888,
             sbaSweeps: 3082,
             ptWalkVisits: 32910,
+            censuses: 3489,
             rngDraws: 0,
             searchDraws: 7040,
         },
@@ -258,6 +271,11 @@ describe("search cost counters (issue #4458)", () => {
                 registry,
                 "declaresLayer7StaticEffect"
             );
+            const censusSpies = [
+                vi.spyOn(manaAvailability, "manaCensusFor"),
+                vi.spyOn(manaAvailability, "manaUnitsFor"),
+                vi.spyOn(manaAvailability, "boardCensusFor"),
+            ];
 
             const t0 = performance.now();
             const { trace } = searchWithTrace(
@@ -269,6 +287,10 @@ describe("search cost counters (issue #4458)", () => {
             );
             const elapsedMs = performance.now() - t0;
             const visits = ptWalkVisits.mock.calls.length;
+            const censuses = censusSpies.reduce(
+                (sum, spy) => sum + spy.mock.calls.length,
+                0
+            );
 
             // Some positions stop early (`settled`: 95/97 of 100). That stop
             // reads visit counts only, so it is deterministic; the count is
@@ -287,6 +309,7 @@ describe("search cost counters (issue #4458)", () => {
                 evaluations: counts.evaluations,
                 sbaSweeps: counts.sbaSweeps,
                 ptWalkVisits: visits,
+                censuses,
                 rngDraws,
                 searchDraws: counts.searchDraws,
             };
