@@ -682,6 +682,37 @@ cold, seconds warm. `bundle` and every vitest project but `node-tooling` stay
 in the mutex only. A failed `git fetch` or a run past 15 min reaches no verdict
 and is skipped as INFRA — the lane still runs.
 
+**No preflight on a free mutex with an empty queue** (issue #4992). The
+preflight keeps a deterministic failure out of a queue and out of a mutex;
+with **no live heavy holder and no live waiter** there is neither, and the
+lane runs the same checks again on the rebased tip anyway. So `land`, in
+full mode, reads the lock root once when issued (`heavyQueueIdle`) and, when
+both are empty, prints `land: preflight skipped (the heavy mutex is free and
+nobody is queued …)` and goes straight to the gate. "Live" is the gate's own
+reading, under its own threshold overrides: a dead holder, one silent past
+`TOLARIA_GATE_STALE_MS` or stalled past the short reclaim holds nothing; a
+holder still waiting for the machine under its hold is live; a waiter entry
+is one only while `waiterLive` says so. The read prunes and writes nothing —
+pruning is the queue members' business. The decision is not revisited: a
+holder or waiter that appears after it finds the land queued as
+`--no-preflight` would queue it. **The accepted cost**: a lane that reds on
+what the preflight would have caught holds the mutex for that run, and a land
+issued DURING it waits behind a failed run — nobody was waiting when it
+started.
+
+**Measured** over every `land` run with a preflight on record
+(`~/.cache/tolaria/gate-runs`, 2026-10-02, 12 runs, 10 PRs). The logs carry
+no queue state at issue time, so it is inferred: a land counts as issued on a
+free mutex when its gate took the lock with no `waiting` line, or when the
+holder it then waited on had acquired after the land was issued. **4 of 12**,
+each the seconds its preflight would not have run: PR #4987 180.4 s, PR
+#4991's first attempt 131.5 s, PR #4996 221.6 s, PR #4995's retry 159.9 s
+(its holder had held 21 s at the end of a 165 s preflight) — 694 s in all.
+7 were issued beside a holder or behind a waiter (PR #4986, #4990, #4991's
+retry, #4993, #4994 twice, #4997) and 1 is unknown (PR #4995's first attempt,
+refused by a tree-moved preflight). From this change on the skip line makes
+the count exact: `grep -l 'preflight skipped (the heavy mutex is free'`.
+
 ## The base branch, the batch, and `release` — where the full gate went (ADR 0116, re-cadenced by ADR 0136 §6)
 
 Under ADR 0110 every landing detached `health:main` after the merge: the full
