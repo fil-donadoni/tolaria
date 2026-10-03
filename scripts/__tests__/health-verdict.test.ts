@@ -89,8 +89,10 @@ describe("health verdict — reading kern.sleeptime", () => {
             expect(at).toBeNull();
             return;
         }
-        // A machine up since boot without sleeping reads null, also fine.
-        if (at !== null) expect(at).toBeLessThanOrEqual(Date.now());
+        // A machine up since boot without sleeping reads null, also fine —
+        // asserted either way, or the test has no assertion and reds
+        // (`kern.sleeptime` reads 0 until the first sleep; issue #5001).
+        expect(at === null || at <= Date.now()).toBe(true);
     });
 });
 
