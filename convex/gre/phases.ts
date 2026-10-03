@@ -1070,7 +1070,8 @@ export function buildAutoDamageAssignments(
                     state,
                     attacker,
                     blocker,
-                    result
+                    result,
+                    pass
                 );
                 const toBlocker = Math.min(
                     getCardPower(state, attacker, pass),
@@ -1134,7 +1135,7 @@ export function buildDefaultDamageAssignments(
                 );
                 // CR 702.19b budget, not raw toughness (see lethalForBlocker).
                 const lethal = blocker
-                    ? lethalForBlocker(state, attacker, blocker, result)
+                    ? lethalForBlocker(state, attacker, blocker, result, pass)
                     : 0;
                 const toBlocker = Math.min(
                     getCardPower(state, attacker, pass),
@@ -1164,7 +1165,13 @@ export function buildDefaultDamageAssignments(
                     // CR 702.19b budget, not raw toughness (see
                     // lethalForBlocker).
                     const lethal = blocker
-                        ? lethalForBlocker(state, attacker, blocker, result)
+                        ? lethalForBlocker(
+                              state,
+                              attacker,
+                              blocker,
+                              result,
+                              pass
+                          )
                         : 0;
                     const toThis = Math.min(remaining, lethal);
                     assignment[blockerId] = toThis;

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vitest";
 import { loadavg } from "node:os";
 import {
     bladeDeckKnowledge,
@@ -42,12 +42,15 @@ import * as registry from "../../cards/registry";
  * both for the merge into one call to show up as a delta.
  *
  * `ptWalkVisits` (issue #4462) counts the permanents the layer-7 SOURCE walk
- * visits: one `declaresLayer7StaticEffect` precheck per permanent per walk
- * (`collectLayer7Sources`, `gre/layers.ts`). It is the term that was quadratic
+ * visits: one `declaresLayer7StaticEffect` precheck per battlefield permanent
+ * per walk (`collectLayer7Sources`, `gre/layers.ts`; emblems are walked but
+ * not prechecked, so they are not counted). It is the term that was quadratic
  * — every creature's P/T read walked every battlefield, so a pass over n
- * creatures visited n² permanents — and is linear now that a pass walks once
- * (`Layer7Pass`). Before that change the three positions read 14826 / 0 /
- * 125917; the medium board has no creature, so nothing is ever walked on it.
+ * creatures visited n² permanents — and a `Layer7Pass` walks once for the
+ * pass instead. What remains is one walk per SBA scan and per evaluation,
+ * plus the single reads that belong to no pass. Before that change the three
+ * positions read 14826 / 0 / 125917; the medium board has no creature, so
+ * nothing is ever walked on it.
  * Counted with `vi.spyOn` on the registry's export, not `vi.mock`: the
  * registry's own import graph reaches `gre/layers.ts`, and a module first
  * loaded inside a mock factory's `importOriginal` binds the ORIGINAL export —
@@ -228,6 +231,11 @@ function scenarioFor(prefix: string): BladeScenario {
 }
 
 describe("search cost counters (issue #4458)", () => {
+    // The `ptWalkVisits` spy, restored even when the search throws.
+    afterEach(() => {
+        vi.restoreAllMocks();
+    });
+
     for (const position of POSITIONS) {
         it(`${position.name}: exact per-iteration work at ${ITERATIONS} iterations`, () => {
             const scenario = scenarioFor(position.labelPrefix);
@@ -261,7 +269,6 @@ describe("search cost counters (issue #4458)", () => {
             );
             const elapsedMs = performance.now() - t0;
             const visits = ptWalkVisits.mock.calls.length;
-            ptWalkVisits.mockRestore();
 
             // Some positions stop early (`settled`: 95/97 of 100). That stop
             // reads visit counts only, so it is deterministic; the count is

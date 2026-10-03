@@ -379,8 +379,9 @@ export function beginLayer7Pass(state: LayerStateView): Layer7Pass {
  *  effects could turn on (CR 613.4, 613.7, 613.8): the source's timestamp, its
  *  `applies` predicate and its source-level "as long as" gate are all still read
  *  per target off the live source. The plan answers membership and nothing
- *  else, which is why a counter, a tap or a control change between two reads
- *  of one pass needs no new plan — and a permanent entering or leaving does. */
+ *  else, which is why a counter or a tap between two reads of one pass needs
+ *  no new plan — and a permanent entering, leaving or changing battlefield
+ *  does. */
 function collectLayer7Sources(state: LayerStateView): Layer7SourcePlan {
     const candidates: Layer7SourceCandidate[] = [];
     const push = (

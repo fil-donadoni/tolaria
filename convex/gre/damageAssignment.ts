@@ -19,7 +19,12 @@
 import { findPermanent } from "./lookup";
 import type { CardInstanceState, GameState } from "./state";
 import { getPlayer, getOpponentId } from "./state";
-import { getEffectiveToughness, getEffectivePower } from "./layers";
+import {
+    getEffectivePT,
+    getEffectivePower,
+    getEffectiveToughness,
+    type Layer7Pass,
+} from "./layers";
 import { getEffectiveBlockGraph } from "./banding";
 import { isPlaneswalker } from "./constants";
 import {
@@ -82,12 +87,15 @@ export function lethalForBlocker(
     state: GameState,
     attacker: CardInstanceState,
     blocker: CardInstanceState,
-    assignedSoFar: Record<string, Record<string, number>>
+    assignedSoFar: Record<string, Record<string, number>>,
+    /** The caller's layer-7 pass (issue #4462), when it is building the
+     *  assignments of a whole combat. */
+    pass?: Layer7Pass
 ): number {
     return lethalDamageThreshold({
         // Effective toughness after the layer pipeline (CR 613.4), never the
         // printed field.
-        effectiveToughness: getEffectiveToughness(state, blocker),
+        effectiveToughness: getEffectivePT(state, blocker, { pass }).toughness,
         damageMarked: blocker.damageMarked,
         sourceHasDeathtouch: attacker.staticAbilities.includes("deathtouch"),
         other: damageAssignedByOtherSources(
