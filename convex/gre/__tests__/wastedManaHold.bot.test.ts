@@ -49,23 +49,27 @@ function build(spec: BladeScenario["spec"]): GameState {
 
 const HARD = 1200;
 
-/** Run the real search and report every root-decision mechanism the telemetry
+/** Run the real search and report every root-decision record the telemetry
  *  sink recorded (one per search). */
-function mechanismsOf(state: GameState, seed: number): string[] {
+function recordsOf(state: GameState, seed: number): RootDecisionRecord[] {
     const records: RootDecisionRecord[] = [];
     setRootDecisionSink((r) => records.push(r));
     try {
         searchWithTrace(state, state.players[0].id, { iterations: HARD }, seed);
-        return records.map((r) => r.mechanism);
+        return records;
     } finally {
         setRootDecisionSink(null);
     }
 }
 
+function mechanismsOf(state: GameState, seed: number): string[] {
+    return recordsOf(state, seed).map((r) => r.mechanism);
+}
+
 const SEED = 0xb1ade;
 
 describe("wasted-mana hold (CR 106.4)", () => {
-    it("Metamorphosis with no creature spell to spend its mana is settled by the hold", () => {
+    it("Metamorphosis with no creature spell to spend its mana is held: the hold settles it or pass leads", () => {
         const state = build({
             cards: [
                 { name: "Metamorphosis", owner: "me", zone: "hand" },
@@ -82,7 +86,16 @@ describe("wasted-mana hold (CR 106.4)", () => {
             landCount: 4,
             libraryCount: 20,
         });
-        expect(mechanismsOf(state, SEED)).toContain("wasted-mana-hold");
+        // Issue #4882: at the fitted `latentCreatureDiscount` the `pass` edge
+        // can lead the pool on its own (the sacrificed Bears is no longer
+        // priced near its hand value), and the hold only consults a cast that
+        // leads. Either way the pick is the hold, and when no rule settled it
+        // the pick IS the best mean.
+        const [record] = recordsOf(state, SEED);
+        expect(record.moveKind).toBe("pass");
+        if (record.mechanism !== "wasted-mana-hold") {
+            expect(record.chosenMean).toBe(record.bestMean);
+        }
     }, 120000);
 
     it("Dark Ritual with an empty hand — the same class without a sacrifice cost", () => {

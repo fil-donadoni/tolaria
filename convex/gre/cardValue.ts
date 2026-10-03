@@ -49,7 +49,6 @@ import { creatureValueRaw, nonCreatureBodyRaw } from "./creatureBody";
 // in hand still has to be cast (and survive) to realize its board value; non-
 // creatures get `base + MV × k`. An `aiValue` override on the CardDefinition
 // replaces the derived value verbatim.
-const LATENT_DISCOUNT = 0.85; // latent creature worth = discounted realized
 
 // Issue #1508 — bound on a NON-CREATURE's DSL spell-script value. Context-free
 // grounding (`gre/ai/grounding.ts`) always takes the `if` walker's `then`
@@ -122,6 +121,14 @@ const MAX_LATENT_SCRIPT_VALUE = 300;
  *  below its realized in-play worth, so developing it stays strictly positive
  *  (issue #149). */
 export function latentValue(chars: {
+    /** Issue #4882 — latent creature worth = this share of the realized body
+     *  (`EvalWeights.latentCreatureDiscount`, fitted). Absent = the committed
+     *  vector's. */
+    creatureDiscount?: number;
+    /** Issue #4882 — the same share for a creature with flash (CR 702.8a),
+     *  `EvalWeights.latentFlashCreatureDiscount`. Absent = the committed
+     *  vector's. */
+    flashCreatureDiscount?: number;
     isCreature: boolean;
     power: number;
     toughness: number;
@@ -171,7 +178,11 @@ export function latentValue(chars: {
         // chain below, which targets the spell-script (non-creature) path.
         if (chars.aiValue !== undefined) return chars.aiValue;
         const body =
-            LATENT_DISCOUNT *
+            (chars.staticAbilities.includes("flash")
+                ? (chars.flashCreatureDiscount ??
+                  DEFAULT_EVAL_WEIGHTS.latentFlashCreatureDiscount)
+                : (chars.creatureDiscount ??
+                  DEFAULT_EVAL_WEIGHTS.latentCreatureDiscount)) *
             (1 - (chars.etbSelfSacrificeWeight ?? 0)) *
             creatureValueRaw(
                 Math.max(0, chars.power),

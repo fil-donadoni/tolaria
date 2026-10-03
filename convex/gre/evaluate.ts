@@ -208,7 +208,8 @@ export { cardValueById } from "./cardValue";
  *  (a pinger, a sac outlet) is worth more than a vanilla of the same size, so
  *  the bot values keeping/deploying it correctly. This ALSO restores the
  *  issue-#149 invariant — the latent (in-hand) worth is the discounted body
- *  (0.85×) plus the DISCOUNTED ability value (0.5×), both factors < 1, so
+ *  (`latentCreatureDiscount`× or `latentFlashCreatureDiscount`×, fitted in
+ *  (0, 1)) plus the DISCOUNTED ability value (0.5×), both factors < 1, so
  *  latent is strictly below this realized worth for every creature; developing
  *  a good utility creature is always a strictly positive move (it was inverted
  *  before: latent counted the ability, realized did not). The ability value is
@@ -277,10 +278,17 @@ export function cardValue(
     /** Issue #3406 — see `evaluateCreature`. */
     latent: LatentWeights = DEFAULT_EVAL_WEIGHTS.latent,
     /** Issue #4462 — see `evaluateCreature`. */
-    pass: Layer7Pass = beginLayer7Pass(state)
+    pass: Layer7Pass = beginLayer7Pass(state),
+    /** Issue #4882 — the vector's `latentCreatureDiscount`; defaulted like
+     *  `latent`, so a caller with no vector of its own is unchanged. */
+    creatureDiscount: number = DEFAULT_EVAL_WEIGHTS.latentCreatureDiscount,
+    /** Issue #4882 — the vector's `latentFlashCreatureDiscount`. */
+    flashCreatureDiscount: number = DEFAULT_EVAL_WEIGHTS.latentFlashCreatureDiscount
 ): number {
     const pt = getEffectivePT(state, card, { pass });
     return latentValue({
+        creatureDiscount,
+        flashCreatureDiscount,
         isCreature: isCreature(card),
         power: pt.power,
         toughness: pt.toughness,
@@ -323,7 +331,9 @@ function latentBoardFor(
                     asReturnedToHand(perm),
                     undefined,
                     weights.latent,
-                    pass
+                    pass,
+                    weights.latentCreatureDiscount,
+                    weights.latentFlashCreatureDiscount
                 ),
             aggregateLoss: (changes) =>
                 sweptAggregateNetLoss(state, player.id, weights, seat, changes),
@@ -1487,7 +1497,9 @@ function playerTerms(
                     c,
                     latentBoardFor(state, player, c, weights, seat, pass),
                     weights.latent,
-                    pass
+                    pass,
+                    weights.latentCreatureDiscount,
+                    weights.latentFlashCreatureDiscount
                 ),
             0
         ),

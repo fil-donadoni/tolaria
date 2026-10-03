@@ -371,6 +371,11 @@
     },
     {
         "file": "convex/gre/ai/__tests__/evalWeights.bot.test.ts",
+        "test": "DEFAULT_EVAL_WEIGHTS (issue #2683) > prices a creature in hand strictly below the same creature in play (issue #149, issue #4882)",
+        "reason": "Range invariant on two fitted weights no fit band can bound (bands constrain differences only): 0 < latentCreatureDiscount, latentFlashCreatureDiscount < 1, which the trust region around their 0.85 prior would otherwise let a refit leave."
+    },
+    {
+        "file": "convex/gre/ai/__tests__/evalWeights.bot.test.ts",
         "test": "DEFAULT_EVAL_WEIGHTS (issue #2683) > is frozen — a mutation attempt is a no-op / throws in strict mode",
         "reason": "Invariant check that exported weight objects (incl. nested latent) are frozen."
     },
