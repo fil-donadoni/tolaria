@@ -476,11 +476,13 @@ const ETB_DISCARDER: CardDefinition = {
 };
 
 /**
- * Issue #5015 — STOPGAP. Two guards whose pose is a close call pass by seed
- * noise at `BOT_REACH_BUDGET` (Foxfire 1-2/10 seeds, Sickening Dreams 3/10,
- * on the base weights as on issue #4882's refit). Ten seeds keep the sweep's
- * own semantics — `played` if ANY seed chooses the card — until the poses are
- * re-cut; issue #5015 owns returning both to `BOT_REACH_BUDGET`.
+ * Issue #5015 — STOPGAP. Three guards whose pose is a close call pass by
+ * seed noise at `BOT_REACH_BUDGET` (Foxfire 1-2/10 seeds, Sickening Dreams
+ * 3/10, on the base weights as on issue #4882's refit; the sacrifice-cost
+ * draw 9/20 seat-seeds on base, 3/20 at the refit). Ten seeds keep the
+ * sweep's own semantics — `played` if ANY seed chooses the card — until the
+ * poses are re-cut; issue #5015 owns returning all three to
+ * `BOT_REACH_BUDGET`.
  */
 const NOISE_PINNED_REACH_BUDGET: BotReachBudget = {
     iterations: BOT_REACH_BUDGET.iterations,
@@ -1207,11 +1209,17 @@ describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
     // Issue #4266: the generated library was basic lands, so what a draw
     // spell found was worth nothing and `pass` beat the cast on every seed.
     it("played — a draw spell the Bot casts once its library holds spells", () => {
-        for (const def of [DRAW_SORCERY, SACRIFICE_DRAW_SORCERY]) {
-            withTemporaryDefinition(def, () => {
-                expect(playTwice(def)).toEqual({ outcome: "played" });
-            });
-        }
+        withTemporaryDefinition(DRAW_SORCERY, () => {
+            expect(playTwice(DRAW_SORCERY)).toEqual({ outcome: "played" });
+        });
+        // Issue #5015: the sacrifice pose is a close call at 48 iterations
+        // (seat-seeds cast 9/20 on the base weights, 3/20 at issue #4882's
+        // refit; `material-tiebreak`, though the 1-ply leaf favours the cast).
+        withTemporaryDefinition(SACRIFICE_DRAW_SORCERY, () => {
+            expect(
+                playBotReach(SACRIFICE_DRAW_SORCERY, NOISE_PINNED_REACH_BUDGET)
+            ).toEqual({ outcome: "played" });
+        });
     }, 300_000);
 
     // Issue #4267: a pump aimed at a creature that also draws is worth the
