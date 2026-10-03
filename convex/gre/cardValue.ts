@@ -30,7 +30,7 @@ import {
     dslSpellScriptValue,
 } from "./ai";
 import type { LatentLens } from "./ai/grounding";
-import { contextFreeGrounding } from "./ai/grounding";
+import { contextFreeGrounding, withLatentLens } from "./ai/grounding";
 import { DEFAULT_EVAL_WEIGHTS, type LatentWeights } from "./ai/evalWeights";
 
 // The pure creature body math (`creatureValueRaw`) now lives in the leaf module
@@ -255,11 +255,20 @@ export function dslLatentPieces(
     etbSelfSacrificeWeight?: number;
 } {
     const dslSpellValue = dslSpellScriptValue(def, board, latent);
+    const selfSacrificeWeight = etbSelfSacrificeWeight(def, route);
+    // A creature whose own ETB sacrifices it is, hard-cast, a spell: its ETB
+    // script is the whole payoff, so it is grounded on the board lens the
+    // non-creature branch uses (issue #3398) rather than context-free
+    // (issue #5014) — three damage with no creature to hit goes face, not at
+    // the representative victim's price.
+    const abilityCtx = contextFreeGrounding(latent);
     return {
         dslSpellValue,
         dslAbilityValue: dslAbilityScriptValue(
             def,
-            contextFreeGrounding(latent)
+            board && selfSacrificeWeight > 0
+                ? withLatentLens(abilityCtx, board)
+                : abilityCtx
         ),
         // CR 603.7a (issue #3383) — the non-creature branch's own reading of
         // the card's delayed-trigger templates, discounted exactly as an
@@ -271,7 +280,7 @@ export function dslLatentPieces(
             def,
             contextFreeGrounding(latent)
         ),
-        etbSelfSacrificeWeight: etbSelfSacrificeWeight(def, route),
+        etbSelfSacrificeWeight: selfSacrificeWeight,
         // Only a value the lens actually ANSWERED counts as measured — a
         // board that could not resolve the card's target slots leaves the
         // pre-#3398 representative valuation, floor included.

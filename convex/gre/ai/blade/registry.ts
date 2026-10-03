@@ -9727,6 +9727,32 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         note: "Issue #4895 (issue #4758 review). Hard-cast from hand, Phlage is sacrificed (it did not escape) but its ETB deals 3 to any target: lethal. Measured cast on 5/5 seeds.",
     },
     {
+        label: "self-sacrificing ETB: hard-casts Phlage with no lethal and no creature",
+        spec: {
+            cards: [
+                {
+                    name: "Phlage, Titan of Fire's Fury",
+                    owner: "me",
+                    zone: "hand",
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 4,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [
+                { kind: "cast-spell", card: "Phlage, Titan of Fire's Fury" },
+            ],
+        },
+        note: "Issue #5014 (issue #4882 review). Opponent at 20, no creature on either side: hard-cast Phlage deals 3, gains 3 and goes to the graveyard with escape (CR 702.138) — strictly better than holding, the Uro shape. The hand value read the ETB script context-free (3 damage at the latent victim's price) while on an empty board the damage goes face; a self-sacrificing creature's ETB is now grounded on the board lens, like a spell's.",
+    },
+    {
         label: "escape: casts Phlage from the graveyard",
         spec: {
             cards: [

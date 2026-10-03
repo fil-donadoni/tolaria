@@ -592,11 +592,18 @@ function etbGrounding(
     ctx: GroundingContext,
     ability: { targetRequirement?: TargetRequirement }
 ): GroundingContext {
-    if (!ability.targetRequirement) return ctx;
-    return withLatentLens(
-        ctx,
-        withTypedRepresentativeVictim(ctx.latent, ability.targetRequirement)
-    );
+    const requirement = ability.targetRequirement;
+    if (!requirement) return ctx;
+    const typed = withTypedRepresentativeVictim(ctx.latent, requirement);
+    // Issue #5014 — a lens attached to a real board answers the ability's own
+    // requirement: what its target can actually hit THERE, ahead of the
+    // representative victim.
+    const measured = ctx.latent.requirementUnits?.(requirement);
+    if (measured === undefined) return withLatentLens(ctx, typed);
+    return withLatentLens(ctx, {
+        ...typed,
+        victimUnits: () => measured,
+    });
 }
 
 /** Issue #4758 — the value of ONE ETB Ability of `def` while it is IN FLIGHT:
