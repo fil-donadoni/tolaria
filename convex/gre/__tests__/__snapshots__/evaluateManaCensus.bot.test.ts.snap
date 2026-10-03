@@ -1250,6 +1250,218 @@ exports[`evaluation values and reactive priors are census-cache invariant (issue
 }
 `;
 
+exports[`evaluation values and reactive priors are census-cache invariant (issue #4461) > flash permanent: holds Containment Priest in its own main with no threat 1`] = `
+{
+  "moves": [
+    {
+      "childPriors": [
+        0,
+      ],
+      "leaf": {
+        "margin": 177.63911799999994,
+        "value": 177.63911799999994,
+      },
+      "move": "pass",
+      "policy": 177.63911799999994,
+      "prior0": 0.5,
+    },
+    {
+      "childPriors": [
+        0,
+      ],
+      "leaf": {
+        "margin": -3,
+        "value": -3,
+      },
+      "move": "cast Containment Priest",
+      "policy": 213.98992099999998,
+      "prior0": 0,
+    },
+  ],
+  "root": {
+    "bot": {
+      "margin": 177.63911799999994,
+      "value": 177.63911799999994,
+    },
+    "breakdownBot": {
+      "danger": 0,
+      "margin": 177.63911799999994,
+      "opp": {
+        "colorCoverage": 25.008469,
+        "creatures": 0,
+        "finiteManaUses": 0,
+        "flexibility": 0,
+        "graveyard": 0,
+        "graveyardReach": 0,
+        "hand": 0,
+        "library": 0,
+        "life": 160,
+        "mana": 26.794938,
+        "manaDevelopment": 0,
+        "permanents": 11.70893,
+      },
+      "self": {
+        "colorCoverage": 25.008469,
+        "creatures": 0,
+        "finiteManaUses": 0,
+        "flexibility": 6.703662,
+        "graveyard": 0,
+        "graveyardReach": 0,
+        "hand": 142.79999999999998,
+        "library": 0,
+        "life": 160,
+        "mana": 26.794938,
+        "manaDevelopment": 28.135456,
+        "permanents": 11.70893,
+      },
+      "total": 177.63911799999994,
+    },
+    "breakdownOpp": {
+      "danger": 0,
+      "margin": -177.63911799999994,
+      "opp": {
+        "colorCoverage": 25.008469,
+        "creatures": 0,
+        "finiteManaUses": 0,
+        "flexibility": 6.703662,
+        "graveyard": 0,
+        "graveyardReach": 0,
+        "hand": 142.79999999999998,
+        "library": 0,
+        "life": 160,
+        "mana": 26.794938,
+        "manaDevelopment": 28.135456,
+        "permanents": 11.70893,
+      },
+      "self": {
+        "colorCoverage": 25.008469,
+        "creatures": 0,
+        "finiteManaUses": 0,
+        "flexibility": 0,
+        "graveyard": 0,
+        "graveyardReach": 0,
+        "hand": 0,
+        "library": 0,
+        "life": 160,
+        "mana": 26.794938,
+        "manaDevelopment": 0,
+        "permanents": 11.70893,
+      },
+      "total": -177.63911799999994,
+    },
+    "margin": 177.63911799999994,
+    "opp": {
+      "margin": -177.63911799999994,
+      "value": -177.63911799999994,
+    },
+  },
+  "search": {
+    "candidates": [
+      {
+        "avail": 99,
+        "eval": {
+          "danger": 0,
+          "margin": 177.63911799999994,
+          "opp": {
+            "colorCoverage": 25.008469,
+            "creatures": 0,
+            "finiteManaUses": 0,
+            "flexibility": 0,
+            "graveyard": 0,
+            "graveyardReach": 0,
+            "hand": 0,
+            "library": 0,
+            "life": 160,
+            "mana": 26.794938,
+            "manaDevelopment": 0,
+            "permanents": 11.70893,
+          },
+          "self": {
+            "colorCoverage": 25.008469,
+            "creatures": 0,
+            "finiteManaUses": 0,
+            "flexibility": 6.703662,
+            "graveyard": 0,
+            "graveyardReach": 0,
+            "hand": 142.79999999999998,
+            "library": 0,
+            "life": 160,
+            "mana": 26.794938,
+            "manaDevelopment": 28.135456,
+            "permanents": 11.70893,
+          },
+          "total": 177.63911799999994,
+        },
+        "label": "pass",
+        "meanMargin": 182.95861315686295,
+        "meanReward": 0.5989793065784306,
+        "move": {
+          "kind": "pass",
+        },
+        "visits": 51,
+      },
+      {
+        "avail": 99,
+        "eval": {
+          "danger": 15,
+          "margin": 198.98992099999998,
+          "opp": {
+            "colorCoverage": 25.008469,
+            "creatures": 0,
+            "finiteManaUses": 0,
+            "flexibility": 0,
+            "graveyard": 0,
+            "graveyardReach": 0,
+            "hand": 0,
+            "library": 0,
+            "life": 160,
+            "mana": 26.794938,
+            "manaDevelopment": 0,
+            "permanents": 11.70893,
+          },
+          "self": {
+            "colorCoverage": 25.008469,
+            "creatures": 168,
+            "finiteManaUses": 0,
+            "flexibility": 0,
+            "graveyard": 0,
+            "graveyardReach": 0,
+            "hand": 0,
+            "library": 0,
+            "life": 160,
+            "mana": 23.794938,
+            "manaDevelopment": 28.135456,
+            "permanents": 17.563395,
+          },
+          "total": 213.98992099999998,
+        },
+        "label": "cast Containment Priest",
+        "meanMargin": 186.40148912244916,
+        "meanReward": 0.6008197921802717,
+        "move": {
+          "cardInstanceId": "161",
+          "chosenX": undefined,
+          "confirmTargets": false,
+          "kind": "cast-spell",
+          "tapPlan": [
+            {
+              "cardInstanceId": "162",
+            },
+            {
+              "cardInstanceId": "164",
+            },
+          ],
+          "targets": [],
+        },
+        "visits": 49,
+      },
+    ],
+    "chosen": "pass",
+    "iterationsCompleted": 100,
+  },
+}
+`;
+
 exports[`evaluation values and reactive priors are census-cache invariant (issue #4461) > redirection shield: shields ITS OWN side and point 1`] = `
 {
   "moves": [
