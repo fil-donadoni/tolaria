@@ -13,7 +13,7 @@ import {
     ROBUSTNESS_STEP,
     robustnessOutcome,
 } from "../lib/health-robustness-drift";
-import { BOT_HEALTH_SCRIPTS } from "../lib/health-step";
+import { healthGates } from "../lib/health-step";
 
 const ROOT = join(__dirname, "..", "..");
 const CTX = { sha: "c43c4b5a3c58", log: "/health/c43c4b5a3c58.log" };
@@ -287,7 +287,8 @@ describe("health-main wiring (issue #5016)", () => {
     const src = readFileSync(join(ROOT, "scripts/health-main.ts"), "utf8");
 
     it("judges the step health actually runs", () => {
-        expect(BOT_HEALTH_SCRIPTS).toContain(ROBUSTNESS_STEP);
+        expect(healthGates([], true)).toContain(ROBUSTNESS_STEP);
+        expect(healthGates([], false)).not.toContain(ROBUSTNESS_STEP);
     });
 
     it("an advisory outcome files and moves on; the machine's excuse is read first", () => {
