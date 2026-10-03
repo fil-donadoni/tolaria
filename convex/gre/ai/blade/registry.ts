@@ -9964,6 +9964,41 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         },
         note: "Issue #4895 (issue #4758 review), promoted by issue #4900: the pitch evoke (exile a white card) needs no mana, and it is the only way to survive. `enumerateMoves` used to reach a cast only through the PRINTED cost, so with zero lands it offered only `pass` and the Bot died; the card's own alternative costs are now re-entered through the same cast builder (`searchPayableOwnAlternativeCosts`).",
     },
+    {
+        label: "Fireblast with no mana open: sacrifices two Mountains for lethal",
+        spec: {
+            cards: [
+                { name: "Fireblast", owner: "me", zone: "hand" },
+                {
+                    name: "Mountain",
+                    owner: "me",
+                    zone: "battlefield",
+                    tapped: true,
+                },
+                {
+                    name: "Mountain",
+                    owner: "me",
+                    zone: "battlefield",
+                    tapped: true,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            life: { opp: 4 },
+            activePlayer: "me",
+            priority: "me",
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "cast-spell", card: "Fireblast" }],
+        },
+        note: "Issue #4935 (issue #4900 review): Fireblast's alternative cost is a PERMANENT leg (sacrifice two Mountains), which `searchPayableOwnAlternativeCosts` used to refuse, so with both Mountains tapped the Bot offered only `pass` and left four lethal damage in hand. The victims now ride on the Move (`castCostPicks.sacrificeIds`) and the search charges them (`applyAlternativeCostPermanentLegForSearch`).",
+    },
     // Issue #4217 (founding case of PRD #4754) — Snapcaster Mage. A
     // DISCRIMINATING PAIR on one board: the only difference is whether the
     // graveyard holds a sorcery worth flashing back. Then the reported position

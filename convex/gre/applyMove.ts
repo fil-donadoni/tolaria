@@ -394,6 +394,51 @@ export function applyAlternativeCostHandLegForSearch(
     });
 }
 
+/** CR 118.9 / 601.2h (issue #4935) — pay the PERMANENT leg of the alternative
+ *  cost a `cast-spell` move announced (Fireblast's "sacrifice two Mountains",
+ *  Daze's "return an Island") on a search sandbox state, in place. The victims
+ *  are the ones the live game will see: those `autoResolveFungible` records at
+ *  announcement PLUS the ones the Move names (`castCostPicks.sacrificeIds`, the
+ *  list the executor submits to `selectSacrifice`), through
+ *  `applySacrificeSelection` — the authority the live commit uses, which
+ *  returns or sacrifices by the selection's own action.
+ *
+ *  The MANA leg is the Move's `tapPlan` (`enumerateCastMovesFromZone`); an
+ *  alternative cost carrying both a mana and a permanent leg is never
+ *  enumerated (`searchPayableOwnAlternativeCosts`). Returns `false` when a named
+ *  victim has left the battlefield — a STALE Move — so the caller drops the
+ *  cast rather than let it resolve for free. `true` for a cast with no
+ *  alternative cost or no permanent leg. */
+export function applyAlternativeCostPermanentLegForSearch(
+    state: GameState,
+    playerId: string,
+    spell: CardInstanceState,
+    alternativeCostId: string | undefined,
+    picks: CastCostPicks | undefined
+): boolean {
+    if (alternativeCostId === undefined) return true;
+    const def = tryGetDefinition((spell.card as { id?: string }).id ?? "");
+    const alt = getAlternativeCost(def ?? undefined, alternativeCostId);
+    if (!def || !alt?.permanent) return true;
+    const selection = buildCastPermanentCostChoice(
+        state,
+        playerId,
+        alt,
+        def,
+        undefined,
+        def.name ?? "Alternative cost"
+    );
+    if (!selection) return true;
+    const owner = getPlayer(state, playerId);
+    for (const id of picks?.sacrificeIds ?? []) {
+        if (!owner.battlefield.some((c) => c.id === id)) return false;
+        if (!selection.picked.includes(id)) selection.picked.push(id);
+    }
+    if (!isSacrificeSelectionComplete(selection)) return false;
+    applySacrificeSelection(state, selection);
+    return true;
+}
+
 /** CR 702.33a / 601.2f (issue #2081) — pay a `cast-spell` move's paid Kickers'
  *  PERMANENT leg on a search sandbox state, in place: sacrifice or return,
  *  picked deterministically CHEAPEST-FIRST via `completeSacrificeSelection` —
@@ -1249,6 +1294,21 @@ export function commitCastInSearch(
             playerId,
             preCastSpell,
             move.alternativeCostId
+        )
+    ) {
+        return null;
+    }
+    // CR 118.9 / 601.2h (issue #4935) — the chosen alternative cost's PERMANENT
+    // leg (Fireblast, Daze, Gush), before the spell leaves its zone: uncharged,
+    // the search would see these casts as free.
+    if (
+        preCastSpell &&
+        !applyAlternativeCostPermanentLegForSearch(
+            state,
+            playerId,
+            preCastSpell,
+            move.alternativeCostId,
+            move.castCostPicks
         )
     ) {
         return null;

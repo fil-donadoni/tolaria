@@ -161,6 +161,7 @@ import {
     finiteManaCounterLeg,
     finiteManaUsesRemaining,
     manaGateBattlefields,
+    manaValue,
     manaTapOptionSpendsUnplannedResource,
     manaTapSpendsFiniteUse,
     mayHaveCostedManaTapOption,
@@ -3021,16 +3022,20 @@ export function enumerateCastMoves(
  *  `enumerateCastMovesFromZone`, and the board permissions theirs in
  *  `enumerateCastMoves`.
  *
- *  Fail CLOSED on two shapes the search cannot pay yet:
- *   - a PERMANENT leg (Fireblast's "sacrifice two Mountains", Daze's "return
- *     an Island") — the picks would have to ride on the Move the way
- *     `castCostPicks` does for the additional-cost parks;
+ *  A PERMANENT leg (Fireblast's "sacrifice two Mountains", Daze's "return an
+ *  Island", issue #4935) rides on the Move as `castCostPicks.sacrificeIds`
+ *  (`planCastCostPicks`), the way the additional-cost parks do.
+ *
+ *  Fail CLOSED on the shapes the search cannot pay yet:
+ *   - a PERMANENT leg beside a MANA leg — the tap plan is priced without
+ *     knowing which permanents the leg gives up, so it could tap a land the
+ *     same Move sacrifices (no shipped alternative cost combines the two);
  *   - an ENERGY leg — no shipped alternative cost carries one;
  *   - a HYBRID pip in the MANA leg (the ECL evoke trio's `{G/U}{G/U}`) —
  *     `planManaPayment` plans no hybrid pip at all, so the Move would carry an
  *     empty tap plan for a cost the caster may not be able to pay.
  *  All three are left unenumerated (dead for the Bot, never a freeze).
- *  tracked-by: #4935 (permanent leg), #4934 (hybrid pips)
+ *  tracked-by: #4934 (hybrid pips)
  *
  *  Hand casts only: a cast from any other zone is already priced by that
  *  zone's own alternative (flashback, escape, a permission — `castRawManaCost`),
@@ -3061,7 +3066,7 @@ function searchPayableOwnAlternativeCosts(
     return affordableAlternativeCosts(state, player, card).filter(
         (a) =>
             ownIds.has(a.id) &&
-            a.permanent === undefined &&
+            (a.permanent === undefined || manaValue(a.mana) === 0) &&
             (a.energy ?? 0) === 0 &&
             (a.mana?.hybrid?.length ?? 0) === 0 &&
             !(
@@ -3717,6 +3722,9 @@ function enumerateCastMovesFromZone(
                       additionalCostLegId,
                       {
                           castFromZone,
+                          ...(chosenAltCost?.permanent
+                              ? { altCost: chosenAltCost }
+                              : {}),
                       }
                   )
                 : undefined;

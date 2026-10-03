@@ -33,6 +33,7 @@
 import { resolveAdditionalCosts } from "./additionalCost";
 import { getStaticAdditionalSacrifices } from "./state";
 import { getInstanceManaCost } from "../cards";
+import { buildCastPermanentCostChoice } from "./kicker";
 import {
     applySacrificeSelection,
     sacrificeSnapshotFromResults,
@@ -52,7 +53,11 @@ import { getFlashbackAdditionalCost } from "./flashback";
 import { hasEscape } from "./escape";
 import { matchesPermanentFilter } from "../cards/filters";
 import { effectivePermanentView } from "./permanentView";
-import type { AdditionalCostSpec, CardDefinition } from "../cards/types";
+import type {
+    AdditionalCostSpec,
+    CardDefinition,
+    CostLegs,
+} from "../cards/types";
 import type { PermanentFilter } from "../cards/filters";
 import type {
     CardInstanceState,
@@ -73,7 +78,11 @@ type AdditionalSacrificeSnapshot = NonNullable<
  *  cast carries no `castCostPicks` at all. */
 export type CastCostPicks = {
     /** CR 701.21 / 118.5 — permanents sacrificed to pay `additionalCosts
-     *  .sacrificeFilter` (plus any static additional-sacrifice tax, CR 601.2f).
+     *  .sacrificeFilter` (plus any static additional-sacrifice tax, CR 601.2f),
+     *  or given up to pay the chosen ALTERNATIVE cost's permanent leg (CR 118.9 —
+     *  Fireblast's "sacrifice two Mountains", Daze's "return an Island": return
+     *  or sacrifice, the cast has ONE permanent-cost park and it submits through
+     *  `selectSacrifice` either way).
      *  Only the picks the payer must SUBMIT: a fungible board is auto-resolved
      *  server-side at announcement (`autoResolveFungible`), and those victims
      *  are already recorded, so re-naming them would be rejected. */
@@ -272,7 +281,13 @@ export function planCastCostPicks(
     /** CR 601.3 (issue #2980) — the zone this cast leaves and, for the
      *  X-dependent `flashbackExileFromGraveyard` cost, the X it announces.
      *  Omitted = a hand cast, which owes neither of the graveyard legs. */
-    opts?: { castFromZone?: CastFromZone; chosenX?: number }
+    opts?: {
+        castFromZone?: CastFromZone;
+        chosenX?: number;
+        /** CR 118.9 (issue #4935) — the chosen alternative cost, whose
+         *  permanent leg parks the cast's one permanent-cost selection. */
+        altCost?: CostLegs;
+    }
 ): CastCostPicks | undefined | null {
     const castFromZone = opts?.castFromZone ?? "hand";
     const spec = resolveAdditionalCosts(def?.additionalCosts, chosenLegId);
@@ -292,6 +307,27 @@ export function planCastCostPicks(
     // park and `applyCastCostPicksForSearch` removes the auto-resolved victim
     // via `applyCastSacrificeVictims`.
     let owesSacrifice = false;
+
+    // CR 601.2f / 118.9 (issue #4935) — the alternative cost's permanent leg
+    // claims the cast's ONE permanent-cost slot (`assertKickerPermanentSlotFree`),
+    // so a cast that also owes its own sacrifice (Drought's tax) is refused by
+    // the server at announcement: fail CLOSED rather than offer it.
+    if (def && opts?.altCost?.permanent) {
+        if (selection) return null;
+        const altSelection = buildCastPermanentCostChoice(
+            state,
+            player.id,
+            opts.altCost,
+            def,
+            undefined,
+            def.name ?? "Alternative cost"
+        );
+        if (altSelection) {
+            const submitted = completeSacrificeSelection(state, altSelection);
+            if (submitted === null) return null;
+            if (submitted.length > 0) picks.sacrificeIds = submitted;
+        }
+    }
 
     if (selection) {
         owesSacrifice = true;
@@ -361,6 +397,7 @@ export function planCastCostPicks(
 
     if (
         !owesSacrifice &&
+        !picks.sacrificeIds &&
         !picks.additionalCostCardId &&
         !picks.exileCostCardIds
     ) {
