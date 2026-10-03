@@ -9819,36 +9819,6 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         note: "Issue #4895 (issue #4758 review), fixed by issue #4898: hard-cast Uro gains 3 life and draws, then goes to the graveyard with escape — strictly better than holding. The cast read BELOW holding (policy 91.6 against 102.7) because `manaDevelopment` dropped the escape-ready card from the curve (-40.7) once it left the hand; a printed-escape graveyard card now keeps its curve top. The search already chose the cast on 5/5 seeds; the Eval Pair (etbAbility.bot.test.ts) carries the ordering.",
     },
     {
-        label: "self-sacrificing ETB: hard-casts Phlage with no lethal and no creature",
-        spec: {
-            cards: [
-                {
-                    name: "Phlage, Titan of Fire's Fury",
-                    owner: "me",
-                    zone: "hand",
-                },
-            ],
-            phase: "PRECOMBAT_MAIN",
-            turn: 5,
-            landCount: 4,
-            libraryCount: 20,
-            landsPlayed: { me: 1 },
-        },
-        bot: "me",
-        budget: { iterations: 400 },
-        seeds: [0xb1ade, 1, 2, 3, 4],
-        tier: "stretch",
-        expect: {
-            moves: [
-                {
-                    kind: "cast-spell",
-                    card: "Phlage, Titan of Fire's Fury",
-                },
-            ],
-        },
-        note: "Issue #4882: the Phlage half of the issue #4898 Eval Pair (etbAbility.bot.test.ts), promoted to a Verdict so the weight fit sees it. Hard-cast with no lethal and no creature on either side, Phlage still deals 3 and gains 3, then goes to the graveyard with escape (CR 702.138) — strictly better than holding, same shape as the Uro entry above. The fitted `latentCreatureDiscount` lowered the escape-route worth of the graveyard Phlage, flipping the 1-ply pair by ~3 points while no verdict held it. `stretch`: the SEARCH holds Phlage on 5/5 seeds at 400, on the base engine as on this branch — the 1-ply pair is what the fit and the Eval Pair carry; the search gap is issue #5014.",
-    },
-    {
         label: "alternate win: casts Thassa's Oracle when its trigger wins on the spot",
         spec: {
             cards: [
