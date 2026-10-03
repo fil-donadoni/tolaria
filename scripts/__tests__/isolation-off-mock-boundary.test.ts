@@ -89,6 +89,7 @@ interface ProjectTest {
     include?: string[];
     exclude?: string[];
     isolate?: boolean;
+    setupFiles?: string | string[];
 }
 
 const allProjects: ProjectTest[] = [
@@ -131,7 +132,14 @@ function isolationOffFiles(): string[] {
             if (isolationOff.some((p) => selectedBy(p, rel))) files.push(rel);
         }
     }
-    return files.sort();
+    // A setup file runs before every file of its project, so a mock there
+    // reaches the whole project — scanned like the files it precedes.
+    for (const p of isolationOff) {
+        for (const setup of [p.setupFiles ?? []].flat()) {
+            files.push(path.posix.normalize(setup));
+        }
+    }
+    return [...new Set(files)].sort();
 }
 
 describe("isolation-off projects mock no module (issue #5020)", () => {
