@@ -208,7 +208,8 @@ export { cardValueById } from "./cardValue";
  *  (a pinger, a sac outlet) is worth more than a vanilla of the same size, so
  *  the bot values keeping/deploying it correctly. This ALSO restores the
  *  issue-#149 invariant — the latent (in-hand) worth is the discounted body
- *  (0.85×) plus the DISCOUNTED ability value (0.5×), both factors < 1, so
+ *  (`latentCreatureDiscount`× or `latentFlashCreatureDiscount`×, fitted in
+ *  (0, 1)) plus the DISCOUNTED ability value (0.5×), both factors < 1, so
  *  latent is strictly below this realized worth for every creature; developing
  *  a good utility creature is always a strictly positive move (it was inverted
  *  before: latent counted the ability, realized did not). The ability value is
