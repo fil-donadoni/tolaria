@@ -136,6 +136,46 @@ describe("Eval Pairs — an ETB Ability is spent on entering (issue #4758)", () 
     });
 });
 
+describe("Eval Pairs — a removal ETB's potential is priced at a victim of its target's type (issue #4903)", () => {
+    // Before issue #4903 every ETB's Representative Victim was a vanilla 2/2,
+    // whatever its `targetRequirement` named, so "destroy target enchantment"
+    // in hand was worth a creature kill and outweighed every enchantment,
+    // artifact or land it could actually hit: holding the card scored above
+    // casting it into a real target.
+    it("Monk Realist cast into an opposing Glorious Anthem beats holding it (enchantment)", () => {
+        const s = position([
+            inHand("Monk Realist"),
+            onBoard("Glorious Anthem", "opp"),
+        ]);
+        expect(policyOf(s, castOf(s, "Monk Realist"))).toBeGreaterThan(
+            policyOf(s, isPass)
+        );
+    });
+
+    it("Viridian Shaman cast into an opposing Jayemdae Tome beats holding it (artifact)", () => {
+        const s = position([
+            inHand("Viridian Shaman"),
+            onBoard("Jayemdae Tome", "opp"),
+        ]);
+        expect(policyOf(s, castOf(s, "Viridian Shaman"))).toBeGreaterThan(
+            policyOf(s, isPass)
+        );
+    });
+
+    it("Ogre Arsonist cast into an opposing Forest beats holding it (land)", () => {
+        const s = buildPositionFromSpec({
+            cards: [inHand("Ogre Arsonist"), onBoard("Forest", "opp")],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 5,
+            libraryCount: 20,
+        });
+        expect(policyOf(s, castOf(s, "Ogre Arsonist"))).toBeGreaterThan(
+            policyOf(s, isPass)
+        );
+    });
+});
+
 describe("Eval Pairs — Snapcaster Mage's ETB potential (issue #4217)", () => {
     /** The blade entry's own position, so the pair and the entry cannot drift. */
     function bladePosition(label: string): GameState {

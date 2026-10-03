@@ -271,7 +271,7 @@ const GRAVEYARD_UNREACHABLE_FRACTION = 0.05;
  *  here — the answer is identical either way.
  *
  *  A land needs no carve-out and gets none: its latent worth is
- *  `NONCREATURE_BASE` (8 Forge points — `cardValue.ts`), so it prices at the
+ *  `NONCREATURE_BASE` (8 Forge points — `creatureBody.ts`), so it prices at the
  *  floor by VALUE, while a fat reanimation target prices far above it. That is
  *  the fix — the land fetch curve simply never applies to a zone where a land
  *  produces no mana. */

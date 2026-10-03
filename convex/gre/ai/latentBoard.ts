@@ -39,7 +39,7 @@ import {
     matchesPermanentFilter,
     type PermanentFilter,
 } from "../../cards/filters";
-import { creatureValueRaw } from "../creatureBody";
+import { representativeVictimLoss } from "./representativeVictim";
 import { currentLoyalty } from "../loyalty";
 import { effectivePermanentView } from "../permanentView";
 import { clearCardFieldsAt } from "../state/cardFieldLifecycle";
@@ -49,29 +49,10 @@ import { isLand } from "../constants";
 import type { EvalWeights } from "./evalWeights";
 import type { LatentLens, SweepOutcome } from "./grounding";
 
-/** The REPRESENTATIVE victim's body: a vanilla 2/2 for two. Not a new tuning
- *  constant — it is the body `DESTROY_VALUE = 160` was hand-tuned against
- *  ("destroy a representative permanent (≈ a 2/2 body)"), priced by the same
- *  `creatureValueRaw` primitive every real creature goes through, so the unit
- *  and the board it is measured against can never drift apart. */
-const REPRESENTATIVE_VICTIM_POWER = 2;
-const REPRESENTATIVE_VICTIM_TOUGHNESS = 2;
-const REPRESENTATIVE_VICTIM_MANA_VALUE = 2;
-
-/** Realised board loss of ONE representative victim — its body plus the flat
- *  board-presence weight every permanent carries, i.e. exactly what
- *  `permanentRealisedValue` would return for it. The DENOMINATOR that turns a
- *  real victim's realised loss into `boardRemoval` units. */
-export function representativeVictimLoss(weights: EvalWeights): number {
-    return (
-        creatureValueRaw(
-            REPRESENTATIVE_VICTIM_POWER,
-            REPRESENTATIVE_VICTIM_TOUGHNESS,
-            REPRESENTATIVE_VICTIM_MANA_VALUE,
-            []
-        ) + weights.permanentWeight
-    );
-}
+// The Representative Victim lives in its own leaf module (issue #4903), so
+// the context-free ETB valuation can price a TYPED one without importing the
+// rules engine this lens reads.
+export { representativeVictimLoss } from "./representativeVictim";
 
 /** Realised board loss of one permanent, as `evaluate` scores it. Supplied by
  *  the caller (`evaluate.ts`) rather than computed here, so there is exactly

@@ -9852,20 +9852,9 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         bot: "me",
         budget: { iterations: 400 },
         seeds: [0xb1ade, 1, 2, 3, 4],
-        tier: "stretch",
-        expect: {
-            // A PREDICATE, not `moves`: this tier-stretch position is one the
-            // Evaluation cannot order yet, and as a Verdict it would pull the
-            // weight fit toward nothing it can satisfy. The owning issue
-            // promotes it to a `moves` `must` entry with its fix.
-            predicate: (move, state) =>
-                matchesMove(state, move, {
-                    kind: "cast-spell",
-                    card: "Monk Realist",
-                }),
-            describe: "casts Monk Realist",
-        },
-        note: "Issue #4895 (issue #4758 review). STRETCH, owned by issue #4903: the Anthem pumps two opposing creatures; destroying it is the obvious play. Measured pass on 5/5 seeds — the ETB's potential is priced at a creature-sized Representative Victim, above any enchantment it can hit.",
+        tier: "must",
+        expect: { moves: [{ kind: "cast-spell", card: "Monk Realist" }] },
+        note: "Issue #4895 (issue #4758 review), fixed by issue #4903: the Anthem pumps two opposing creatures; destroying it is the obvious play. The ETB's potential in hand was priced at a creature-sized Representative Victim (a 2/2) whatever its target type, above any enchantment it can hit, so the search passed on 5/5 seeds (material tie-break). With the victim typed — a representative enchantment, ~0.19 of a unit — 5/5 cast.",
     },
     {
         label: "granted flashback: casts Stingcaster Mage to flash back Lightning Bolt for lethal",
