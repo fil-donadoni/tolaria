@@ -12,8 +12,9 @@
 // that on the board: the Bot held Monk Realist against a Glorious Anthem on
 // 5/5 seeds. A requirement that can only name an artifact, an enchantment or
 // a land now takes a representative permanent of THAT type, priced the way
-// `permanentRealisedValue` (`evaluate.ts`) prices one. A requirement that can
-// name a creature keeps the 2/2: its best victim may well be one.
+// `permanentRealisedValue` (`evaluate.ts`) prices one — at the PRIOR weights
+// (see `withTypedRepresentativeVictim`). A requirement that names a creature
+// keeps the 2/2: its best victim may well be one.
 //
 // CARD-AGNOSTIC (ADR 0102): it reads a target requirement's types, nothing
 // else.
@@ -91,10 +92,16 @@ const NON_CARD_TYPES: ReadonlySet<string> = new Set([
 /** Issue #4903 — how many `boardRemoval` units a representative victim of
  *  `requirement`'s TYPE is worth: the largest representative loss among the
  *  types it admits, over the representative creature's. `undefined` — keep
- *  the 2/2 — when the requirement can name a creature, a planeswalker, a
- *  battle or a non-permanent, or names a zone other than the battlefield:
- *  "the best victim is typically a creature" is still the right assumption
- *  for every one of those. */
+ *  the 2/2 — when the requirement NAMES `Creature`, a planeswalker, a battle
+ *  or a non-permanent, or a zone other than the battlefield: "the best victim
+ *  is typically a creature" is still the right assumption for every one of
+ *  those.
+ *
+ *  Read off the requirement's type NAMES, never its legal set: "target
+ *  artifact" can also hit an artifact creature and "target land" an animated
+ *  land, and the representative is still the TYPICAL artifact or land — a
+ *  deliberate typical value, as the 2/2 is for "target creature", not a
+ *  ceiling. Context-free means no board to say otherwise. */
 export function representativeVictimUnits(
     requirement: TargetRequirement,
     weights: RepresentativeVictimWeights

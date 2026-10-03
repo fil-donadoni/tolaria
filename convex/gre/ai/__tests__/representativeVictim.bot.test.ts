@@ -80,4 +80,12 @@ describe("an ETB Ability's potential reads the typed victim (issue #4903)", () =
             DEFAULT_EVAL_WEIGHTS.latent.boardRemoval * units
         );
     });
+
+    it("Ravenous Chupacabra's 'destroy target creature' keeps the full 2/2 unit", () => {
+        const def = tryGetDefinition(getCardByName("Ravenous Chupacabra").id);
+        if (!def) throw new Error("Ravenous Chupacabra has no definition");
+        expect(dslAbilityScriptValue(def)).toBe(
+            DEFAULT_EVAL_WEIGHTS.latent.boardRemoval
+        );
+    });
 });
