@@ -64,7 +64,7 @@ import {
 } from "./state";
 import type { ActivatedAbility, Color } from "../cards/types";
 import { observedOpponentColors } from "./ai/observedColors";
-import { checkStateBasedActions } from "./sba";
+import { checkStateBasedActions as sweepStateBasedActions } from "./sba";
 import {
     advancePhase,
     drainAutoPasses,
@@ -87,6 +87,7 @@ import {
 import { getEffectivePower, getEffectiveToughness } from "./layers";
 import {
     enumerateMoves,
+    onlyPassIsLegal,
     enumerateRaisedTargetMoves,
     type ModeCombinationTruncation,
     type Move,
@@ -632,10 +633,55 @@ function floatPlannedNominationMana(
     }
 }
 
+/** Worlds whose LAST mutation by this module ended in a completed state-based
+ *  action check (issue #4460). `applyMoveInSearch` drops the mark on entry and
+ *  the check below re-adds it, so membership means "the last applier ran to
+ *  its SBA check" — and nothing more: a caller that edits a world by hand
+ *  between two appliers leaves a stale mark behind. That is why the mark is
+ *  only READ for a caller that vouches for the world (`settledWorld`), and
+ *  why every other reader of this module gets the unconditional check. */
+const SBA_SETTLED = new WeakSet<GameState>();
+
+/** The search's one entry to the SBA check: the engine's own sweep, plus the
+ *  settled mark the forced-pass fast path reads. */
+function checkStateBasedActions(state: GameState): void {
+    sweepStateBasedActions(state);
+    SBA_SETTLED.add(state);
+}
+
+/** True when `drainAutoPasses` would return without touching `state`: nobody
+ *  holds a standing or queued auto-pass intent. Stricter than the drain's own
+ *  first-iteration exit on purpose — any intent at all, for either seat, sends
+ *  the pass down the ordinary path. */
+function autoPassDrainIsIdle(state: GameState): boolean {
+    return (
+        (state.autoPassPlayers?.length ?? 0) === 0 &&
+        (state.queuedEndTurn?.length ?? 0) === 0 &&
+        state.singleShotAutoPass === undefined
+    );
+}
+
 /** Mirror the `passPriority` mutation: advance the pass cycle, resolving the
  *  stack or advancing the phase when both players have passed, then drain
- *  auto-passes and apply SBA. `passerId` is the player passing now. */
-function passInSearch(state: GameState, passerId: string): void {
+ *  auto-passes and apply SBA. `passerId` is the player passing now.
+ *
+ *  `settled` (issue #4460): the caller vouches that `state` has not changed
+ *  since its last SBA check. On the HAND-OFF branch — the first pass of a
+ *  round, which moves the priority holder and the pass count and nothing else
+ *  — the check is then skipped: CR 704.3 repeats the check "whenever a player
+ *  would get priority", and on a position it has already run to its fixpoint
+ *  on, with nothing changed that it reads, it performs no action and puts no
+ *  trigger on the stack. Every other branch (combat damage, a resolution, a
+ *  phase advance, an auto-pass drain with work to do) checks as before.
+ *
+ *  "Performs no action" is the engine sweep's own property, not one this
+ *  module can prove: `searchForcedPass.bot.test.ts` plays a fast world and an
+ *  unconditional one in lockstep and requires them equal at every ply. */
+function passInSearch(
+    state: GameState,
+    passerId: string,
+    settled = false
+): void {
     // A pass during the combat-damage step first resolves the turn-based
     // combat damage (CR 510.2) — the real engine applies it via the
     // damage-assignment confirm / auto-pass path, which this search-side pass
@@ -657,6 +703,7 @@ function passInSearch(state: GameState, passerId: string): void {
         );
         combat.damageConfirmed = true;
         checkStateBasedActions(state);
+        settled = false;
     }
 
     state.passCount += 1;
@@ -675,6 +722,10 @@ function passInSearch(state: GameState, passerId: string): void {
         advancePhase(state);
     } else {
         state.priorityPlayerId = getOpponentId(state, passerId);
+        if (settled && autoPassDrainIsIdle(state)) {
+            SBA_SETTLED.add(state);
+            return;
+        }
     }
 
     drainAutoPasses(state);
@@ -693,6 +744,11 @@ function passInSearch(state: GameState, passerId: string): void {
  *  the one exception — it never uses the stack (CR 605.3c) and the search models
  *  it through the tap plan instead.
  *
+ *  `settledWorld` (issue #4460) opts a `pass` into the hand-off fast path:
+ *  the caller vouches that it OWNS `state` and has not edited it since the
+ *  last `applyMoveInSearch` on it returned. Omitted — every caller outside the
+ *  rollout — a pass always ends in the SBA check, as it always did.
+ *
  *  Documented simulation limits (server stays authoritative, so inexactness only
  *  costs move quality): coarse mana (tap-plan only), so an activation's
  *  `notedManaSpent` (CR 106.10) and the mana-value snapshot of an additional
@@ -700,14 +756,18 @@ function passInSearch(state: GameState, passerId: string): void {
 export function applyMoveInSearch(
     state: GameState,
     playerId: string,
-    move: Move
+    move: Move,
+    settledWorld = false
 ): void {
+    // Dropped unconditionally, read only on the caller's word: a path below
+    // that returns without reaching its SBA check leaves the world unmarked.
+    const settled = SBA_SETTLED.delete(state) && settledWorld;
     const player = state.players.find((p) => p.id === playerId);
     if (!player) return;
 
     switch (move.kind) {
         case "pass":
-            passInSearch(state, playerId);
+            passInSearch(state, playerId, settled);
             return;
 
         case "mulligan":
@@ -1364,6 +1424,8 @@ function rolloutEpsilonFor(state: GameState, weights: EvalWeights): number {
     return anyHeld ? weights.rolloutEpsilonReactive : weights.rolloutEpsilon;
 }
 
+const FORCED_PASS: Move = { kind: "pass" };
+
 export function rollout(
     state: GameState,
     botId: string,
@@ -1373,6 +1435,11 @@ export function rollout(
     const startTurn = state.turn;
     let lastTurn = state.turn;
     let botTurnStarts = 0;
+    // Issue #4460 — the rollout owns `state` from here: inside the loop it is
+    // mutated by `applyMoveInSearch` alone (the forced answers included), so
+    // a settled mark made in the loop can be trusted. One inherited from the
+    // caller cannot, and is dropped.
+    SBA_SETTLED.delete(state);
 
     for (let ply = 0; ply < MAX_ROLLOUT_PLIES; ply++) {
         if (state.gameOver) break;
@@ -1395,6 +1462,14 @@ export function rollout(
         // A forced answer can cross a turn boundary (the cleanup discard, CR
         // 514.1): run the horizon checks above on the new turn first.
         if (state.turn !== lastTurn) continue;
+        // Issue #4460 — a forced pass, proved without enumerating. The draw is
+        // the one the single-move branch below makes for its pool index: the
+        // stream must not notice which of the two paths took the ply.
+        if (onlyPassIsLegal(state, pid)) {
+            rng();
+            applyMoveInSearch(state, pid, FORCED_PASS, true);
+            continue;
+        }
         const moves = enumerateMoves(state, pid);
         if (moves.length === 0) break;
 
@@ -1418,7 +1493,7 @@ export function rollout(
         } else {
             chosen = selectRolloutMove(state, pid, botId, moves, rng, weights);
         }
-        applyMoveInSearch(state, pid, chosen);
+        applyMoveInSearch(state, pid, chosen, true);
     }
     return scoreLeaf(state, botId, weights);
 }

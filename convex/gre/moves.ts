@@ -5779,3 +5779,119 @@ export function enumerateMoves(
         return false;
     });
 }
+
+/** True when a card carries an activated ability that uses the stack — the
+ *  one filter every zone's `enumerateAbilityMoves` scan applies before any
+ *  other, so "none here" is "that scan yields nothing". */
+function hasStackAbility(card: CardInstanceState): boolean {
+    for (const { ability } of getEffectiveActivatedAbilities(card)) {
+        if (ability.useStack) return true;
+    }
+    return false;
+}
+
+/** Issue #4460 — "is `pass` the ONLY legal move?", answered without building
+ *  a single Move. `true` is a proof: `enumerateMoves(state, playerId)` returns
+ *  exactly `[{ kind: "pass" }]`. `false` proves nothing — it means "ask the
+ *  enumerator", and is returned whenever a move source cannot be ruled out by
+ *  its FIRST gate alone (a card whose timing allows a cast but whose cost may
+ *  not be payable, a permanent with a stack ability that may be tapped).
+ *
+ *  The rollout asks this before enumerating: most of its plies are forced
+ *  passes, and proving one costs a walk of the zones instead of a walk plus
+ *  the per-source expansion. Measured on the three perf-fixture positions:
+ *  1.9–4.9 µs against 6.7–9.7 µs for the enumeration it replaces.
+ *
+ *  EVERY MOVE SOURCE OF THE ORDINARY PRIORITY WINDOW IS NAMED HERE, in
+ *  `enumerateMoves`' own order, each ruled out by the same authority the
+ *  enumerator reads or by a strictly wider test. A source added there and not
+ *  here makes this answer `true` while a move exists — the rollout would then
+ *  never play it where it is the only alternative to passing — so the number
+ *  of `moves.push` sites in that window is pinned
+ *  (`searchForcedPass.bot.test.ts`), and the same file checks this answer
+ *  against the enumerator's on every ply of its playouts. */
+export function onlyPassIsLegal(state: GameState, playerId: string): boolean {
+    if (state.gameOver || state.phase === "MULLIGAN") return false;
+    // The five windows `enumerateMoves` answers BEFORE the ordinary one, and
+    // the states in which it offers nothing at all: never a forced pass.
+    if (state.priorityPlayerId !== playerId) return false;
+    if (
+        (state.pendingChoices?.length ?? 0) > 0 ||
+        state.pendingCast ||
+        state.pendingTarget ||
+        state.pendingActivation ||
+        state.pendingCompanionPay
+    ) {
+        return false;
+    }
+    const combat = state.combat;
+    if (combat) {
+        if (state.phase === "DECLARE_ATTACKERS" && !combat.confirmed) {
+            return false;
+        }
+        if (state.phase === "DECLARE_BLOCKERS" && !combat.blockersConfirmed) {
+            return false;
+        }
+    }
+    const player = state.players.find((p) => p.id === playerId);
+    if (!player) return false;
+
+    // Special actions: the companion summon and turning a permanent face up.
+    if (canSummonCompanion(state, player)) return false;
+    if (turnableFaceUpPermanents(state, player).length > 0) return false;
+    // Hand: a land play, a cast, or a hand-source ability (Cycling).
+    for (const card of player.hand) {
+        if (getLegalActions(state, player, card).length > 0) return false;
+        if (hasStackAbility(card)) return false;
+    }
+    // Graveyard: a land play, retrace, every other graveyard cast, and a
+    // graveyard-source ability.
+    for (const card of player.graveyard) {
+        if (
+            landPlayFaces(card).length > 0 &&
+            getLegalActions(state, player, card).includes("play")
+        ) {
+            return false;
+        }
+        if (hasRetrace(state, card)) return false;
+        if (
+            graveyardCastMechanism(state, player, card, player.id) !== undefined
+        ) {
+            return false;
+        }
+        if (hasStackAbility(card)) return false;
+    }
+    // Exile, every player's: a cast under a permission this player holds.
+    for (const zoneOwner of state.players) {
+        for (const card of zoneOwner.exile) {
+            if (card.types.includes("Land")) continue;
+            if (exileCastPermission(card, player.id, state.turn)) return false;
+        }
+    }
+    // Library top: the positional play / cast permissions.
+    const libraryTop = player.library[0];
+    if (libraryTop) {
+        if (
+            landPlayFaces(libraryTop).length > 0 &&
+            getLegalActions(state, player, libraryTop).includes("play")
+        ) {
+            return false;
+        }
+        if (
+            !libraryTop.types.includes("Land") &&
+            isCastableLibraryTopSpell(state, player, libraryTop.id)
+        ) {
+            return false;
+        }
+    }
+    // Battlefield, every player's: this player's own abilities, and the "any
+    // player may activate" ones on an opponent's permanent.
+    for (const controller of state.players) {
+        for (const perm of controller.battlefield) {
+            if (hasStackAbility(perm)) return false;
+        }
+    }
+    // Player-level granted abilities.
+    if ((player.grantedAbilities?.length ?? 0) > 0) return false;
+    return true;
+}
