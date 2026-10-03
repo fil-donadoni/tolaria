@@ -333,6 +333,7 @@
           "castableFromGraveyardUntilTurn": 23,
           "castFromGraveyardExilesOnResolve": true,
           "castFromGraveyardWithoutPayingManaCost": true,
+          "castSpellInGraveyard": true,
           "grantedFlashback": {
             "R": 1
           },
@@ -717,6 +718,7 @@
       "castableFromGraveyardUntilTurn": 23,
       "castFromGraveyardExilesOnResolve": true,
       "castFromGraveyardWithoutPayingManaCost": true,
+      "castSpellInGraveyard": true,
       "grantedFlashback": {
         "R": 1
       },
