@@ -347,15 +347,21 @@ const ADDED_BOT_CLAIM_LINE = /^\+\s*"kind":\s*"bot",?\s*$/;
 export function botGapsFiledPerDay(log: string): Map<string, number> {
     const perDay = new Map<string, number>();
     let day: string | null = null;
-    for (const line of log.split("\n")) {
+    const lines = log.split("\n");
+    lines.forEach((line, i) => {
         const date = COMMIT_DATE_LINE.exec(line);
         if (date !== null) {
             day = date[1]!;
-            continue;
+            return;
         }
-        if (day !== null && ADDED_BOT_CLAIM_LINE.test(line))
+        // A `claims` row is kind then key; a `cuts` row is kind then issue.
+        if (
+            day !== null &&
+            ADDED_BOT_CLAIM_LINE.test(line) &&
+            /"key":/.test(lines[i + 1] ?? "")
+        )
             perDay.set(day, (perDay.get(day) ?? 0) + 1);
-    }
+    });
     return new Map([...perDay].sort(([a], [b]) => (a < b ? -1 : 1)));
 }
 

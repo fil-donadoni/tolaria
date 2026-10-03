@@ -745,6 +745,21 @@ async function main(): Promise<void> {
             try {
                 let refreshed = refreshSteps.length > 0;
                 for (const step of refreshSteps) {
+                    // Filing commits and pushes the allowlist from the primary
+                    // checkout and reads ITS tree: only when that tree is the
+                    // measured tip (issue #4944). Otherwise the next batch files.
+                    if (
+                        step.name === FILING_STEP_NAME &&
+                        spawnSync("git", ["rev-parse", "HEAD"], {
+                            cwd: root,
+                            encoding: "utf8",
+                        }).stdout.trim() !== tip
+                    ) {
+                        console.error(
+                            `health-main: ${step.name} skipped — the primary checkout is not at the measured tip ${tip.slice(0, 12)}; Bot Gaps file next batch`
+                        );
+                        break;
+                    }
                     const r = await runHealthStep(step, {
                         cwd: step.cwd ?? wt,
                         env,

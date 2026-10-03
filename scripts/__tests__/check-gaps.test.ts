@@ -831,6 +831,17 @@ describe("Bot Gaps filed per day census (issue #4944)", () => {
         );
     });
 
+    it("does not count a Cluster Cut row (`kind` then `issue`)", () => {
+        const log = [
+            "@2026-09-30",
+            "+        {",
+            '+            "kind": "bot",',
+            '+            "issue": 4999',
+            "+        },",
+        ].join("\n");
+        expect(botGapsFiledPerDay(log).size).toBe(0);
+    });
+
     it("reads an empty window as none", () => {
         expect(renderBotGapCensus(botGapsFiledPerDay(""))).toMatch(/: none$/);
     });
