@@ -38388,6 +38388,7 @@
         {"id":"702.138b","line":"// escaped (CR 702.138b, issue #695): a 0/1 read of whether a permanent","sites":1,"status":"baseline"},
         {"id":"702.138b","line":"// how CR 702.138b's `escaped` marker already survives the stack→battlefield","sites":1,"status":"baseline"},
         {"id":"702.138b","line":"// the same object — mirroring how CR 702.138b's `escaped` marker and CR","sites":1,"status":"baseline"},
+        {"id":"702.138b","line":"describe(\"an escaped permanent's sacrifice in flight is not charged (issue #4901, CR 702.138b)\", () => {","sites":1,"status":"confirmed","ruleHash":"b452921c2897e4bf"},
         {"id":"702.138b","line":"describe(\"escaped marker + resolution (CR 702.138b)\", () => {","sites":1,"status":"baseline"},
         {"id":"702.138b","line":"describe(\"serialization (CR 702.138b)\", () => {","sites":1,"status":"baseline"},
         {"id":"702.138b","line":"it(\"an escaped cast keeps the body its hand cast sacrifices (CR 702.138b)\", () => {","sites":1,"status":"confirmed","ruleHash":"b452921c2897e4bf"},
