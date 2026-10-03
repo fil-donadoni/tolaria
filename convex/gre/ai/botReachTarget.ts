@@ -52,6 +52,13 @@ const TARGET_LAND = "Forest";
  *  declines. */
 const GRAVEYARD_ARTIFACT = "Stratadon";
 
+/** How many cards of the kind a look-and-distribute ETB Ability finds sit in
+ *  the holder's library. The search re-deals the library's ORDER at every
+ *  iteration (`determinizeObserver` keeps the content), so the top cards it
+ *  looks at are a draw from the whole library: this many of its 20 cards match
+ *  — more than the look (4) — so every look finds one. */
+const LOOKED_FOR_CARDS = 12;
+
 /** Keys a definition may carry and still be a body with nothing else to it: no
  *  ability, no effect, no replacement — a creature the position can place
  *  without changing what any other card in it does. */
@@ -508,9 +515,29 @@ function narrows(req: TargetRequirement): boolean {
 /**
  * The creature and, when the requirement names a combat role, the declared
  * combat that make `def` castable; seats are the position's own (`"me"` is
- * the holder).
+ * the holder). The card's ETB Abilities (CR 603.6a) are posed like its own
+ * spell: their target requirements name what the position must hold for the
+ * trigger to be worth putting on the stack, and a look-and-distribute one
+ * names what the library must hold for the look to find something (issue
+ * #4904).
  */
 export function targetPose(def: CardDefinition): TargetPose {
+    const own = spellPose(def);
+    const etb = etbAbilityScripts(def).map((script) => spellPose(script));
+    const poses = [own, ...etb];
+    return {
+        cards: [...poses.flatMap((p) => p.cards), ...etbLibraryCards(def)],
+        omitToughnessBoost: poses.some((p) => p.omitToughnessBoost),
+        // The combat a target's role names is the SPELL's: a creature is cast
+        // in a main phase, so an ETB Ability's combat window would be one the
+        // card cannot be cast in.
+        position: own.position,
+    };
+}
+
+/** The pose of `def`'s own target requirement(s) — a spell's, or an ETB
+ *  Ability's script wearing the card's identity ({@link etbAbilityScripts}). */
+function spellPose(def: CardDefinition): TargetPose {
     const modes = def.targetRequirement ? [] : (def.modes ?? []);
     if (modes.length === 0)
         return requirementPose(def, def.targetRequirement, undefined);
@@ -525,6 +552,94 @@ export function targetPose(def: CardDefinition): TargetPose {
         omitToughnessBoost: poses.some((p) => p.omitToughnessBoost),
         position: poses.find((p) => p.position.phase)?.position ?? {},
     };
+}
+
+/**
+ * CR 603.6a — each ETB Ability of `def` that announces a target, as a
+ * definition: the card's own, with the ability's script, target requirement
+ * and modes standing where the spell's would, so every spell rule below
+ * (the Bot's own beneficence sign, an untap, a narrowing requirement) reads
+ * the ability unchanged. Both forms are read: the compiler's descriptors (the
+ * caller hands this module the definition BEFORE `expandDefinition` rebuilds
+ * them) and a hand-written `TriggeredAbility`.
+ */
+export function etbAbilityScripts(def: CardDefinition): CardDefinition[] {
+    const scripts: CardDefinition[] = [];
+    for (const t of def.triggeredAbilities ?? []) {
+        if (t.etbAbility !== true) continue;
+        if (!t.targetRequirement && !(t.modes ?? []).length) continue;
+        scripts.push({
+            ...def,
+            subtypes: [],
+            effects: t.effects,
+            targetRequirement: t.targetRequirement,
+            modes: t.modes,
+        });
+    }
+    for (const t of def.compiledTriggeredAbilities ?? []) {
+        if (t.head.kind !== "entered" || t.head.scope !== "self") continue;
+        if (!t.targetRequirement) continue;
+        scripts.push({
+            ...def,
+            subtypes: [],
+            effects: [...t.effects],
+            targetRequirement: t.targetRequirement,
+            modes: undefined,
+        });
+    }
+    return scripts;
+}
+
+/** Every `lookDistribute` the controller's ETB Abilities run whose kept cards
+ *  a literal subtype restricts, as the subtypes. */
+function etbLookedForSubtypes(def: CardDefinition): string[] {
+    const found: string[] = [];
+    const visit = (node: unknown): void => {
+        if (Array.isArray(node)) return node.forEach(visit);
+        if (node === null || typeof node !== "object") return;
+        const record = node as Record<string, unknown>;
+        const subtype = (record.filter as { subtype?: unknown } | undefined)
+            ?.subtype;
+        if (
+            record.op === "lookDistribute" &&
+            record.player === "controller" &&
+            typeof subtype === "string"
+        )
+            found.push(subtype);
+        Object.values(record).forEach(visit);
+    };
+    for (const t of def.triggeredAbilities ?? [])
+        if (t.etbAbility === true) visit(t.effects);
+    for (const t of def.compiledTriggeredAbilities ?? [])
+        if (t.head.kind === "entered" && t.head.scope === "self")
+            visit(t.effects);
+    return found;
+}
+
+/** The library an ETB look-and-distribute ("reveal the top four cards, put all
+ *  Goblin cards among them into your hand") finds something in: plain
+ *  creatures of the subtype it keeps, many of them (the generated library is
+ *  basic lands, which a look takes nothing from). A subtype no plain catalogue
+ *  creature has seeds nothing. */
+function etbLibraryCards(def: CardDefinition): ScenarioCard[] {
+    return etbLookedForSubtypes(def).flatMap((subtype) => {
+        const body = creatureFor({
+            type: "Creature",
+            count: 1,
+            subtypeFilter: subtype,
+        });
+        return body === null
+            ? []
+            : [
+                  {
+                      name: body.name,
+                      owner: "me" as const,
+                      zone: "library" as const,
+                      position: 1,
+                      count: LOOKED_FOR_CARDS,
+                  },
+              ];
+    });
 }
 
 /** An "untap all creatures you control" sweep: a `forEach` over the

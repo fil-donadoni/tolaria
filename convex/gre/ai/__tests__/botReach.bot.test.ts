@@ -388,6 +388,92 @@ const ETB_WALL_REMOVER: CardDefinition = {
     ],
 };
 
+/** A creature whose ENTERS trigger destroys target creature with power 99 or
+ *  more: no creature in the catalogue is one, so the position cannot pose a
+ *  target and the ETB finds none, the way a card whose requirement nothing
+ *  satisfies does (issue #4758). */
+const ETB_UNPOSABLE_REMOVER: CardDefinition = {
+    ...ETB_WALL_REMOVER,
+    id: "bot-reach-test:etb-unposable-remover",
+    name: "Bot Reach ETB Unposable Remover",
+    compiledTriggeredAbilities: [
+        {
+            id: "bot-reach-test:etb-unposable-remover:trigger",
+            oracleText:
+                "When this creature enters, destroy target creature with power 99 or greater.",
+            head: { kind: "entered", scope: "self" },
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                powerFilter: { min: 99 },
+            },
+            effects: [{ op: "destroy", target: { target: 0 } }],
+        },
+    ],
+};
+
+/** A creature whose ENTERS trigger reveals the top four cards of its
+ *  controller's library and puts every Goblin among them into hand (Goblin
+ *  Ringleader's shape). A library of basic lands holds nothing to find, so
+ *  the trigger is worth nothing and the Bot rightly holds the card: a limit
+ *  of the position, never a Bot Gap (issue #4904). */
+const ETB_GOBLIN_LOOKER: CardDefinition = {
+    ...ETB_WALL_REMOVER,
+    id: "bot-reach-test:etb-goblin-looker",
+    name: "Bot Reach ETB Goblin Looker",
+    subtypes: ["Goblin"],
+    compiledTriggeredAbilities: [
+        {
+            id: "bot-reach-test:etb-goblin-looker:trigger",
+            oracleText:
+                "When this creature enters, reveal the top four cards of your library. Put all Goblin cards revealed this way into your hand and the rest on the bottom of your library in any order.",
+            head: { kind: "entered", scope: "self" },
+            effects: [
+                {
+                    op: "lookDistribute",
+                    player: "controller",
+                    look: 4,
+                    take: 4,
+                    keepTo: "hand",
+                    filter: { subtype: "Goblin" },
+                    optional: false,
+                    reveal: "window",
+                },
+            ],
+        },
+    ],
+};
+
+/** A creature whose ENTERS trigger makes a target player discard at random
+ *  (Sanity Gnawers' shape). An opponent holding lands gives the discard
+ *  nothing to take, so the Bot holds the card: a limit of the position, never
+ *  a Bot Gap (issue #4904). */
+const ETB_DISCARDER: CardDefinition = {
+    ...ETB_WALL_REMOVER,
+    id: "bot-reach-test:etb-discarder",
+    name: "Bot Reach ETB Discarder",
+    manaCost: { generic: 1, B: 1, R: 1 },
+    subtypes: ["Rat"],
+    power: 1,
+    toughness: 1,
+    compiledTriggeredAbilities: [
+        {
+            id: "bot-reach-test:etb-discarder:trigger",
+            oracleText:
+                "When this creature enters, target player discards a card at random.",
+            head: { kind: "entered", scope: "self" },
+            targetRequirement: { type: "player", count: 1 },
+            effects: [
+                {
+                    op: "discardAtRandom",
+                    player: { target: 0 },
+                    count: 1,
+                },
+            ],
+        },
+    ],
+};
+
 describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
     it("played — the Bot casts an affordable creature at both seats", () => {
         expect(playTwice(getCardByName("Grizzly Bears"))).toEqual({
@@ -1690,10 +1776,33 @@ describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
     });
 
     it("position-unmodelled — a creature whose ETB Ability finds no legal target is held, and the refusal is the position's (issue #4758)", () => {
-        withTemporaryDefinition(ETB_WALL_REMOVER, () => {
-            expect(playTwice(ETB_WALL_REMOVER)).toMatchObject({
+        withTemporaryDefinition(ETB_UNPOSABLE_REMOVER, () => {
+            expect(playTwice(ETB_UNPOSABLE_REMOVER)).toMatchObject({
                 outcome: "ignored",
                 cause: "position-unmodelled",
+            });
+        });
+    });
+
+    // Issue #4904: `targetPose` posed only a SPELL's target, so a creature's
+    // ETB Ability found the generic fillers and no Wall, and the Bot's hold
+    // read as `never-chosen`.
+    it("played — an ETB Ability's narrowed target is posed like a spell's (issue #4904)", () => {
+        withTemporaryDefinition(ETB_WALL_REMOVER, () => {
+            expect(playTwice(ETB_WALL_REMOVER)).toEqual({ outcome: "played" });
+        });
+    });
+
+    it("played — an ETB Ability that aims a discard finds a hand worth taking (issue #4904)", () => {
+        withTemporaryDefinition(ETB_DISCARDER, () => {
+            expect(playTwice(ETB_DISCARDER)).toEqual({ outcome: "played" });
+        });
+    });
+
+    it("played — an ETB look-and-distribute finds the cards it keeps in the library (issue #4904)", () => {
+        withTemporaryDefinition(ETB_GOBLIN_LOOKER, () => {
+            expect(playTwice(ETB_GOBLIN_LOOKER)).toEqual({
+                outcome: "played",
             });
         });
     });
