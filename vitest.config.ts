@@ -121,11 +121,15 @@ const exclude = [...baseExclude, ...PERF_GLOB, ...LADDER_GLOB];
 // under the default per-file isolation that whole graph is re-evaluated once
 // for every node file. Disabling isolation shares one module registry per
 // worker, so the graph is imported ~once per worker instead of once per file —
-// the dominant slice of the `import` phase. It is safe there because
-// convex/scripts tests use ZERO vi.mock / vi.spyOn / fake timers / global
-// writes, so there is no module-level state to leak between files sharing a
-// worker. The dom projects keep the default isolation because src files use
-// vi.mock/spyOn and would leak spies.
+// the dominant slice of the `import` phase. The price is a rule: NO MODULE
+// MOCK in a file these projects select. A `vi.mock` / `vi.doMock` binds
+// nothing once an earlier file in the worker has imported its target — green
+// alone, wrong beside a neighbour (issue #4460, issue #5001) — so
+// `scripts/__tests__/isolation-off-mock-boundary.test.ts` refuses one (issue
+// #5020). A namespace `vi.spyOn` restored in `afterEach` stays allowed: it
+// patches the shared namespace every importer reads through, whatever the
+// import order. The dom projects keep the default isolation because src
+// files mock modules freely.
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** Bot/AI tests, selected by the `*.bot.test.ts` filename suffix. */
