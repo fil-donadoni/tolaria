@@ -573,6 +573,13 @@
             "needsSetup": true
         }
     ],
+    "Wistfulness": [
+        {
+            "label": "hybrid evoke: evokes Wistfulness on two Forests to exile an opposing artifact",
+            "tier": "stretch",
+            "needsSetup": false
+        }
+    ],
     "Zuran Orb": [
         {
             "label": "activation timing: converts a sacrifice engine at the opponent's end step",

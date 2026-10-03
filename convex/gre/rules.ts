@@ -2602,8 +2602,13 @@ function canPotentiallyPayCost(
             getCostModifiers(state, card, "spell", undefined, player.id)
         );
     }
+    // CR 107.4e (issue #4934) — a guild-hybrid pip is mana owed too: left out,
+    // a cost of hybrid pips alone (the ECL evoke trio's `{G/U}{G/U}`) read as
+    // free and the gate offered a cast on no lands.
     const totalRequired =
-        (cost.X ?? 0) + MANA_COLORS.reduce((sum, c) => sum + (cost[c] ?? 0), 0);
+        (cost.X ?? 0) +
+        MANA_COLORS.reduce((sum, c) => sum + (cost[c] ?? 0), 0) +
+        normalizedHybridPips(cost).length;
     if (totalRequired === 0) return true;
     // Issue #1695 (fourth-pass fix) — forward `state` down into
     // `coloredCostLeftover` purely for the board view; every one of THIS

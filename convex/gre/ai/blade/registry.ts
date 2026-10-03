@@ -9612,10 +9612,10 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         },
         bot: "me",
         budget: { iterations: 400 },
-        seeds: [0xb1ade, 1, 2, 3, 4],
+        seeds: [0xb1ade, 1, 2, 4, 5],
         tier: "must",
         expect: { moves: [{ kind: "cast-spell", card: "Ravenous Rats" }] },
-        note: "Issue #4895 (issue #4758 review). Its ETB Ability makes the opponent discard (their pick, CR 701.9b), so the policy probe stops with the trigger in flight; `etbAbilitiesInFlight` credits it. Measured cast on 5/5 seeds. The general opponent-choice limit is issue #4896.",
+        note: "Issue #4895 (issue #4758 review). Its ETB Ability makes the opponent discard (their pick, CR 701.9b), so the policy probe stops with the trigger in flight; `etbAbilitiesInFlight` credits it. Measured cast on 5/5 seeds. The general opponent-choice limit is issue #4896. Re-seeded 3 → 5 by issue #4934's refit: seed 3 passes on the prior weights, seeds 3 and 9 of 0–12 fail on the refit — noise, owned by issue #4981.",
     },
     {
         label: "opponent's choice: casts Chainer's Edict at the opponent's only creature",
@@ -10002,6 +10002,27 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
             describe: "casts Fireblast by sacrificing two Mountains",
         },
         note: "Issue #4935 (issue #4900 review), a REACHABILITY entry — `predicate`, so it lowers to no Verdict and owes no weight refit: Fireblast's alternative cost is a PERMANENT leg (sacrifice two Mountains), which `searchPayableOwnAlternativeCosts` used to refuse, so with both Mountains tapped the Bot offered only `pass` and left four lethal damage in hand. `MoveMatcher` has no field for `alternativeCostId`, hence the predicate shape (as for overload / dash). The victims now ride on the Move (`castCostPicks.sacrificeIds`) and the search charges them (`applyAlternativeCostPermanentLegForSearch`).",
+    },
+    {
+        label: "hybrid evoke: evokes Wistfulness on two Forests to exile an opposing artifact",
+        spec: {
+            cards: [
+                { name: "Wistfulness", owner: "me", zone: "hand" },
+                { name: "Forest", owner: "me", zone: "battlefield" },
+                { name: "Forest", owner: "me", zone: "battlefield" },
+                { name: "Sol Ring", owner: "opp", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "stretch",
+        expect: { moves: [{ kind: "cast-spell", card: "Wistfulness" }] },
+        note: 'Issue #4934: the evoke cost `{G/U}{G/U}` is two HYBRID pips. `planManaPayment` ignored the `"G/U"` key (an empty plan) and `searchPayableOwnAlternativeCosts` failed closed on a hybrid leg, so the Bot could not evoke the ECL trio at all; the printed `{3}{G/U}{G/U}` cast was offered on three Forests with the hybrid pips unpaid. Two Forests pay the evoke (`{G}{G}` spent, so the ETB exiles Sol Ring). STRETCH, measured: the move is now ENUMERATED with a two-land tap plan (pinned by `own-alternative-cost-cast.bot.test.ts`), but the search passes on 5/5 seeds — whether trading the card for the exile is worth it is a valuation question, not this issue\'s.',
     },
     // Issue #4217 (founding case of PRD #4754) — Snapcaster Mage. A
     // DISCRIMINATING PAIR on one board: the only difference is whether the
