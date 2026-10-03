@@ -39,11 +39,7 @@ import type {
 } from "./state/declarations";
 import type { ContinuousEffect } from "./continuousEffects";
 import { applySubstitution } from "./textChanges";
-import {
-    STATIC_EFFECT_CTX,
-    getEffectivePower,
-    getEffectiveToughness,
-} from "./layers";
+import { STATIC_EFFECT_CTX, getEffectivePT } from "./layers";
 import type { LayerStateView } from "./layers";
 import {
     MANA_COLORS,
@@ -823,11 +819,8 @@ function withEffectivePT(
     layerView: LayerStateView
 ): PermanentView {
     const view = card as unknown as PermanentView;
-    return {
-        ...view,
-        power: getEffectivePower(layerView, view),
-        toughness: getEffectiveToughness(layerView, view),
-    };
+    const pt = getEffectivePT(layerView, view);
+    return { ...view, power: pt.power, toughness: pt.toughness };
 }
 
 /** Board-conditional mana output for a card's fixed tap mana ability (CR 106.1),

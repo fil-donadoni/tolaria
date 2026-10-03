@@ -68,9 +68,10 @@ import { advanceSagasAtPrecombatMain } from "./sagas";
 import { seededShuffle } from "./rng";
 import { describeDamageSource } from "./replacements";
 import {
-    getEffectivePower,
-    getEffectiveToughness,
+    beginLayer7Pass,
+    getEffectivePT,
     STATIC_EFFECT_CTX,
+    type Layer7Pass,
 } from "./layers";
 import { rematerialiseTimedCopies } from "./copy";
 import { attackTargetExcessSink, lethalForBlocker } from "./damageAssignment";
@@ -977,12 +978,24 @@ function getBlockersPerAttacker(state: GameState): Record<string, string[]> {
     return getEffectiveBlockGraph(state).blockersByAttacker;
 }
 
-function getCardPower(state: GameState, card: CardInstanceState): number {
-    return Math.max(0, getEffectivePower(state, card));
+/** `pass` (issue #4462) — the combat pass these reads belong to: every
+ *  function below that asks the P/T of several creatures of one board opens
+ *  one and hands it here, so the layer-7 source set is walked once for the
+ *  function instead of once per creature. */
+function getCardPower(
+    state: GameState,
+    card: CardInstanceState,
+    pass: Layer7Pass
+): number {
+    return Math.max(0, getEffectivePT(state, card, { pass }).power);
 }
 
-function getCardToughness(state: GameState, card: CardInstanceState): number {
-    return getEffectiveToughness(state, card);
+function getCardToughness(
+    state: GameState,
+    card: CardInstanceState,
+    pass: Layer7Pass
+): number {
+    return getEffectivePT(state, card, { pass }).toughness;
 }
 
 /** A combat-damage source needs a manual assignment choice when it deals
@@ -995,8 +1008,9 @@ function getManualAssignmentSourceIds(
     graph: BlockGraph
 ): string[] {
     const ids: string[] = [];
+    const pass = beginLayer7Pass(state);
     const dealsAndHasPower = (c: CardInstanceState | undefined): boolean =>
-        !!c && dealsDamageIn(c, kind) && getCardPower(state, c) > 0;
+        !!c && dealsDamageIn(c, kind) && getCardPower(state, c, pass) > 0;
     for (const [attackerId, blockerIds] of Object.entries(
         graph.blockersByAttacker
     )) {
@@ -1024,6 +1038,7 @@ export function buildAutoDamageAssignments(
     const defenderId = getOpponentId(state, state.activePlayerId);
     const defender = getPlayer(state, defenderId);
     const result: Record<string, Record<string, number>> = {};
+    const pass = beginLayer7Pass(state);
 
     for (const attackerId of state.combat!.attackerIds) {
         const attacker = activePlayer.battlefield.find(
@@ -1058,10 +1073,11 @@ export function buildAutoDamageAssignments(
                     result
                 );
                 const toBlocker = Math.min(
-                    getCardPower(state, attacker),
+                    getCardPower(state, attacker, pass),
                     lethal
                 );
-                const toDefender = getCardPower(state, attacker) - toBlocker;
+                const toDefender =
+                    getCardPower(state, attacker, pass) - toBlocker;
                 const assignment: Record<string, number> = {
                     [blockers[0]]: toBlocker,
                 };
@@ -1071,7 +1087,7 @@ export function buildAutoDamageAssignments(
                 result[attackerId] = assignment;
             } else {
                 result[attackerId] = {
-                    [blockers[0]]: getCardPower(state, attacker),
+                    [blockers[0]]: getCardPower(state, attacker, pass),
                 };
             }
         }
@@ -1093,6 +1109,7 @@ export function buildDefaultDamageAssignments(
     const defenderId = getOpponentId(state, state.activePlayerId);
     const defender = getPlayer(state, defenderId);
     const result: Record<string, Record<string, number>> = {};
+    const pass = beginLayer7Pass(state);
 
     for (const attackerId of state.combat!.attackerIds) {
         const attacker = activePlayer.battlefield.find(
@@ -1120,10 +1137,11 @@ export function buildDefaultDamageAssignments(
                     ? lethalForBlocker(state, attacker, blocker, result)
                     : 0;
                 const toBlocker = Math.min(
-                    getCardPower(state, attacker),
+                    getCardPower(state, attacker, pass),
                     lethal
                 );
-                const toDefender = getCardPower(state, attacker) - toBlocker;
+                const toDefender =
+                    getCardPower(state, attacker, pass) - toBlocker;
                 const assignment: Record<string, number> = {
                     [blockers[0]]: toBlocker,
                 };
@@ -1131,14 +1149,14 @@ export function buildDefaultDamageAssignments(
                 result[attackerId] = assignment;
             } else {
                 result[attackerId] = {
-                    [blockers[0]]: getCardPower(state, attacker),
+                    [blockers[0]]: getCardPower(state, attacker, pass),
                 };
             }
         } else if (blockers.length >= 2) {
             const assignment: Record<string, number> = {};
             if (hasTrample) {
                 // Default with trample: lethal to each in order, excess to defender
-                let remaining = getCardPower(state, attacker);
+                let remaining = getCardPower(state, attacker, pass);
                 for (const blockerId of blockers) {
                     const blocker = defender.battlefield.find(
                         (c) => c.id === blockerId
@@ -1166,7 +1184,7 @@ export function buildDefaultDamageAssignments(
                 );
                 liveBlockers.forEach((id, i) => {
                     assignment[id] =
-                        i === 0 ? getCardPower(state, attacker) : 0;
+                        i === 0 ? getCardPower(state, attacker, pass) : 0;
                 });
             }
             result[attackerId] = assignment;
@@ -1184,7 +1202,7 @@ export function buildDefaultDamageAssignments(
         if (attackerIds.length < 2) continue;
         const blocker = findPermanent(state, blockerId);
         if (!blocker || !dealsDamageIn(blocker, kind)) continue;
-        const power = getCardPower(state, blocker);
+        const power = getCardPower(state, blocker, pass);
         const liveAttackerIds = attackerIds.filter(
             (id) => findPermanent(state, id) !== undefined
         );
@@ -1248,6 +1266,14 @@ export function applyAllCombatDamage(
     // member blocks the whole band, and every member is blocked.
     const { blockersByAttacker, attackersByBlocker } =
         getEffectiveBlockGraph(state);
+    // One layer-7 pass for the whole damage step (issue #4462). CR 510.2 —
+    // all combat damage of a step is dealt simultaneously, so the deaths are
+    // applied after the last P/T read below and the set of P/T SOURCES is the
+    // same for every one of them. Counters, damage and prevention shields a
+    // damage event writes are per-creature facts the pass never holds, and a
+    // replacement effect that did move a permanent mid-step is what the pass
+    // re-walks for (`layer7SourcesFor`).
+    const pass = beginLayer7Pass(state);
 
     // Track damage received: cardId → total damage
     const damageReceived: Record<string, number> = {};
@@ -1619,7 +1645,7 @@ export function applyAllCombatDamage(
         const liveBlockers = (blockersByAttacker[attackerId] ?? []).filter(
             (id) => findPermanent(state, id) !== undefined
         );
-        const attackerPower = getCardPower(state, attacker);
+        const attackerPower = getCardPower(state, attacker, pass);
         // CR 509.1h — "blocked" is combat state, not the live blocker count: an
         // attacker is blocked if it has a blocker now OR it became blocked this
         // combat (recorded at declare-blockers and survives losing every
@@ -1809,7 +1835,7 @@ export function applyAllCombatDamage(
         const blocker = defender.battlefield.find((c) => c.id === blockerId);
         if (!blocker) continue;
         if (!dealsDamageIn(blocker, kind)) continue;
-        const blockerPower = getCardPower(state, blocker);
+        const blockerPower = getCardPower(state, blocker, pass);
         if (blockerPower <= 0) continue;
 
         if (blockedAttackerIds.length <= 1) {
@@ -1883,7 +1909,7 @@ export function applyAllCombatDamage(
         // general mechanism (non-combat damage); folding it in here keeps combat
         // deaths simultaneous. `destroyWithReplacements` respects indestructible.
         if (
-            card.damageMarked >= getCardToughness(state, card) ||
+            card.damageMarked >= getCardToughness(state, card, pass) ||
             card.dealtDeathtouchDamage === true
         ) {
             deadIds.add(cardId);
@@ -2031,6 +2057,7 @@ export function emitBlockersConfirmedEvents(state: GameState): void {
     const activePlayer = getPlayer(state, state.activePlayerId);
     const defenderId = getOpponentId(state, state.activePlayerId);
     const defender = getPlayer(state, defenderId);
+    const pass = beginLayer7Pass(state);
 
     // Track which attackers got at least one blocker so we can emit a
     // CR 509.1h "attacker remained unblocked" event for the rest.
@@ -2057,7 +2084,8 @@ export function emitBlockersConfirmedEvents(state: GameState): void {
                 // CR 613 effective toughness, so toughness-gated combat-pairing
                 // triggers (Infinite Authority, Infernal Medusa) read the live
                 // value including counters / continuous effects.
-                attackerToughness: getEffectiveToughness(state, attacker),
+                attackerToughness: getEffectivePT(state, attacker, { pass })
+                    .toughness,
                 // CR 202.2 / layer 5 effective colour, so colour-gated
                 // combat-pairing triggers (Amphibious Kavu) read the same
                 // colour the rest of the engine sees — carried on the event
@@ -2068,7 +2096,8 @@ export function emitBlockersConfirmedEvents(state: GameState): void {
                 blockerControllerId: blocker.controllerId,
                 blockerTypes: blocker.types,
                 blockerSubtypes: blocker.subtypes,
-                blockerToughness: getEffectiveToughness(state, blocker),
+                blockerToughness: getEffectivePT(state, blocker, { pass })
+                    .toughness,
                 blockerColors: STATIC_EFFECT_CTX.getColors(blocker),
             });
         }

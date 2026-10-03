@@ -84,7 +84,7 @@ import {
     recordAttackerDeclared,
     validateAttackerEligibility,
 } from "./combat";
-import { getEffectivePower, getEffectiveToughness } from "./layers";
+import { beginLayer7Pass, getEffectivePT } from "./layers";
 import {
     enumerateMoves,
     onlyPassIsLegal,
@@ -5504,16 +5504,17 @@ export function waitReadingOf(
     const defenders = state.players
         .filter((p) => p.id !== pid)
         .flatMap((p) => p.battlefield);
+    const pass = beginLayer7Pass(state);
     const roster = me.battlefield
         .filter(
             (c) =>
                 isCreature(c) &&
                 validateAttackerEligibility(c, defenders, state).eligible
         )
-        .map(
-            (c) =>
-                `${c.id}:${getEffectivePower(state, c)}/${getEffectiveToughness(state, c)}`
-        )
+        .map((c) => {
+            const pt = getEffectivePT(state, c, { pass });
+            return `${c.id}:${pt.power}/${pt.toughness}`;
+        })
         .sort()
         .join(",");
     return {

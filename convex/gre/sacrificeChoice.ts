@@ -21,11 +21,7 @@ import {
 import type { Color } from "../cards/types";
 import type { PermanentFilter } from "../cards/filters";
 import { matchesPermanentFilter } from "../cards/filters";
-import {
-    STATIC_EFFECT_CTX,
-    getEffectivePower,
-    getEffectiveToughness,
-} from "./layers";
+import { STATIC_EFFECT_CTX, getEffectivePT } from "./layers";
 // CR 202.3 — the single mana-value authority (hybrid + Phyrexian pips, CR 202.3f).
 import { manaValue } from "./constants";
 import { tryGetDefinition } from "../cards/index";
@@ -392,10 +388,9 @@ function victimCharacteristics(
             ? [...victim.subtypes]
             : undefined;
     const isCreature = victim.types.includes("Creature");
-    const power = isCreature ? getEffectivePower(state, victim) : undefined;
-    const toughness = isCreature
-        ? getEffectiveToughness(state, victim)
-        : undefined;
+    const { power, toughness } = isCreature
+        ? getEffectivePT(state, victim)
+        : { power: undefined, toughness: undefined };
     // CR 105.2 / 613.1e (issue #3806) — the victim's LIVE colours, taken
     // before `removePermanentTo` puts it in the graveyard, where layer 5 no
     // longer applies (CR 608.2h last known information). Always an array,

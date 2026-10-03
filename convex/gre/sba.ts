@@ -19,8 +19,9 @@ import { isAura, isCreature, isPlaneswalker } from "./constants";
 import { revertBestow } from "./bestow";
 import { refreshOffBattlefieldCharacteristics } from "./zoneCharacteristics";
 import {
+    beginLayer7Pass,
     getEffectivePower,
-    getEffectiveToughness,
+    getEffectivePT,
     isSourceTappedLive,
 } from "./layers";
 import { checkAscendCityBlessing } from "./cityBlessing";
@@ -430,11 +431,18 @@ export function checkZeroToughnessSBA(state: GameState): boolean {
     let removedAny = false;
     for (;;) {
         let removed = false;
+        // One layer-7 pass per SCAN (issue #4462): the scan reads every
+        // creature against a board that does not move until a victim is
+        // found, so the source set is walked once for all of them. Opened
+        // INSIDE the loop — a removal can take a P/T source with it (the
+        // "one death can drop another creature's toughness" case above), so
+        // the restarted scan opens its own.
+        const pass = beginLayer7Pass(state);
         for (const player of state.players) {
             const victim = player.battlefield.find(
                 (c) =>
                     c.types.includes("Creature") &&
-                    getEffectiveToughness(state, c) <= 0
+                    getEffectivePT(state, c, { pass }).toughness <= 0
             );
             if (victim) {
                 removePermanentTo(state, victim.id, "graveyard");

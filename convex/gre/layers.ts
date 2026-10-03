@@ -323,22 +323,39 @@ type Layer7SourceCandidate = {
     index: number;
 };
 
-/** The source half of one board's layer-7 derivation (issue #4462): WHICH
- *  objects declare a P/T effect, in walk order. Built by
- *  {@link collectLayer7Sources} and handed down by the caller of an
- *  all-creatures pass; opaque to every caller, which only ever passes it back
- *  to {@link getEffectivePT}.
- *
- *  A plan is a statement about ONE board at ONE moment and is never stored:
- *  it lives in a local of the pass that built it, and a pass that moves the
- *  board builds another. `state`, `battlefieldSizes` and `emblemCount` are the
- *  board it was collected from, read back by `planCoversBoard`. */
-export type Layer7SourcePlan = {
-    readonly state: LayerStateView;
+/** The source half of one board's layer-7 derivation: WHICH objects declare a
+ *  P/T effect, in walk order, and the board population it was read from
+ *  (`planCoversBoard`). */
+type Layer7SourcePlan = {
     readonly battlefieldSizes: readonly number[];
     readonly emblemCount: number;
     readonly candidates: readonly Layer7SourceCandidate[];
 };
+
+/** One all-creatures pass over one board (issue #4462): the per-pass cache of
+ *  the layer-7 source set. The caller of the pass — the zero-toughness SBA
+ *  scan, an evaluation, a combat damage step — opens it with
+ *  {@link beginLayer7Pass} and hands it down to every {@link getEffectivePT}
+ *  of that pass, so the board is walked once for the pass instead of once per
+ *  creature read.
+ *
+ *  Never stored: it lives in a local of the pass that opened it and dies with
+ *  it. It is deliberately NOT a `GameState` field — a cache that survives a
+ *  stable point has to be invalidated by every write path in the engine, and
+ *  one that does not survive its pass has nothing to invalidate.
+ *
+ *  Opaque: `sources` is filled by the first creature read (a pass over a
+ *  board with no creature never walks at all) and belongs to this module. */
+export type Layer7Pass = {
+    readonly state: LayerStateView;
+    sources?: Layer7SourcePlan;
+};
+
+/** Opens a {@link Layer7Pass} over `state`. O(1): nothing is walked until a
+ *  creature's P/T is actually read through it. */
+export function beginLayer7Pass(state: LayerStateView): Layer7Pass {
+    return { state };
+}
 
 /** Walks the battlefield and the command zone ONCE, collecting every object's
  *  layer-7 static effects (issue #4462, PRD #4454) — the twin of
@@ -364,7 +381,7 @@ export type Layer7SourcePlan = {
  *  per target off the live source. The plan answers membership and nothing
  *  else, which is why a counter, a tap or a control change between two reads
  *  of one pass needs no new plan — and a permanent entering or leaving does. */
-export function collectLayer7Sources(state: LayerStateView): Layer7SourcePlan {
+function collectLayer7Sources(state: LayerStateView): Layer7SourcePlan {
     const candidates: Layer7SourceCandidate[] = [];
     const push = (
         source: PermanentView,
@@ -395,27 +412,22 @@ export function collectLayer7Sources(state: LayerStateView): Layer7SourcePlan {
         push(emblemAsStaticSource(emblem), getEmblemStaticEffects(emblem));
     }
     return {
-        state,
         battlefieldSizes: state.players.map((p) => p.battlefield.length),
         emblemCount: state.emblems?.length ?? 0,
         candidates,
     };
 }
 
-/** Whether `plan` was collected from `state` as it stands — the same state
- *  object, with the same number of permanents on each battlefield and the same
- *  number of emblems. A read handed a plan that fails this derives its own
- *  instead, so a plan carried past the board it describes (onto a clone, or
- *  across a permanent entering or leaving) costs a walk, never a wrong P/T.
+/** Whether `plan` still describes `state`'s population — the same number of
+ *  permanents on each battlefield and the same number of emblems.
  *
  *  A tripwire, not a proof: it cannot see a source that changed WHAT it is
  *  while staying where it is (a copy effect rewriting `card.id`, a mode
- *  chosen late). The contract stays the caller's — one plan per fixed board. */
+ *  chosen late). The contract stays the caller's — one pass per fixed board. */
 function planCoversBoard(
     plan: Layer7SourcePlan,
     state: LayerStateView
 ): boolean {
-    if (plan.state !== state) return false;
     if (plan.emblemCount !== (state.emblems?.length ?? 0)) return false;
     const sizes = plan.battlefieldSizes;
     if (sizes.length !== state.players.length) return false;
@@ -423,6 +435,24 @@ function planCoversBoard(
         if (sizes[i] !== state.players[i].battlefield.length) return false;
     }
     return true;
+}
+
+/** The source plan one read derives against. With no pass — or a pass opened
+ *  over a DIFFERENT state object (a clone, a what-if copy) — the read walks
+ *  the board itself: one target, one walk, exactly as before issue #4462. With
+ *  one, the walk happens at the pass's first creature read and is reused by
+ *  every later one, and is redone if a permanent or an emblem has entered or
+ *  left since — so a pass carried across a board that moved costs a walk,
+ *  never a wrong P/T. */
+function layer7SourcesFor(
+    state: LayerStateView,
+    pass: Layer7Pass | undefined
+): Layer7SourcePlan {
+    if (!pass || pass.state !== state) return collectLayer7Sources(state);
+    if (!pass.sources || !planCoversBoard(pass.sources, state)) {
+        pass.sources = collectLayer7Sources(state);
+    }
+    return pass.sources;
 }
 
 /** The layer-7 registry entries applying to `target`, in CR 613.7 order, paired
@@ -464,10 +494,10 @@ function layer7EffectsFor(
     const templates = new Map<string, DerivedTemplate>();
 
     // The SOURCE half of the walk — which objects declare a layer-7 effect at
-    // all — is `collectLayer7Sources`' answer, built once per board pass and
-    // handed down. Everything below is the per-TARGET half, unchanged: the
-    // `applies` predicate, the CR 611.2c gate and the entry itself are decided
-    // here, against the live source, on every read.
+    // all — is `collectLayer7Sources`' answer, built once per `Layer7Pass`.
+    // Everything below is the per-TARGET half, unchanged: the `applies`
+    // predicate, the CR 611.2c gate and the entry itself are decided here,
+    // against the live source, on every read.
     for (const { source, effect, index } of sources.candidates) {
         // CR 613.7a — a continuous effect generated by a static ability has
         // the timestamp of the object the ability is on. PRD #2064
@@ -888,11 +918,10 @@ export function getEffectivePT(
     opts: {
         /** `false` drops the until-boundary entries — see below. */
         includeTemporary?: boolean;
-        /** The board's source plan, when the caller already built one for
-         *  this pass ({@link collectLayer7Sources}). Omitted — or handed a
-         *  plan that no longer describes `state` — this read walks the board
-         *  itself: one target, one walk, exactly as before issue #4462. */
-        sources?: Layer7SourcePlan;
+        /** The all-creatures pass this read belongs to, when its caller
+         *  opened one ({@link beginLayer7Pass}). Omitted, this read walks the
+         *  board itself. */
+        pass?: Layer7Pass;
     } = {}
 ): EffectivePT {
     // When false, the until-boundary P/T entries are dropped — which is exactly
@@ -916,11 +945,11 @@ export function getEffectivePT(
     if (!STATIC_EFFECT_CTX.isCreature(target)) {
         return { power: basePower, toughness: baseToughness };
     }
-    const sources =
-        opts.sources && planCoversBoard(opts.sources, state)
-            ? opts.sources
-            : collectLayer7Sources(state);
-    const { entries, templates } = layer7EffectsFor(state, target, sources);
+    const { entries, templates } = layer7EffectsFor(
+        state,
+        target,
+        layer7SourcesFor(state, opts.pass)
+    );
 
     let power = basePower;
     let toughness = baseToughness;

@@ -28,11 +28,7 @@
 
 import type { CardInstanceState, GameState } from "./state/declarations";
 import { hasControlledSinceTurnStart } from "./controlContinuity";
-import {
-    STATIC_EFFECT_CTX,
-    getEffectivePower,
-    getEffectiveToughness,
-} from "./layers";
+import { STATIC_EFFECT_CTX, getEffectivePT } from "./layers";
 
 /** Returns a `MatchablePermanent`-shaped view of `card` with its `power` and
  *  `toughness` overridden by the effective values read at call time
@@ -62,11 +58,12 @@ export function effectivePermanentView(
     if (!card.types.includes("Creature")) {
         return { ...card, colors, ...turnFlags } as CardInstanceState;
     }
+    const pt = getEffectivePT(state, card);
     return {
         ...card,
         colors,
         ...turnFlags,
-        power: getEffectivePower(state, card),
-        toughness: getEffectiveToughness(state, card),
+        power: pt.power,
+        toughness: pt.toughness,
     } as CardInstanceState;
 }
