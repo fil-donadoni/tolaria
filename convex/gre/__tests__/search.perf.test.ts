@@ -63,7 +63,10 @@ import * as manaAvailability from "../manaAvailability";
  * into one another inside the module are one census, and are not seen). Spied
  * like `ptWalkVisits`, for the same reason. An evaluation used to pay one per
  * seat in the material terms and another per castable-interaction read in the
- * combat terms, and every reactive-prior edge paid its own probe.
+ * combat terms, and every reactive-prior edge paid its own probe. Now one
+ * census per seat per evaluation, policy probe and rollout ply, and one
+ * castable-instant probe per node visit. Before that change the three
+ * positions read 1184 / 755 / 3489.
  *
  * `rngDraws` is the total `rngCounter` advance over every clone the search
  * made: game-PRNG draws only (in-game random effects). The search's own
@@ -198,7 +201,7 @@ const POSITIONS: Position[] = [
             evaluations: 353,
             sbaSweeps: 2459,
             ptWalkVisits: 7148,
-            censuses: 1184,
+            censuses: 1044,
             rngDraws: 0,
             searchDraws: 5949,
         },
@@ -214,7 +217,7 @@ const POSITIONS: Position[] = [
             evaluations: 291,
             sbaSweeps: 1747,
             ptWalkVisits: 0,
-            censuses: 755,
+            censuses: 733,
             rngDraws: 0,
             searchDraws: 5720,
         },
@@ -230,7 +233,7 @@ const POSITIONS: Position[] = [
             evaluations: 888,
             sbaSweeps: 3082,
             ptWalkVisits: 32910,
-            censuses: 3489,
+            censuses: 2507,
             rngDraws: 0,
             searchDraws: 7040,
         },

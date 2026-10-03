@@ -74,10 +74,14 @@ import { getPrintedEscape } from "./escape";
 import {
     canPayCost,
     coversCostColors,
-    manaCensusFor,
-    manaUnitsFor,
     type ManaUnits,
 } from "./manaAvailability";
+import {
+    censusOf,
+    newManaCensusMemo,
+    type ManaCensus,
+    type ManaCensusMemo,
+} from "./manaCensusMemo";
 // Issue #3532 — the colour-coverage quantity, computed for BOTH seats off one
 // derivation each: the hand for the seat whose hand may be read, the observed
 // evidence (`ai/observedColors.ts`) for the seat whose hand never may be.
@@ -395,12 +399,16 @@ export type EvalTerms = {
  *  while pool mana counted per unit, so tapping a Sol Ring and floating the
  *  surplus read as a GAIN. Both are gone: `manaUnitsFor` counts one unit per
  *  mana a source actually taps for (CR 605.1a), so a Sol Ring is two units
- *  tapped or untapped and the float is no longer a free +1. */
+ *  tapped or untapped and the float is no longer a free +1.
+ *
+ *  `memo` (issue #4461) is the evaluation's own: the combat terms ask the
+ *  same seat's census again, and read it from there. */
 function availableManaUnitsFor(
     state: GameState,
-    player: PlayerState
-): { now: ManaUnits; base: ManaUnits } {
-    return manaCensusFor(state, player);
+    player: PlayerState,
+    memo?: ManaCensusMemo
+): ManaCensus {
+    return censusOf(state, player, memo);
 }
 
 /** How many MANA SOURCES `player` controls, tapped or not (CR 502.3, issue
@@ -502,11 +510,16 @@ function finiteManaUsesTermFor(
  *  covered by the existing reactive-cast prior and rollout guardrail, so
  *  reusing this predicate unfiltered there would blur a narrow nudge into a
  *  general "consider passing on my own turn" bias. Omitted, it reproduces the
- *  original unfiltered behavior every existing caller relies on. */
+ *  original unfiltered behavior every existing caller relies on.
+ *
+ *  `memo` (issue #4461) shares the census with whatever else reads this
+ *  position — the evaluation of the same settled state, the other probes of
+ *  the same tree node (see `ManaCensusMemo`). */
 export function hasCastableInstant(
     state: GameState,
     playerId: string,
-    extra?: (card: CardInstanceState) => boolean
+    extra?: (card: CardInstanceState) => boolean,
+    memo?: ManaCensusMemo
 ): boolean {
     const player = state.players.find((p) => p.id === playerId);
     if (!player) return false;
@@ -514,7 +527,7 @@ export function hasCastableInstant(
     // with, then the real cost question per card. The scalar proxy this
     // replaced answered "is the hand's cheapest instant's mana value covered",
     // so a Lightning Bolt held with three Islands read as a live trick.
-    const units = manaUnitsFor(state, player);
+    const units = censusOf(state, player, memo).now;
     return player.hand.some(
         (c) =>
             hasInstantSpeed(c) &&
@@ -531,12 +544,14 @@ export function hasCastableInstant(
  *  narrowing matters. */
 export function hasCastableFlashPermanent(
     state: GameState,
-    playerId: string
+    playerId: string,
+    memo?: ManaCensusMemo
 ): boolean {
     return hasCastableInstant(
         state,
         playerId,
-        (c) => !c.types.includes("Instant")
+        (c) => !c.types.includes("Instant"),
+        memo
     );
 }
 
@@ -1421,7 +1436,8 @@ function playerTerms(
     player: PlayerState,
     weights: EvalWeights,
     seat: SeatView,
-    pass: Layer7Pass
+    pass: Layer7Pass,
+    memo: ManaCensusMemo
 ): EvalTerms {
     const terms: EvalTerms = {
         finiteManaUses: 0,
@@ -1513,7 +1529,7 @@ function playerTerms(
     // Issue #4758 — the realized side's counterpart of an ETB Ability in
     // flight (see `etbAbilitiesInFlight`).
     terms.creatures += etbAbilitiesInFlight(state, player, weights.latent);
-    const manaCensus = availableManaUnitsFor(state, player);
+    const manaCensus = availableManaUnitsFor(state, player, memo);
     // MATERIAL: how many sources are owned, not how many are untapped right
     // now (issue #3377 — see `manaSourceTermFor`). Tapping a source to pay for
     // something forfeits nothing durable; it untaps next turn (CR 502.3), and
@@ -1563,9 +1579,10 @@ function playerScore(
     player: PlayerState,
     weights: EvalWeights,
     seat: SeatView,
-    pass: Layer7Pass
+    pass: Layer7Pass,
+    memo: ManaCensusMemo
 ): number {
-    return sumTerms(playerTerms(state, player, weights, seat, pass));
+    return sumTerms(playerTerms(state, player, weights, seat, pass, memo));
 }
 
 /** Score `state` from `playerId`'s perspective. Higher = better for the player.
@@ -1575,13 +1592,18 @@ function playerScore(
  *  `weights` (issue #2683) defaults to `DEFAULT_EVAL_WEIGHTS` — today's
  *  production constants, byte-for-byte — so every existing call site (the
  *  search, greedy selection, the self-play ladder, tests) is unaffected by
- *  this parameter's addition unless it explicitly passes a different vector. */
+ *  this parameter's addition unless it explicitly passes a different vector.
+ *
+ *  `memo` (issue #4461): a caller that reads more of `state` around the
+ *  evaluation (the policy's combat corrections) hands its own, so the seats'
+ *  censuses are walked once between them. */
 export function evaluate(
     state: GameState,
     playerId: string,
-    weights: EvalWeights = DEFAULT_EVAL_WEIGHTS
+    weights: EvalWeights = DEFAULT_EVAL_WEIGHTS,
+    memo?: ManaCensusMemo
 ): number {
-    return evaluateWithMargin(state, playerId, weights).value;
+    return evaluateWithMargin(state, playerId, weights, memo).value;
 }
 
 /** `evaluate` and `materialMargin` from ONE scoring of both players (issue
@@ -1593,7 +1615,8 @@ export function evaluate(
 export function evaluateWithMargin(
     state: GameState,
     playerId: string,
-    weights: EvalWeights = DEFAULT_EVAL_WEIGHTS
+    weights: EvalWeights = DEFAULT_EVAL_WEIGHTS,
+    memo: ManaCensusMemo = newManaCensusMemo()
 ): { value: number; margin: number } {
     const me = state.players.find((p) => p.id === playerId);
     const opp = state.players.find((p) => p.id !== playerId);
@@ -1602,13 +1625,15 @@ export function evaluateWithMargin(
     // ONE layer-7 pass for the whole leaf (issue #4462). An evaluation only
     // reads `state`, so every creature it prices — both seats' boards, the
     // hands, the race and the combat terms — is read against one fixed board
-    // and shares one walk of its P/T sources.
+    // and shares one walk of its P/T sources. Likewise ONE mana census per
+    // seat (issue #4461): the material terms take it first, the combat terms'
+    // castable-interaction reads find it in `memo`.
     const pass = beginLayer7Pass(state);
     const margin =
-        playerScore(state, me, weights, "own", pass) -
-        playerScore(state, opp, weights, "observed", pass);
+        playerScore(state, me, weights, "own", pass, memo) -
+        playerScore(state, opp, weights, "observed", pass, memo);
     return {
-        value: valueFromMargin(state, me, opp, margin, weights, pass),
+        value: valueFromMargin(state, me, opp, margin, weights, pass, memo),
         margin,
     };
 }
@@ -1621,7 +1646,8 @@ function valueFromMargin(
     opp: PlayerState,
     margin: number,
     weights: EvalWeights,
-    pass: Layer7Pass
+    pass: Layer7Pass,
+    memo: ManaCensusMemo
 ): number {
     const playerId = me.id;
 
@@ -1652,7 +1678,7 @@ function valueFromMargin(
     return (
         margin +
         dangerClock(state, playerId, pass) +
-        declaredCombatDelta(state, me.id, weights, pass) +
+        declaredCombatDelta(state, me.id, weights, pass, memo) +
         lethalUnblockedDelta(state, playerId, weights, pass) +
         deckOutDelta(me, opp, weights)
     );
@@ -2021,7 +2047,9 @@ export function declaredCombatDelta(
     viewerId: string,
     weights: EvalWeights = DEFAULT_EVAL_WEIGHTS,
     /** Issue #4462 — see `evaluateCreature`. */
-    pass: Layer7Pass = beginLayer7Pass(state)
+    pass: Layer7Pass = beginLayer7Pass(state),
+    /** Issue #4461 — see `ManaCensusMemo`. */
+    memo?: ManaCensusMemo
 ): number {
     const combat = state.combat;
     if (
@@ -2051,7 +2079,8 @@ export function declaredCombatDelta(
     // `policyValue`), trading up. Absent a castable pump both views are unchanged.
     const attackerHeld = castableHeldInteraction(
         state,
-        state.players.find((p) => p.id === attackerId)!
+        state.players.find((p) => p.id === attackerId)!,
+        memo
     );
     const ownView = viewerId === attackerId;
     const outcome = predictCombatOutcome(
@@ -2104,7 +2133,9 @@ export function declaredCombatDelta(
 export function declaredBlockDelta(
     state: GameState,
     viewerId: string,
-    weights: EvalWeights = DEFAULT_EVAL_WEIGHTS
+    weights: EvalWeights = DEFAULT_EVAL_WEIGHTS,
+    /** Issue #4461 — see `ManaCensusMemo`. */
+    memo?: ManaCensusMemo
 ): number {
     const combat = state.combat;
     if (
@@ -2230,7 +2261,8 @@ export function declaredBlockDelta(
         attacker,
         byAttacker,
         weights,
-        pass
+        pass,
+        memo
     );
     const defenderDeltaHedged = defenderDelta - caution;
 
@@ -2268,9 +2300,10 @@ function cautiousBlockPenalty(
     attacker: PlayerState,
     blockersByAttacker: Map<string, CardInstanceState[]>,
     weights: EvalWeights,
-    pass: Layer7Pass
+    pass: Layer7Pass,
+    memo: ManaCensusMemo | undefined
 ): number {
-    const held = castableHeldInteraction(state, attacker);
+    const held = castableHeldInteraction(state, attacker, memo);
     if (!held.pump && !held.removal) return 0;
 
     const cval = (c: CardInstanceState) =>
@@ -2352,9 +2385,10 @@ export function materialMargin(
     const opp = state.players.find((p) => p.id !== playerId);
     if (!me || !opp) return 0;
     const pass = beginLayer7Pass(state);
+    const memo = newManaCensusMemo();
     return (
-        playerScore(state, me, weights, "own", pass) -
-        playerScore(state, opp, weights, "observed", pass)
+        playerScore(state, me, weights, "own", pass, memo) -
+        playerScore(state, opp, weights, "observed", pass, memo)
     );
 }
 
@@ -2402,14 +2436,15 @@ export function evaluateBreakdown(
         return { self: empty, opp: empty, margin: 0, danger: 0, total: 0 };
     }
     const pass = beginLayer7Pass(state);
-    const self = playerTerms(state, me, weights, "own", pass);
-    const oppTerms = playerTerms(state, opp, weights, "observed", pass);
+    const memo = newManaCensusMemo();
+    const self = playerTerms(state, me, weights, "own", pass, memo);
+    const oppTerms = playerTerms(state, opp, weights, "observed", pass, memo);
     const margin = sumTerms(self) - sumTerms(oppTerms);
     return {
         self,
         opp: oppTerms,
         margin,
         danger: dangerClock(state, playerId, pass),
-        total: evaluate(state, playerId, weights),
+        total: evaluate(state, playerId, weights, memo),
     };
 }
