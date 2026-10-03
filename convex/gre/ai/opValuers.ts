@@ -669,12 +669,11 @@ const dealDamage: Valuer<"dealDamage"> = (op, ctx) => {
     const tags: ValueTag[] = tagScaling(scaling, "damage");
     if (!toPlayer && isAnnouncedTarget(op.to)) tags.push("targeted");
     if (!toPlayer) {
-        // Issue #5014 — a board that holds no legal permanent victim for the
-        // announced slot (`victimUnits` 0, never `undefined`) leaves only the
-        // face to hit: the damage is a life swing, not removal.
+        // Issue #5014 — an ETB Ability's damage on a board with no legal
+        // permanent victim can only reach the face: a life swing, not removal.
         const slot = announcedSlot(op.to);
         const faceOnly =
-            slot !== undefined && ctx.latent.victimUnits(slot) === 0;
+            slot !== undefined && ctx.latent.faceOnly?.(slot) === true;
         return {
             points: priced(ctx, faceOnly ? "lifeSwing" : "damage", amount),
             tags,

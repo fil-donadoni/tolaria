@@ -603,6 +603,7 @@ function etbGrounding(
     return withLatentLens(ctx, {
         ...typed,
         victimUnits: () => measured,
+        faceOnly: () => measured === 0,
     });
 }
 
