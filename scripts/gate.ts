@@ -186,6 +186,7 @@ import {
     stallJudgeable,
     subtreeFromPs,
     waiterLive,
+    WAITER_STALE_MS,
     waiterSince,
     type GateWaiter,
     type PsRow,
@@ -200,7 +201,7 @@ import {
     waitForMachine,
     type MachineSample,
 } from "./lib/machine-admission";
-import { uiLaneWhoLines } from "./lib/ui-admission";
+import { GATE_WAITERS_DIR, uiLaneWhoLines } from "./lib/ui-admission";
 
 // Overridable so the test suite can exercise the mutex against a temp dir
 // instead of contending with (or blocking) a real gate run on this machine.
@@ -212,7 +213,7 @@ const OWNER_FILE = join(LOCK_DIR, "owner.json");
  *  inside it, because the lock directory IS the lock and is removed whole on
  *  release. This registry IS the queue: the admission order is computed from
  *  it, by every waiter, on every poll. */
-const WAITERS_DIR = join(LOCK_ROOT, "gate.waiters");
+const WAITERS_DIR = join(LOCK_ROOT, GATE_WAITERS_DIR);
 /** What this caller is, for the admission order. `land` sets it in
  *  `lockedEnv`, the batch health gate in `health-cadence.ts`; everything else
  *  is "". */
@@ -225,8 +226,8 @@ const AGE_MS = Number(process.env.TOLARIA_GATE_AGE_STEP_MS ?? AGE_STEP_MS);
  *  missed polls — a stopped or hung process, or a dead one whose pid was
  *  reused — and it is the longest a head that will never acquire can hold
  *  everyone behind it. */
-const WAITER_STALE_MS = Number(
-    process.env.TOLARIA_GATE_WAITER_STALE_MS ?? 60 * 1000
+const WAITER_STALE = Number(
+    process.env.TOLARIA_GATE_WAITER_STALE_MS ?? WAITER_STALE_MS
 );
 /** Declared stall → reclaimable. `STALLED_RECLAIM_MS` carries the derivation;
  *  overridable so the suite reaches the reclaim in ms. */
@@ -524,7 +525,7 @@ function liveWaiters(now: number = Date.now()): GateWaiter[] {
         }
         if (typeof entry.pid !== "number" || entry.pid === process.pid)
             continue;
-        if (!waiterLive(entry, alive(entry.pid), now, WAITER_STALE_MS)) {
+        if (!waiterLive(entry, alive(entry.pid), now, WAITER_STALE)) {
             try {
                 rmSync(file, { force: true });
             } catch {

@@ -385,6 +385,11 @@ export function describeClass(
         : `${ADMISSION_CLASSES[born]}, aged to ${ADMISSION_CLASSES[aged]}`;
 }
 
+/** A waiter silent this long is not in the queue, whatever its pid says —
+ *  `gate.ts` carries the derivation; `TOLARIA_GATE_WAITER_STALE_MS` overrides
+ *  it there and in every reader outside the gate. */
+export const WAITER_STALE_MS = 60 * 1000;
+
 /**
  * Whether a registry entry still stands for a queued process. A waiter stamps
  * `seen` on every poll, so an entry is live while its pid exists AND it polled

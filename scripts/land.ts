@@ -114,7 +114,11 @@ import {
     type WaitForMachineInput,
 } from "./lib/machine-admission";
 import { WAITER_SINCE_ENV } from "./lib/gate-liveness";
-import { gateLockRoot, runningHolderLine } from "./lib/ui-admission";
+import {
+    gateLockRoot,
+    heavyQueueIdle,
+    runningHolderLine,
+} from "./lib/ui-admission";
 import {
     LIVE_ORIGIN_BAND_DEPS,
     originBandOfIssue,
@@ -1379,13 +1383,24 @@ export type PreflightOutcome =
  * housekeeping mode gates nothing — and `--no-preflight` drops it for the
  * retry after a merge-only failure, whose tree already passed.
  *
- * `admit` and `run` are injected so the DECISION — what runs, in what order,
- * what a red or a saturated machine means — is testable without a machine
- * probe or a subprocess, per this file's convention.
+ * Nor does it run when the heavy mutex is FREE and NOBODY IS QUEUED (issue
+ * #4992): there is no queue to stay out of, the land could take the mutex at
+ * once, and the lane would run the same checks again on the rebased tip —
+ * PR #4987 paid 180 s for that with nothing ahead of it. Decided ONCE, here:
+ * a holder or a waiter that shows up after it is no reason to go back, and
+ * the land queues as `--no-preflight` would. The accepted cost: a lane that
+ * reds on what the preflight would have caught holds the mutex for that run,
+ * and a land issued DURING it waits behind a failed run.
+ *
+ * `queueIdle`, `admit` and `run` are injected so the DECISION — what runs, in
+ * what order, what a red or a saturated machine means — is testable without
+ * a lock root, a machine probe or a subprocess, per this file's convention.
  */
 export async function preflightGate(opts: {
     mode: LandMode;
     enabled: boolean;
+    /** No live heavy holder and no live waiter (`heavyQueueIdle`). */
+    queueIdle: () => boolean;
     admit: () => Promise<boolean>;
     run: () => PreflightRun;
 }): Promise<PreflightOutcome> {
@@ -1395,6 +1410,11 @@ export async function preflightGate(opts: {
             why: "the PR is already MERGED — housekeeping gates nothing",
         };
     if (!opts.enabled) return { kind: "skipped", why: "--no-preflight" };
+    if (opts.queueIdle())
+        return {
+            kind: "skipped",
+            why: "the heavy mutex is free and nobody is queued — no queue to keep a failure out of; the lane gates the tree",
+        };
     if (!(await opts.admit())) return { kind: "saturated" };
     const ran = opts.run();
     // The preflight could not give a verdict on the tree (a failed fetch, a
@@ -1671,6 +1691,7 @@ async function main(): Promise<void> {
     const pre = await preflightGate({
         mode,
         enabled: preflight,
+        queueIdle: () => heavyQueueIdle(gateLockRoot()),
         admit: admitPreflight,
         run: () => runPreflight(cwd),
     });
