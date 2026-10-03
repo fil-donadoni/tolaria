@@ -31,12 +31,23 @@ import {
     compareRobustness,
     describeRobustnessFindings,
     formatRobustnessRow,
+    ROBUSTNESS_FINDING_PREFIX,
+    robustnessFindingRecords,
+    type RobustnessFindings,
     parseRobustnessScope,
     robustnessScopeAdmits,
     robustnessVectors,
 } from "../robustness";
 import { ROBUSTNESS_BASELINE } from "../robustnessBaseline";
 import { BLADE_SHARDS, bladeShardSlice } from "../shard";
+
+/** Print each finding as its machine line, then red on any (issue #5016). */
+function expectNoFindings(findings: RobustnessFindings): void {
+    for (const record of robustnessFindingRecords(findings)) {
+        console.log(`${ROBUSTNESS_FINDING_PREFIX} ${JSON.stringify(record)}`);
+    }
+    expect(describeRobustnessFindings(findings)).toEqual([]);
+}
 
 const ENV: Record<string, string | undefined> =
     (globalThis as { process?: { env?: Record<string, string | undefined> } })
@@ -69,7 +80,7 @@ export function registerRobustnessShard(shard: number): void {
                 const findings = compareRobustness([], ROBUSTNESS_BASELINE, {
                     mustLabels: must.map((s) => s.label),
                 });
-                expect(describeRobustnessFindings(findings)).toEqual([]);
+                expectNoFindings(findings);
             });
         }
 
@@ -89,7 +100,7 @@ export function registerRobustnessShard(shard: number): void {
                     [row],
                     ROBUSTNESS_BASELINE.filter((b) => b.label === row.label)
                 );
-                expect(describeRobustnessFindings(findings)).toEqual([]);
+                expectNoFindings(findings);
             });
         }
     });

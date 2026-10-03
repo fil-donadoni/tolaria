@@ -69,8 +69,10 @@
  * re-measures the Bot Findings page (`lib/health-bot-refresh.ts`, ADR 0141 § 5,
  * issue #4181) AFTER the gates pass: `bot:reach`, then `seed:bot-findings`.
  * Such a batch also owes `BOT_HEALTH_SCRIPTS` (the blade robustness audit,
- * issue #4875), run after the other gates and before the refresh, and red
- * like any gate.
+ * issue #4875), run after the other gates and before the refresh. It reds
+ * the tip only on a `must` entry failing its own seeds; baseline drift is
+ * filed as an issue and the tip stays green (`lib/health-robustness-drift.ts`,
+ * issue #5016).
  * The two refresh steps NEVER fail the batch — a stale page is marked stale, not a
  * red tip — and neither `land` nor `check:pr` runs them.
  *
@@ -83,7 +85,8 @@
  *
  * Zero imports beyond node builtins, `lib/branches.ts`, `lib/health-step.ts`,
  * `lib/health-verdict.ts`, `lib/convex-reachable.ts`,
- * `lib/machine-admission.ts` (builtins and `lib/branches.ts`) and
+ * `lib/machine-admission.ts` (builtins and `lib/branches.ts`),
+ * `lib/health-robustness-drift.ts` (builtins and `lib/gh.ts`) and
  * `lib/health-bot-refresh.ts` (builtins and the import-free
  * `lib/bot-globs.ts` only), and through `lib/health-verdict.ts` the
  * `ui-gate/infra-verdict.ts` (builtins and `lib/convex-reachable.ts`) — same constraint as
@@ -97,6 +100,11 @@ import {
     FILING_STEP_NAME,
     REFRESHED_ARTIFACT_NAME,
 } from "./lib/health-bot-refresh";
+import {
+    fileDriftIssues,
+    ROBUSTNESS_STEP,
+    robustnessOutcome,
+} from "./lib/health-robustness-drift";
 import {
     healthGateEnv,
     healthStepArgs,
@@ -713,7 +721,6 @@ async function main(): Promise<void> {
             const machineAtStart = readMachineSample();
             const r = await runHealthStep(step, { cwd: wt, env, logPath });
             if (!r.ok) {
-                failedStep = step.name;
                 // Read at once: a later sleep must not reach back to this step.
                 failedCause = infraCause({
                     ok: false,
@@ -734,6 +741,24 @@ async function main(): Promise<void> {
                     repeatedMachineTimeout(last, step.name)
                 )
                     failedCause = null;
+                // Baseline drift in the blade robustness audit is filed, not
+                // gated (issue #5016): only an entry failing its OWN seeds
+                // reds the tip. The machine's excuse is judged first.
+                if (failedCause === null && step.name === ROBUSTNESS_STEP) {
+                    const outcome = robustnessOutcome(r.output, {
+                        sha: tip,
+                        log: logPath,
+                    });
+                    if (outcome.verdict === "advisory") {
+                        console.error(
+                            `health-main: ${step.name} found drift, not a red tip — filing (${logPath})`
+                        );
+                        for (const line of fileDriftIssues(outcome.issues))
+                            console.error(`health-main:   ${line}`);
+                        continue;
+                    }
+                }
+                failedStep = step.name;
                 break;
             }
         }
