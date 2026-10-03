@@ -282,6 +282,7 @@ import { collectLingeringSnapshots } from "./lingeringStatics";
 import {
     STATIC_EFFECT_CTX,
     getEffectivePower,
+    getEffectivePT,
     getEffectiveToughness,
     countDevotion,
 } from "./layers";
@@ -4141,10 +4142,7 @@ export function emitPermanentEntered(
     let toughness: number | undefined;
     if (card.types.includes("Creature")) {
         const bf = findOnBattlefield(state, card.id)?.card;
-        if (bf) {
-            power = getEffectivePower(state, bf);
-            toughness = getEffectiveToughness(state, bf);
-        }
+        if (bf) ({ power, toughness } = getEffectivePT(state, bf));
     }
     state.pendingEvents = [
         ...(state.pendingEvents ?? []),
@@ -6465,10 +6463,9 @@ export function removePermanentTo(
     // card leaves play so death triggers ("damage equal to that creature's
     // toughness") read the moment-of-death values. Layered buffs from sources
     // still on the battlefield are folded in here.
-    const snapshotPower = wasCreature ? getEffectivePower(state, creature) : 0;
-    const snapshotToughness = wasCreature
-        ? getEffectiveToughness(state, creature)
-        : 0;
+    const { power: snapshotPower, toughness: snapshotToughness } = wasCreature
+        ? getEffectivePT(state, creature)
+        : { power: 0, toughness: 0 };
     // CR 603.10 — capture the moment-of-death combat relationship before the
     // card leaves play and combat is cleared, so a death trigger that resolves
     // after the creature is in the graveyard (Abu Ja'far) still knows which

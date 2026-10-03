@@ -47,7 +47,7 @@ import { EFFECT_OP_REGISTRY } from "../../cards/mechanicsRegistry";
 // issue #4451 — the amount fields, derived from the tagged Op Schema.
 import { AMOUNT_KEYS } from "./validate";
 import { classLevelOf } from "../../cards/abilities/classLevels";
-import { getEffectivePower, getEffectiveToughness } from "../layers";
+import { getEffectivePT } from "../layers";
 import { readPlayerCounters } from "../playerCounters";
 import { registerTokenDefinition } from "../../cards";
 import {
@@ -3220,8 +3220,10 @@ const OP_ASSERTORS: AssertorTable = {
             .flatMap((p) => p.battlefield)
             .find((c) => c.id === permId);
         if (!permBefore) return null;
-        const beforeP = getEffectivePower(pre, permBefore);
-        const beforeT = getEffectiveToughness(pre, permBefore);
+        const { power: beforeP, toughness: beforeT } = getEffectivePT(
+            pre,
+            permBefore
+        );
         const expP = beforeP + op.power;
         const expT = beforeT + op.toughness;
         return {
@@ -3233,8 +3235,7 @@ const OP_ASSERTORS: AssertorTable = {
                 if (!perm) {
                     return { ok: false, detail: "target permanent gone" };
                 }
-                const ap = getEffectivePower(post, perm);
-                const at = getEffectiveToughness(post, perm);
+                const { power: ap, toughness: at } = getEffectivePT(post, perm);
                 return {
                     ok: ap === expP && at === expT,
                     detail: `P/T ${ap}/${at}, expected ${expP}/${expT}`,

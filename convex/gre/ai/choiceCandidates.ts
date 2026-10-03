@@ -56,7 +56,7 @@ import {
     mayPaySacrificeThreshold,
     normalizeMayPayCost,
 } from "../state";
-import { getEffectivePower, getEffectiveToughness } from "../layers";
+import { getEffectivePower, getEffectivePT } from "../layers";
 import { instanceManaValue } from "../paymentPicks";
 import { tryGetDefinition } from "../../cards";
 import type { LibraryDestination, PendingChoiceKind } from "../types";
@@ -1960,8 +1960,9 @@ function sidedPickIdentity(
     chooserId: string
 ): string {
     const side = card.controllerId === chooserId ? "mine" : "theirs";
+    const pt = getEffectivePT(state, card);
     const body = card.types.includes("Creature")
-        ? ` ${getEffectivePower(state, card)}/${getEffectiveToughness(state, card)}`
+        ? ` ${pt.power}/${pt.toughness}`
         : "";
     const damage = card.damageMarked ? ` dmg${card.damageMarked}` : "";
     const counters = Object.entries(card.counters ?? {})

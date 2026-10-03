@@ -17,8 +17,13 @@
 // `evaluate`, so the Clock shares the legality rules and does its own crude,
 // non-eval assignment, exactly as ADR 0018 specifies.)
 
-import type { GameState } from "./state";
-import { getEffectivePower, getEffectiveToughness } from "./layers";
+import type { CardInstanceState, GameState } from "./state";
+import {
+    beginLayer7Pass,
+    getEffectivePT,
+    type EffectivePT,
+    type Layer7Pass,
+} from "./layers";
 import { isCreature } from "./constants";
 import {
     evaluateBlockerKeywords,
@@ -40,11 +45,16 @@ const W_CLOCK = 150;
 export function predictUnblockedDamage(
     state: GameState,
     attackerId: string,
-    defenderId: string
+    defenderId: string,
+    /** The evaluation's layer-7 pass (issue #4462), when the caller is one;
+     *  omitted, this prediction is its own pass. */
+    pass: Layer7Pass = beginLayer7Pass(state)
 ): number {
     const attacker = state.players.find((p) => p.id === attackerId);
     const defender = state.players.find((p) => p.id === defenderId);
     if (!attacker || !defender) return 0;
+    const powerOf = (c: CardInstanceState): number =>
+        getEffectivePT(state, c, { pass }).power;
 
     // Potential attackers: creatures that may attack (not defender-restricted)
     // and deal positive damage.
@@ -53,11 +63,9 @@ export function predictUnblockedDamage(
             (c) =>
                 isCreature(c) &&
                 evaluateAttackerKeywords(c).eligible &&
-                getEffectivePower(state, c) > 0
+                powerOf(c) > 0
         )
-        .sort(
-            (a, b) => getEffectivePower(state, b) - getEffectivePower(state, a)
-        );
+        .sort((a, b) => powerOf(b) - powerOf(a));
 
     const blockers = defender.battlefield.filter((c) => isCreature(c));
     const usedBlocker = new Set<string>();
@@ -73,7 +81,7 @@ export function predictUnblockedDamage(
                 evaluateBlockerKeywords(atk, b, defender.battlefield).eligible
         );
         if (blocker) usedBlocker.add(blocker.id);
-        else damage += getEffectivePower(state, atk);
+        else damage += powerOf(atk);
     }
     return damage;
 }
@@ -108,7 +116,9 @@ export function predictCombatOutcome(
     state: GameState,
     attackerId: string,
     defenderId: string,
-    attackerHeldPump?: HeldPump
+    attackerHeldPump?: HeldPump,
+    /** See `predictUnblockedDamage`. */
+    pass: Layer7Pass = beginLayer7Pass(state)
 ): CombatOutcome {
     const empty: CombatOutcome = {
         faceDamage: 0,
@@ -119,13 +129,13 @@ export function predictCombatOutcome(
     const defender = state.players.find((p) => p.id === defenderId);
     const combat = state.combat;
     if (!attacker || !defender || !combat) return empty;
+    const ptOf = (c: CardInstanceState): EffectivePT =>
+        getEffectivePT(state, c, { pass });
 
     const declared = combat.attackerIds
         .map((id) => attacker.battlefield.find((c) => c.id === id))
         .filter((c): c is NonNullable<typeof c> => !!c && isCreature(c))
-        .sort(
-            (a, b) => getEffectivePower(state, b) - getEffectivePower(state, a)
-        );
+        .sort((a, b) => ptOf(b).power - ptOf(a).power);
 
     // Interaction-aware (ADR 0021, issue #229): a pump the ATTACKER holds in
     // hand is modelled on the attacker MOST LIKELY to be contested — the biggest
@@ -149,11 +159,9 @@ export function predictCombatOutcome(
     };
 
     for (const atk of declared) {
-        const atkP = Math.max(0, getEffectivePower(state, atk) + pumpP(atk));
-        const atkT = Math.max(
-            0,
-            getEffectiveToughness(state, atk) + pumpT(atk)
-        );
+        const atkPT = ptOf(atk);
+        const atkP = Math.max(0, atkPT.power + pumpP(atk));
+        const atkT = Math.max(0, atkPT.toughness + pumpT(atk));
         const legal = blockers.filter(
             (b) =>
                 !used.has(b.id) &&
@@ -161,11 +169,10 @@ export function predictCombatOutcome(
         );
 
         // 1. Kills the attacker and survives — always worth it for the defender.
-        const survivingKiller = legal.find(
-            (b) =>
-                getEffectivePower(state, b) >= atkT &&
-                getEffectiveToughness(state, b) > atkP
-        );
+        const survivingKiller = legal.find((b) => {
+            const pt = ptOf(b);
+            return pt.power >= atkT && pt.toughness > atkP;
+        });
         if (survivingKiller) {
             used.add(survivingKiller.id);
             out.deadAttackerIds.push(atk.id);
@@ -176,10 +183,9 @@ export function predictCombatOutcome(
         // not bigger by body (P+T), a crude even-or-favourable-exchange proxy.
         const aSize = atkP + atkT;
         const trade = legal.find((b) => {
-            if (getEffectivePower(state, b) < atkT) return false; // can't kill atk
-            const bSize =
-                Math.max(0, getEffectivePower(state, b)) +
-                Math.max(0, getEffectiveToughness(state, b));
+            const pt = ptOf(b);
+            if (pt.power < atkT) return false; // can't kill atk
+            const bSize = Math.max(0, pt.power) + Math.max(0, pt.toughness);
             return bSize <= aSize;
         });
         if (trade) {
@@ -199,9 +205,7 @@ export function predictCombatOutcome(
         // DECLARED one-shot combat, which is all this predictor scores, does get
         // the free absorb.) A pure non-surviving chump is still NOT modelled: the
         // defender keeps a creature it would only trade down, and takes the hit.
-        const absorber = legal.find(
-            (b) => getEffectiveToughness(state, b) > atkP
-        );
+        const absorber = legal.find((b) => ptOf(b).toughness > atkP);
         if (absorber) {
             used.add(absorber.id);
             continue;
@@ -228,12 +232,17 @@ function clockReward(dmgPerCombat: number, defenderLife: number): number {
  *  they kill me). Positive when I hold the faster clock, negative when an
  *  opposing board threatens me — symmetric, so the Bot both presses when ahead
  *  and defends when behind. Pure; zero on a creatureless or mirrored board. */
-export function dangerClock(state: GameState, playerId: string): number {
+export function dangerClock(
+    state: GameState,
+    playerId: string,
+    /** See `predictUnblockedDamage`. */
+    pass: Layer7Pass = beginLayer7Pass(state)
+): number {
     const me = state.players.find((p) => p.id === playerId);
     const opp = state.players.find((p) => p.id !== playerId);
     if (!me || !opp) return 0;
 
-    const myDamage = predictUnblockedDamage(state, me.id, opp.id);
-    const oppDamage = predictUnblockedDamage(state, opp.id, me.id);
+    const myDamage = predictUnblockedDamage(state, me.id, opp.id, pass);
+    const oppDamage = predictUnblockedDamage(state, opp.id, me.id, pass);
     return clockReward(myDamage, opp.life) - clockReward(oppDamage, me.life);
 }

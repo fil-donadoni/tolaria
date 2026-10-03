@@ -35,12 +35,7 @@ import {
 import { classLevelActivationViolation } from "../cards/abilities/classLevels";
 import { activationPreconditionViolation } from "./activationPrecondition";
 import { lethalDamageThreshold } from "./lethalDamage";
-import {
-    getEffectivePower,
-    getEffectiveToughness,
-    getPermanentEffectivePower,
-    getPermanentEffectiveToughness,
-} from "./layers";
+import { beginLayer7Pass, getEffectivePT, type Layer7Pass } from "./layers";
 import {
     isCreature,
     isLand,
@@ -229,12 +224,19 @@ export function evaluateCreature(
      *  is unchanged; `evaluate` and the combat deltas pass `weights.latent`,
      *  which is what makes the whole leaf a function of the vector it was
      *  called with (`cardValue.ts`, `dslLatentPieces`). */
-    latent: LatentWeights = DEFAULT_EVAL_WEIGHTS.latent
+    latent: LatentWeights = DEFAULT_EVAL_WEIGHTS.latent,
+    /** Issue #4462 — the layer-7 pass of the evaluation this valuation is
+     *  part of, so one leaf walks the board's P/T sources once rather than
+     *  once per creature. Omitted, the creature is its own pass. */
+    pass: Layer7Pass = beginLayer7Pass(state)
 ): number {
+    // Until-boundary P/T excluded: a combat trick's buff is not lasting
+    // material (ADR 0020 §2).
+    const pt = getEffectivePT(state, card, { includeTemporary: false, pass });
     return (
         creatureValueRaw(
-            Math.max(0, getPermanentEffectivePower(state, card)),
-            Math.max(0, getPermanentEffectiveToughness(state, card)),
+            Math.max(0, pt.power),
+            Math.max(0, pt.toughness),
             manaValue(getInstanceManaCost(card)),
             card.staticAbilities
         ) -
@@ -247,7 +249,7 @@ export function evaluateCreature(
         // the creature both carries such a grant AND stands in a provably quiet
         // position (`ai/defensiveGrants.ts`, fail-closed in every clause), so
         // no other board's valuation moves.
-        quietDefensiveGrantFlat(state, card) +
+        quietDefensiveGrantFlat(state, card, pt.power) +
         // `card` doubles as the ability-gate subject (issue #1936): the
         // trigger system already treats a raw `CardInstanceState` as the
         // `PermanentView` a CR 603.4 condition reads, so a gated trigger's
@@ -269,12 +271,15 @@ export function cardValue(
      *  exactly one representative victim, which is the pre-#3398 number. */
     board?: LatentLens,
     /** Issue #3406 — see `evaluateCreature`. */
-    latent: LatentWeights = DEFAULT_EVAL_WEIGHTS.latent
+    latent: LatentWeights = DEFAULT_EVAL_WEIGHTS.latent,
+    /** Issue #4462 — see `evaluateCreature`. */
+    pass: Layer7Pass = beginLayer7Pass(state)
 ): number {
+    const pt = getEffectivePT(state, card, { pass });
     return latentValue({
         isCreature: isCreature(card),
-        power: getEffectivePower(state, card),
-        toughness: getEffectiveToughness(state, card),
+        power: pt.power,
+        toughness: pt.toughness,
         manaValue: manaValue(getInstanceManaCost(card)),
         staticAbilities: card.staticAbilities,
         aiValue: getInstanceAiValue(card),
@@ -294,7 +299,8 @@ function latentBoardFor(
     player: PlayerState,
     card: CardInstanceState,
     weights: EvalWeights,
-    seat: SeatView
+    seat: SeatView,
+    pass: Layer7Pass
 ): LatentLens | undefined {
     const def = tryGetDefinition(String(card.card.id ?? ""));
     if (!def) return undefined;
@@ -306,13 +312,14 @@ function latentBoardFor(
             def,
             weights,
             realisedLoss: (perm) =>
-                permanentRealisedValue(state, perm, weights),
+                permanentRealisedValue(state, perm, weights, pass),
             returnedWorth: (perm) =>
                 cardValue(
                     state,
                     asReturnedToHand(perm),
                     undefined,
-                    weights.latent
+                    weights.latent,
+                    pass
                 ),
             aggregateLoss: (changes) =>
                 sweptAggregateNetLoss(state, player.id, weights, seat, changes),
@@ -833,12 +840,15 @@ function flexibilityTerm(
  *  the opponent can pay for an answer. */
 function quietDefensiveGrantFlat(
     state: GameState,
-    card: CardInstanceState
+    card: CardInstanceState,
+    /** `card`'s lasting power (until-boundary P/T excluded) — the one
+     *  `evaluateCreature` has already read. */
+    lastingPower: number
 ): number {
     const keywords = temporaryDefensiveKeywords(state, card);
     if (keywords.length === 0) return 0;
     if (!isQuietFor(state, card)) return 0;
-    const power = Math.max(0, getPermanentEffectivePower(state, card));
+    const power = Math.max(0, lastingPower);
     let flat = 0;
     for (const keyword of keywords) flat += keywordBonusFor(keyword, power);
     return flat;
@@ -1223,10 +1233,11 @@ function graveyardReachTerm(
 function nonCreatureBodyValue(
     state: GameState,
     perm: CardInstanceState,
-    weights: EvalWeights
+    weights: EvalWeights,
+    pass: Layer7Pass
 ): number {
     return (
-        cardValue(state, perm, undefined, weights.latent) *
+        cardValue(state, perm, undefined, weights.latent, pass) *
         loyaltyRealizationRatio(perm)
     );
 }
@@ -1257,13 +1268,15 @@ function nonCreatureBodyValue(
 export function permanentRealisedValue(
     state: GameState,
     perm: CardInstanceState,
-    weights: EvalWeights = DEFAULT_EVAL_WEIGHTS
+    weights: EvalWeights = DEFAULT_EVAL_WEIGHTS,
+    /** Issue #4462 — see `evaluateCreature`. */
+    pass: Layer7Pass = beginLayer7Pass(state)
 ): number {
     let total = weights.permanentWeight;
     if (isCreature(perm)) {
-        total += evaluateCreature(state, perm, weights.latent);
+        total += evaluateCreature(state, perm, weights.latent, pass);
     } else if (!isLand(perm)) {
-        total += nonCreatureBodyValue(state, perm, weights);
+        total += nonCreatureBodyValue(state, perm, weights, pass);
     }
     const controller = state.players.find((p) => p.id === perm.controllerId);
     // CR 118.3 (issue #3530) — what a FINITE source's removal costs is its
@@ -1407,7 +1420,8 @@ function playerTerms(
     state: GameState,
     player: PlayerState,
     weights: EvalWeights,
-    seat: SeatView
+    seat: SeatView,
+    pass: Layer7Pass
 ): EvalTerms {
     const terms: EvalTerms = {
         finiteManaUses: 0,
@@ -1435,8 +1449,9 @@ function playerTerms(
                 cardValue(
                     state,
                     c,
-                    latentBoardFor(state, player, c, weights, seat),
-                    weights.latent
+                    latentBoardFor(state, player, c, weights, seat, pass),
+                    weights.latent,
+                    pass
                 ),
             0
         ),
@@ -1454,7 +1469,12 @@ function playerTerms(
     for (const perm of player.battlefield) {
         terms.permanents += weights.permanentWeight;
         if (isCreature(perm)) {
-            terms.creatures += evaluateCreature(state, perm, weights.latent);
+            terms.creatures += evaluateCreature(
+                state,
+                perm,
+                weights.latent,
+                pass
+            );
         } else {
             // Non-creature, non-land beneficial permanents (a static buff
             // Enchantment like Castle, a card-advantage Artifact like Jayemdae
@@ -1481,7 +1501,12 @@ function playerTerms(
             // existed before the term. The flat `W_PERMANENT` above stays
             // unscaled — "a permanent is here" is equally true at 1 loyalty.
             if (!isLand(perm)) {
-                terms.permanents += nonCreatureBodyValue(state, perm, weights);
+                terms.permanents += nonCreatureBodyValue(
+                    state,
+                    perm,
+                    weights,
+                    pass
+                );
             }
         }
     }
@@ -1537,9 +1562,10 @@ function playerScore(
     state: GameState,
     player: PlayerState,
     weights: EvalWeights,
-    seat: SeatView
+    seat: SeatView,
+    pass: Layer7Pass
 ): number {
-    return sumTerms(playerTerms(state, player, weights, seat));
+    return sumTerms(playerTerms(state, player, weights, seat, pass));
 }
 
 /** Score `state` from `playerId`'s perspective. Higher = better for the player.
@@ -1573,10 +1599,18 @@ export function evaluateWithMargin(
     const opp = state.players.find((p) => p.id !== playerId);
     if (!me || !opp) return { value: 0, margin: 0 };
 
+    // ONE layer-7 pass for the whole leaf (issue #4462). An evaluation only
+    // reads `state`, so every creature it prices — both seats' boards, the
+    // hands, the race and the combat terms — is read against one fixed board
+    // and shares one walk of its P/T sources.
+    const pass = beginLayer7Pass(state);
     const margin =
-        playerScore(state, me, weights, "own") -
-        playerScore(state, opp, weights, "observed");
-    return { value: valueFromMargin(state, me, opp, margin, weights), margin };
+        playerScore(state, me, weights, "own", pass) -
+        playerScore(state, opp, weights, "observed", pass);
+    return {
+        value: valueFromMargin(state, me, opp, margin, weights, pass),
+        margin,
+    };
 }
 
 /** The rest of `evaluate` once the material margin is known: the terminal
@@ -1586,7 +1620,8 @@ function valueFromMargin(
     me: PlayerState,
     opp: PlayerState,
     margin: number,
-    weights: EvalWeights
+    weights: EvalWeights,
+    pass: Layer7Pass
 ): number {
     const playerId = me.id;
 
@@ -1616,9 +1651,9 @@ function valueFromMargin(
     // reward band reads.
     return (
         margin +
-        dangerClock(state, playerId) +
-        declaredCombatDelta(state, me.id, weights) +
-        lethalUnblockedDelta(state, playerId, weights) +
+        dangerClock(state, playerId, pass) +
+        declaredCombatDelta(state, me.id, weights, pass) +
+        lethalUnblockedDelta(state, playerId, weights, pass) +
         deckOutDelta(me, opp, weights)
     );
 }
@@ -1752,7 +1787,8 @@ function blockersByAttacker(
  *  shape both consumers below need, so "which attacker is unblocked" is
  *  computed in exactly one place. Pure. */
 function declaredFaceDamage(
-    state: GameState
+    state: GameState,
+    pass: Layer7Pass
 ): { defender: PlayerState; attacker: PlayerState; damage: number } | null {
     // PHASE GUARD (mandatory). `state.combat` — `confirmed`, `blockersConfirmed`
     // and `attackerIds` included — SURVIVES the damage steps: it is torn down
@@ -1834,7 +1870,7 @@ function declaredFaceDamage(
         // CR 615 — Ebony Horse's shield prevents all combat damage BY the
         // shielded creature as well as to it.
         if (!unpreventable && isCombatDamageImmune(state, atk.id)) continue;
-        damage += Math.max(0, getEffectivePower(state, atk));
+        damage += Math.max(0, getEffectivePT(state, atk, { pass }).power);
     }
     return { defender, attacker, damage };
 }
@@ -1853,9 +1889,11 @@ function declaredFaceDamage(
 export function lethalUnblockedDelta(
     state: GameState,
     viewerId: string,
-    weights: EvalWeights = DEFAULT_EVAL_WEIGHTS
+    weights: EvalWeights = DEFAULT_EVAL_WEIGHTS,
+    /** Issue #4462 — see `evaluateCreature`. */
+    pass: Layer7Pass = beginLayer7Pass(state)
 ): number {
-    const declared = declaredFaceDamage(state);
+    const declared = declaredFaceDamage(state, pass);
     if (!declared) return 0;
     const { defender, attacker, damage } = declared;
     // CR 615.1 — a live per-player prevention shield (Dark Sphere, Scarecrow)
@@ -1981,7 +2019,9 @@ export function evaluateAutoTapPosition(
 export function declaredCombatDelta(
     state: GameState,
     viewerId: string,
-    weights: EvalWeights = DEFAULT_EVAL_WEIGHTS
+    weights: EvalWeights = DEFAULT_EVAL_WEIGHTS,
+    /** Issue #4462 — see `evaluateCreature`. */
+    pass: Layer7Pass = beginLayer7Pass(state)
 ): number {
     const combat = state.combat;
     if (
@@ -2018,12 +2058,15 @@ export function declaredCombatDelta(
         state,
         attackerId,
         defender.id,
-        ownView ? attackerHeld.pump : undefined
+        ownView ? attackerHeld.pump : undefined,
+        pass
     );
     const value = (ids: string[], owner: PlayerState) =>
         ids.reduce((sum, id) => {
             const c = owner.battlefield.find((x) => x.id === id);
-            return c ? sum + evaluateCreature(state, c, weights.latent) : sum;
+            return c
+                ? sum + evaluateCreature(state, c, weights.latent, pass)
+                : sum;
         }, 0);
 
     const attacker = state.players.find((p) => p.id === attackerId)!;
@@ -2083,8 +2126,8 @@ export function declaredBlockDelta(
 
     // This block resolves THIS turn, before cleanup, so a temporary combat-trick
     // buff already on a creature IS live for the exchange (ADR 0021, issue #229).
-    // Use FULL effective P/T (`getEffectivePower`, temporary buffs included) here
-    // — NOT the buff-excluding `getPermanentEffective*` the material terms use —
+    // Use FULL effective P/T (`getEffectivePT`, temporary buffs included) here
+    // — NOT the buff-excluding read the material terms use (`evaluateCreature`) —
     // so a pump cast in response to the block is reflected: it is what lets the
     // reactive rollout SEE that casting the trick saves the attacker. (The
     // material terms still exclude the buff: a +X/+X is never lasting board
@@ -2092,20 +2135,25 @@ export function declaredBlockDelta(
     let faceDamage = 0;
     const deadAttackers: CardInstanceState[] = [];
     const deadBlockers: CardInstanceState[] = [];
+    // One layer-7 pass for the whole exchange (issue #4462) — see
+    // `evaluateWithMargin`.
+    const pass = beginLayer7Pass(state);
+    const ptOf = (c: CardInstanceState) => getEffectivePT(state, c, { pass });
 
     for (const atkId of combat.attackerIds) {
         const atk = attacker.battlefield.find((c) => c.id === atkId);
         if (!atk) continue;
         const blockers = byAttacker.get(atkId) ?? [];
+        const atkPT = ptOf(atk);
         if (blockers.length === 0) {
-            faceDamage += Math.max(0, getEffectivePower(state, atk));
+            faceDamage += Math.max(0, atkPT.power);
             continue;
         }
-        const atkPower = Math.max(0, getEffectivePower(state, atk));
-        const atkTough = Math.max(0, getEffectiveToughness(state, atk));
+        const atkPower = Math.max(0, atkPT.power);
+        const atkTough = Math.max(0, atkPT.toughness);
         // Blockers' combined power vs the attacker's toughness.
         const blockPower = blockers.reduce(
-            (sum, b) => sum + Math.max(0, getEffectivePower(state, b)),
+            (sum, b) => sum + Math.max(0, ptOf(b).power),
             0
         );
         // "Lethal damage" is NOT raw toughness (CR 702.19b): damage already
@@ -2118,7 +2166,7 @@ export function declaredBlockDelta(
         // as if nothing died.
         const blockerDeathtouch = blockers.some(
             (b) =>
-                Math.max(0, getEffectivePower(state, b)) > 0 &&
+                Math.max(0, ptOf(b).power) > 0 &&
                 b.staticAbilities.includes("deathtouch")
         );
         const atkLethal = lethalDamageThreshold({
@@ -2134,10 +2182,7 @@ export function declaredBlockDelta(
         let remaining = atkPower;
         for (const b of blockers) {
             const bLethal = lethalDamageThreshold({
-                effectiveToughness: Math.max(
-                    0,
-                    getEffectiveToughness(state, b)
-                ),
+                effectiveToughness: Math.max(0, ptOf(b).toughness),
                 damageMarked: b.damageMarked,
                 sourceHasDeathtouch: atkDeathtouch,
             });
@@ -2150,7 +2195,7 @@ export function declaredBlockDelta(
 
     const value = (cards: CardInstanceState[]) =>
         cards.reduce(
-            (sum, c) => sum + evaluateCreature(state, c, weights.latent),
+            (sum, c) => sum + evaluateCreature(state, c, weights.latent, pass),
             0
         );
     // Defender's view: gains the dead attackers' worth, loses its dead blockers,
@@ -2180,7 +2225,13 @@ export function declaredBlockDelta(
     // keeps blockers back / single-blocks when the attacker is loaded, and
     // blocks normally when the attacker is tapped out / empty-handed (no
     // castable interaction → zero penalty, current behavior).
-    const caution = cautiousBlockPenalty(state, attacker, byAttacker, weights);
+    const caution = cautiousBlockPenalty(
+        state,
+        attacker,
+        byAttacker,
+        weights,
+        pass
+    );
     const defenderDeltaHedged = defenderDelta - caution;
 
     return viewerId === defender.id
@@ -2216,26 +2267,28 @@ function cautiousBlockPenalty(
     state: GameState,
     attacker: PlayerState,
     blockersByAttacker: Map<string, CardInstanceState[]>,
-    weights: EvalWeights
+    weights: EvalWeights,
+    pass: Layer7Pass
 ): number {
     const held = castableHeldInteraction(state, attacker);
     if (!held.pump && !held.removal) return 0;
 
     const cval = (c: CardInstanceState) =>
-        evaluateCreature(state, c, weights.latent);
+        evaluateCreature(state, c, weights.latent, pass);
+    // Lasting P/T — until-boundary buffs excluded (ADR 0020 §2).
+    const lastingPT = (c: CardInstanceState) =>
+        getEffectivePT(state, c, { includeTemporary: false, pass });
     let worstSwing = 0;
 
     for (const [atkId, blockers] of blockersByAttacker) {
         if (blockers.length === 0) continue;
         const atk = attacker.battlefield.find((c) => c.id === atkId);
         if (!atk) continue;
-        const atkPower = Math.max(0, getPermanentEffectivePower(state, atk));
-        const atkTough = Math.max(
-            0,
-            getPermanentEffectiveToughness(state, atk)
-        );
+        const atkPT = lastingPT(atk);
+        const atkPower = Math.max(0, atkPT.power);
+        const atkTough = Math.max(0, atkPT.toughness);
         const blockPower = blockers.reduce(
-            (sum, b) => sum + Math.max(0, getPermanentEffectivePower(state, b)),
+            (sum, b) => sum + Math.max(0, lastingPT(b).power),
             0
         );
         // This block, with no trick, kills the attacker — the exchange the
@@ -2251,10 +2304,7 @@ function cautiousBlockPenalty(
                 let remaining = atkPower + held.pump.power;
                 const lostBlockers: CardInstanceState[] = [];
                 for (const b of blockers) {
-                    const bT = Math.max(
-                        0,
-                        getPermanentEffectiveToughness(state, b)
-                    );
+                    const bT = Math.max(0, lastingPT(b).toughness);
                     if (remaining >= bT) {
                         lostBlockers.push(b);
                         remaining -= bT;
@@ -2273,13 +2323,10 @@ function cautiousBlockPenalty(
         // blocker is lost for nothing.
         if (held.removal) {
             const biggest = [...blockers].sort(
-                (a, b) =>
-                    getPermanentEffectivePower(state, b) -
-                    getPermanentEffectivePower(state, a)
+                (a, b) => lastingPT(b).power - lastingPT(a).power
             )[0];
             const remainingPower =
-                blockPower -
-                Math.max(0, getPermanentEffectivePower(state, biggest));
+                blockPower - Math.max(0, lastingPT(biggest).power);
             if (remainingPower < atkTough) {
                 const swing = cval(atk) + cval(biggest);
                 if (swing > worstSwing) worstSwing = swing;
@@ -2304,9 +2351,10 @@ export function materialMargin(
     const me = state.players.find((p) => p.id === playerId);
     const opp = state.players.find((p) => p.id !== playerId);
     if (!me || !opp) return 0;
+    const pass = beginLayer7Pass(state);
     return (
-        playerScore(state, me, weights, "own") -
-        playerScore(state, opp, weights, "observed")
+        playerScore(state, me, weights, "own", pass) -
+        playerScore(state, opp, weights, "observed", pass)
     );
 }
 
@@ -2353,14 +2401,15 @@ export function evaluateBreakdown(
     if (!me || !opp) {
         return { self: empty, opp: empty, margin: 0, danger: 0, total: 0 };
     }
-    const self = playerTerms(state, me, weights, "own");
-    const oppTerms = playerTerms(state, opp, weights, "observed");
+    const pass = beginLayer7Pass(state);
+    const self = playerTerms(state, me, weights, "own", pass);
+    const oppTerms = playerTerms(state, opp, weights, "observed", pass);
     const margin = sumTerms(self) - sumTerms(oppTerms);
     return {
         self,
         opp: oppTerms,
         margin,
-        danger: dangerClock(state, playerId),
+        danger: dangerClock(state, playerId, pass),
         total: evaluate(state, playerId, weights),
     };
 }

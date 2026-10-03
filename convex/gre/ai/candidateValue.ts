@@ -20,7 +20,7 @@
 
 import type { CardInstanceState, GameState } from "../state";
 import { getOpponentId, getPlayer } from "../state";
-import { getEffectivePower, getEffectiveToughness } from "../layers";
+import { getEffectivePT } from "../layers";
 import { tryGetDefinition } from "../../cards";
 import {
     carriesSpellOrAbilityScript,
@@ -53,8 +53,9 @@ export function permanentWorth(
     state: GameState,
     card: CardInstanceState
 ): number {
-    const p = Math.max(0, getEffectivePower(state, card));
-    const t = Math.max(0, getEffectiveToughness(state, card));
+    const pt = getEffectivePT(state, card);
+    const p = Math.max(0, pt.power);
+    const t = Math.max(0, pt.toughness);
     return card.types.includes("Creature") ? p * p + t * t + 10 : 20;
 }
 
