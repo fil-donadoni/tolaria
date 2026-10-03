@@ -7,6 +7,7 @@ import {
     writeFileSync,
     existsSync,
     readFileSync,
+    readdirSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { issueWorktree } from "../lib/issue-worktree";
@@ -51,6 +52,7 @@ import {
     type GateWaiter,
 } from "../lib/gate-liveness";
 import type { MachineSample } from "../lib/machine-admission";
+import { heavyQueueIdle, readGateWaiters } from "../lib/ui-admission";
 import { BASE_BRANCH, ORIGIN_BASE, RELEASE_BRANCH } from "../lib/branches";
 import { classifyLane } from "../check-lane";
 import {
@@ -2217,6 +2219,8 @@ describe("land.ts — the teardown step, executed", () => {
 describe("land.ts — preflight before queuing (issue #4967)", () => {
     const calls: string[] = [];
     const deps = (status: number | null, admitted = true) => ({
+        // Something holds or waits on the mutex: the preflight's own case.
+        queueIdle: () => false,
         admit: async () => {
             calls.push("admit");
             return admitted;
@@ -2275,6 +2279,7 @@ describe("land.ts — preflight before queuing (issue #4967)", () => {
         const out = await preflightGate({
             mode: "full",
             enabled: true,
+            queueIdle: () => false,
             admit: async () => true,
             run: () => ({ infra: "`git fetch origin x` failed" }),
         });
@@ -2345,9 +2350,24 @@ describe("land.ts — preflight before queuing (issue #4967)", () => {
             let clock = T0;
             const lines: string[] = [];
             if (holder !== null) hold(clock, holder);
+            // A land queued ahead, so the queue is never empty and the
+            // preflight is due whatever the holder (issue #4992).
+            mkdirSync(join(lockRoot, "gate.waiters"), { recursive: true });
+            writeFileSync(
+                join(lockRoot, "gate.waiters", `${process.pid}.json`),
+                JSON.stringify({
+                    pid: process.pid,
+                    role: "land",
+                    label: "",
+                    cwd: "/repo",
+                    since: clock,
+                    seen: clock,
+                })
+            );
             const out = await preflightGate({
                 mode: "full",
                 enabled: true,
+                queueIdle: () => heavyQueueIdle(lockRoot, env, clock),
                 admit: () =>
                     admitPreflight({
                         lockRoot,
@@ -2407,6 +2427,182 @@ describe("land.ts — preflight before queuing (issue #4967)", () => {
                 (await land(busy, {}, { TOLARIA_GATE_HELD: "1" })).out
             ).toEqual({ kind: "saturated" });
             expect(calls).toEqual([]);
+        });
+    });
+
+    /**
+     * Issue #4992 — with the mutex free and nobody queued there is no queue
+     * to keep a failure out of: the preflight only delays the land, and the
+     * lane runs the same checks again on the rebased tip.
+     */
+    describe("a free mutex and an empty queue (issue #4992)", () => {
+        it("skips the preflight, naming why, and asks neither the machine nor the run", async () => {
+            const out = await preflightGate({
+                mode: "full",
+                enabled: true,
+                ...deps(1),
+                queueIdle: () => {
+                    calls.push("idle");
+                    return true;
+                },
+            });
+            expect(out).toEqual({
+                kind: "skipped",
+                why: expect.stringMatching(
+                    /heavy mutex is free and nobody is queued/
+                ),
+            });
+            expect(calls).toEqual(["idle"]);
+        });
+
+        it("a busy queue runs the preflight exactly as before: machine, then run", async () => {
+            expect(
+                await preflightGate({ mode: "full", enabled: true, ...deps(0) })
+            ).toEqual({ kind: "pass", ms: 1234 });
+            expect(calls).toEqual(["admit", "run"]);
+        });
+
+        it("--no-preflight and housekeeping are decided before the queue is read", async () => {
+            for (const [mode, enabled, why] of [
+                ["full", false, "--no-preflight"],
+                ["housekeeping", true, "housekeeping gates nothing"],
+            ] as const) {
+                const out = await preflightGate({
+                    mode,
+                    enabled,
+                    ...deps(1),
+                    queueIdle: () => {
+                        calls.push("idle");
+                        return true;
+                    },
+                });
+                expect(out.kind).toBe("skipped");
+                if (out.kind === "skipped") expect(out.why).toContain(why);
+            }
+            expect(calls).toEqual([]);
+        });
+
+        describe("heavyQueueIdle — what the gate calls live", () => {
+            const NOW = 90_000_000;
+            const HOLDER = 4001;
+            const WAITER = 4002;
+            let root: string;
+            let alive: Set<number>;
+            const isAlive = (pid: number) => alive.has(pid);
+            beforeEach(() => {
+                root = mkdtempSync(join(tmpdir(), "tolaria-land-idle-"));
+                alive = new Set([HOLDER, WAITER]);
+            });
+            afterEach(() => rmSync(root, { recursive: true, force: true }));
+
+            const hold = (over: object = {}) => {
+                mkdirSync(join(root, "gate.lock"), { recursive: true });
+                writeFileSync(
+                    join(root, "gate.lock", "owner.json"),
+                    JSON.stringify({
+                        pid: HOLDER,
+                        label: "land 1",
+                        cwd: "/repo",
+                        ts: NOW - 1000,
+                        acquiredAt: NOW - 60_000,
+                        childPid: HOLDER + 100,
+                        ...over,
+                    })
+                );
+            };
+            const queue = (name: string, over: object = {}) => {
+                mkdirSync(join(root, "gate.waiters"), { recursive: true });
+                writeFileSync(
+                    join(root, "gate.waiters", name),
+                    JSON.stringify({
+                        pid: WAITER,
+                        role: "land",
+                        tier: "heavy",
+                        label: "land 2",
+                        cwd: "/repo",
+                        since: NOW - 300_000,
+                        seen: NOW - 2_000,
+                        ...over,
+                    })
+                );
+            };
+            const idle = (env: NodeJS.ProcessEnv = {}) =>
+                heavyQueueIdle(root, env, NOW, isAlive);
+
+            it("no lock and no registry: idle", () => {
+                expect(idle()).toBe(true);
+            });
+
+            it("a live holder is busy — running, or still waiting for the machine under its hold", () => {
+                hold();
+                expect(idle()).toBe(false);
+                hold({ childPid: undefined });
+                expect(idle()).toBe(false);
+            });
+
+            it("a free mutex with one live waiter is busy", () => {
+                queue(`${WAITER}.json`);
+                expect(idle()).toBe(false);
+            });
+
+            it("a dead holder, a silent one and a stalled one hold nothing: idle", () => {
+                alive.delete(HOLDER);
+                hold();
+                expect(idle(), "dead").toBe(true);
+                alive.add(HOLDER);
+                hold({ ts: NOW - 46 * 60_000 });
+                expect(idle(), "silent past 45 min").toBe(true);
+                hold({ stalledAt: NOW - 6 * 60_000 });
+                expect(idle(), "stalled past the short reclaim").toBe(true);
+                // The gate's own threshold overrides apply here too.
+                hold({ ts: NOW - 10_000 });
+                expect(idle({ TOLARIA_GATE_STALE_MS: "5000" })).toBe(true);
+            });
+
+            it("a stale waiter entry is not a waiter: dead pid, or silent past the waiter threshold", () => {
+                queue(`${WAITER}.json`, { seen: NOW - 61_000 });
+                expect(idle(), "silent").toBe(true);
+                queue(`${WAITER}.json`);
+                alive.delete(WAITER);
+                expect(idle(), "dead pid").toBe(true);
+                alive.add(WAITER);
+                expect(
+                    idle({ TOLARIA_GATE_WAITER_STALE_MS: "1000" }),
+                    "the gate's override"
+                ).toBe(true);
+            });
+
+            it("reading the registry leaves every entry in place, stale ones included", () => {
+                queue(`${WAITER}.json`, { seen: NOW - 10 * 60_000 });
+                alive.delete(WAITER);
+                queue("4003.json", { pid: 4003, seen: NOW - 10 * 60_000 });
+                // What a gate killed mid-write leaves — the gate prunes it.
+                queue("4004.json.4004.tmp", { pid: 4004 });
+                writeFileSync(join(root, "gate.waiters", "junk.json"), "{");
+                const dir = join(root, "gate.waiters");
+                const before = readdirSync(dir)
+                    .sort()
+                    .map((n) => [n, readFileSync(join(dir, n), "utf8")]);
+                expect(idle()).toBe(true);
+                expect(
+                    readGateWaiters(root)
+                        .map((w) => w.pid)
+                        .sort()
+                ).toEqual([WAITER, 4003]);
+                expect(
+                    readdirSync(dir)
+                        .sort()
+                        .map((n) => [n, readFileSync(join(dir, n), "utf8")])
+                ).toEqual(before);
+            });
+        });
+
+        it("main() asks the real lock root, once, inside the preflight decision", () => {
+            const src = readFileSync(resolve(__dirname, "../land.ts"), "utf8");
+            const body = src.slice(src.indexOf("async function main("));
+            expect(body).toMatch(
+                /queueIdle: \(\) => heavyQueueIdle\(gateLockRoot\(\)\)/
+            );
         });
     });
 

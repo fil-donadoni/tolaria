@@ -32,10 +32,21 @@
  * `process.exit` reaches the `exit` release. A SIGKILL leaves a dead pid, which
  * the next waiter reclaims.
  */
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+    mkdirSync,
+    readdirSync,
+    readFileSync,
+    rmSync,
+    writeFileSync,
+} from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { reclaimVerdict } from "./gate-liveness";
+import {
+    reclaimVerdict,
+    waiterLive,
+    WAITER_STALE_MS,
+    type GateWaiter,
+} from "./gate-liveness";
 import {
     waitForMachine,
     type MachineThresholds,
@@ -223,6 +234,66 @@ export function heavyHolderRunning(
         owner.stalledAt === undefined
         ? owner
         : null;
+}
+
+/** The heavy mutex's queue: one file per process waiting on `gate.lock`,
+ *  beside it (`gate.ts` § waiter registry). */
+export const GATE_WAITERS_DIR = "gate.waiters";
+
+/**
+ * Every entry of the waiter registry that parses — READ ONLY (issue #4992).
+ * `gate.ts`'s own reader prunes what it finds dead as it reads, which is its
+ * business as a member of the queue; a caller OUTSIDE the queue (`land`
+ * deciding whether there is a queue at all) must leave it exactly as it
+ * found it. A temp file mid-rename and a foreign file are not entries.
+ */
+export function readGateWaiters(root: string): GateWaiter[] {
+    const dir = join(root, GATE_WAITERS_DIR);
+    let names: string[];
+    try {
+        names = readdirSync(dir);
+    } catch {
+        return [];
+    }
+    const out: GateWaiter[] = [];
+    for (const name of names) {
+        if (!name.endsWith(".json")) continue;
+        try {
+            const entry = JSON.parse(
+                readFileSync(join(dir, name), "utf8")
+            ) as GateWaiter;
+            if (typeof entry.pid === "number") out.push(entry);
+        } catch {
+            /* foreign or half-written — never a verdict */
+        }
+    }
+    return out;
+}
+
+/**
+ * Whether the heavy mutex is FREE and NOBODY IS QUEUED on it (issue #4992) —
+ * the one moment `land`'s preflight keeps nothing out of anything.
+ *
+ * "Live" is what the gate means by it, under the gate's own thresholds: a
+ * holder that is dead or reclaimable holds nothing (`heavyHolderLive`), while
+ * one still waiting for the machine under its hold does; an entry is a waiter
+ * only while `waiterLive` says it stands for a queued process. Reads only.
+ */
+export function heavyQueueIdle(
+    root: string,
+    env: NodeJS.ProcessEnv = process.env,
+    now: number = Date.now(),
+    isAlive: (pid: number) => boolean = pidAlive
+): boolean {
+    const staleMs = Number(env.TOLARIA_GATE_STALE_MS ?? HEAVY_STALE_MS);
+    if (heavyHolderLive(root, env, now, isAlive, staleMs) !== null)
+        return false;
+    const waiterStaleMs = Number(
+        env.TOLARIA_GATE_WAITER_STALE_MS ?? WAITER_STALE_MS
+    );
+    return !readGateWaiters(root).some((w) =>
+        waiterLive(w, isAlive(w.pid), now, waiterStaleMs)
+    );
 }
 
 /** The holder, as a machine-wait line names it. */
