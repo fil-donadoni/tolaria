@@ -41,7 +41,18 @@
 import type { CardDefinition, EffectOp } from "../../cards/types";
 import { tryGetDefinition } from "../../cards";
 import { cardValueById } from "../cardValue";
-import { DEFAULT_EVAL_WEIGHTS, type LatentWeights } from "./evalWeights";
+import {
+    DEFAULT_EVAL_WEIGHTS,
+    type LatentCreatureDiscounts,
+    type LatentWeights,
+} from "./evalWeights";
+
+/** The committed vector's discounts — what a caller with no vector of its own
+ *  (the choice-candidate pricing, which carries no `EvalWeights`) reads. */
+const DEFAULT_CREATURE_DISCOUNTS: LatentCreatureDiscounts = Object.freeze({
+    creature: DEFAULT_EVAL_WEIGHTS.latentCreatureDiscount,
+    flash: DEFAULT_EVAL_WEIGHTS.latentFlashCreatureDiscount,
+});
 import type { CardInstanceState, GameState, PlayerState } from "../state";
 import { graveyardCastMechanismForMember } from "../castCost";
 import { getPrintedEscape } from "../escape";
@@ -314,7 +325,11 @@ const LATENT_BY_VECTOR = new WeakMap<LatentWeights, Map<string, number>>();
 export function latentGraveyardValue(
     card: CardInstanceState,
     /** Issue #3406 — the latent unit prices the reading evaluation runs at. */
-    latent: LatentWeights = DEFAULT_EVAL_WEIGHTS.latent
+    latent: LatentWeights = DEFAULT_EVAL_WEIGHTS.latent,
+    /** Issue #5012 — the creature-in-hand discounts of the same vector. They
+     *  live beside `latent` on `EvalWeights`, not inside it, so they join the
+     *  cache key: two vectors can share a `latent` object and differ here. */
+    discounts: LatentCreatureDiscounts = DEFAULT_CREATURE_DISCOUNTS
 ): number {
     const id = (card.card as { id?: string }).id;
     if (!id) return 0;
@@ -322,7 +337,7 @@ export function latentGraveyardValue(
     // escape, so its latent worth is the ESCAPED cast's: "sacrifice it unless
     // it escaped" never happens and the body stays. The route is half the key.
     const route = getPrintedEscape(card) !== undefined ? "escape" : "hand";
-    const key = route === "escape" ? `${id}|escape` : id;
+    const key = `${id}|${route}|${discounts.creature}|${discounts.flash}`;
     let byId = LATENT_BY_VECTOR.get(latent);
     if (!byId) {
         byId = new Map<string, number>();
@@ -330,7 +345,7 @@ export function latentGraveyardValue(
     }
     const hit = byId.get(key);
     if (hit !== undefined) return hit;
-    const value = cardValueById(id, latent, route);
+    const value = cardValueById(id, latent, route, discounts);
     byId.set(key, value);
     return value;
 }

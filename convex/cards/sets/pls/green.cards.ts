@@ -81,14 +81,15 @@ export const mirrorwoodTreefolk: CardDefinition = {
     // could honestly approximate (tracked-by: #2785), so this plugs the `aiEffectsGuard`
     // ability-level gap (`convex/cards/__tests__/aiEffectsGuard.bot.test.ts`)
     // with a card-level override rather than a misleading shadow script.
-    // Calibrated against `creatureValueRaw`/`LATENT_DISCOUNT`
-    // (`gre/creatureBody.ts` / `gre/cardValue.ts`): a vanilla 2/4 for MV4
-    // latents at ~175 (`(100 + 2*15 + 4*14 + 4*5) * 0.85`); +25 for the
+    // Calibrated against `creatureValueRaw` and the committed
+    // `latentCreatureDiscount` (`gre/creatureBody.ts` / `gre/ai/evalWeights.ts`,
+    // issue #5012): a vanilla 2/4 for MV4 latents at ~113
+    // (`(100 + 2*15 + 4*14 + 4*5) * 0.546847`); +25 for the
     // repeatable defensive redirect (a fraction of `PREVENT_DAMAGE_FLAT_VALUE`
     // = 70, `gre/ai/opValuers.ts`, since it costs 4 mana and a stack action
     // per use rather than being a free static shield). Latent worth only —
     // the realized battlefield eval is unaffected (`cardValue.ts` doc).
-    aiValue: 200,
+    aiValue: 138,
     activatedAbilities: [
         {
             id: "mirrorwood-treefolk-redirect",

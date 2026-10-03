@@ -31,7 +31,11 @@ import {
 } from "./ai";
 import type { LatentLens } from "./ai/grounding";
 import { contextFreeGrounding, withLatentLens } from "./ai/grounding";
-import { DEFAULT_EVAL_WEIGHTS, type LatentWeights } from "./ai/evalWeights";
+import {
+    DEFAULT_EVAL_WEIGHTS,
+    type LatentCreatureDiscounts,
+    type LatentWeights,
+} from "./ai/evalWeights";
 
 // The pure creature body math (`creatureValueRaw`) now lives in the leaf module
 // `./creatureBody` (issue #1426) so the per-Op value model (`gre/ai/**`) can
@@ -129,6 +133,11 @@ export function latentValue(chars: {
      *  `EvalWeights.latentFlashCreatureDiscount`. Absent = the committed
      *  vector's. */
     flashCreatureDiscount?: number;
+    /** Issue #5012 — CR 601.3b: a creature in hand under a cast-as-though-it-
+     *  had-flash permission (Aluren, Vedalken Orrery, Leyline of Anticipation)
+     *  can enter at instant speed exactly like a printed-flash one (CR 702.8a),
+     *  so it takes the flash discount. */
+    castAsThoughFlash?: boolean;
     isCreature: boolean;
     power: number;
     toughness: number;
@@ -178,7 +187,7 @@ export function latentValue(chars: {
         // chain below, which targets the spell-script (non-creature) path.
         if (chars.aiValue !== undefined) return chars.aiValue;
         const body =
-            (chars.staticAbilities.includes("flash")
+            (chars.staticAbilities.includes("flash") || chars.castAsThoughFlash
                 ? (chars.flashCreatureDiscount ??
                   DEFAULT_EVAL_WEIGHTS.latentFlashCreatureDiscount)
                 : (chars.creatureDiscount ??
@@ -389,11 +398,17 @@ export function cardValueById(
     /** Issue #3406 — see `dslLatentPieces`. */
     latent: LatentWeights = DEFAULT_EVAL_WEIGHTS.latent,
     /** Issue #4897 — see `dslLatentPieces`. */
-    route: LatentCastRoute = "hand"
+    route: LatentCastRoute = "hand",
+    /** Issue #5012 — the creature-in-hand discounts of the vector `latent`
+     *  belongs to. Absent = the committed vector's, which is right for the
+     *  callers with no search vector (Bot Drafter, bot view). */
+    discounts?: LatentCreatureDiscounts
 ): number {
     const def = tryGetDefinition(cardId);
     if (!def) return 0;
     return latentValue({
+        creatureDiscount: discounts?.creature,
+        flashCreatureDiscount: discounts?.flash,
         isCreature: def.types.includes("Creature"),
         power: def.power ?? 0,
         toughness: def.toughness ?? 0,

@@ -22,6 +22,7 @@
 // PURE: no Math.random, no mutation, no ctx. Reads effective P/T through the
 // layer system so static buffs (counters, anthems) are reflected.
 
+import { hasCastPermissionFlash } from "./castPermissions";
 import type { CardInstanceState, GameState, PlayerState } from "./state";
 import {
     isCombatDamageImmune,
@@ -289,6 +290,14 @@ export function cardValue(
     return latentValue({
         creatureDiscount,
         flashCreatureDiscount,
+        // Issue #5012 — CR 601.3b / 702.8a: a held creature a battlefield
+        // permission lets its holder cast as though it had flash enters at
+        // instant speed like a printed-flash one. Scanned only for a
+        // creature without printed flash — the hand term runs per leaf.
+        castAsThoughFlash:
+            isCreature(card) &&
+            !card.staticAbilities.includes("flash") &&
+            hasCastPermissionFlash(state, card.ownerId, card),
         isCreature: isCreature(card),
         power: pt.power,
         toughness: pt.toughness,
@@ -1246,6 +1255,12 @@ function graveyardReachTerm(
     // Cheapest gate first: with recursion access every graveyard card is a
     // candidate, so the per-card castability walk is skipped entirely.
     const recursion = hasGraveyardRecursionAccess(player);
+    // Issue #5012 — the graveyard card is priced at THIS vector's creature
+    // discounts, the same ones the hand term applies to the copy in hand.
+    const creatureDiscounts = {
+        creature: weights.latentCreatureDiscount,
+        flash: weights.latentFlashCreatureDiscount,
+    };
     // Bounded top-K rather than value-everything-then-sort: the cap is small
     // (2 in production) and this runs per ISMCTS leaf, per player, so an
     // insertion into a `cap`-sized best list is cheaper than an array the size
@@ -1255,7 +1270,11 @@ function graveyardReachTerm(
         if (!recursion && !isSelfReachableInGraveyard(state, player, card)) {
             continue;
         }
-        const value = latentGraveyardValue(card, weights.latent);
+        const value = latentGraveyardValue(
+            card,
+            weights.latent,
+            creatureDiscounts
+        );
         if (best.length === cap && value <= best[cap - 1]) continue;
         let i = best.length < cap ? best.length : cap - 1;
         while (i > 0 && best[i - 1] < value) {

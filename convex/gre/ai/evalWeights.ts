@@ -26,6 +26,16 @@
 // choice).
 import type { Feature } from "./featureBasis";
 
+/** The two fitted creature-in-hand discounts of ONE weight vector (issue
+ *  #5012) — `EvalWeights.latentCreatureDiscount` and
+ *  `latentFlashCreatureDiscount`, lifted out of the vector so a reader that
+ *  has only the registry id (`cardValueById`) can be priced at the SAME vector
+ *  as the hand term instead of the committed one. */
+export interface LatentCreatureDiscounts {
+    readonly creature: number;
+    readonly flash: number;
+}
+
 /** The fitted price of ONE UNIT of each feature-basis dimension — the latent
  *  worth an Effect Script Op contributes per unit of what it does (issue
  *  #3398, PRD #3397). One weight per `FEATURE_BASIS` dimension, so a verdict
