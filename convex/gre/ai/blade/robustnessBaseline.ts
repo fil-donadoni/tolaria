@@ -21,18 +21,4 @@
 
 import type { RobustnessBaselineRow } from "./robustness";
 
-export const ROBUSTNESS_BASELINE: readonly RobustnessBaselineRow[] = [
-    // Robust at the health runs of 2026-09-30, pinned by a Bot landing since
-    // (not bisected); found by the health RED that issue #4980 repairs, on
-    // tip f61bfddc: jitter− 9/10.
-    {
-        label: "opponent's choice: casts Ravenous Rats into a two-card hand",
-        issue: 4981,
-    },
-    // Robust on base; the refit that carries the Phlage verdict (issue #5014)
-    // moved it: jitter+ 9/10 (one `material-tiebreak`).
-    {
-        label: "granted flashback: casts Stingcaster Mage to flash back Lightning Bolt for lethal",
-        issue: 5026,
-    },
-];
+export const ROBUSTNESS_BASELINE: readonly RobustnessBaselineRow[] = [];
