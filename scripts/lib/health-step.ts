@@ -157,10 +157,12 @@ export function healthStepArgs(entry: string): string[] {
  * `blade:robustness` (issue #4875): the blade `must` tier re-run over a wide
  * seed list and jittered weight vectors, redding on an entry that passes by
  * seed noise and is not in its shrink-only baseline. ~15 min of search on a
- * loaded machine — far over the lane budget, so a health cost by the
- * issue-#4963 rule (never `check:pr` / `check:lane` / `land`), and only for a batch that can have moved it: a pin
- * appears when the search, the evaluator, the weights or the registry change —
- * every one of them under the Bot's globs.
+ * loaded machine — far over the lane budget, so the FULL audit is a health
+ * cost by the issue-#4963 rule, and only for a batch that can have moved it: a
+ * pin appears when the search, the evaluator, the weights or the registry
+ * change — every one of them under the Bot's globs. Its near-tie slice runs at
+ * `land` too, by a declared exception (`BLADE_ROBUSTNESS_TIEBREAK` in
+ * `check-lane.ts`, issue #5016).
  */
 export const BOT_HEALTH_SCRIPTS: readonly string[] = ["blade:robustness"];
 

@@ -16,6 +16,7 @@ import {
     treeMoved,
     hasLintStagedStash,
     CHEAP_GUARDS,
+    BLADE_ROBUSTNESS_TIEBREAK,
     type LanePlan,
     type TreeSnapshot,
     type RunResult,
@@ -804,6 +805,8 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
             "check:gaps",
             "check:targets",
             "check:test-hygiene",
+            // Nor a Bot path (issue #5016).
+            "blade:robustness[tiebreak]",
         ]);
         for (const files of [
             ["convex/gre/engine.ts"],
@@ -833,7 +836,12 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
             "check:targets",
             "check:test-hygiene",
         ]);
-        expect(ids(engine.skip)).toEqual(["dom", "node-tooling"]);
+        // The engine fixture is no Bot path (issue #5016).
+        expect(ids(engine.skip)).toEqual([
+            "dom",
+            "node-tooling",
+            "blade:robustness[tiebreak]",
+        ]);
         // src/** imports convex/gre (ADR 0074), so an engine diff CAN break
         // the app project — the whole type-check is one of the three
         // backstops that make dropping `dom` safe (#2738).
@@ -2136,5 +2144,57 @@ describe("check-lane.ts — preflightPlan (issue #4967)", () => {
             src.indexOf("function appendDocsGuards(")
         );
         expect(body).not.toMatch(/classifyLane\(/);
+    });
+});
+
+/**
+ * Issue #5016 — the blade robustness audit's near-tie slice runs at `land` on
+ * a diff under the Bot's `convex/` globs, so a refit that pins a `must` entry
+ * to its seeds is refused instead of found by `health` as a RED base tip.
+ */
+describe("check-lane — blade:robustness[tiebreak] (issue #5016)", () => {
+    const ID = BLADE_ROBUSTNESS_TIEBREAK.id;
+
+    it("a search, evaluator, weight or blade-registry edit owes it", () => {
+        for (const file of [
+            "convex/gre/search.ts",
+            "convex/gre/evaluate.ts",
+            "convex/gre/ai/evalWeights.ts",
+            "convex/gre/ai/blade/registry.ts",
+            "convex/gre/ai/blade/robustnessBaseline.ts",
+        ]) {
+            const plan = classifyLane([file]);
+            expect(ids(plan.run), file).toContain(ID);
+            expect(ids(plan.skip), file).not.toContain(ID);
+        }
+    });
+
+    it("the full lane owes it too when a Bot path is in the mix", () => {
+        const plan = classifyLane([
+            "src/components/board/Card.tsx",
+            "convex/gre/ai/evalWeights.ts",
+        ]);
+        expect(plan.lane).toBe("full");
+        expect(ids(plan.run)).toContain(ID);
+    });
+
+    it("an engine, card, skin or full diff off the Bot's convex/ globs does not run it", () => {
+        for (const files of [
+            ["convex/gre/phases.ts"],
+            ["convex/cards/sets/lea/red.cards.ts"],
+            ["src/lib/ai/eval-term-labels.ts"],
+            ["src/components/board/Card.tsx", "convex/gre/phases.ts"],
+        ]) {
+            const plan = classifyLane(files);
+            expect(ids(plan.run), files.join()).not.toContain(ID);
+            // The full lane names no skips at all, by design.
+            if (plan.lane === "engine")
+                expect(ids(plan.skip), files.join()).toContain(ID);
+        }
+    });
+
+    it("never runs in the preflight — it needs the rebased tip's weights", () => {
+        const plan = classifyLane(["convex/gre/ai/evalWeights.ts"]);
+        expect(ids(preflightPlan(plan).run)).not.toContain(ID);
     });
 });

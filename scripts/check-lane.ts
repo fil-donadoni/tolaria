@@ -430,6 +430,9 @@ export function classifyLane(
                     id,
                     command: `bun run ${id}`,
                 })),
+                ...(admitsBladeRobustness(files)
+                    ? [BLADE_ROBUSTNESS_TIEBREAK]
+                    : []),
             ],
             skip: [],
         };
@@ -679,6 +682,12 @@ export function classifyLane(
         });
     }
     appendCheapGuards(files, run, skip);
+    if (admitsBladeRobustness(files)) run.push(BLADE_ROBUSTNESS_TIEBREAK);
+    else
+        skip.push({
+            id: BLADE_ROBUSTNESS_TIEBREAK.id,
+            reason: BLADE_ROBUSTNESS_LACKS,
+        });
     appendDocsGuards(files, run);
     return { lane, rationale: engineRationale(files), files, run, skip };
 }
@@ -741,6 +750,39 @@ export const CHEAP_GUARDS: readonly {
         lacks: "no test file, no __tests__/ support, nothing under convex/**, data/** or scripts/lib/** — the census's corpus, registry and allow-list did not move",
     },
 ];
+
+/**
+ * The blade robustness audit, scoped to the near-ties (issue #5016) — the one
+ * lane check OVER the issue-#4963 ten-second rule, by a declared exception:
+ * MEASURED_COST_S below, paid only by a diff under the Bot's `convex/` globs.
+ *
+ * WHY THE EXCEPTION. A refit, an evaluator term or a search change moves the
+ * near-tie a `must` entry sits on, and the entry starts passing by seed (issue
+ * #4875). The full audit is ~15 min and health-only, so every such pin was
+ * found AFTER it landed, as a RED base tip that blocked every session: issue
+ * #4777, issue #4877, issue #4980, issue #5016. The `tiebreak` scope re-runs
+ * wide only the entries whose own seeds already settle a pick by
+ * `material-tiebreak`, plus the baseline rows (`robustnessScopeAdmits`): the
+ * place every one of those pins sat. `health` keeps the full audit for the
+ * rest (an entry whose own seeds settle by mean reward).
+ *
+ * ADMISSION: a changed `convex/` path under `BOT_GLOBS` — the search, the
+ * evaluator, the fitted weights, the blade registry and baseline. Not
+ * `src/lib/ai/**` (no blade entry reads it), not a card (the accepted blind
+ * spot `healthGates` names).
+ */
+export const BLADE_ROBUSTNESS_TIEBREAK: PlannedCheck = {
+    id: "blade:robustness[tiebreak]",
+    command:
+        "BLADE_ROBUSTNESS=1 BLADE_ROBUSTNESS_SCOPE=tiebreak bunx vitest run --config vitest.blade.config.ts robustness.shard",
+};
+
+const BLADE_ROBUSTNESS_LACKS =
+    "no changed convex/ path under the Bot's globs — the search, the evaluator, the weights and the blade registry did not move (health runs the full audit)";
+
+export function admitsBladeRobustness(files: readonly string[]): boolean {
+    return files.some((p) => p.startsWith("convex/") && matchesBotGlob(p));
+}
 
 function appendCheapGuards(
     files: string[],

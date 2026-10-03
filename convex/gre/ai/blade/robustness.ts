@@ -40,7 +40,11 @@ import {
     type FittableWeightKey,
 } from "../verdicts/features";
 import type { SearchVariant } from "../searchVariant";
-import { bladeScenarioSeeds, runBladeScenario } from "./runner";
+import {
+    bladeScenarioSeeds,
+    runBladeScenario,
+    type BladeResult,
+} from "./runner";
 import type { BladeScenario } from "./types";
 
 /** The wide seed list every entry is re-run over. Fixed forever — changing it
@@ -157,9 +161,11 @@ export function classifyRobustness(
  *  entry is an authoring bug, not a verdict). */
 export function auditBladeScenario(
     scenario: BladeScenario,
-    vectors: readonly RobustnessVector[] = robustnessVectors()
+    vectors: readonly RobustnessVector[] = robustnessVectors(),
+    /** The entry's own-seed run, when the caller already has it (the
+     *  `tiebreak` scope runs it first to decide admission). */
+    ownResult: BladeResult = runBladeScenario(scenario)
 ): RobustnessRow {
-    const ownResult = runBladeScenario(scenario);
     const own = {
         seeds: bladeScenarioSeeds(scenario).length,
         passed: ownResult.seeds.filter((s) => s.ok).length,
@@ -189,6 +195,41 @@ export function auditBladeScenario(
         legs,
         verdict: classifyRobustness(own, legs),
     };
+}
+
+/**
+ * Which entries a scoped audit re-runs wide (issue #5016).
+ *
+ *   - `all`      — every `must` entry: what `health` runs (~15 min).
+ *   - `tiebreak` — only an entry whose OWN-seed run settled at least one pick
+ *     by `material-tiebreak`, plus every baseline row. That is where a near-
+ *     tie already shows at the committed weights, and where every pin found
+ *     so far sat (issue #4777, issue #4877, issue #4980, issue #5016): `land`
+ *     runs it on a diff under the Bot's `convex/` globs, so a refit that
+ *     flips one is refused before it lands instead of found by `health`.
+ *
+ * What `tiebreak` cannot see: an entry whose own seeds all settle by mean
+ * reward but whose wide runs fall to a tie-break. `health`'s `all` keeps it.
+ */
+export type RobustnessScope = "all" | "tiebreak";
+
+export function parseRobustnessScope(raw: string | undefined): RobustnessScope {
+    if (raw === undefined || raw === "" || raw === "all") return "all";
+    if (raw === "tiebreak") return "tiebreak";
+    throw new Error(
+        `BLADE_ROBUSTNESS_SCOPE must be "all" or "tiebreak" (got "${raw}")`
+    );
+}
+
+/** Does `scope` owe `label` its wide legs, given its own-seed run? */
+export function robustnessScopeAdmits(
+    scope: RobustnessScope,
+    own: BladeResult,
+    baseline: readonly RobustnessBaselineRow[]
+): boolean {
+    if (scope === "all") return true;
+    if (baseline.some((b) => b.label === own.label)) return true;
+    return own.seeds.some((s) => s.mechanism === "material-tiebreak");
 }
 
 /** One printable line per entry. */
