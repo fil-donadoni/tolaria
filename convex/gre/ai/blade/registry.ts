@@ -10076,15 +10076,17 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
             libraryCount: 20,
         },
         bot: "me",
-        budget: { iterations: 500 },
+        budget: { iterations: 1000 },
         // Seeds 5, 9 and 14 cast the Mage under the flat cast-permission
-        // price (3/20 at 500 iterations); 0/20 after.
+        // price (3/20 at 500 iterations); 0/20 after. Issue #4931's refit
+        // moved the margin back inside the rollout noise at 500 (seed 9 cast,
+        // 1/20; 0/20 under the previous weights): at 1000 iterations 0/20.
         seeds: [0xb1ade, 5, 9, 14],
         tier: "must",
         expect: {
             forbidden: [{ kind: "cast-spell", card: "Snapcaster Mage" }],
         },
-        note: "Issue #4217 — the founding position (user on `hard`). A one-card cast permission was priced at the flat `GRANT_CAST_VALUE` (20), so Snapcaster Mage in hand read below its body on the battlefield and the leaf evaluation scored the cast above holding; priced at the fitted `latent.cardAdvantage` unit, holding leads. The search's own cast-over-pass margin then falls inside `OUTCOME_EPS` (0.05) and `last-window-deferral` keeps the Mage for a later window — so a refit that widens that margin past the band reds this entry by drift, not by regression; the leaf ordering itself is pinned by the Eval Pair in `etbAbility.bot.test.ts`. Measured at 500 iterations over 20 seeds: 3 casts before, 0 after (at 400: 15/20 before, 10/20 after — rollout noise the budget here clears).",
+        note: "Issue #4217 — the founding position (user on `hard`). A one-card cast permission was priced at the flat `GRANT_CAST_VALUE` (20), so Snapcaster Mage in hand read below its body on the battlefield and the leaf evaluation scored the cast above holding; priced at the fitted `latent.cardAdvantage` unit, holding leads. The search's own cast-over-pass margin then falls inside `OUTCOME_EPS` (0.05) and `last-window-deferral` keeps the Mage for a later window — so a refit that widens that margin past the band reds this entry by drift, not by regression; the leaf ordering itself is pinned by the Eval Pair in `etbAbility.bot.test.ts`. Measured at 500 iterations over 20 seeds: 3 casts before, 0 after (at 400: 15/20 before, 10/20 after — rollout noise the budget here clears). Issue #4931's refit (a cast sorcery keeps its mana value on the curve) put 1/20 casts back at 500 — the drift this note predicts — so the budget is 1000 (0/20), not a seed dropped.",
     },
 ];
 

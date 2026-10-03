@@ -3441,6 +3441,20 @@ function sendStackItemToGraveyard(state: GameState, item: StackItem): void {
     const isCopy = item.isCopy === true;
     item.zone = destination;
     resetStackTransientState(item);
+    // Issue #4931 — a CAST instant/sorcery in the graveyard keeps its mana
+    // value on the curve (evaluate.ts `manaDevelopmentTerm`); a copy is no
+    // card and a permanent card is read off the battlefield instead.
+    if (
+        destination === "graveyard" &&
+        !isCopy &&
+        !item.types.some((t) =>
+            CASTABLE_PERMANENT_TYPES.includes(
+                t as (typeof CASTABLE_PERMANENT_TYPES)[number]
+            )
+        )
+    ) {
+        item.castSpellInGraveyard = true;
+    }
     (owner[destination] as CardInstanceState[]).push(item);
     if (destination === "library") {
         // issue #3242 — a CR 614 redirect put the spell card into a library.

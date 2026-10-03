@@ -1390,6 +1390,16 @@ export type CardInstanceState = {
      *  the-stack path, not two. Cleared wherever `castableFromGraveyardBy` is
      *  cleared. Persisted so the grant survives a DB round-trip. */
     castFromGraveyardExilesOnResolve?: boolean;
+    /** Issue #4931 — true on an INSTANT or SORCERY card that reached its owner's
+     *  graveyard FROM THE STACK (resolved, countered or fizzled): a spell that
+     *  was cast, as opposed to a card discarded, milled or put there by an
+     *  effect. Stamped by `sendStackItemToGraveyard` and read ONLY by the
+     *  evaluator's `manaDevelopmentTerm`, which keeps a cast spell's mana value
+     *  on the player's curve the way a resolved permanent's stays on the
+     *  battlefield. Cleared by `resetStackTransientState` when the card next
+     *  leaves the stack anywhere but the graveyard (a graveyard landing
+     *  re-stamps it); NOT cleared on other graveyard exits (hand, library). */
+    castSpellInGraveyard?: boolean;
     /** CR 111 / 400.7 provenance link (issue #791) — the battlefield permanent
      *  instance id that exiled this card "with it", set when a card is exiled
      *  by a specific source that later refers back to "the cards exiled with

@@ -25,7 +25,9 @@ import {
     makeInstance,
     makePlayer,
     makeState,
+    pushSpell,
 } from "../../cards/__tests__/setup.helper";
+import { resolveTopOfStack } from "../state";
 import { DEFAULT_EVAL_WEIGHTS } from "../ai/evalWeights";
 
 const BEARS = getCardByName("Grizzly Bears").id; // 2/2 ground
@@ -1556,6 +1558,75 @@ describe("manaDevelopment term (issue #2686)", () => {
         const withBigger = withLands(3, [cheap("h1"), held("big")]);
         expect(devTerm(twoCheap)).toBe(devTerm(oneCheap));
         expect(devTerm(withBigger)).toBeGreaterThan(devTerm(oneCheap));
+    });
+});
+
+describe("manaDevelopment term — a cast instant/sorcery keeps the curve (issue #4931)", () => {
+    // Mind Rot ({2}{B} sorcery, MV 3) is the only card; four Swamps. Held, the
+    // term is manaDevWeight x min(4, 3). Cast, the sorcery goes to the
+    // graveyard and — before #4931 — the term dropped to 0 for good.
+    const SWAMP = getCardByName("Swamp").id;
+    const MIND_ROT = getCardByName("Mind Rot").id;
+    const swamps = () =>
+        Array.from({ length: 4 }, (_, i) =>
+            makeInstance(SWAMP, {
+                controllerId: "p1",
+                ownerId: "p1",
+                id: `s${i}`,
+            })
+        );
+    const devTerm = (state: GameState) =>
+        evaluateBreakdown(state, "p1").self.manaDevelopment;
+    const heldRot = () =>
+        makeInstance(MIND_ROT, {
+            controllerId: "p1",
+            ownerId: "p1",
+            id: "rot",
+            zone: "hand",
+        });
+
+    it("does not lower the term when the curve-top sorcery is cast and resolves", () => {
+        const held = makeState({
+            players: [
+                makePlayer("p1", { battlefield: swamps(), hand: [heldRot()] }),
+                makePlayer("p2"),
+            ],
+        });
+        const cast = makeState({
+            players: [
+                makePlayer("p1", { battlefield: swamps() }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(cast, MIND_ROT, "p1", [{ type: "player", id: "p2" }]);
+        resolveTopOfStack(cast);
+        expect(cast.players[0].graveyard.map((c) => c.id)).toHaveLength(1);
+
+        expect(devTerm(held)).toBeCloseTo(
+            3 * DEFAULT_EVAL_WEIGHTS.manaDevWeight,
+            6
+        );
+        expect(devTerm(cast)).toBe(devTerm(held));
+    });
+
+    it("still lowers demand when the same card is DISCARDED (the documented half)", () => {
+        const discarded = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: swamps(),
+                    graveyard: [
+                        makeInstance(MIND_ROT, {
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            id: "rot",
+                            zone: "graveyard",
+                        }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(devTerm(discarded)).toBe(0);
     });
 });
 

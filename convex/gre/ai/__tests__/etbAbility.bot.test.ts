@@ -296,8 +296,10 @@ describe("an in-flight self-sacrifice is priced at the body it takes (issue #490
             .battlefield.find((c) => c.id === sacrifice!.triggerSourceId)!;
         const worth = permanentRealisedValue(kept, body, DEFAULT_EVAL_WEIGHTS);
         expect(worth).toBeGreaterThan(40);
+        // `worth` itself, to float tolerance: the difference is a sum of weighted
+        // terms and lands an ulp under it for some fitted vectors.
         expect(evaluate(kept, me) - evaluate(s, me)).toBeGreaterThanOrEqual(
-            worth
+            worth - 1e-9
         );
     });
 });

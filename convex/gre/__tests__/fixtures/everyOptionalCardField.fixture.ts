@@ -190,6 +190,7 @@ export function everyOptionalCardField(): EveryOptionalCardField {
         castableFromGraveyardUntilTurn: 23,
         castFromGraveyardWithoutPayingManaCost: true,
         castFromGraveyardExilesOnResolve: true,
+        castSpellInGraveyard: true,
         exiledBySourceId: "src-12",
         grantedFlashback: { R: 1 },
         escaped: true,
