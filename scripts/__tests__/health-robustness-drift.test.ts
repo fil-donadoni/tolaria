@@ -128,6 +128,7 @@ describe("parseRobustnessDrift", () => {
             },
             "the test"
         );
+        expect(records.map((r) => r.test)).toEqual(["the test", "the test"]);
         const printed = records
             .map((r) => `${BLADE_PREFIX} ${JSON.stringify(r)}`)
             .join("\n");
