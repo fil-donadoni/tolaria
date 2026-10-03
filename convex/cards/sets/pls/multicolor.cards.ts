@@ -1201,9 +1201,9 @@ export const meddlingMage: CardDefinition = {
     // price a 2/2 for two mana at the blind `base + MV` floor. Valued as a 2/2
     // body plus a soft Duress-grade disruption effect — real but conditional
     // (it only bites if the opponent holds a copy of the named card). Issue
-    // #5012: 92 (the 2/2 body at the committed `latentCreatureDiscount`
-    // 0.546847 × 168) + 7 for the disruption, was 143 + 7 at the fixed 0.85.
-    aiValue: 99,
+    // #5012: 96 (the 2/2 body at the committed `latentCreatureDiscount`
+    // 0.5742 × 168) + 7 for the disruption, was 143 + 7 at the fixed 0.85.
+    aiValue: 103,
     entersWith: {
         asEnters: [{ kind: "name", filter: { excludeType: "Land" } }],
     },
