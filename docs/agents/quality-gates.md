@@ -691,8 +691,9 @@ both are empty, prints `land: preflight skipped (the heavy mutex is free and
 nobody is queued …)` and goes straight to the gate. "Live" is the gate's own
 reading, under its own threshold overrides: a dead holder, one silent past
 `TOLARIA_GATE_STALE_MS` or stalled past the short reclaim holds nothing; a
-holder still waiting for the machine under its hold is live; a waiter entry
-is one only while `waiterLive` says so. The read prunes and writes nothing —
+holder still waiting for the machine under its hold is live, and so is a
+lock younger than the ownerless grace that has no owner stamp yet (a gate
+mid-acquire); a waiter entry is one only while `waiterLive` says so. The read prunes and writes nothing —
 pruning is the queue members' business. The decision is not revisited: a
 holder or waiter that appears after it finds the land queued as
 `--no-preflight` would queue it. **The accepted cost**: a lane that reds on

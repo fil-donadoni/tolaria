@@ -8,6 +8,7 @@ import {
     existsSync,
     readFileSync,
     readdirSync,
+    statSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { issueWorktree } from "../lib/issue-worktree";
@@ -2540,6 +2541,25 @@ describe("land.ts — preflight before queuing (issue #4967)", () => {
                 expect(idle()).toBe(false);
             });
 
+            it("a lock not yet stamped with its owner is a gate mid-acquire: busy, until the grace makes it an orphan", () => {
+                mkdirSync(join(root, "gate.lock"));
+                const born = statSync(join(root, "gate.lock")).mtimeMs;
+                expect(heavyQueueIdle(root, {}, born + 1000, isAlive)).toBe(
+                    false
+                );
+                expect(heavyQueueIdle(root, {}, born + 6000, isAlive)).toBe(
+                    true
+                );
+                expect(
+                    heavyQueueIdle(
+                        root,
+                        { TOLARIA_GATE_OWNERLESS_GRACE_MS: "500" },
+                        born + 1000,
+                        isAlive
+                    )
+                ).toBe(true);
+            });
+
             it("a free mutex with one live waiter is busy", () => {
                 queue(`${WAITER}.json`);
                 expect(idle()).toBe(false);
@@ -2557,6 +2577,11 @@ describe("land.ts — preflight before queuing (issue #4967)", () => {
                 // The gate's own threshold overrides apply here too.
                 hold({ ts: NOW - 10_000 });
                 expect(idle({ TOLARIA_GATE_STALE_MS: "5000" })).toBe(true);
+                hold({ stalledAt: NOW - 2_000 });
+                expect(idle(), "stalled 2 s ago still holds").toBe(false);
+                expect(idle({ TOLARIA_GATE_STALLED_RECLAIM_MS: "1000" })).toBe(
+                    true
+                );
             });
 
             it("a stale waiter entry is not a waiter: dead pid, or silent past the waiter threshold", () => {

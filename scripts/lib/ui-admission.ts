@@ -33,16 +33,19 @@
  * the next waiter reclaims.
  */
 import {
+    existsSync,
     mkdirSync,
     readdirSync,
     readFileSync,
     rmSync,
+    statSync,
     writeFileSync,
 } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import {
     reclaimVerdict,
+    STALLED_RECLAIM_MS,
     waiterLive,
     WAITER_STALE_MS,
     type GateWaiter,
@@ -193,7 +196,8 @@ export function heavyHolderLive(
     env: NodeJS.ProcessEnv = process.env,
     now: number = Date.now(),
     isAlive: (pid: number) => boolean = pidAlive,
-    staleMs: number = HEAVY_STALE_MS
+    staleMs: number = HEAVY_STALE_MS,
+    stalledReclaimMs: number = STALLED_RECLAIM_MS
 ): HeavyGateOwner | null {
     if (env.TOLARIA_GATE_HELD === "1") return null;
     let owner: HeavyGateOwner;
@@ -204,7 +208,13 @@ export function heavyHolderLive(
     } catch {
         return null;
     }
-    return reclaimVerdict(owner, isAlive(owner.pid), now, staleMs) === null
+    return reclaimVerdict(
+        owner,
+        isAlive(owner.pid),
+        now,
+        staleMs,
+        stalledReclaimMs
+    ) === null
         ? owner
         : null;
 }
@@ -234,6 +244,21 @@ export function heavyHolderRunning(
         owner.stalledAt === undefined
         ? owner
         : null;
+}
+
+/** `gate.ts`'s default grace for a lock not yet stamped with its owner. */
+const OWNERLESS_GRACE_MS = 5000;
+
+/** Age of a `gate.lock` that carries no owner stamp; Infinity when there is
+ *  no lock, or it has its owner (that case is `heavyHolderLive`'s). */
+function ownerlessLockAgeMs(root: string, now: number): number {
+    const dir = join(root, "gate.lock");
+    if (existsSync(join(dir, OWNER_NAME))) return Infinity;
+    try {
+        return now - statSync(dir).mtimeMs;
+    } catch {
+        return Infinity;
+    }
 }
 
 /** The heavy mutex's queue: one file per process waiting on `gate.lock`,
@@ -286,8 +311,18 @@ export function heavyQueueIdle(
     isAlive: (pid: number) => boolean = pidAlive
 ): boolean {
     const staleMs = Number(env.TOLARIA_GATE_STALE_MS ?? HEAVY_STALE_MS);
-    if (heavyHolderLive(root, env, now, isAlive, staleMs) !== null)
+    const stalledMs = Number(
+        env.TOLARIA_GATE_STALLED_RECLAIM_MS ?? STALLED_RECLAIM_MS
+    );
+    if (heavyHolderLive(root, env, now, isAlive, staleMs, stalledMs) !== null)
         return false;
+    // A lock with no owner stamp yet is a gate between its `mkdir` and its
+    // stamp — a holder, as the gate reads it, until it is old enough to be
+    // an orphan (`OWNERLESS_GRACE_MS` there).
+    const graceMs = Number(
+        env.TOLARIA_GATE_OWNERLESS_GRACE_MS ?? OWNERLESS_GRACE_MS
+    );
+    if (ownerlessLockAgeMs(root, now) < graceMs) return false;
     const waiterStaleMs = Number(
         env.TOLARIA_GATE_WAITER_STALE_MS ?? WAITER_STALE_MS
     );
