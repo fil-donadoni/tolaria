@@ -1930,7 +1930,7 @@ export function planManaPayment(
     };
 
     /** The best (source, colour) to pay ONE pip payable by any of `colors`
-     *  (one colour for a plain pip, two for a guild-hybrid pip — CR 202.1a),
+     *  (one colour for a plain pip, two for a guild-hybrid pip — CR 107.4e),
      *  by the lexicographic (preference, rank, colour-count, yield) key. The
      *  least-flexible source goes first, as `consumeColoredAndHybridPips` does
      *  for the castability census this planner mirrors. */
@@ -2021,7 +2021,7 @@ export function planManaPayment(
         }
     }
 
-    // CR 202.1a / 601.2f (issue #4934) — guild-hybrid pips, after the single
+    // CR 107.4e / 601.2f (issue #4934) — guild-hybrid pips, after the single
     // colour pips (which are less flexible) and before the generic remainder:
     // each `"A/B"` key is paid by ONE mana of A or of B. Without this the
     // planner ignored the key — an empty plan for `{ "G/U": 2 }` on no lands.

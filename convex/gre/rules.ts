@@ -2602,7 +2602,7 @@ function canPotentiallyPayCost(
             getCostModifiers(state, card, "spell", undefined, player.id)
         );
     }
-    // CR 202.1a (issue #4934) — a guild-hybrid pip is mana owed too: left out,
+    // CR 107.4e (issue #4934) — a guild-hybrid pip is mana owed too: left out,
     // a cost of hybrid pips alone (the ECL evoke trio's `{G/U}{G/U}`) read as
     // free and the gate offered a cast on no lands.
     const totalRequired =

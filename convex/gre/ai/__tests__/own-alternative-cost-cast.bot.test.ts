@@ -178,7 +178,7 @@ describe("own alternative cost cast (issue #4900, CR 118.9 / 702.74a)", () => {
         expect(withTarget.every((m) => m.targets.length > 0)).toBe(true);
     });
 
-    it("CR 202.1a — planManaPayment prices a hybrid pip: null on no lands, a two-tap plan on two Forests", () => {
+    it("CR 107.4e — planManaPayment prices a hybrid pip: null on no lands, a two-tap plan on two Forests", () => {
         const empty = build({
             cards: [],
             phase: "PRECOMBAT_MAIN",
@@ -203,7 +203,7 @@ describe("own alternative cost cast (issue #4900, CR 118.9 / 702.74a)", () => {
         expect(planManaPayment(forests, me(forests), { "G/U": 3 })).toBeNull();
     });
 
-    it("CR 118.9 / 202.1a — Wistfulness: no cast on zero lands, no printed cast on three Forests, evoke on two Forests with a two-land plan", () => {
+    it("CR 118.9 / 107.4e — Wistfulness: no cast on zero lands, no printed cast on three Forests, evoke on two Forests with a two-land plan", () => {
         const forestsSpec = (n: number): BladeScenario["spec"] => ({
             cards: [
                 { name: "Wistfulness", owner: "me", zone: "hand" },
