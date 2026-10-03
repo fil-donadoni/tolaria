@@ -336,11 +336,6 @@
             "label": "self-sacrificing ETB: hard-casts Phlage with no lethal and no creature",
             "tier": "must",
             "needsSetup": false
-        },
-        {
-            "label": "self-sacrificing ETB: hard-casts Phlage with no lethal and no creature",
-            "tier": "stretch",
-            "needsSetup": false
         }
     ],
     "Phyrexian Dreadnought": [

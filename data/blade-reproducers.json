@@ -1384,10 +1384,7 @@
         "phase": "PRECOMBAT_MAIN",
         "turn": 5,
         "landCount": 4,
-        "libraryCount": 20,
-        "landsPlayed": {
-            "me": 1
-        }
+        "libraryCount": 20
     },
     "self-sacrificing ETB: hard-casts Uro for its enter trigger": {
         "cards": [
