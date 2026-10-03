@@ -266,6 +266,25 @@ export type EvalWeights = {
      *  hand-picked per-Op point constants (`DESTROY_VALUE` and its siblings)
      *  that `ai/opValuers.ts` used to carry: those were unreachable to a fit
      *  and blind to the board. */
+    /** The share of a creature's realized body a copy NOT in play (hand,
+     *  returned-to-hand) is worth (was `cardValue.ts`'s `LATENT_DISCOUNT`,
+     *  issue #4882). Everything a creature in hand has not yet done — spent
+     *  the mana, survived the turn, attacked — is this discount; at the old
+     *  fixed 0.85 a 12/12 in hand plus the counterspell protecting it summed
+     *  to the 12/12 in play, so deploying it read as material-neutral.
+     *  Fitted, with one invariant the fit cannot state: strictly below 1, or
+     *  a creature in hand outranks the same creature in play (issue #149;
+     *  asserted on the committed vector in `evalWeights.bot.test.ts`). */
+    latentCreatureDiscount: number;
+    /** `latentCreatureDiscount` for a creature with FLASH (issue #4882).
+     *  CR 702.8a: "You may play this card any time you could cast an
+     *  instant", so a flash creature still in hand at the leaf has not paid
+     *  the deployment delay a sorcery-speed one has — it can enter at the
+     *  opponent's end step with the same board. Priced apart, or fitting the
+     *  sorcery-speed discount down (a held 12/12 losing a turn) drags every
+     *  held flash creature down with it and the bot dumps them at sorcery
+     *  speed. Same invariant: strictly below 1. */
+    latentFlashCreatureDiscount: number;
     latent: LatentWeights;
 
     /** How many determinized worlds the block-quality root tie-break averages
@@ -369,6 +388,9 @@ export const FIT_BASE_EVAL_WEIGHTS: Readonly<EvalWeights> = Object.freeze({
     // 21 on its own board). Its cost is per CONTENDER block edge — see
     // `makeBlockDeltaLens`' measurement.
     blockWorldSamples: 12,
+    // Issue #4882 — the old `LATENT_DISCOUNT`, now fitted from this prior.
+    latentCreatureDiscount: 0.85,
+    latentFlashCreatureDiscount: 0.85,
     // Issue #3398 — chosen so today's per-Op numbers are reproduced where a
     // representative victim exists: `boardRemoval` 160 against one 2/2-worth
     // victim IS the old `DESTROY_VALUE`, `damage` 22 IS `DAMAGE_PER_POINT`,
@@ -416,30 +438,32 @@ export const FIT_BASE_EVAL_WEIGHTS: Readonly<EvalWeights> = Object.freeze({
 export const DEFAULT_EVAL_WEIGHTS: Readonly<EvalWeights> = Object.freeze({
     ...FIT_BASE_EVAL_WEIGHTS,
     lifeWeight: 8,
-    permanentWeight: 5.8356,
-    manaWeight: 13.322518,
-    tappedManaWeight: 11.822518,
-    finiteManaUseWeight: 4.006151,
-    manaDevWeight: 15.181452,
-    colorCoverageWeight: 24.663409,
-    flexWeight: 6.745649,
+    permanentWeight: 5.747051,
+    manaWeight: 13.322753,
+    tappedManaWeight: 11.822753,
+    finiteManaUseWeight: 4.006139,
+    manaDevWeight: 15.283649,
+    colorCoverageWeight: 24.348099,
+    flexWeight: 6.812277,
     deckingWeight: 1.5,
-    graveyardEngineWeight: 62.530291,
-    graveyardReachFraction: 0.173405,
-    recoverableSweepFraction: 0.781212,
+    graveyardEngineWeight: 62.533739,
+    graveyardReachFraction: 0.17343,
+    recoverableSweepFraction: 0.789821,
+    latentCreatureDiscount: 0.547535,
+    latentFlashCreatureDiscount: 0.867012,
     latent: Object.freeze({
-        damage: 21.709279,
-        cardAdvantage: 39.861042,
-        lifeSwing: 7.733499,
-        boardRemoval: 158.226986,
-        ramp: 11.759215,
+        damage: 21.098157,
+        cardAdvantage: 39.190474,
+        lifeSwing: 7.656112,
+        boardRemoval: 161.498643,
+        ramp: 11.759569,
         evasion: 40,
-        tempo: 54.032739,
-        disruption: 117.790264,
+        tempo: 53.955833,
+        disruption: 117.808376,
         recursion: 140,
-        tokens: 0.631367,
-        pump: 9.271276,
-        protection: 60,
+        tokens: 0.623522,
+        pump: 9.234643,
+        protection: 60.130041,
     }),
 });
 
