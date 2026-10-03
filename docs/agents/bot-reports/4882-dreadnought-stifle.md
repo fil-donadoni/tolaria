@@ -285,6 +285,27 @@ cui entra" (Snapcaster, flash + ETB).
   che si sacrifica è di fatto una magia, e va letto sulla board come il ramo
   non-creatura (issue #3398). Issue #4882 resta bloccata su issue #5014.
 
+## Ripresa dopo issue #5014 (2026-10-04): squash, rebase, refit
+
+- Issue #5014 ha portato in base la entry `must` "hard-casts Phlage with no
+  lethal and no creature" e il proprio refit. Il branch (19 commit, ogni refit
+  in conflitto) è stato schiacciato in un commit e ribasato su `e7121ec1a`:
+  pesi della base più le due chiavi nuove, golden e indice carte presi dalla
+  base e rigenerati.
+- La entry Phlage `stretch` del branch duplicava quella `must` di issue #5014
+  (stessa label, rosso su "unique label"): rimossa, con la sua riga nel
+  ledger CR.
+- **Refit sul corpus combinato:** **0.546847** / **0.867212**, punto fisso in
+  tre iterazioni.
+- **Audit:** metà 1, metà 2 e charter Stifle `ROBUST`, `mean-reward` 10/10 × 3. Le due righe della baseline (Ravenous Rats issue #4981, Stingcaster Mage
+  issue #5026) sono `ROBUST`: baseline di nuovo vuota. Rats resta decisa da
+  `material-tiebreak` (8/10).
+- Blade `must`: 216 verdi.
+- botReach "draw spell", metà sacrificio: con 48 iterazioni, seed 0..9 × due
+  seat, cast 9/20 sulla base e 3/20 al refit (`material-tiebreak`, ma la
+  foglia 1-ply preferisce il cast, 494.8 contro 415.5). Stessa classe di
+  issue #5015: entra nello stopgap a dieci seed.
+
 ## Cosa fare quando c'è un bug del game bot
 
 1. **L'entry blade è la specifica.** La domanda che pone ("un umano risponde
