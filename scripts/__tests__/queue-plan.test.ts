@@ -1,19 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import * as fs from "fs";
-import * as nodeFs from "node:fs";
 import * as os from "os";
 import * as path from "path";
-
-// `writeBoardPriorityCache` (issue #2520 round 2) imports from the "node:fs"
-// specifier — the SAME specifier must be mocked here, or the module namespace
-// stays non-configurable and `vi.spyOn` throws ("Module namespace is not
-// configurable in ESM"). Every export defaults to the real implementation;
-// only `renameSync` is wrapped so a single test can simulate a crash between
-// the temp-file write and the rename.
-vi.mock("node:fs", async (importOriginal) => {
-    const actual = await importOriginal<typeof import("node:fs")>();
-    return { ...actual, renameSync: vi.fn(actual.renameSync) };
-});
 import {
     planBatch,
     parseTargetFiles,
@@ -2524,44 +2512,60 @@ describe("board priority — readBoardPriorityCache / writeBoardPriorityCache (i
         expect(dirEntries).toEqual(["board-priority.json"]);
     });
 
-    it("a crash between the temp write and the rename leaves the PREVIOUS snapshot intact, not a truncated one", () => {
-        // The property the atomic-write fix protects: several loops share this
-        // cache file. A bare `writeFileSync` (open O_TRUNC then write) lets a
-        // concurrent reader observe a truncated/zero-filled file mid-write —
-        // this is fail-safe (a torn file fails JSON.parse and is treated as
-        // "no usable snapshot"), but it needlessly turns a recoverable
-        // situation into a hard stop. Simulate the crash by making the rename
-        // itself throw AFTER the temp file is fully written, and assert the
-        // ORIGINAL target file is untouched — proof the write went to a side
-        // file the whole time and never opened the target for truncation.
-        const cachePath = tmpCachePath();
-        const original: BoardPrioritySnapshot = {
-            fetchedAt: "2026-08-18T11:00:00Z",
-            priority: { 5: "P2" },
-        };
-        writeBoardPriorityCache(cachePath, original);
+    // root ignores directory mode bits, so the read-only directory below
+    // cannot make the rename fail there.
+    it.skipIf(process.getuid?.() === 0)(
+        "a crash between the temp write and the rename leaves the PREVIOUS snapshot intact, not a truncated one",
+        () => {
+            // The property the atomic-write fix protects: several loops share this
+            // cache file. A bare `writeFileSync` (open O_TRUNC then write) lets a
+            // concurrent reader observe a truncated/zero-filled file mid-write —
+            // this is fail-safe (a torn file fails JSON.parse and is treated as
+            // "no usable snapshot"), but it needlessly turns a recoverable
+            // situation into a hard stop. Simulate the crash by making the rename
+            // itself throw AFTER the temp file is fully written, and assert the
+            // ORIGINAL target file is untouched — proof the write went to a side
+            // file the whole time and never opened the target for truncation.
+            //
+            // The crash is made by the filesystem, not by a module mock (issue
+            // #5020: this project runs `isolate: false`, where a `vi.mock` binds
+            // nothing once a neighbour file has imported the module). The temp
+            // file already exists and stays writable, so its write succeeds; the
+            // directory is read-only, so the rename — which edits the directory —
+            // fails with EACCES.
+            const cachePath = tmpCachePath();
+            const original: BoardPrioritySnapshot = {
+                fetchedAt: "2026-08-18T11:00:00Z",
+                priority: { 5: "P2" },
+            };
+            writeBoardPriorityCache(cachePath, original);
+            const next: BoardPrioritySnapshot = {
+                fetchedAt: "2026-08-18T12:00:00Z",
+                priority: { 10: "P0" },
+            };
 
-        const renameSpy = vi
-            .spyOn(nodeFs, "renameSync")
-            .mockImplementation(() => {
-                throw new Error("simulated crash between write and rename");
-            });
-        try {
-            expect(() =>
-                writeBoardPriorityCache(cachePath, {
-                    fetchedAt: "2026-08-18T12:00:00Z",
-                    priority: { 10: "P0" },
-                })
-            ).toThrow(/simulated crash/);
-        } finally {
-            renameSpy.mockRestore();
+            const dir = path.dirname(cachePath);
+            // The implementation's temp name (`writeBoardPriorityCache`).
+            const tmpPath = `${cachePath}.tmp.${process.pid}`;
+            fs.writeFileSync(tmpPath, "");
+            fs.chmodSync(dir, 0o555);
+            try {
+                expect(() => writeBoardPriorityCache(cachePath, next)).toThrow(
+                    /EACCES|EPERM/
+                );
+            } finally {
+                fs.chmodSync(dir, 0o755);
+            }
+
+            // The crash came AFTER the temp write, not before it.
+            expect(JSON.parse(fs.readFileSync(tmpPath, "utf-8"))).toEqual(next);
+
+            // The target file was never touched by the failed write — a BARE
+            // `writeFileSync(cachePath, ...)` would have already truncated it by
+            // this point, before any "crash" could occur.
+            expect(readBoardPriorityCache(cachePath)).toEqual(original);
         }
-
-        // The target file was never touched by the failed write — a BARE
-        // `writeFileSync(cachePath, ...)` would have already truncated it by
-        // this point, before any "crash" could occur.
-        expect(readBoardPriorityCache(cachePath)).toEqual(original);
-    });
+    );
 
     it("rejects a snapshot whose fetchedAt does not parse — not just that it is a string", () => {
         const cachePath = tmpCachePath();
