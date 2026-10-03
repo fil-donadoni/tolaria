@@ -209,7 +209,7 @@ dev` listening on some port — this measurement used `--port 5199`.
 Commit `8e8654a77` (pre-rebase tip of PR #4868, so the hash may not survive `land`). Live `medium`
 (`{ iterations: 400, timeMs: 1500 }`, seed `0xb1ade`) through
 `searchWithTrace` on the first 60 blade `must` positions, in-process (vitest,
-no browser). Counter side of the story: `search.perf.test.ts`.
+no browser). Counter side of the story: `searchCost.bot.test.ts`.
 
 **This is NOT an idle measurement.** The box (8 cores) never dropped below
 load 3 in a 9-minute wait; every run below is at load 11–21

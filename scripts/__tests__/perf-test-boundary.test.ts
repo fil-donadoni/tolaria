@@ -19,12 +19,20 @@ import vitestConfig from "../../vitest.config";
  * gate runs them at all.
  *
  * A filename convention rots silently — the same reasoning as
- * `bot-suite-boundary.test.ts`, which this is modelled on. Two guards here:
+ * `bot-suite-boundary.test.ts`, which this is modelled on. Three guards here:
  *
  *   1. No NON-perf test file asserts on a clock delta.
  *   2. `vitest.config.ts` still excludes `**\/*.perf.test.ts` from the four
  *      general projects, so a config edit cannot silently fold the perf tests
  *      back into the gate while guard 1 keeps passing vacuously.
+ *   3. The converse of 1 (issue #5001): every perf test READS a clock. A
+ *      `*.perf.test.ts` that reads none asserts only machine-independent
+ *      facts — a deterministic test parked in the one suite no gate runs.
+ *      It catches a file with NO clock read only: the search-cost counters
+ *      (stale twice unseen there, PR #4868 / PR #4883) shared their file with
+ *      a printed ms/iter and would have passed it; moving them to
+ *      `searchCost.bot.test.ts` is what fixed that. The detector is the same
+ *      plain regex as guard 1, so a clock named only in a comment counts.
  *
  * It lives under `scripts/` alongside the repo's other hygiene guards rather
  * than under `convex/`, whose bundler rejects Node builtins like `fs`.
@@ -56,6 +64,21 @@ const ALLOWLIST = new Map([
         "the stop-file must abort a 30s error backoff; elapsed < 10s is the only " +
             "observable that separates 'aborted' from 'slept the whole backoff', and " +
             "the 3x margin is not a speed claim",
+    ],
+]);
+
+/**
+ * Perf tests allowed to read NO clock, with the reason: the one other way a
+ * test is machine-dependent is to drive real CPU / scheduling in a subprocess,
+ * where the verdict moves with load although the test never times itself.
+ * A deterministic test does not belong here — it belongs in a gated suite.
+ */
+const NO_CLOCK_ALLOWLIST = new Map([
+    [
+        "scripts/__tests__/gate.perf.test.ts",
+        "drives gate.ts's heartbeat against REAL CPU burned by a subprocess: a " +
+            "starved burner is correctly declared STALLED, so the verdict depends " +
+            "on the machine's load without any clock read in the test (issue #3792)",
     ],
 ]);
 
@@ -172,19 +195,30 @@ function walk(dir: string, out: string[] = []): string[] {
     return out;
 }
 
-/** Every test file that is NOT a perf test — i.e. every test a gate runs. */
-function gatedTestFiles(): string[] {
-    const files: string[] = [];
+/** Every test file under the scan roots, split by suite. */
+function testFiles(): { gated: string[]; perf: string[] } {
+    const gated: string[] = [];
+    const perf: string[] = [];
     for (const root of SCAN_ROOTS) {
         const abs = path.join(REPO_ROOT, root);
         if (!fs.existsSync(abs)) continue;
         for (const f of walk(abs)) {
             if (!/\.test\.tsx?$/.test(f)) continue;
-            if (/\.perf\.test\.ts$/.test(f)) continue;
-            files.push(path.relative(REPO_ROOT, f).split(path.sep).join("/"));
+            const rel = path.relative(REPO_ROOT, f).split(path.sep).join("/");
+            (/\.perf\.test\.ts$/.test(f) ? perf : gated).push(rel);
         }
     }
-    return files.sort();
+    return { gated: gated.sort(), perf: perf.sort() };
+}
+
+/** Every test file that is NOT a perf test — i.e. every test a gate runs. */
+function gatedTestFiles(): string[] {
+    return testFiles().gated;
+}
+
+/** Does `source` read a wall clock anywhere? */
+function readsClock(source: string): boolean {
+    return CLOCK_RE.test(source);
 }
 
 describe("perf-test boundary — no gated test asserts on elapsed wall-clock time", () => {
@@ -254,6 +288,69 @@ describe("perf-test boundary — no gated test asserts on elapsed wall-clock tim
         expect(elapsedAssertions(bare)).toEqual([]);
         expect(elapsedAssertions(notTiming)).toEqual([]);
         expect(elapsedAssertions(faked)).toEqual([]);
+    });
+});
+
+// ─── guard 3: a perf test measures the machine ──────────────────────────────
+
+describe("perf-test boundary — every perf test reads a clock (issue #5001)", () => {
+    it("finds perf test files at all (an empty walk would pass vacuously)", () => {
+        expect(testFiles().perf.length).toBeGreaterThan(0);
+    });
+
+    it("no *.perf.test.ts is a deterministic test in the ungated suite", () => {
+        const violations = testFiles().perf.filter(
+            (file) =>
+                !NO_CLOCK_ALLOWLIST.has(file) &&
+                !readsClock(
+                    fs.readFileSync(path.join(REPO_ROOT, file), "utf-8")
+                )
+        );
+        expect(
+            violations,
+            `These perf tests read no clock (Date.now / performance.now / ` +
+                `process.hrtime), so nothing they assert depends on the machine — ` +
+                `they are deterministic tests that no gate runs, and they rot ` +
+                `unseen. Rename them out of the *.perf.test.ts suffix (a bot test ` +
+                `is *.bot.test.ts) so check:lane runs them:\n` +
+                violations.join("\n")
+        ).toEqual([]);
+    });
+
+    it("every no-clock allowlist entry exists, is a perf test, and still needs the entry", () => {
+        for (const [file, reason] of NO_CLOCK_ALLOWLIST) {
+            expect(
+                reason.length,
+                `allowlist entry needs a reason: ${file}`
+            ).toBeGreaterThan(0);
+            const abs = path.join(REPO_ROOT, file);
+            expect(
+                fs.existsSync(abs),
+                `allowlisted file no longer exists: ${file}`
+            ).toBe(true);
+            expect(
+                /\.perf\.test\.ts$/.test(file),
+                `allowlisted file is not a perf test — drop the entry: ${file}`
+            ).toBe(true);
+            expect(
+                readsClock(fs.readFileSync(abs, "utf-8")),
+                `allowlisted file now reads a clock — drop the entry: ${file}`
+            ).toBe(false);
+        }
+    });
+
+    it("accepts any of the three clock reads, refuses none", () => {
+        // Built at runtime, never as literals — see the specimen test above.
+        for (const clock of [
+            `${"Date"}.${"now"}()`,
+            `${"performance"}.${"now"}()`,
+            `${"process"}.${"hrtime"}.bigint()`,
+        ]) {
+            expect(readsClock(`const t0 = ${clock};`)).toBe(true);
+        }
+        expect(readsClock(`expect(counts).toEqual({ clones: 1 });`)).toBe(
+            false
+        );
     });
 });
 

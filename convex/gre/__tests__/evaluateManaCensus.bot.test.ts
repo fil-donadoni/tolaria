@@ -27,7 +27,7 @@ import { describeMove } from "../describeMove";
  * Both are pure caching — no value may move.
  *
  * The snapshot was recorded BEFORE the change, on the three positions of the
- * search cost fixture (`search.perf.test.ts`, issue #4458), and covers every
+ * search cost fixture (`searchCost.bot.test.ts`, issue #4458), and covers every
  * reader the change re-plumbs: the leaf evaluation and its breakdown from both
  * seats, the material margin, the 1-ply policy value of every legal move (the
  * rollout's `selectRolloutMove` scoring, `policyValueOfSettled`'s combat
