@@ -249,6 +249,20 @@ cui entra" (Snapcaster, flash + ETB).
       conteggio, non per valutazione.
 - Blade `must`: 215 verdi.
 
+- **Primo `land`: 14 rossi nel bot lane.**
+    - Golden byte-identici (leaf score, mana census, forced pass): ri-registrati,
+      le mosse scelte non cambiano.
+    - Test `etbAbility` che fissava `0.85` a mano: ora legge il peso.
+    - Coppia Eval di issue #4898 "Phlage senza lethal": il cast scende sotto il
+      pass di ~3 punti. Lo sconto entra tramite `cardValueById` (rotta escape
+      nel cimitero). La coppia era un test 1-ply che il fit non vedeva:
+      promossa a Verdict `stretch` e rifittata (0.605569 / 0.863046), la coppia
+      torna verde. La SEARCH tiene Phlage 5/5 anche sulla base: issue #5014.
+    - Guard botReach Foxfire e Sickening Dreams: con i pesi della base giocano
+      in 1-2/10 e 3/10 seed. Passano solo con le due seed fisse. Stopgap a 10
+      seed, issue #5015.
+- Audit completo dopo il refit finale: 202/202, baseline vuota.
+
 ## Cosa fare quando c'è un bug del game bot
 
 1. **L'entry blade è la specifica.** La domanda che pone ("un umano risponde
