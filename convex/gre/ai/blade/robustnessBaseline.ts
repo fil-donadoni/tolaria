@@ -29,4 +29,10 @@ export const ROBUSTNESS_BASELINE: readonly RobustnessBaselineRow[] = [
         label: "opponent's choice: casts Ravenous Rats into a two-card hand",
         issue: 4981,
     },
+    // Robust on base; the refit that carries the Phlage verdict (issue #5014)
+    // moved it: jitter+ 9/10 (one `material-tiebreak`).
+    {
+        label: "granted flashback: casts Stingcaster Mage to flash back Lightning Bolt for lethal",
+        issue: 5026,
+    },
 ];

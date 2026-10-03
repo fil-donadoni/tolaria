@@ -1376,6 +1376,19 @@
             "opp": 3
         }
     },
+    "self-sacrificing ETB: hard-casts Phlage with no lethal and no creature": {
+        "cards": [
+            {
+                "name": "Phlage, Titan of Fire's Fury",
+                "owner": "me",
+                "zone": "hand"
+            }
+        ],
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 5,
+        "landCount": 4,
+        "libraryCount": 20
+    },
     "self-sacrificing ETB: hard-casts Uro for its enter trigger": {
         "cards": [
             {
