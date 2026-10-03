@@ -28,7 +28,11 @@ import type { GameState } from "../state";
  * "Move applications" is counted through `checkStateBasedActions` (`sbaSweeps`):
  * `applyMoveInSearch` is a module-internal call the test cannot wrap without a
  * production hook, and every applier that changes the position ends in an SBA
- * sweep (CR 704.3). It is a proxy for applications, named for what it counts.
+ * sweep (CR 704.3) — EXCEPT a rollout's hand-off pass on a settled world, which
+ * only hands priority over and skips the sweep (issue #4460). It is a proxy
+ * for applications, named for what it counts. `enumerations` likewise counts
+ * `enumerateMoves` calls only: a rollout ply that `onlyPassIsLegal` proves is
+ * a forced pass never reaches the enumerator.
  *
  * `evaluations` counts every call the search makes into `evaluate.ts` that
  * scores BOTH players' material — `evaluate`, `materialMargin` and
@@ -38,9 +42,15 @@ import type { GameState } from "../state";
  *
  * `rngDraws` is the total `rngCounter` advance over every clone the search
  * made: game-PRNG draws only (in-game random effects). The search's own
- * stream (`makeRng(seed)`, determinization shuffles) is a private closure and
- * NOT observable here, so 0 on these positions means "no in-game random effect
- * fired", and a search that starts triggering one goes red.
+ * stream (`makeRng(seed)`, determinization shuffles) is a private closure, so
+ * 0 on these positions means "no in-game random effect fired", and a search
+ * that starts triggering one goes red.
+ *
+ * `searchDraws` is that private stream's length, counted by wrapping `makeRng`
+ * (every stream the search opens: its own and the salted block-lens one). It
+ * is the forced-pass fast path's RNG contract (issue #4460): the values below
+ * were recorded BEFORE the fast path existed, and a path that drops or adds
+ * one draw shifts every later rollout and moves this number first.
  */
 
 const counts = vi.hoisted(() => ({
@@ -48,8 +58,23 @@ const counts = vi.hoisted(() => ({
     enumerations: 0,
     evaluations: 0,
     sbaSweeps: 0,
+    searchDraws: 0,
     clonedStates: [] as Array<{ rngCounter: number }>,
 }));
+
+vi.mock("../rng", async (importOriginal) => {
+    const original = await importOriginal<typeof import("../rng")>();
+    return {
+        ...original,
+        makeRng: (seed: number) => {
+            const stream = original.makeRng(seed);
+            return () => {
+                counts.searchDraws++;
+                return stream();
+            };
+        },
+    };
+});
 
 vi.mock("../clone", async (importOriginal) => {
     const original = await importOriginal<typeof import("../clone")>();
@@ -128,6 +153,7 @@ type Position = {
         evaluations: number;
         sbaSweeps: number;
         rngDraws: number;
+        searchDraws: number;
     };
 };
 
@@ -141,10 +167,11 @@ const POSITIONS: Position[] = [
         expected: {
             iterationsCompleted: 95,
             clones: 374,
-            enumerations: 3055,
+            enumerations: 2111,
             evaluations: 353,
-            sbaSweeps: 3333,
+            sbaSweeps: 2459,
             rngDraws: 0,
+            searchDraws: 5949,
         },
     },
     {
@@ -154,10 +181,11 @@ const POSITIONS: Position[] = [
         expected: {
             iterationsCompleted: 97,
             clones: 354,
-            enumerations: 2260,
+            enumerations: 624,
             evaluations: 291,
-            sbaSweeps: 2516,
+            sbaSweeps: 1747,
             rngDraws: 0,
+            searchDraws: 5720,
         },
     },
     {
@@ -167,10 +195,11 @@ const POSITIONS: Position[] = [
         expected: {
             iterationsCompleted: 100,
             clones: 1107,
-            enumerations: 3532,
+            enumerations: 489,
             evaluations: 888,
-            sbaSweeps: 4538,
+            sbaSweeps: 3082,
             rngDraws: 0,
+            searchDraws: 7040,
         },
     },
 ];
@@ -198,6 +227,7 @@ describe("search cost counters (issue #4458)", () => {
             counts.enumerations = 0;
             counts.evaluations = 0;
             counts.sbaSweeps = 0;
+            counts.searchDraws = 0;
             counts.clonedStates.length = 0;
 
             const t0 = performance.now();
@@ -227,6 +257,7 @@ describe("search cost counters (issue #4458)", () => {
                 evaluations: counts.evaluations,
                 sbaSweeps: counts.sbaSweeps,
                 rngDraws,
+                searchDraws: counts.searchDraws,
             };
 
             // Printed, never asserted: wall clock and the load it ran under.
