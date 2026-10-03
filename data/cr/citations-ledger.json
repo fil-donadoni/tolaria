@@ -22436,6 +22436,7 @@
         {"id":"603.3d","line":"* (CR 603.3d) nor a mode (CR 603.3c). Unreachable today — no shipped","sites":1,"status":"baseline"},
         {"id":"603.3d","line":"* (CR 603.3d) — read by the body as `{ target: 0 }`. Omitted for a","sites":1,"status":"baseline"},
         {"id":"603.3d","line":"* (CR 603.3d) — the SAME `placeTriggersOnStack` /","sites":1,"status":"baseline"},
+        {"id":"603.3d","line":"* (CR 603.3d), on the board it enters into, so the valuation in hand stays","sites":1,"status":"confirmed","ruleHash":"ebc2c87f28be3a1e"},
         {"id":"603.3d","line":"* (CR 603.3d, issue #1193). Mirrors Phelia's `pheliaAttackTriggerOnStack`","sites":1,"status":"baseline"},
         {"id":"603.3d","line":"* (CR 603.3d: the trigger announces its targets as it goes on the stack)? False","sites":1,"status":"confirmed","ruleHash":"ebc2c87f28be3a1e"},
         {"id":"603.3d","line":"* (`cards/types.ts`) for the CR 603.3d snapshot-timing rationale.","sites":1,"status":"baseline"},

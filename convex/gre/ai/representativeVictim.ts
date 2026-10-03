@@ -120,8 +120,9 @@ export function representativeVictimUnits(
  *  representative victim of `requirement`'s type instead of the 2/2. For an
  *  ETB Ability, whose target is chosen only as it is put on the stack
  *  (CR 603.3d), on the board it enters into, so the valuation in hand stays
- *  board-independent (PRD #4754) but stops being type-blind. A triggered ability declares ONE requirement, so every slot its
- *  script names belongs to it.
+ *  board-independent (PRD #4754) but stops being type-blind. A triggered
+ *  ability declares ONE requirement, so every slot its script names belongs
+ *  to it.
  *
  *  Priced at the PRIOR weights (`FIT_BASE_EVAL_WEIGHTS`), never the fitted
  *  ones: this path runs inside `evaluate` with only the latent vector to hand,
