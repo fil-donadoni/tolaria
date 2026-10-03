@@ -57,24 +57,26 @@ const onBattlefield = (state: ReturnType<typeof board>): string[] =>
     state.players[0].battlefield.map((c) => c.id);
 
 describe("zero-toughness SBA over a Layer7Pass (CR 704.5f, CR 613.4c, issue #4462)", () => {
-    it("a counter placed DURING the scan is seen by the scan's next P/T read", () => {
-        const first = merfolk("first");
+    it("a counter placed DURING the sweep is seen by the sweep's next P/T read", () => {
+        // `doomed` is 1/1, +1/+1 from the lord, -2/-2 from its counters: it
+        // is the first victim. `late` is a healthy 2/2 when the sweep starts.
+        const doomed = merfolk("doomed", { "-1/-1": 2 });
         const late = merfolk("late");
-        const state = board([lord(), first, late]);
-        // Both Merfolk are 2/2 under the lord.
+        const state = board([lord(), doomed, late]);
         expect(getEffectivePT(state, late)).toEqual({ power: 2, toughness: 2 });
 
-        // The injection point: the scan asks `late` whether it is a creature
-        // AFTER it has read the lord and `first` through its pass — so the
-        // pass has already walked the board's P/T sources. At that moment,
-        // and only once, two -1/-1 counters land on `late`.
+        // The injection point: the first time `late` is looked at AFTER
+        // `doomed` has left the battlefield — i.e. mid-sweep, once the sweep
+        // has already read `late` alive and walked the board's P/T sources —
+        // two -1/-1 counters land on it, once. Nothing the sweep read before
+        // that moment may answer for `late` afterwards.
         let armed = true;
         let types = late.types;
         Object.defineProperty(late, "types", {
             configurable: true,
             enumerable: true,
             get() {
-                if (armed) {
+                if (armed && !state.players[0].battlefield.includes(doomed)) {
                     armed = false;
                     late.counters = { "-1/-1": 2 };
                 }
@@ -90,8 +92,11 @@ describe("zero-toughness SBA over a Layer7Pass (CR 704.5f, CR 613.4c, issue #446
 
         expect(armed).toBe(false);
         // 1/1 base, +1/+1 from the lord, -2/-2 from the counters: 0/0.
-        expect(onBattlefield(state)).toEqual(["lord", "first"]);
-        expect(state.players[0].graveyard.map((c) => c.id)).toEqual(["late"]);
+        expect(onBattlefield(state)).toEqual(["lord"]);
+        expect(state.players[0].graveyard.map((c) => c.id)).toEqual([
+            "doomed",
+            "late",
+        ]);
     });
 
     it("a P/T source that dies in the sweep stops applying in the SAME sweep", () => {
