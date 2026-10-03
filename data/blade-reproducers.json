@@ -1,1597 +1,1617 @@
 {
-    "activation payoff: cracks Sylvan Safekeeper against removal on the stack": null,
-    "activation payoff: Iron-Shield Elf saves itself from removal on the stack": null,
-    "activation payoff: Mother of Runes protects itself against removal on the stack": null,
-    "activation payoff: Prodigal Sorcerer zaps in response to removal aimed at it": null,
-    "activation payoff: shoots its own last counter at a face on 1": {
-        "cards": [
-            {
-                "name": "Walking Ballista",
-                "owner": "me",
-                "zone": "battlefield",
-                "summoningSick": false,
-                "counters": {
-                    "+1/+1": 1
-                }
-            }
-        ],
-        "phase": "PRECOMBAT_MAIN",
-        "turn": 5,
-        "landCount": 2,
-        "libraryCount": 20,
-        "life": {
-            "me": 20,
-            "opp": 1
+  "activation payoff: cracks Sylvan Safekeeper against removal on the stack": null,
+  "activation payoff: Iron-Shield Elf saves itself from removal on the stack": null,
+  "activation payoff: Mother of Runes protects itself against removal on the stack": null,
+  "activation payoff: Prodigal Sorcerer zaps in response to removal aimed at it": null,
+  "activation payoff: shoots its own last counter at a face on 1": {
+    "cards": [
+      {
+        "name": "Walking Ballista",
+        "owner": "me",
+        "zone": "battlefield",
+        "summoningSick": false,
+        "counters": {
+          "+1/+1": 1
         }
-    },
-    "activation payoff: shoots its own last counter at the opponent's end step for lethal": null,
-    "activation payoff: shoots its own last counter when the block has already doomed it": null,
-    "activation restriction: sacrifices Barbarian Ring at threshold for lethal": {
-        "cards": [
-            {
-                "name": "Barbarian Ring",
-                "owner": "me",
-                "zone": "battlefield"
-            },
-            {
-                "name": "Mountain",
-                "owner": "me",
-                "zone": "battlefield"
-            },
-            {
-                "name": "Grizzly Bears",
-                "owner": "me",
-                "zone": "graveyard",
-                "count": 7
-            }
-        ],
-        "phase": "PRECOMBAT_MAIN",
-        "turn": 5,
-        "life": {
-            "opp": 2
-        },
-        "libraryCount": 20
-    },
-    "activation timing: converts a sacrifice engine at the opponent's end step": null,
-    "alternate win: casts Thassa's Oracle when its trigger wins on the spot": {
-        "cards": [
-            {
-                "name": "Thassa's Oracle",
-                "owner": "me",
-                "zone": "hand"
-            },
-            {
-                "name": "Island",
-                "owner": "opp",
-                "zone": "library"
-            },
-            {
-                "name": "Island",
-                "owner": "opp",
-                "zone": "library"
-            },
-            {
-                "name": "Island",
-                "owner": "opp",
-                "zone": "library"
-            },
-            {
-                "name": "Island",
-                "owner": "opp",
-                "zone": "library"
-            },
-            {
-                "name": "Island",
-                "owner": "opp",
-                "zone": "library"
-            }
-        ],
-        "phase": "PRECOMBAT_MAIN",
-        "turn": 5,
-        "landCount": 4,
-        "libraryCount": 1
-    },
-    "as-enters creature type: names the opponent's tribe, not its own and not the alphabet": null,
-    "battle cry: swings for exactly-lethal only the pump provides": {
-        "cards": [
-            {
-                "name": "Sanguine Evangelist",
-                "owner": "me",
-                "zone": "battlefield",
-                "summoningSick": false
-            },
-            {
-                "name": "Grizzly Bears",
-                "owner": "me",
-                "zone": "battlefield",
-                "summoningSick": false
-            },
-            {
-                "name": "Craw Wurm",
-                "owner": "opp",
-                "zone": "battlefield",
-                "tapped": true,
-                "summoningSick": false
-            }
-        ],
-        "phase": "DECLARE_ATTACKERS",
-        "turn": 5,
-        "landCount": 3,
-        "libraryCount": 20,
-        "life": {
-            "me": 4,
-            "opp": 5
-        }
-    },
-    "blind defender: blocks anyway — the trick is in hand, but nothing lawfully says so": null,
-    "board-aware removal: casts Stone Rain on a land when there is nothing better to do": {
-        "cards": [
-            {
-                "name": "Stone Rain",
-                "owner": "me",
-                "zone": "hand"
-            },
-            {
-                "name": "Mountain",
-                "owner": "me",
-                "zone": "battlefield"
-            },
-            {
-                "name": "Mountain",
-                "owner": "me",
-                "zone": "battlefield"
-            },
-            {
-                "name": "Mountain",
-                "owner": "me",
-                "zone": "battlefield"
-            },
-            {
-                "name": "Forest",
-                "owner": "opp",
-                "zone": "battlefield"
-            },
-            {
-                "name": "Forest",
-                "owner": "opp",
-                "zone": "battlefield"
-            },
-            {
-                "name": "Forest",
-                "owner": "opp",
-                "zone": "battlefield"
-            }
-        ],
-        "phase": "PRECOMBAT_MAIN",
-        "turn": 4,
-        "libraryCount": 20
-    },
-    "boast: eats its Grizzly Bears to boast for lethal after attacking": null,
-    "bounce sweep: casts Hibernation when the opponent's green board outweighs its mana": {
-        "cards": [
-            {
-                "name": "Hibernation",
-                "owner": "me",
-                "zone": "hand"
-            },
-            {
-                "name": "Island",
-                "owner": "me",
-                "zone": "battlefield",
-                "count": 4
-            },
-            {
-                "name": "Serra Angel",
-                "owner": "me",
-                "zone": "battlefield"
-            },
-            {
-                "name": "Savannah Lions",
-                "owner": "me",
-                "zone": "battlefield",
-                "count": 2
-            },
-            {
-                "name": "Forest",
-                "owner": "opp",
-                "zone": "battlefield",
-                "count": 2
-            },
-            {
-                "name": "Craw Wurm",
-                "owner": "opp",
-                "zone": "battlefield",
-                "count": 2
-            }
-        ],
-        "phase": "POSTCOMBAT_MAIN",
-        "turn": 6,
-        "libraryCount": 20
-    },
-    "burst mana: kills with a two-mana spell off a single Black Lotus": {
-        "cards": [
-            {
-                "name": "Black Lotus",
-                "owner": "me",
-                "zone": "battlefield",
-                "tapped": false
-            },
-            {
-                "name": "Incinerate",
-                "owner": "me",
-                "zone": "hand"
-            }
-        ],
-        "phase": "PRECOMBAT_MAIN",
-        "turn": 3,
-        "landCount": 0,
-        "libraryCount": 20,
-        "life": {
-            "me": 20,
-            "opp": 3
-        }
-    },
-    "cast permission: casts a creature for free under Aluren with no lands": {
-        "cards": [
-            {
-                "name": "Aluren",
-                "owner": "me",
-                "zone": "battlefield"
-            },
-            {
-                "name": "Grizzly Bears",
-                "owner": "me",
-                "zone": "hand"
-            }
-        ],
-        "phase": "PRECOMBAT_MAIN",
-        "turn": 3,
-        "landCount": 0,
-        "libraryCount": 20
-    },
-    "cast permission: casts Raven Familiar for free under Aluren with no lands": {
-        "cards": [
-            {
-                "name": "Aluren",
-                "owner": "me",
-                "zone": "battlefield"
-            },
-            {
-                "name": "Raven Familiar",
-                "owner": "me",
-                "zone": "hand"
-            }
-        ],
-        "phase": "PRECOMBAT_MAIN",
-        "turn": 3,
-        "landCount": 0,
-        "libraryCount": 20
-    },
-    "cast-invariance: casts an affordable creature off a base its curve already justifies (issue #2928)": {
-        "cards": [
-            {
-                "name": "Forest",
-                "owner": "me",
-                "zone": "battlefield",
-                "tapped": false
-            },
-            {
-                "name": "Forest",
-                "owner": "me",
-                "zone": "battlefield",
-                "tapped": false
-            },
-            {
-                "name": "Forest",
-                "owner": "me",
-                "zone": "battlefield",
-                "tapped": false
-            },
-            {
-                "name": "Forest",
-                "owner": "me",
-                "zone": "battlefield",
-                "tapped": false
-            },
-            {
-                "name": "Forest",
-                "owner": "me",
-                "zone": "battlefield",
-                "tapped": false
-            },
-            {
-                "name": "Forest",
-                "owner": "me",
-                "zone": "battlefield",
-                "tapped": false
-            },
-            {
-                "name": "Forest",
-                "owner": "me",
-                "zone": "battlefield",
-                "tapped": false
-            },
-            {
-                "name": "Forest",
-                "owner": "me",
-                "zone": "battlefield",
-                "tapped": false
-            },
-            {
-                "name": "Aladdin's Ring",
-                "owner": "me",
-                "zone": "hand"
-            },
-            {
-                "name": "Grizzly Bears",
-                "owner": "opp",
-                "zone": "battlefield",
-                "summoningSick": false
-            }
-        ],
-        "phase": "PRECOMBAT_MAIN",
-        "turn": 8,
-        "landCount": 0,
-        "libraryCount": 20
-    },
-    "casts Solitude to exile a lethal attacker": {
-        "cards": [
-            {
-                "name": "Solitude",
-                "owner": "me",
-                "zone": "hand"
-            },
-            {
-                "name": "Savannah Lions",
-                "owner": "me",
-                "zone": "hand"
-            },
-            {
-                "name": "Serra Angel",
-                "owner": "opp",
-                "zone": "battlefield",
-                "summoningSick": false
-            }
-        ],
-        "phase": "DECLARE_ATTACKERS",
-        "turn": 5,
-        "landCount": 5,
-        "libraryCount": 20,
-        "life": {
-            "me": 4
-        },
-        "activePlayer": "opp",
-        "priority": "me",
-        "combat": {
-            "attackers": ["Serra Angel"],
-            "confirmed": true
-        }
-    },
-    "channel: activates a player-level grant to fund a lethal Fireball (#2903)": null,
-    "charter: chump-blocks to survive lethal (block or die)": null,
-    "charter: cracks its fetchland for the only answer to a trigger on the stack": null,
-    "charter: fetches the land that makes its removal castable": null,
-    "charter: picks the modal mode that survives a lethal red spell": null,
-    "charter: Stifles its own Phyrexian Dreadnought trigger": null,
-    "cheat into play: casts for a body that pays on the way out": {
-        "cards": [
-            {
-                "name": "Flash",
-                "owner": "me",
-                "zone": "hand"
-            },
-            {
-                "name": "Vaultborn Tyrant",
-                "owner": "me",
-                "zone": "hand"
-            }
-        ],
-        "phase": "PRECOMBAT_MAIN",
-        "turn": 3,
-        "landCount": 2,
-        "libraryCount": 20
-    },
-    "cheat into play: the reported Worldspine Wurm position": {
-        "cards": [
-            {
-                "name": "Flash",
-                "owner": "me",
-                "zone": "hand"
-            },
-            {
-                "name": "Worldspine Wurm",
-                "owner": "me",
-                "zone": "hand"
-            }
-        ],
-        "phase": "PRECOMBAT_MAIN",
-        "turn": 3,
-        "landCount": 2,
-        "libraryCount": 20
-    },
-    "colour denial: destroys the only source of a colour the opponent is visibly using": {
-        "cards": [
-            {
-                "name": "Stone Rain",
-                "owner": "me",
-                "zone": "hand"
-            },
-            {
-                "name": "Mountain",
-                "owner": "me",
-                "zone": "battlefield",
-                "count": 3
-            },
-            {
-                "name": "Grizzly Bears",
-                "owner": "opp",
-                "zone": "battlefield"
-            },
-            {
-                "name": "Forest",
-                "owner": "opp",
-                "zone": "battlefield"
-            },
-            {
-                "name": "Plains",
-                "owner": "opp",
-                "zone": "battlefield"
-            }
-        ],
-        "phase": "PRECOMBAT_MAIN",
-        "turn": 5,
-        "libraryCount": 20
-    },
-    "combo: activates Splinter Twin on enchanted Deceiver Exarch": {
-        "cards": [
-            {
-                "name": "Deceiver Exarch",
-                "owner": "me",
-                "zone": "battlefield",
-                "summoningSick": false
-            },
-            {
-                "name": "Splinter Twin",
-                "owner": "me",
-                "zone": "battlefield",
-                "attachedTo": "Deceiver Exarch"
-            },
-            {
-                "name": "Grizzly Bears",
-                "owner": "opp",
-                "zone": "battlefield",
-                "summoningSick": false
-            }
-        ],
-        "phase": "PRECOMBAT_MAIN",
-        "turn": 4,
-        "libraryCount": 20,
-        "landCount": 4
-    },
-    "combo: activates Splinter Twin on granted Grizzly Bears (#2469)": {
-        "cards": [
-            {
-                "name": "Grizzly Bears",
-                "owner": "me",
-                "zone": "battlefield",
-                "summoningSick": false
-            },
-            {
-                "name": "Splinter Twin",
-                "owner": "me",
-                "zone": "battlefield",
-                "attachedTo": "Grizzly Bears"
-            },
-            {
-                "name": "Grizzly Bears",
-                "owner": "opp",
-                "zone": "battlefield",
-                "summoningSick": false
-            }
-        ],
-        "phase": "PRECOMBAT_MAIN",
-        "turn": 4,
-        "landCount": 4,
-        "libraryCount": 20
-    },
-    "combo: casts Splinter Twin on Deceiver Exarch with both pieces assembled": {
-        "cards": [
-            {
-                "name": "Deceiver Exarch",
-                "owner": "me",
-                "zone": "battlefield",
-                "summoningSick": false
-            },
-            {
-                "name": "Splinter Twin",
-                "owner": "me",
-                "zone": "hand"
-            },
-            {
-                "name": "Mountain",
-                "owner": "me",
-                "zone": "battlefield",
-                "count": 4
-            },
-            {
-                "name": "Grizzly Bears",
-                "owner": "opp",
-                "zone": "battlefield",
-                "summoningSick": false
-            }
-        ],
-        "phase": "PRECOMBAT_MAIN",
-        "turn": 4,
-        "libraryCount": 20
-    },
-    "damage sweep: casts Pyroclasm when the opponent holds the bodies it kills and the Bot a survivor": {
-        "cards": [
-            {
-                "name": "Pyroclasm",
-                "owner": "me",
-                "zone": "hand"
-            },
-            {
-                "name": "Mountain",
-                "owner": "me",
-                "zone": "battlefield",
-                "count": 4
-            },
-            {
-                "name": "Craw Wurm",
-                "owner": "me",
-                "zone": "battlefield"
-            },
-            {
-                "name": "Forest",
-                "owner": "opp",
-                "zone": "battlefield",
-                "count": 4
-            },
-            {
-                "name": "Grizzly Bears",
-                "owner": "opp",
-                "zone": "battlefield",
-                "count": 3
-            },
-            {
-                "name": "Llanowar Elves",
-                "owner": "opp",
-                "zone": "battlefield"
-            }
-        ],
-        "phase": "POSTCOMBAT_MAIN",
-        "turn": 6,
-        "libraryCount": 20
-    },
-    "decking: casts the storm kill that recurs its own Black Lotus": {
-        "cards": [
-            {
-                "name": "Underworld Breach",
-                "owner": "me",
-                "zone": "battlefield"
-            },
-            {
-                "name": "Black Lotus",
-                "owner": "me",
-                "zone": "battlefield",
-                "tapped": false
-            },
-            {
-                "name": "Brain Freeze",
-                "owner": "me",
-                "zone": "hand"
-            },
-            {
-                "name": "Lightning Bolt",
-                "owner": "me",
-                "zone": "graveyard"
-            },
-            {
-                "name": "Island",
-                "owner": "me",
-                "zone": "graveyard",
-                "count": 6
-            }
-        ],
-        "phase": "PRECOMBAT_MAIN",
-        "turn": 3,
-        "landCount": 0,
-        "libraryCount": 9,
-        "life": {
-            "me": 20,
-            "opp": 20
-        }
-    },
-    "defensive grant NEGATIVE CONTROL: buys indestructible against a lethal block": null,
-    "depletion land: pays the two-drop with the basics, sparing the land's charge": {
-        "cards": [
-            {
-                "name": "Hickory Woodlot",
-                "owner": "me",
-                "zone": "battlefield"
-            },
-            {
-                "name": "Forest",
-                "owner": "me",
-                "zone": "battlefield"
-            },
-            {
-                "name": "Forest",
-                "owner": "me",
-                "zone": "battlefield"
-            },
-            {
-                "name": "Grizzly Bears",
-                "owner": "me",
-                "zone": "hand"
-            }
-        ],
-        "phase": "PRECOMBAT_MAIN",
-        "turn": 3,
-        "libraryCount": 20
-    },
-    "discriminating pair: activates Zuran Orb when Titania pays the land off (issue #2686)": null,
-    "discriminating pair: casts Phyrexian Dreadnought WITH an out (Stifle)": {
-        "cards": [
-            {
-                "name": "Phyrexian Dreadnought",
-                "owner": "me",
-                "zone": "hand"
-            },
-            {
-                "name": "Stifle",
-                "owner": "me",
-                "zone": "hand"
-            }
-        ],
-        "phase": "POSTCOMBAT_MAIN",
-        "turn": 3,
-        "landCount": 2,
-        "libraryCount": 20
-    },
-    "dominance NEGATIVE CONTROL: activates the Salvager once a token exists": null,
-    "dominance NEGATIVE CONTROL: still casts Damnation into a real board": {
-        "cards": [
-            {
-                "name": "Damnation",
-                "owner": "me",
-                "zone": "hand"
-            },
-            {
-                "name": "Craw Wurm",
-                "owner": "opp",
-                "zone": "battlefield",
-                "summoningSick": false,
-                "count": 3
-            }
-        ],
-        "phase": "PRECOMBAT_MAIN",
-        "turn": 5,
-        "landCount": 6,
-        "libraryCount": 20
-    },
-    "entomb: buries the reanimation target, not one of eight lands": null,
-    "entomb: buries the self-reachable card, not the bigger body": null,
-    "escape: casts Phlage from the graveyard": {
-        "cards": [
-            {
-                "name": "Phlage, Titan of Fire's Fury",
-                "owner": "me",
-                "zone": "graveyard"
-            },
-            {
-                "name": "Grizzly Bears",
-                "owner": "me",
-                "zone": "graveyard"
-            },
-            {
-                "name": "Grizzly Bears",
-                "owner": "me",
-                "zone": "graveyard"
-            },
-            {
-                "name": "Grizzly Bears",
-                "owner": "me",
-                "zone": "graveyard"
-            },
-            {
-                "name": "Grizzly Bears",
-                "owner": "me",
-                "zone": "graveyard"
-            },
-            {
-                "name": "Grizzly Bears",
-                "owner": "me",
-                "zone": "graveyard"
-            },
-            {
-                "name": "Plateau",
-                "owner": "me",
-                "zone": "battlefield"
-            },
-            {
-                "name": "Plateau",
-                "owner": "me",
-                "zone": "battlefield"
-            }
-        ],
-        "phase": "PRECOMBAT_MAIN",
-        "turn": 5,
-        "landCount": 2,
-        "libraryCount": 20
-    },
-    "escape: reaches for a Lightning Bolt Underworld Breach made escapable": {
-        "cards": [
-            {
-                "name": "Underworld Breach",
-                "owner": "me",
-                "zone": "battlefield"
-            },
-            {
-                "name": "Mountain",
-                "owner": "me",
-                "zone": "battlefield"
-            },
-            {
-                "name": "Lightning Bolt",
-                "owner": "me",
-                "zone": "graveyard"
-            },
-            {
-                "name": "Forest",
-                "owner": "me",
-                "zone": "graveyard",
-                "count": 3
-            }
-        ],
-        "phase": "PRECOMBAT_MAIN",
-        "turn": 6,
-        "life": {
-            "me": 20,
-            "opp": 3
-        },
-        "landCount": 0,
-        "libraryCount": 20
-    },
-    "ETB Ability realized: casts Flametongue Kavu into an opposing creature worth killing": {
-        "cards": [
-            {
-                "name": "Flametongue Kavu",
-                "owner": "me",
-                "zone": "hand"
-            },
-            {
-                "name": "Serra Angel",
-                "owner": "opp",
-                "zone": "battlefield",
-                "summoningSick": false
-            }
-        ],
-        "phase": "PRECOMBAT_MAIN",
-        "turn": 5,
-        "landCount": 4,
-        "libraryCount": 20
-    },
-    "ETB Ability realized: casts Skyclave Apparition into a permanent worth exiling": {
-        "cards": [
-            {
-                "name": "Skyclave Apparition",
-                "owner": "me",
-                "zone": "hand"
-            },
-            {
-                "name": "Hill Giant",
-                "owner": "opp",
-                "zone": "battlefield",
-                "summoningSick": false
-            }
-        ],
-        "phase": "PRECOMBAT_MAIN",
-        "turn": 5,
-        "landCount": 4,
-        "libraryCount": 20
-    },
-    "ETB bounce: casts Man-o'-War on an opposing Craw Wurm": {
-        "cards": [
-            {
-                "name": "Man-o'-War",
-                "owner": "me",
-                "zone": "hand"
-            },
-            {
-                "name": "Craw Wurm",
-                "owner": "opp",
-                "zone": "battlefield",
-                "summoningSick": false
-            }
-        ],
-        "phase": "PRECOMBAT_MAIN",
-        "turn": 5,
-        "landCount": 4,
-        "libraryCount": 20
-    },
-    "evoke with no mana: evokes Solitude to exile a lethal attacker": {
-        "cards": [
-            {
-                "name": "Solitude",
-                "owner": "me",
-                "zone": "hand"
-            },
-            {
-                "name": "Savannah Lions",
-                "owner": "me",
-                "zone": "hand"
-            },
-            {
-                "name": "Serra Angel",
-                "owner": "opp",
-                "zone": "battlefield",
-                "summoningSick": false
-            }
-        ],
-        "phase": "DECLARE_ATTACKERS",
-        "turn": 5,
-        "landCount": 0,
-        "libraryCount": 20,
-        "life": {
-            "me": 4
-        },
-        "activePlayer": "opp",
-        "priority": "me",
-        "combat": {
-            "attackers": ["Serra Angel"],
-            "confirmed": true
-        }
-    },
-    "explore: bins the revealed blank instead of leaving it as the next draw": null,
-    "flash permanent NEGATIVE CONTROL: casts Containment Priest as the only surviving block": null,
-    "flash permanent NEGATIVE CONTROL: still casts hasty Raging Kavu for lethal this turn": {
-        "cards": [
-            {
-                "name": "Craw Wurm",
-                "owner": "me",
-                "zone": "battlefield",
-                "summoningSick": false,
-                "count": 3
-            },
-            {
-                "name": "Raging Kavu",
-                "owner": "me",
-                "zone": "hand"
-            }
-        ],
-        "phase": "PRECOMBAT_MAIN",
-        "turn": 5,
-        "landCount": 4,
-        "libraryCount": 20
-    },
-    "free put: the caster puts a permanent in off its own Show and Tell": null,
-    "free put: the second chooser still puts its creature in after the opponent's bigger one": null,
-    "granted flashback: casts Stingcaster Mage to flash back Lightning Bolt for lethal": {
-        "cards": [
-            {
-                "name": "Stingcaster Mage",
-                "owner": "me",
-                "zone": "hand"
-            },
-            {
-                "name": "Lightning Bolt",
-                "owner": "me",
-                "zone": "graveyard"
-            }
-        ],
-        "phase": "PRECOMBAT_MAIN",
-        "turn": 5,
-        "landCount": 4,
-        "libraryCount": 20,
-        "life": {
-            "opp": 3
-        }
-    },
-    "granted-flashback: casts the Lightning Bolt Snapcaster Mage's ETB granted flashback, for lethal": null,
-    "graveyard-cast: flashes back Firebolt from the graveyard for lethal": {
-        "cards": [
-            {
-                "name": "Firebolt",
-                "owner": "me",
-                "zone": "graveyard"
-            },
-            {
-                "name": "Mountain",
-                "owner": "me",
-                "zone": "battlefield",
-                "tapped": false
-            },
-            {
-                "name": "Mountain",
-                "owner": "me",
-                "zone": "battlefield",
-                "tapped": false
-            },
-            {
-                "name": "Mountain",
-                "owner": "me",
-                "zone": "battlefield",
-                "tapped": false
-            },
-            {
-                "name": "Mountain",
-                "owner": "me",
-                "zone": "battlefield",
-                "tapped": false
-            },
-            {
-                "name": "Mountain",
-                "owner": "me",
-                "zone": "battlefield",
-                "tapped": false
-            }
-        ],
-        "phase": "PRECOMBAT_MAIN",
-        "turn": 6,
-        "life": {
-            "me": 20,
-            "opp": 2
-        },
-        "landCount": 0,
-        "libraryCount": 20
-    },
-    "hybrid evoke: evokes Wistfulness on two Forests to exile an opposing artifact": {
-        "cards": [
-            {
-                "name": "Wistfulness",
-                "owner": "me",
-                "zone": "hand"
-            },
-            {
-                "name": "Forest",
-                "owner": "me",
-                "zone": "battlefield"
-            },
-            {
-                "name": "Forest",
-                "owner": "me",
-                "zone": "battlefield"
-            },
-            {
-                "name": "Sol Ring",
-                "owner": "opp",
-                "zone": "battlefield"
-            }
-        ],
-        "phase": "PRECOMBAT_MAIN",
-        "turn": 5,
-        "landCount": 0,
-        "libraryCount": 20
-    },
-    "informed colour denial: the decklist, not the board, picks which land dies": {
-        "cards": [
-            {
-                "name": "Stone Rain",
-                "owner": "me",
-                "zone": "hand",
-                "count": 2
-            },
-            {
-                "name": "Mountain",
-                "owner": "me",
-                "zone": "battlefield",
-                "count": 3
-            },
-            {
-                "name": "Obsianus Golem",
-                "owner": "opp",
-                "zone": "battlefield",
-                "summoningSick": false
-            },
-            {
-                "name": "Plains",
-                "owner": "opp",
-                "zone": "battlefield"
-            },
-            {
-                "name": "Swamp",
-                "owner": "opp",
-                "zone": "battlefield"
-            }
-        ],
-        "phase": "PRECOMBAT_MAIN",
-        "turn": 5,
-        "libraryCount": 20
-    },
-    "informed colour denial: the same board demands the OTHER land on the mirrored decklist": {
-        "cards": [
-            {
-                "name": "Stone Rain",
-                "owner": "me",
-                "zone": "hand",
-                "count": 2
-            },
-            {
-                "name": "Mountain",
-                "owner": "me",
-                "zone": "battlefield",
-                "count": 3
-            },
-            {
-                "name": "Obsianus Golem",
-                "owner": "opp",
-                "zone": "battlefield",
-                "summoningSick": false
-            },
-            {
-                "name": "Plains",
-                "owner": "opp",
-                "zone": "battlefield"
-            },
-            {
-                "name": "Swamp",
-                "owner": "opp",
-                "zone": "battlefield"
-            }
-        ],
-        "phase": "PRECOMBAT_MAIN",
-        "turn": 5,
-        "libraryCount": 20
-    },
-    "informed defender: DOES block when the attacker's deck cannot hold the trick": null,
-    "informed defender: DOES block when the attacker's open land cannot PAY for the trick": null,
-    "informed opponent: DOES attack when the deck cannot hold the trick": {
-        "cards": [
-            {
-                "name": "Hill Giant",
-                "owner": "me",
-                "zone": "battlefield",
-                "summoningSick": false
-            },
-            {
-                "name": "Grizzly Bears",
-                "owner": "opp",
-                "zone": "battlefield",
-                "summoningSick": false
-            },
-            {
-                "name": "Forest",
-                "owner": "opp",
-                "zone": "battlefield"
-            },
-            {
-                "name": "Mountain",
-                "owner": "opp",
-                "zone": "hand"
-            }
-        ],
-        "phase": "DECLARE_ATTACKERS",
-        "turn": 3,
-        "landCount": 0,
-        "libraryCount": 20
-    },
-    "keep mana open: casts Accumulated Knowledge at the opponent's end step": null,
-    "keep mana open: casts Containment Priest at the opponent's end step": null,
-    "keep mana open: casts Impulse at the opponent's end step": null,
-    "known top: digs with a cantrip because it knows the Bolt is there": null,
-    "known top: plays the creature instead when the known top is a blank": null,
-    "loyalty: activates Liliana's −2 to eat the opponent's only creature": {
-        "cards": [
-            {
-                "name": "Liliana of the Veil",
-                "owner": "me",
-                "zone": "battlefield",
-                "counters": {
-                    "loyalty": 3
-                }
-            },
-            {
-                "name": "Serra Angel",
-                "owner": "opp",
-                "zone": "battlefield",
-                "summoningSick": false
-            }
-        ],
-        "phase": "PRECOMBAT_MAIN",
-        "turn": 5,
-        "landCount": 3,
-        "libraryCount": 20
-    },
-    "madness-cast-when-affordable": null,
-    "madness-decline-when-unaffordable": null,
-    "morph: casts Exalted Angel face down for {3} on three lands": {
-        "cards": [
-            {
-                "name": "Exalted Angel",
-                "owner": "me",
-                "zone": "hand"
-            },
-            {
-                "name": "Plains",
-                "owner": "me",
-                "zone": "battlefield"
-            },
-            {
-                "name": "Plains",
-                "owner": "me",
-                "zone": "battlefield"
-            },
-            {
-                "name": "Plains",
-                "owner": "me",
-                "zone": "battlefield"
-            }
-        ],
-        "phase": "PRECOMBAT_MAIN",
-        "turn": 3,
-        "libraryCount": 20
-    },
-    "morph: turns a face-down Exalted Angel face up for its morph cost": {
-        "cards": [
-            {
-                "name": "Exalted Angel",
-                "owner": "me",
-                "zone": "battlefield",
-                "faceDown": true,
-                "summoningSick": false
-            },
-            {
-                "name": "Plains",
-                "owner": "me",
-                "zone": "battlefield"
-            },
-            {
-                "name": "Plains",
-                "owner": "me",
-                "zone": "battlefield"
-            },
-            {
-                "name": "Plains",
-                "owner": "me",
-                "zone": "battlefield"
-            },
-            {
-                "name": "Plains",
-                "owner": "me",
-                "zone": "battlefield"
-            }
-        ],
-        "phase": "PRECOMBAT_MAIN",
-        "turn": 5,
-        "libraryCount": 20
-    },
-    "ninjutsu: swaps its unblocked attacker for Fallen Shinobi": null,
-    "oath: declines the dig when its library holds no creature": null,
-    "oath: takes the free body when its library is creature-dense": null,
-    "opponent's choice: casts Chainer's Edict at the opponent's only creature": {
-        "cards": [
-            {
-                "name": "Chainer's Edict",
-                "owner": "me",
-                "zone": "hand"
-            },
-            {
-                "name": "Serra Angel",
-                "owner": "opp",
-                "zone": "battlefield",
-                "summoningSick": false
-            }
-        ],
-        "phase": "PRECOMBAT_MAIN",
-        "turn": 5,
-        "landCount": 4,
-        "libraryCount": 20
-    },
-    "opponent's choice: casts Mind Rot into a two-card hand": {
-        "cards": [
-            {
-                "name": "Mind Rot",
-                "owner": "me",
-                "zone": "hand"
-            },
-            {
-                "name": "Grizzly Bears",
-                "owner": "opp",
-                "zone": "hand"
-            },
-            {
-                "name": "Hill Giant",
-                "owner": "opp",
-                "zone": "hand"
-            },
-            {
-                "name": "Grizzly Bears",
-                "owner": "opp",
-                "zone": "library",
-                "count": 10
-            },
-            {
-                "name": "Hill Giant",
-                "owner": "opp",
-                "zone": "library",
-                "count": 10
-            },
-            {
-                "name": "Swamp",
-                "owner": "me",
-                "zone": "library",
-                "count": 20
-            }
-        ],
-        "phase": "PRECOMBAT_MAIN",
-        "turn": 5,
-        "landCount": 4,
-        "libraryCount": 0
-    },
-    "opponent's choice: casts Ravenous Rats into a two-card hand": {
-        "cards": [
-            {
-                "name": "Ravenous Rats",
-                "owner": "me",
-                "zone": "hand"
-            },
-            {
-                "name": "Grizzly Bears",
-                "owner": "opp",
-                "zone": "hand"
-            },
-            {
-                "name": "Hill Giant",
-                "owner": "opp",
-                "zone": "hand"
-            }
-        ],
-        "phase": "PRECOMBAT_MAIN",
-        "turn": 5,
-        "landCount": 4,
-        "libraryCount": 20
-    },
-    "positive-control: plays its only land on an empty board": {
-        "cards": [
-            {
-                "name": "Forest",
-                "owner": "me",
-                "zone": "hand"
-            }
-        ],
-        "phase": "PRECOMBAT_MAIN",
-        "turn": 3,
-        "libraryCount": 20
-    },
-    "protection colour choice: Mother of Runes picks the opponent's shown colour": null,
-    "protection colour choice: negative control — the lethal threat's colour wins over evidence share": null,
-    "protection colour choice: Thornscape Master picks the opponent's shown colour (shared seam)": null,
-    "reachability: counters an opponent's land-targeting activation with Teferi's Response": null,
-    "recoverable sweep: casts Armageddon when the Bot keeps its mana in rocks and the opponent has only lands": {
-        "cards": [
-            {
-                "name": "Armageddon",
-                "owner": "me",
-                "zone": "hand"
-            },
-            {
-                "name": "Plains",
-                "owner": "me",
-                "zone": "battlefield",
-                "count": 2
-            },
-            {
-                "name": "Sol Ring",
-                "owner": "me",
-                "zone": "battlefield"
-            },
-            {
-                "name": "Mind Stone",
-                "owner": "me",
-                "zone": "battlefield"
-            },
-            {
-                "name": "Fellwar Stone",
-                "owner": "me",
-                "zone": "battlefield"
-            },
-            {
-                "name": "Forest",
-                "owner": "opp",
-                "zone": "battlefield",
-                "count": 6
-            }
-        ],
-        "phase": "POSTCOMBAT_MAIN",
-        "turn": 6,
-        "libraryCount": 20
-    },
-    "replenish: casts the mass return with three enchantments in the graveyard": {
-        "cards": [
-            {
-                "name": "Plains",
-                "owner": "me",
-                "zone": "battlefield",
-                "count": 4
-            },
-            {
-                "name": "Replenish",
-                "owner": "me",
-                "zone": "hand"
-            },
-            {
-                "name": "Opalescence",
-                "owner": "me",
-                "zone": "graveyard"
-            },
-            {
-                "name": "Parallax Wave",
-                "owner": "me",
-                "zone": "graveyard"
-            },
-            {
-                "name": "Seal of Cleansing",
-                "owner": "me",
-                "zone": "graveyard"
-            },
-            {
-                "name": "Grizzly Bears",
-                "owner": "opp",
-                "zone": "battlefield"
-            }
-        ],
-        "phase": "PRECOMBAT_MAIN",
-        "turn": 5,
-        "libraryCount": 20
-    },
-    "sacrifice sign NEGATIVE CONTROL: still casts a genuine edict": {
-        "cards": [
-            {
-                "name": "Sheoldred's Edict",
-                "owner": "me",
-                "zone": "hand"
-            },
-            {
-                "name": "Craw Wurm",
-                "owner": "opp",
-                "zone": "battlefield",
-                "summoningSick": false
-            }
-        ],
-        "phase": "PRECOMBAT_MAIN",
-        "turn": 3,
-        "landCount": 2,
-        "libraryCount": 20
-    },
-    "scry: bottoms two dead cards to draw off a deck of bombs": null,
-    "scry: keeps two bombs on top of a deck of blanks": null,
-    "self-sacrificing ETB: casts Phlage from hand for lethal": {
-        "cards": [
-            {
-                "name": "Phlage, Titan of Fire's Fury",
-                "owner": "me",
-                "zone": "hand"
-            }
-        ],
-        "phase": "PRECOMBAT_MAIN",
-        "turn": 5,
-        "landCount": 4,
-        "libraryCount": 20,
-        "life": {
-            "opp": 3
-        }
-    },
-    "self-sacrificing ETB: hard-casts Uro for its enter trigger": {
-        "cards": [
-            {
-                "name": "Uro, Titan of Nature's Wrath",
-                "owner": "me",
-                "zone": "hand"
-            }
-        ],
-        "phase": "PRECOMBAT_MAIN",
-        "turn": 5,
-        "landCount": 4,
-        "libraryCount": 20,
-        "landsPlayed": {
-            "me": 1
-        }
-    },
-    "Snapcaster Mage: casts it to flash back a sorcery that kills a Serra Angel": {
-        "cards": [
-            {
-                "name": "Snapcaster Mage",
-                "owner": "me",
-                "zone": "hand"
-            },
-            {
-                "name": "Flame Slash",
-                "owner": "me",
-                "zone": "graveyard"
-            },
-            {
-                "name": "Island",
-                "owner": "me",
-                "zone": "battlefield"
-            },
-            {
-                "name": "Island",
-                "owner": "me",
-                "zone": "battlefield"
-            },
-            {
-                "name": "Mountain",
-                "owner": "me",
-                "zone": "battlefield"
-            },
-            {
-                "name": "Serra Angel",
-                "owner": "opp",
-                "zone": "battlefield",
-                "summoningSick": false
-            }
-        ],
-        "phase": "PRECOMBAT_MAIN",
-        "turn": 5,
-        "landCount": 0,
-        "libraryCount": 20
-    },
-    "sorcery-speed permanent: deploys a Seal with the mana open and nothing else to do": {
-        "cards": [
-            {
-                "name": "Swamp",
-                "owner": "me",
-                "zone": "battlefield",
-                "count": 5
-            },
-            {
-                "name": "Seal of Doom",
-                "owner": "me",
-                "zone": "hand"
-            },
-            {
-                "name": "Grizzly Bears",
-                "owner": "me",
-                "zone": "battlefield"
-            },
-            {
-                "name": "Ornithopter",
-                "owner": "me",
-                "zone": "battlefield"
-            },
-            {
-                "name": "Castle",
-                "owner": "me",
-                "zone": "battlefield"
-            },
-            {
-                "name": "Grizzly Bears",
-                "owner": "opp",
-                "zone": "battlefield"
-            },
-            {
-                "name": "Ornithopter",
-                "owner": "opp",
-                "zone": "battlefield"
-            },
-            {
-                "name": "Castle",
-                "owner": "opp",
-                "zone": "battlefield"
-            }
-        ],
-        "phase": "PRECOMBAT_MAIN",
-        "turn": 3,
-        "libraryCount": 20
-    },
-    "storm: Grapeshot is lethal because the search counts the spell cast before it": null,
-    "stretch: attacks with a lone 3/3 into an empty board": {
-        "cards": [
-            {
-                "name": "Hill Giant",
-                "owner": "me",
-                "zone": "battlefield",
-                "summoningSick": false
-            }
-        ],
-        "phase": "DECLARE_ATTACKERS",
-        "turn": 3,
-        "libraryCount": 20
-    },
-    "stretch: Chrome Mox imprints a card rather than nothing": null,
-    "sunglasses of urza: spends white mana as red for exact lethal (CR 609.4b)": {
-        "cards": [
-            {
-                "name": "Sunglasses of Urza",
-                "owner": "me",
-                "zone": "battlefield"
-            },
-            {
-                "name": "Plains",
-                "owner": "me",
-                "zone": "battlefield"
-            },
-            {
-                "name": "Lightning Bolt",
-                "owner": "me",
-                "zone": "hand"
-            }
-        ],
-        "phase": "PRECOMBAT_MAIN",
-        "turn": 3,
-        "landCount": 0,
-        "libraryCount": 20,
-        "life": {
-            "opp": 3
-        }
-    },
-    "type-blind potential: casts Monk Realist into an opposing Glorious Anthem": {
-        "cards": [
-            {
-                "name": "Monk Realist",
-                "owner": "me",
-                "zone": "hand"
-            },
-            {
-                "name": "Glorious Anthem",
-                "owner": "opp",
-                "zone": "battlefield"
-            },
-            {
-                "name": "Grizzly Bears",
-                "owner": "opp",
-                "zone": "battlefield",
-                "summoningSick": false
-            },
-            {
-                "name": "Grizzly Bears",
-                "owner": "opp",
-                "zone": "battlefield",
-                "summoningSick": false
-            }
-        ],
-        "phase": "PRECOMBAT_MAIN",
-        "turn": 5,
-        "landCount": 4,
-        "libraryCount": 20
-    },
-    "wasted mana NEGATIVE CONTROL: casts Dark Ritual when it turns on a Craw Wurm": {
-        "cards": [
-            {
-                "name": "Dark Ritual",
-                "owner": "me",
-                "zone": "hand"
-            },
-            {
-                "name": "Craw Wurm",
-                "owner": "me",
-                "zone": "hand"
-            }
-        ],
-        "phase": "PRECOMBAT_MAIN",
-        "turn": 5,
-        "landCount": 4,
-        "libraryCount": 20
-    },
-    "zero-output mana source: casts its removal instead of tapping a 0-counter Everflowing Chalice": {
-        "cards": [
-            {
-                "name": "Everflowing Chalice",
-                "owner": "me",
-                "zone": "battlefield"
-            },
-            {
-                "name": "Mountain",
-                "owner": "me",
-                "zone": "battlefield",
-                "count": 2
-            },
-            {
-                "name": "Incinerate",
-                "owner": "me",
-                "zone": "hand"
-            },
-            {
-                "name": "Serra Angel",
-                "owner": "opp",
-                "zone": "battlefield",
-                "summoningSick": false
-            }
-        ],
-        "phase": "PRECOMBAT_MAIN",
-        "turn": 3,
-        "landCount": 0
+      }
+    ],
+    "phase": "PRECOMBAT_MAIN",
+    "turn": 5,
+    "landCount": 2,
+    "libraryCount": 20,
+    "life": {
+      "me": 20,
+      "opp": 1
     }
+  },
+  "activation payoff: shoots its own last counter at the opponent's end step for lethal": null,
+  "activation payoff: shoots its own last counter when the block has already doomed it": null,
+  "activation restriction: sacrifices Barbarian Ring at threshold for lethal": {
+    "cards": [
+      {
+        "name": "Barbarian Ring",
+        "owner": "me",
+        "zone": "battlefield"
+      },
+      {
+        "name": "Mountain",
+        "owner": "me",
+        "zone": "battlefield"
+      },
+      {
+        "name": "Grizzly Bears",
+        "owner": "me",
+        "zone": "graveyard",
+        "count": 7
+      }
+    ],
+    "phase": "PRECOMBAT_MAIN",
+    "turn": 5,
+    "life": {
+      "opp": 2
+    },
+    "libraryCount": 20
+  },
+  "activation timing: converts a sacrifice engine at the opponent's end step": null,
+  "alternate win: casts Thassa's Oracle when its trigger wins on the spot": {
+    "cards": [
+      {
+        "name": "Thassa's Oracle",
+        "owner": "me",
+        "zone": "hand"
+      },
+      {
+        "name": "Island",
+        "owner": "opp",
+        "zone": "library"
+      },
+      {
+        "name": "Island",
+        "owner": "opp",
+        "zone": "library"
+      },
+      {
+        "name": "Island",
+        "owner": "opp",
+        "zone": "library"
+      },
+      {
+        "name": "Island",
+        "owner": "opp",
+        "zone": "library"
+      },
+      {
+        "name": "Island",
+        "owner": "opp",
+        "zone": "library"
+      }
+    ],
+    "phase": "PRECOMBAT_MAIN",
+    "turn": 5,
+    "landCount": 4,
+    "libraryCount": 1
+  },
+  "as-enters creature type: names the opponent's tribe, not its own and not the alphabet": null,
+  "battle cry: swings for exactly-lethal only the pump provides": {
+    "cards": [
+      {
+        "name": "Sanguine Evangelist",
+        "owner": "me",
+        "zone": "battlefield",
+        "summoningSick": false
+      },
+      {
+        "name": "Grizzly Bears",
+        "owner": "me",
+        "zone": "battlefield",
+        "summoningSick": false
+      },
+      {
+        "name": "Craw Wurm",
+        "owner": "opp",
+        "zone": "battlefield",
+        "tapped": true,
+        "summoningSick": false
+      }
+    ],
+    "phase": "DECLARE_ATTACKERS",
+    "turn": 5,
+    "landCount": 3,
+    "libraryCount": 20,
+    "life": {
+      "me": 4,
+      "opp": 5
+    }
+  },
+  "blind defender: blocks anyway — the trick is in hand, but nothing lawfully says so": null,
+  "board-aware removal: casts Stone Rain on a land when there is nothing better to do": {
+    "cards": [
+      {
+        "name": "Stone Rain",
+        "owner": "me",
+        "zone": "hand"
+      },
+      {
+        "name": "Mountain",
+        "owner": "me",
+        "zone": "battlefield"
+      },
+      {
+        "name": "Mountain",
+        "owner": "me",
+        "zone": "battlefield"
+      },
+      {
+        "name": "Mountain",
+        "owner": "me",
+        "zone": "battlefield"
+      },
+      {
+        "name": "Forest",
+        "owner": "opp",
+        "zone": "battlefield"
+      },
+      {
+        "name": "Forest",
+        "owner": "opp",
+        "zone": "battlefield"
+      },
+      {
+        "name": "Forest",
+        "owner": "opp",
+        "zone": "battlefield"
+      }
+    ],
+    "phase": "PRECOMBAT_MAIN",
+    "turn": 4,
+    "libraryCount": 20
+  },
+  "boast: eats its Grizzly Bears to boast for lethal after attacking": null,
+  "bounce sweep: casts Hibernation when the opponent's green board outweighs its mana": {
+    "cards": [
+      {
+        "name": "Hibernation",
+        "owner": "me",
+        "zone": "hand"
+      },
+      {
+        "name": "Island",
+        "owner": "me",
+        "zone": "battlefield",
+        "count": 4
+      },
+      {
+        "name": "Serra Angel",
+        "owner": "me",
+        "zone": "battlefield"
+      },
+      {
+        "name": "Savannah Lions",
+        "owner": "me",
+        "zone": "battlefield",
+        "count": 2
+      },
+      {
+        "name": "Forest",
+        "owner": "opp",
+        "zone": "battlefield",
+        "count": 2
+      },
+      {
+        "name": "Craw Wurm",
+        "owner": "opp",
+        "zone": "battlefield",
+        "count": 2
+      }
+    ],
+    "phase": "POSTCOMBAT_MAIN",
+    "turn": 6,
+    "libraryCount": 20
+  },
+  "burst mana: kills with a two-mana spell off a single Black Lotus": {
+    "cards": [
+      {
+        "name": "Black Lotus",
+        "owner": "me",
+        "zone": "battlefield",
+        "tapped": false
+      },
+      {
+        "name": "Incinerate",
+        "owner": "me",
+        "zone": "hand"
+      }
+    ],
+    "phase": "PRECOMBAT_MAIN",
+    "turn": 3,
+    "landCount": 0,
+    "libraryCount": 20,
+    "life": {
+      "me": 20,
+      "opp": 3
+    }
+  },
+  "cast permission: casts a creature for free under Aluren with no lands": {
+    "cards": [
+      {
+        "name": "Aluren",
+        "owner": "me",
+        "zone": "battlefield"
+      },
+      {
+        "name": "Grizzly Bears",
+        "owner": "me",
+        "zone": "hand"
+      }
+    ],
+    "phase": "PRECOMBAT_MAIN",
+    "turn": 3,
+    "landCount": 0,
+    "libraryCount": 20
+  },
+  "cast permission: casts Raven Familiar for free under Aluren with no lands": {
+    "cards": [
+      {
+        "name": "Aluren",
+        "owner": "me",
+        "zone": "battlefield"
+      },
+      {
+        "name": "Raven Familiar",
+        "owner": "me",
+        "zone": "hand"
+      }
+    ],
+    "phase": "PRECOMBAT_MAIN",
+    "turn": 3,
+    "landCount": 0,
+    "libraryCount": 20
+  },
+  "cast-invariance: casts an affordable creature off a base its curve already justifies (issue #2928)": {
+    "cards": [
+      {
+        "name": "Forest",
+        "owner": "me",
+        "zone": "battlefield",
+        "tapped": false
+      },
+      {
+        "name": "Forest",
+        "owner": "me",
+        "zone": "battlefield",
+        "tapped": false
+      },
+      {
+        "name": "Forest",
+        "owner": "me",
+        "zone": "battlefield",
+        "tapped": false
+      },
+      {
+        "name": "Forest",
+        "owner": "me",
+        "zone": "battlefield",
+        "tapped": false
+      },
+      {
+        "name": "Forest",
+        "owner": "me",
+        "zone": "battlefield",
+        "tapped": false
+      },
+      {
+        "name": "Forest",
+        "owner": "me",
+        "zone": "battlefield",
+        "tapped": false
+      },
+      {
+        "name": "Forest",
+        "owner": "me",
+        "zone": "battlefield",
+        "tapped": false
+      },
+      {
+        "name": "Forest",
+        "owner": "me",
+        "zone": "battlefield",
+        "tapped": false
+      },
+      {
+        "name": "Aladdin's Ring",
+        "owner": "me",
+        "zone": "hand"
+      },
+      {
+        "name": "Grizzly Bears",
+        "owner": "opp",
+        "zone": "battlefield",
+        "summoningSick": false
+      }
+    ],
+    "phase": "PRECOMBAT_MAIN",
+    "turn": 8,
+    "landCount": 0,
+    "libraryCount": 20
+  },
+  "casts Solitude to exile a lethal attacker": {
+    "cards": [
+      {
+        "name": "Solitude",
+        "owner": "me",
+        "zone": "hand"
+      },
+      {
+        "name": "Savannah Lions",
+        "owner": "me",
+        "zone": "hand"
+      },
+      {
+        "name": "Serra Angel",
+        "owner": "opp",
+        "zone": "battlefield",
+        "summoningSick": false
+      }
+    ],
+    "phase": "DECLARE_ATTACKERS",
+    "turn": 5,
+    "landCount": 5,
+    "libraryCount": 20,
+    "life": {
+      "me": 4
+    },
+    "activePlayer": "opp",
+    "priority": "me",
+    "combat": {
+      "attackers": [
+        "Serra Angel"
+      ],
+      "confirmed": true
+    }
+  },
+  "channel: activates a player-level grant to fund a lethal Fireball (#2903)": null,
+  "charter: chump-blocks to survive lethal (block or die)": null,
+  "charter: cracks its fetchland for the only answer to a trigger on the stack": null,
+  "charter: fetches the land that makes its removal castable": null,
+  "charter: picks the modal mode that survives a lethal red spell": null,
+  "charter: Stifles its own Phyrexian Dreadnought trigger": null,
+  "cheat into play: casts for a body that pays on the way out": {
+    "cards": [
+      {
+        "name": "Flash",
+        "owner": "me",
+        "zone": "hand"
+      },
+      {
+        "name": "Vaultborn Tyrant",
+        "owner": "me",
+        "zone": "hand"
+      }
+    ],
+    "phase": "PRECOMBAT_MAIN",
+    "turn": 3,
+    "landCount": 2,
+    "libraryCount": 20
+  },
+  "cheat into play: the reported Worldspine Wurm position": {
+    "cards": [
+      {
+        "name": "Flash",
+        "owner": "me",
+        "zone": "hand"
+      },
+      {
+        "name": "Worldspine Wurm",
+        "owner": "me",
+        "zone": "hand"
+      }
+    ],
+    "phase": "PRECOMBAT_MAIN",
+    "turn": 3,
+    "landCount": 2,
+    "libraryCount": 20
+  },
+  "colour denial: destroys the only source of a colour the opponent is visibly using": {
+    "cards": [
+      {
+        "name": "Stone Rain",
+        "owner": "me",
+        "zone": "hand"
+      },
+      {
+        "name": "Mountain",
+        "owner": "me",
+        "zone": "battlefield",
+        "count": 3
+      },
+      {
+        "name": "Grizzly Bears",
+        "owner": "opp",
+        "zone": "battlefield"
+      },
+      {
+        "name": "Forest",
+        "owner": "opp",
+        "zone": "battlefield"
+      },
+      {
+        "name": "Plains",
+        "owner": "opp",
+        "zone": "battlefield"
+      }
+    ],
+    "phase": "PRECOMBAT_MAIN",
+    "turn": 5,
+    "libraryCount": 20
+  },
+  "combo: activates Splinter Twin on enchanted Deceiver Exarch": {
+    "cards": [
+      {
+        "name": "Deceiver Exarch",
+        "owner": "me",
+        "zone": "battlefield",
+        "summoningSick": false
+      },
+      {
+        "name": "Splinter Twin",
+        "owner": "me",
+        "zone": "battlefield",
+        "attachedTo": "Deceiver Exarch"
+      },
+      {
+        "name": "Grizzly Bears",
+        "owner": "opp",
+        "zone": "battlefield",
+        "summoningSick": false
+      }
+    ],
+    "phase": "PRECOMBAT_MAIN",
+    "turn": 4,
+    "libraryCount": 20,
+    "landCount": 4
+  },
+  "combo: activates Splinter Twin on granted Grizzly Bears (#2469)": {
+    "cards": [
+      {
+        "name": "Grizzly Bears",
+        "owner": "me",
+        "zone": "battlefield",
+        "summoningSick": false
+      },
+      {
+        "name": "Splinter Twin",
+        "owner": "me",
+        "zone": "battlefield",
+        "attachedTo": "Grizzly Bears"
+      },
+      {
+        "name": "Grizzly Bears",
+        "owner": "opp",
+        "zone": "battlefield",
+        "summoningSick": false
+      }
+    ],
+    "phase": "PRECOMBAT_MAIN",
+    "turn": 4,
+    "landCount": 4,
+    "libraryCount": 20
+  },
+  "combo: casts Splinter Twin on Deceiver Exarch with both pieces assembled": {
+    "cards": [
+      {
+        "name": "Deceiver Exarch",
+        "owner": "me",
+        "zone": "battlefield",
+        "summoningSick": false
+      },
+      {
+        "name": "Splinter Twin",
+        "owner": "me",
+        "zone": "hand"
+      },
+      {
+        "name": "Mountain",
+        "owner": "me",
+        "zone": "battlefield",
+        "count": 4
+      },
+      {
+        "name": "Grizzly Bears",
+        "owner": "opp",
+        "zone": "battlefield",
+        "summoningSick": false
+      }
+    ],
+    "phase": "PRECOMBAT_MAIN",
+    "turn": 4,
+    "libraryCount": 20
+  },
+  "damage sweep: casts Pyroclasm when the opponent holds the bodies it kills and the Bot a survivor": {
+    "cards": [
+      {
+        "name": "Pyroclasm",
+        "owner": "me",
+        "zone": "hand"
+      },
+      {
+        "name": "Mountain",
+        "owner": "me",
+        "zone": "battlefield",
+        "count": 4
+      },
+      {
+        "name": "Craw Wurm",
+        "owner": "me",
+        "zone": "battlefield"
+      },
+      {
+        "name": "Forest",
+        "owner": "opp",
+        "zone": "battlefield",
+        "count": 4
+      },
+      {
+        "name": "Grizzly Bears",
+        "owner": "opp",
+        "zone": "battlefield",
+        "count": 3
+      },
+      {
+        "name": "Llanowar Elves",
+        "owner": "opp",
+        "zone": "battlefield"
+      }
+    ],
+    "phase": "POSTCOMBAT_MAIN",
+    "turn": 6,
+    "libraryCount": 20
+  },
+  "decking: casts the storm kill that recurs its own Black Lotus": {
+    "cards": [
+      {
+        "name": "Underworld Breach",
+        "owner": "me",
+        "zone": "battlefield"
+      },
+      {
+        "name": "Black Lotus",
+        "owner": "me",
+        "zone": "battlefield",
+        "tapped": false
+      },
+      {
+        "name": "Brain Freeze",
+        "owner": "me",
+        "zone": "hand"
+      },
+      {
+        "name": "Lightning Bolt",
+        "owner": "me",
+        "zone": "graveyard"
+      },
+      {
+        "name": "Island",
+        "owner": "me",
+        "zone": "graveyard",
+        "count": 6
+      }
+    ],
+    "phase": "PRECOMBAT_MAIN",
+    "turn": 3,
+    "landCount": 0,
+    "libraryCount": 9,
+    "life": {
+      "me": 20,
+      "opp": 20
+    }
+  },
+  "defensive grant NEGATIVE CONTROL: buys indestructible against a lethal block": null,
+  "depletion land: pays the two-drop with the basics, sparing the land's charge": {
+    "cards": [
+      {
+        "name": "Hickory Woodlot",
+        "owner": "me",
+        "zone": "battlefield"
+      },
+      {
+        "name": "Forest",
+        "owner": "me",
+        "zone": "battlefield"
+      },
+      {
+        "name": "Forest",
+        "owner": "me",
+        "zone": "battlefield"
+      },
+      {
+        "name": "Grizzly Bears",
+        "owner": "me",
+        "zone": "hand"
+      }
+    ],
+    "phase": "PRECOMBAT_MAIN",
+    "turn": 3,
+    "libraryCount": 20
+  },
+  "discriminating pair: activates Zuran Orb when Titania pays the land off (issue #2686)": null,
+  "discriminating pair: casts Phyrexian Dreadnought WITH an out (Stifle)": {
+    "cards": [
+      {
+        "name": "Phyrexian Dreadnought",
+        "owner": "me",
+        "zone": "hand"
+      },
+      {
+        "name": "Stifle",
+        "owner": "me",
+        "zone": "hand"
+      }
+    ],
+    "phase": "POSTCOMBAT_MAIN",
+    "turn": 3,
+    "landCount": 2,
+    "libraryCount": 20
+  },
+  "dominance NEGATIVE CONTROL: activates the Salvager once a token exists": null,
+  "dominance NEGATIVE CONTROL: still casts Damnation into a real board": {
+    "cards": [
+      {
+        "name": "Damnation",
+        "owner": "me",
+        "zone": "hand"
+      },
+      {
+        "name": "Craw Wurm",
+        "owner": "opp",
+        "zone": "battlefield",
+        "summoningSick": false,
+        "count": 3
+      }
+    ],
+    "phase": "PRECOMBAT_MAIN",
+    "turn": 5,
+    "landCount": 6,
+    "libraryCount": 20
+  },
+  "entomb: buries the reanimation target, not one of eight lands": null,
+  "entomb: buries the self-reachable card, not the bigger body": null,
+  "escape: casts Phlage from the graveyard": {
+    "cards": [
+      {
+        "name": "Phlage, Titan of Fire's Fury",
+        "owner": "me",
+        "zone": "graveyard"
+      },
+      {
+        "name": "Grizzly Bears",
+        "owner": "me",
+        "zone": "graveyard"
+      },
+      {
+        "name": "Grizzly Bears",
+        "owner": "me",
+        "zone": "graveyard"
+      },
+      {
+        "name": "Grizzly Bears",
+        "owner": "me",
+        "zone": "graveyard"
+      },
+      {
+        "name": "Grizzly Bears",
+        "owner": "me",
+        "zone": "graveyard"
+      },
+      {
+        "name": "Grizzly Bears",
+        "owner": "me",
+        "zone": "graveyard"
+      },
+      {
+        "name": "Plateau",
+        "owner": "me",
+        "zone": "battlefield"
+      },
+      {
+        "name": "Plateau",
+        "owner": "me",
+        "zone": "battlefield"
+      }
+    ],
+    "phase": "PRECOMBAT_MAIN",
+    "turn": 5,
+    "landCount": 2,
+    "libraryCount": 20
+  },
+  "escape: reaches for a Lightning Bolt Underworld Breach made escapable": {
+    "cards": [
+      {
+        "name": "Underworld Breach",
+        "owner": "me",
+        "zone": "battlefield"
+      },
+      {
+        "name": "Mountain",
+        "owner": "me",
+        "zone": "battlefield"
+      },
+      {
+        "name": "Lightning Bolt",
+        "owner": "me",
+        "zone": "graveyard"
+      },
+      {
+        "name": "Forest",
+        "owner": "me",
+        "zone": "graveyard",
+        "count": 3
+      }
+    ],
+    "phase": "PRECOMBAT_MAIN",
+    "turn": 6,
+    "life": {
+      "me": 20,
+      "opp": 3
+    },
+    "landCount": 0,
+    "libraryCount": 20
+  },
+  "ETB Ability realized: casts Flametongue Kavu into an opposing creature worth killing": {
+    "cards": [
+      {
+        "name": "Flametongue Kavu",
+        "owner": "me",
+        "zone": "hand"
+      },
+      {
+        "name": "Serra Angel",
+        "owner": "opp",
+        "zone": "battlefield",
+        "summoningSick": false
+      }
+    ],
+    "phase": "PRECOMBAT_MAIN",
+    "turn": 5,
+    "landCount": 4,
+    "libraryCount": 20
+  },
+  "ETB Ability realized: casts Skyclave Apparition into a permanent worth exiling": {
+    "cards": [
+      {
+        "name": "Skyclave Apparition",
+        "owner": "me",
+        "zone": "hand"
+      },
+      {
+        "name": "Hill Giant",
+        "owner": "opp",
+        "zone": "battlefield",
+        "summoningSick": false
+      }
+    ],
+    "phase": "PRECOMBAT_MAIN",
+    "turn": 5,
+    "landCount": 4,
+    "libraryCount": 20
+  },
+  "ETB bounce: casts Man-o'-War on an opposing Craw Wurm": {
+    "cards": [
+      {
+        "name": "Man-o'-War",
+        "owner": "me",
+        "zone": "hand"
+      },
+      {
+        "name": "Craw Wurm",
+        "owner": "opp",
+        "zone": "battlefield",
+        "summoningSick": false
+      }
+    ],
+    "phase": "PRECOMBAT_MAIN",
+    "turn": 5,
+    "landCount": 4,
+    "libraryCount": 20
+  },
+  "evoke with no mana: evokes Solitude to exile a lethal attacker": {
+    "cards": [
+      {
+        "name": "Solitude",
+        "owner": "me",
+        "zone": "hand"
+      },
+      {
+        "name": "Savannah Lions",
+        "owner": "me",
+        "zone": "hand"
+      },
+      {
+        "name": "Serra Angel",
+        "owner": "opp",
+        "zone": "battlefield",
+        "summoningSick": false
+      }
+    ],
+    "phase": "DECLARE_ATTACKERS",
+    "turn": 5,
+    "landCount": 0,
+    "libraryCount": 20,
+    "life": {
+      "me": 4
+    },
+    "activePlayer": "opp",
+    "priority": "me",
+    "combat": {
+      "attackers": [
+        "Serra Angel"
+      ],
+      "confirmed": true
+    }
+  },
+  "explore: bins the revealed blank instead of leaving it as the next draw": null,
+  "flash permanent NEGATIVE CONTROL: casts Containment Priest as the only surviving block": null,
+  "flash permanent NEGATIVE CONTROL: still casts hasty Raging Kavu for lethal this turn": {
+    "cards": [
+      {
+        "name": "Craw Wurm",
+        "owner": "me",
+        "zone": "battlefield",
+        "summoningSick": false,
+        "count": 3
+      },
+      {
+        "name": "Raging Kavu",
+        "owner": "me",
+        "zone": "hand"
+      }
+    ],
+    "phase": "PRECOMBAT_MAIN",
+    "turn": 5,
+    "landCount": 4,
+    "libraryCount": 20
+  },
+  "free put: the caster puts a permanent in off its own Show and Tell": null,
+  "free put: the second chooser still puts its creature in after the opponent's bigger one": null,
+  "granted flashback: casts Stingcaster Mage to flash back Lightning Bolt for lethal": {
+    "cards": [
+      {
+        "name": "Stingcaster Mage",
+        "owner": "me",
+        "zone": "hand"
+      },
+      {
+        "name": "Lightning Bolt",
+        "owner": "me",
+        "zone": "graveyard"
+      }
+    ],
+    "phase": "PRECOMBAT_MAIN",
+    "turn": 5,
+    "landCount": 4,
+    "libraryCount": 20,
+    "life": {
+      "opp": 3
+    }
+  },
+  "granted-flashback: casts the Lightning Bolt Snapcaster Mage's ETB granted flashback, for lethal": null,
+  "graveyard-cast: flashes back Firebolt from the graveyard for lethal": {
+    "cards": [
+      {
+        "name": "Firebolt",
+        "owner": "me",
+        "zone": "graveyard"
+      },
+      {
+        "name": "Mountain",
+        "owner": "me",
+        "zone": "battlefield",
+        "tapped": false
+      },
+      {
+        "name": "Mountain",
+        "owner": "me",
+        "zone": "battlefield",
+        "tapped": false
+      },
+      {
+        "name": "Mountain",
+        "owner": "me",
+        "zone": "battlefield",
+        "tapped": false
+      },
+      {
+        "name": "Mountain",
+        "owner": "me",
+        "zone": "battlefield",
+        "tapped": false
+      },
+      {
+        "name": "Mountain",
+        "owner": "me",
+        "zone": "battlefield",
+        "tapped": false
+      }
+    ],
+    "phase": "PRECOMBAT_MAIN",
+    "turn": 6,
+    "life": {
+      "me": 20,
+      "opp": 2
+    },
+    "landCount": 0,
+    "libraryCount": 20
+  },
+  "hybrid evoke: evokes Wistfulness on two Forests to exile an opposing artifact": {
+    "cards": [
+      {
+        "name": "Wistfulness",
+        "owner": "me",
+        "zone": "hand"
+      },
+      {
+        "name": "Forest",
+        "owner": "me",
+        "zone": "battlefield"
+      },
+      {
+        "name": "Forest",
+        "owner": "me",
+        "zone": "battlefield"
+      },
+      {
+        "name": "Sol Ring",
+        "owner": "opp",
+        "zone": "battlefield"
+      }
+    ],
+    "phase": "PRECOMBAT_MAIN",
+    "turn": 5,
+    "landCount": 0,
+    "libraryCount": 20
+  },
+  "informed colour denial: the decklist, not the board, picks which land dies": {
+    "cards": [
+      {
+        "name": "Stone Rain",
+        "owner": "me",
+        "zone": "hand",
+        "count": 2
+      },
+      {
+        "name": "Mountain",
+        "owner": "me",
+        "zone": "battlefield",
+        "count": 3
+      },
+      {
+        "name": "Obsianus Golem",
+        "owner": "opp",
+        "zone": "battlefield",
+        "summoningSick": false
+      },
+      {
+        "name": "Plains",
+        "owner": "opp",
+        "zone": "battlefield"
+      },
+      {
+        "name": "Swamp",
+        "owner": "opp",
+        "zone": "battlefield"
+      }
+    ],
+    "phase": "PRECOMBAT_MAIN",
+    "turn": 5,
+    "libraryCount": 20
+  },
+  "informed colour denial: the same board demands the OTHER land on the mirrored decklist": {
+    "cards": [
+      {
+        "name": "Stone Rain",
+        "owner": "me",
+        "zone": "hand",
+        "count": 2
+      },
+      {
+        "name": "Mountain",
+        "owner": "me",
+        "zone": "battlefield",
+        "count": 3
+      },
+      {
+        "name": "Obsianus Golem",
+        "owner": "opp",
+        "zone": "battlefield",
+        "summoningSick": false
+      },
+      {
+        "name": "Plains",
+        "owner": "opp",
+        "zone": "battlefield"
+      },
+      {
+        "name": "Swamp",
+        "owner": "opp",
+        "zone": "battlefield"
+      }
+    ],
+    "phase": "PRECOMBAT_MAIN",
+    "turn": 5,
+    "libraryCount": 20
+  },
+  "informed defender: DOES block when the attacker's deck cannot hold the trick": null,
+  "informed defender: DOES block when the attacker's open land cannot PAY for the trick": null,
+  "informed opponent: DOES attack when the deck cannot hold the trick": {
+    "cards": [
+      {
+        "name": "Hill Giant",
+        "owner": "me",
+        "zone": "battlefield",
+        "summoningSick": false
+      },
+      {
+        "name": "Grizzly Bears",
+        "owner": "opp",
+        "zone": "battlefield",
+        "summoningSick": false
+      },
+      {
+        "name": "Forest",
+        "owner": "opp",
+        "zone": "battlefield"
+      },
+      {
+        "name": "Mountain",
+        "owner": "opp",
+        "zone": "hand"
+      }
+    ],
+    "phase": "DECLARE_ATTACKERS",
+    "turn": 3,
+    "landCount": 0,
+    "libraryCount": 20
+  },
+  "keep mana open: casts Accumulated Knowledge at the opponent's end step": null,
+  "keep mana open: casts Containment Priest at the opponent's end step": null,
+  "keep mana open: casts Impulse at the opponent's end step": null,
+  "known top: digs with a cantrip because it knows the Bolt is there": null,
+  "known top: plays the creature instead when the known top is a blank": null,
+  "loyalty: activates Liliana's −2 to eat the opponent's only creature": {
+    "cards": [
+      {
+        "name": "Liliana of the Veil",
+        "owner": "me",
+        "zone": "battlefield",
+        "counters": {
+          "loyalty": 3
+        }
+      },
+      {
+        "name": "Serra Angel",
+        "owner": "opp",
+        "zone": "battlefield",
+        "summoningSick": false
+      }
+    ],
+    "phase": "PRECOMBAT_MAIN",
+    "turn": 5,
+    "landCount": 3,
+    "libraryCount": 20
+  },
+  "madness-cast-when-affordable": null,
+  "madness-decline-when-unaffordable": null,
+  "morph: casts Exalted Angel face down for {3} on three lands": {
+    "cards": [
+      {
+        "name": "Exalted Angel",
+        "owner": "me",
+        "zone": "hand"
+      },
+      {
+        "name": "Plains",
+        "owner": "me",
+        "zone": "battlefield"
+      },
+      {
+        "name": "Plains",
+        "owner": "me",
+        "zone": "battlefield"
+      },
+      {
+        "name": "Plains",
+        "owner": "me",
+        "zone": "battlefield"
+      }
+    ],
+    "phase": "PRECOMBAT_MAIN",
+    "turn": 3,
+    "libraryCount": 20
+  },
+  "morph: turns a face-down Exalted Angel face up for its morph cost": {
+    "cards": [
+      {
+        "name": "Exalted Angel",
+        "owner": "me",
+        "zone": "battlefield",
+        "faceDown": true,
+        "summoningSick": false
+      },
+      {
+        "name": "Plains",
+        "owner": "me",
+        "zone": "battlefield"
+      },
+      {
+        "name": "Plains",
+        "owner": "me",
+        "zone": "battlefield"
+      },
+      {
+        "name": "Plains",
+        "owner": "me",
+        "zone": "battlefield"
+      },
+      {
+        "name": "Plains",
+        "owner": "me",
+        "zone": "battlefield"
+      }
+    ],
+    "phase": "PRECOMBAT_MAIN",
+    "turn": 5,
+    "libraryCount": 20
+  },
+  "ninjutsu: swaps its unblocked attacker for Fallen Shinobi": null,
+  "oath: declines the dig when its library holds no creature": null,
+  "oath: takes the free body when its library is creature-dense": null,
+  "opponent's choice: casts Chainer's Edict at the opponent's only creature": {
+    "cards": [
+      {
+        "name": "Chainer's Edict",
+        "owner": "me",
+        "zone": "hand"
+      },
+      {
+        "name": "Serra Angel",
+        "owner": "opp",
+        "zone": "battlefield",
+        "summoningSick": false
+      }
+    ],
+    "phase": "PRECOMBAT_MAIN",
+    "turn": 5,
+    "landCount": 4,
+    "libraryCount": 20
+  },
+  "opponent's choice: casts Mind Rot into a two-card hand": {
+    "cards": [
+      {
+        "name": "Mind Rot",
+        "owner": "me",
+        "zone": "hand"
+      },
+      {
+        "name": "Grizzly Bears",
+        "owner": "opp",
+        "zone": "hand"
+      },
+      {
+        "name": "Hill Giant",
+        "owner": "opp",
+        "zone": "hand"
+      },
+      {
+        "name": "Grizzly Bears",
+        "owner": "opp",
+        "zone": "library",
+        "count": 10
+      },
+      {
+        "name": "Hill Giant",
+        "owner": "opp",
+        "zone": "library",
+        "count": 10
+      },
+      {
+        "name": "Swamp",
+        "owner": "me",
+        "zone": "library",
+        "count": 20
+      }
+    ],
+    "phase": "PRECOMBAT_MAIN",
+    "turn": 5,
+    "landCount": 4,
+    "libraryCount": 0
+  },
+  "opponent's choice: casts Ravenous Rats into a two-card hand": {
+    "cards": [
+      {
+        "name": "Ravenous Rats",
+        "owner": "me",
+        "zone": "hand"
+      },
+      {
+        "name": "Grizzly Bears",
+        "owner": "opp",
+        "zone": "hand"
+      },
+      {
+        "name": "Hill Giant",
+        "owner": "opp",
+        "zone": "hand"
+      }
+    ],
+    "phase": "PRECOMBAT_MAIN",
+    "turn": 5,
+    "landCount": 4,
+    "libraryCount": 20
+  },
+  "positive-control: plays its only land on an empty board": {
+    "cards": [
+      {
+        "name": "Forest",
+        "owner": "me",
+        "zone": "hand"
+      }
+    ],
+    "phase": "PRECOMBAT_MAIN",
+    "turn": 3,
+    "libraryCount": 20
+  },
+  "protection colour choice: Mother of Runes picks the opponent's shown colour": null,
+  "protection colour choice: negative control — the lethal threat's colour wins over evidence share": null,
+  "protection colour choice: Thornscape Master picks the opponent's shown colour (shared seam)": null,
+  "reachability: counters an opponent's land-targeting activation with Teferi's Response": null,
+  "recoverable sweep: casts Armageddon when the Bot keeps its mana in rocks and the opponent has only lands": {
+    "cards": [
+      {
+        "name": "Armageddon",
+        "owner": "me",
+        "zone": "hand"
+      },
+      {
+        "name": "Plains",
+        "owner": "me",
+        "zone": "battlefield",
+        "count": 2
+      },
+      {
+        "name": "Sol Ring",
+        "owner": "me",
+        "zone": "battlefield"
+      },
+      {
+        "name": "Mind Stone",
+        "owner": "me",
+        "zone": "battlefield"
+      },
+      {
+        "name": "Fellwar Stone",
+        "owner": "me",
+        "zone": "battlefield"
+      },
+      {
+        "name": "Forest",
+        "owner": "opp",
+        "zone": "battlefield",
+        "count": 6
+      }
+    ],
+    "phase": "POSTCOMBAT_MAIN",
+    "turn": 6,
+    "libraryCount": 20
+  },
+  "replenish: casts the mass return with three enchantments in the graveyard": {
+    "cards": [
+      {
+        "name": "Plains",
+        "owner": "me",
+        "zone": "battlefield",
+        "count": 4
+      },
+      {
+        "name": "Replenish",
+        "owner": "me",
+        "zone": "hand"
+      },
+      {
+        "name": "Opalescence",
+        "owner": "me",
+        "zone": "graveyard"
+      },
+      {
+        "name": "Parallax Wave",
+        "owner": "me",
+        "zone": "graveyard"
+      },
+      {
+        "name": "Seal of Cleansing",
+        "owner": "me",
+        "zone": "graveyard"
+      },
+      {
+        "name": "Grizzly Bears",
+        "owner": "opp",
+        "zone": "battlefield"
+      }
+    ],
+    "phase": "PRECOMBAT_MAIN",
+    "turn": 5,
+    "libraryCount": 20
+  },
+  "sacrifice sign NEGATIVE CONTROL: still casts a genuine edict": {
+    "cards": [
+      {
+        "name": "Sheoldred's Edict",
+        "owner": "me",
+        "zone": "hand"
+      },
+      {
+        "name": "Craw Wurm",
+        "owner": "opp",
+        "zone": "battlefield",
+        "summoningSick": false
+      }
+    ],
+    "phase": "PRECOMBAT_MAIN",
+    "turn": 3,
+    "landCount": 2,
+    "libraryCount": 20
+  },
+  "scry: bottoms two dead cards to draw off a deck of bombs": null,
+  "scry: keeps two bombs on top of a deck of blanks": null,
+  "self-sacrificing ETB: casts Phlage from hand for lethal": {
+    "cards": [
+      {
+        "name": "Phlage, Titan of Fire's Fury",
+        "owner": "me",
+        "zone": "hand"
+      }
+    ],
+    "phase": "PRECOMBAT_MAIN",
+    "turn": 5,
+    "landCount": 4,
+    "libraryCount": 20,
+    "life": {
+      "opp": 3
+    }
+  },
+  "self-sacrificing ETB: hard-casts Phlage with no lethal and no creature": {
+    "cards": [
+      {
+        "name": "Phlage, Titan of Fire's Fury",
+        "owner": "me",
+        "zone": "hand"
+      }
+    ],
+    "phase": "PRECOMBAT_MAIN",
+    "turn": 5,
+    "landCount": 4,
+    "libraryCount": 20,
+    "landsPlayed": {
+      "me": 1
+    }
+  },
+  "self-sacrificing ETB: hard-casts Uro for its enter trigger": {
+    "cards": [
+      {
+        "name": "Uro, Titan of Nature's Wrath",
+        "owner": "me",
+        "zone": "hand"
+      }
+    ],
+    "phase": "PRECOMBAT_MAIN",
+    "turn": 5,
+    "landCount": 4,
+    "libraryCount": 20,
+    "landsPlayed": {
+      "me": 1
+    }
+  },
+  "Snapcaster Mage: casts it to flash back a sorcery that kills a Serra Angel": {
+    "cards": [
+      {
+        "name": "Snapcaster Mage",
+        "owner": "me",
+        "zone": "hand"
+      },
+      {
+        "name": "Flame Slash",
+        "owner": "me",
+        "zone": "graveyard"
+      },
+      {
+        "name": "Island",
+        "owner": "me",
+        "zone": "battlefield"
+      },
+      {
+        "name": "Island",
+        "owner": "me",
+        "zone": "battlefield"
+      },
+      {
+        "name": "Mountain",
+        "owner": "me",
+        "zone": "battlefield"
+      },
+      {
+        "name": "Serra Angel",
+        "owner": "opp",
+        "zone": "battlefield",
+        "summoningSick": false
+      }
+    ],
+    "phase": "PRECOMBAT_MAIN",
+    "turn": 5,
+    "landCount": 0,
+    "libraryCount": 20
+  },
+  "sorcery-speed permanent: deploys a Seal with the mana open and nothing else to do": {
+    "cards": [
+      {
+        "name": "Swamp",
+        "owner": "me",
+        "zone": "battlefield",
+        "count": 5
+      },
+      {
+        "name": "Seal of Doom",
+        "owner": "me",
+        "zone": "hand"
+      },
+      {
+        "name": "Grizzly Bears",
+        "owner": "me",
+        "zone": "battlefield"
+      },
+      {
+        "name": "Ornithopter",
+        "owner": "me",
+        "zone": "battlefield"
+      },
+      {
+        "name": "Castle",
+        "owner": "me",
+        "zone": "battlefield"
+      },
+      {
+        "name": "Grizzly Bears",
+        "owner": "opp",
+        "zone": "battlefield"
+      },
+      {
+        "name": "Ornithopter",
+        "owner": "opp",
+        "zone": "battlefield"
+      },
+      {
+        "name": "Castle",
+        "owner": "opp",
+        "zone": "battlefield"
+      }
+    ],
+    "phase": "PRECOMBAT_MAIN",
+    "turn": 3,
+    "libraryCount": 20
+  },
+  "storm: Grapeshot is lethal because the search counts the spell cast before it": null,
+  "stretch: attacks with a lone 3/3 into an empty board": {
+    "cards": [
+      {
+        "name": "Hill Giant",
+        "owner": "me",
+        "zone": "battlefield",
+        "summoningSick": false
+      }
+    ],
+    "phase": "DECLARE_ATTACKERS",
+    "turn": 3,
+    "libraryCount": 20
+  },
+  "stretch: Chrome Mox imprints a card rather than nothing": null,
+  "sunglasses of urza: spends white mana as red for exact lethal (CR 609.4b)": {
+    "cards": [
+      {
+        "name": "Sunglasses of Urza",
+        "owner": "me",
+        "zone": "battlefield"
+      },
+      {
+        "name": "Plains",
+        "owner": "me",
+        "zone": "battlefield"
+      },
+      {
+        "name": "Lightning Bolt",
+        "owner": "me",
+        "zone": "hand"
+      }
+    ],
+    "phase": "PRECOMBAT_MAIN",
+    "turn": 3,
+    "landCount": 0,
+    "libraryCount": 20,
+    "life": {
+      "opp": 3
+    }
+  },
+  "type-blind potential: casts Monk Realist into an opposing Glorious Anthem": {
+    "cards": [
+      {
+        "name": "Monk Realist",
+        "owner": "me",
+        "zone": "hand"
+      },
+      {
+        "name": "Glorious Anthem",
+        "owner": "opp",
+        "zone": "battlefield"
+      },
+      {
+        "name": "Grizzly Bears",
+        "owner": "opp",
+        "zone": "battlefield",
+        "summoningSick": false
+      },
+      {
+        "name": "Grizzly Bears",
+        "owner": "opp",
+        "zone": "battlefield",
+        "summoningSick": false
+      }
+    ],
+    "phase": "PRECOMBAT_MAIN",
+    "turn": 5,
+    "landCount": 4,
+    "libraryCount": 20
+  },
+  "wasted mana NEGATIVE CONTROL: casts Dark Ritual when it turns on a Craw Wurm": {
+    "cards": [
+      {
+        "name": "Dark Ritual",
+        "owner": "me",
+        "zone": "hand"
+      },
+      {
+        "name": "Craw Wurm",
+        "owner": "me",
+        "zone": "hand"
+      }
+    ],
+    "phase": "PRECOMBAT_MAIN",
+    "turn": 5,
+    "landCount": 4,
+    "libraryCount": 20
+  },
+  "zero-output mana source: casts its removal instead of tapping a 0-counter Everflowing Chalice": {
+    "cards": [
+      {
+        "name": "Everflowing Chalice",
+        "owner": "me",
+        "zone": "battlefield"
+      },
+      {
+        "name": "Mountain",
+        "owner": "me",
+        "zone": "battlefield",
+        "count": 2
+      },
+      {
+        "name": "Incinerate",
+        "owner": "me",
+        "zone": "hand"
+      },
+      {
+        "name": "Serra Angel",
+        "owner": "opp",
+        "zone": "battlefield",
+        "summoningSick": false
+      }
+    ],
+    "phase": "PRECOMBAT_MAIN",
+    "turn": 3,
+    "landCount": 0
+  }
 }
