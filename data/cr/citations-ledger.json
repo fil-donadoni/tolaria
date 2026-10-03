@@ -22232,6 +22232,7 @@
         {"id":"603.3b","line":"// a reload collapses back to the first staged creature (CR 603.3b).","sites":1,"status":"baseline"},
         {"id":"603.3b","line":"// ability 2 is the new `CARDS_EXILED` consumer (CR 400.1 / 603.3b / 608.2i).","sites":1,"status":"baseline"},
         {"id":"603.3b","line":"// attack trigger are APNAP-ordered together (CR 603.3b) instead of one","sites":1,"status":"baseline"},
+        {"id":"603.3b","line":"// await their stack order (CR 603.3b): take the first ordering.","sites":1,"status":"confirmed","ruleHash":"81584e76d6cb11e4"},
         {"id":"603.3b","line":"// before any triggered ability is put on the stack (CR 603.3b).","sites":1,"status":"baseline"},
         {"id":"603.3b","line":"// card (CR 603.3b) — 6 - 1 = 5, NOT 6 - 2 = 4.","sites":1,"status":"baseline"},
         {"id":"603.3b","line":"// controller decides at their own upkeep (CR 603.3b independent per-source","sites":1,"status":"baseline"},
