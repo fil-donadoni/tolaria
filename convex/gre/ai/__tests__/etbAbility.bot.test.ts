@@ -350,6 +350,12 @@ describe("value model — latent vs realized faces (issue #4758)", () => {
         );
         const dreadnought = getCardByName("Phyrexian Dreadnought");
         expect(etbSelfSacrificeWeight(dreadnought)).toBe(0);
+        // Mold Demon's "fewer than two Swamps" branch sacrifices whatever the
+        // controller would pay, and the latent reading cannot see the Swamps:
+        // an undecided gate (issue #4902), not the nothing a Dreadnought gets.
+        expect(
+            etbSelfSacrificeWeight(getCardByName("Mold Demon"))
+        ).toBeGreaterThan(0);
         // An evoke sacrifice is decided by how the card is cast — undecided in
         // hand, so it takes the gate's weight.
         expect(etbSelfSacrificeWeight(getCardByName("Solitude"))).toBe(0.5);
