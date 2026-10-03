@@ -1483,11 +1483,11 @@ export function rollout(
 
         // One census per seat for the whole ply (issue #4461): `state` is only
         // read until the chosen move is applied below.
-        const census = newManaCensusMemo();
+        const memo = newManaCensusMemo();
         let chosen: Move;
         if (
             moves.length === 1 ||
-            rng() < rolloutEpsilonFor(state, weights, census)
+            rng() < rolloutEpsilonFor(state, weights, memo)
         ) {
             // Exploration of lines the greedy probe undervalues, not a model
             // of typical play: never draws a transient sacrifice conversion, whose
@@ -1512,7 +1512,7 @@ export function rollout(
                 moves,
                 rng,
                 weights,
-                census
+                memo
             );
         }
         applyMoveInSearch(state, pid, chosen, true);
@@ -1919,15 +1919,15 @@ export function policyValueOfSettled(
 ): number {
     // One census per seat for the evaluation AND the corrections below (issue
     // #4461) — all three read the same settled state.
-    const census = newManaCensusMemo();
-    let v = evaluate(settled, botId, weights, census);
+    const memo = newManaCensusMemo();
+    let v = evaluate(settled, botId, weights, memo);
     const combat = settled.combat;
     if (
         combat &&
         combat.confirmed &&
         !combat.blockersConfirmed &&
         combat.attackerIds.length > 0 &&
-        hasCastableInstant(settled, settled.activePlayerId, undefined, census)
+        hasCastableInstant(settled, settled.activePlayerId, undefined, memo)
     ) {
         // Don't PRE-JUDGE the attacker's combat while the attacker holds a
         // castable trick (ADR 0021 slice 3): the held instant may swing the
@@ -1938,7 +1938,7 @@ export function policyValueOfSettled(
         // Strip it so the policy holds priority and lets the actual combat (with
         // the trick) resolve downstream. Policy-only, so the shared leaf
         // magnitudes / reward band are untouched.
-        v -= declaredCombatDelta(settled, botId, weights, undefined, census);
+        v -= declaredCombatDelta(settled, botId, weights, undefined, memo);
     }
     // Fold the declared block exchange in for ANY move taken at a confirmed,
     // pre-damage block — `declaredBlockDelta` reads effective P/T, so it covers
@@ -1948,7 +1948,7 @@ export function policyValueOfSettled(
     // `lethalUnblockedDelta` (issue #1489) reaches this sum EXACTLY ONCE, via
     // `evaluate` above: it is deliberately not inside `declaredBlockDelta`, so
     // this third consumer of the term cannot double it to ±2·WIN_SCORE.
-    return v + declaredBlockDelta(settled, botId, weights, census);
+    return v + declaredBlockDelta(settled, botId, weights, memo);
 }
 
 /** The reactive-aware rollout DEFAULT POLICY (ADR 0021 slice 2, issue #222): the
@@ -1974,11 +1974,11 @@ export function selectRolloutMove(
     moves: Move[],
     rng: () => number,
     weights: EvalWeights = DEFAULT_EVAL_WEIGHTS,
-    census: ManaCensusMemo = newManaCensusMemo()
+    memo: ManaCensusMemo = newManaCensusMemo()
 ): Move {
     const moverIsBot = pid === botId;
     // Asked once for the ply, not once per candidate (issue #4461).
-    const held = heldInstantProbe(state, pid, census);
+    const held = heldInstantProbe(state, pid, memo);
     let bestScore = -Infinity;
     let best: Move[] = [];
     for (const move of moves) {
@@ -2124,7 +2124,7 @@ function isReactiveHold(
  *  candidate, of the same position and the same mover; the answer is the
  *  position's, so it is computed once per node / ply instead of once per edge.
  *  Valid only while `state` is not mutated. */
-type HeldInstantProbe = {
+export type HeldInstantProbe = {
     instant: () => boolean;
     flashPermanent: () => boolean;
 };
@@ -2132,15 +2132,15 @@ type HeldInstantProbe = {
 function heldInstantProbe(
     state: GameState,
     pid: string,
-    census: ManaCensusMemo = newManaCensusMemo()
+    memo: ManaCensusMemo = newManaCensusMemo()
 ): HeldInstantProbe {
     let instant: boolean | undefined;
     let flashPermanent: boolean | undefined;
     return {
         instant: () =>
-            (instant ??= hasCastableInstant(state, pid, undefined, census)),
+            (instant ??= hasCastableInstant(state, pid, undefined, memo)),
         flashPermanent: () =>
-            (flashPermanent ??= hasCastableFlashPermanent(state, pid, census)),
+            (flashPermanent ??= hasCastableFlashPermanent(state, pid, memo)),
     };
 }
 

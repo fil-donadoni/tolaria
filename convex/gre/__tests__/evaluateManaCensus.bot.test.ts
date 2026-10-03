@@ -41,6 +41,9 @@ const PREFIXES = [
     "adventure: casts Stomp to kill the blocker",
     "depletion land: spends the last charge because it",
     "redirection shield: shields ITS OWN side and point",
+    // A position whose own-main `pass` reads `flashPermanent` as TRUE, so a
+    // non-zero reactive prior is pinned too (the three above read 0).
+    "flash permanent: holds Containment Priest in its own main with no threat",
 ];
 
 const ITERATIONS = 100;
