@@ -1145,7 +1145,9 @@ export function planManaPayment(
     costedOptionPolicy?: "spare" | "spend"
 ): ManaTap[] | null {
     const totalRequired =
-        (cost.X ?? 0) + MANA_COLORS.reduce((s, c) => s + (cost[c] ?? 0), 0);
+        (cost.X ?? 0) +
+        MANA_COLORS.reduce((s, c) => s + (cost[c] ?? 0), 0) +
+        normalizedHybridPips(cost).length;
     if (totalRequired === 0) return [];
 
     // Issue #1754 — both-players view, built once per call and shared across
@@ -1927,6 +1929,70 @@ export function planManaPayment(
         }
     };
 
+    /** The best (source, colour) to pay ONE pip payable by any of `colors`
+     *  (one colour for a plain pip, two for a guild-hybrid pip — CR 202.1a),
+     *  by the lexicographic (preference, rank, colour-count, yield) key. The
+     *  least-flexible source goes first, as `consumeColoredAndHybridPips` does
+     *  for the castability census this planner mirrors. */
+    const pickSourceForPip = (
+        colors: readonly Color[],
+        excluded: Set<PlanSource>
+    ): { idx: number; color: Color } | null => {
+        let bestIdx = -1;
+        let bestColor: Color = colors[0];
+        let bestSize = Infinity;
+        let bestRank = Infinity;
+        let bestYield = Infinity;
+        let bestPref = Infinity;
+        for (let i = 0; i < remaining.length; i++) {
+            const s = remaining[i];
+            if (excluded.has(s)) continue;
+            for (const c of colors) {
+                const opt = s.options.get(c);
+                if (!opt) continue;
+                // Issue #3530 — under `spend` a finite source outranks
+                // every other key, because the whole point of that plan is
+                // to be the one that spends the charge. 1 for every source
+                // under every other policy, so the lexicographic key below
+                // decides exactly as it did before.
+                // Issue #3359 — and under `spend` the COSTED source is what
+                // the whole plan is for, so it outranks every other key for
+                // the same reason: taking it last would leave its own mana
+                // leg with no unspent funder and fail the plan outright.
+                const pref =
+                    (preferFinite && s.finite) || (preferCosted && s.costed)
+                        ? 0
+                        : 1;
+                const rank = planOptionRank(s, c);
+                // Lexicographic (rank, colour-count, YIELD). The yield key
+                // is last and only ever separates sources the first two
+                // tie, so a board of one-mana sources — every land, every
+                // {T} rock — keeps byte-identical selection (issue #3027).
+                // Where it does fire it stops the greedy burning a Black
+                // Lotus on a pip an equally flexible single-mana source
+                // already covers.
+                const yieldTotal = optionYieldTotal(opt);
+                if (
+                    pref < bestPref ||
+                    (pref === bestPref &&
+                        (rank < bestRank ||
+                            (rank === bestRank &&
+                                (s.options.size < bestSize ||
+                                    (s.options.size === bestSize &&
+                                        yieldTotal < bestYield)))))
+                ) {
+                    bestIdx = i;
+                    bestColor = c;
+                    bestSize = s.options.size;
+                    bestRank = rank;
+                    bestYield = yieldTotal;
+                    bestPref = pref;
+                }
+            }
+        }
+        return bestIdx === -1 ? null : { idx: bestIdx, color: bestColor };
+    };
+
     // Colored requirements first, taking the least-flexible source that can
     // produce that color (basic land before dual, etc.) — but never one that
     // has to burn a SECOND source to fund itself while a self-sufficient one
@@ -1941,57 +2007,9 @@ export function planManaPayment(
                 need--;
                 continue;
             }
-            const ok = consumeBest((excluded) => {
-                let bestIdx = -1;
-                let bestSize = Infinity;
-                let bestRank = Infinity;
-                let bestYield = Infinity;
-                let bestPref = Infinity;
-                for (let i = 0; i < remaining.length; i++) {
-                    const s = remaining[i];
-                    if (excluded.has(s)) continue;
-                    const opt = s.options.get(c);
-                    if (!opt) continue;
-                    // Issue #3530 — under `spend` a finite source outranks
-                    // every other key, because the whole point of that plan is
-                    // to be the one that spends the charge. 1 for every source
-                    // under every other policy, so the lexicographic key below
-                    // decides exactly as it did before.
-                    // Issue #3359 — and under `spend` the COSTED source is what
-                    // the whole plan is for, so it outranks every other key for
-                    // the same reason: taking it last would leave its own mana
-                    // leg with no unspent funder and fail the plan outright.
-                    const pref =
-                        (preferFinite && s.finite) || (preferCosted && s.costed)
-                            ? 0
-                            : 1;
-                    const rank = planOptionRank(s, c);
-                    // Lexicographic (rank, colour-count, YIELD). The yield key
-                    // is last and only ever separates sources the first two
-                    // tie, so a board of one-mana sources — every land, every
-                    // {T} rock — keeps byte-identical selection (issue #3027).
-                    // Where it does fire it stops the greedy burning a Black
-                    // Lotus on a pip an equally flexible single-mana source
-                    // already covers.
-                    const yieldTotal = optionYieldTotal(opt);
-                    if (
-                        pref < bestPref ||
-                        (pref === bestPref &&
-                            (rank < bestRank ||
-                                (rank === bestRank &&
-                                    (s.options.size < bestSize ||
-                                        (s.options.size === bestSize &&
-                                            yieldTotal < bestYield)))))
-                    ) {
-                        bestIdx = i;
-                        bestSize = s.options.size;
-                        bestRank = rank;
-                        bestYield = yieldTotal;
-                        bestPref = pref;
-                    }
-                }
-                return bestIdx === -1 ? null : { idx: bestIdx, color: c };
-            });
+            const ok = consumeBest((excluded) =>
+                pickSourceForPip([c], excluded)
+            );
             if (!ok) return null;
             // STRUCTURALLY UNREACHABLE, kept fail-closed (issue #3027 review
             // finding 6): the option was selected because it produces `c`, so
@@ -2001,6 +2019,26 @@ export function planManaPayment(
             if (!spendFloating(c)) return null;
             need--;
         }
+    }
+
+    // CR 202.1a / 601.2f (issue #4934) — guild-hybrid pips, after the single
+    // colour pips (which are less flexible) and before the generic remainder:
+    // each `"A/B"` key is paid by ONE mana of A or of B. Without this the
+    // planner ignored the key — an empty plan for `{ "G/U": 2 }` on no lands.
+    for (const [first, second] of normalizedHybridPips(cost)) {
+        const pip: readonly Color[] = [first, second];
+        const floated = pip.find((c) => spendFloating(c));
+        if (floated !== undefined) continue;
+        const picked = { color: first };
+        const ok = consumeBest((excluded) => {
+            const candidate = pickSourceForPip(pip, excluded);
+            if (candidate) picked.color = candidate.color;
+            return candidate;
+        });
+        if (!ok) return null;
+        // As for a plain pip: the selected option credited at least one mana
+        // of the colour it was selected for.
+        if (!spendFloating(picked.color)) return null;
     }
 
     // Generic remainder: prefer pool sources (no tap), then least-flexible card.
@@ -3042,12 +3080,10 @@ export function enumerateCastMoves(
  *   - a PERMANENT leg beside a MANA leg — the tap plan is priced without
  *     knowing which permanents the leg gives up, so it could tap a land the
  *     same Move sacrifices (no shipped alternative cost combines the two);
- *   - an ENERGY leg — no shipped alternative cost carries one;
- *   - a HYBRID pip in the MANA leg (the ECL evoke trio's `{G/U}{G/U}`) —
- *     `planManaPayment` plans no hybrid pip at all, so the Move would carry an
- *     empty tap plan for a cost the caster may not be able to pay.
- *  All three are left unenumerated (dead for the Bot, never a freeze).
- *  tracked-by: #4934 (hybrid pips)
+ *   - an ENERGY leg — no shipped alternative cost carries one.
+ *  Both are left unenumerated (dead for the Bot, never a freeze). A HYBRID pip
+ *  in the MANA leg (the ECL evoke trio's `{G/U}{G/U}`) is enumerable: the
+ *  tap plan prices it (`planManaPayment`, issue #4934).
  *
  *  Hand casts only: a cast from any other zone is already priced by that
  *  zone's own alternative (flashback, escape, a permission — `castRawManaCost`),
@@ -3080,7 +3116,6 @@ function searchPayableOwnAlternativeCosts(
             ownIds.has(a.id) &&
             (a.permanent === undefined || manaValue(a.mana) === 0) &&
             (a.energy ?? 0) === 0 &&
-            (a.mana?.hybrid?.length ?? 0) === 0 &&
             !(
                 a.id === def.evoke?.id &&
                 evokeCastIsWasteful(state, player, card, def)

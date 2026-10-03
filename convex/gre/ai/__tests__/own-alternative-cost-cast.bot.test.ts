@@ -8,11 +8,12 @@
  * its pitch evoke exists for — offered only `pass`, and the Bot died to a
  * lethal attacker. These pin the three seams the fix crosses: the enumerator
  * (`moves.ts`), the search's payment of the hand leg (`applyMove.ts`), and the
- * fail-closed hybrid mana leg the Bot's planner cannot price yet.
+ * hybrid mana leg (issue #4934) the planner and the cast gate now price.
  */
 import { describe, expect, it } from "vitest";
 import type { GameState } from "../../state";
-import { enumerateMoves, type Move } from "../../moves";
+import { enumerateMoves, planManaPayment, type Move } from "../../moves";
+import { getLegalActions } from "../../rules";
 import { applyMoveForSearch } from "../../applyMove";
 import { buildBladeState } from "../blade/runner";
 import type { BladeScenario } from "../blade/types";
@@ -177,14 +178,60 @@ describe("own alternative cost cast (issue #4900, CR 118.9 / 702.74a)", () => {
         expect(withTarget.every((m) => m.targets.length > 0)).toBe(true);
     });
 
-    it("fail closed — a hybrid evoke (unplannable by `planManaPayment`) is not offered on zero lands", () => {
-        const state = build({
-            cards: [{ name: "Wistfulness", owner: "me", zone: "hand" }],
+    it("CR 202.1a — planManaPayment prices a hybrid pip: null on no lands, a two-tap plan on two Forests", () => {
+        const empty = build({
+            cards: [],
             phase: "PRECOMBAT_MAIN",
             turn: 3,
             landCount: 0,
             libraryCount: 20,
         });
-        expect(castsOf(state, "Wistfulness")).toEqual([]);
+        expect(planManaPayment(empty, me(empty), { "G/U": 2 })).toBeNull();
+        const forests = build({
+            cards: [
+                { name: "Forest", owner: "me", zone: "battlefield" },
+                { name: "Forest", owner: "me", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            landCount: 0,
+            libraryCount: 20,
+        });
+        expect(
+            planManaPayment(forests, me(forests), { "G/U": 2 })
+        ).toHaveLength(2);
+        expect(planManaPayment(forests, me(forests), { "G/U": 3 })).toBeNull();
+    });
+
+    it("CR 118.9 / 202.1a — Wistfulness: no cast on zero lands, no printed cast on three Forests, evoke on two Forests with a two-land plan", () => {
+        const forestsSpec = (n: number): BladeScenario["spec"] => ({
+            cards: [
+                { name: "Wistfulness", owner: "me", zone: "hand" },
+                ...Array.from({ length: n }, () => ({
+                    name: "Forest",
+                    owner: "me" as const,
+                    zone: "battlefield" as const,
+                })),
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            landCount: 0,
+            libraryCount: 20,
+        });
+        const zero = build(forestsSpec(0));
+        const wist = me(zero).hand.find((c) => cardName(c) === "Wistfulness")!;
+        expect(getLegalActions(zero, me(zero), wist)).not.toContain("cast");
+        expect(castsOf(zero, "Wistfulness")).toEqual([]);
+
+        const three = build(forestsSpec(3));
+        const printed = castsOf(three, "Wistfulness").filter(
+            (m) => !m.alternativeCostId
+        );
+        expect(printed).toEqual([]);
+
+        const two = build(forestsSpec(2));
+        const evokes = castsOf(two, "Wistfulness");
+        expect(evokes.length).toBeGreaterThan(0);
+        expect(evokes.every((m) => m.tapPlan?.length === 2)).toBe(true);
     });
 });
