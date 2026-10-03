@@ -94,6 +94,7 @@ import { BASE_BRANCH, ORIGIN_BASE, RELEASE_BRANCH } from "./lib/branches";
 import {
     batchTouchesBot,
     botRefreshSteps,
+    FILING_STEP_NAME,
     REFRESHED_ARTIFACT_NAME,
 } from "./lib/health-bot-refresh";
 import {
@@ -696,7 +697,7 @@ async function main(): Promise<void> {
         args: healthStepArgs(name),
     }));
 
-    const refreshSteps = refreshBot ? botRefreshSteps(steps.length) : [];
+    const refreshSteps = refreshBot ? botRefreshSteps(steps.length, root) : [];
     if (refreshBot) {
         // The gates' own "[n/total]" lines must already count the refresh.
         for (const step of steps)
@@ -745,10 +746,18 @@ async function main(): Promise<void> {
                 let refreshed = refreshSteps.length > 0;
                 for (const step of refreshSteps) {
                     const r = await runHealthStep(step, {
-                        cwd: wt,
+                        cwd: step.cwd ?? wt,
                         env,
                         logPath,
                     });
+                    if (!r.ok && step.name === FILING_STEP_NAME) {
+                        // Filing is the refresh's last act and no part of the
+                        // measurement: the page is fresh, the gaps file next run.
+                        console.error(
+                            `health-main: ${step.name} failed — Bot Gaps not filed this batch (${logPath})`
+                        );
+                        break;
+                    }
                     if (!r.ok) {
                         refreshed = false;
                         console.error(

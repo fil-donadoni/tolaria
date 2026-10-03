@@ -39,12 +39,19 @@ describe("batchTouchesBot", () => {
 });
 
 describe("botRefreshSteps", () => {
-    it("re-measures, then seeds the deployment from what it measured, numbered after the gates", () => {
+    it("re-measures, seeds the deployment, then files the Bot Gaps, numbered after the gates", () => {
         const steps = botRefreshSteps(6);
         expect(steps.map((s) => [s.ordinal, s.total, s.name])).toEqual([
-            [7, 8, "bot:reach"],
-            [8, 8, "seed:bot-findings"],
+            [7, 9, "bot:reach"],
+            [8, 9, "seed:bot-findings"],
+            [9, 9, "gaps:sync"],
         ]);
+    });
+
+    it("files from the primary checkout, with no --no-file-bot (issue #4944)", () => {
+        const filing = botRefreshSteps(0, "/primary").at(-1)!;
+        expect(filing.cwd).toBe("/primary");
+        expect(filing.args).toEqual(["run", "gaps:sync"]);
     });
 
     it("takes the CPU-bound measurement through the heavy gate", () => {
@@ -68,7 +75,7 @@ describe("where the refresh runs", () => {
     it("is wired into the health batch, after the gates and only on a Bot-touching diff", () => {
         const src = read("scripts/health-main.ts");
         expect(src).toContain("batchTouchesBot(batchChangedFiles(root, tip))");
-        expect(src).toContain("botRefreshSteps(steps.length)");
+        expect(src).toContain("botRefreshSteps(steps.length, root)");
         // A failed gate skips the refresh: the loop sits under `failedStep === undefined`.
         expect(src).toMatch(
             /if \(failedStep === undefined\) \{[\s\S]*?for \(const step of refreshSteps\)/

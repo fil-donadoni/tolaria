@@ -617,11 +617,21 @@ describe("land.ts — the locked command", () => {
         );
     });
 
+    it("files no Bot Gap at landing time: gaps:sync runs with --no-file-bot, band or not (issue #4944)", () => {
+        for (const step of [
+            gapsSyncStep("/repo"),
+            gapsSyncStep("/repo", null),
+            gapsSyncStep("/repo", "P0"),
+        ])
+            expect(step).toMatch(/gaps-sync\.ts' --no-file-bot\b/);
+        expect(buildLockedCommand(base)).toContain("--no-file-bot");
+    });
+
     it("passes the origin band to gaps:sync when the landed issue's band is known (issue #4158)", () => {
         const cmd = buildLockedCommand({ ...base, originBand: "P0" });
         const step = gapsSyncStep("/repo", "P0");
         expect(cmd).toContain(step);
-        expect(step).toMatch(/gaps-sync\.ts' --band P0 \|\|/);
+        expect(step).toMatch(/gaps-sync\.ts' --no-file-bot --band P0 \|\|/);
         // Still non-gating, still in the primary checkout.
         expect(step.startsWith("(cd '/repo' && ")).toBe(true);
         expect(step.endsWith("; true)")).toBe(true);

@@ -117,6 +117,7 @@ import {
     matchCluster,
     syncAdoptedBlocks,
     syncClusterCutTickets,
+    NO_FILE_BOT_FLAG,
     setFileColour,
     syncGaps,
     syncUnlockEdges,
@@ -1110,9 +1111,15 @@ export function parseOriginBand(
     return value as UmbrellaBand;
 }
 
+/** The gap kinds one run must not create, from `argv` — see {@link NO_FILE_BOT_FLAG}. */
+export function heldKindsOf(argv: readonly string[]): ReadonlySet<GapKind> {
+    return new Set<GapKind>(argv.includes(NO_FILE_BOT_FLAG) ? ["bot"] : []);
+}
+
 function main(): void {
     const root = resolve(".");
     const dryRun = process.argv.includes("--dry-run");
+    const holdCreates = heldKindsOf(process.argv.slice(2));
     let originBand: UmbrellaBand | undefined;
     try {
         originBand = parseOriginBand(process.argv.slice(2));
@@ -1324,8 +1331,14 @@ function main(): void {
                     : umbrella === null
                       ? ""
                       : ` [${filing.target} -> #${umbrella}]`;
+            const shown =
+                holdCreates.has(filing.kind) &&
+                filing.currentIssue === null &&
+                !isAdoptedFiling(filing)
+                    ? `would HOLD (${NO_FILE_BOT_FLAG})`
+                    : at;
             console.log(
-                `${filing.kind.padEnd(10)} ${at}${band}: ${filing.title}`
+                `${filing.kind.padEnd(10)} ${shown}${band}: ${filing.title}`
             );
         }
         console.log(
@@ -1374,8 +1387,13 @@ function main(): void {
         originBand,
         clusterIssues(allowlist),
         signatureRows,
-        tip
+        tip,
+        holdCreates
     );
+    for (const id of result.held)
+        console.log(
+            `held       ${id} — ${NO_FILE_BOT_FLAG}: not filed here, the next batch health refresh files it`
+        );
 
     const counts = new Map<string, number>();
     for (const action of result.actions) {

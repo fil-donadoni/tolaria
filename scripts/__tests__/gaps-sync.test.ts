@@ -68,6 +68,7 @@ import {
     staleClaims,
     trustedBotFindings,
     type ClaimCloser,
+    heldKindsOf,
 } from "../gaps-sync";
 import { botGapKey, type BotGapVerdict } from "../lib/oracle-bot-reach";
 import type { CardRow, FragmentRow, Lockfile } from "../lib/oracle-lockfile";
@@ -554,6 +555,47 @@ describe("the bot kind — one issue per Bot Gap key, scoped to the ranked Targe
         expect(second.actions.map((a) => a.action)).toEqual(["noop", "noop"]);
         expect(second.updatedRows.size).toBe(0);
         expect(tracker.updateCalls).toBe(0);
+    });
+
+    it("a held `bot` kind files nothing, adopts nothing and records no row (issue #4944)", () => {
+        const tracker = new StubTracker();
+        const result = syncGaps(
+            buildBotGapFilings(inputs(lock)),
+            tracker,
+            undefined,
+            new Set(),
+            [],
+            "tip",
+            new Set(["bot"])
+        );
+        expect(tracker.created).toEqual([]);
+        expect(result.actions).toEqual([]);
+        expect(result.updatedRows.size).toBe(0);
+        expect(result.held).toHaveLength(2);
+    });
+
+    it("a held kind still reconciles a gap already filed", () => {
+        const tracker = new StubTracker();
+        const first = syncGaps(buildBotGapFilings(inputs(lock)), tracker);
+        const filed = new Map(first.updatedRows);
+        const again = syncGaps(
+            buildBotGapFilings(inputs(lock, { filed })),
+            tracker,
+            undefined,
+            new Set(),
+            [],
+            "tip",
+            new Set(["bot"])
+        );
+        expect(again.actions.map((a) => a.action)).toEqual(["noop", "noop"]);
+        expect(again.held).toEqual([]);
+    });
+
+    it("`--no-file-bot` holds the bot kind alone", () => {
+        expect([...heldKindsOf(["--no-file-bot", "--band", "P0"])]).toEqual([
+            "bot",
+        ]);
+        expect(heldKindsOf(["--band", "P0"]).size).toBe(0);
     });
 
     it("writes the issue number back as a `claims` row of kind `bot`", () => {
@@ -2245,10 +2287,10 @@ describe("gaps-sync main hands the parsed origin band to syncGaps", () => {
     // from `parseOriginBand` into `syncGaps` cannot be run under test; a flag
     // parsed and then dropped is exactly the failure issue #4158 exists to end.
     // Pinned by SHAPE, the same way `land.test.ts` pins the locked command.
-    it("passes `originBand` third, the allowlist's Grammar Clusters fourth, its Cluster Signatures fifth and the tip sixth", () => {
+    it("passes `originBand` third, the allowlist's Grammar Clusters fourth, its Cluster Signatures fifth, the tip sixth and the held kinds seventh", () => {
         const source = readFileSync("scripts/gaps-sync.ts", "utf8");
         expect(source).toMatch(
-            /syncGaps\(\s*withUnlockBlockers\(filings, blockers\),\s*tracker,\s*originBand,\s*clusterIssues\(allowlist\),\s*signatureRows,\s*tip\s*\)/
+            /syncGaps\(\s*withUnlockBlockers\(filings, blockers\),\s*tracker,\s*originBand,\s*clusterIssues\(allowlist\),\s*signatureRows,\s*tip,\s*holdCreates\s*\)/
         );
     });
 });
