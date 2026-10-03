@@ -926,12 +926,12 @@ function quietDefensiveGrantFlat(
  *  Three consequences follow, and each is a limit, not an accident:
  *
  *  - It covers PERMANENT spells only. A sorcery or instant goes hand →
- *    graveyard, so casting Wrath of God (MV 4) on six lands still drops the
- *    term by 12 x 4 = 48 — the #2928 shape, unfixed for roughly half a
- *    catalogue. Reading a graveyard as continuing proof of a mana base is a
- *    different claim from reading the battlefield that way (the spell is gone;
- *    the permanent is still doing the thing the mana bought), and it wants its
- *    own decision rather than a silent extension here.
+ *    graveyard; issue #4931 keeps a CAST one counting from there
+ *    (`castSpellInGraveyard`, stamped as it leaves the stack), so Wrath of
+ *    God (MV 4) on six lands no longer drops the term by 12 x 4 = 48. A
+ *    discarded or milled card carries no stamp and still lowers demand. The
+ *    stamp is not cleared on a graveyard exit other than a recast, so a cast
+ *    spell returned to hand and then discarded still counts.
  *  - It runs between two ENDPOINTS. A spell on the stack is in neither half, so
  *    the term reads 0 mid-cast; `applyMoveInSearch` really does produce those
  *    nodes. `policyValue` settles the top of the stack before scoring a cast,
@@ -1035,6 +1035,14 @@ function manaDevelopmentTerm(
     // (`castCost.ts`), the one authority the enumerator and `graveyardReach`
     // share.
     for (const c of player.graveyard) {
+        // Issue #4931 — a spell that was CAST (instant/sorcery that came off the
+        // stack) keeps raising the curve, unconditionally like a battlefield
+        // permanent: the base paid for it once. A discarded or milled card has
+        // no such flag and, unless castable on its own, lowers demand.
+        if (c.castSpellInGraveyard === true) {
+            raise(c);
+            continue;
+        }
         const mechanism = graveyardCastMechanismForMember(
             state,
             player,
