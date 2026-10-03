@@ -10,16 +10,13 @@ import { resolveEvalWeights } from "../../searchVariant";
 import { FITTABLE_WEIGHT_KEYS, weightValue } from "../../verdicts/features";
 import { bladeScenariosForTier, findBladeScenario } from "../registry";
 import { ROBUSTNESS_BASELINE } from "../robustnessBaseline";
-import type { BladeResult } from "../runner";
 import {
     auditBladeScenario,
     classifyRobustness,
     compareRobustness,
     describeRobustnessFindings,
     JITTER_FRACTION,
-    parseRobustnessScope,
     ROBUSTNESS_SEEDS,
-    robustnessScopeAdmits,
     robustnessVectors,
     type RobustnessLeg,
     type RobustnessRow,
@@ -160,68 +157,6 @@ describe("auditBladeScenario — a real audit (issue #4875)", () => {
         expect(
             Object.values(result.legs[0].mechanisms).reduce((a, b) => a + b, 0)
         ).toBe(ROBUSTNESS_SEEDS.length);
-    });
-});
-
-describe("robustnessScopeAdmits — the near-tie slice `land` runs (issue #5016)", () => {
-    const own = (
-        label: string,
-        mechanisms: BladeResult["seeds"][number]["mechanism"][]
-    ): BladeResult => ({
-        label,
-        tier: "must",
-        ok: true,
-        failureMessage: "",
-        seeds: mechanisms.map((mechanism, seed) => ({
-            seed,
-            move: null,
-            moveDescription: "",
-            ok: true,
-            reason: "",
-            mechanism,
-        })),
-    });
-
-    it("admits an entry one of whose own seeds settled by material-tiebreak", () => {
-        expect(
-            robustnessScopeAdmits(
-                "tiebreak",
-                own("near-tie", ["mean-reward", "material-tiebreak"]),
-                []
-            )
-        ).toBe(true);
-    });
-
-    it("skips an entry whose own seeds all settled without a tie-break", () => {
-        expect(
-            robustnessScopeAdmits(
-                "tiebreak",
-                own("decided", ["mean-reward", "hold-trick", null]),
-                []
-            )
-        ).toBe(false);
-    });
-
-    it("always admits a baseline row, so a cleared row still reds", () => {
-        expect(
-            robustnessScopeAdmits("tiebreak", own("listed", ["mean-reward"]), [
-                { label: "listed", issue: 4982 },
-            ])
-        ).toBe(true);
-    });
-
-    it("the full scope admits everything", () => {
-        expect(
-            robustnessScopeAdmits("all", own("decided", ["mean-reward"]), [])
-        ).toBe(true);
-    });
-
-    it("parses the env knob, failing loud on a typo", () => {
-        expect(parseRobustnessScope(undefined)).toBe("all");
-        expect(parseRobustnessScope("tiebreak")).toBe("tiebreak");
-        expect(() => parseRobustnessScope("tie-break")).toThrow(
-            /BLADE_ROBUSTNESS_SCOPE/
-        );
     });
 });
 

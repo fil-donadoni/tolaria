@@ -2,7 +2,9 @@
  * The blade robustness audit's wiring (issue #4875): a `health` gate for a
  * batch that touched the Bot's globs, and nothing else — never `check:pr`, `check:lane` or `land`. Minutes of search
  * per run is a batch cost (issue #4490: a new guard goes on `health`, never on
- * a PR-phase gate).
+ * a PR-phase gate). What its failure means to the batch — RED only for an
+ * entry failing its own seeds, drift filed as an issue — is
+ * `health-robustness-drift.test.ts` (issue #5016).
  */
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
