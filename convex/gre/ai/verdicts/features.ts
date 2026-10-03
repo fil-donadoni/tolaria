@@ -54,7 +54,10 @@
 //     cut by `MAX_LATENT_SCRIPT_VALUE` (`cardValue.ts`), moves its `hand` term
 //     with EVERY `latent.*` component reading zero — measured at 33 of the 160
 //     must-tier pairs. The units are real; no fittable weight scales them.
-//   * a creature's hand worth is `creatureValueRaw` outright, weight-free.
+//   * a creature's hand worth read by id alone (`cardValueById`: the
+//     resolution-choice and graveyard-reach entry points) runs at the
+//     committed `latentCreatureDiscount`, not the bumped one — only the hand
+//     term and a bounce's returned worth read the vector's (issue #4882).
 // The step is one-sided (forward), so a card sitting exactly on a clamp reads
 // the slope of the side it is nudged into. A pair that moves `terms` while
 // `basis` is silent is NOT evidence of a missing evaluation term — it is
@@ -175,6 +178,8 @@ const FITTABLE_TERM_WEIGHTS = [
     "graveyardEngineWeight",
     "graveyardReachFraction",
     "recoverableSweepFraction",
+    "latentCreatureDiscount",
+    "latentFlashCreatureDiscount",
 ] as const;
 
 export type FittableTermWeight = (typeof FITTABLE_TERM_WEIGHTS)[number];

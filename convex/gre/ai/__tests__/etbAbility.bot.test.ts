@@ -406,7 +406,7 @@ describe("value model — latent vs realized faces (issue #4758)", () => {
     it("a creature's latent script value is bounded like a non-creature's (issue #1508's cap)", () => {
         const oracle = getCardByName("Thassa's Oracle");
         const body =
-            0.85 *
+            DEFAULT_EVAL_WEIGHTS.latentCreatureDiscount *
             creatureValueRaw(
                 oracle.power ?? 0,
                 oracle.toughness ?? 0,

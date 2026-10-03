@@ -76,6 +76,24 @@ describe("DEFAULT_EVAL_WEIGHTS (issue #2683)", () => {
         ).toBeLessThanOrEqual(1);
     });
 
+    it("prices a creature in hand strictly below the same creature in play (issue #149, issue #4882)", () => {
+        // `latentCreatureDiscount` is the share of a creature's realized body
+        // a copy in hand is worth. At 1 or above, holding a creature is worth
+        // as much as deploying it (the issue #4882 tie, where a 12/12 and its
+        // protection in hand summed to the 12/12 in play) or more; at 0 a
+        // creature card in hand is worthless. The fit's trust region around
+        // the 0.85 prior reaches 1.275, and no fit band bounds a single
+        // weight, so the range is asserted here on the committed vector.
+        expect(DEFAULT_EVAL_WEIGHTS.latentCreatureDiscount).toBeGreaterThan(0);
+        expect(DEFAULT_EVAL_WEIGHTS.latentCreatureDiscount).toBeLessThan(1);
+        expect(
+            DEFAULT_EVAL_WEIGHTS.latentFlashCreatureDiscount
+        ).toBeGreaterThan(0);
+        expect(DEFAULT_EVAL_WEIGHTS.latentFlashCreatureDiscount).toBeLessThan(
+            1
+        );
+    });
+
     it("is frozen — a mutation attempt is a no-op / throws in strict mode", () => {
         expect(Object.isFrozen(DEFAULT_EVAL_WEIGHTS)).toBe(true);
         expect(Object.isFrozen(FIT_BASE_EVAL_WEIGHTS)).toBe(true);
