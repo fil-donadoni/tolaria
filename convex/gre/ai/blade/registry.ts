@@ -9086,6 +9086,14 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // cast, and those subtrees dragged the cast edge's mean margin under
         // `pass`'s. Fixed by class, not by card: `isDiscardExchangeSacrifice`
         // (`search.ts`).
+        //
+        // POSTCOMBAT, not the sweep's precombat main (issue #5016, the shape
+        // of issue #4777 and issue #4877): there the rollout casts the
+        // Hypnotist in the postcombat main after `pass`, so a refit moved the
+        // near-tie enough to lose 1 of 10 wide seeds on every vector. Here
+        // `pass` forgoes the deploy for the turn. The sweep
+        // (`botReach.bot.test.ts`) still asks "ever played?" in either main
+        // phase; "cast precombat?" is guarded by nothing, deliberately.
         label: "Sacrifice-for-discard outlet: casts the creature",
         spec: {
             cards: [
@@ -9104,7 +9112,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
                 { name: "Castle", owner: "opp", zone: "battlefield" },
                 { name: "Grizzly Bears", owner: "opp", zone: "graveyard" },
             ],
-            phase: "PRECOMBAT_MAIN",
+            phase: "POSTCOMBAT_MAIN",
             turn: 3,
             libraryCount: 20,
         },
@@ -9253,6 +9261,14 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // random and the tree opened it at the node after the cast, and those
         // subtrees dragged the cast edge's mean margin under `pass`'s. Fixed by
         // class, not by card: `isDrawExchangeSacrifice` (`search.ts`).
+        //
+        // POSTCOMBAT, not the sweep's precombat main (issue #5016, the shape
+        // of issue #4777 and issue #4877): there the rollout casts the Golem
+        // in the postcombat main after `pass`, so a refit moved the near-tie
+        // enough to lose 2 of 10 wide seeds under jitter+. Here `pass`
+        // forgoes the deploy for the turn. The sweep (`botReach.bot.test.ts`)
+        // still asks "ever played?" in either main phase; "cast precombat?"
+        // is guarded by nothing, deliberately.
         label: "Sacrifice-for-draw outlet: casts the creature",
         spec: {
             cards: [
@@ -9274,7 +9290,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
                 { name: "Castle", owner: "opp", zone: "battlefield" },
                 { name: "Grizzly Bears", owner: "opp", zone: "graveyard" },
             ],
-            phase: "PRECOMBAT_MAIN",
+            phase: "POSTCOMBAT_MAIN",
             turn: 3,
             libraryCount: 20,
         },

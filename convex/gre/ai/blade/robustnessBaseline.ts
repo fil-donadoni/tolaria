@@ -26,11 +26,4 @@ export const ROBUSTNESS_BASELINE: readonly RobustnessBaselineRow[] = [
         label: "opponent's choice: casts Ravenous Rats into a two-card hand",
         issue: 4981,
     },
-    // Pinned since it landed (PR #4906, issue #4895), same RED: jitter+ and
-    // jitter− 9/10, each failing run decided by material-tiebreak where every
-    // passing run is mean-reward.
-    {
-        label: "granted flashback: casts Stingcaster Mage to flash back Lightning Bolt for lethal",
-        issue: 4982,
-    },
 ];
