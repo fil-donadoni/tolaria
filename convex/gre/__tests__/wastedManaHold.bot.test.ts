@@ -69,7 +69,7 @@ function mechanismsOf(state: GameState, seed: number): string[] {
 const SEED = 0xb1ade;
 
 describe("wasted-mana hold (CR 106.4)", () => {
-    it("Metamorphosis with no creature spell to spend its mana is settled by the hold", () => {
+    it("Metamorphosis with no creature spell to spend its mana is held: the hold settles it or pass leads", () => {
         const state = build({
             cards: [
                 { name: "Metamorphosis", owner: "me", zone: "hand" },
