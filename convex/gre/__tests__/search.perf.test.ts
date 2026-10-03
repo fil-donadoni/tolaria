@@ -30,6 +30,12 @@ import type { GameState } from "../state";
  * production hook, and every applier that changes the position ends in an SBA
  * sweep (CR 704.3). It is a proxy for applications, named for what it counts.
  *
+ * `evaluations` counts every call the search makes into `evaluate.ts` that
+ * scores BOTH players' material — `evaluate`, `materialMargin` and
+ * `evaluateWithMargin` alike
+ * (issue #4459): the leaf used to pay one of each, and the counter has to see
+ * both for the merge into one call to show up as a delta.
+ *
  * `rngDraws` is the total `rngCounter` advance over every clone the search
  * made: game-PRNG draws only (in-game random effects). The search's own
  * stream (`makeRng(seed)`, determinization shuffles) is a private closure and
@@ -79,6 +85,18 @@ vi.mock("../evaluate", async (importOriginal) => {
             counts.evaluations++;
             return original.evaluate(...args);
         },
+        materialMargin: (
+            ...args: Parameters<typeof original.materialMargin>
+        ) => {
+            counts.evaluations++;
+            return original.materialMargin(...args);
+        },
+        evaluateWithMargin: (
+            ...args: Parameters<typeof original.evaluateWithMargin>
+        ) => {
+            counts.evaluations++;
+            return original.evaluateWithMargin(...args);
+        },
     };
 });
 
@@ -122,10 +140,10 @@ const POSITIONS: Position[] = [
         legalMoves: 4,
         expected: {
             iterationsCompleted: 95,
-            clones: 436,
-            enumerations: 3058,
-            evaluations: 413,
-            sbaSweeps: 3398,
+            clones: 374,
+            enumerations: 3055,
+            evaluations: 353,
+            sbaSweeps: 3333,
             rngDraws: 0,
         },
     },
@@ -137,7 +155,7 @@ const POSITIONS: Position[] = [
             iterationsCompleted: 97,
             clones: 354,
             enumerations: 2260,
-            evaluations: 289,
+            evaluations: 291,
             sbaSweeps: 2516,
             rngDraws: 0,
         },
@@ -150,7 +168,7 @@ const POSITIONS: Position[] = [
             iterationsCompleted: 100,
             clones: 1107,
             enumerations: 3532,
-            evaluations: 860,
+            evaluations: 888,
             sbaSweeps: 4538,
             rngDraws: 0,
         },

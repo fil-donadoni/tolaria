@@ -1555,13 +1555,40 @@ export function evaluate(
     playerId: string,
     weights: EvalWeights = DEFAULT_EVAL_WEIGHTS
 ): number {
+    return evaluateWithMargin(state, playerId, weights).value;
+}
+
+/** `evaluate` and `materialMargin` from ONE scoring of both players (issue
+ *  #4459): `value` is exactly `evaluate(state, playerId, weights)` and `margin`
+ *  exactly `materialMargin(state, playerId, weights)` — the margin is the
+ *  pre-terminal material difference `evaluate` already computes on its way to
+ *  the value. The search scores every leaf this way instead of paying the two
+ *  player scores twice. */
+export function evaluateWithMargin(
+    state: GameState,
+    playerId: string,
+    weights: EvalWeights = DEFAULT_EVAL_WEIGHTS
+): { value: number; margin: number } {
     const me = state.players.find((p) => p.id === playerId);
     const opp = state.players.find((p) => p.id !== playerId);
-    if (!me || !opp) return 0;
+    if (!me || !opp) return { value: 0, margin: 0 };
 
     const margin =
         playerScore(state, me, weights, "own") -
         playerScore(state, opp, weights, "observed");
+    return { value: valueFromMargin(state, me, opp, margin, weights), margin };
+}
+
+/** The rest of `evaluate` once the material margin is known: the terminal
+ *  offset, or the open-position race and combat terms. */
+function valueFromMargin(
+    state: GameState,
+    me: PlayerState,
+    opp: PlayerState,
+    margin: number,
+    weights: EvalWeights
+): number {
+    const playerId = me.id;
 
     // Terminal detection. A recorded game-over is authoritative; otherwise a
     // player at ≤ 0 life has effectively lost (SBA may not have run on this
