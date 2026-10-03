@@ -562,7 +562,7 @@ function spellPose(def: CardDefinition): TargetPose {
  * caller hands this module the definition BEFORE `expandDefinition` rebuilds
  * them) and a hand-written `TriggeredAbility`.
  */
-function etbAbilityScripts(def: CardDefinition): CardDefinition[] {
+export function etbAbilityScripts(def: CardDefinition): CardDefinition[] {
     const scripts: CardDefinition[] = [];
     for (const t of def.triggeredAbilities ?? []) {
         if (t.etbAbility !== true) continue;

@@ -444,6 +444,32 @@ const ETB_GOBLIN_LOOKER: CardDefinition = {
     ],
 };
 
+/** A creature whose ENTERS trigger makes a target player discard at random
+ *  (Sanity Gnawers' shape). An opponent holding lands gives the discard
+ *  nothing to take, so the Bot holds the card: a limit of the position, never
+ *  a Bot Gap (issue #4904). */
+const ETB_DISCARDER: CardDefinition = {
+    ...ETB_WALL_REMOVER,
+    id: "bot-reach-test:etb-discarder",
+    name: "Bot Reach ETB Discarder",
+    compiledTriggeredAbilities: [
+        {
+            id: "bot-reach-test:etb-discarder:trigger",
+            oracleText:
+                "When this creature enters, target player discards a card at random.",
+            head: { kind: "entered", scope: "self" },
+            targetRequirement: { type: "player", count: 1 },
+            effects: [
+                {
+                    op: "discardAtRandom",
+                    player: { target: 0 },
+                    count: 1,
+                },
+            ],
+        },
+    ],
+};
+
 describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
     it("played — the Bot casts an affordable creature at both seats", () => {
         expect(playTwice(getCardByName("Grizzly Bears"))).toEqual({
@@ -1760,6 +1786,12 @@ describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
     it("played — an ETB Ability's narrowed target is posed like a spell's (issue #4904)", () => {
         withTemporaryDefinition(ETB_WALL_REMOVER, () => {
             expect(playTwice(ETB_WALL_REMOVER)).toEqual({ outcome: "played" });
+        });
+    });
+
+    it("played — an ETB Ability that aims a discard finds a hand worth taking (issue #4904)", () => {
+        withTemporaryDefinition(ETB_DISCARDER, () => {
+            expect(playTwice(ETB_DISCARDER)).toEqual({ outcome: "played" });
         });
     });
 

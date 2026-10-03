@@ -78,6 +78,7 @@ import {
     combatTrickPosition,
     flashAmbushPosition,
     costPose,
+    etbAbilityScripts,
     sorceryLifeGainRace,
     sorceryPumpRace,
     targetPose,
@@ -466,7 +467,15 @@ function discardsFromTarget(def: CardDefinition): boolean {
             Object.values(record).some(visit)
         );
     };
-    return visit(def.effects) || visit(def.modes);
+    // CR 603.6a — a creature's ETB Ability that aims the discard is the same
+    // claim (issue #4904).
+    return (
+        visit(def.effects) ||
+        visit(def.modes) ||
+        etbAbilityScripts(def).some(
+            (script) => visit(script.effects) || visit(script.modes)
+        )
+    );
 }
 
 /**
