@@ -263,6 +263,28 @@ cui entra" (Snapcaster, flash + ETB).
       seed, issue #5015.
 - Audit completo dopo il refit finale: 202/202, baseline vuota.
 
+## Secondo `land` (2026-10-03): coppia Phlage rossa, bloccata su issue #5014
+
+- Rebase su `origin/staging` 63f1dfff1: un conflitto (`ROBUSTNESS_BASELINE`,
+  presa la versione vuota del branch). Audit su metà 1, metà 2, charter Stifle
+  e le tre entry sacrifice-outlet (ri-tagliate da issue #5016): tutte `ROBUST`.
+- `land` rosso su un solo test: la coppia Eval di issue #4898 "Phlage senza
+  lethal" (`etbAbility.bot.test.ts`), 132.3 contro 135.2. Era già rossa prima
+  del rebase: il refit su c43c4b5a3 (0.547535) l'ha persa, quello precedente
+  (0.605569) la comprava.
+- Breakdown 1-ply ai pesi correnti: cast = +24 vita, +24 danno all'avversario,
+  +42.9 `graveyardReach`, −4.5 mana; pass = Phlage in mano a **89.4**. Il
+  valore in mano è lo script ETB letto senza board (`contextFreeGrounding`):
+  ≈63 dei 89 sono i 3 danni a `latent.damage` 21.1/punto, mentre senza
+  creature il danno realizzato va in faccia a 8/punto. Ai pesi
+  `FIT_BASE` il gap è −13.5; il fit lo porta a −2.9 ma non oltre zero: è un
+  residuo nel report ("still under the margin"), nessun vettore lo compra.
+- Lo sconto `latentCreatureDiscount` non c'entra in mano: Phlage ha
+  `etbSelfSacrificeWeight` 1, corpo a zero.
+- È la classe di issue #5014 (Phlage tenuto in mano): l'ETB di una creatura
+  che si sacrifica è di fatto una magia, e va letto sulla board come il ramo
+  non-creatura (issue #3398). Issue #4882 resta bloccata su issue #5014.
+
 ## Cosa fare quando c'è un bug del game bot
 
 1. **L'entry blade è la specifica.** La domanda che pone ("un umano risponde
