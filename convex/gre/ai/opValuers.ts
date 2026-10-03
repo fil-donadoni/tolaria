@@ -143,7 +143,7 @@ function pricedFraction(
 }
 
 const NONCREATURE_TOKEN_VALUE = 40; // a Clue/Treasure/Food-style utility token
-const SAC_SELF_COST = -40; // sacrificing your OWN permanent (a cost)
+export const SAC_SELF_COST = -40; // sacrificing your OWN permanent (a cost)
 
 // --- Backfill-Op point weights (issue #1430) --------------------------------
 const ENERGY_PER_POINT = 6; // an energy counter — a smaller, synergy-gated resource

@@ -339,7 +339,9 @@ export function dslEtbAbilityInFlightValueById(
     cardId: string,
     abilityId: string,
     self?: PermanentView,
-    latent: LatentWeights = DEFAULT_EVAL_WEIGHTS.latent
+    latent: LatentWeights = DEFAULT_EVAL_WEIGHTS.latent,
+    /** Issue #4901 — see `dslEtbAbilityInFlightValue`. */
+    source?: { worth: () => number; route: LatentCastRoute }
 ): number {
     const def = tryGetDefinition(cardId);
     return def
@@ -347,7 +349,8 @@ export function dslEtbAbilityInFlightValueById(
               def,
               abilityId,
               contextFreeGrounding(latent),
-              self
+              self,
+              source
           )
         : 0;
 }

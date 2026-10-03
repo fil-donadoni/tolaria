@@ -577,7 +577,8 @@ export function hasCastableFlashPermanent(
 function etbAbilitiesInFlight(
     state: GameState,
     player: PlayerState,
-    latent: LatentWeights
+    weights: EvalWeights,
+    pass: Layer7Pass
 ): number {
     let total = 0;
     for (const item of state.stack) {
@@ -592,11 +593,22 @@ function etbAbilitiesInFlight(
         if (targeted && !announcing && (item.targets?.length ?? 0) === 0) {
             continue;
         }
+        // Issue #4901 — a sacrifice of its own source is priced at the body
+        // still standing on the battlefield (zero once it has left).
+        const sourceId = item.triggerSourceId ?? item.id;
+        const source = player.battlefield.find((p) => p.id === sourceId);
         total += dslEtbAbilityInFlightValueById(
             String(item.card.id ?? ""),
             ability.id,
             item,
-            latent
+            weights.latent,
+            {
+                worth: () =>
+                    source
+                        ? permanentRealisedValue(state, source, weights, pass)
+                        : 0,
+                route: item.escaped === true ? "escape" : "hand",
+            }
         );
     }
     return total;
@@ -1528,7 +1540,7 @@ function playerTerms(
     }
     // Issue #4758 — the realized side's counterpart of an ETB Ability in
     // flight (see `etbAbilitiesInFlight`).
-    terms.creatures += etbAbilitiesInFlight(state, player, weights.latent);
+    terms.creatures += etbAbilitiesInFlight(state, player, weights, pass);
     const manaCensus = availableManaUnitsFor(state, player, memo);
     // MATERIAL: how many sources are owned, not how many are untapped right
     // now (issue #3377 — see `manaSourceTermFor`). Tapping a source to pay for

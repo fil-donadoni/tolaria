@@ -27,7 +27,11 @@ import {
     type Move,
 } from "../../moves";
 import { resolveTopOfStack } from "../../state";
-import { evaluate, evaluateBreakdown } from "../../evaluate";
+import {
+    evaluate,
+    evaluateBreakdown,
+    permanentRealisedValue,
+} from "../../evaluate";
 import { applyMoveInSearch, policyValue } from "../../search";
 import { buildPositionFromSpec } from "../blade/build";
 import { findBladeScenario } from "../blade/registry";
@@ -38,6 +42,7 @@ import {
     etbSelfSacrificeWeight,
 } from "../cardScriptValue";
 import { cardValueById, creatureValueRaw } from "../../cardValue";
+import { EVOKE_SACRIFICE_TRIGGER_ID } from "../../../cards/abilities/evoke";
 import { manaValue } from "../../constants";
 import { latentGraveyardValue } from "../graveyardReach";
 import {
@@ -204,6 +209,115 @@ describe("an ETB Ability in flight is credited once (issue #4758)", () => {
         expect(policyOf(s, castOf(s, "Ravenous Rats"))).toBeGreaterThan(
             policyOf(s, isPass)
         );
+    });
+});
+
+describe("an in-flight self-sacrifice is priced at the body it takes (issue #4901)", () => {
+    /** Solitude evoked with no mana (the pitch cost), its spell resolved: the
+     *  body is on the battlefield and the evoke sacrifice waits on the stack. */
+    function evokedInFlight(): GameState {
+        const s = buildPositionFromSpec({
+            cards: [
+                inHand("Solitude"),
+                inHand("Savannah Lions"),
+                onBoard("Serra Angel", "opp"),
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+        });
+        const me = s.activePlayerId;
+        const cast = enumerateMoves(s, me).find(castOf(s, "Solitude"))!;
+        applyMoveInSearch(s, me, cast);
+        resolveTopOfStack(s);
+        // Both ETB-time triggers (the card's own and the evoke sacrifice)
+        // await their stack order (CR 603.3b): take the first ordering.
+        const order = enumerateMoves(s, me).find(
+            (m) => m.kind === "resolution-choice"
+        );
+        if (order) applyMoveInSearch(s, me, order);
+        return s;
+    }
+
+    it("Eval Pair: the evoke sacrifice in flight scores below the same board with the body kept, by the body's worth", () => {
+        const s = evokedInFlight();
+        const me = s.activePlayerId;
+        const sacrifice = s.stack.find(
+            (i) => i.triggeredAbilityId === EVOKE_SACRIFICE_TRIGGER_ID
+        );
+        expect(sacrifice).toBeDefined();
+        const kept = cloneGameState(s);
+        kept.stack = kept.stack.filter(
+            (i) => i.triggeredAbilityId !== EVOKE_SACRIFICE_TRIGGER_ID
+        );
+        const body = kept.players
+            .find((p) => p.id === me)!
+            .battlefield.find((c) => c.id === sacrifice!.triggerSourceId)!;
+        const worth = permanentRealisedValue(kept, body, DEFAULT_EVAL_WEIGHTS);
+        expect(worth).toBeGreaterThan(40);
+        expect(evaluate(kept, me) - evaluate(s, me)).toBeGreaterThanOrEqual(
+            worth
+        );
+    });
+});
+
+describe("an escaped permanent's sacrifice in flight is not charged (issue #4901, CR 702.138b)", () => {
+    it("Eval Pair: Phlage escaped from the graveyard keeps its body while its 'unless it escaped' trigger waits", () => {
+        const phlage = "Phlage, Titan of Fire's Fury";
+        const s = buildPositionFromSpec({
+            cards: [
+                { name: phlage, owner: "me", zone: "graveyard" },
+                ...Array.from({ length: 5 }, () => ({
+                    name: "Grizzly Bears",
+                    owner: "me" as const,
+                    zone: "graveyard" as const,
+                })),
+                { name: "Plateau", owner: "me", zone: "battlefield" },
+                { name: "Plateau", owner: "me", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 2,
+            libraryCount: 20,
+        });
+        const me = s.activePlayerId;
+        const id = getCardByName(phlage).id;
+        const cast = enumerateMoves(s, me).find(
+            (m) =>
+                m.kind === "cast-spell" &&
+                s.players
+                    .flatMap((p) => p.graveyard)
+                    .some(
+                        (c) =>
+                            c.id === m.cardInstanceId &&
+                            (c.card as { id?: string }).id === id
+                    )
+        )!;
+        applyMoveInSearch(s, me, cast);
+        resolveTopOfStack(s);
+        for (let i = 0; i < 4; i++) {
+            const step = enumerateMoves(s, me).find(
+                (m) => m.kind === "resolution-choice"
+            );
+            if (!step) break;
+            applyMoveInSearch(s, me, step);
+        }
+        const trigger = s.stack.find(
+            (i) => i.triggeredAbilityId === "phlage-sacrifice-unless-escaped"
+        );
+        expect(trigger?.escaped).toBe(true);
+        const without = cloneGameState(s);
+        without.stack = without.stack.filter(
+            (i) => i.triggeredAbilityId !== "phlage-sacrifice-unless-escaped"
+        );
+        const body = s.players
+            .find((p) => p.id === me)!
+            .battlefield.find((c) => c.id === trigger!.triggerSourceId)!;
+        const worth = permanentRealisedValue(s, body, DEFAULT_EVAL_WEIGHTS);
+        // Only the flat cost the walker still reads off the escape route's
+        // `then` branch may remain — never the body itself.
+        expect(evaluate(without, me) - evaluate(s, me)).toBeLessThan(worth / 2);
     });
 });
 
