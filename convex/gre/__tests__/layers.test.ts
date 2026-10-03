@@ -1,7 +1,11 @@
 import { describe, it, expect } from "vitest";
 import {
-    getEffectivePower,
-    getEffectiveToughness,
+    beginLayer7Pass,
+    getEffectivePower as singleEffectivePower,
+    getEffectiveToughness as singleEffectiveToughness,
+    getEffectivePT,
+    getPermanentEffectivePower,
+    getPermanentEffectiveToughness,
     getStaticPTBuff,
     STATIC_EFFECT_CTX,
 } from "../layers";
@@ -33,6 +37,52 @@ import { opalescence } from "../../cards/sets/uds/index.cards";
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+/** The issue #4462 property, asserted on EVERY fixture this file reads a P/T
+ *  from (CR 613.4): every read below goes through `getEffectivePower` /
+ *  `getEffectiveToughness`, and both go through here. For the board and the
+ *  creature at hand,
+ *
+ *   - the pair read equals the two single reads;
+ *   - the lasting pair (`includeTemporary: false`) equals the two
+ *     `getPermanentEffective*` reads;
+ *   - a read through a `Layer7Pass` equals a read without one — both through
+ *     a pass this creature is the first read of, and through one that has
+ *     already read every other permanent of the board (the shape an
+ *     all-creatures pass has when it reaches this creature).
+ *
+ *  So a fixture added to this file is a fixture the cache is checked on. */
+function checkedPT(
+    ...[state, card]: Parameters<typeof getEffectivePT>
+): ReturnType<typeof getEffectivePT> {
+    const single = {
+        power: singleEffectivePower(state, card),
+        toughness: singleEffectiveToughness(state, card),
+    };
+    expect(getEffectivePT(state, card)).toEqual(single);
+    expect(getEffectivePT(state, card, { includeTemporary: false })).toEqual({
+        power: getPermanentEffectivePower(state, card),
+        toughness: getPermanentEffectiveToughness(state, card),
+    });
+    const ownPass = beginLayer7Pass(state);
+    expect(getEffectivePT(state, card, { pass: ownPass })).toEqual(single);
+    const boardPass = beginLayer7Pass(state);
+    for (const player of state.players) {
+        for (const other of player.battlefield) {
+            getEffectivePT(state, other, { pass: boardPass });
+        }
+    }
+    expect(getEffectivePT(state, card, { pass: boardPass })).toEqual(single);
+    return single;
+}
+
+const getEffectivePower = (
+    ...args: Parameters<typeof singleEffectivePower>
+): number => checkedPT(...args).power;
+
+const getEffectiveToughness = (
+    ...args: Parameters<typeof singleEffectiveToughness>
+): number => checkedPT(...args).toughness;
 
 // SLIM card builder. Embedded `manaCost` passthrough is allowed so synthetic
 // fixtures can drive color-aware predicates (layer system + protection)
@@ -923,5 +973,124 @@ describe("counter annihilation SBA (CR 704.5q)", () => {
         const { bear, state } = bearWith({ "+1/+1": 2 });
         expect(checkCounterAnnihilationSBA(state)).toBe(false);
         expect(bear.counters?.["+1/+1"]).toBe(2);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Layer7Pass — the per-pass cache of the layer-7 source set (issue #4462)
+// ---------------------------------------------------------------------------
+
+describe("Layer7Pass: a pass caches the source set and nothing else (CR 613.4c, issue #4462)", () => {
+    function castleBoard() {
+        const castleCard = makeCastleOnBattlefield("p1");
+        const bear = makeCreature("bear", "p1", { power: 2, toughness: 2 });
+        const cub = makeCreature("cub", "p1", { power: 1, toughness: 1 });
+        const state = makeGameState({
+            players: [
+                makePlayer({ id: "p1", battlefield: [castleCard, bear, cub] }),
+                makePlayer({ id: "p2" }),
+            ],
+        });
+        return { state, castleCard, bear, cub };
+    }
+
+    it("a counter placed DURING a pass is seen by the next read through that pass", () => {
+        const { state, bear, cub } = castleBoard();
+        const pass = beginLayer7Pass(state);
+        // The pass has walked: its source set is built by this first read.
+        expect(getEffectivePT(state, bear, { pass })).toEqual({
+            power: 2,
+            toughness: 4,
+        });
+        expect(pass.sources).toBeDefined();
+
+        // CR 613.4c — a counter is a per-creature fact the pass never holds.
+        cub.counters = { "-1/-1": 1 };
+        bear.counters = { "+1/+1": 2 };
+
+        expect(getEffectivePT(state, cub, { pass })).toEqual({
+            power: 0,
+            toughness: 2,
+        });
+        expect(getEffectivePT(state, bear, { pass })).toEqual({
+            power: 4,
+            toughness: 6,
+        });
+    });
+
+    it("a tap DURING a pass is seen: the predicate is read live per target", () => {
+        const { state, bear } = castleBoard();
+        const pass = beginLayer7Pass(state);
+        expect(getEffectivePT(state, bear, { pass }).toughness).toBe(4);
+        // Castle: "UNTAPPED creatures you control get +0/+2".
+        bear.isTapped = true;
+        expect(getEffectivePT(state, bear, { pass }).toughness).toBe(2);
+    });
+
+    it("an anthem entering after a pass has walked is seen by the next read — through that pass and through a new one", () => {
+        const bear = makeCreature("bear", "p1", { power: 2, toughness: 2 });
+        const state = makeGameState({
+            players: [
+                makePlayer({ id: "p1", battlefield: [bear] }),
+                makePlayer({ id: "p2" }),
+            ],
+        });
+        const pass = beginLayer7Pass(state);
+        expect(getEffectivePT(state, bear, { pass }).toughness).toBe(2);
+
+        state.players[0].battlefield.push(makeCastleOnBattlefield("p1"));
+
+        // The stale pass re-walks rather than answer from a board that moved.
+        expect(getEffectivePT(state, bear, { pass }).toughness).toBe(4);
+        expect(
+            getEffectivePT(state, bear, { pass: beginLayer7Pass(state) })
+                .toughness
+        ).toBe(4);
+    });
+
+    it("an anthem leaving after a pass has walked stops applying at the next read", () => {
+        const { state, castleCard, bear } = castleBoard();
+        const pass = beginLayer7Pass(state);
+        expect(getEffectivePT(state, bear, { pass }).toughness).toBe(4);
+
+        const battlefield = state.players[0].battlefield;
+        battlefield.splice(battlefield.indexOf(castleCard), 1);
+
+        expect(getEffectivePT(state, bear, { pass }).toughness).toBe(2);
+    });
+
+    it("a pass opened over one state is not used for another state object", () => {
+        const { state, bear, cub } = castleBoard();
+        const pass = beginLayer7Pass(state);
+        expect(getEffectivePT(state, bear, { pass }).toughness).toBe(4);
+
+        // Same population, different board: the Castle is replaced by a
+        // vanilla artifact, so a population check alone could not tell them
+        // apart — the state's identity does.
+        const inert = makeCard({
+            id: "mox",
+            card: { name: "Mox", types: ["Artifact"] },
+            types: ["Artifact"],
+        });
+        const other = makeGameState({
+            players: [
+                makePlayer({ id: "p1", battlefield: [inert, bear, cub] }),
+                makePlayer({ id: "p2" }),
+            ],
+        });
+        expect(other.players[0].battlefield).toHaveLength(
+            state.players[0].battlefield.length
+        );
+        expect(getEffectivePT(other, bear, { pass }).toughness).toBe(2);
+        // ...and the pass still answers for the state it was opened over.
+        expect(getEffectivePT(state, bear, { pass }).toughness).toBe(4);
+    });
+
+    it("a pass that reads no creature never walks the board", () => {
+        const { state, castleCard } = castleBoard();
+        const pass = beginLayer7Pass(state);
+        // CR 208.2 — only creatures carry P/T-layer effects.
+        getEffectivePT(state, castleCard, { pass });
+        expect(pass.sources).toBeUndefined();
     });
 });

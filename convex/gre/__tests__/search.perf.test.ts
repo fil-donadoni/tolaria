@@ -10,6 +10,7 @@ import {
 import { enumerateMoves } from "../moves";
 import { searchWithTrace } from "../search";
 import type { GameState } from "../state";
+import * as registry from "../../cards/registry";
 
 /**
  * Load-INDEPENDENT search-cost fixture (issue #4458, PRD #4454).
@@ -39,6 +40,18 @@ import type { GameState } from "../state";
  * `evaluateWithMargin` alike
  * (issue #4459): the leaf used to pay one of each, and the counter has to see
  * both for the merge into one call to show up as a delta.
+ *
+ * `ptWalkVisits` (issue #4462) counts the permanents the layer-7 SOURCE walk
+ * visits: one `declaresLayer7StaticEffect` precheck per permanent per walk
+ * (`collectLayer7Sources`, `gre/layers.ts`). It is the term that was quadratic
+ * — every creature's P/T read walked every battlefield, so a pass over n
+ * creatures visited n² permanents — and is linear now that a pass walks once
+ * (`Layer7Pass`). Before that change the three positions read 14826 / 0 /
+ * 125917; the medium board has no creature, so nothing is ever walked on it.
+ * Counted with `vi.spyOn` on the registry's export, not `vi.mock`: the
+ * registry's own import graph reaches `gre/layers.ts`, and a module first
+ * loaded inside a mock factory's `importOriginal` binds the ORIGINAL export —
+ * measured, a `vi.mock` wrapper here counted zero.
  *
  * `rngDraws` is the total `rngCounter` advance over every clone the search
  * made: game-PRNG draws only (in-game random effects). The search's own
@@ -152,6 +165,7 @@ type Position = {
         enumerations: number;
         evaluations: number;
         sbaSweeps: number;
+        ptWalkVisits: number;
         rngDraws: number;
         searchDraws: number;
     };
@@ -170,6 +184,7 @@ const POSITIONS: Position[] = [
             enumerations: 2111,
             evaluations: 353,
             sbaSweeps: 2459,
+            ptWalkVisits: -1,
             rngDraws: 0,
             searchDraws: 5949,
         },
@@ -184,6 +199,7 @@ const POSITIONS: Position[] = [
             enumerations: 624,
             evaluations: 291,
             sbaSweeps: 1747,
+            ptWalkVisits: -1,
             rngDraws: 0,
             searchDraws: 5720,
         },
@@ -198,6 +214,7 @@ const POSITIONS: Position[] = [
             enumerations: 489,
             evaluations: 888,
             sbaSweeps: 3082,
+            ptWalkVisits: -1,
             rngDraws: 0,
             searchDraws: 7040,
         },
@@ -229,6 +246,10 @@ describe("search cost counters (issue #4458)", () => {
             counts.sbaSweeps = 0;
             counts.searchDraws = 0;
             counts.clonedStates.length = 0;
+            const ptWalkVisits = vi.spyOn(
+                registry,
+                "declaresLayer7StaticEffect"
+            );
 
             const t0 = performance.now();
             const { trace } = searchWithTrace(
@@ -239,6 +260,8 @@ describe("search cost counters (issue #4458)", () => {
                 deckKnowledge
             );
             const elapsedMs = performance.now() - t0;
+            const visits = ptWalkVisits.mock.calls.length;
+            ptWalkVisits.mockRestore();
 
             // Some positions stop early (`settled`: 95/97 of 100). That stop
             // reads visit counts only, so it is deterministic; the count is
@@ -256,6 +279,7 @@ describe("search cost counters (issue #4458)", () => {
                 enumerations: counts.enumerations,
                 evaluations: counts.evaluations,
                 sbaSweeps: counts.sbaSweeps,
+                ptWalkVisits: visits,
                 rngDraws,
                 searchDraws: counts.searchDraws,
             };
