@@ -155,6 +155,7 @@ describe("search leaf scoring is byte-identical (issue #4459)", () => {
 
     // Record mode writes the file and asserts nothing: re-run without it.
     it.runIf(RECORDING)("records the snapshot", () => {
+        expect(Object.keys(recorded)).toHaveLength(POSITIONS.length);
         writeFileSync(
             join(__dirname, "fixtures/searchLeafScore.snapshot.json"),
             JSON.stringify(recorded, null, 4) + "\n"

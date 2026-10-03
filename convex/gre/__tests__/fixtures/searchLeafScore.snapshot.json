@@ -5,6 +5,53 @@
             "materialMargin": 123.87539599999997,
             "reward": 0.554437698
         },
+        "terminals": {
+            "bot wins": {
+                "evaluate": 1000123.875396,
+                "materialMargin": 123.87539599999997,
+                "reward": 0.9059688489999971,
+                "leaf": {
+                    "reward": 0.9059688489999971,
+                    "margin": 123.87539599999997
+                }
+            },
+            "bot loses": {
+                "evaluate": -999876.124604,
+                "materialMargin": 123.87539599999997,
+                "reward": 0.15596884899999713,
+                "leaf": {
+                    "reward": 0.15596884899999713,
+                    "margin": 123.87539599999997
+                }
+            },
+            "draw": {
+                "evaluate": 0,
+                "materialMargin": 123.87539599999997,
+                "reward": 0.5,
+                "leaf": {
+                    "reward": 0.5,
+                    "margin": 123.87539599999997
+                }
+            },
+            "opponent at 0 life": {
+                "evaluate": 1000283.875396,
+                "materialMargin": 283.87539599999997,
+                "reward": 0.9459688489999971,
+                "leaf": {
+                    "reward": 0.8866644680000026,
+                    "margin": 46.657872
+                }
+            },
+            "bot at 0 life": {
+                "evaluate": -1000036.124604,
+                "materialMargin": -36.12460400000003,
+                "reward": 0.11596884899999714,
+                "leaf": {
+                    "reward": 0.056664468000002674,
+                    "margin": -273.342128
+                }
+            }
+        },
         "rollouts": [
             {
                 "reward": 0.6220451768749999,
@@ -63,6 +110,53 @@
             "evaluate": 228.93638750000002,
             "materialMargin": 228.93638750000002,
             "reward": 0.6144681937500001
+        },
+        "terminals": {
+            "bot wins": {
+                "evaluate": 1000228.9363875,
+                "materialMargin": 228.93638750000002,
+                "reward": 0.9322340968750068,
+                "leaf": {
+                    "reward": 0.9322340968750068,
+                    "margin": 228.93638750000002
+                }
+            },
+            "bot loses": {
+                "evaluate": -999771.0636125,
+                "materialMargin": 228.93638750000002,
+                "reward": 0.1822340968750068,
+                "leaf": {
+                    "reward": 0.1822340968750068,
+                    "margin": 228.93638750000002
+                }
+            },
+            "draw": {
+                "evaluate": 0,
+                "materialMargin": 228.93638750000002,
+                "reward": 0.5,
+                "leaf": {
+                    "reward": 0.5,
+                    "margin": 228.93638750000002
+                }
+            },
+            "opponent at 0 life": {
+                "evaluate": 1000252.9363875,
+                "materialMargin": 252.93638750000002,
+                "reward": 0.9382340968750068,
+                "leaf": {
+                    "reward": 0.9382340968750068,
+                    "margin": 252.93638750000002
+                }
+            },
+            "bot at 0 life": {
+                "evaluate": -999931.0636125,
+                "materialMargin": 68.9363875,
+                "reward": 0.1422340968750068,
+                "leaf": {
+                    "reward": 0.1422340968750068,
+                    "margin": 68.9363875
+                }
+            }
         },
         "rollouts": [
             {
@@ -164,6 +258,53 @@
             "evaluate": 106.65914099999998,
             "materialMargin": 106.65914099999998,
             "reward": 0.5533295705
+        },
+        "terminals": {
+            "bot wins": {
+                "evaluate": 1000106.659141,
+                "materialMargin": 106.65914099999998,
+                "reward": 0.9016647852500028,
+                "leaf": {
+                    "reward": 0.9016647852500028,
+                    "margin": 106.65914099999998
+                }
+            },
+            "bot loses": {
+                "evaluate": -999893.340859,
+                "materialMargin": 106.65914099999998,
+                "reward": 0.15166478525000276,
+                "leaf": {
+                    "reward": 0.15166478525000276,
+                    "margin": 106.65914099999998
+                }
+            },
+            "draw": {
+                "evaluate": 0,
+                "materialMargin": 106.65914099999998,
+                "reward": 0.5,
+                "leaf": {
+                    "reward": 0.5,
+                    "margin": 106.65914099999998
+                }
+            },
+            "opponent at 0 life": {
+                "evaluate": 1000266.659141,
+                "materialMargin": 266.659141,
+                "reward": 0.9416647852500027,
+                "leaf": {
+                    "reward": 0.9416647852500027,
+                    "margin": 266.659141
+                }
+            },
+            "bot at 0 life": {
+                "evaluate": -1000053.340859,
+                "materialMargin": -53.34085900000002,
+                "reward": 0.11166478525000276,
+                "leaf": {
+                    "reward": 0.11166478525000276,
+                    "margin": -53.34085900000002
+                }
+            }
         },
         "rollouts": [
             {
