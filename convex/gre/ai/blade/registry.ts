@@ -9076,7 +9076,8 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         // SACRIFICE-FOR-DISCARD reachability (CR 701.21a, CR 701.9a, issue
-        // #4276). The sweep's own position for a creature whose only ability is
+        // #4276). The sweep's own board, moved to the postcombat main (below),
+        // for a creature whose only ability is
         // "Sacrifice a creature: Target player discards two cards": Sadistic
         // Hypnotist in hand, five Swamps, a spare body on each side.
         //
@@ -9121,7 +9122,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // REACHABILITY claim, so a PREDICATE, kept out of the weight fit for
         // the reason the Nantuko Husk entry gives.
         budget: { iterations: 200 },
-        seeds: [4, 0x5eed, 1, 2, 3],
+        seeds: [0xb07, 0x5eed, 1, 2, 3],
         tier: "must",
         expect: {
             predicate: (move, state) =>
@@ -9132,7 +9133,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
                 ),
             describe: "casts Sadistic Hypnotist",
         },
-        note: "Bot Gap `never-chosen › Creature › choice+discard` (2 cards). Issue #4276. SEED 4, NOT 0xb07 (issue #4764): after that issue's refit seeds 0xb07 and 17 pick `pass` over seeds 0xb07, 0x5eed, 1..18 (20/20 cast before), while the 1-ply cast lead is +51.7 under both vectors — rollout noise, tracked by issue #4785.",
+        note: "Bot Gap `never-chosen › Creature › choice+discard` (2 cards). Issue #4276. Seed 0xb07 restored by issue #5016: at the precombat main it and seed 17 picked `pass` after issue #4764's refit (rollout noise, issue #4785), so the entry ran seed 4 instead; at the postcombat main the cast wins on all of 0xb07, 0x5eed and 1..18.",
     },
     {
         // SACRIFICE-FOR-RANDOM-DISCARD reachability (CR 701.21a, CR 701.9b,
@@ -9251,7 +9252,8 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         // SACRIFICE-FOR-DRAW reachability (CR 701.21a, CR 121.1, issue #4279).
-        // The sweep's own position for a creature whose only ability is "{2},
+        // The sweep's own board, moved to the postcombat main (below), for a
+        // creature whose only ability is "{2},
         // Sacrifice this creature: Target player draws a card": Limestone Golem
         // in hand, eight Plains (its cost plus the outlet's {2}), a spare body on
         // each side.

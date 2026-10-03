@@ -5,6 +5,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
     DRIFT_LABELS,
+    failedRobustnessTests,
     fileDriftIssues,
     NO_VERDICT_TITLE,
     parseRobustnessDrift,
@@ -21,21 +22,43 @@ import {
 const ROOT = join(__dirname, "..", "..");
 const CTX = { sha: "c43c4b5a3c58", log: "/health/c43c4b5a3c58.log" };
 
-/** A failing shard's output, as vitest prints it: the entry's row and its
- *  finding lines under a `stdout |` header, twice (the summary repeats it). */
+const SPEC = "convex/gre/ai/blade/__tests__/robustness.shard-0.spec.ts";
+const SUITE = "blade robustness audit — shard 1/4";
+
+/**
+ * A failed step's output in the shape vitest prints it (copied from the
+ * health log of the RED this issue repaired): each failing test's stdout —
+ * its row, then its finding lines — under a `stdout |` header, then one
+ * `FAIL` summary line per failed test. `crashed` are tests that failed and
+ * printed nothing.
+ */
 function output(
-    findings: { kind: string; label: string }[],
-    rows: string[] = []
+    findings: { kind: string; label: string; test?: string }[],
+    rows: string[] = [],
+    crashed: string[] = []
 ): string {
-    const block = [
-        "stdout | convex/gre/ai/blade/__tests__/robustness.shard-0.spec.ts > …",
-        ...rows.map((r) => `[blade:robustness] ${r}`),
-        ...findings.map(
-            (f) => `${ROBUSTNESS_FINDING_PREFIX} ${JSON.stringify(f)}`
-        ),
+    const failed = new Set([
+        ...findings.map((f) => f.test ?? f.label),
+        ...crashed,
+    ]);
+    return [
+        ...findings.flatMap((f) => [
+            `stdout | ${SPEC} > ${SUITE} > ${f.test ?? f.label}`,
+            ...rows
+                .filter((r) => r.includes(` ${f.label} — `))
+                .map((r) => `[blade:robustness] ${r}`),
+            `${ROBUSTNESS_FINDING_PREFIX} ${JSON.stringify({ test: f.label, ...f })}`,
+            "",
+        ]),
+        "⎯⎯⎯⎯⎯⎯⎯ Failed Tests ⎯⎯⎯⎯⎯⎯⎯",
         "",
-    ];
-    return [...block, " FAIL  |blade| …", ...block].join("\n");
+        ...[...failed].flatMap((t) => [
+            ` FAIL  |blade| ${SPEC} > ${SUITE} > ${t}`,
+            "AssertionError: expected [ Array(1) ] to deeply equal []",
+            "",
+        ]),
+        "      Tests  3 failed | 199 passed (202)",
+    ].join("\n");
 }
 
 const PIN = "Sacrifice-for-draw outlet: casts the creature";
@@ -51,9 +74,35 @@ describe("parseRobustnessDrift", () => {
             {
                 kind: "unlisted",
                 label: PIN,
+                test: PIN,
                 row: `[blade:robustness] ${PIN_ROW}`,
             },
         ]);
+    });
+
+    it("a finding printed twice is one finding", () => {
+        const once = output([{ kind: "unlisted", label: PIN }], [PIN_ROW]);
+        expect(parseRobustnessDrift(`${once}\n${once}`)).toHaveLength(1);
+    });
+
+    it("a label that is another's suffix does not take its row", () => {
+        const long = `NOISE-PINNED outlet: ${PIN} — own 5/5 @48`;
+        const [drift] = parseRobustnessDrift(
+            [
+                `[blade:robustness] ${long}`,
+                `[blade:robustness] ${PIN_ROW}`,
+                `${ROBUSTNESS_FINDING_PREFIX} ${JSON.stringify({ kind: "unlisted", label: PIN, test: PIN })}`,
+            ].join("\n")
+        );
+        expect(drift!.row).toBe(`[blade:robustness] ${PIN_ROW}`);
+    });
+
+    it("names the failed tests from vitest's summary lines", () => {
+        expect(
+            failedRobustnessTests(
+                output([{ kind: "unlisted", label: PIN }], [], ["a > b (c)"])
+            )
+        ).toEqual([PIN, "a > b (c)"]);
     });
 
     it("ignores a line that is not a finding record", () => {
@@ -70,19 +119,23 @@ describe("parseRobustnessDrift", () => {
 
     it("reads the line the blade module prints", () => {
         expect(ROBUSTNESS_FINDING_PREFIX).toBe(BLADE_PREFIX);
-        const records = robustnessFindingRecords({
-            unlisted: [PIN],
-            wrong: [],
-            cleared: ['a "quoted" label'],
-            malformed: [],
-        });
+        const records = robustnessFindingRecords(
+            {
+                unlisted: [PIN],
+                wrong: [],
+                cleared: ['a "quoted" label'],
+                malformed: [],
+            },
+            "the test"
+        );
         const printed = records
             .map((r) => `${BLADE_PREFIX} ${JSON.stringify(r)}`)
             .join("\n");
         expect(
-            parseRobustnessDrift(printed).map(({ kind, label }) => ({
+            parseRobustnessDrift(printed).map(({ kind, label, test }) => ({
                 kind,
                 label,
+                test,
             }))
         ).toEqual(records);
     });
@@ -128,6 +181,62 @@ describe("robustnessOutcome", () => {
                 CTX
             )
         ).toEqual({ verdict: "red", wrong: ["charter: blocks"] });
+    });
+
+    it("a test that failed with no finding adds the no-verdict issue beside the drift", () => {
+        // One entry drifts, another crashes or times out in the same step:
+        // the drift must not read as the whole explanation.
+        const outcome = robustnessOutcome(
+            output(
+                [{ kind: "unlisted", label: PIN }],
+                [PIN_ROW],
+                ["charter: blocks (or dies)"]
+            ),
+            CTX
+        );
+        expect(outcome.verdict).toBe("advisory");
+        if (outcome.verdict !== "advisory") return;
+        expect(outcome.issues.map((i) => i.title)).toEqual([
+            `Blade robustness: "${PIN}" is noise-pinned`,
+            NO_VERDICT_TITLE,
+        ]);
+        expect(outcome.issues[1]!.body).toContain(
+            "- charter: blocks (or dies)"
+        );
+    });
+
+    it("a malformed row is explained by the shape test that printed it", () => {
+        const shape =
+            "the baseline names must entries, once each, with an issue";
+        const outcome = robustnessOutcome(
+            output([
+                {
+                    kind: "malformed",
+                    label: "x: not a must entry",
+                    test: shape,
+                },
+            ]),
+            CTX
+        );
+        expect(outcome.verdict).toBe("advisory");
+        if (outcome.verdict !== "advisory") return;
+        expect(outcome.issues.map((i) => i.title)).toEqual([
+            "Blade robustness: malformed baseline row — x: not a must entry",
+        ]);
+        expect(outcome.issues[0]!.body).toContain("robustness.bot.test.ts");
+    });
+
+    it("the reproduce command escapes the label for vitest's -t regex", () => {
+        const label = 'charter: taps out (Stifle) for {X} "now"';
+        const outcome = robustnessOutcome(
+            output([{ kind: "unlisted", label }]),
+            CTX
+        );
+        if (outcome.verdict !== "advisory")
+            throw new Error("advisory expected");
+        expect(outcome.issues[0]!.body).toContain(
+            String.raw`-t "charter: taps out \(Stifle\) for \{X\} \"now\""`
+        );
     });
 
     it("a failure with no finding files the no-verdict issue — never silent", () => {
@@ -219,8 +328,9 @@ describe("health-main wiring (issue #5016)", () => {
         // RED is only assigned after the advisory branch had its `continue`.
         expect(red).toBeGreaterThan(filed);
         expect(src.slice(filed, red)).toContain("continue;");
-        expect(src).toContain(
-            "failedCause === null && step.name === ROBUSTNESS_STEP"
+        // Only this step is ever read as advisory.
+        expect(src.slice(infra, judged)).toMatch(
+            /step\.name === ROBUSTNESS_STEP/
         );
     });
 });

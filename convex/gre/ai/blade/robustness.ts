@@ -277,13 +277,18 @@ export const ROBUSTNESS_FINDING_PREFIX = "[blade:robustness:finding]";
 export type RobustnessFindingRecord = {
     kind: keyof RobustnessFindings;
     label: string;
+    /** Name of the test that printed it — what the reader matches against
+     *  the failed tests, so a failure with NO finding (a crash, a timeout) is
+     *  not mistaken for explained drift. */
+    test: string;
 };
 
 export function robustnessFindingRecords(
-    f: RobustnessFindings
+    f: RobustnessFindings,
+    test: string
 ): RobustnessFindingRecord[] {
     return (["unlisted", "wrong", "cleared", "malformed"] as const).flatMap(
-        (kind) => f[kind].map((label) => ({ kind, label }))
+        (kind) => f[kind].map((label) => ({ kind, label, test }))
     );
 }
 
