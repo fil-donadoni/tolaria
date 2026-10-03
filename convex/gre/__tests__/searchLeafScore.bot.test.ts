@@ -10,6 +10,7 @@ import {
 } from "../ai/blade";
 import { DEFAULT_EVAL_WEIGHTS } from "../ai/evalWeights";
 import { cloneGameState } from "../clone";
+import type { GameState } from "../state";
 import { evaluate, materialMargin } from "../evaluate";
 import { makeRng } from "../rng";
 import { reward, rollout, searchWithTrace } from "../search";
@@ -28,7 +29,10 @@ import snapshot from "./fixtures/searchLeafScore.snapshot.json";
  *   - five rollouts from the root, each returning `scoreLeaf`'s `Leaf` directly;
  *   - a fixed-seed, fixed-iteration search: every root candidate's visits and
  *     its MEAN reward and margin — sums over every leaf the tree scored, so one
- *     leaf drifting by one ulp moves them.
+ *     leaf drifting by one ulp moves them;
+ *   - the same root forced TERMINAL five ways (bot wins / loses / draws by
+ *     `gameOver`, either player at 0 life): `evaluate`'s offset branches, and a
+ *     rollout on a game-over state returns `scoreLeaf` of it at once.
  *
  * Positions: the three of the perf fixture (`search.perf.test.ts`, issue #4458).
  * Floats round-trip exactly through JSON (shortest round-trip repr), so
@@ -52,16 +56,59 @@ function scenarioFor(prefix: string): BladeScenario {
     return found[0];
 }
 
+const TERMINALS: Record<string, (s: GameState, botId: string) => void> = {
+    "bot wins": (s, botId) => {
+        const opp = s.players.find((p) => p.id !== botId)!.id;
+        s.gameOver = { winnerId: botId, loserId: opp, reason: "life" };
+    },
+    "bot loses": (s, botId) => {
+        const opp = s.players.find((p) => p.id !== botId)!.id;
+        s.gameOver = { winnerId: opp, loserId: botId, reason: "life" };
+    },
+    draw: (s) => {
+        s.gameOver = {
+            winnerId: "",
+            loserId: "",
+            reason: "draw",
+            isDraw: true,
+        };
+    },
+    "opponent at 0 life": (s, botId) => {
+        s.players.find((p) => p.id !== botId)!.life = 0;
+    },
+    "bot at 0 life": (s, botId) => {
+        s.players.find((p) => p.id === botId)!.life = 0;
+    },
+};
+
+function scores(state: GameState, botId: string) {
+    const weights = DEFAULT_EVAL_WEIGHTS;
+    return {
+        evaluate: evaluate(state, botId, weights),
+        materialMargin: materialMargin(state, botId, weights),
+        reward: reward(state, botId, weights),
+    };
+}
+
 function record(prefix: string) {
     const scenario = scenarioFor(prefix);
     const state = buildBladeState(scenario);
     const botId = seatPlayerId(state, scenario.bot);
     const weights = DEFAULT_EVAL_WEIGHTS;
-    const root = {
-        evaluate: evaluate(state, botId, weights),
-        materialMargin: materialMargin(state, botId, weights),
-        reward: reward(state, botId, weights),
-    };
+    const root = scores(state, botId);
+    const terminals = Object.fromEntries(
+        Object.entries(TERMINALS).map(([name, force]) => {
+            const terminal = cloneGameState(state);
+            force(terminal, botId);
+            return [
+                name,
+                {
+                    ...scores(terminal, botId),
+                    leaf: rollout(terminal, botId, makeRng(1), weights),
+                },
+            ];
+        })
+    );
     const rollouts = ROLLOUT_SEEDS.map((seed) =>
         rollout(cloneGameState(state), botId, makeRng(seed), weights)
     );
@@ -74,6 +121,7 @@ function record(prefix: string) {
     );
     return {
         root,
+        terminals,
         rollouts,
         search: {
             chosen: trace?.chosen ?? null,
@@ -88,21 +136,28 @@ function record(prefix: string) {
     };
 }
 
+const RECORDING = process.env.RECORD_LEAF_SNAPSHOT === "1";
+const recorded: Record<string, unknown> = {};
+
 describe("search leaf scoring is byte-identical (issue #4459)", () => {
-    const actual = Object.fromEntries(POSITIONS.map((p) => [p, record(p)]));
-
-    if (process.env.RECORD_LEAF_SNAPSHOT === "1") {
-        writeFileSync(
-            join(__dirname, "fixtures/searchLeafScore.snapshot.json"),
-            JSON.stringify(actual, null, 4) + "\n"
-        );
-    }
-
     for (const position of POSITIONS) {
-        it(`${position}: root values, rollout leaves and search means unchanged`, () => {
-            expect(actual[position]).toEqual(
+        it(`${position}: root, terminal and rollout leaves and search means unchanged`, () => {
+            const actual = record(position);
+            if (RECORDING) {
+                recorded[position] = actual;
+                return;
+            }
+            expect(actual).toEqual(
                 (snapshot as Record<string, unknown>)[position]
             );
         });
     }
+
+    // Record mode writes the file and asserts nothing: re-run without it.
+    it.runIf(RECORDING)("records the snapshot", () => {
+        writeFileSync(
+            join(__dirname, "fixtures/searchLeafScore.snapshot.json"),
+            JSON.stringify(recorded, null, 4) + "\n"
+        );
+    });
 });
