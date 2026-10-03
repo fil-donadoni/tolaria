@@ -541,6 +541,10 @@ export interface GapMove {
     readonly to: number;
 }
 
+/** The flag `land` passes: reconcile and close the Bot Gaps already filed, but
+ *  file no new one (issue #4944). Filing is the batch health refresh's. */
+export const NO_FILE_BOT_FLAG = "--no-file-bot";
+
 export interface GapSyncResult {
     readonly actions: readonly GapSyncAction[];
     readonly moves: readonly GapMove[];
@@ -561,6 +565,12 @@ export interface GapSyncResult {
         ClusterKind,
         readonly ClusterCutSingle[]
     >;
+    /**
+     * `claimId(kind, key)` of every gap of a held kind that WOULD have been
+     * filed (created, or adopted into a cluster) and was left for a later run
+     * (issue #4944) — reported, never written.
+     */
+    readonly held: readonly string[];
 }
 
 /** One open single counted toward a Cluster Cut ticket's threshold. */
@@ -1087,20 +1097,23 @@ export function isAdoptedFiling(filing: GapFiling): boolean {
 }
 
 export function syncGaps(
-    filings: readonly GapFiling[],
+    inputFilings: readonly GapFiling[],
     tracker: GapTracker,
     originBand?: UmbrellaBand,
     clusters: ReadonlySet<number> = new Set(),
     signatureRows: readonly ClusterRow[] = [],
-    tip = "an unread tip"
+    tip = "an unread tip",
+    holdCreates: ReadonlySet<GapKind> = new Set()
 ): GapSyncResult {
+    const allFilings = inputFilings;
+    let filings: readonly GapFiling[] = allFilings;
     // Adopted (issue #4515): an open issue already names the card, so the
     // claim records THAT issue — nothing is created, and its body, parent and
     // state are never touched. Equal to the recorded row is the same adoption,
     // read on a later run.
     const isAdopted = isAdoptedFiling;
     const existing = new Map<string, TrackedIssue | null>();
-    for (const filing of filings) {
+    for (const filing of allFilings) {
         if (isAdopted(filing)) continue;
         if (filing.currentIssue !== null) {
             existing.set(
@@ -1117,7 +1130,7 @@ export function syncGaps(
     // `skip-closed`; a claim whose gap is GONE never reaches here — no
     // filing names it, and the close pass (issue #4516) owns it.
     const rehomeFrom = new Map<string, number>();
-    for (const filing of filings) {
+    for (const filing of allFilings) {
         const id = claimId(filing.kind, filing.key);
         const current = existing.get(id);
         if (current?.state === "CLOSED" && clusters.has(filing.currentIssue!))
@@ -1128,6 +1141,18 @@ export function syncGaps(
         (filing.currentIssue === null ||
             existing.get(claimId(filing.kind, filing.key)) === null ||
             rehomeFrom.has(claimId(filing.kind, filing.key)));
+
+    // Held kinds (issue #4944): a gap of one that would be filed is left out
+    // of this run altogether — no create, no cluster adoption, no row — and
+    // named in `held`. Every gap already filed still reconciles, moves and
+    // closes: only the NEW claim waits for the run that owns filing.
+    const held = allFilings.filter(
+        (filing) => holdCreates.has(filing.kind) && wouldCreate(filing)
+    );
+    const heldIds = new Set(held.map((f) => claimId(f.kind, f.key)));
+    filings = allFilings.filter(
+        (filing) => !heldIds.has(claimId(filing.kind, filing.key))
+    );
 
     // Filing adopts (ADR 0146 § Decision 3): a gap that would be created is
     // matched against the Cluster Signatures first. The `## Cards` adoption
@@ -1495,7 +1520,14 @@ export function syncGaps(
         });
     }
 
-    return { actions, moves, updatedRows, absorbed, unabsorbable };
+    return {
+        actions,
+        moves,
+        updatedRows,
+        absorbed,
+        unabsorbable,
+        held: [...heldIds],
+    };
 }
 
 /**

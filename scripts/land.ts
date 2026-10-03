@@ -101,6 +101,7 @@
 import { spawnSync } from "node:child_process";
 import { BASE_BRANCH, ORIGIN_BASE, RELEASE_BRANCH } from "./lib/branches";
 import { issueWorktree } from "./lib/issue-worktree";
+import { NO_FILE_BOT_FLAG } from "./lib/gap-issues";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
@@ -1022,6 +1023,11 @@ export function umbrellaDetachStep(
  * Non-gating like the rest of the post-merge housekeeping: a `gh` outage, a
  * rate limit or a network blip must never turn a merged PR into a reported
  * failure — the allowlist just stays stale until the next landing retries it.
+ *
+ * Bot Gaps are reconcile/close-only here (`--no-file-bot`, issue #4944): a
+ * landing's sweep would mint a Bot Gap per landing and the Bot backlog would
+ * refill itself. The batch health run's Bot Findings refresh files them,
+ * clustered.
  */
 export function gapsSyncStep(
     primaryCheckout: string,
@@ -1035,7 +1041,7 @@ export function gapsSyncStep(
     // its computed band, exactly as before.
     const band = originBand === null ? "" : ` --band ${originBand}`;
     return (
-        `(cd ${p} && bun ${shQuote(GAPS_SYNC)}${band} || ` +
+        `(cd ${p} && bun ${shQuote(GAPS_SYNC)} ${NO_FILE_BOT_FLAG}${band} || ` +
         `echo "land: gaps:sync failed — Grammar/Bot Gap issues may be stale" >&2; true)`
     );
 }

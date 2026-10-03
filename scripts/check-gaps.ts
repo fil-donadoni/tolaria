@@ -326,13 +326,64 @@ export function renderBotGaps(
     if (unclaimed.length === 0)
         return `✓ gaps: ${inScope} Bot Gap key(s) a ranked Target card carries — every one filed`;
     return [
-        `✗ gaps: ${unclaimed.length} of ${inScope} in-scope Bot Gap key(s) have no \`bot\` claim row:\n`,
+        `… gaps: ${unclaimed.length} of ${inScope} in-scope Bot Gap key(s) have no \`bot\` claim row yet — pending, not red:\n`,
         ...unclaimed.map((key) => `  - ${key}`),
         "",
-        `  A ranked Target card carries each key (${LOCKFILE_PATH} \`botGap\`), and`,
-        `  ${ALLOWLIST_PATH} records no issue for it. Run \`bun run gaps:sync\` —`,
-        "  it files the issue and writes the `bot` claim row (issue #4061).",
+        "  `land` files no Bot Gap (issue #4944): the next batch health refresh",
+        "  files them, clustered (`bun run gaps:sync` does the same by hand).",
     ].join("\n");
+}
+
+/** `@<date>` commit markers, each followed by that commit's patch. */
+const COMMIT_DATE_LINE = /^@(\d{4}-\d{2}-\d{2})$/;
+const ADDED_BOT_CLAIM_LINE = /^\+\s*"kind":\s*"bot",?\s*$/;
+
+/**
+ * Bot claim rows the allowlist gained per day (issue #4944) — `gaps:sync`
+ * writes one per Bot Gap it files, so the count is the treadmill's rate. Pure
+ * over `git log -p --format=@%as -- ${ALLOWLIST_PATH}`; a day with none is
+ * absent. Informational: no gate reads it.
+ */
+export function botGapsFiledPerDay(log: string): Map<string, number> {
+    const perDay = new Map<string, number>();
+    let day: string | null = null;
+    const lines = log.split("\n");
+    lines.forEach((line, i) => {
+        const date = COMMIT_DATE_LINE.exec(line);
+        if (date !== null) {
+            day = date[1]!;
+            return;
+        }
+        // A `claims` row is kind then key; a `cuts` row is kind then issue.
+        if (
+            day !== null &&
+            ADDED_BOT_CLAIM_LINE.test(line) &&
+            /"key":/.test(lines[i + 1] ?? "")
+        )
+            perDay.set(day, (perDay.get(day) ?? 0) + 1);
+    });
+    return new Map([...perDay].sort(([a], [b]) => (a < b ? -1 : 1)));
+}
+
+export function renderBotGapCensus(
+    perDay: ReadonlyMap<string, number>
+): string {
+    if (perDay.size === 0)
+        return "census: Bot Gaps filed per day (last 7 days): none";
+    const total = [...perDay.values()].reduce((a, b) => a + b, 0);
+    return `census: Bot Gaps filed per day (last 7 days): ${[...perDay].map(([d, n]) => `${d} ${n}`).join(", ")} — ${total} total`;
+}
+
+function readBotGapCensus(root: string): string {
+    const log = spawnSync(
+        "git",
+        ["log", "--since=7.days", "--format=@%as", "-p", "--", ALLOWLIST_PATH],
+        { cwd: root, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 }
+    );
+    // No history (a shallow or detached checkout) reads as "unknown", never "none".
+    if (log.status !== 0)
+        return "census: Bot Gaps filed per day: unavailable (git log failed)";
+    return renderBotGapCensus(botGapsFiledPerDay(log.stdout));
 }
 
 export function renderHandTailClaims(
@@ -362,10 +413,9 @@ export function gapsVerdict(
     mismatches: readonly HandTailClaimMismatch[]
 ): { ok: boolean; out: string } {
     return {
-        ok:
-            census.violations.length === 0 &&
-            unclaimed.length === 0 &&
-            mismatches.length === 0,
+        // `unclaimed` is PENDING, never red (issue #4944): `land` files no Bot
+        // Gap, so a landed sweep's new keys wait for the batch health refresh.
+        ok: census.violations.length === 0 && mismatches.length === 0,
         out: [
             render(census),
             renderBotGaps(inScopeBotGaps, unclaimed),
@@ -662,11 +712,12 @@ function main(): void {
             parseClusterRows(allowlist, ALLOWLIST_PATH)
         )
     );
+    const botCensus = readBotGapCensus(root);
     if (ok) {
-        console.log(`${out}\n\n${clusterCensus}`);
+        console.log(`${out}\n\n${clusterCensus}\n${botCensus}`);
         return;
     }
-    console.error(`${out}\n\n${clusterCensus}`);
+    console.error(`${out}\n\n${clusterCensus}\n${botCensus}`);
     process.exit(1);
 }
 

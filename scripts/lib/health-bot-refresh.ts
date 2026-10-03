@@ -29,16 +29,29 @@ export function batchTouchesBot(changed: readonly string[] | null): boolean {
     return changed === null || touchesBotGlobs(changed);
 }
 
+/** The step that FILES Bot Gaps (issue #4944) — the only run that does: `land`
+ *  passes `--no-file-bot`. Not a refresh step: failing it leaves the page fresh. */
+export const FILING_STEP_NAME = "gaps:sync";
+
 /**
- * The two steps of a refresh, numbered after the `gates` already planned:
- * re-measure, then seed the deployment from the artifact just written.
+ * The three steps of a refresh, numbered after the `gates` already planned:
+ * re-measure, seed the deployment from the artifact just written, then file the
+ * Bot Gaps the committed findings carry (issue #4944, ADR 0146 — one sweep adds
+ * at most one issue per family, through the Cluster Signatures).
+ *
+ * `gaps:sync` runs in the PRIMARY checkout (`primary`), not the batch worktree:
+ * it commits and pushes the allowlist to the base branch, which only a checkout
+ * on that branch can do.
  *
  * `bot:reach` goes through the heavy gate like every CPU-bound step — under the
  * batch's own hold (`--under-lock`) it passes straight through, and a by-hand
  * `bun run health` queues on the mutex instead of racing a `land`.
  */
-export function botRefreshSteps(gates: number): HealthStep[] {
-    const total = gates + 2;
+export function botRefreshSteps(
+    gates: number,
+    primary: string = process.cwd()
+): HealthStep[] {
+    const total = gates + 3;
     return [
         {
             ordinal: gates + 1,
@@ -53,6 +66,14 @@ export function botRefreshSteps(gates: number): HealthStep[] {
             name: "seed:bot-findings",
             cmd: "bun",
             args: ["run", "seed:bot-findings"],
+        },
+        {
+            ordinal: gates + 3,
+            total,
+            name: FILING_STEP_NAME,
+            cmd: "bun",
+            args: ["run", "gaps:sync"],
+            cwd: primary,
         },
     ];
 }

@@ -30,6 +30,9 @@ export interface HealthStep {
     name: string;
     cmd: string;
     args: string[];
+    /** Run here instead of the batch worktree (`StepRunOptions.cwd`) — a step
+     *  that writes to the primary checkout (`gaps:sync`, issue #4944). */
+    cwd?: string;
 }
 
 export interface StepRunOptions {

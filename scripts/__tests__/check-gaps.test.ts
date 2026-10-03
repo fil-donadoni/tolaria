@@ -10,7 +10,9 @@ import {
     baselineAllowlist,
     censusClusters,
     emittedOps,
+    botGapsFiledPerDay,
     gapsVerdict,
+    renderBotGapCensus,
     handTailCardMatch,
     liveClusterKeys,
     parseAllowlist,
@@ -367,15 +369,22 @@ describe("in-scope Bot Gaps are filed (issue #4061)", () => {
         "position-unmodelled › Instant target:spell",
     ];
 
-    it("reds an in-scope Bot Gap key with no `bot` claim row", () => {
+    it("reports an in-scope Bot Gap key with no `bot` claim row as pending, never red (issue #4944)", () => {
         expect(
             unclaimedBotGaps(KEYS, [
                 { kind: "bot", key: KEYS[0]!, issue: 4300 },
             ])
         ).toEqual([KEYS[1]]);
         expect(renderBotGaps(2, [KEYS[1]!])).toMatch(
-            /^✗ gaps: 1 of 2 in-scope Bot Gap key\(s\) have no `bot` claim row/
+            /^… gaps: 1 of 2 in-scope Bot Gap key\(s\) have no `bot` claim row yet — pending, not red/
         );
+        const census = auditOpCensus({
+            implemented: [],
+            emitted: new Set(),
+            allowlist: { ops: [] },
+            baseline: null,
+        });
+        expect(gapsVerdict(census, 2, [KEYS[1]!], []).ok).toBe(true);
     });
 
     it("a claim of ANOTHER kind on the same key does not count", () => {
@@ -788,5 +797,52 @@ describe("renderClusterCensus (ADR 0146, issue #4682)", () => {
         expect(out).toContain("cause › form: #100, #101 — #100 would win");
         expect(out).toContain("grammar 3");
         expect(out).toContain("#555");
+    });
+});
+
+describe("Bot Gaps filed per day census (issue #4944)", () => {
+    const row = (key: string, issue: number) => [
+        "+        {",
+        '+            "kind": "bot",',
+        `+            "key": "${key}",`,
+        `+            "issue": ${issue}`,
+        "+        },",
+    ];
+
+    it("counts the `bot` claim rows each day's commits added", () => {
+        const log = [
+            "@2026-09-30",
+            "diff --git a/data/grammar-gaps.json b/data/grammar-gaps.json",
+            ...row("a", 1),
+            ...row("b", 2),
+            "",
+            "@2026-09-29",
+            ...row("c", 3),
+            '+            "kind": "scenario",',
+            '-            "kind": "bot",',
+            "",
+        ].join("\n");
+        expect([...botGapsFiledPerDay(log)]).toEqual([
+            ["2026-09-29", 1],
+            ["2026-09-30", 2],
+        ]);
+        expect(renderBotGapCensus(botGapsFiledPerDay(log))).toBe(
+            "census: Bot Gaps filed per day (last 7 days): 2026-09-29 1, 2026-09-30 2 — 3 total"
+        );
+    });
+
+    it("does not count a Cluster Cut row (`kind` then `issue`)", () => {
+        const log = [
+            "@2026-09-30",
+            "+        {",
+            '+            "kind": "bot",',
+            '+            "issue": 4999',
+            "+        },",
+        ].join("\n");
+        expect(botGapsFiledPerDay(log).size).toBe(0);
+    });
+
+    it("reads an empty window as none", () => {
+        expect(renderBotGapCensus(botGapsFiledPerDay(""))).toMatch(/: none$/);
     });
 });
