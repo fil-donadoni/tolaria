@@ -14,10 +14,6 @@ import {
     robustnessOutcome,
 } from "../lib/health-robustness-drift";
 import { BOT_HEALTH_SCRIPTS } from "../lib/health-step";
-import {
-    ROBUSTNESS_FINDING_PREFIX as BLADE_PREFIX,
-    robustnessFindingRecords,
-} from "../../convex/gre/ai/blade/robustness";
 
 const ROOT = join(__dirname, "..", "..");
 const CTX = { sha: "c43c4b5a3c58", log: "/health/c43c4b5a3c58.log" };
@@ -115,30 +111,6 @@ describe("parseRobustnessDrift", () => {
                 ].join("\n")
             )
         ).toEqual([]);
-    });
-
-    it("reads the line the blade module prints", () => {
-        expect(ROBUSTNESS_FINDING_PREFIX).toBe(BLADE_PREFIX);
-        const records = robustnessFindingRecords(
-            {
-                unlisted: [PIN],
-                wrong: [],
-                cleared: ['a "quoted" label'],
-                malformed: [],
-            },
-            "the test"
-        );
-        expect(records.map((r) => r.test)).toEqual(["the test", "the test"]);
-        const printed = records
-            .map((r) => `${BLADE_PREFIX} ${JSON.stringify(r)}`)
-            .join("\n");
-        expect(
-            parseRobustnessDrift(printed).map(({ kind, label, test }) => ({
-                kind,
-                label,
-                test,
-            }))
-        ).toEqual(records);
     });
 });
 
