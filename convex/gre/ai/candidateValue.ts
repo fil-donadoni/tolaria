@@ -173,6 +173,19 @@ export function prospectiveCardWorth(
     card: CardInstanceState,
     ctx?: GroundingContext
 ): number {
+    // Issue #4932 — a land held in hand is the holder's next land drop, priced
+    // by the holder's land count; CR 400.3: a card in hand is its owner's. The
+    // gate is the ZONE: this function also prices battlefield, graveyard and
+    // library pools (sacrifice / pick choices), where the curve is wrong.
+    if (card.types.includes("Land") && !card.types.includes("Creature")) {
+        const owner = getPlayer(state, card.ownerId);
+        if (owner.hand.some((c) => c.id === card.id))
+            return landInHandWorth(
+                owner.battlefield.filter((c) => c.types.includes("Land"))
+                    .length,
+                noncreatureCardWorth(card, ctx)
+            );
+    }
     return card.types.includes("Creature")
         ? permanentWorth(state, card)
         : noncreatureCardWorth(card, ctx);
@@ -191,6 +204,26 @@ const LAND_SEARCH_SATURATION = 5;
 const LAND_SEARCH_BASE = 70;
 const LAND_SEARCH_STEP = 10;
 const LAND_SEARCH_FLOODED = 20;
+
+/** Worth of a land HELD in hand at zero lands in play (issue #4932): the same
+ *  land-count shape as the fetch curve, but landing on the land's own flat
+ *  worth (`flat`, what it priced at before the curve) at
+ *  `LAND_SEARCH_SATURATION`, so a flooded holder's land is priced exactly as
+ *  before. Linear in between. A land in hand is the holder's next land drop,
+ *  so a landless player must not shed it for a spell it cannot yet cast. */
+const LAND_HAND_BASE = 70;
+
+/** Latent worth of a land in a `holderLands`-land holder's hand — a pure
+ *  function of the holder's land count and the land's flat worth. */
+export function landInHandWorth(holderLands: number, flat: number): number {
+    if (holderLands >= LAND_SEARCH_SATURATION || flat >= LAND_HAND_BASE)
+        return flat;
+    return (
+        flat +
+        ((LAND_HAND_BASE - flat) * (LAND_SEARCH_SATURATION - holderLands)) /
+            LAND_SEARCH_SATURATION
+    );
+}
 
 // --- Graveyard-bound finds (issue #3041) -----------------------------------
 //
