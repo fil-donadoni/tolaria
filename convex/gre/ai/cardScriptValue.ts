@@ -648,8 +648,17 @@ export function etbSelfSacrificeWeight(
         // payment decides whether the body stays, so the sacrifice is not a
         // certainty and the body keeps its latent worth. "Unless it escaped"
         // and an evoke sacrifice are decided by how the card was cast instead.
-        if (hasOp(script, "mayPay")) continue;
-        weight = Math.max(weight, gateWeight(ability, undefined));
+        let payWeight = 1;
+        if (hasOp(script, "mayPay")) {
+            // A sacrifice that no `mayPay` guards (Mold Demon's "fewer than
+            // two Swamps" branch) happens whether or not the controller
+            // could pay: whether the payment is possible is the board's to
+            // say, and the latent reading has none, so it is an undecided
+            // gate rather than a certainty or a nothing.
+            if (!sacrificesSource(script, route, "unpaid")) continue;
+            payWeight = UNDECIDED_SELF_GATE_WEIGHT;
+        }
+        weight = Math.max(weight, payWeight * gateWeight(ability, undefined));
     }
     return weight;
 }
@@ -709,9 +718,22 @@ function escapedPredicateOnEscapeRoute(
  *  route an `if` on `escaped` takes the branch escape decides; on the hand
  *  route (and for any other `if`) every branch counts, as the `if` walker
  *  takes its `then`. */
-function sacrificesSource(node: unknown, route: LatentCastRoute): boolean {
-    if (Array.isArray(node))
-        return node.some((n) => sacrificesSource(n, route));
+function sacrificesSource(
+    node: unknown,
+    route: LatentCastRoute,
+    /** `"unpaid"`: count only a sacrifice that no earlier `mayPay` of its
+     *  enclosing op lists guards — one the payment cannot avert. */
+    mode: "any" | "unpaid" = "any",
+    guarded = false
+): boolean {
+    if (Array.isArray(node)) {
+        let seen = guarded;
+        for (const n of node) {
+            if (sacrificesSource(n, route, mode, seen)) return true;
+            if (mode === "unpaid" && hasOp(n, "mayPay")) seen = true;
+        }
+        return false;
+    }
     if (node === null || typeof node !== "object") return false;
     const op = node as {
         op?: unknown;
@@ -720,14 +742,21 @@ function sacrificesSource(node: unknown, route: LatentCastRoute): boolean {
         then?: unknown;
         else?: unknown;
     };
-    if (op.op === "sacrifice" && op.target?.ref === "$source") return true;
+    if (op.op === "sacrifice" && op.target?.ref === "$source") return !guarded;
     if (op.op === "if" && route === "escape") {
         const taken = escapedPredicateOnEscapeRoute(op.predicate);
         if (taken !== undefined) {
-            return sacrificesSource(taken ? op.then : op.else, route);
+            return sacrificesSource(
+                taken ? op.then : op.else,
+                route,
+                mode,
+                guarded
+            );
         }
     }
-    return Object.values(node).some((n) => sacrificesSource(n, route));
+    return Object.values(node).some((n) =>
+        sacrificesSource(n, route, mode, guarded)
+    );
 }
 
 /** Does this script carry an Op named `name`, at any nesting depth? */
