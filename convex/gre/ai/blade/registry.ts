@@ -9995,9 +9995,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         seeds: [0xb1ade, 1, 2, 3, 4],
         tier: "must",
         expect: {
-            moves: [{ kind: "cast-spell", card: "Fireblast" }],
+            predicate: (move) =>
+                move !== null &&
+                move.kind === "cast-spell" &&
+                move.alternativeCostId === "sacrifice-two-mountains",
+            describe: "casts Fireblast by sacrificing two Mountains",
         },
-        note: "Issue #4935 (issue #4900 review): Fireblast's alternative cost is a PERMANENT leg (sacrifice two Mountains), which `searchPayableOwnAlternativeCosts` used to refuse, so with both Mountains tapped the Bot offered only `pass` and left four lethal damage in hand. The victims now ride on the Move (`castCostPicks.sacrificeIds`) and the search charges them (`applyAlternativeCostPermanentLegForSearch`).",
+        note: "Issue #4935 (issue #4900 review), a REACHABILITY entry — `predicate`, so it lowers to no Verdict and owes no weight refit: Fireblast's alternative cost is a PERMANENT leg (sacrifice two Mountains), which `searchPayableOwnAlternativeCosts` used to refuse, so with both Mountains tapped the Bot offered only `pass` and left four lethal damage in hand. `MoveMatcher` has no field for `alternativeCostId`, hence the predicate shape (as for overload / dash). The victims now ride on the Move (`castCostPicks.sacrificeIds`) and the search charges them (`applyAlternativeCostPermanentLegForSearch`).",
     },
     // Issue #4217 (founding case of PRD #4754) — Snapcaster Mage. A
     // DISCRIMINATING PAIR on one board: the only difference is whether the
