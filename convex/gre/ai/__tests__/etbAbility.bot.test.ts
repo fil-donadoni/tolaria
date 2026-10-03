@@ -27,7 +27,11 @@ import {
     type Move,
 } from "../../moves";
 import { resolveTopOfStack } from "../../state";
-import { evaluate, evaluateBreakdown } from "../../evaluate";
+import {
+    evaluate,
+    evaluateBreakdown,
+    permanentRealisedValue,
+} from "../../evaluate";
 import { applyMoveInSearch, policyValue } from "../../search";
 import { buildPositionFromSpec } from "../blade/build";
 import { findBladeScenario } from "../blade/registry";
@@ -38,6 +42,7 @@ import {
     etbSelfSacrificeWeight,
 } from "../cardScriptValue";
 import { cardValueById, creatureValueRaw } from "../../cardValue";
+import { EVOKE_SACRIFICE_TRIGGER_ID } from "../../../cards/abilities/evoke";
 import { manaValue } from "../../constants";
 import { latentGraveyardValue } from "../graveyardReach";
 import {
@@ -203,6 +208,56 @@ describe("an ETB Ability in flight is credited once (issue #4758)", () => {
         ]);
         expect(policyOf(s, castOf(s, "Ravenous Rats"))).toBeGreaterThan(
             policyOf(s, isPass)
+        );
+    });
+});
+
+describe("an in-flight self-sacrifice is priced at the body it takes (issue #4901)", () => {
+    /** Solitude evoked with no mana (the pitch cost), its spell resolved: the
+     *  body is on the battlefield and the evoke sacrifice waits on the stack. */
+    function evokedInFlight(): GameState {
+        const s = buildPositionFromSpec({
+            cards: [
+                inHand("Solitude"),
+                inHand("Savannah Lions"),
+                onBoard("Serra Angel", "opp"),
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+        });
+        const me = s.activePlayerId;
+        const cast = enumerateMoves(s, me).find(castOf(s, "Solitude"))!;
+        applyMoveInSearch(s, me, cast);
+        resolveTopOfStack(s);
+        // Both ETB-time triggers (the card's own and the evoke sacrifice)
+        // await their stack order (CR 603.3b): take the first ordering.
+        const order = enumerateMoves(s, me).find(
+            (m) => m.kind === "resolution-choice"
+        );
+        if (order) applyMoveInSearch(s, me, order);
+        return s;
+    }
+
+    it("Eval Pair: the evoke sacrifice in flight scores below the same board with the body kept, by the body's worth", () => {
+        const s = evokedInFlight();
+        const me = s.activePlayerId;
+        const sacrifice = s.stack.find(
+            (i) => i.triggeredAbilityId === EVOKE_SACRIFICE_TRIGGER_ID
+        );
+        expect(sacrifice).toBeDefined();
+        const kept = cloneGameState(s);
+        kept.stack = kept.stack.filter(
+            (i) => i.triggeredAbilityId !== EVOKE_SACRIFICE_TRIGGER_ID
+        );
+        const body = kept.players
+            .find((p) => p.id === me)!
+            .battlefield.find((c) => c.id === sacrifice!.triggerSourceId)!;
+        const worth = permanentRealisedValue(kept, body, DEFAULT_EVAL_WEIGHTS);
+        expect(worth).toBeGreaterThan(40);
+        expect(evaluate(kept, me) - evaluate(s, me)).toBeGreaterThanOrEqual(
+            worth
         );
     });
 });

@@ -38,7 +38,7 @@ import {
     type LatentLens,
 } from "./grounding";
 import type { LatentWeights } from "./evalWeights";
-import { addValues, valueEffectScript } from "./opValuers";
+import { SAC_SELF_COST, addValues, valueEffectScript } from "./opValuers";
 import type { OpValue, ValueTag } from "./featureBasis";
 
 /** A real `effects[]` script wins outright; otherwise fall back to the
@@ -590,7 +590,12 @@ export function dslEtbAbilityInFlightValue(
     def: CardDefinition,
     abilityId: string,
     ctx: GroundingContext = contextFreeGrounding(),
-    self?: PermanentView
+    self?: PermanentView,
+    /** Issue #4901 — the realized worth of the source this ability is in
+     *  flight from. Given, a `sacrifice $source` in the script is priced at
+     *  the body it takes away instead of the flat `SAC_SELF_COST`: the source
+     *  still reads as kept on the battlefield while the ability waits. */
+    sourceWorth?: number
 ): number {
     const ability = (def.triggeredAbilities ?? []).find(
         (a) => a.id === abilityId
@@ -600,7 +605,18 @@ export function dslEtbAbilityInFlightValue(
     const raw = script
         ? valueEffectScript(script, ctx)
         : bestModeCombinationOpValue(ability.modes, undefined, ctx);
-    return (raw?.points ?? 0) * gateWeight(ability, self);
+    let points = raw?.points ?? 0;
+    // A `mayPay` leaves the body's fate to its controller (see
+    // `etbSelfSacrificeWeight`), so the sacrifice is not charged as certain.
+    if (
+        sourceWorth !== undefined &&
+        script &&
+        sacrificesSource(script, "hand") &&
+        !hasOp(script, "mayPay")
+    ) {
+        points += -SAC_SELF_COST - sourceWorth;
+    }
+    return points * gateWeight(ability, self);
 }
 
 /** Issue #4758 — how surely a creature's body is gone the moment it enters:
