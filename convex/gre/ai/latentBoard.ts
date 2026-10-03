@@ -227,8 +227,12 @@ export function makeLatentBoardLens(
     const memo = new Map<number, number | undefined>();
     let measured = false;
 
-    const compute = (slot: number): number | undefined => {
-        const requirement = slots[slot] ?? openEnded;
+    const compute = (slot: number): number | undefined =>
+        unitsOf(slots[slot] ?? openEnded);
+
+    const unitsOf = (
+        requirement: TargetRequirement | undefined
+    ): number | undefined => {
         if (!requirement) return undefined;
         const source = pendingTargetingSource(state, card.id, "cast");
         const legal = getLegalTargets(state, requirement, source, casterId);
@@ -258,6 +262,11 @@ export function makeLatentBoardLens(
 
     return {
         weights: base.weights,
+        requirementUnits(requirement) {
+            const units = unitsOf(requirement);
+            if (units !== undefined) measured = true;
+            return units;
+        },
         victimUnits(slot) {
             if (slots.length === 0) return base.victimUnits(slot);
             if (!memo.has(slot)) memo.set(slot, compute(slot));

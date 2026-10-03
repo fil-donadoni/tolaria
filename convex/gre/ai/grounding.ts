@@ -25,6 +25,7 @@ import type {
     EffectPlayerRef,
     EffectForEachSelector,
     EffectRef,
+    TargetRequirement,
 } from "../../cards/types";
 import type { Feature } from "./featureBasis";
 import type { LatentWeights } from "./evalWeights";
@@ -63,6 +64,18 @@ export interface LatentLens {
      *  enchantment or land requirement with no board attached: one
      *  representative victim of THAT type, never the creature-sized unit. */
     victimUnits(slot: number): number | undefined;
+    /** Issue #5014 — `victimUnits` for a requirement the caller names
+     *  itself rather than a slot of the card's own spell requirements: an ETB
+     *  Ability's target lives on the ability, not on the definition the lens
+     *  reads its slots from. Present only on a lens attached to a real board;
+     *  absent, a context-free valuation keeps the representative victim. */
+    requirementUnits?(requirement: TargetRequirement): number | undefined;
+    /** Issue #5014 — true for an announced slot whose board holds no legal
+     *  permanent victim: the damage aimed at it can only reach a player's
+     *  face, so it is a life swing and not removal. Set only by the lens an
+     *  ETB Ability is valued under (`etbGrounding`); a spell's own lens keeps
+     *  pricing its damage as removal. */
+    faceOnly?(slot: number): boolean;
     /** Issue #4773 — units of `boardRemoval` a `forEach` over the battlefield
      *  takes off the board NET for the caster: the realised loss of every
      *  member the caster's opponents control, minus every member the caster

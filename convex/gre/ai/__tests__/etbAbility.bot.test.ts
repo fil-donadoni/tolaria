@@ -517,6 +517,18 @@ describe("Eval Pairs — a self-sacrificing ETB Titan is cast from hand (issue #
         ).toBeGreaterThan(policyOf(s, isPass));
     });
 
+    it("a self-sacrificing creature's ETB damage in hand is a life swing, not removal, when no creature can be hit (issue #5014)", () => {
+        const handTerm = (cards: SpecCard[]) =>
+            evaluateBreakdown(position(cards), "p1", DEFAULT_EVAL_WEIGHTS).self
+                .hand;
+        const empty = handTerm([inHand("Phlage, Titan of Fire's Fury")]);
+        const withVictim = handTerm([
+            inHand("Phlage, Titan of Fire's Fury"),
+            onBoard("Grizzly Bears", "opp"),
+        ]);
+        expect(empty).toBeLessThan(withVictim);
+    });
+
     it("a card with escape in the graveyard keeps the curve top its hand cast raised (mana development is not spent)", () => {
         const uro = getCardByName("Uro, Titan of Nature's Wrath");
         const lands = () =>

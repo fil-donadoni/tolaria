@@ -587,16 +587,34 @@ export function dslLatentAbilityScriptOpValue(
  *  each target slot it cannot answer priced at a representative victim of
  *  the ability's own target TYPE rather than the 2/2. One helper for both
  *  readings of an ETB — its potential in hand and its value in flight — so
- *  the two can never price the same ability differently. */
+ *  the two can never price the same ability differently — except that a
+ *  `ctx` carrying a board lens (a self-sacrificing creature in hand, issue
+ *  #5014) answers the ability's requirement against that board, while the
+ *  in-flight reading runs context-free: its trigger is already on the stack
+ *  and the search settles it before a leaf, so the split is deliberate. */
 function etbGrounding(
     ctx: GroundingContext,
     ability: { targetRequirement?: TargetRequirement }
 ): GroundingContext {
-    if (!ability.targetRequirement) return ctx;
-    return withLatentLens(
-        ctx,
-        withTypedRepresentativeVictim(ctx.latent, ability.targetRequirement)
-    );
+    const requirement = ability.targetRequirement;
+    if (!requirement) return ctx;
+    const typed = withTypedRepresentativeVictim(ctx.latent, requirement);
+    // Issue #5014 — a lens attached to a real board answers the ability's own
+    // requirement: what its target can actually hit THERE, ahead of the
+    // representative victim.
+    const measured = ctx.latent.requirementUnits?.(requirement);
+    if (measured === undefined) return withLatentLens(ctx, typed);
+    // A triggered ability declares ONE requirement, so only slot 0 is its.
+    const types = Array.isArray(requirement.type)
+        ? requirement.type
+        : [requirement.type];
+    const reachesFace = types.some((t) => t === "any" || t === "player");
+    return withLatentLens(ctx, {
+        ...typed,
+        victimUnits: (slot) =>
+            slot === 0 ? measured : typed.victimUnits(slot),
+        faceOnly: (slot) => slot === 0 && measured === 0 && reachesFace,
+    });
 }
 
 /** Issue #4758 — the value of ONE ETB Ability of `def` while it is IN FLIGHT:

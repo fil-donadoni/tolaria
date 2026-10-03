@@ -669,7 +669,15 @@ const dealDamage: Valuer<"dealDamage"> = (op, ctx) => {
     const tags: ValueTag[] = tagScaling(scaling, "damage");
     if (!toPlayer && isAnnouncedTarget(op.to)) tags.push("targeted");
     if (!toPlayer) {
-        return { points: priced(ctx, "damage", amount), tags };
+        // Issue #5014 — an ETB Ability's damage on a board with no legal
+        // permanent victim can only reach the face: a life swing, not removal.
+        const slot = announcedSlot(op.to);
+        const faceOnly =
+            slot !== undefined && ctx.latent.faceOnly?.(slot) === true;
+        return {
+            points: priced(ctx, faceOnly ? "lifeSwing" : "damage", amount),
+            tags,
+        };
     }
     const playerRef = (op.to as { player: EffectPlayerRef }).player;
     // Issue #1521 — a player-directed damage Op is NOT always aimed at the
