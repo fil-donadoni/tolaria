@@ -262,6 +262,65 @@ describe("an in-flight self-sacrifice is priced at the body it takes (issue #490
     });
 });
 
+describe("an escaped permanent's sacrifice in flight is not charged (issue #4901, CR 702.138b)", () => {
+    it("Eval Pair: Phlage escaped from the graveyard keeps its body while its 'unless it escaped' trigger waits", () => {
+        const phlage = "Phlage, Titan of Fire's Fury";
+        const s = buildPositionFromSpec({
+            cards: [
+                { name: phlage, owner: "me", zone: "graveyard" },
+                ...Array.from({ length: 5 }, () => ({
+                    name: "Grizzly Bears",
+                    owner: "me" as const,
+                    zone: "graveyard" as const,
+                })),
+                { name: "Plateau", owner: "me", zone: "battlefield" },
+                { name: "Plateau", owner: "me", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 2,
+            libraryCount: 20,
+        });
+        const me = s.activePlayerId;
+        const id = getCardByName(phlage).id;
+        const cast = enumerateMoves(s, me).find(
+            (m) =>
+                m.kind === "cast-spell" &&
+                s.players
+                    .flatMap((p) => p.graveyard)
+                    .some(
+                        (c) =>
+                            c.id === m.cardInstanceId &&
+                            (c.card as { id?: string }).id === id
+                    )
+        )!;
+        applyMoveInSearch(s, me, cast);
+        resolveTopOfStack(s);
+        for (let i = 0; i < 4; i++) {
+            const step = enumerateMoves(s, me).find(
+                (m) => m.kind === "resolution-choice"
+            );
+            if (!step) break;
+            applyMoveInSearch(s, me, step);
+        }
+        const trigger = s.stack.find(
+            (i) => i.triggeredAbilityId === "phlage-sacrifice-unless-escaped"
+        );
+        expect(trigger?.escaped).toBe(true);
+        const without = cloneGameState(s);
+        without.stack = without.stack.filter(
+            (i) => i.triggeredAbilityId !== "phlage-sacrifice-unless-escaped"
+        );
+        const body = s.players
+            .find((p) => p.id === me)!
+            .battlefield.find((c) => c.id === trigger!.triggerSourceId)!;
+        const worth = permanentRealisedValue(s, body, DEFAULT_EVAL_WEIGHTS);
+        // Only the flat cost the walker still reads off the escape route's
+        // `then` branch may remain — never the body itself.
+        expect(evaluate(without, me) - evaluate(s, me)).toBeLessThan(worth / 2);
+    });
+});
+
 describe("value model — latent vs realized faces (issue #4758)", () => {
     it("the realized reading leaves an ETB Ability out; the latent one counts it", () => {
         const ftk = getCardByName("Flametongue Kavu");

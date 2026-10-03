@@ -602,7 +602,13 @@ function etbAbilitiesInFlight(
             ability.id,
             item,
             weights.latent,
-            source ? permanentRealisedValue(state, source, weights, pass) : 0
+            {
+                worth: () =>
+                    source
+                        ? permanentRealisedValue(state, source, weights, pass)
+                        : 0,
+                route: item.escaped === true ? "escape" : "hand",
+            }
         );
     }
     return total;

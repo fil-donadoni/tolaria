@@ -591,11 +591,13 @@ export function dslEtbAbilityInFlightValue(
     abilityId: string,
     ctx: GroundingContext = contextFreeGrounding(),
     self?: PermanentView,
-    /** Issue #4901 — the realized worth of the source this ability is in
-     *  flight from. Given, a `sacrifice $source` in the script is priced at
-     *  the body it takes away instead of the flat `SAC_SELF_COST`: the source
-     *  still reads as kept on the battlefield while the ability waits. */
-    sourceWorth?: number
+    /** Issue #4901 — the source this ability is in flight from: its realized
+     *  worth (read lazily, only when the script sacrifices it) and the route
+     *  it was cast by. Given, a `sacrifice $source` is priced at the body it
+     *  takes away instead of the flat `SAC_SELF_COST`: the source still reads
+     *  as kept on the battlefield while the ability waits. An escaped
+     *  source's "unless it escaped" sacrifice never happens (CR 702.138b). */
+    source?: { worth: () => number; route: LatentCastRoute }
 ): number {
     const ability = (def.triggeredAbilities ?? []).find(
         (a) => a.id === abilityId
@@ -609,12 +611,12 @@ export function dslEtbAbilityInFlightValue(
     // A `mayPay` leaves the body's fate to its controller (see
     // `etbSelfSacrificeWeight`), so the sacrifice is not charged as certain.
     if (
-        sourceWorth !== undefined &&
+        source &&
         script &&
-        sacrificesSource(script, "hand") &&
+        sacrificesSource(script, source.route) &&
         !hasOp(script, "mayPay")
     ) {
-        points += -SAC_SELF_COST - sourceWorth;
+        points += -SAC_SELF_COST - source.worth();
     }
     return points * gateWeight(ability, self);
 }
