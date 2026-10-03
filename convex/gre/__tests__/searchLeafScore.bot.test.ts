@@ -34,7 +34,7 @@ import snapshot from "./fixtures/searchLeafScore.snapshot.json";
  *     `gameOver`, either player at 0 life): `evaluate`'s offset branches, and a
  *     rollout on a game-over state returns `scoreLeaf` of it at once.
  *
- * Positions: the three of the perf fixture (`search.perf.test.ts`, issue #4458).
+ * Positions: the three of the cost fixture (`searchCost.bot.test.ts`, issue #4458).
  * Floats round-trip exactly through JSON (shortest round-trip repr), so
  * `toEqual` is a bit-for-bit comparison. `RECORD_LEAF_SNAPSHOT=1` rewrites the
  * file — only ever on a change that is MEANT to move the evaluation.

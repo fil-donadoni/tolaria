@@ -29,8 +29,8 @@ import type { GameState } from "../state";
  * only as good as the import order of the files sharing the worker. The SBA
  * check is observed through a CANARY instead — a life total set to 0 by hand,
  * which only a check turns into a finished game — and the search's draw count
- * is pinned by the perf fixture (`search.perf.test.ts`, `searchDraws`), whose
- * project does isolate.
+ * is pinned by the cost fixture (`searchCost.bot.test.ts`, `searchDraws`),
+ * which counts through namespace spies, not module mocks.
  */
 
 const ITERATIONS = 100;
@@ -50,7 +50,7 @@ type Fixture = {
     };
 };
 
-// The three positions of the perf fixture (`search.perf.test.ts`, issue
+// The three positions of the cost fixture (`searchCost.bot.test.ts`, issue
 // #4458): a small board, a medium one and the widest root in the `must` tier.
 const FIXTURES: Fixture[] = [
     {
