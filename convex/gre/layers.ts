@@ -33,6 +33,13 @@ import type {
 
 export type PTBuff = { power: number; toughness: number };
 
+/** A creature's power and toughness after the CR 613.4 pipeline — the pair
+ *  {@link getEffectivePT} returns. Not floored. */
+export type EffectivePT = {
+    readonly power: number;
+    readonly toughness: number;
+};
+
 const ZERO: PTBuff = { power: 0, toughness: 0 };
 
 /** The view the layer system reads. `StaticEffectStateView` (canonical in
@@ -295,6 +302,129 @@ const LAYER_7_SUBLAYERS: readonly ContinuousEffectSublayer[] = (
 
 type DerivedTemplate = { source: PermanentView; effect: StaticEffect };
 
+/** The `StaticEffect` kinds layer 7 owns — the narrowed union
+ *  {@link isLayer7StaticEffect} proves. */
+type Layer7StaticEffect = Extract<
+    StaticEffect,
+    { kind: keyof typeof LAYER_7_STATIC_EFFECT_KINDS }
+>;
+
+/** One (source, static effect) pair that has cleared the SOURCE-side half of
+ *  layer 7's walk: the object is on a battlefield or in the command zone, and
+ *  the effect is one of layer 7's kinds. Everything a TARGET decides — the
+ *  `applies` predicate, the CR 611.2c gate, the entry's timestamp — is read
+ *  off the live `source` at each read, in `layer7EffectsFor`. */
+type Layer7SourceCandidate = {
+    source: PermanentView;
+    effect: Layer7StaticEffect;
+    /** Index into the source's own effect list. Half the entry's identity
+     *  (`ce-src-<sourceId>-<index>`) and the `effectIndex` a template payload
+     *  is resolved back through (`resolveLayer7Payload`). */
+    index: number;
+};
+
+/** The source half of one board's layer-7 derivation (issue #4462): WHICH
+ *  objects declare a P/T effect, in walk order. Built by
+ *  {@link collectLayer7Sources} and handed down by the caller of an
+ *  all-creatures pass; opaque to every caller, which only ever passes it back
+ *  to {@link getEffectivePT}.
+ *
+ *  A plan is a statement about ONE board at ONE moment and is never stored:
+ *  it lives in a local of the pass that built it, and a pass that moves the
+ *  board builds another. `state`, `battlefieldSizes` and `emblemCount` are the
+ *  board it was collected from, read back by `planCoversBoard`. */
+export type Layer7SourcePlan = {
+    readonly state: LayerStateView;
+    readonly battlefieldSizes: readonly number[];
+    readonly emblemCount: number;
+    readonly candidates: readonly Layer7SourceCandidate[];
+};
+
+/** Walks the battlefield and the command zone ONCE, collecting every object's
+ *  layer-7 static effects (issue #4462, PRD #4454) — the twin of
+ *  `collectLayer6Sources` (`gre/layer6.ts`) and `collectSourceEntries`
+ *  (`gre/layers2to5.ts`), and it exists for the same measured reason. This
+ *  walk used to run inside `layer7EffectsFor`, i.e. once per P/T READ: the
+ *  zero-toughness SBA, the combat damage step and the evaluation at every
+ *  search leaf each ask it of every creature, so an n-permanent board paid n
+ *  walks of n permanents per pass.
+ *
+ *  One walk covers all three layer-7 kinds — `pt-cda` (7a), `pt-set` (7b) and
+ *  `pt-buff` (7c) — for battlefield sources AND emblems. The pre-registry code
+ *  reached emblems from the pt-buff walk only, so an emblem-declared `pt-cda`
+ *  contributed nothing; it now contributes to 7a. That is a deliberate
+ *  widening, not an accident — CR 604.3 makes a characteristic-defining
+ *  ability apply in every zone and CR 114.3 gives an emblem abilities like any
+ *  other object, so no rule ever kept emblems out of 7a. No emblem in
+ *  `cards/emblems.ts` declares one today, so no board changes.
+ *
+ *  What is deliberately NOT hoisted is anything the ORDER of a creature's
+ *  effects could turn on (CR 613.4, 613.7, 613.8): the source's timestamp, its
+ *  `applies` predicate and its CR 611.2c "as long as" gate are all still read
+ *  per target off the live source. The plan answers membership and nothing
+ *  else, which is why a counter, a tap or a control change between two reads
+ *  of one pass needs no new plan — and a permanent entering or leaving does. */
+export function collectLayer7Sources(state: LayerStateView): Layer7SourcePlan {
+    const candidates: Layer7SourceCandidate[] = [];
+    const push = (
+        source: PermanentView,
+        effects: readonly StaticEffect[]
+    ): void => {
+        for (let index = 0; index < effects.length; index++) {
+            const effect = effects[index];
+            if (!isLayer7StaticEffect(effect)) continue;
+            candidates.push({ source, effect, index });
+        }
+    };
+    for (const player of state.players) {
+        for (const source of player.battlefield) {
+            // PRD #2064 S7 — the registry-derived precheck, the twin of the
+            // ones layers 2-5 and 6 run: almost no permanent declares a
+            // `pt-buff`, `pt-set` or `pt-cda` at all. Fail-slow: a stale TRUE
+            // costs one wasted `tryGetDefinition`, a stale FALSE is impossible
+            // (every registry write goes through `setRegistryEntry`).
+            const cardId = (source.card as { id?: string }).id;
+            if (!cardId || !declaresLayer7StaticEffect(cardId)) continue;
+            push(source, getStaticEffects(source));
+        }
+    }
+    // CR 114 (issue #1221) — command-zone emblems contribute source-less,
+    // owner-scoped statics (Sorin, Lord of Innistrad's "+1/+0" emblem). Same
+    // predicate walk, with a synthetic source whose controller is the owner.
+    for (const emblem of state.emblems ?? []) {
+        push(emblemAsStaticSource(emblem), getEmblemStaticEffects(emblem));
+    }
+    return {
+        state,
+        battlefieldSizes: state.players.map((p) => p.battlefield.length),
+        emblemCount: state.emblems?.length ?? 0,
+        candidates,
+    };
+}
+
+/** Whether `plan` was collected from `state` as it stands — the same state
+ *  object, with the same number of permanents on each battlefield and the same
+ *  number of emblems. A read handed a plan that fails this derives its own
+ *  instead, so a plan carried past the board it describes (onto a clone, or
+ *  across a permanent entering or leaving) costs a walk, never a wrong P/T.
+ *
+ *  A tripwire, not a proof: it cannot see a source that changed WHAT it is
+ *  while staying where it is (a copy effect rewriting `card.id`, a mode
+ *  chosen late). The contract stays the caller's — one plan per fixed board. */
+function planCoversBoard(
+    plan: Layer7SourcePlan,
+    state: LayerStateView
+): boolean {
+    if (plan.state !== state) return false;
+    if (plan.emblemCount !== (state.emblems?.length ?? 0)) return false;
+    const sizes = plan.battlefieldSizes;
+    if (sizes.length !== state.players.length) return false;
+    for (let i = 0; i < sizes.length; i++) {
+        if (sizes[i] !== state.players[i].battlefield.length) return false;
+    }
+    return true;
+}
+
 /** The layer-7 registry entries applying to `target`, in CR 613.7 order, paired
  *  with the live source each source-provenance entry was derived from.
  *
@@ -324,7 +454,8 @@ type DerivedTemplate = { source: PermanentView; effect: StaticEffect };
  */
 function layer7EffectsFor(
     state: LayerStateView,
-    target: PermanentView
+    target: PermanentView,
+    sources: Layer7SourcePlan
 ): {
     entries: ContinuousEffect[];
     templates: ReadonlyMap<string, DerivedTemplate>;
@@ -332,106 +463,69 @@ function layer7EffectsFor(
     const entries: ContinuousEffect[] = [];
     const templates = new Map<string, DerivedTemplate>();
 
-    // One walk covers all three layer-7 kinds — `pt-cda` (7a), `pt-set` (7b)
-    // and `pt-buff` (7c) — for battlefield sources AND emblems. The
-    // pre-registry code reached emblems from the
-    // pt-buff walk only, so an emblem-declared `pt-cda` contributed nothing;
-    // it now contributes to 7a. That is a deliberate widening, not an
-    // accident — CR 604.3 makes a characteristic-defining ability apply in
-    // every zone and CR 114.3 gives an emblem abilities like any other object,
-    // so no rule ever kept emblems out of 7a. No emblem in `cards/emblems.ts`
-    // declares one today, so no board changes.
-    const pushSourceEffects = (
-        source: PermanentView,
-        effects: readonly StaticEffect[]
-    ): void => {
-        for (let index = 0; index < effects.length; index++) {
-            const effect = effects[index];
-            if (!isLayer7StaticEffect(effect)) continue;
-            // CR 613.7a — a continuous effect generated by a static ability has
-            // the timestamp of the object the ability is on. PRD #2064
-            // S6b-part-2 reads that stamp here, as layers 2-5 and 6 already do;
-            // before it, layer 7 stood BOARD WALK ORDER in for a timestamp, at a
-            // floor below every minted stamp, so a source that began applying
-            // later could never outrank one that began earlier and every derived
-            // 7a/7c entry sorted below every resolved spell's residue. An
-            // UNSTAMPED source derives at 0 — "earliest in the layer", the
-            // literal `?? 0` the pre-registry `getCDAContribution` and
-            // `temporaryPTSet` readers used. Reachable only from a hand-built
-            // fixture: every production entry path stamps through
-            // `beginApplyingStaticEffects`, and a pre-#1730 board is stamped by
-            // `backfillLegacyStaticSeq` (`gre/serialize.ts`) before anything
-            // reads it. Preserving it is the difference between this slice
-            // changing WHERE the answer comes from and changing WHAT it is.
-            const seq = (source as { staticSeq?: number }).staticSeq ?? 0;
-            // CR 613.4 — the sublayer is the kind's, read from the SAME table
-            // that decides membership, so a kind cannot be admitted to the walk
-            // without saying where in 613.4 it lands.
-            const sublayer = LAYER_7_STATIC_EFFECT_KINDS[effect.kind];
-            if (!effect.applies(target, source, STATIC_EFFECT_CTX)) continue;
-            // CR 611.2c source-level gate ("as long as ..."): evaluated once
-            // per source against the whole board (Jihad). Only `pt-buff`
-            // carries one — a characteristic-defining ability has no such gate
-            // (CR 604.3: it applies in every zone, at all times), and
-            // `StaticPTSet` declares no `condition` field at all, so an "as
-            // long as ..." base-P/T set is not expressible today (neither
-            // Humility nor Life and Limb is conditional). Keyed on the KIND
-            // because the narrowed union no longer carries `condition` on
-            // every member: a FOURTH kind that declared one would need its own
-            // arm here, and nothing but this comment would say so.
-            if (
-                effect.kind === "pt-buff" &&
-                effect.condition &&
-                !effect.condition(source, state, STATIC_EFFECT_CTX)
-            ) {
-                continue;
-            }
-            const id = `ce-src-${source.id}-${index}`;
-            templates.set(id, { source, effect });
-            entries.push({
-                id,
-                layer: 7,
-                // CR 613.4a vs 613.4b vs 613.4c — a CDA defines P/T, a set
-                // replaces it, a buff modifies it.
-                sublayer,
-                timestamp: seq,
-                expiry: { kind: "source", sourceId: source.id },
-                affected: { kind: "predicate" },
-                payload: {
-                    kind: "template",
-                    sourceCardId: (source.card as { id?: string }).id ?? "",
-                    effectIndex: index,
-                    modeId: (source as { chosenModeId?: string }).chosenModeId,
-                },
-                characteristicDefining: sublayer === "7a",
-            });
+    // The SOURCE half of the walk — which objects declare a layer-7 effect at
+    // all — is `collectLayer7Sources`' answer, built once per board pass and
+    // handed down. Everything below is the per-TARGET half, unchanged: the
+    // `applies` predicate, the CR 611.2c gate and the entry itself are decided
+    // here, against the live source, on every read.
+    for (const { source, effect, index } of sources.candidates) {
+        // CR 613.7a — a continuous effect generated by a static ability has
+        // the timestamp of the object the ability is on. PRD #2064
+        // S6b-part-2 reads that stamp here, as layers 2-5 and 6 already do;
+        // before it, layer 7 stood BOARD WALK ORDER in for a timestamp, at a
+        // floor below every minted stamp, so a source that began applying
+        // later could never outrank one that began earlier and every derived
+        // 7a/7c entry sorted below every resolved spell's residue. An
+        // UNSTAMPED source derives at 0 — "earliest in the layer", the
+        // literal `?? 0` the pre-registry `getCDAContribution` and
+        // `temporaryPTSet` readers used. Reachable only from a hand-built
+        // fixture: every production entry path stamps through
+        // `beginApplyingStaticEffects`, and a pre-#1730 board is stamped by
+        // `backfillLegacyStaticSeq` (`gre/serialize.ts`) before anything
+        // reads it. Preserving it is the difference between this slice
+        // changing WHERE the answer comes from and changing WHAT it is.
+        const seq = (source as { staticSeq?: number }).staticSeq ?? 0;
+        // CR 613.4 — the sublayer is the kind's, read from the SAME table
+        // that decides membership, so a kind cannot be admitted to the walk
+        // without saying where in 613.4 it lands.
+        const sublayer = LAYER_7_STATIC_EFFECT_KINDS[effect.kind];
+        if (!effect.applies(target, source, STATIC_EFFECT_CTX)) continue;
+        // CR 611.2c source-level gate ("as long as ..."): evaluated once
+        // per source against the whole board (Jihad). Only `pt-buff`
+        // carries one — a characteristic-defining ability has no such gate
+        // (CR 604.3: it applies in every zone, at all times), and
+        // `StaticPTSet` declares no `condition` field at all, so an "as
+        // long as ..." base-P/T set is not expressible today (neither
+        // Humility nor Life and Limb is conditional). Keyed on the KIND
+        // because the narrowed union no longer carries `condition` on
+        // every member: a FOURTH kind that declared one would need its own
+        // arm here, and nothing but this comment would say so.
+        if (
+            effect.kind === "pt-buff" &&
+            effect.condition &&
+            !effect.condition(source, state, STATIC_EFFECT_CTX)
+        ) {
+            continue;
         }
-    };
-
-    for (const player of state.players) {
-        for (const source of player.battlefield) {
-            // PRD #2064 S7 — the registry-derived precheck, the twin of the
-            // ones layers 2-5 and 6 run. It matters most HERE: layer 7 has no
-            // board pass to hoist a source plan into, so this walk runs on
-            // every P/T read — `getEffectivePower` / `getEffectiveToughness`,
-            // which the SBA loop and combat ask of every creature — and almost
-            // no permanent declares a `pt-buff` or `pt-cda` at all. Fail-slow:
-            // a stale TRUE costs one wasted `tryGetDefinition`, a stale FALSE
-            // is impossible (every registry write goes through
-            // `setRegistryEntry`).
-            const cardId = (source.card as { id?: string }).id;
-            if (!cardId || !declaresLayer7StaticEffect(cardId)) continue;
-            pushSourceEffects(source, getStaticEffects(source));
-        }
-    }
-    // CR 114 (issue #1221) — command-zone emblems contribute source-less,
-    // owner-scoped statics (Sorin, Lord of Innistrad's "+1/+0" emblem). Same
-    // predicate walk, with a synthetic source whose controller is the owner.
-    for (const emblem of state.emblems ?? []) {
-        pushSourceEffects(
-            emblemAsStaticSource(emblem),
-            getEmblemStaticEffects(emblem)
-        );
+        const id = `ce-src-${source.id}-${index}`;
+        templates.set(id, { source, effect });
+        entries.push({
+            id,
+            layer: 7,
+            // CR 613.4a vs 613.4b vs 613.4c — a CDA defines P/T, a set
+            // replaces it, a buff modifies it.
+            sublayer,
+            timestamp: seq,
+            expiry: { kind: "source", sourceId: source.id },
+            affected: { kind: "predicate" },
+            payload: {
+                kind: "template",
+                sourceCardId: (source.card as { id?: string }).id ?? "",
+                effectIndex: index,
+                modeId: (source as { chosenModeId?: string }).chosenModeId,
+            },
+            characteristicDefining: sublayer === "7a",
+        });
     }
 
     // The two instance-borne 7c provenances below carry no stamp of their own:
@@ -716,10 +810,7 @@ export const LAYER_7_STATIC_EFFECT_KINDS = {
  *  cannot answer reds in `tsc` instead of being silently mis-handled. */
 function isLayer7StaticEffect(
     effect: StaticEffect
-): effect is Extract<
-    StaticEffect,
-    { kind: keyof typeof LAYER_7_STATIC_EFFECT_KINDS }
-> {
+): effect is Layer7StaticEffect {
     return effect.kind in LAYER_7_STATIC_EFFECT_KINDS;
 }
 
@@ -742,7 +833,7 @@ function findPermanent(
  * effects are other provenances or other sublayers and are excluded, as they
  * always were.
  */
-// Production reads go through `computeEffectivePT`; this survives as the seam
+// Production reads go through `getEffectivePT`; this survives as the seam
 // `layers.test.ts` uses to assert the static-buff provenance in isolation.
 export function getStaticPTBuff(
     state: LayerStateView,
@@ -750,7 +841,11 @@ export function getStaticPTBuff(
 ): PTBuff {
     // Fast path: P/T effects are only meaningful on creatures (CR 208.2).
     if (!STATIC_EFFECT_CTX.isCreature(target)) return ZERO;
-    const { entries, templates } = layer7EffectsFor(state, target);
+    const { entries, templates } = layer7EffectsFor(
+        state,
+        target,
+        collectLayer7Sources(state)
+    );
     let power = 0;
     let toughness = 0;
     for (const entry of entries) {
@@ -782,12 +877,24 @@ export function getStaticPTBuff(
  *                 a `pt-switch` entry yet, so the loop is empty in practice.
  *
  * Computed at read time, never mutating card state.
+ *
+ * THE layer-7 read (issue #4462): power and toughness come out of one
+ * derivation, so a site that wants both asks once. `getEffectivePower` /
+ * `getEffectiveToughness` and their `Permanent` twins are this, projected.
  */
-function computeEffectivePT(
+export function getEffectivePT(
     state: LayerStateView,
     target: PermanentView,
-    opts: { includeTemporary?: boolean } = {}
-): PTBuff {
+    opts: {
+        /** `false` drops the until-boundary entries — see below. */
+        includeTemporary?: boolean;
+        /** The board's source plan, when the caller already built one for
+         *  this pass ({@link collectLayer7Sources}). Omitted — or handed a
+         *  plan that no longer describes `state` — this read walks the board
+         *  itself: one target, one walk, exactly as before issue #4462. */
+        sources?: Layer7SourcePlan;
+    } = {}
+): EffectivePT {
     // When false, the until-boundary P/T entries are dropped — which is exactly
     // the `duration` expiry now that PRD #2064 S6 has moved the countdown off
     // the instance and into the entry. The persistent provenances (CDA, static
@@ -809,7 +916,11 @@ function computeEffectivePT(
     if (!STATIC_EFFECT_CTX.isCreature(target)) {
         return { power: basePower, toughness: baseToughness };
     }
-    const { entries, templates } = layer7EffectsFor(state, target);
+    const sources =
+        opts.sources && planCoversBoard(opts.sources, state)
+            ? opts.sources
+            : collectLayer7Sources(state);
+    const { entries, templates } = layer7EffectsFor(state, target, sources);
 
     let power = basePower;
     let toughness = baseToughness;
@@ -862,7 +973,7 @@ export function getEffectivePower(
     state: LayerStateView,
     target: PermanentView
 ): number {
-    return computeEffectivePT(state, target).power;
+    return getEffectivePT(state, target).power;
 }
 
 /** Effective toughness after the CR 613.4 layer pipeline. */
@@ -870,7 +981,7 @@ export function getEffectiveToughness(
     state: LayerStateView,
     target: PermanentView
 ): number {
-    return computeEffectivePT(state, target).toughness;
+    return getEffectivePT(state, target).toughness;
 }
 
 /** Effective power EXCLUDING until-boundary modifications (the layer-7
@@ -882,7 +993,7 @@ export function getPermanentEffectivePower(
     state: LayerStateView,
     target: PermanentView
 ): number {
-    return computeEffectivePT(state, target, { includeTemporary: false }).power;
+    return getEffectivePT(state, target, { includeTemporary: false }).power;
 }
 
 /** Effective toughness EXCLUDING until-boundary modifications — toughness twin
@@ -891,6 +1002,5 @@ export function getPermanentEffectiveToughness(
     state: LayerStateView,
     target: PermanentView
 ): number {
-    return computeEffectivePT(state, target, { includeTemporary: false })
-        .toughness;
+    return getEffectivePT(state, target, { includeTemporary: false }).toughness;
 }
