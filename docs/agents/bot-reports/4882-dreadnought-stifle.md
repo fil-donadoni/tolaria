@@ -226,6 +226,29 @@ cui entra" (Snapcaster, flash + ETB).
       ≈ 0.01; 7/10 cast a 0.85, 6/10 a 0.608), cioè il rumore che issue #4877 già
       traccia. Il refit lo sposta di un seed, ma non lo causa.
 
+## Ripresa dopo issue #4877: rebase e refit
+
+- Rebase su `origin/staging` (50 commit, issue #4877 chiusa). Conflitti
+  meccanici: `LATENT_DISCOUNT` e le costanti non-creatura (spostate in
+  `creatureBody.ts`), e il parametro `pass` di `cardValue` (issue #4462). Gli
+  sconti seguono `pass` in coda alla firma. I due refit del branch sono stati
+  scartati in favore dei pesi della base e rifatti una volta sola.
+- **Refit sul corpus combinato:** sorcery-speed **0.60528**, flash
+  **0.863109** (prima del rebase 0.607809 / 0.862786). Il guard
+  `weightFit.bot.test.ts` va al punto fisso dopo due iterazioni: i parametri di
+  default di `cardValue` leggono `DEFAULT_EVAL_WEIGHTS`.
+- **Audit:**
+    - metà 2: `ROBUST`, `mean-reward` 10/10 × 3; metà 1: `ROBUST`,
+      `mean-reward` 10/10 × 3;
+    - con lo sconto riportato a 0.85 la metà 2 passa ancora, ma 30/30 via
+      `material-tiebreak`: il fix sposta il meccanismo, non il colore;
+    - audit completo sui `must`: tutte robuste. Due righe della baseline
+      (Ravenous Rats, issue #4981; Stingcaster Mage, issue #4982) erano
+      `NOISE-PINNED` sulla base e sono `ROBUST` sul branch, quindi escono.
+      Rats resta decisa da `material-tiebreak` su ogni seed: robusta per
+      conteggio, non per valutazione.
+- Blade `must`: 215 verdi.
+
 ## Cosa fare quando c'è un bug del game bot
 
 1. **L'entry blade è la specifica.** La domanda che pone ("un umano risponde
