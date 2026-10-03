@@ -49,7 +49,7 @@ import * as registry from "../../cards/registry";
  * creatures visited n² permanents — and a `Layer7Pass` walks once for the
  * pass instead. What remains is one walk per SBA scan and per evaluation,
  * plus the single reads that belong to no pass. Before that change the three
- * positions read 14826 / 0 / 125917; the medium board has no creature, so
+ * positions read 12710 / 0 / 107879; the medium board has no creature, so
  * nothing is ever walked on it.
  * Counted with `vi.spyOn` on the registry's export, not `vi.mock`: the
  * registry's own import graph reaches `gre/layers.ts`, and a module first
@@ -187,7 +187,7 @@ const POSITIONS: Position[] = [
             enumerations: 2111,
             evaluations: 353,
             sbaSweeps: 2459,
-            ptWalkVisits: -1,
+            ptWalkVisits: 7148,
             rngDraws: 0,
             searchDraws: 5949,
         },
@@ -202,7 +202,7 @@ const POSITIONS: Position[] = [
             enumerations: 624,
             evaluations: 291,
             sbaSweeps: 1747,
-            ptWalkVisits: -1,
+            ptWalkVisits: 0,
             rngDraws: 0,
             searchDraws: 5720,
         },
@@ -217,7 +217,7 @@ const POSITIONS: Position[] = [
             enumerations: 489,
             evaluations: 888,
             sbaSweeps: 3082,
-            ptWalkVisits: -1,
+            ptWalkVisits: 32910,
             rngDraws: 0,
             searchDraws: 7040,
         },
