@@ -645,13 +645,10 @@
                 "zone": "hand"
             }
         ],
-        "phase": "PRECOMBAT_MAIN",
+        "phase": "POSTCOMBAT_MAIN",
         "turn": 3,
         "landCount": 2,
-        "libraryCount": 20,
-        "life": {
-            "opp": 12
-        }
+        "libraryCount": 20
     },
     "dominance NEGATIVE CONTROL: activates the Salvager once a token exists": null,
     "dominance NEGATIVE CONTROL: still casts Damnation into a real board": {
