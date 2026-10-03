@@ -154,7 +154,9 @@ function driftBody(
         "",
         "## Band",
         "",
-        "P1 — a noise-pinned `must` entry flips at the next refit and reds the base tip",
+        d.kind === "unlisted"
+            ? "P1 — a noise-pinned `must` entry flips at the next refit and reds the base tip"
+            : "P2 — a stale robustness baseline row; every Bot health batch re-finds it",
         "",
     ].join("\n");
 }
