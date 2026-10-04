@@ -39,10 +39,19 @@ import { targetSlotBeneficence } from "./beneficence";
 /** The plain creature every generated position seeds (both sides), and the
  *  first choice for a requirement it already satisfies. */
 const BASE_CREATURE = "Grizzly Bears";
+/** The holder's attacker in a pose that saves it (3/3): worth more than the
+ *  generated position's plain creature, so losing it reads in the search. */
+const SAVED_ATTACKER = "Hill Giant";
+/** The opposing blocker that kills {@link SAVED_ATTACKER} and survives it
+ *  (6/4 against 3/3). */
+const KILLING_BLOCKER = "Craw Wurm";
 /** A land card is a legal thing to discard for any cost that does not name a
  *  type, and, unlike a creature, never competes with the spell for the mana
  *  the position gives the holder. */
 const DISCARD_LAND = "Plains";
+/** Cards in hand to discard for a cost of "discard X cards" (CR 601.2b: the
+ *  caster names X; CR 118.3: a cost needs the cards to pay it). */
+const X_DISCARD_FODDER = 3;
 /** The opponent's land a land-targeting spell is posed against. */
 const TARGET_LAND = "Forest";
 /** The artifact card a graveyard-recursion spell returns: a big body, worth
@@ -768,6 +777,44 @@ function requirementPose(
     // A granted keyword rides a second copy of the body, and the combat seed
     // resolves the FIRST card of that name: the role would land on the filler.
     if (granted && roles.length > 0) return NO_POSE;
+    if (roles.includes("attacking") && owner === "me") {
+        // CR 509.1 + CR 510.1 — a spell that helps its own attacking creature
+        // is posed after blocks: a bigger opposing creature blocks it, so the
+        // help (a shield, a pump) has a loss to turn. Before blocks the
+        // attacker is unblocked and passing reads about as well as casting.
+        const attacker = name === BASE_CREATURE ? SAVED_ATTACKER : name;
+        return {
+            cards: [
+                ...cards,
+                ...(attacker === name
+                    ? []
+                    : [
+                          {
+                              name: attacker,
+                              owner: "me" as const,
+                              zone: "battlefield" as const,
+                          },
+                      ]),
+                {
+                    name: KILLING_BLOCKER,
+                    owner: "opp" as const,
+                    zone: "battlefield" as const,
+                },
+            ],
+            omitToughnessBoost,
+            position: {
+                phase: "DECLARE_BLOCKERS",
+                activePlayer: "me",
+                priority: "me",
+                combat: {
+                    attackers: [attacker],
+                    confirmed: true,
+                    blockers: [{ blocker: KILLING_BLOCKER, blocking: [0] }],
+                    blockersConfirmed: true,
+                },
+            },
+        };
+    }
     if (roles.includes("attacking")) {
         // CR 508.1 — the target attacks, its controller is the active player
         // and the holder answers at instant speed (CR 117.1a).
@@ -814,7 +861,7 @@ export type CostPose = {
 export function costPose(def: CardDefinition): CostPose {
     const cards: ScenarioCard[] = [];
     const discard = def.additionalCosts?.discard;
-    if (discard && typeof discard.count === "number") {
+    if (discard && discard.count !== undefined) {
         const types = asList(discard.filter?.type);
         const name =
             types.length === 0 || types.includes("Land")
@@ -824,7 +871,10 @@ export function costPose(def: CardDefinition): CostPose {
             name,
             owner: "me",
             zone: "hand",
-            count: discard.count,
+            count:
+                typeof discard.count === "number"
+                    ? discard.count
+                    : X_DISCARD_FODDER,
         });
     }
     const colourless = def.manaCost?.C ?? 0;

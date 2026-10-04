@@ -153,15 +153,27 @@ describe("a requirement no plain creature satisfies stays unmodelled", () => {
 });
 
 describe("the pose stays out of positions that did not need it", () => {
-    it("an untyped X discard is paid by the opaque hand card, not a real one", () => {
+    it("an untyped X discard is paid by real fodder, enough to name X above 1", () => {
+        // CR 601.2b + CR 118.3 — the caster names X and cannot pay more than the hand
+        // holds; one opaque card capped the sweep at X <= 1 (issue #5015).
         const def = instant(
             "x-discard",
             {},
             { additionalCosts: { discard: { filter: {}, count: "X" } } }
         );
-        const handOf = (d: CardDefinition) =>
-            botReachSpec(d).cards.filter((c) => c.zone === "hand");
-        expect(handOf(def)).toEqual([]);
+        const fodder = botReachSpec(def).cards.filter(
+            (c) => c.zone === "hand" && c.name === "Plains"
+        );
+        expect(fodder.reduce((n, c) => n + (c.count ?? 1), 0)).toBeGreaterThan(
+            1
+        );
+    });
+
+    it("a card with no discard cost is posed with no fodder in hand", () => {
+        const hand = botReachSpec(instant("plain", {})).cards.filter(
+            (c) => c.zone === "hand"
+        );
+        expect(hand).toEqual([]);
     });
 
     it("an unnarrowed requirement declares no combat and seeds no extra creature", () => {
