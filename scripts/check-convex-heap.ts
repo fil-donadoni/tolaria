@@ -51,6 +51,10 @@ async function main(): Promise<void> {
                 `${m.readsCatalogue ? "" : "  (no Card Definition)"}`
         );
     }
+    for (const m of report.filter((r) => r.error))
+        console.log(
+            `[check:convex-heap] WARN ${m.module}: not measured — ${m.error?.split("\n")[0]}`
+        );
     const warnings = heapWarnings(report);
     for (const w of warnings) console.log(`[check:convex-heap] WARN ${w}`);
     console.log(

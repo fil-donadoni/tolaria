@@ -51,16 +51,23 @@ export interface ModuleHeap {
     module: string;
     /** The graph reaches the catalogue: hand-written sets or the compiled pool. */
     readsCatalogue: boolean;
+    /** The module could not be bundled or imported under Node: no heap figure. */
+    error?: string;
     todayBytes: number;
     /** Equal to `todayBytes` for a module that reads no catalogue. */
     targetBytes: number;
     budgetBytes: number;
 }
 
-/** Whether a bundle's input list reaches a Card Definition. */
+/** Whether a bundle's input list reaches a Card Definition: the hand-written
+ *  sets, the compiled pool, or the packed server corpus beside it (issue #4164
+ *  — the same rows, deflated; the synthetic catalogue scales the pool only). */
 export function reachesCatalogue(inputs: string[]): boolean {
     return inputs.some(
-        (i) => i.endsWith(POOL_PATH) || i.includes("convex/cards/sets/")
+        (i) =>
+            i.endsWith(POOL_PATH) ||
+            i.includes("data/catalogue/") ||
+            i.includes("convex/cards/sets/")
     );
 }
 
@@ -199,22 +206,36 @@ export async function measureConvexHeap(
         for (const [i, module] of modules.entries()) {
             const entry = join(convexDir, module);
             const today = join(dir, "today.mjs");
-            const inputs = await bundleModule(entry, today);
-            const readsCatalogue = reachesCatalogue(inputs);
-            const todayBytes = measureFileHeap(today, opts.runs);
-            let targetBytes = todayBytes;
-            if (readsCatalogue) {
-                const target = join(dir, "target.mjs");
-                await bundleModule(entry, target, [plugin]);
-                targetBytes = measureFileHeap(target, opts.runs);
+            let readsCatalogue = false;
+            try {
+                const inputs = await bundleModule(entry, today);
+                readsCatalogue = reachesCatalogue(inputs);
+                const todayBytes = measureFileHeap(today, opts.runs);
+                let targetBytes = todayBytes;
+                if (readsCatalogue) {
+                    const target = join(dir, "target.mjs");
+                    await bundleModule(entry, target, [plugin]);
+                    targetBytes = measureFileHeap(target, opts.runs);
+                }
+                report.push({
+                    module,
+                    readsCatalogue,
+                    todayBytes,
+                    targetBytes,
+                    budgetBytes: heapBudgetBytes(readsCatalogue),
+                });
+            } catch (e) {
+                // A report must survive one module Node cannot import (a
+                // Convex-runtime-only dependency): record it, keep walking.
+                report.push({
+                    module,
+                    readsCatalogue,
+                    error: e instanceof Error ? e.message : String(e),
+                    todayBytes: 0,
+                    targetBytes: 0,
+                    budgetBytes: heapBudgetBytes(readsCatalogue),
+                });
             }
-            report.push({
-                module,
-                readsCatalogue,
-                todayBytes,
-                targetBytes,
-                budgetBytes: heapBudgetBytes(readsCatalogue),
-            });
             opts.onProgress?.(i + 1, modules.length, module);
         }
         return report;
@@ -226,7 +247,7 @@ export async function measureConvexHeap(
 /** One `WARN` line per module whose target-scale heap is over its budget. */
 export function heapWarnings(report: ModuleHeap[]): string[] {
     return report
-        .filter((m) => m.targetBytes > m.budgetBytes)
+        .filter((m) => !m.error && m.targetBytes > m.budgetBytes)
         .map(
             (m) =>
                 `${m.module}: ${(m.targetBytes / MIB).toFixed(1)} MiB at target scale > ` +

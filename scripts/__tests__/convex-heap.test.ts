@@ -85,6 +85,9 @@ describe("classification and warnings", () => {
         expect(reachesCatalogue(["convex/cards/sets/lea/red.cards.ts"])).toBe(
             true
         );
+        expect(reachesCatalogue(["data/catalogue/packed-corpus.json"])).toBe(
+            true
+        );
         expect(reachesCatalogue(["convex/gameTicks.ts"])).toBe(false);
     });
 
