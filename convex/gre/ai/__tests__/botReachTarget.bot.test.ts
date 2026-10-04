@@ -154,7 +154,7 @@ describe("a requirement no plain creature satisfies stays unmodelled", () => {
 
 describe("the pose stays out of positions that did not need it", () => {
     it("an untyped X discard is paid by real fodder, enough to name X above 1", () => {
-        // CR 601.2b — the caster names X and cannot name more than the hand
+        // CR 601.2b + CR 118.3 — the caster names X and cannot pay more than the hand
         // holds; one opaque card capped the sweep at X <= 1 (issue #5015).
         const def = instant(
             "x-discard",

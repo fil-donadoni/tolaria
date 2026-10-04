@@ -50,7 +50,7 @@ const KILLING_BLOCKER = "Craw Wurm";
  *  the position gives the holder. */
 const DISCARD_LAND = "Plains";
 /** Cards in hand to discard for a cost of "discard X cards" (CR 601.2b: the
- *  caster names X, and cannot name more than the hand holds). */
+ *  caster names X; CR 118.3: a cost needs the cards to pay it). */
 const X_DISCARD_FODDER = 3;
 /** The opponent's land a land-targeting spell is posed against. */
 const TARGET_LAND = "Forest";
