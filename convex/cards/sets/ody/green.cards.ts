@@ -71,8 +71,7 @@ const CALL_OF_THE_HERD_ID = "429a88cc-53db-4c5e-a061-f0f49a38c675";
 // by the `flashback` printed-cost field, exactly as Krosan Reclamation
 // `jud/green.ts` uses it). The body is the plain `createToken` Op (CR 111 /
 // 701.7) with the token's printed art resolved by the client from the creating
-// printing's Token Print (CR 114 — a missing image renders a placeholder
-// silently).
+// printing's Token Print (a missing image renders a placeholder silently).
 export const callOfTheHerd: CardDefinition = {
     id: CALL_OF_THE_HERD_ID,
     name: "Call of the Herd",

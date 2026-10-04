@@ -126,7 +126,7 @@ export function buildMonarchDrawStackItem(
     // LTR "The Monarch", Palace Jailer → the Conspiracy one), the way a
     // token's art matches its producer. The engine only stamps the crowning
     // card's Card ID as the opaque `sourcePrintId` — the client picks the
-    // Token Print. No themed source (a CR 720.3 combat-damage steal) → none,
+    // Token Print. No themed source (a CR 725.2 combat-damage steal) → none,
     // and the designation's global marker shows.
     return {
         id: allocInstanceId(state),

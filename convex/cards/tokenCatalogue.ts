@@ -132,7 +132,7 @@ function toTokenSpec(
         ...(literalTokenPT(toughness) === undefined
             ? {}
             : { toughness: literalTokenPT(toughness) }),
-        // CR 707.1 / ADR 0140 §6 (issue #4120) — mirrors
+        // CR 111 / ADR 0140 §6 (issue #4120) — mirrors
         // `SpellContext.createToken`: an explicit `imagePrintId` stays on the
         // spec, and the PRODUCING card's Card ID rides as the opaque
         // `sourcePrintId` the client resolves a Token Print from.

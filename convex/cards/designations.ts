@@ -14,7 +14,7 @@
 // crowning card's Card ID as `StackItem.sourcePrintId` in
 // `buildMonarchDrawStackItem` (ADR 0140 §6, issue #4120) and the client's
 // token-art resolver picks the Token Print. When no themed source exists (a
-// CR 720.3 combat-damage steal, or a card with no Token Print of that name),
+// CR 725.2 combat-damage steal, or a card with no Token Print of that name),
 // the tile falls back to the global `imagePrintId` here.
 //
 // This is pure display data (no closures / engine imports), so both the engine

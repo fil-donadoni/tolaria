@@ -1084,7 +1084,7 @@ describe("Saproling Infestation (CR 702.33d / 603.2)", () => {
         const tokenDef = getDefinition((tokens[0].card as { id: string }).id);
         expect(tokenDef.name).toBe("Saproling");
         expect(tokenDef.manaCost).toEqual({ G: 1 });
-        // CR 707.2 token art — never resolved engine-side (ADR 0140 §6): the
+        // CR 111 token art — never resolved engine-side (ADR 0140 §6): the
         // token only records the printing it was made from, and the client
         // picks that edition's Token Print.
         expect(tokenDef.imagePrintId).toBeUndefined();
