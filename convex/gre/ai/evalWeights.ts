@@ -426,8 +426,10 @@ export const FIT_BASE_EVAL_WEIGHTS: Readonly<EvalWeights> = Object.freeze({
  * The FITTED vector the engine runs — GENERATED, not authored.
  *
  * Produced by `bun run fit:weights` from `FIT_BASE_EVAL_WEIGHTS` above and the
- * Verdict corpus (today: the blade registry's `moves` expectations, lowered by
- * `convex/gre/ai/verdicts/registrySource.ts`). The reproducibility guard in
+ * FIT SIDE of the Verdict corpus — the blade registry's lowered expectations
+ * (`convex/gre/ai/verdicts/registrySource.ts`) and the Verdict Lock, less the
+ * held-out side (`convex/gre/ai/verdicts/heldOut.ts`, issue #3981). The
+ * reproducibility guard in
  * `convex/gre/ai/__tests__/weightFit.bot.test.ts` re-runs that fit and demands
  * this exact object — the card-index lockfile discipline, so the weights in
  * code can never drift from the verdicts in git (PRD #3397 story 7).

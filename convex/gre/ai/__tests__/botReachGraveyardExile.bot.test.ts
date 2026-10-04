@@ -23,10 +23,10 @@ describe("graveyardExilePose", () => {
 
 describe("playBotReach on graveyard exile", () => {
     it("plays Haunting Echoes against a graveyard worth exiling", () => {
-        // Seed-split, not valuation (issue #3981): the cast is chosen on 8 of
-        // seeds 1–20 at one seat or the other, identically under the weights
-        // before and after that refit, and the two default seeds happened to
-        // be among them before it. Twenty seeds read the pose, not the dice.
+        // Seed-split, not valuation (issue #3981): over seeds 1–20 the cast is
+        // chosen on 8, the same 8 under the weights before and after that
+        // refit — but the two default seeds (0xb07, 0x5eed) played it before
+        // and not after. Twenty seeds read the pose, not the dice.
         const verdict = playBotReach(getCardByName("Haunting Echoes")!, {
             ...BOT_REACH_BUDGET,
             seeds: Array.from({ length: 20 }, (_, i) => i + 1),

@@ -462,6 +462,11 @@ describe("widening the lock and moving the weights are ONE change (issue #3583, 
         expect(widened.pairs.some((p) => p.verdictId === locked[0].id)).toBe(
             true
         );
+        // …which WOULD move the weights if they reached the fit — so the
+        // equality below is the narrowing's doing, not this lever's silence.
+        expect(
+            fitWeights(widened.pairs, FIT_BASE_EVAL_WEIGHTS).weights
+        ).not.toEqual(committed.weights);
         // …and the fit's input carries none of them, so the promotion writes
         // the registry-only fit, to the byte.
         expect(

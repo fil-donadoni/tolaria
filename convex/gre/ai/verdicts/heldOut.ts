@@ -10,8 +10,9 @@
 //   - DETERMINISTIC: the same Scenario Spec resolves to the same side on every
 //     machine and every build — the digest is the identity primitive the
 //     verdict id and the position key already use.
-//   - STABLE: a Verdict's side reads nothing but its own scenario, never the
-//     corpus around it, so adding a Verdict moves no other one's side.
+//   - STABLE: a Verdict's side reads nothing but its own scenario (and, for a
+//     Minimal Pair half, its anchor's — below), never the corpus around it,
+//     so adding a Verdict moves no other one's side.
 //   - BY POSITION, NOT BY JUDGEMENT: two judgements of one board (a
 //     contradiction, a reclassification) share a side, so the fit can never
 //     learn one half of a disagreement the held-out side then grades it on.
@@ -25,6 +26,17 @@
 // keyed on the registry's ENTRIES, not on the Verdicts they lower to, so an
 // entry the lowering refuses (a `gap`) still claims its scenario.
 //
+// A MINIMAL PAIR IS ONE UNIT (ADR 0148, CONTEXT.md § Held-out Agreement):
+// either half alone is half an argument — a "wrong now" fitted without its
+// right-hand half teaches "never", the half alone "always" — so the two halves
+// always fall on the same side. The unit takes its ANCHOR's scenario bucket,
+// and is fit-side if ANY member is a Test Position. That one lookup is the
+// only thing `verdictSidesOf` reads beyond a Verdict itself, and it reads the
+// unit, never the rest of the corpus: a half's side moves only when its own
+// anchor arrives, and a half without its anchor yields no Eval Pairs at all
+// (`report.ts`, `incomplete`) — its side stays UNKNOWN, so a pair of it would
+// be refused rather than fitted.
+//
 // THE NARROWING. `fitInputPairs` is the one place a Weight Fit's input is
 // assembled from a corpus: the held-out side's Eval Pairs are dropped BEFORE
 // `fitWeights` is called, never ignored after it. Every caller that fits —
@@ -37,7 +49,11 @@
 
 import type { BladeScenario } from "../blade/types";
 import type { EvalPair } from "./evalPairs";
-import { scenarioKeyOf, VERDICT_CANONICALISATION } from "./identity";
+import {
+    scenarioKeyOf,
+    verdictIdOf,
+    VERDICT_CANONICALISATION,
+} from "./identity";
 import type { Verdict } from "./types";
 
 /** One Verdict in `HELD_OUT_SPLIT_MODULUS` is held out — 5, i.e. 20%. */
@@ -94,22 +110,71 @@ export function testPositionKeysOf(
     );
 }
 
-/** The side of the split `verdict` resolves to. `testPositions` is
- *  `testPositionKeysOf(<the registry>)`. */
+function isTestPosition(
+    verdict: Verdict,
+    testPositions: ReadonlySet<string>
+): boolean {
+    return (
+        verdict.source === "registry" ||
+        testPositions.has(scenarioKeyOf(verdict))
+    );
+}
+
+/** The side of the split `verdict` resolves to ON ITS OWN — exact for every
+ *  Verdict outside a Minimal Pair; a pair member's side is its unit's
+ *  (`verdictSidesOf`). `testPositions` is `testPositionKeysOf(<the
+ *  registry>)`. */
 export function verdictSideOf(
     verdict: Verdict,
     testPositions: ReadonlySet<string>,
     modulus: number = HELD_OUT_SPLIT_MODULUS
 ): VerdictSide {
-    if (verdict.source === "registry") return "fit";
-    const key = scenarioKeyOf(verdict);
-    if (testPositions.has(key)) return "fit";
-    return heldOutBucketOf(key, modulus) === 0 ? "held-out" : "fit";
+    if (isTestPosition(verdict, testPositions)) return "fit";
+    return heldOutBucketOf(scenarioKeyOf(verdict), modulus) === 0
+        ? "held-out"
+        : "fit";
+}
+
+/**
+ * The side of every Verdict in `verdicts`, by `verdict.id`, with each Minimal
+ * Pair resolved as one unit (header). A right-hand half whose anchor is not in
+ * `verdicts` has NO entry: its side is unknown, and it yields no pairs.
+ */
+export function verdictSidesOf(
+    verdicts: readonly Verdict[],
+    testPositions: ReadonlySet<string>,
+    modulus: number = HELD_OUT_SPLIT_MODULUS
+): Map<string, VerdictSide> {
+    // A half names its anchor by verdict id (`pairOf.anchorId`), which for a
+    // registry anchor is not its `verdict.id` (`registry:<label>`).
+    const byHash = new Map(verdicts.map((v) => [verdictIdOf(v), v]));
+    const halvesOf = new Map<Verdict, Verdict[]>();
+    for (const v of verdicts) {
+        const anchor = v.pairOf && byHash.get(v.pairOf.anchorId);
+        if (anchor) halvesOf.set(anchor, [...(halvesOf.get(anchor) ?? []), v]);
+    }
+    const unitSide = (anchor: Verdict): VerdictSide =>
+        (halvesOf.get(anchor) ?? []).some((h) =>
+            isTestPosition(h, testPositions)
+        )
+            ? "fit"
+            : verdictSideOf(anchor, testPositions, modulus);
+    const sides = new Map<string, VerdictSide>();
+    for (const v of verdicts) {
+        if (v.pairOf === undefined) {
+            sides.set(v.id, unitSide(v));
+            continue;
+        }
+        const anchor = byHash.get(v.pairOf.anchorId);
+        if (anchor) sides.set(v.id, unitSide(anchor));
+    }
+    return sides;
 }
 
 /**
  * The Weight Fit's input: the Eval Pairs of `pairs` whose Verdict resolves
- * fit-side. Throws on a pair whose Verdict is not in `verdicts` — a pair of
+ * fit-side (`verdictSidesOf`). Throws on a pair whose Verdict's side is
+ * unknown — not in `verdicts`, or a half without its anchor — so a pair of
  * unknown side is never let through to the fit.
  */
 export function fitInputPairs(
@@ -118,14 +183,12 @@ export function fitInputPairs(
     testPositions: ReadonlySet<string>,
     modulus: number = HELD_OUT_SPLIT_MODULUS
 ): EvalPair[] {
-    const sideOf = new Map(
-        verdicts.map((v) => [v.id, verdictSideOf(v, testPositions, modulus)])
-    );
+    const sideOf = verdictSidesOf(verdicts, testPositions, modulus);
     return pairs.filter((pair) => {
         const side = sideOf.get(pair.verdictId);
         if (side === undefined) {
             throw new Error(
-                `Eval Pair of ${pair.verdictId}: its Verdict is not in the corpus, so its side of the held-out split is unknown`
+                `Eval Pair of ${pair.verdictId}: its side of the held-out split is unknown (its Verdict, or its Minimal Pair anchor, is not in the corpus)`
             );
         }
         return side === "fit";

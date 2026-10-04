@@ -211,6 +211,9 @@ describe.runIf(RUN)("weight fit (runner)", () => {
                             entries: scenarios.length,
                             verdicts: verdicts.length,
                             pairs: before.pairs.length,
+                            // The pairs the fit read: the fit side of the
+                            // held-out split (issue #3981).
+                            fitPairs: fitInput.length,
                             options: result.options,
                         },
                         weights: result.weights,

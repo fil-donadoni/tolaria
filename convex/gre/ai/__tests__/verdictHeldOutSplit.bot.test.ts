@@ -17,7 +17,9 @@ import {
     positionKeyOf,
     scenarioKeyOf,
     testPositionKeysOf,
+    verdictIdOf,
     verdictSideOf,
+    verdictSidesOf,
     verdictsFromRegistry,
     type EvalPair,
     type Verdict,
@@ -162,9 +164,9 @@ describe("a Test Position is fit-side by rule, never by hash (issue #3981)", () 
         expect(heldOutByHash.length).toBeGreaterThan(0);
     });
 
-    it("every registry verdict resolves fit-side", () => {
+    it("every registry verdict resolves fit-side, by its source alone", () => {
         for (const v of registry) {
-            expect(verdictSideOf(v, testPositions), v.id).toBe("fit");
+            expect(verdictSideOf(v, NO_TEST_POSITIONS), v.id).toBe("fit");
         }
     });
 
@@ -203,5 +205,93 @@ describe("the Weight Fit's input never carries a held-out pair (issue #3981)", (
         expect(() =>
             fitInputPairs([pairOf("ghost")], [fit], NO_TEST_POSITIONS)
         ).toThrow(/ghost.*not in the corpus/);
+    });
+});
+
+describe("a Minimal Pair falls on one side, as one unit (issue #3981, ADR 0148)", () => {
+    const DISCRIMINANT = {
+        kind: "other",
+        detail: "the opponent is tapped out",
+    } as const;
+    /** A Conditional anchor and its right-hand half, on the two boards. */
+    const unit = (anchorBoard: Verdict, halfBoard: Verdict) => {
+        const anchor: Verdict = {
+            ...anchorBoard,
+            id: "anchor",
+            answer: { kind: "forbidden", forbiddenIndexes: [1] },
+            classification: { kind: "conditional", discriminant: DISCRIMINANT },
+        };
+        const half: Verdict = {
+            ...halfBoard,
+            id: "half",
+            answer: { kind: "right", rightIndexes: [1] },
+            pairOf: {
+                anchorId: verdictIdOf(anchor),
+                discriminant: DISCRIMINANT,
+            },
+        };
+        return { anchor, half };
+    };
+    const fitBoard = boardOnSide("fit");
+    const heldOutBoard = boardOnSide("held-out");
+
+    it("takes its anchor's side, whichever bucket the half's own board is in", () => {
+        for (const [a, h, side] of [
+            [heldOutBoard, fitBoard, "held-out"],
+            [fitBoard, heldOutBoard, "fit"],
+        ] as const) {
+            const { anchor, half } = unit(a, h);
+            // The half alone would hash to the other side…
+            expect(verdictSideOf(half, NO_TEST_POSITIONS)).not.toBe(side);
+            // …and the unit puts it beside its anchor, in either corpus order.
+            for (const corpus of [
+                [anchor, half],
+                [half, anchor],
+            ]) {
+                const sides = verdictSidesOf(corpus, NO_TEST_POSITIONS);
+                expect(sides.get("anchor")).toBe(side);
+                expect(sides.get("half")).toBe(side);
+                expect(
+                    fitInputPairs(
+                        [pairOf("anchor"), pairOf("half")],
+                        corpus,
+                        NO_TEST_POSITIONS
+                    ).length
+                ).toBe(side === "fit" ? 2 : 0);
+            }
+        }
+    });
+
+    it("is fit-side when either member is a Test Position", () => {
+        const { anchor, half } = unit(heldOutBoard, fitBoard);
+        const registryHalf: Verdict = { ...half, source: "registry" };
+        expect(
+            verdictSidesOf([anchor, registryHalf], NO_TEST_POSITIONS).get(
+                "anchor"
+            )
+        ).toBe("fit");
+        const registryAnchor: Verdict = { ...anchor, source: "registry" };
+        const storeHalf: Verdict = {
+            ...unit(heldOutBoard, heldOutBoard).half,
+            pairOf: {
+                anchorId: verdictIdOf(registryAnchor),
+                discriminant: DISCRIMINANT,
+            },
+        };
+        expect(
+            verdictSidesOf([registryAnchor, storeHalf], NO_TEST_POSITIONS).get(
+                "half"
+            )
+        ).toBe("fit");
+    });
+
+    it("leaves a half without its anchor of unknown side — its pair is refused", () => {
+        const { half } = unit(fitBoard, fitBoard);
+        expect(verdictSidesOf([half], NO_TEST_POSITIONS).has("half")).toBe(
+            false
+        );
+        expect(() =>
+            fitInputPairs([pairOf("half")], [half], NO_TEST_POSITIONS)
+        ).toThrow(/half.*unknown/);
     });
 });

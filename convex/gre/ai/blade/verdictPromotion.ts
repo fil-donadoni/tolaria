@@ -12,9 +12,9 @@
 // WHAT A PROMOTION COMPUTES IS WHAT THE GUARD COMPUTES. The corpus is the
 // blade registry's verdicts followed by the lock's (`lockedVerdictCorpus`),
 // the pairs are built at `FIT_BASE_EVAL_WEIGHTS`, the fit reads their fit side
-// (`heldOut.ts`) and starts there — the exact pipeline `weightFit.bot.test.ts` re-runs. The weights this writes
-// are therefore the weights that guard demands of the lock it writes, and a
-// lock committed without them is red.
+// (`heldOut.ts`) and starts there — the exact pipeline `weightFit.bot.test.ts`
+// re-runs. The weights this writes are therefore the weights that guard
+// demands of the lock it writes, and a lock committed without them is red.
 
 import { DEFAULT_EVAL_WEIGHTS, FIT_BASE_EVAL_WEIGHTS } from "../evalWeights";
 import {
@@ -184,8 +184,10 @@ export function runVerdictPromotionStep(
  * The fit report over the committed lock: which locked verdicts have a pair
  * the committed weights leave unsatisfied. Re-derived with the guard's own
  * corpus (`lockedVerdictCorpus`) at the committed `DEFAULT_EVAL_WEIGHTS` —
- * the weights that guard proves ARE the fit over this lock — so the count is
- * never a tally kept beside the lock that could drift from it. The locked
+ * the weights that guard proves ARE the fit over the fit side of this lock
+ * (`heldOut.ts`) — so the count is never a tally kept beside the lock that
+ * could drift from it. A held-out verdict is still read here: the fit never
+ * saw it, so "unsatisfied" is all this count can say of it. The locked
  * payloads come from the snapshot's verdict objects and are re-hashed against
  * their ids by the lock reader. `null` when no lock is committed.
  */

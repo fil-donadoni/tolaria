@@ -100,9 +100,9 @@ describe("the generated position poses a declared combat (CR 508.1, 509.1)", () 
     it("attacking creature (CR 508.1)", () => {
         const def = instant("attacking", { combatRoleFilter: ["attacking"] });
         expect(castable(def)).toBe(true);
-        // Seed-split, not valuation (issue #3981): the kill is chosen on 1 of
-        // seeds 1–20 under the weights before that refit and 5 after it, and
-        // the two default seeds happened to play it before and not after.
+        // Seed-split, not valuation (issue #3981): over seeds 1–20 the kill is
+        // chosen on 1 under the weights before that refit and 5 after it, while
+        // the two default seeds (0xb07, 0x5eed) played it before and not after.
         // Twenty seeds read the pose — what this block is about — not the
         // dice.
         const wide = {
