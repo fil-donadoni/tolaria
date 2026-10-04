@@ -460,6 +460,9 @@ describe("pairPositionDefect — one Discriminant, nothing else", () => {
 
 describe("registry pairs reach the Minimal Pair report (issue #4796 review)", () => {
     it("minimalPairFitOutcomes names every registry pair — standings keyed by content hash, rows by verdict id", () => {
+        // labels are unique — the declarations resolve by label
+        const labels = BLADE_SCENARIOS.map((s) => s.label);
+        expect(new Set(labels).size).toBe(labels.length);
         const { verdicts } = verdictsFromRegistry();
         const rows = minimalPairFitOutcomes(verdicts, []);
         const declared = BLADE_SCENARIOS.filter((s) => s.pairOf !== undefined);
@@ -469,11 +472,6 @@ describe("registry pairs reach the Minimal Pair report (issue #4796 review)", ()
         for (const row of rows) {
             expect(row.anchorId.startsWith("registry:")).toBe(true);
         }
-    });
-
-    it("registry labels are unique — the pair declarations resolve by label", () => {
-        const labels = BLADE_SCENARIOS.map((s) => s.label);
-        expect(new Set(labels).size).toBe(labels.length);
     });
 
     it("a half that accepts no move its anchor forbids is refused", () => {
