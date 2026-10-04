@@ -17770,6 +17770,7 @@
         {"id":"601.2b","line":"// (CR 601.2b / 118.4, e.g. Toxic Deluge, Fire Covenant). Both send","sites":1,"status":"baseline"},
         {"id":"601.2b","line":"// (CR 601.2b / 701.9, issue #1945) ------------------------------------------","sites":1,"status":"baseline"},
         {"id":"601.2b","line":"// (CR 601.2b — the kick decision precedes target selection), so it asks the","sites":1,"status":"baseline"},
+        {"id":"601.2b","line":"// (CR 601.2b) is posed with its fodder in hand, like a flat discard cost.","sites":1,"status":"confirmed","ruleHash":"b29d06932bab0594"},
         {"id":"601.2b","line":"// (CR 601.2b), and only that mode's `targetRequirement` is declared","sites":1,"status":"baseline"},
         {"id":"601.2b","line":"// (CR 601.2b). New capability of the EXISTING `createToken` Op (mirrors","sites":1,"status":"baseline"},
         {"id":"601.2b","line":"// (CR 601.2b, before targets), but the cost is assembled and","sites":1,"status":"baseline"},
