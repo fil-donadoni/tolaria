@@ -138,7 +138,13 @@ import {
     type WalkOutcome,
 } from "./lib/health-verdict";
 import { reachable, readEnvLocal } from "./lib/convex-reachable";
-import { gateLockRoot, runningHolderLine } from "./lib/ui-admission";
+import { waitForWalkWindow } from "./lib/health-walk-wait";
+import {
+    gateLockRoot,
+    heavyHolderLine,
+    heavyHolderLive,
+    runningHolderLine,
+} from "./lib/ui-admission";
 import {
     readMachineConfig,
     readMachineSample,
@@ -441,6 +447,17 @@ async function runWalk(ctx: RunCtx, walk: readonly string[]): Promise<void> {
         ui: "walking",
         log: ctx.logPath,
         prior: priorOf(ctx.previous),
+    });
+    // Wait, bounded, for a gap in the heavy mutex before `check:ui` sizes its
+    // pool (issue #5024): started beside a `land` it caps itself at one
+    // viewport for the whole walk. Off the mutex, never a reservation; expiry
+    // walks anyway. One seam for the cadence, `release` and a by-hand run.
+    await waitForWalkWindow({
+        holder: () => {
+            const owner = heavyHolderLive(gateLockRoot());
+            return owner === null ? null : heavyHolderLine(owner);
+        },
+        announce: (line) => console.error(line),
     });
     // Never the caller's hold, whatever it passed: the walk is off the mutex.
     const env = healthGateEnv(process.env);
