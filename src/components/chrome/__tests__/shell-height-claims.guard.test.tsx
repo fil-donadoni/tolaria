@@ -779,11 +779,6 @@ function routerComponents(): string[] {
                 .join("") + "Route"
         );
     }
-    // The one route that takes props mounts through `React.lazy`
-    // (`routes/deck-builder.lazy.ts`): `<LazyDeckBuilderRoute mode=… />`.
-    for (const m of router.code.matchAll(/<Lazy([A-Z]\w*Route)\b/g)) {
-        names.add(m[1]);
-    }
     return [...names].sort();
 }
 

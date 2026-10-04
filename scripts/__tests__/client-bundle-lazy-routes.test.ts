@@ -187,9 +187,7 @@ describe("source seams that keep the entry graph light", () => {
 
     it("src/router.tsx imports no route module statically", () => {
         const router = read("src/router.tsx").replace(/\/\/.*$/gm, "");
-        expect(router).not.toMatch(
-            /from\s+["']\.\/routes\/(?![\w-]+\.lazy["'])/
-        );
+        expect(router).not.toMatch(/from\s+["']\.\/routes\//);
         expect(router).not.toMatch(/components\/ui\/catalogue-gate["']/);
     });
 
