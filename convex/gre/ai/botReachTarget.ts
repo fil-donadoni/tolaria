@@ -60,6 +60,11 @@ const TARGET_LAND = "Forest";
  *  sacrifices an artifact gives up — a smaller one is a swap the Bot rightly
  *  declines. */
 const GRAVEYARD_ARTIFACT = "Stratadon";
+/** The spell card a spell-recursion ("return target instant or sorcery card
+ *  from your graveyard") returns: a one-mana draw-three, worth more than the
+ *  recursion spell it costs the holder, so casting it is an outcome the caster
+ *  can want. */
+const GRAVEYARD_SPELL = "Ancestral Recall";
 
 /** How many cards of the kind a look-and-distribute ETB Ability finds sit in
  *  the holder's library. The search re-deals the library's ORDER at every
@@ -699,26 +704,42 @@ function untapPose(def: CardDefinition): TargetPose | null {
     };
 }
 
-/** The requirement a single-target spell states on an ARTIFACT CARD in a
- *  graveyard, if it is one. */
-function graveyardArtifactRequirement(
+/** The card a recursion spell returns, by the card type its requirement names
+ *  — an artifact, or an instant or sorcery (the two spell types together). */
+function graveyardCardFor(types: readonly string[]): string | null {
+    if (types.length === 1 && types[0] === "Artifact")
+        return GRAVEYARD_ARTIFACT;
+    if (
+        types.length === 2 &&
+        types.includes("Instant") &&
+        types.includes("Sorcery")
+    )
+        return GRAVEYARD_SPELL;
+    return null;
+}
+
+/** The requirement a single-target spell states on an ARTIFACT or an INSTANT
+ *  OR SORCERY CARD in a graveyard, if it is one. */
+function graveyardCardRequirement(
     req: CardDefinition["targetRequirement"]
 ): TargetRequirement | null {
     if (!req || Array.isArray(req) || req.zone !== "graveyard") return null;
     const types = Array.isArray(req.type) ? req.type : [req.type];
-    return types.length === 1 && types[0] === "Artifact" ? req : null;
+    return graveyardCardFor(types) === null ? null : req;
 }
 
-/** The artifact a recursion spell ("return target artifact card from your
- *  graveyard") is cast at. The position's graveyards hold only a creature
- *  card, so the engine refuses a HUMAN the cast too — no legal target. The
- *  card sits in the graveyard of the side the requirement names (the holder's
- *  own for "you", the opponent's for "opponent"; the holder's for either). */
-function graveyardArtifactPose(req: TargetRequirement): TargetPose {
+/** The card a recursion spell ("return target artifact card from your
+ *  graveyard", "return target instant or sorcery card from your graveyard") is
+ *  cast at. The position's graveyards hold only a creature card, so the engine
+ *  refuses a HUMAN the cast too — no legal target. The card sits in the
+ *  graveyard of the side the requirement names (the holder's own for "you", the
+ *  opponent's for "opponent"; the holder's for either). */
+function graveyardCardPose(req: TargetRequirement): TargetPose {
+    const types = Array.isArray(req.type) ? req.type : [req.type];
     return {
         cards: [
             {
-                name: GRAVEYARD_ARTIFACT,
+                name: graveyardCardFor(types)!,
                 owner: req.controller === "opponent" ? "opp" : "me",
                 zone: "graveyard",
             },
@@ -736,8 +757,8 @@ function requirementPose(
 ): TargetPose {
     const landReq = landRequirement(target);
     if (landReq) return landPose(def, landReq, modeId);
-    const artifactReq = graveyardArtifactRequirement(target);
-    if (artifactReq) return graveyardArtifactPose(artifactReq);
+    const graveyardReq = graveyardCardRequirement(target);
+    if (graveyardReq) return graveyardCardPose(graveyardReq);
     const req = creatureRequirement(target);
     // A requirement that narrows keeps its own pose (a combat role, a subtype);
     // the untap pose fills only the plain-creature case that had none.
