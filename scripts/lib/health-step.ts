@@ -114,6 +114,7 @@ export const HEALTH_SCRIPTS: readonly string[] = [
     "check:gaps",
     "check:targets",
     "check:test-hygiene",
+    "check:convex-heap",
     "test",
     "check:ui --all",
 ];
@@ -140,6 +141,13 @@ export const HEALTH_ONLY_GUARDS: Readonly<
         measuredCostS: 879,
         measured:
             "`check:ui --all` in health: 14m39s green, 45m37s red (detach.log, 2026-10)",
+    },
+    // The heap of one call per isolate module, today and at 35k cards (issue
+    // #4853): ~480 bundles + node probes, a report with WARN lines, exit 0.
+    "check:convex-heap": {
+        measuredCostS: 753,
+        measured:
+            "`bun run check:convex-heap` full walk, 478 modules: 753 s, load ~2-4 (2026-10-04)",
     },
 };
 
