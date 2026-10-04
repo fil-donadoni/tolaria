@@ -860,7 +860,12 @@ export type CostPose = {
  *  provide. */
 export function costPose(def: CardDefinition): CostPose {
     const cards: ScenarioCard[] = [];
-    const discard = def.additionalCosts?.discard;
+    // CR 601.2b — a discard leg of a caster-chosen disjunction ("discard a card
+    // or sacrifice a creature") is as payable as a flat one: the position holds
+    // its fodder, so paying it does not read as costing the opaque hand card.
+    const discard =
+        def.additionalCosts?.discard ??
+        def.additionalCosts?.oneOf?.find((leg) => leg.discard)?.discard;
     if (discard && discard.count !== undefined) {
         const types = asList(discard.filter?.type);
         const name =
