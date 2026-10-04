@@ -9,9 +9,12 @@ import { playBotReach } from "../botReach";
 import { handRefillSpell } from "../botReachHandRefill";
 
 describe("handRefillSpell", () => {
-    it.each(["Timetwister", "Echo of Eons"])("recognises %s", (name) => {
-        expect(handRefillSpell(getCardByName(name)!)).toBe(true);
-    });
+    it.each(["Timetwister", "Echo of Eons", "Wheel of Fortune"])(
+        "recognises %s",
+        (name) => {
+            expect(handRefillSpell(getCardByName(name)!)).toBe(true);
+        }
+    );
 
     it("recognises no spell that refills no hand", () => {
         expect(handRefillSpell(getCardByName("Lightning Bolt")!)).toBe(false);
@@ -19,7 +22,10 @@ describe("handRefillSpell", () => {
 });
 
 describe("playBotReach on a hand refill", () => {
-    it.each(["Timetwister", "Echo of Eons"])("plays %s", (name) => {
-        expect(playBotReach(getCardByName(name)!).outcome).toBe("played");
-    });
+    it.each(["Timetwister", "Echo of Eons", "Wheel of Fortune"])(
+        "plays %s",
+        (name) => {
+            expect(playBotReach(getCardByName(name)!).outcome).toBe("played");
+        }
+    );
 });

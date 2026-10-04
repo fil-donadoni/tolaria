@@ -3,7 +3,7 @@
  * draw a fresh hand (CR 121.1, CR 701.24a, issue #4833)?
  *
  * "Each player shuffles their hand and graveyard into their library, then
- * draws seven cards" is a draw worth the cards it finds, and the position's
+ * draws seven cards" (or discards their hand, CR 701.9a, issue #4844) is a draw worth the cards it finds, and the position's
  * filler library is basic lands the evaluator prices at nothing: the caster
  * trades the card it holds (priced as seven draws) for seven lands and passing
  * is right. The spell read `never-chosen` — a limit of the harness, not a fact
@@ -29,13 +29,14 @@ function refillsEveryHand(node: unknown): boolean {
         (rec.select as { set?: unknown } | undefined)?.set === "players"
     ) {
         const body = JSON.stringify(rec.effects ?? []);
-        if (
-            body.includes('"op":"moveZone"') &&
-            body.includes('"from":"hand"') &&
-            body.includes('"to":"library"') &&
-            body.includes('"op":"draw"')
-        )
-            return true;
+        const movesHandAway =
+            (body.includes('"op":"moveZone"') &&
+                body.includes('"from":"hand"') &&
+                body.includes('"to":"library"')) ||
+            // CR 701.9a: a whole-hand discard (`cards` omitted) empties the
+            // hand the same way, into the graveyard instead (issue #4844).
+            (body.includes('"op":"discard"') && !body.includes('"cards"'));
+        if (movesHandAway && body.includes('"op":"draw"')) return true;
     }
     return Object.values(rec).some(refillsEveryHand);
 }
