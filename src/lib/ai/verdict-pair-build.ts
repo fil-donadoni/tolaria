@@ -80,6 +80,13 @@ export function checkRightHalf(
         const rightIndex = candidates.findIndex(
             (candidate) => candidate.key === built.candidate.key
         );
+        if (rightIndex < 0) {
+            return {
+                ok: false,
+                reason: "move-missing",
+                detail: `the right-hand half does not list the judged move: ${built.candidate.description}`,
+            };
+        }
         return { ok: true, candidates, rightIndex };
     } catch (cause) {
         return {

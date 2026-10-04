@@ -26,6 +26,7 @@ import type {
     VerdictClassification,
 } from "@convex/gre/ai/verdicts/types";
 import { anchorIdOf, prefillRightHalf, withSpec } from "~/lib/ai/verdict-pair";
+import type { RightHalfCheck } from "~/lib/ai/verdict-pair-build";
 import { QUIZ_SEAT, type VerdictQuiz } from "~/lib/ai/verdict-quiz";
 import { getStoredSession } from "~/lib/session";
 import DebugButton from "./debug-button";
@@ -67,8 +68,12 @@ export default function AiDecisionQuizWrongMove({
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
     // The anchor's classification once it is stored, so a retry after a failed
-    // half does not store it twice.
+    // half does not store it twice. It also LOCKS the judgement: a second
+    // anchor under another classification is a second verdict id at the same
+    // position key — a Contested Position the judge would have made with
+    // themself — so once the anchor is stored only its half is still owed.
     const anchorStored = useRef<string | null>(null);
+    const [anchorLocked, setAnchorLocked] = useState(false);
     // Only the latest build may answer: a touch-up applied while the previous
     // build is still loading must not be overwritten by it.
     const buildToken = useRef(0);
@@ -94,6 +99,7 @@ export default function AiDecisionQuizWrongMove({
             ...provenance(),
         });
         anchorStored.current = key;
+        setAnchorLocked(true);
     }
 
     async function run(work: () => Promise<void>) {
@@ -124,13 +130,27 @@ export default function AiDecisionQuizWrongMove({
     ): Promise<void> {
         const token = ++buildToken.current;
         setHalfStatus({ status: "checking" });
-        const { checkRightHalf } = await import("~/lib/ai/verdict-pair-build");
-        const check = checkRightHalf(
-            quiz,
-            wrongIndex,
-            choice.discriminant,
-            position
-        );
+        let check: RightHalfCheck;
+        try {
+            const { checkRightHalf } =
+                await import("~/lib/ai/verdict-pair-build");
+            check = checkRightHalf(
+                quiz,
+                wrongIndex,
+                choice.discriminant,
+                position
+            );
+        } catch (cause: unknown) {
+            // A chunk that failed to load: the judge reads why, and can still
+            // defer.
+            check = {
+                ok: false,
+                reason: "build-threw",
+                detail: `the right-hand position could not be built: ${
+                    cause instanceof Error ? cause.message : `${cause}`
+                }`,
+            };
+        }
         if (token === buildToken.current) {
             setHalfStatus({ status: "checked", check });
         }
@@ -262,11 +282,21 @@ export default function AiDecisionQuizWrongMove({
                     setStage({ name: "touch-up", choice, position })
                 }
                 onDefer={() => void defer(choice.discriminant)}
-                onBack={() => {
-                    setError(null);
-                    setStage({ name: "discriminant" });
-                }}
+                onBack={
+                    anchorLocked
+                        ? undefined
+                        : () => {
+                              setError(null);
+                              setStage({ name: "discriminant" });
+                          }
+                }
             />
+            {anchorLocked && (
+                <p className="break-words text-[10px] text-text-muted">
+                    The Conditional Verdict is already stored; only its
+                    right-hand half is owed.
+                </p>
+            )}
             {errorLine}
         </>
     );

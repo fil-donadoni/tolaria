@@ -557,6 +557,47 @@ describe("ruling a move wrong (issue #4800, ADR 0148)", () => {
         });
     });
 
+    it("retries a failed half without storing the anchor twice, and locks the judgement meanwhile", async () => {
+        await rulePassWrong();
+        wrongNow();
+        fireEvent.click(screen.getByRole("button", { name: "A life total" }));
+        fireEvent.change(screen.getByLabelText("Life total"), {
+            target: { value: "5" },
+        });
+        fireEvent.click(
+            screen.getByRole("button", { name: "Show the right-hand position" })
+        );
+        const confirm = await screen.findByRole("button", {
+            name: "The move is right here",
+        });
+        await waitFor(() =>
+            expect((confirm as HTMLButtonElement).disabled).toBe(false)
+        );
+        // The anchor stores, then the half is refused by the server.
+        submitVerdict
+            .mockImplementationOnce(async () => "anchor")
+            .mockImplementationOnce(async () => {
+                throw new Error("unknown card name(s) in the position: Nope");
+            });
+        fireEvent.click(confirm);
+        await screen.findByText(/unknown card name\(s\) in the position/);
+        expect(submitVerdict).toHaveBeenCalledTimes(2);
+
+        // The anchor is stored: it can no longer be re-classified, because a
+        // second anchor is a second verdict id at the same position key.
+        expect(screen.queryByRole("button", { name: "Back" })).toBe(null);
+        fireEvent.click(
+            screen.getByRole("button", { name: "The move is right here" })
+        );
+        await waitFor(() => expect(submitVerdict).toHaveBeenCalledTimes(3));
+        const sent = submissions();
+        expect(sent.map((s) => s.pairOf !== undefined)).toEqual([
+            false,
+            true,
+            true,
+        ]);
+    });
+
     it("stores only the Conditional Verdict when the half is deferred", async () => {
         await rulePassWrong();
         wrongNow();

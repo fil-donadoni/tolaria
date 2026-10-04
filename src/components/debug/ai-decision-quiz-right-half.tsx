@@ -41,7 +41,8 @@ export default function AiDecisionQuizRightHalf({
     onConfirm: () => void;
     onTouchUp: () => void;
     onDefer: () => void;
-    onBack: () => void;
+    /** Absent once the anchor is stored: the judgement can no longer change. */
+    onBack?: () => void;
 }) {
     const refused =
         status.status === "checked" && !status.check.ok ? status.check : null;
@@ -110,9 +111,11 @@ export default function AiDecisionQuizRightHalf({
             <DebugButton onClick={onDefer} disabled={disabled}>
                 Defer the right-hand half
             </DebugButton>
-            <DebugButton onClick={onBack} disabled={disabled}>
-                Back
-            </DebugButton>
+            {onBack && (
+                <DebugButton onClick={onBack} disabled={disabled}>
+                    Back
+                </DebugButton>
+            )}
         </div>
     );
 }

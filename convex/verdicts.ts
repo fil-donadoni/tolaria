@@ -41,7 +41,10 @@ import {
 } from "./debugScenarioSpec";
 import { tryGetPlaceableCardByName } from "./cards";
 import { findTokenSpec } from "./cards/tokenCatalogue";
-import type { VerdictJudgement } from "./gre/ai/verdicts/identity";
+import {
+    VERDICT_HASH_PATTERN,
+    type VerdictJudgement,
+} from "./gre/ai/verdicts/identity";
 import {
     classificationValidator,
     pairOfValidator,
@@ -118,6 +121,9 @@ function assertClassified(args: AdmissibleJudgement): void {
     }
     if (pairOf !== undefined && answer.kind !== "right") {
         throw new Error("a right-hand half must answer with the right move");
+    }
+    if (pairOf !== undefined && !VERDICT_HASH_PATTERN.test(pairOf.anchorId)) {
+        throw new Error("a pair link must name its anchor by verdict id");
     }
     const discriminant =
         classification?.kind === "conditional"
