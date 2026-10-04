@@ -5,10 +5,12 @@ import { describe, expect, it } from "vitest";
 import {
     collectRun,
     CONTEXT_MEMORY_BYTES,
+    growingLimit,
     HEAVY_HELD_PARALLELISM,
     MAX_PARALLELISM,
     MEMORY_RESERVE_BYTES,
     MIN_PARALLELISM,
+    parallelismLine,
     parseParallelOverride,
     RESERVED_CORES,
     runPool,
@@ -221,5 +223,191 @@ describe("collectRun (the receipt cannot tell what N was)", () => {
         expect(collect([...results].reverse()).lines).toEqual(
             VIEWPORT_IDS.flatMap((v) => [`  a ${v}`, `  b ${v}`])
         );
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// issue #5023: a pool that started capped by a heavy holder grows when it
+// leaves — and only grows.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const HOLDER = { pid: 4242, label: "git rebase origin/staging" };
+
+/** Drives `runPool` over `count` items through `growingLimit`, with a holder
+ *  probe that answers from `holderAt(itemsFinished)`. */
+async function drivePool(input: {
+    count: number;
+    start: number;
+    uncapped: number;
+    cappedBy: typeof HOLDER | null;
+    holderAt: (finished: number) => boolean;
+}) {
+    let finished = 0;
+    let live = 0;
+    let peak = 0;
+    const lanes: number[] = [];
+    const sized = growingLimit({
+        start: input.start,
+        uncapped: input.uncapped,
+        cappedBy: input.cappedBy,
+        holderNow: () => (input.holderAt(finished) ? HOLDER : null),
+        now: () => 0,
+        startedAtMs: 0,
+    });
+    await runPool(
+        Array.from({ length: input.count }, (_, i) => i),
+        sized.limit,
+        async (_item, _i, lane) => {
+            live += 1;
+            peak = Math.max(peak, live);
+            lanes.push(lane);
+            await new Promise((r) => setTimeout(r, 5));
+            live -= 1;
+            finished += 1;
+        }
+    );
+    return { peak, lanes, growth: sized.growth() };
+}
+
+describe("a pool that grows when the heavy holder leaves (issue #5023)", () => {
+    it("walks the remaining viewports concurrently once the probe reports free", async () => {
+        const out = await drivePool({
+            count: 5,
+            start: 1,
+            uncapped: 5,
+            cappedBy: HOLDER,
+            holderAt: (finished) => finished < 1,
+        });
+        expect(out.peak).toBeGreaterThan(1);
+        expect(out.growth).toMatchObject({ from: 1, to: 5, released: HOLDER });
+    });
+
+    it("stays at one lane while the holder is still there", async () => {
+        const out = await drivePool({
+            count: 5,
+            start: 1,
+            uncapped: 5,
+            cappedBy: HOLDER,
+            holderAt: () => true,
+        });
+        expect(out.peak).toBe(1);
+        expect(out.growth).toBeNull();
+    });
+
+    it("does NOT shrink when a holder appears mid-run", async () => {
+        // Started uncapped; the probe turns "held" after the first finishes.
+        const out = await drivePool({
+            count: 5,
+            start: 5,
+            uncapped: 5,
+            cappedBy: null,
+            holderAt: (finished) => finished >= 1,
+        });
+        expect(out.peak).toBe(5);
+        expect(out.growth).toBeNull();
+    });
+
+    it("keeps the grown size when the holder comes back", async () => {
+        const out = await drivePool({
+            count: 8,
+            start: 1,
+            uncapped: 3,
+            cappedBy: HOLDER,
+            holderAt: (finished) => finished === 0 || finished >= 2,
+        });
+        expect(out.peak).toBe(3);
+    });
+
+    it("never hands a lane index at or above the uncapped size", async () => {
+        const out = await drivePool({
+            count: 5,
+            start: 1,
+            uncapped: 3,
+            cappedBy: HOLDER,
+            holderAt: (finished) => finished < 1,
+        });
+        expect(Math.max(...out.lanes)).toBeLessThan(3);
+    });
+
+    it("a fixed --parallel=N is exactly N lanes throughout", async () => {
+        // `--parallel` passes `cappedBy: null` and start == uncapped == N.
+        const out = await drivePool({
+            count: 5,
+            start: 2,
+            uncapped: 2,
+            cappedBy: null,
+            holderAt: () => false,
+        });
+        expect(out.peak).toBe(2);
+        expect(out.growth).toBeNull();
+    });
+
+    it("rejects when a worker throws, even from a lane spawned late", async () => {
+        const sized = growingLimit({
+            start: 1,
+            uncapped: 3,
+            cappedBy: HOLDER,
+            holderNow: () => null,
+            now: () => 0,
+            startedAtMs: 0,
+        });
+        await expect(
+            runPool([0, 1, 2, 3], sized.limit, async (item) => {
+                if (item === 2) throw new Error("lane bug");
+                await new Promise((r) => setTimeout(r, 2));
+            })
+        ).rejects.toThrow("lane bug");
+    });
+
+    it("names the start size, the final size, and when and why it grew", () => {
+        const growth = { from: 1, to: 5, atMs: 252_000, released: HOLDER };
+        expect(
+            parallelismLine({
+                start: 1,
+                final: 5,
+                accounts: 5,
+                override: null,
+                cappedBy: HOLDER,
+                growth,
+                sizedFrom: "sized",
+            })
+        ).toBe(
+            "viewport parallelism: 1 → 5 of 5 at a time, 5 lane account(s) — grew at 4m12s: heavy holder pid 4242 (git rebase origin/staging) released"
+        );
+        expect(
+            parallelismLine({
+                start: 1,
+                final: 1,
+                accounts: 5,
+                override: null,
+                cappedBy: HOLDER,
+                growth: null,
+                sizedFrom: "sized",
+            })
+        ).toContain("capped: heavy gate held by pid 4242");
+    });
+
+    it("prints the same verdict block however the pool grew", async () => {
+        const run = async (start: number) => {
+            const sized = growingLimit({
+                start,
+                uncapped: 5,
+                cappedBy: start < 5 ? HOLDER : null,
+                holderNow: () => null,
+                now: () => 0,
+                startedAtMs: 0,
+            });
+            const order = [30, 0, 20, 5, 10];
+            const results = await runPool(
+                VIEWPORT_IDS,
+                sized.limit,
+                async (viewport, i) => {
+                    await new Promise((r) => setTimeout(r, order[i]));
+                    return result(viewport);
+                }
+            );
+            return collect(results);
+        };
+        expect(await run(1)).toEqual(await run(5));
     });
 });
