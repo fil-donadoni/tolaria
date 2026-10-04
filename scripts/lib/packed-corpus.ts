@@ -23,7 +23,8 @@
  *   - `names` — every row's name in row order, so a name is validated, and its
  *     block found, without inflating anything.
  *
- * Nothing reads it yet (the lookup fallback is a later slice of PRD #4161).
+ * The server reads it through `getDefinition`'s packed fallback, behind the
+ * switch in `convex/cards/compiledPool.ts` (issue #4165).
  *
  * ── Deterministic by construction ──────────────────────────────────────────
  *
@@ -34,14 +35,17 @@
  * `package.json`: its deflate output IS the committed bytes, so a silent bump
  * would repack the whole file with no source change.
  *
- * The decoder uses only `atob`, `TextDecoder` and `fflate`'s synchronous
- * inflate — what the Convex runtime offers (no native zlib, no async). It lives
- * here while nothing on the server reads the file; the lookup slice of PRD
- * #4161 moves it under `convex/cards/`, so the guard then decodes with the
+ * The DECODER lives in `convex/cards/packedCorpus.ts` (issue #4165), beside
+ * the server lookup that reads the file, so the guard below decodes with the
  * server's own code rather than a copy of its primitives.
  */
-import { deflateSync, inflateSync } from "fflate";
+import { deflateSync } from "fflate";
 import type { CardDefinition } from "../../convex/cards/types";
+import {
+    decodeBase64,
+    inflateBlock,
+    type PackedCorpus,
+} from "../../convex/cards/packedCorpus";
 import { firstIdentityDrift, describeIdentityDrift } from "./catalogue-merge";
 
 /** Where the packed rendering lives. Inside `data/catalogue/` beside the
@@ -67,35 +71,10 @@ export const PACKED_DICTIONARY_BYTES = 32 * 1024;
  *  rows — enough to cover the field vocabulary, few enough to fit the window. */
 const DICTIONARY_SAMPLE_ROWS = 96;
 
-export interface PackedCorpus {
-    /** The ONE source hash — the same value `data/catalogue/source-hash.json`
-     *  holds and the client asset carries in its file name. */
-    readonly sourceHash: string;
-    readonly blockRows: number;
-    readonly rowCount: number;
-    /** base64 of the raw deflate dictionary. */
-    readonly dictionary: string;
-    /** Every block's base64, concatenated. */
-    readonly blocks: string;
-    /** `blocks.slice(blockOffsets[k], blockOffsets[k + 1])` is block `k`;
-     *  one more entry than there are blocks. */
-    readonly blockOffsets: readonly number[];
-    /** The first row's id of every block, ascending. */
-    readonly firstIds: readonly string[];
-    /** Every row's name, in row order: row `i` lives in block
-     *  `floor(i / blockRows)`. */
-    readonly names: readonly string[];
-}
+export { inflateBlock, type PackedCorpus };
 
 const toBase64 = (bytes: Uint8Array): string =>
     Buffer.from(bytes).toString("base64");
-
-function fromBase64(text: string): Uint8Array {
-    const binary = atob(text);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-    return bytes;
-}
 
 /**
  * The shared dictionary: rows sampled at a fixed stride, serialised as the
@@ -158,23 +137,9 @@ export function packCorpus(
 export const serializePackedCorpus = (packed: PackedCorpus): string =>
     JSON.stringify(packed) + "\n";
 
-/** Inflate ONE block — the unit a server lookup will pay for. */
-export function inflateBlock(
-    packed: PackedCorpus,
-    block: number,
-    dictionary: Uint8Array = fromBase64(packed.dictionary)
-): CardDefinition[] {
-    const text = packed.blocks.slice(
-        packed.blockOffsets[block],
-        packed.blockOffsets[block + 1]
-    );
-    const bytes = inflateSync(fromBase64(text), { dictionary });
-    return JSON.parse(new TextDecoder().decode(bytes)) as CardDefinition[];
-}
-
 /** Every row, in order — the guard's view, never a request's. */
 export function unpackCorpus(packed: PackedCorpus): CardDefinition[] {
-    const dictionary = fromBase64(packed.dictionary);
+    const dictionary = decodeBase64(packed.dictionary);
     const rows: CardDefinition[] = [];
     for (let k = 0; k < packed.firstIds.length; k++) {
         rows.push(...inflateBlock(packed, k, dictionary));
@@ -231,7 +196,7 @@ export function packedCorpusDrift(
     }
     const structural = structuralDrift(packed);
     if (structural !== null) return structural;
-    const dictionary = fromBase64(packed.dictionary);
+    const dictionary = decodeBase64(packed.dictionary);
     const rows: CardDefinition[] = [];
     for (let k = 0; k < packed.firstIds.length; k++) {
         try {

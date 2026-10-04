@@ -38,6 +38,7 @@ import { expandCompiledTriggers } from "./compiledTriggers";
 import { insetSpellTwinDefinition } from "./insetSpell";
 import { modalBackTwinDefinition } from "./modalDfc";
 import { SPLIT_HALF_SIDES, splitHalfTwinDefinition } from "./splitCard";
+import { parentIdOfTwin } from "./twinId";
 import { setCardManaCostLookup } from "./manaCostLookup";
 import { setCardSupertypeLookup } from "./supertypeLookup";
 
@@ -262,10 +263,18 @@ export const declaresLingeringStaticEffect = (cardId: string): boolean =>
  *  zone-conditional characteristics? A cheap precheck for the readers in
  *  `gre/zoneCharacteristics.ts`; see {@link zoneConditionalIds}. `false` for
  *  an unregistered id and for a synthesized token (neither can declare the
- *  field), so a `false` answer always means "nothing to resolve". */
+ *  field), so a `false` answer always means "nothing to resolve".
+ *
+ *  With a lazy definition source installed (issue #4165) an unregistered id
+ *  may be a compiled row nobody has looked up yet, so it is resolved first —
+ *  the same discipline as {@link declaresIndexedStatic}; without one the
+ *  answer is the bare set, exactly as before. */
 export const declaresOffBattlefieldCharacteristics = (
     cardId: string
-): boolean => zoneConditionalIds.has(cardId);
+): boolean =>
+    zoneConditionalIds.has(cardId) ||
+    (definitionSource !== null &&
+        declaresIndexedStatic(cardId, zoneConditionalIds));
 
 /** CR 613.1b-e (PRD #2064 S4) — does `cardId`'s definition declare any
  *  layer-2-to-5 static effect? The precheck `gre/layers2to5.ts`'s board scan
@@ -516,8 +525,72 @@ export const expandDefinition = (base: CardDefinition): CardDefinition => {
     return expanded;
 };
 
+// Issue #4165 (PRD #4161) — the LAZY source behind the resident map. When
+// one is installed (`catalogue.ts`, behind `PACKED_CORPUS_LOOKUP`), a miss in
+// `registry` asks it before token synthesis: resident entry, then the source,
+// then `maybeSynthesizeToken`. A hand-written definition therefore keeps
+// winning over a compiled row for the same card (ADR 0108) — the source is
+// never asked for an id the map already holds — and a token or a hand-written
+// card pays nothing new.
+//
+// A row the source returns is registered through `preloadDefinitions`, the
+// SAME batch funnel the eager path uses, so its derived faces (the `#`-suffixed
+// inset-spell / split-half / modal-back twins) are derived by the same code,
+// and the static-kind indexes `setRegistryEntry` keeps stay true. Registering
+// is also the per-request memo: the next lookup of that id is a map hit.
+type DefinitionSource = (cardId: string) => CardDefinition | null;
+let definitionSource: DefinitionSource | null = null;
+
+/** Print id → definition id, for a print whose definition lives only in the
+ *  lazy source: wired on first lookup instead of at module load, so loading
+ *  the catalogue reads nothing from the source. */
+const lazyPrintAliases = new Map<string, string>();
+
+/** Install the lazy definition source (issue #4165). `null` uninstalls it. */
+export function setLazyDefinitionSource(source: DefinitionSource | null): void {
+    definitionSource = source;
+}
+
+/** Make `printId` resolve, on first lookup, to the definition the lazy source
+ *  serves under `definitionId` — the SAME object, as `registerPrintAlias`
+ *  guarantees for a resident definition. */
+export function registerLazyPrintAlias(
+    printId: string,
+    definitionId: string
+): void {
+    lazyPrintAliases.set(printId, definitionId);
+}
+
+function resolveFromSource(cardId: string): CardDefinition | undefined {
+    if (definitionSource === null) return undefined;
+    const aliased = lazyPrintAliases.get(cardId);
+    if (aliased !== undefined && aliased !== cardId) {
+        const def = registry.get(aliased) ?? resolveFromSource(aliased);
+        if (def) setRegistryEntry(cardId, def);
+        return def;
+    }
+    // A derived face resolves through its PARENT: the twin is minted by the
+    // derivation `preloadDefinitions` runs, never stored. A parent that is
+    // already resident registered its twins with it, so a miss here is an id
+    // no derivation mints.
+    // (A parent made resident by the test-only `withTemporaryDefinition` swap
+    // brings no twins, so a twin lookup under the swap misses here — swap the
+    // twin itself, as the eager path already requires.)
+    const parentId = parentIdOfTwin(cardId);
+    if (parentId !== undefined && registry.has(parentId)) return undefined;
+    const row = definitionSource(parentId ?? cardId);
+    if (row === null) return undefined;
+    preloadDefinitions([row]);
+    return registry.get(cardId);
+}
+
+const resolveRaw = (cardId: string): CardDefinition | null =>
+    registry.get(cardId) ??
+    resolveFromSource(cardId) ??
+    maybeSynthesizeToken(cardId);
+
 export const getDefinition = (cardId: string): CardDefinition => {
-    const card = registry.get(cardId) ?? maybeSynthesizeToken(cardId);
+    const card = resolveRaw(cardId);
     if (!card) {
         throw new Error(`Card not found: ${cardId}`);
     }
@@ -553,7 +626,7 @@ export function* registeredDefinitions(): Generator<CardDefinition> {
 /** Non-throwing variant. Returns null when the id isn't in the registry — used
  *  by subsystems that operate best-effort (layer system, test fixtures). */
 export const tryGetDefinition = (cardId: string): CardDefinition | null => {
-    const card = registry.get(cardId) ?? maybeSynthesizeToken(cardId);
+    const card = resolveRaw(cardId);
     return card ? expandDefinition(card) : null;
 };
 

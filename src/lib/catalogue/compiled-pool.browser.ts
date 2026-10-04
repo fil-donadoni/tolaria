@@ -14,7 +14,18 @@
 // `registerCompiledDefinitions` at module load with whatever this exports, so
 // the two builds run the same code path and differ only in what it is handed.
 import type { CardDefinition } from "@convex/cards/types";
+import type { PackedCorpus, PackedLookup } from "@convex/cards/packedCorpus";
 
 /** Nothing at module load on the client. The rows arrive from the fetched
  *  artifact, before anything that reads the registry renders. */
 export const compiledReadyDefinitions: CardDefinition[] = [];
+
+/** No packed corpus either: the client holds the whole corpus from the fetched
+ *  artifact, and a lookup fallback would have nothing to add (issue #4165). */
+export const packedServerCorpus: PackedCorpus | null = null;
+
+/** The server-only lookup switch, always off in a client graph. */
+export const PACKED_CORPUS_LOOKUP: boolean = false;
+
+/** No lookup to fall back to. */
+export const packedCorpusLookup: PackedLookup | null = null;
