@@ -1,7 +1,7 @@
 /**
  * What the Bot-play sweep puts in the HOLDER's library for a spell that
  * searches it for a card and puts that card onto the battlefield (CR 701.23a,
- * CR 400.7, issue #4832).
+ * issue #4832).
  *
  * "Search your library for a green creature card, put it onto the battlefield"
  * finds nothing when the library holds no such card, so on the position's
