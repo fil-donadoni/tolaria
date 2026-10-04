@@ -46,6 +46,11 @@ import { execSync } from "node:child_process";
 import { gzipSync } from "node:zlib";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, dirname } from "node:path";
+import {
+    entryAssets,
+    lightSurfaceViolations,
+    reachableChunks,
+} from "./lib/asset-graph";
 
 const ROOT = join(dirname(new URL(import.meta.url).pathname), "..");
 const DIST_ASSETS = join(ROOT, "dist", "assets");
@@ -141,8 +146,24 @@ function main(): void {
         }
     }
 
+    // Issue #4854: the login page and the lobby load without the engine and
+    // without the card catalogue. Asserted over the BUILT asset graph, because
+    // the failure is a one-line import that type-checks and lints clean.
+    const distDir = join(ROOT, "dist");
+    const loginGzip = [...reachableChunks(distDir, entryAssets(distDir))]
+        .map((c) => gzipSync(readFileSync(join(DIST_ASSETS, c))).length)
+        .reduce((a, b) => a + b, 0);
+    console.log(
+        `[check:bundle] login page JS (entry + static graph): ${loginGzip} B gzip`
+    );
+    for (const v of lightSurfaceViolations(distDir)) {
+        failures.push(`${v.surface}: ${v.chunk} — ${v.reason}`);
+    }
+
     if (failures.length > 0) {
-        console.error("\n[check:bundle] size budget exceeded:\n");
+        console.error(
+            "\n[check:bundle] failed (size budget or light-surface graph):\n"
+        );
         for (const f of failures) console.error(`  - ${f}`);
         process.exit(1);
     }

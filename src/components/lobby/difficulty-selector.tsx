@@ -3,7 +3,7 @@
 // by the lobby and flows through to the bot's search budget — same engine, one
 // knob (see `convex/gre/difficulty.ts`).
 
-import { DIFFICULTIES, type Difficulty } from "@convex/gre";
+import { DIFFICULTIES, type Difficulty } from "@convex/gre/difficulty";
 import { cn } from "~/lib/utils";
 
 const LABELS: Record<Difficulty, string> = {
