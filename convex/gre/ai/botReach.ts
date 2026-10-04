@@ -86,6 +86,7 @@ import {
 import { stackPose, type StackPose } from "./botReachStack";
 import { manaSinkPose } from "./botReachMana";
 import { handPutPose } from "./botReachHandPut";
+import { subtypeSweepPose } from "./botReachSubtypeSweep";
 export { castShape } from "./botReachForm";
 
 /** CR 115.1 — a spell that targets a SPELL needs one on the stack. Lives
@@ -963,7 +964,8 @@ export function botReachSpec(
         ...cost.cards,
         ...(race?.cards ?? []),
         ...manaSinkPose(def, landCount),
-        ...handPutPose(def, landCount)
+        ...handPutPose(def, landCount),
+        ...subtypeSweepPose(def)
     );
     const stack = needsStackTarget(def)
         ? (stackPose(def, cycle[0]!) ?? DEFAULT_STACK_POSE)
