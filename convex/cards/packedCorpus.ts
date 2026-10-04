@@ -87,7 +87,8 @@ export interface PackedLookup {
     /** The packed row for `id`, or `null` — a non-UUID id inflates nothing,
      *  an absent UUID inflates the one block it would live in. */
     readonly lookup: (id: string) => CardDefinition | null;
-    /** How many blocks this lookup has inflated — each at most once. */
+    /** How many inflates this lookup has run — one per block while the memo
+     *  holds, which is what a test bounds it by. */
     readonly inflations: () => number;
 }
 
@@ -104,10 +105,12 @@ export interface PackedLookup {
 export function createPackedLookup(packed: PackedCorpus): PackedLookup {
     const blocks = new Map<number, ReadonlyMap<string, CardDefinition>>();
     let dictionary: Uint8Array | null = null;
+    let inflated = 0;
     const rowsOf = (block: number): ReadonlyMap<string, CardDefinition> => {
         const memo = blocks.get(block);
         if (memo) return memo;
         dictionary ??= decodeBase64(packed.dictionary);
+        inflated++;
         const rows = new Map(
             inflateBlock(packed, block, dictionary).map((row) => [row.id, row])
         );
@@ -121,6 +124,6 @@ export function createPackedLookup(packed: PackedCorpus): PackedLookup {
             if (block < 0) return null;
             return rowsOf(block).get(id) ?? null;
         },
-        inflations: () => blocks.size,
+        inflations: () => inflated,
     };
 }
