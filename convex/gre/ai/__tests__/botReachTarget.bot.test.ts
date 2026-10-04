@@ -354,6 +354,42 @@ describe("the generated position poses a sorcery card in the holder's graveyard 
     });
 });
 
+describe("the generated position poses an artifact or enchantment card in the holder's graveyard (issue #4873)", () => {
+    // CR 115.1 — "target artifact or enchantment card in your graveyard" needs one there.
+    const FIND = instant(
+        "artifact-or-enchantment-recursion",
+        {
+            type: ["Artifact", "Enchantment"],
+            zone: "graveyard",
+            controller: "you",
+        },
+        {
+            manaCost: { W: 1 },
+            effects: [
+                { op: "moveZone", target: { target: 0 }, to: "hand" },
+            ] as CardDefinition["effects"],
+        }
+    );
+
+    it("seeds an artifact card in the holder's graveyard", () => {
+        expect(
+            botReachSpec(FIND).cards.some(
+                (c) =>
+                    c.owner === "me" &&
+                    c.zone === "graveyard" &&
+                    c.name === "Stratadon"
+            )
+        ).toBe(true);
+    });
+
+    it("the engine offers the cast, and the Bot plays the recursion", () => {
+        expect(castable(FIND)).toBe(true);
+        expect(withTemporaryDefinition(FIND, () => playBotReach(FIND))).toEqual(
+            { outcome: "played" }
+        );
+    });
+});
+
 describe("the generated position poses an artifact card in the holder's graveyard (issue #4352)", () => {
     // CR 115.1 — "target artifact card in your graveyard" needs one there.
     const RECURSION = instant(
