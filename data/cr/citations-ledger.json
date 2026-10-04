@@ -14746,6 +14746,7 @@
         {"id":"504.1","line":"* (CR 504.1), passed down from the call chain that reached this choke point","sites":1,"status":"baseline"},
         {"id":"504.1","line":"* CR 504.1 / 500.8 (issue #1097 — Elfhame Sanctuary): a player whose","sites":1,"status":"baseline"},
         {"id":"504.1","line":"* `opts.isTurnBasedDrawStepDraw` (CR 504.1) is the same flag `planDrawStep`","sites":1,"status":"baseline"},
+        {"id":"504.1","line":"* basic lands the card it finds is a land and the next draw (CR 504.1) is a","sites":1,"status":"confirmed","ruleHash":"a1ff1ea4fc916c95"},
         {"id":"504.1","line":"* effect-driven draw (NOT the draw step's turn-based draw, CR 504.1). */","sites":1,"status":"baseline"},
         {"id":"504.1","line":"/** CR 504.1 (issue #1097 — Elfhame Sanctuary's \"you skip your draw step","sites":2,"status":"baseline"},
         {"id":"504.1","line":"/** CR 504.1 / 500.8 (issue #1097 — Elfhame Sanctuary's \"you skip your","sites":1,"status":"baseline"},
