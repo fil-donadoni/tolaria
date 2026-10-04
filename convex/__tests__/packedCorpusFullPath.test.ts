@@ -13,6 +13,7 @@
 // whose module globals (and so its block memo) start empty.
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import * as literalGame from "../game";
+import * as literalProjections from "../gameProjections";
 import { compiledReadyDefinitions } from "../cards/compiledPool";
 import { getCardByName } from "../cards";
 import {
@@ -31,9 +32,11 @@ import {
 
 type GameModule = typeof literalGame;
 type CardsModule = typeof import("../cards");
+type ProjectionsModule = typeof literalProjections;
 
 let packedGame: GameModule;
 let packedCards: CardsModule;
+let packedProjections: ProjectionsModule;
 
 beforeAll(async () => {
     vi.stubEnv("TOLARIA_PACKED_CORPUS_LOOKUP", "on");
@@ -41,6 +44,8 @@ beforeAll(async () => {
     try {
         packedCards = (await import("../cards")) as CardsModule;
         packedGame = (await import("../game")) as GameModule;
+        packedProjections =
+            (await import("../gameProjections")) as ProjectionsModule;
     } finally {
         vi.unstubAllEnvs();
         // The next file in this worker (`isolate: false`) must not inherit the
@@ -144,10 +149,20 @@ describe("game mutations over compiled decks, packed-corpus switch on (issue #41
         expect(packedCards.packedCorpusInflations()).toBe(0);
         const packed = makeMutationCtx("u", [seed]);
         await play(packedGame, packed);
-        expect(packed.state()).toEqual(want);
+        // Read before projecting: the projection is a separate request.
+        const opened = packedCards.packedCorpusInflations();
+        const got = packed.state();
+        expect(got).toEqual(want);
+        // The state stores ids; the definitions behind them surface in what the
+        // client is SENT (layers read P/T, types and abilities off them), so
+        // each graph projects its own run and the two wires must agree.
+        for (const viewer of [ME, OPP]) {
+            expect(
+                packedProjections.projectPublicState(got, 1, viewer)
+            ).toEqual(literalProjections.projectPublicState(want, 1, viewer));
+        }
 
         const distinctCompiled = new Set([CASTER, ...MY_DECK, ...OPP_DECK]);
-        const opened = packedCards.packedCorpusInflations();
         expect(opened).toBeGreaterThan(0);
         expect(opened).toBeLessThanOrEqual(distinctCompiled.size);
     });
