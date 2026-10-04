@@ -115,7 +115,7 @@ const COMBAT_STEPS: ReadonlySet<string> = new Set<Phase>([
 
 /** The spec's per-turn tallies: omitted means "none yet this turn", so a new
  *  turn clears them (`ScenarioSpec`'s own notes, the `landsPlayed` precedent). */
-const PER_TURN_SPEC_KEYS = [
+export const PER_TURN_SPEC_KEYS = [
     "landsPlayed",
     "spellsCastThisTurn",
     "stormCount",

@@ -256,8 +256,13 @@ export type VerdictGap = {
      *  these. `history`: the entry declares a `revisit` loop (issue #3590) —
      *  its answer depends on the seat's decision history, which is not in the
      *  position, so both candidates carry ONE feature vector by construction
-     *  and no weight could ever be fitted to it. */
+     *  and no weight could ever be fitted to it. `pair`: the entry declares
+     *  itself the right-hand half of a Minimal Pair (issue #4796) and the
+     *  declaration is refused — a missing or unfit anchor, or positions that
+     *  differ by more than the Discriminant — so the half is out of the
+     *  corpus: alone it would teach "always" (ADR 0148). */
     reason:
+        | "pair"
         | "history"
         | "predicate"
         | "build"

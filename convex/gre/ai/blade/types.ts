@@ -16,6 +16,7 @@
 import type { ScenarioSpec } from "../../../debugScenarioSpec";
 import type { GameState } from "../../state";
 import type { Move } from "../../moves";
+import type { Discriminant, VerdictClassification } from "../verdicts/types";
 
 /** Which seat the search runs for. Mirrors `ScenarioSpec`'s own vocabulary:
  *  `me` is `players[0]` (the scenario author's seat, and the active player),
@@ -524,6 +525,22 @@ export type BladeScenario = {
      *  production-range budget by definition. */
     beyondBudget?: BeyondBudget;
     expect: BladeExpectation;
+    /** Which wrong the entry means (ADR 0148, issue #4796): `absolute` — wrong
+     *  whatever else changes — or `conditional` — wrong NOW, naming the
+     *  Discriminant whose change makes it right. Optional in this expand step:
+     *  an entry with none reads as it always did. A conditional entry no
+     *  `pairOf` half completes stays a Test Position (the blade suite still
+     *  runs it) but is out of the fit corpus, and the derivation report lists
+     *  it as debt (`verdicts/minimalPair.ts`). Never set beside `pairOf`: a
+     *  half is classified by its link. */
+    classification?: VerdictClassification;
+    /** Marks this entry as the right-hand half of a Minimal Pair, by the
+     *  anchor's LABEL, replacing the `// PAIRED WITH:` prose (issue #4796). The
+     *  anchor must be classified `conditional` with this same Discriminant;
+     *  the derivation refuses the pair, and drops this half from the corpus
+     *  with a `pair` gap, unless the two positions differ by that Discriminant
+     *  only (`verdicts/pairDiff.ts`). */
+    pairOf?: { anchor: string; discriminant: Discriminant };
     /** Optional prose: why this position is a blade, what the bot used to do
      *  wrong, which issue it guards. */
     note?: string;
