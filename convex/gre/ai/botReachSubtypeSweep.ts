@@ -1,7 +1,7 @@
 /**
  * What the Bot-play sweep puts on the OPPONENT's battlefield for a permanent
- * that destroys every permanent of a subtype at an end step (CR 603.6a,
- * CR 701.8, issue #4826).
+ * that destroys every permanent of a subtype at an end step (CR 701.8a,
+ * issue #4826).
  *
  * "At the beginning of the end step, destroy all Goblins" kills the caster's
  * own copy too, so on an empty opposing board the card pays mana for a

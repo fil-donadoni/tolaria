@@ -1,5 +1,5 @@
 // Bot-play sweep (issue #4826) — a permanent whose end-step trigger destroys
-// every permanent of a subtype (CR 603.6a, CR 701.8) is posed against an
+// every permanent of a subtype (CR 701.8a) is posed against an
 // opposing board of that subtype, so the sweep is a trade rather than a pure
 // loss. Verdicts go through the real `playBotReach` pipeline.
 
