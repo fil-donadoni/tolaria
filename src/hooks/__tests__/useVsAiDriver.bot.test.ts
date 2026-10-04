@@ -1028,7 +1028,7 @@ describe("useVsAiDriver (issue #110)", () => {
         // Not transient: escalates on the first failure rather than after the
         // backoff ladder.
         tickError = new Error(
-            "[CONVEX Q(game:getGameTick)] Uncaught ConvexError: nope"
+            "[CONVEX Q(gameReads:getGameTick)] Uncaught ConvexError: nope"
         );
         const { result } = renderHook(() => useVsAiDriver(GAME, BOT));
         await settleDriver();

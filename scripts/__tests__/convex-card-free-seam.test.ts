@@ -1,5 +1,5 @@
 import { afterAll, describe, expect, it } from "vitest";
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { bundleModule, reachesCatalogue } from "../lib/convex-heap";
@@ -33,6 +33,18 @@ const CARD_FREE_MODULES = [
     "convex/gameTable.ts",
     "convex/gameSeats.ts",
     "convex/gameLifecycle.ts",
+];
+
+/** The `game*` / `debug*` siblings that DO carry the engine, named so a new
+ *  module cannot land in neither list: `game.ts` is the gameplay mutations,
+ *  `gameProjections.ts` the public-state projection, `gameStateStore.ts` the
+ *  one `gameStates` writer (it recomputes continuous effects), `debugBlade.ts`
+ *  builds a position through the GRE. */
+const ENGINE_BOUND_MODULES = [
+    "convex/game.ts",
+    "convex/gameProjections.ts",
+    "convex/gameStateStore.ts",
+    "convex/debugBlade.ts",
 ];
 
 /** What a card-free graph may never contain: the engine and the catalogue. */
@@ -77,6 +89,33 @@ describe("the card-free modules' graph (issue #4855)", () => {
         },
         60_000
     );
+
+    it("classifies every game* / debug* module as card-free or engine-bound", () => {
+        const classified = new Set([
+            ...CARD_FREE_MODULES,
+            ...ENGINE_BOUND_MODULES,
+        ]);
+        const present = readdirSync(join(REPO_ROOT, "convex"))
+            .filter((f) => /^(game|debug)[A-Za-z]*\.ts$/.test(f))
+            .map((f) => `convex/${f}`);
+        // `debugScenario*` / `debugScenarios` predate this split and are
+        // scenario tooling, not the gameplay graph this guard pins.
+        const unclassified = present.filter(
+            (f) => !classified.has(f) && !/convex\/debugScenario/.test(f)
+        );
+        expect(
+            unclassified,
+            `${unclassified.join(", ")} sits beside game.ts but is in neither ` +
+                `CARD_FREE_MODULES nor ENGINE_BOUND_MODULES. Say which: if no ` +
+                `handler reads a Card Definition it belongs in the first, and the ` +
+                `import test then holds it there.`
+        ).toEqual([]);
+        for (const f of classified)
+            expect(
+                existsSync(join(REPO_ROOT, f)),
+                `${f} is listed but missing`
+            ).toBe(true);
+    });
 
     afterAll(() => rmSync(outDir, { recursive: true, force: true }));
 });

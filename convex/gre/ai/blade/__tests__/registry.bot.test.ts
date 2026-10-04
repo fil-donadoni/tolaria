@@ -2,7 +2,7 @@
  * Blade-scenario registry lookup (issue #1432, PRD #1423).
  *
  * `findBladeScenario` is the pure lookup the read-only browser loader's
- * `debugLoadBladeScenario` mutation (`convex/game.ts`) uses to resolve a
+ * `debugLoadBladeScenario` mutation (`convex/debugBlade.ts`) uses to resolve a
  * client-supplied `label` against the code-side registry SERVER-SIDE — the
  * client never supplies a `spec` directly, only picks a label.
  */

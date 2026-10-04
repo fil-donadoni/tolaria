@@ -126,7 +126,7 @@ import { buildBladeState } from "./build";
  * Normalize an arbitrary CURRENT game's `GameState` onto the same starting
  * position `buildBladeBaseState` produces, then apply the scenario through
  * `buildStateFromScenario` — the shape `debugLoadBladeScenario`
- * (`convex/game.ts`) needs to make a browser-loaded position match the one
+ * (`convex/debugBlade.ts`) needs to make a browser-loaded position match the one
  * the blade harness actually tests against (issue #1432 review finding #1).
  *
  * `buildStateFromScenario` alone normalizes only zones/phase/turn/stack (plus
@@ -244,9 +244,9 @@ export function buildBladeLoadState(
 
 /**
  * Resolve a label against the registry and load it onto `base` — the ENTIRE
- * non-Convex body of `debugLoadBladeScenario`'s handler (`convex/game.ts`),
+ * non-Convex body of `debugLoadBladeScenario`'s handler (`convex/debugBlade.ts`),
  * extracted so the mutation is a thin wrapper (`ctx`/admin gate/fetch/persist
- * only) around this pure function. `convex/game.ts` imports and calls this
+ * only) around this pure function. `convex/debugBlade.ts` imports and calls this
  * exact function; it does not reimplement the lookup or the state build
  * inline. This is also why the "read-only browser loader" test suite
  * (`convex/__tests__/debugLoadBladeScenario.test.ts`) can call this function
@@ -285,7 +285,7 @@ export function resolveBladeLoadState(
     //
     // Owed-ness is read from `computeOwedPlayerIds` — the SAME expected-input
     // computation that feeds the `gameTicks` row the client driver wakes on
-    // (`saveGameState`, `convex/game.ts`), never the search module's own
+    // (`saveGameState`, `convex/gameStateStore.ts`), never the search module's own
     // parallel `decidingPlayer` derivation (ADR 0047: owed-ness has one
     // source). A guard reading the other one could pass while the driver the
     // developer is actually waiting on never fires.
@@ -303,7 +303,7 @@ export function resolveBladeLoadState(
  *
  * Owed-ness comes from `computeOwedPlayerIds` and from nowhere else: it is the
  * SAME expected-input computation that fills the `gameTicks` row the client
- * driver wakes on (`saveGameState`, `convex/game.ts`), and ADR 0047 makes that
+ * driver wakes on (`saveGameState`, `convex/gameStateStore.ts`), and ADR 0047 makes that
  * the single source. The search module's own `decidingPlayer` is a parallel
  * derivation of the same question — a guard reading it could pass while the
  * driver the developer is actually waiting on never fires.

@@ -291,7 +291,7 @@ export function useVsAiDriver(
     //   `informed` — plus the human seat, which only `expert` ever receives
     //                (`knowsOpponent`, `convex/gre/difficulty.ts`).
     //
-    // `getSeatDeck`'s ownership gate (`seatBelongsToUser`, `convex/game.ts`)
+    // `getSeatDeck`'s ownership gate (`seatBelongsToUser`, `convex/gameLifecycle.ts`)
     // enforces the seat rule server-side regardless of which shape is chosen.
     // Issue #3590 — the bot seat's decision history this turn, carried from one
     // Brain consult to the next (the Worker itself is stateless). Reset with

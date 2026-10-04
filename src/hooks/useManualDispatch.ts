@@ -13,7 +13,7 @@ import type { ManualDispatch } from "~/lib/manual-runtime";
  *  a hook and none of them cares where it is mounted.
  *
  *  Every entry maps 1:1 onto a `manual*` mutation that already exists in
- *  `convex/game.ts` — issue #2169 adds no server capability whatsoever. */
+ *  `convex/gameManual.ts` — issue #2169 adds no server capability whatsoever. */
 export function useManualDispatch(gameId: Id<"games">): ManualDispatch {
     const moveCard = useMutation(api.gameManual.manualMoveCard);
     const setTapped = useMutation(api.gameManual.manualSetTapped);

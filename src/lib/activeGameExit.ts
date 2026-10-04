@@ -22,8 +22,8 @@ import type { MatchStatus } from "@convex/matches";
  *  union, never a local copy of it. */
 export type ActiveGameStatus = Doc<"games">["status"];
 
-/** `leave` → `game.leaveGame` (it deletes the waiting room and its Match);
- *  `forfeit` → `game.forfeitMatch` / `game.manualConcedeMatch`, which accept
+/** `leave` → `gameTable.leaveGame` (it deletes the waiting room and its Match);
+ *  `forfeit` → `game.forfeitMatch` / `gameManual.manualConcedeMatch`, which accept
  *  any Match that is not already finished, whatever its current Game's status.
  */
 export type ActiveGameExit = "leave" | "forfeit";

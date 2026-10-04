@@ -90,7 +90,7 @@ export default defineSchema({
         seq: v.number(),
         state: v.any(),
         // Game-mode flags MIRRORED from the owning `games` row, stamped once
-        // when this row is inserted (`saveGameState`, `convex/game.ts`).
+        // when this row is inserted (`saveGameState`, `convex/gameStateStore.ts`).
         // Immutable thereafter with ONE exception: `debugLoadBladeScenario`
         // (admin-only, issue #3443) converts a solo game to vs-AI permanently
         // and re-stamps both flags here, because a row that already exists is
@@ -109,14 +109,14 @@ export default defineSchema({
         // both are written together, explicitly, including the `false` case,
         // so `solo === undefined` is an unambiguous legacy marker and the
         // reader falls back to the `games` row. `backfillGameStateMode`
-        // (`convex/game.ts`) stamps the rows that predate this.
+        // (`convex/gameReads.ts`) stamps the rows that predate this.
         solo: v.optional(v.boolean()),
         vsAi: v.optional(v.boolean()),
         updatedAt: v.number(),
     }).index("by_gameId", ["gameId", "seq"]),
     // Tick row (PRD #1776 T3, issue #1778): a ~150-byte cheap wake-up signal
     // written alongside every `gameStates` write from `saveGameState`
-    // (`convex/game.ts`) so a subscriber that only needs to know "did
+    // (`convex/gameStateStore.ts`) so a subscriber that only needs to know "did
     // something change, and does it need to act" doesn't have to hold a full
     // 3-9 KB `gameStates` subscription just to find out. One row per game
     // (patch in place, mirroring `gameStates`' single-row-per-game model),

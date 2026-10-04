@@ -27,12 +27,12 @@ vi.mock("convex/react", () => ({
     },
 }));
 
-// A Proxy stands in for the generated `api.game`, so an unknown mutation name
+// A Proxy stands in for the generated `api.gameManual`, so an unknown mutation name
 // resolves to a ref instead of `undefined` — a typo'd binding then shows up as
 // a WRONG name in the assertion below rather than as a crash with no name.
 vi.mock("@convex/_generated/api", () => ({
     api: {
-        game: new Proxy(
+        gameManual: new Proxy(
             {},
             { get: (_t, prop: string) => ({ _name: prop }) }
         ) as Record<string, { _name: string }>,

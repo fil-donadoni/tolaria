@@ -22,7 +22,7 @@ import type {
 import type { ManualArrowPair } from "./target-arrow-geometry";
 
 /** Every manual verb this board can dispatch, already bound to the game id.
- *  One entry per `convex/game.ts` `manual*` mutation the board surfaces —
+ *  One entry per `convex/gameManual.ts` `manual*` mutation the board surfaces —
  *  nothing here adds server capability, it only names what already exists. */
 export type ManualDispatch = {
     moveCard: (args: {
