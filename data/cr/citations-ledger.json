@@ -18074,6 +18074,7 @@
         {"id":"601.2c","line":"* mid-activation target selection (CR 601.2c / 602.2b). */","sites":1,"status":"baseline"},
         {"id":"601.2c","line":"* multi-group advance (CR 601.2c, Fumarole) exactly like the same calls made","sites":1,"status":"baseline"},
         {"id":"601.2c","line":"* never targets the same object twice (CR 601.2c — each target must be","sites":1,"status":"baseline"},
+        {"id":"601.2c","line":"* object targets when it names no Land (CR 601.2c), and the instant","sites":1,"status":"confirmed","ruleHash":"6209ab42af526807"},
         {"id":"601.2c","line":"* one at ANNOUNCEMENT — before targets (CR 601.2c) and before anything is paid","sites":1,"status":"baseline"},
         {"id":"601.2c","line":"* optional \"up to X\" variable-count template (CR 601.2c: \"as many as you","sites":1,"status":"baseline"},
         {"id":"601.2c","line":"* optionally under a CR 601.2c \"up to N\" head.","sites":1,"status":"confirmed","ruleHash":"6209ab42af526807"},
