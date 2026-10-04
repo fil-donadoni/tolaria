@@ -188,12 +188,7 @@ import { isTwinDefinitionId } from "./twinId";
 // from the fetched artifact instead (ADR 0113 §2, issue #3053). Keep it the
 // only importer of `./compiledPool` — pinned by
 // `scripts/__tests__/compiled-pool-client-seam.test.ts`.
-import {
-    compiledReadyDefinitions,
-    packedServerCorpus,
-    PACKED_CORPUS_LOOKUP,
-} from "./compiledPool";
-import { createPackedLookup, type PackedLookup } from "./packedCorpus";
+import { compiledReadyDefinitions, packedCorpusLookup } from "./compiledPool";
 
 function isCardPrint(value: unknown): value is CardPrint {
     return (
@@ -600,7 +595,8 @@ function wirePrintAliases(hydrated: boolean): CardPrint[] {
 }
 
 // Issue #4165 (PRD #4161) — the packed fallback, behind `PACKED_CORPUS_LOOKUP`
-// (`./compiledPool`, off by default). Off: the compiled pool is preloaded at
+// (`./compiledPool`, off by default; the lookup is built there, behind the
+// client alias). Off: the compiled pool is preloaded at
 // module load, exactly as it always was. On: NOTHING compiled is preloaded —
 // that per-request evaluation is the cost PRD #4161 removes — and
 // `getDefinition` resolves a compiled id from the packed corpus on first
@@ -611,12 +607,7 @@ function wirePrintAliases(hydrated: boolean): CardPrint[] {
 // (`compiledRegistered`, the name map, `definitionSetCode`) stay empty of them:
 // giving each of those a disposition is the enumerator slice of PRD #4161.
 // The client never takes this branch — its alias exports the switch `false`.
-const packedLookup: PackedLookup | null =
-    PACKED_CORPUS_LOOKUP && packedServerCorpus !== null
-        ? createPackedLookup(packedServerCorpus)
-        : null;
-
-if (packedLookup === null) {
+if (packedCorpusLookup === null) {
     registerCompiledDefinitions(compiledReadyDefinitions);
 } else {
     // Wired BEFORE the source is installed, so the resolution pass reads the
@@ -624,13 +615,13 @@ if (packedLookup === null) {
     for (const print of wirePrintAliases(false)) {
         registerLazyPrintAlias(print.printId, print.definitionId);
     }
-    setLazyDefinitionSource(packedLookup.lookup);
+    setLazyDefinitionSource(packedCorpusLookup.lookup);
 }
 
 /** How many packed blocks this module graph has inflated — `0` with the switch
  *  off. The observable the full-path test bounds a request by (issue #4165). */
 export const packedCorpusInflations = (): number =>
-    packedLookup?.inflations() ?? 0;
+    packedCorpusLookup?.inflations() ?? 0;
 
 export const getCardByName = (name: string): CardDefinition => {
     const card = nameRegistry.get(name.toLowerCase());

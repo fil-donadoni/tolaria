@@ -263,10 +263,18 @@ export const declaresLingeringStaticEffect = (cardId: string): boolean =>
  *  zone-conditional characteristics? A cheap precheck for the readers in
  *  `gre/zoneCharacteristics.ts`; see {@link zoneConditionalIds}. `false` for
  *  an unregistered id and for a synthesized token (neither can declare the
- *  field), so a `false` answer always means "nothing to resolve". */
+ *  field), so a `false` answer always means "nothing to resolve".
+ *
+ *  With a lazy definition source installed (issue #4165) an unregistered id
+ *  may be a compiled row nobody has looked up yet, so it is resolved first —
+ *  the same discipline as {@link declaresIndexedStatic}; without one the
+ *  answer is the bare set, exactly as before. */
 export const declaresOffBattlefieldCharacteristics = (
     cardId: string
-): boolean => zoneConditionalIds.has(cardId);
+): boolean =>
+    zoneConditionalIds.has(cardId) ||
+    (definitionSource !== null &&
+        declaresIndexedStatic(cardId, zoneConditionalIds));
 
 /** CR 613.1b-e (PRD #2064 S4) — does `cardId`'s definition declare any
  *  layer-2-to-5 static effect? The precheck `gre/layers2to5.ts`'s board scan
@@ -556,7 +564,7 @@ export function registerLazyPrintAlias(
 function resolveFromSource(cardId: string): CardDefinition | undefined {
     if (definitionSource === null) return undefined;
     const aliased = lazyPrintAliases.get(cardId);
-    if (aliased !== undefined) {
+    if (aliased !== undefined && aliased !== cardId) {
         const def = registry.get(aliased) ?? resolveFromSource(aliased);
         if (def) setRegistryEntry(cardId, def);
         return def;
@@ -565,6 +573,9 @@ function resolveFromSource(cardId: string): CardDefinition | undefined {
     // derivation `preloadDefinitions` runs, never stored. A parent that is
     // already resident registered its twins with it, so a miss here is an id
     // no derivation mints.
+    // (A parent made resident by the test-only `withTemporaryDefinition` swap
+    // brings no twins, so a twin lookup under the swap misses here — swap the
+    // twin itself, as the eager path already requires.)
     const parentId = parentIdOfTwin(cardId);
     if (parentId !== undefined && registry.has(parentId)) return undefined;
     const row = definitionSource(parentId ?? cardId);

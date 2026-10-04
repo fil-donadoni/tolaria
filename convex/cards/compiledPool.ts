@@ -17,7 +17,11 @@
 // function bundle limit, guarded by `bun run check:convex-bundle` — see
 // ADR 0113 § Amendment (issue #3051).
 import type { CardDefinition } from "./types";
-import type { PackedCorpus } from "./packedCorpus";
+import {
+    createPackedLookup,
+    type PackedCorpus,
+    type PackedLookup,
+} from "./packedCorpus";
 import compiledPool from "../../data/oracle-compiled-pool.json";
 import packedCorpus from "../../data/catalogue/packed-corpus.json";
 
@@ -55,11 +59,23 @@ export const packedServerCorpus: PackedCorpus | null =
  * Off by default, and off means today's behaviour byte for byte: the literal
  * pool is preloaded and the packed artefact is never read. Turned on per
  * deployment with the `TOLARIA_PACKED_CORPUS_LOOKUP=on` environment variable,
- * read once at module load — a Convex module is evaluated per request, so a
- * change takes effect on the next request. The `typeof` guard is for the one
- * runtime with no `process` at all; the browser build never evaluates this
- * module (its alias exports `false`).
+ * read once at module load (a change reaches a request once its module graph
+ * is re-evaluated). The `typeof` guard is for the one runtime with no
+ * `process` at all; the browser build never evaluates this module (its alias
+ * exports `false`).
+ *
+ * NOT for a real deployment yet: with it on, the catalogue-wide populations
+ * fed from compiled rows (the name map behind `tryGetCardByName`, the set
+ * codes, `getAllCatalogueCards`) hold none of them until the enumerator slice
+ * of PRD #4161 gives each a disposition. Tests and the cloud measurement only.
  */
 export const PACKED_CORPUS_LOOKUP: boolean =
     typeof process !== "undefined" &&
     process.env.TOLARIA_PACKED_CORPUS_LOOKUP === "on";
+
+/** The lookup `getDefinition` falls back to when the switch is on, else
+ *  `null`. Built HERE, behind the seam the client build aliases away, so
+ *  neither the decoder nor `fflate` enters a client chunk. */
+export const packedCorpusLookup: PackedLookup | null = PACKED_CORPUS_LOOKUP
+    ? createPackedLookup(packedServerCorpus!)
+    : null;

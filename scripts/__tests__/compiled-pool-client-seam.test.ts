@@ -159,6 +159,9 @@ describe("the compiled pool's client seam (issue #3053)", () => {
         const names = (text: string) =>
             [...text.matchAll(/^export const (\w+)/gm)].map((m) => m[1]).sort();
         expect(names(stub)).toEqual(names(server));
-        expect(stub.match(/^export /gm)).toHaveLength(3);
+        expect(stub).toMatch(
+            /export const packedCorpusLookup: PackedLookup \| null = null;/
+        );
+        expect(stub.match(/^export /gm)).toHaveLength(4);
     });
 });
