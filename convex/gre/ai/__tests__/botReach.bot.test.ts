@@ -1205,10 +1205,13 @@ describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
                 outcome: "played",
             });
         });
-        // The catalogue card of the same shape, `ignored` on the filler pile.
-        expect(playTwice(getCardByName("Skulltap"))).toEqual({
-            outcome: "played",
-        });
+        // The catalogue cards of the same shape: a sorcery (`ignored` on the
+        // filler pile) and an instant, whose last window a library of nothing
+        // but spells could turn into a reason to wait.
+        for (const name of ["Skulltap", "Village Rites"])
+            expect(playTwice(getCardByName(name)), name).toEqual({
+                outcome: "played",
+            });
     }, 300_000);
 
     // Issue #4267: a pump aimed at a creature that also draws is worth the
@@ -1655,10 +1658,11 @@ describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
         }
     });
 
-    // The claim that does not depend on the budget: in every world the search
+    // The claim that does not depend on the budget: in the worlds the search
     // deals itself (CR 401.2), giving up the body for the two cards reads as
-    // a gain at 1 ply. Over the filler pile it read as a loss in most of them.
-    it("a draw paid for with a creature beats pass at 1 ply in every sampled world", () => {
+    // a gain at 1 ply. The pose makes them one world; over the filler pile
+    // they differed, and the cast read as a loss in most of them.
+    it("a draw paid for with a creature beats pass at 1 ply in the worlds the search samples", () => {
         withTemporaryDefinition(SACRIFICE_DRAW_SORCERY, () => {
             for (const seat of [0, 1] as const) {
                 const { state, holderId, instanceId } = buildBotReachState(

@@ -494,7 +494,7 @@ function sacrificesCreature(def: CardDefinition): boolean {
 }
 
 /**
- * CR 601.2b / 121.1 — does the card pay a creature for the cards its own draw
+ * CR 118.8 / 121.1 — does the card pay a creature for the cards its own draw
  * finds ("As an additional cost to cast this spell, sacrifice a creature. Draw
  * two cards.")? The draw must then be worth more than the body, and the search
  * prices it on what the library HOLDS, never on its top cards (CR 401.2 — the
@@ -505,10 +505,13 @@ function sacrificesCreature(def: CardDefinition): boolean {
  * whole library the drawn spell, the way a player casts it into a deck of
  * cards worth more than the spare body.
  *
- * Only this shape: a draw that costs the card alone is already paid for by the
- * filler pile's share, and a library of nothing but spells makes every LATER
- * natural draw worth one too — which the last window of an instant reads as a
- * reason to wait (docs/findings/5029-last-window-pass-scored-a-round-later.md).
+ * Only this shape, by measurement: a draw that costs the card alone is already
+ * paid for by the filler pile's share, and a library of nothing but spells
+ * makes every LATER natural draw worth one too — which the last window of an
+ * instant can read as a reason to wait. Stocked for every draw pose it turned
+ * one cantrip from `played` to `ignored`, while every shipped card of THIS
+ * shape, instants included, stays `played`
+ * (docs/findings/5029-last-window-pass-scored-a-round-later.md).
  */
 function paysBodyForDraw(def: CardDefinition): boolean {
     return drawsForController(def) && sacrificesCreature(def);
