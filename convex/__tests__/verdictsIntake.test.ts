@@ -29,6 +29,7 @@ import {
 import { enqueueBulk, submit } from "../verdicts";
 import { listUserRoles, setTesterRole } from "../users";
 import type { Id } from "../_generated/dataModel";
+import type { VerdictClassification } from "../gre/ai/verdicts/types";
 import {
     judgementOfRow,
     verdictStampOf,
@@ -389,11 +390,14 @@ describe("verdicts.submit — classification and pair link (issue #4800, ADR 014
         kind: "forbidden" as const,
         forbiddenIndexes: [0],
     };
-    const ANCHOR = {
+    const ANCHOR: Omit<typeof ARGS, "answer"> & {
+        answer: typeof FORBIDDEN;
+        classification: VerdictClassification;
+    } = {
         ...ARGS,
         answer: FORBIDDEN,
         classification: {
-            kind: "conditional" as const,
+            kind: "conditional",
             discriminant: DISCRIMINANT,
         },
     };

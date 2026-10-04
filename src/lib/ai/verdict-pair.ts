@@ -14,7 +14,10 @@
 // component.
 
 import type { ScenarioCard, ScenarioSpec } from "@convex/debugScenarioSpec";
-import { verdictIdOf } from "@convex/gre/ai/verdicts/identity";
+import {
+    verdictIdOf,
+    type VerdictJudgement,
+} from "@convex/gre/ai/verdicts/identity";
 import {
     deriveRightHalfPosition,
     PairDerivationError,
@@ -26,7 +29,6 @@ import {
     type Discriminant,
     type DiscriminantKind,
     type VerdictClassification,
-    type VerdictJudgement,
 } from "@convex/gre/ai/verdicts/types";
 import type { Phase } from "@convex/gre/types";
 import { PHASE_GROUPS } from "~/lib/phase-labels";
