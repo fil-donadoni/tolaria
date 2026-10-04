@@ -3,9 +3,9 @@
  * draw a fresh hand (CR 121.1, CR 701.24a, issue #4833)?
  *
  * "Each player shuffles their hand and graveyard into their library, then
- * draws seven cards" (or discards their hand, CR 701.9a, issue #4844) is a draw worth the cards it finds, and the position's
- * filler library is basic lands the evaluator prices at nothing: the caster
- * trades the card it holds (priced as seven draws) for seven lands and passing
+ * draws seven cards" (or discards their hand, CR 701.9a, issue #4844) is a
+ * draw worth the cards it finds, and the position's filler library is basic
+ * lands the evaluator prices at nothing: the caster trades the card it holds (priced as seven draws) for seven lands and passing
  * is right. The spell read `never-chosen` — a limit of the harness, not a fact
  * about the Bot. `drawsForController` misses it, since each draw names the
  * iterating player (`$each`), not the controller; this predicate gives the
