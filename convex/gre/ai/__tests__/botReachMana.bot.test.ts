@@ -15,6 +15,14 @@ describe("manaSinkPose", () => {
         ]);
     });
 
+    it("hands a threshold ritual the sink its richer branch can pay for", () => {
+        // Cabal Ritual's script is an `if`: {B}{B}{B}, or {B}{B}{B}{B}{B} at
+        // threshold. The pose reads both branches, so the spell is reachable.
+        expect(manaSinkPose(getCardByName("Cabal Ritual")!, 3)).toEqual([
+            { name: "Sengir Vampire", owner: "me", zone: "hand" },
+        ]);
+    });
+
     it("poses nothing for a card that adds no mana", () => {
         expect(manaSinkPose(getCardByName("Lightning Bolt")!, 3)).toEqual([]);
     });
@@ -27,6 +35,11 @@ describe("manaSinkPose", () => {
 describe("playBotReach on a ritual", () => {
     it("plays Dark Ritual once there is a spell to pay for", () => {
         const verdict = playBotReach(getCardByName("Dark Ritual")!);
+        expect(verdict.outcome).toBe("played");
+    });
+
+    it("plays Cabal Ritual, whose mana sits behind an `if`", () => {
+        const verdict = playBotReach(getCardByName("Cabal Ritual")!);
         expect(verdict.outcome).toBe("played");
     });
 });
