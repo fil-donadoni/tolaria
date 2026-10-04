@@ -521,6 +521,11 @@
         },
         {
             "kind": "bot",
+            "key": "never-chosen › Creature › if+lookDistribute+winGame",
+            "issue": 5045
+        },
+        {
+            "kind": "bot",
             "key": "never-chosen › Creature › pump",
             "issue": 4261
         },
@@ -598,6 +603,11 @@
             "kind": "bot",
             "key": "never-chosen › Instant target:player › (no Ops)",
             "issue": 4827
+        },
+        {
+            "kind": "bot",
+            "key": "never-chosen › Instant target:spell › counter+destroy+draw",
+            "issue": 5044
         },
         {
             "kind": "bot",
