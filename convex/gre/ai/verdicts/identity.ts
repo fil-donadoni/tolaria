@@ -168,7 +168,15 @@ function answerOf(answer: VerdictAnswer): VerdictAnswer {
     );
 }
 
-function positionOf(verdict: VerdictJudgement) {
+/** The fields of a Verdict that are its Scenario — the board, the seat that
+ *  owed the decision and what it knew — with no candidate enumeration. A
+ *  blade entry's own `spec`/`setup`/`bot`/`deckKnowledge` fit it too. */
+export type VerdictScenario = Pick<
+    Verdict,
+    "spec" | "setup" | "seat" | "deckKnowledge"
+>;
+
+function scenarioOf(verdict: VerdictScenario) {
     return {
         spec: verdict.spec,
         ...(verdict.setup?.length ? { setup: verdict.setup } : {}),
@@ -176,6 +184,12 @@ function positionOf(verdict: VerdictJudgement) {
         ...(verdict.deckKnowledge?.length
             ? { deckKnowledge: verdict.deckKnowledge }
             : {}),
+    };
+}
+
+function positionOf(verdict: VerdictJudgement) {
+    return {
+        ...scenarioOf(verdict),
         candidates: verdict.candidates.map(({ key }) => key),
     };
 }
@@ -204,4 +218,13 @@ export function verdictIdOf(verdict: VerdictJudgement): string {
  *  about the same decision share it (ADR 0128 §6). */
 export function positionKeyOf(verdict: VerdictJudgement): string {
     return named(canonicalJson(positionOf(verdict)));
+}
+
+/** The scenario key: the position key's encoding minus `candidates` — the
+ *  Scenario Spec alone (issue #3981). The candidate keys are the move
+ *  enumerator's rendering on one build; a name that must never move across
+ *  builds (the held-out split, `heldOut.ts`) hashes only what the judge was
+ *  shown, never how the engine spelled the moves on it. */
+export function scenarioKeyOf(verdict: VerdictScenario): string {
+    return named(canonicalJson(scenarioOf(verdict)));
 }

@@ -28,6 +28,7 @@ import { DEFAULT_EVAL_WEIGHTS, FIT_BASE_EVAL_WEIGHTS } from "../../evalWeights";
 import {
     FITTABLE_WEIGHT_KEYS,
     collectVerdictReport,
+    fitInputPairs,
     fitWeights,
     fittableWeightsEqual,
     formatFittedWeights,
@@ -37,6 +38,7 @@ import {
     improvesOnIncumbent,
     pasteInstruction,
     scoreVerdictReport,
+    testPositionKeysOf,
     type EvalPair,
     type FittableWeightKey,
 } from "../../verdicts";
@@ -126,7 +128,15 @@ describe.runIf(RUN)("weight fit (runner)", () => {
             weights: FIT_BASE_EVAL_WEIGHTS,
         });
 
-        const result = fitWeights(before.pairs, FIT_BASE_EVAL_WEIGHTS, {
+        // The fit side of the held-out split only (issue #3981): the override
+        // reads the WHOLE registry, so a tier filter never un-protects a Test
+        // Position's store twin.
+        const fitInput = fitInputPairs(
+            before.pairs,
+            verdicts,
+            testPositionKeysOf(BLADE_SCENARIOS)
+        );
+        const result = fitWeights(fitInput, FIT_BASE_EVAL_WEIGHTS, {
             margin: num("BLADE_FIT_MARGIN"),
             lambda: num("BLADE_FIT_LAMBDA"),
             steps: num("BLADE_FIT_STEPS"),
@@ -163,7 +173,7 @@ describe.runIf(RUN)("weight fit (runner)", () => {
         const better = improvesOnIncumbent(fittedScore, incumbentScore);
 
         const text = [
-            formatWeightFitReport(result, before.pairs.length),
+            formatWeightFitReport(result, fitInput.length),
             "",
             "== BEFORE (the hand-picked prior the fit starts from)",
             formatVerdictReport(before, 0),
@@ -201,6 +211,9 @@ describe.runIf(RUN)("weight fit (runner)", () => {
                             entries: scenarios.length,
                             verdicts: verdicts.length,
                             pairs: before.pairs.length,
+                            // The pairs the fit read: the fit side of the
+                            // held-out split (issue #3981).
+                            fitPairs: fitInput.length,
                             options: result.options,
                         },
                         weights: result.weights,

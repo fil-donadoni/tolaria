@@ -426,8 +426,10 @@ export const FIT_BASE_EVAL_WEIGHTS: Readonly<EvalWeights> = Object.freeze({
  * The FITTED vector the engine runs — GENERATED, not authored.
  *
  * Produced by `bun run fit:weights` from `FIT_BASE_EVAL_WEIGHTS` above and the
- * Verdict corpus (today: the blade registry's `moves` expectations, lowered by
- * `convex/gre/ai/verdicts/registrySource.ts`). The reproducibility guard in
+ * FIT SIDE of the Verdict corpus — the blade registry's lowered expectations
+ * (`convex/gre/ai/verdicts/registrySource.ts`) and the Verdict Lock, less the
+ * held-out side (`convex/gre/ai/verdicts/heldOut.ts`, issue #3981). The
+ * reproducibility guard in
  * `convex/gre/ai/__tests__/weightFit.bot.test.ts` re-runs that fit and demands
  * this exact object — the card-index lockfile discipline, so the weights in
  * code can never drift from the verdicts in git (PRD #3397 story 7).
@@ -448,32 +450,32 @@ export const FIT_BASE_EVAL_WEIGHTS: Readonly<EvalWeights> = Object.freeze({
 export const DEFAULT_EVAL_WEIGHTS: Readonly<EvalWeights> = Object.freeze({
     ...FIT_BASE_EVAL_WEIGHTS,
     lifeWeight: 8,
-    permanentWeight: 5.73392,
-    manaWeight: 13.246358,
-    tappedManaWeight: 11.746358,
-    finiteManaUseWeight: 4.006175,
-    manaDevWeight: 15.246414,
-    colorCoverageWeight: 24.523725,
-    flexWeight: 6.814302,
+    permanentWeight: 5.626481,
+    manaWeight: 12.93515,
+    tappedManaWeight: 11.43515,
+    finiteManaUseWeight: 4.006993,
+    manaDevWeight: 14.014837,
+    colorCoverageWeight: 24.151713,
+    flexWeight: 6.76361,
     deckingWeight: 1.5,
-    graveyardEngineWeight: 62.542049,
-    graveyardReachFraction: 0.17617,
-    recoverableSweepFraction: 0.789034,
-    latentCreatureDiscount: 0.573711,
-    latentFlashCreatureDiscount: 0.829933,
+    graveyardEngineWeight: 62.867588,
+    graveyardReachFraction: 0.178693,
+    recoverableSweepFraction: 0.784988,
+    latentCreatureDiscount: 0.632399,
+    latentFlashCreatureDiscount: 0.80929,
     latent: Object.freeze({
-        damage: 22.251441,
-        cardAdvantage: 39.355772,
-        lifeSwing: 7.648211,
-        boardRemoval: 161.002731,
-        ramp: 11.758166,
+        damage: 22.164846,
+        cardAdvantage: 37.156244,
+        lifeSwing: 7.614338,
+        boardRemoval: 165.492617,
+        ramp: 11.726414,
         evasion: 40,
-        tempo: 53.976697,
-        disruption: 117.741362,
+        tempo: 53.909747,
+        disruption: 116.233956,
         recursion: 140,
-        tokens: 0.620948,
-        pump: 9.237339,
-        protection: 60.100779,
+        tokens: 0.597044,
+        pump: 9.878038,
+        protection: 60.037888,
     }),
 });
 

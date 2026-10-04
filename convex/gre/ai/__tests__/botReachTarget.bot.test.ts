@@ -18,6 +18,7 @@ import type {
 import { getCardByName } from "../../../cards";
 import { getLegalActions } from "../../rules";
 import {
+    BOT_REACH_BUDGET,
     botReachSpec,
     buildBotReachState,
     playBotReach,
@@ -99,7 +100,18 @@ describe("the generated position poses a declared combat (CR 508.1, 509.1)", () 
     it("attacking creature (CR 508.1)", () => {
         const def = instant("attacking", { combatRoleFilter: ["attacking"] });
         expect(castable(def)).toBe(true);
-        expect(withTemporaryDefinition(def, () => playBotReach(def))).toEqual({
+        // Seed-split, not valuation (issue #3981): over seeds 1–20 the kill is
+        // chosen on 1 under the weights before that refit and 5 after it, while
+        // the two default seeds (0xb07, 0x5eed) played it before and not after.
+        // Twenty seeds read the pose — what this block is about — not the
+        // dice.
+        const wide = {
+            ...BOT_REACH_BUDGET,
+            seeds: Array.from({ length: 20 }, (_, i) => i + 1),
+        };
+        expect(
+            withTemporaryDefinition(def, () => playBotReach(def, wide))
+        ).toEqual({
             outcome: "played",
         });
     });

@@ -16,6 +16,7 @@ export * from "./searchAgreement";
 export * from "./coverage";
 export * from "./fit";
 export * from "./identity";
+export * from "./heldOut";
 export * from "./quarantine";
 export * from "./promotion";
 export * from "./minimalPair";
