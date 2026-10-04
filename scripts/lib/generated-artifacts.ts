@@ -48,6 +48,12 @@ import { LEDGER_PATH } from "./cr-ledger";
  *     thing that could still go wrong — a merge producing a pool that no
  *     longer matches the artifact — is what `catalogue:pack` regenerating
  *     alongside the hash fixes.
+ *   - `data/catalogue/packed-corpus.json` — IN THIS CLASS (issue #4164). The
+ *     packed server corpus is ONE base64 string of deflated blocks plus
+ *     indexes and the source hash: every regeneration rewrites the whole
+ *     line, so two branches that both regenerate always collide, and no
+ *     hunk-picking can yield bytes that decode. Re-derived by the same
+ *     `catalogue:pack` run as the source hash.
  *   - `data/catalogue/catalogue-<hash>.json` — CONTENT-ADDRESSED BY NAME, and
  *     so outside this class for a different reason (issue #3052, ADR 0114 §2).
  *     Its bytes are whole-file state, but two branches that regenerate it
@@ -129,6 +135,13 @@ export const REGENERATED_ARTIFACTS: readonly RegeneratedArtifact[] = [
         // The catalogue is a pure JOIN of three COMMITTED sources (the module
         // graph, the compiler's lockfile, the card index) — offline, so a
         // conflict here is resolvable in any worktree, corpus or no corpus.
+        requiresCorpus: false,
+    },
+    {
+        path: "data/catalogue/packed-corpus.json",
+        script: "catalogue:pack",
+        wholeFileState: "blocks, blockOffsets, dictionary, sourceHash",
+        // The same offline join as the source hash above (issue #4164).
         requiresCorpus: false,
     },
 ] as const;

@@ -39,7 +39,13 @@
  *   - `data/catalogue/source-hash.json` — the ONE source hash, which the
  *     server bundles through `convex/cards/compiledCatalogue.ts` and the
  *     client carries in the artifact's file NAME. Two independently written
- *     records of one generation, so taking one side of a merge is visible.
+ *     records of one generation, so taking one side of a merge is visible;
+ *   - `data/catalogue/packed-corpus.json` — the PACKED server rendering
+ *     (issue #4164, ADR 0113 Amendment III): the same `merge.serverRows`,
+ *     deflated in blocks against one shared dictionary, with its first-id and
+ *     name indexes, carrying the same source hash. Nothing reads it yet; it
+ *     sits beside the literal pool until the lookup slice of PRD #4161 swaps
+ *     one for the other (`scripts/lib/packed-corpus.ts`).
  *
  * `--check` writes nothing. It compares the two COMMITTED renderings against
  * each other first — byte-for-byte on the definitions they share, naming the
@@ -83,6 +89,13 @@ import {
     type MergeResult,
 } from "./lib/catalogue-merge";
 import {
+    PACKED_CORPUS_PATH,
+    packCorpus,
+    packedCorpusDrift,
+    serializePackedCorpus,
+    type PackedCorpus,
+} from "./lib/packed-corpus";
+import {
     BASELINE_KEYS,
     baselineKey,
 } from "./lib/catalogue-divergence-baseline";
@@ -116,6 +129,8 @@ export interface CatalogueBuild {
     readonly poolBytes: string;
     /** The source hash sidecar's bytes — `data/catalogue/source-hash.json`. */
     readonly sourceHashBytes: string;
+    /** The PACKED server rendering's bytes — {@link PACKED_CORPUS_PATH}. */
+    readonly packedBytes: string;
     readonly hash: string;
     readonly fileName: string;
     /** `ready` rows the join could not resolve an `id`/`rarity`/`setCode` for. */
@@ -206,6 +221,7 @@ export function buildCatalogue(repoRoot: string): CatalogueBuild {
         bytes,
         poolBytes: serializePool(merge.serverRows),
         sourceHashBytes: serializeSourceHash(hash),
+        packedBytes: serializePackedCorpus(packCorpus(merge.serverRows, hash)),
         hash,
         fileName: artifactFileName(hash),
         unjoinable,
@@ -258,6 +274,32 @@ export function committedIdentityDrift(repoRoot: string) {
     return firstIdentityDrift(
         JSON.parse(pool) as CardDefinition[],
         sharedClientRows(JSON.parse(artifact) as CardDefinition[])
+    );
+}
+
+/**
+ * Compare the COMMITTED packed rendering against the COMMITTED client asset —
+ * the same question {@link committedIdentityDrift} asks of the literal pool,
+ * asked of the third rendering (issue #4164): does it decode to exactly the
+ * client's shared rows, under the same source hash, with true indexes? One
+ * line naming the first differing card, or `null`.
+ *
+ * `null` when a file is missing, for the same reason as above.
+ */
+export function committedPackedDrift(repoRoot: string): string | null {
+    const packed = readCommitted(repoRoot, PACKED_CORPUS_PATH);
+    const artifacts = committedArtifacts(repoRoot);
+    if (packed === null || artifacts.length !== 1) return null;
+    const artifact = readCommitted(
+        repoRoot,
+        join(CATALOGUE_DIR, artifacts[0]!)
+    );
+    if (artifact === null) return null;
+    const hash = artifacts[0]!.slice("catalogue-".length, -".json".length);
+    return packedCorpusDrift(
+        JSON.parse(packed) as PackedCorpus,
+        sharedClientRows(JSON.parse(artifact) as CardDefinition[]),
+        hash
     );
 }
 
@@ -368,10 +410,20 @@ function main() {
             );
             process.exit(1);
         }
+        const packedDrift = committedPackedDrift(repoRoot);
+        if (packedDrift !== null) {
+            console.error(
+                `${RED}✗ the packed server corpus and the client artifact DIVERGE (ADR 0113 Amendment III)${RESET}\n` +
+                    `    ${packedDrift}\n` +
+                    `  Run: bun run catalogue:pack`
+            );
+            process.exit(1);
+        }
         for (const [path, expected] of [
             [committed, build.bytes],
             [POOL_PATH, build.poolBytes],
             [sourceHashPath, build.sourceHashBytes],
+            [PACKED_CORPUS_PATH, build.packedBytes],
         ] as const) {
             if (readCommitted(repoRoot, path) === expected) continue;
             console.error(
@@ -382,7 +434,7 @@ function main() {
         }
         console.log(
             `${GREEN}✓${RESET} ${committed} is current — ${summary}\n` +
-                `${DIM}  ${POOL_PATH} + ${sourceHashPath} agree with it, hash ${build.hash}${RESET}`
+                `${DIM}  ${POOL_PATH} + ${PACKED_CORPUS_PATH} + ${sourceHashPath} agree with it, hash ${build.hash}${RESET}`
         );
         return;
     }
@@ -394,12 +446,20 @@ function main() {
     writeFileSync(join(dir, build.fileName), build.bytes, "utf-8");
     writeFileSync(resolve(repoRoot, POOL_PATH), build.poolBytes, "utf-8");
     writeFileSync(join(dir, SOURCE_HASH_FILE), build.sourceHashBytes, "utf-8");
+    writeFileSync(
+        resolve(repoRoot, PACKED_CORPUS_PATH),
+        build.packedBytes,
+        "utf-8"
+    );
     console.log(
         `${GREEN}✓${RESET} ${join(CATALOGUE_DIR, build.fileName)} ` +
             `(${(build.bytes.length / 1024).toFixed(0)} KB) — ${summary}\n` +
             `${GREEN}✓${RESET} ${POOL_PATH} ` +
             `(${(build.poolBytes.length / 1024).toFixed(0)} KB, ${build.merge.serverRows.length} row(s)) ` +
             `— the SAME rows, filtered (issue #3055)\n` +
+            `${GREEN}✓${RESET} ${PACKED_CORPUS_PATH} ` +
+            `(${build.packedBytes.length} B, ${(build.packedBytes.length / Math.max(1, build.merge.serverRows.length)).toFixed(0)} B/row) ` +
+            `— the SAME rows, packed (issue #4164)\n` +
             `${GREEN}✓${RESET} ${sourceHashPath} — ${build.hash}\n` +
             `${DIM}  provenance stays on the lockfile (ADR 0114 §2); the file name is the content hash${RESET}`
     );
