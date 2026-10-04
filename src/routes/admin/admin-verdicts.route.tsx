@@ -3,6 +3,7 @@
 // PRD #3574, ADR 0128 §6).
 import AdminPageFrame from "@/components/admin/admin-page-frame";
 import VerdictColdOpenPanel from "@/components/admin/verdict-cold-open-panel";
+import VerdictPairList from "@/components/admin/verdict-pair-list";
 import VerdictReviewPanel from "@/components/admin/verdict-review-panel";
 
 export default function AdminVerdictsRoute() {
@@ -12,6 +13,7 @@ export default function AdminVerdictsRoute() {
             description="Two testers who judged one position differently keep both judgements out of the Verdict Lock until someone looks at the board and decides. Resolving records which answer is right and why each other one is not; nothing is deleted."
         >
             <VerdictReviewPanel />
+            <VerdictPairList />
             <VerdictColdOpenPanel />
         </AdminPageFrame>
     );

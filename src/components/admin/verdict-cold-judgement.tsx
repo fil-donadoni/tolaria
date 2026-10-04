@@ -6,7 +6,10 @@ import type { ReviewVerdict } from "@convex/verdictReview";
 import { Button } from "@/components/ui/button";
 import AiDecisionQuizCandidate from "@/components/debug/ai-decision-quiz-candidate";
 import VerdictAnswerCard from "./verdict-answer-card";
+import VerdictPairContext from "./verdict-pair-context";
 import VerdictPositionBoard from "./verdict-position-board";
+import { halfDisagreementSubmission } from "~/lib/ai/verdict-pair";
+import { carriedPairFields } from "./verdict-review-model";
 
 /**
  * One verdict opened cold (issue #3582, ADR 0128): the position rebuilt away
@@ -35,21 +38,15 @@ export default function VerdictColdJudgement({
     const [error, setError] = useState<string | null>(null);
     const { judgement } = verdict;
 
-    async function submit(answer: VerdictAnswer, outcome: "agreed" | "judged") {
+    async function send(
+        payload: Parameters<typeof submitVerdict>[0],
+        outcome: "agreed" | "judged"
+    ) {
         if (saving || recorded !== null) return;
         setSaving(true);
         setError(null);
         try {
-            await submitVerdict({
-                spec: judgement.spec,
-                ...(judgement.setup?.length ? { setup: judgement.setup } : {}),
-                seat: judgement.seat,
-                ...(judgement.deckKnowledge?.length
-                    ? { deckKnowledge: judgement.deckKnowledge }
-                    : {}),
-                candidates: judgement.candidates,
-                answer,
-            });
+            await submitVerdict(payload);
             setRecorded(outcome);
         } catch (cause) {
             setError(
@@ -62,6 +59,25 @@ export default function VerdictColdJudgement({
         }
     }
 
+    const submit = (answer: VerdictAnswer, outcome: "agreed" | "judged") =>
+        send(
+            {
+                spec: judgement.spec,
+                ...(judgement.setup?.length ? { setup: judgement.setup } : {}),
+                seat: judgement.seat,
+                ...(judgement.deckKnowledge?.length
+                    ? { deckKnowledge: judgement.deckKnowledge }
+                    : {}),
+                candidates: judgement.candidates,
+                answer,
+                // Part of a verdict's identity (ADR 0148): agreeing carries the
+                // record's classification and pair link, or it would not be
+                // an attestation of it.
+                ...carriedPairFields(answer, judgement),
+            },
+            outcome
+        );
+
     return (
         <section
             data-testid="verdict-cold-judgement"
@@ -69,6 +85,7 @@ export default function VerdictColdJudgement({
         >
             <VerdictPositionBoard verdicts={[verdict]} />
             <VerdictAnswerCard verdict={verdict} index={0} />
+            {verdict.pair && <VerdictPairContext pair={verdict.pair} />}
             <div className="flex flex-col gap-2">
                 <span className="text-label">Your judgement</span>
                 <div>
@@ -82,6 +99,25 @@ export default function VerdictColdJudgement({
                         Agree with the answer on record
                     </Button>
                 </div>
+                {judgement.pairOf !== undefined &&
+                    judgement.answer.kind === "right" && (
+                        <div>
+                            <Button
+                                type="button"
+                                variant="secondary"
+                                size="sm"
+                                onClick={() =>
+                                    void send(
+                                        halfDisagreementSubmission(judgement),
+                                        "judged"
+                                    )
+                                }
+                                disabled={saving || recorded !== null}
+                            >
+                                Disagree: the move is not right here
+                            </Button>
+                        </div>
+                    )}
                 <p className="text-xs text-text-muted">
                     Or name the one move that was right:
                 </p>

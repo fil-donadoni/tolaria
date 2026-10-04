@@ -34,7 +34,9 @@ import { verdictDeploymentOf, type OutboxRow } from "./verdictsOutbox";
 import type { ResolutionOutboxRow } from "./verdictResolutionsOutbox";
 import {
     localUserIdOf,
+    pairQueueOf,
     openVerdictOf,
+    pairListOf,
     resolutionAgainst,
     reviewSourcesOf,
     verdictReviewOf,
@@ -45,7 +47,7 @@ import {
 const refs = {
     reviewOutbox: makeFunctionReference<
         "query",
-        Record<string, never>,
+        { access?: "admin" | "tester" },
         { verdictRows: OutboxRow[]; resolutionRows: ResolutionOutboxRow[] }
     >("verdictResolutions:reviewOutbox"),
     authorNicknames: makeFunctionReference<
@@ -78,7 +80,10 @@ export function reviewStoreFromEnv(
     return verdictStoreReaderFromDeploymentEnv(env);
 }
 
-async function loadReview(ctx: ActionCtx): Promise<{
+async function loadReview(
+    ctx: ActionCtx,
+    access: "admin" | "tester" = "admin"
+): Promise<{
     sources: ReviewSources;
     nicknameOf: NicknameOf;
     storeRead: boolean;
@@ -86,7 +91,7 @@ async function loadReview(ctx: ActionCtx): Promise<{
     // The table BEFORE the store. A row the drain stores and slims between
     // the two reads is then in the store's listing; in the other order it
     // would be in neither.
-    const outbox = await ctx.runQuery(refs.reviewOutbox, {});
+    const outbox = await ctx.runQuery(refs.reviewOutbox, { access });
     const here = verdictDeploymentOf(process.env.CONVEX_CLOUD_URL);
     const store = reviewStoreFromEnv(process.env);
     const storeRead = store !== null;
@@ -107,11 +112,13 @@ async function loadReview(ctx: ActionCtx): Promise<{
                 .filter((id): id is string => id !== null)
         ),
     ];
+    // A tester sees no one else's name (ADR 0128 §12), and the nickname read
+    // is admin-gated: skip it rather than fail the whole load.
     const nicknames = new Map(
-        (await ctx.runQuery(refs.authorNicknames, { userIds })).map((row) => [
-            row.userId,
-            row.nickname,
-        ])
+        (access === "admin"
+            ? await ctx.runQuery(refs.authorNicknames, { userIds })
+            : []
+        ).map((row) => [row.userId, row.nickname])
     );
     const nicknameOf: NicknameOf = (author) => {
         const userId = localUserIdOf(author, here);
@@ -129,6 +136,31 @@ export const review = action({
     handler: async (ctx) => {
         const { sources, nicknameOf, storeRead } = await loadReview(ctx);
         return verdictReviewOf(sources, nicknameOf, storeRead);
+    },
+});
+
+/** The tester's pair queue (ADR 0148, issue #4801): the Conditional Verdicts
+ *  still owed a right-hand half, and the halves written so far that a tester
+ *  may disagree with. Tester-gated; carries no author. `v.any()` for the same
+ *  reason `review` does: it holds positions. */
+export const pairQueue = action({
+    args: {},
+    returns: v.any(),
+    handler: async (ctx) => {
+        const { sources } = await loadReview(ctx, "tester");
+        return pairQueueOf(sources);
+    },
+});
+
+/** Every classified verdict, grouped for the admin's pair filter (ADR 0148,
+ *  issue #4801): complete pairs, incomplete Conditional Verdicts, Absolute
+ *  Verdicts. */
+export const pairList = action({
+    args: {},
+    returns: v.any(),
+    handler: async (ctx) => {
+        const { sources } = await loadReview(ctx);
+        return pairListOf(sources);
     },
 });
 

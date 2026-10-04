@@ -28,6 +28,7 @@ import {
     DISCRIMINANT_KINDS,
     type Discriminant,
     type DiscriminantKind,
+    type VerdictCandidate,
     type VerdictClassification,
 } from "@convex/gre/ai/verdicts/types";
 import type { Phase } from "@convex/gre/types";
@@ -479,3 +480,108 @@ export const withSpec = (
     position: PairPosition,
     spec: ScenarioSpec
 ): PairPosition => ({ ...position, spec });
+
+/** A stored anchor, read back as what the half's build takes. */
+export type AnchorToComplete = {
+    quiz: VerdictQuiz;
+    /** The candidate the anchor ruled out. */
+    wrongIndex: number;
+    /** The anchor's own Discriminant — the half's link must carry it verbatim,
+     *  or the pair is incomplete (`minimalPair.ts`). */
+    discriminant: Discriminant;
+};
+
+/**
+ * Read a stored Conditional Verdict as the anchor of a half to write (ADR
+ * 0148, issue #4801). The derivation and its build work on the quiz's position
+ * — seat `me`, no setup steps, no decklist knowledge — so an anchor that
+ * carries any of those (a bulk import, a cold judgement of an older record) is
+ * refused with the reason rather than completed against a board it is not.
+ */
+export function anchorToComplete(
+    judgement: VerdictJudgement
+): Parsed<AnchorToComplete> {
+    const { classification, answer } = judgement;
+    if (classification?.kind !== "conditional") {
+        return fail("only a Conditional Verdict is owed a right-hand half");
+    }
+    if (answer.kind !== "forbidden" || answer.forbiddenIndexes.length !== 1) {
+        return fail("the anchor must rule exactly one move out");
+    }
+    const wrongIndex = answer.forbiddenIndexes[0];
+    if (judgement.candidates[wrongIndex] === undefined) {
+        return fail("the anchor names a move its position does not list");
+    }
+    if (
+        judgement.seat !== QUIZ_SEAT ||
+        (judgement.setup?.length ?? 0) > 0 ||
+        (judgement.deckKnowledge?.length ?? 0) > 0
+    ) {
+        return fail(
+            "this anchor carries setup steps or decklist knowledge, which a half cannot be derived from here"
+        );
+    }
+    return {
+        ok: true,
+        value: {
+            quiz: {
+                spec: judgement.spec,
+                candidates: judgement.candidates,
+                botPickIndex: wrongIndex,
+                dropped: [],
+            },
+            wrongIndex,
+            discriminant: classification.discriminant,
+        },
+    };
+}
+
+/** What `verdicts.submit` takes to store a right-hand half: the position as
+ *  derived, the candidates it offers, the judged move as the right one, and
+ *  the link naming the anchor. ONE copy — the quiz and the missing-halves
+ *  queue write the same judgement. */
+export function rightHalfSubmission(
+    position: PairPosition,
+    built: { candidates: VerdictCandidate[]; rightIndex: number },
+    anchorId: string,
+    discriminant: Discriminant
+) {
+    return {
+        spec: position.spec,
+        ...(position.setup?.length ? { setup: position.setup } : {}),
+        seat: position.seat,
+        ...(position.deckKnowledge?.length
+            ? { deckKnowledge: position.deckKnowledge }
+            : {}),
+        candidates: built.candidates,
+        answer: {
+            kind: "right" as const,
+            rightIndexes: [built.rightIndex],
+        },
+        pairOf: { anchorId, discriminant },
+    };
+}
+
+/** What `verdicts.submit` takes to DISAGREE with a right-hand half (ADR 0148,
+ *  issue #4801, user story 13): the half's own position, the move it calls
+ *  right ruled out instead. The answer is the tester's own word and says
+ *  nothing about a pair, so it carries neither classification nor link — it is
+ *  a different verdict at the half's position key, which is what makes the
+ *  position a Contested Position for the existing Verdict Resolution. ONE copy:
+ *  the cold judgement and the tester queue send the same thing. */
+export function halfDisagreementSubmission(half: VerdictJudgement) {
+    return {
+        spec: half.spec,
+        ...(half.setup?.length ? { setup: half.setup } : {}),
+        seat: half.seat,
+        ...(half.deckKnowledge?.length
+            ? { deckKnowledge: half.deckKnowledge }
+            : {}),
+        candidates: half.candidates,
+        answer: {
+            kind: "forbidden" as const,
+            forbiddenIndexes:
+                half.answer.kind === "right" ? half.answer.rightIndexes : [],
+        },
+    };
+}

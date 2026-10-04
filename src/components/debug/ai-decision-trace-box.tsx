@@ -23,6 +23,7 @@ import { installAiTraceSeam } from "~/lib/ai/dev-trace-seam";
 import AiDecisionTrace from "./ai-decision-trace";
 import AiEscalationLog from "./ai-escalation-log";
 import AiDecisionLog from "./ai-decision-log";
+import MissingHalvesQueue from "./missing-halves-queue";
 
 export default function AiDecisionTraceBox() {
     const [open, setOpen] = useState(true);
@@ -61,6 +62,9 @@ export default function AiDecisionTraceBox() {
                         the one that buried it. The two logs below are read when
                         the ring says nothing, so they belong after it. */}
                     <AiDecisionTrace />
+                    {/* issue #4801 — Conditional Verdicts waiting for their
+                        right-hand half, beside the decisions to judge. */}
+                    <MissingHalvesQueue />
                     {/* issue #2284 — a decision the bot could NOT make has no
                         DecisionTrace to ride on, so the escalations get their
                         own list. Renders nothing while the liveness invariant
