@@ -29,7 +29,16 @@
 // could be made to drop; issue #3500 gave it this same mechanism, so the two
 // large data assets now differ in nothing but their contents.
 import type { CardDefinition } from "@convex/cards/types";
-import { registerCompiledDefinitions } from "@convex/cards/catalogue";
+import {
+    registerCompiledDefinitions,
+    resolveDeckCardMeta,
+} from "@convex/cards/catalogue";
+import { bindDeckCardMetaResolver } from "~/lib/catalogue/deck-card-meta.browser";
+
+// `convex/formats.ts` gets a late-bound `resolveDeckCardMeta` in the browser
+// build (`vite.config.ts` → `formats-cards-browser-seam`, issue #4854); this
+// module is the one that loads with the catalogue, so it binds the real one.
+bindDeckCardMetaResolver(resolveDeckCardMeta);
 
 /** Every artifact `data/catalogue/` holds, as an emitted asset URL. Eager, so
  *  the URL is a build-time constant and the fetch owes no extra round trip. */

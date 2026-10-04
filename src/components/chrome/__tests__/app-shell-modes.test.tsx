@@ -21,6 +21,12 @@ let viewport: ViewportMode = "desktop";
 let session: ActiveSession = { game: null, event: null, loading: false };
 const navigate = vi.fn();
 
+// `RouteOutlet` reads route matches (issue #4854); the shell's own contract is
+// what this file measures, so the outlet is the stub the router mock gave it.
+vi.mock("../route-outlet", () => ({
+    default: () => <div data-testid="outlet" />,
+}));
+
 vi.mock("@tanstack/react-router", () => ({
     useRouterState: () => pathname,
     useNavigate: () => navigate,

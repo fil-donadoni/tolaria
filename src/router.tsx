@@ -2,6 +2,7 @@ import {
     createRootRoute,
     createRoute,
     createRouter,
+    lazyRouteComponent,
 } from "@tanstack/react-router";
 import { type FormatId, isFormatId } from "@convex/formats";
 import {
@@ -11,58 +12,40 @@ import {
 import { AuthGate } from "./components/auth/auth-gate";
 import BugReportHost from "./components/bug-report/bug-report-host";
 import BugReportFloatingButton from "./components/bug-report/bug-report-floating-button";
-import LobbyRoute from "./routes/lobby.route";
-import DeckBuilderRoute from "./routes/deck-builder.route";
-import DeckDetailRoute from "./routes/deck-detail.route";
-import GameRoute from "./routes/game.route";
-import JoinRoute from "./routes/join.route";
-import LimitedEventsRoute from "./routes/limited-events.route";
-import LimitedYourEventsRoute from "./routes/limited-your-events.route";
-import LimitedEventDetailRoute from "./routes/limited-event-detail.route";
-import LimitedDraftRoomRoute from "./routes/limited-draft-room.route";
-import LimitedDeckBuilderRoute from "./routes/limited-deck-builder.route";
-import DesignSystemRoute from "./routes/design-system.route";
-import SettingsRoute from "./routes/settings.route";
-import DraftLabRoute from "./routes/draft-lab.route";
-import AdminLayoutRoute from "./routes/admin/admin-layout.route";
-import AdminIndexRoute from "./routes/admin/admin-index.route";
-import AdminScenariosRoute from "./routes/admin/admin-scenarios.route";
-import AdminTestersRoute from "./routes/admin/admin-testers.route";
-import AdminVerdictsRoute from "./routes/admin/admin-verdicts.route";
-import AdminBanlistsRoute from "./routes/admin/admin-banlists.route";
-import AdminPickRatingsRoute from "./routes/admin/admin-pick-ratings.route";
-import AdminCardProfilesRoute from "./routes/admin/admin-card-profiles.route";
-import AdminBugReportsRoute from "./routes/admin/admin-bug-reports.route";
-import AdminBotFindingsRoute from "./routes/admin/admin-bot-findings.route";
+import { lazyWithProps } from "~/lib/lazyWithProps";
 import AppShell from "./components/chrome/app-shell";
-import CatalogueGate from "./components/ui/catalogue-gate";
 import UserPreferencesEffect from "./components/settings/user-preferences-effect";
 import NotFoundPage from "./components/ui/not-found-page";
 import OfflineBanner from "./components/ui/offline-banner";
 
-// Root: auth first, then the card catalogue, then the shell, which mounts the
-// shared header on every route except the fullscreen board. `AppShell` owns
-// the `Outlet`.
+// Route components are fetched on first navigation, never bundled into the
+// entry (issue #4854): `lazyRouteComponent` for a bare route component,
+// `LazyDeckBuilderRoute` (`lazyWithProps`) where the route passes props.
+const LazyDeckBuilderRoute = lazyWithProps(
+    () => import("./routes/deck-builder.route")
+);
+
+// Root: auth first, then the shell, which mounts the shared header on every
+// route except the fullscreen board. `AppShell` owns the outlet.
 //
-// `CatalogueGate` sits ABOVE the shell on purpose (ADR 0113 §1/§3, issue
-// #3053). The card definitions are fetched, not bundled, and
-// `getDefinition`/`tryGetDefinition` stay SYNCHRONOUS — which is only sound if
-// nothing that reads the registry has rendered yet. Wrapping the whole tree,
-// rather than each surface that happens to read a card, is what makes that
-// structural instead of a convention nobody can check.
+// The card catalogue is NOT gated here any more (issue #4854, was ADR 0113
+// §1/§3, issue #3053): the login page and the lobby render without the engine
+// or the catalogue. The gate is mounted by `RouteOutlet` (inside the shell's
+// `<main>`) around every route that does not declare
+// `staticData: { lightSurface: true }` — so a new route is GATED by default
+// and a surface opts OUT, never in. Nothing under an opted-out route may call
+// `getDefinition`/`tryGetDefinition` and rely on an answer.
 const rootRoute = createRootRoute({
     component: () => (
         <AuthGate>
-            <CatalogueGate>
-                <UserPreferencesEffect />
-                <AppShell />
-                {/* Issue #3419: the dialog's owner is always mounted; its
-                    floating trigger stands down on the board, where the
-                    controller surface hosts the trigger instead. */}
-                <BugReportHost />
-                <BugReportFloatingButton />
-                <OfflineBanner />
-            </CatalogueGate>
+            <UserPreferencesEffect />
+            <AppShell />
+            {/* Issue #3419: the dialog's owner is always mounted; its
+                floating trigger stands down on the board, where the
+                controller surface hosts the trigger instead. */}
+            <BugReportHost />
+            <BugReportFloatingButton />
+            <OfflineBanner />
         </AuthGate>
     ),
 });
@@ -70,7 +53,9 @@ const rootRoute = createRootRoute({
 const indexRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: "/",
-    component: LobbyRoute,
+    // The lobby renders before the catalogue is fetched (issue #4854).
+    staticData: { lightSurface: true },
+    component: lazyRouteComponent(() => import("./routes/lobby.route")),
 });
 
 const decksCreateRoute = createRoute({
@@ -85,19 +70,19 @@ const decksCreateRoute = createRoute({
             ? { format: raw }
             : {};
     },
-    component: () => <DeckBuilderRoute mode="create" />,
+    component: () => <LazyDeckBuilderRoute mode="create" />,
 });
 
 const deckDetailRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: "/decks/$slug",
-    component: DeckDetailRoute,
+    component: lazyRouteComponent(() => import("./routes/deck-detail.route")),
 });
 
 const deckEditRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: "/decks/$slug/edit",
-    component: () => <DeckBuilderRoute mode="edit" />,
+    component: () => <LazyDeckBuilderRoute mode="edit" />,
 });
 
 // Admin-only Preset create (PRD #466, ADR 0033, issue #469). Opens the shared
@@ -107,7 +92,7 @@ const deckEditRoute = createRoute({
 const presetCreateRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: "/presets/create",
-    component: () => <DeckBuilderRoute mode="create" kind="preset" />,
+    component: () => <LazyDeckBuilderRoute mode="create" kind="preset" />,
 });
 
 // Admin-only Preset edit (PRD #466, ADR 0033). Loads the preset by slug via
@@ -116,13 +101,13 @@ const presetCreateRoute = createRoute({
 const presetEditRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: "/presets/$slug/edit",
-    component: () => <DeckBuilderRoute mode="edit" kind="preset" />,
+    component: () => <LazyDeckBuilderRoute mode="edit" kind="preset" />,
 });
 
 const gameRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: "/game",
-    component: GameRoute,
+    component: lazyRouteComponent(() => import("./routes/game.route")),
 });
 
 // Invite antechamber (`/join/<gameId>`): a shared invite link lands here — the
@@ -131,7 +116,7 @@ const gameRoute = createRoute({
 const joinRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: "/join/$gameId",
-    component: JoinRoute,
+    component: lazyRouteComponent(() => import("./routes/join.route")),
 });
 
 // Limited Events lobby + detail (PRD #1107, ADR 0054/0055, issue #1110).
@@ -182,7 +167,9 @@ const limitedEventsRoute = createRoute({
         }
         return out;
     },
-    component: LimitedEventsRoute,
+    component: lazyRouteComponent(
+        () => import("./routes/limited-events.route")
+    ),
 });
 
 // Your-events REDIRECT stub (issue #2590; was the your-events page itself,
@@ -206,13 +193,17 @@ const limitedEventsRoute = createRoute({
 const limitedYourEventsRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: "/limited/events",
-    component: LimitedYourEventsRoute,
+    component: lazyRouteComponent(
+        () => import("./routes/limited-your-events.route")
+    ),
 });
 
 const limitedEventDetailRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: "/limited/$eventId",
-    component: LimitedEventDetailRoute,
+    component: lazyRouteComponent(
+        () => import("./routes/limited-event-detail.route")
+    ),
 });
 
 // The Draft Room (issue #2587, PRD #2405 slice 8, ADR 0101 §6): the pick
@@ -222,7 +213,9 @@ const limitedEventDetailRoute = createRoute({
 const limitedDraftRoomRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: "/limited/$eventId/draft",
-    component: LimitedDraftRoomRoute,
+    component: lazyRouteComponent(
+        () => import("./routes/limited-draft-room.route")
+    ),
 });
 
 // Pool-scoped deckbuilding (PRD #1107, ADR 0054/0055, issue #1111): a seat's
@@ -231,7 +224,9 @@ const limitedDraftRoomRoute = createRoute({
 const limitedDeckBuilderRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: "/limited/$eventId/build",
-    component: LimitedDeckBuilderRoute,
+    component: lazyRouteComponent(
+        () => import("./routes/limited-deck-builder.route")
+    ),
 });
 
 // Settings (issue #2595, PRD #2405 slice 16/16): density, motion, phase
@@ -240,7 +235,7 @@ const limitedDeckBuilderRoute = createRoute({
 const settingsRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: "/settings",
-    component: SettingsRoute,
+    component: lazyRouteComponent(() => import("./routes/settings.route")),
 });
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -255,38 +250,50 @@ const settingsRoute = createRoute({
 const adminRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: "/admin",
-    component: AdminLayoutRoute,
+    component: lazyRouteComponent(
+        () => import("./routes/admin/admin-layout.route")
+    ),
 });
 
 const adminIndexRoute = createRoute({
     getParentRoute: () => adminRoute,
     path: "/",
-    component: AdminIndexRoute,
+    component: lazyRouteComponent(
+        () => import("./routes/admin/admin-index.route")
+    ),
 });
 
 // Saved board setups (ADR 0044) — "debug scenarios" as a managed library.
 const adminScenariosRoute = createRoute({
     getParentRoute: () => adminRoute,
     path: "scenarios",
-    component: AdminScenariosRoute,
+    component: lazyRouteComponent(
+        () => import("./routes/admin/admin-scenarios.route")
+    ),
 });
 
 const adminBanlistsRoute = createRoute({
     getParentRoute: () => adminRoute,
     path: "banlists",
-    component: AdminBanlistsRoute,
+    component: lazyRouteComponent(
+        () => import("./routes/admin/admin-banlists.route")
+    ),
 });
 
 const adminPickRatingsRoute = createRoute({
     getParentRoute: () => adminRoute,
     path: "pick-ratings",
-    component: AdminPickRatingsRoute,
+    component: lazyRouteComponent(
+        () => import("./routes/admin/admin-pick-ratings.route")
+    ),
 });
 
 const adminCardProfilesRoute = createRoute({
     getParentRoute: () => adminRoute,
     path: "card-profiles",
-    component: AdminCardProfilesRoute,
+    component: lazyRouteComponent(
+        () => import("./routes/admin/admin-card-profiles.route")
+    ),
 });
 
 // Tester roster (issue #3402, PRD #3397, ADR 0124 §1): who may give a Verdict
@@ -294,7 +301,9 @@ const adminCardProfilesRoute = createRoute({
 const adminTestersRoute = createRoute({
     getParentRoute: () => adminRoute,
     path: "testers",
-    component: AdminTestersRoute,
+    component: lazyRouteComponent(
+        () => import("./routes/admin/admin-testers.route")
+    ),
 });
 
 // Verdict review (issue #3582, PRD #3574, ADR 0128 §6): contested positions
@@ -302,7 +311,9 @@ const adminTestersRoute = createRoute({
 const adminVerdictsRoute = createRoute({
     getParentRoute: () => adminRoute,
     path: "verdicts",
-    component: AdminVerdictsRoute,
+    component: lazyRouteComponent(
+        () => import("./routes/admin/admin-verdicts.route")
+    ),
 });
 
 // Bot Findings (issue #4176, PRD #4174, ADR 0141): every card the play Bot is
@@ -310,7 +321,9 @@ const adminVerdictsRoute = createRoute({
 const adminBotFindingsRoute = createRoute({
     getParentRoute: () => adminRoute,
     path: "bot-findings",
-    component: AdminBotFindingsRoute,
+    component: lazyRouteComponent(
+        () => import("./routes/admin/admin-bot-findings.route")
+    ),
 });
 
 // Bug-report evidence (issue #2250, following PR #2243's public/private
@@ -320,7 +333,9 @@ const adminBotFindingsRoute = createRoute({
 const adminBugReportsRoute = createRoute({
     getParentRoute: () => adminRoute,
     path: "bug-reports",
-    component: AdminBugReportsRoute,
+    component: lazyRouteComponent(
+        () => import("./routes/admin/admin-bug-reports.route")
+    ),
 });
 
 // Draft Lab (PRD #1607 slices 5-6, issues #1612/#1613, ADR 0074): a
@@ -329,15 +344,15 @@ const adminBugReportsRoute = createRoute({
 const adminDraftLabRoute = createRoute({
     getParentRoute: () => adminRoute,
     path: "draft-lab",
-    component: DraftLabRoute,
+    component: lazyRouteComponent(() => import("./routes/draft-lab.route")),
 });
 
 // Permanent design-system census (phase 3): the living reference for tokens,
-// chrome, and component variants. Unlike /prototype/* spikes this is kept.
+// chrome, and component variants. Unlike the prototype spikes this is kept.
 const adminDesignSystemRoute = createRoute({
     getParentRoute: () => adminRoute,
     path: "design-system",
-    component: DesignSystemRoute,
+    component: lazyRouteComponent(() => import("./routes/design-system.route")),
 });
 
 const routeTree = rootRoute.addChildren([
@@ -388,5 +403,10 @@ export const router = createRouter({
 declare module "@tanstack/react-router" {
     interface Register {
         router: typeof router;
+    }
+    interface StaticDataRouteOption {
+        /** The route renders without the card catalogue hydrated; `RouteOutlet`
+         *  mounts no `CatalogueGate` for a match tree made only of these. */
+        lightSurface?: boolean;
     }
 }

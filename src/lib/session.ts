@@ -1,5 +1,9 @@
 import type { Id } from "@convex/_generated/dataModel";
-import { DEFAULT_DIFFICULTY, DIFFICULTIES, type Difficulty } from "@convex/gre";
+import {
+    DEFAULT_DIFFICULTY,
+    DIFFICULTIES,
+    type Difficulty,
+} from "@convex/gre/difficulty";
 import { isFormatId, type FormatId } from "@convex/formats";
 
 const GAME_KEY = "tolaria:gameId";

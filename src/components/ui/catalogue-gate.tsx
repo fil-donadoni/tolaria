@@ -14,12 +14,15 @@ import AmbientPageGround from "@/components/ui/ambient-page-ground";
  * synchronous (ADR 0113 §1), which is only true if the registry is FULLY
  * hydrated before any consumer runs — so nothing that reads it may render
  * first. This gate is what makes that a structural property rather than a
- * convention: it sits above the whole route tree in `src/router.tsx`, and its
- * children do not exist as elements until the promise has resolved.
+ * convention: `RouteOutlet` mounts it around every route that is not a
+ * declared `lightSurface`, and its children do not exist as elements until the
+ * promise has resolved.
  *
- * The fetch itself starts at module load of `src/main.tsx`, not here, so it
- * overlaps the auth round trip instead of queuing behind it; both await the
- * same promise singleton.
+ * Since issue #4854 the fetch starts HERE, when a surface that needs the
+ * catalogue opens — no longer at module load of `src/main.tsx`: the login page
+ * and the lobby download neither the engine, the catalogue chunk nor this
+ * artifact. The gate is a lazy chunk for the same reason (it imports the
+ * catalogue glue).
  *
  * A failure is offered a retry rather than swallowed. A catalogue that never
  * arrives is an app with no cards at all, and the alternative to a named
@@ -53,7 +56,7 @@ export default function CatalogueGate({ children }: { children: ReactNode }) {
 
     if (error) {
         return (
-            <div className="relative flex h-svh flex-col items-center justify-center bg-surface-base text-text">
+            <div className="relative flex min-h-0 flex-1 flex-col items-center justify-center bg-surface-base text-text">
                 <AmbientPageGround ring />
                 <Panel className="relative z-10 flex max-w-md flex-col items-center gap-4 text-center">
                     <p className="text-sm">
@@ -79,15 +82,11 @@ export default function CatalogueGate({ children }: { children: ReactNode }) {
 
     if (!ready)
         return (
-            // A DEFINITE height, not a minimum: this gate renders above
-            // `AppShell`, so there is no `<main>` to claim a remainder of, and
-            // `LoadingScreen`'s own `min-h-full` needs a sized parent to
-            // resolve against (issue #2274 — the shell contract works the
-            // other way round INSIDE the shell). Same position and the same
-            // reason as `auth-gate.tsx`'s `AuthLoading` branch, which is why
-            // this file joins its allowlist entry in
-            // `shell-height-claims.guard.test.tsx`.
-            <div className="flex h-svh flex-col">
+            // Inside the shell's `<main>` since issue #4854 (it used to sit
+            // above `AppShell`, which is why it claimed `h-svh`): fills the
+            // remainder like every route root, instead of a whole viewport
+            // beneath the header.
+            <div className="flex min-h-0 flex-1 flex-col">
                 <LoadingScreen message="Loading cards..." />
             </div>
         );

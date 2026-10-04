@@ -124,17 +124,6 @@ const VIEWPORT_HEIGHT_ALLOWLIST: Record<
         why: "Rendered by `auth-gate.tsx`, i.e. also above the shell — never inside `<main>`.",
         outsideShell: true,
     },
-    // Same position and the same reason as `auth-gate.tsx`: `router.tsx` wraps
-    // `<AppShell/>` in `<CatalogueGate>` too, so its pending and failed states
-    // render in place of the shell rather than inside `<main>`. It needs a
-    // DEFINITE height for the opposite reason the shell contract exists —
-    // `LoadingScreen`'s `min-h-full` has nothing to be a remainder OF up
-    // there. The ancestor premise is traced from `router.tsx` below, not
-    // declared (issue #3053, ADR 0113 §3).
-    "components/ui/catalogue-gate.tsx": {
-        why: "Renders ABOVE the shell — `router.tsx` puts `<CatalogueGate>` outside `<AppShell/>`, so it is never inside `<main>`.",
-        outsideShell: true,
-    },
 };
 
 const VIEWPORT_CLAIM_RE = new RegExp(
@@ -202,14 +191,15 @@ describe("no component under the shared header claims a whole viewport height (i
             shellLine,
             "<AppShell/> not found in router.tsx"
         ).toBeGreaterThan(0);
-        // `<AuthGate>` and `<CatalogueGate>` are ANCESTORS of `<AppShell/>`,
-        // so everything either renders in place of the shell is outside
-        // `<main>` by construction.
+        // `<AuthGate>` is an ANCESTOR of `<AppShell/>`, so everything it
+        // renders in place of the shell is outside `<main>` by construction.
+        // (`CatalogueGate` stopped being one in issue #4854: `RouteOutlet`
+        // mounts it INSIDE `<main>`, where it claims the remainder.)
         const ancestors = jsxAncestorsOf(router.code, shellLine).map(
             (a) => a.tag
         );
         expect(ancestors).toContain("AuthGate");
-        expect(ancestors).toContain("CatalogueGate");
+        expect(ancestors).not.toContain("CatalogueGate");
 
         const gate = SOURCE_FILES.find(
             (f) => f.rel === "components/auth/auth-gate.tsx"
@@ -224,7 +214,6 @@ describe("no component under the shared header claims a whole viewport height (i
                 [
                     "components/auth/auth-gate.tsx",
                     "components/auth/auth-form.tsx",
-                    "components/ui/catalogue-gate.tsx",
                 ],
                 `${rel} claims to render outside the shell but is not one of the files this test traced`
             ).toContain(rel);
@@ -768,14 +757,27 @@ const ROUTE_ROOTS: Record<
  */
 const SHELL_COMPONENTS = new Set(["AuthGate"]);
 
-/** Every component `router.tsx` mounts as a route (or as the 404 fallback). */
+/** Every component `router.tsx` mounts as a route (or as the 404 fallback).
+ *  Route components are lazy since issue #4854, so they are read from their
+ *  `import("./routes/<kebab>.route")` specifier — `admin/admin-banlists.route`
+ *  is `AdminBanlistsRoute`, the default export's name by convention. */
 function routerComponents(): string[] {
     const router = SOURCE_FILES.find((f) => f.rel === "router.tsx")!;
     const names = new Set<string>();
     for (const m of router.code.matchAll(
-        /(?:component|defaultNotFoundComponent):\s*(?:\(\)\s*=>\s*\(?\s*)?<?\s*([A-Z]\w*)/g
+        /defaultNotFoundComponent:\s*([A-Z]\w*)/g
     )) {
         if (!SHELL_COMPONENTS.has(m[1])) names.add(m[1]);
+    }
+    for (const m of router.code.matchAll(
+        /import\(\s*"\.\/routes\/(?:[\w-]+\/)?([\w-]+)\.route"\s*\)/g
+    )) {
+        names.add(
+            m[1]
+                .split("-")
+                .map((w) => w[0].toUpperCase() + w.slice(1))
+                .join("") + "Route"
+        );
     }
     return [...names].sort();
 }

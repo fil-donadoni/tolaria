@@ -76,15 +76,72 @@ export default defineConfig({
                 // main bundle drops them. The chunk is cached independently
                 // from the app code and is referenced by the catalogue glue
                 // module (`convex/cards/catalogue.ts`).
-                manualChunks(id) {
-                    if (id.includes("convex/cards/sets/")) {
-                        return "card-catalogue";
-                    }
+                codeSplitting: {
+                    // Dependencies stay INCLUDED (the default): turning that
+                    // off split the helpers the sets share into a chunk that
+                    // imports `card-catalogue` back, and whichever route
+                    // loaded first evaluated a set before its helper existed
+                    // (`TypeError: … is not a function`, built bundle only —
+                    // issue #4854). One-way chunk edges instead:
+                    //  - `card-registry` claims `convex/cards/registry.ts`
+                    //    FIRST (higher priority) so the registry the sets
+                    //    import — and the lobby's image helpers read — is
+                    //    not absorbed into `card-catalogue`, which would make
+                    //    the entry statically import the 475 KB catalogue
+                    //    chunk for one `tryGetDefinition`;
+                    //  - `card-catalogue` takes the set modules and whatever
+                    //    only they share.
+                    groups: [
+                        {
+                            name: "card-registry",
+                            test: /convex[\\/]cards[\\/]registry\.ts/,
+                            priority: 20,
+                        },
+                        {
+                            name: "card-catalogue",
+                            test: /convex[\\/]cards[\\/]sets[\\/]/,
+                            priority: 10,
+                        },
+                    ],
                 },
             },
         },
     },
     plugins: [
+        // Issue #4854 — the same asymmetry as `./compiledPool` above, for the
+        // ONE other `convex/` module the entry graph reaches that statically
+        // imports the catalogue. `convex/formats.ts` imports `./cards` (the
+        // server barrel, set modules included) only for the DEFAULT of
+        // `validateDeck`'s `resolve` parameter; the label/id half of that
+        // module is what the login page and the lobby read. The browser build
+        // swaps the barrel for a late-bound stub
+        // (`src/lib/catalogue/deck-card-meta.browser.ts`) that
+        // `src/lib/catalogueArtifact.ts` binds to the real resolver once the
+        // catalogue loads — so a gated surface keeps today's default, and the
+        // lobby, which never loads the catalogue, derives no legality at all
+        // (`userDecks.listMine` attaches it server-side). A plugin, not an
+        // alias, because the specifier `./cards` is spelled by other
+        // `convex/` modules too and only this importer is meant. Pinned by
+        // `scripts/__tests__/client-bundle-lazy-routes.test.ts`.
+        {
+            name: "formats-cards-browser-seam",
+            enforce: "pre",
+            resolveId(source, importer) {
+                if (
+                    source === "./cards" &&
+                    importer !== undefined &&
+                    importer
+                        .replaceAll("\\", "/")
+                        .endsWith("/convex/formats.ts")
+                ) {
+                    return path.resolve(
+                        __dirname,
+                        "src/lib/catalogue/deck-card-meta.browser.ts"
+                    );
+                }
+                return null;
+            },
+        },
         tailwindcss(),
         react(),
         // React Compiler runs through Babel. Scope it to `src/` — the plugin's
