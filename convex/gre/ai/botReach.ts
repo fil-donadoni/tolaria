@@ -95,6 +95,7 @@ import { graveyardPlayPose } from "./botReachGraveyardPlay";
 import { blinkPose } from "./botReachBlink";
 import { creatureSweepPose } from "./botReachCreatureSweep";
 import { libraryPutPose } from "./botReachLibraryPut";
+import { costAlternativesPose } from "./botReachCostAlternatives";
 import { handRefillSpell } from "./botReachHandRefill";
 export { castShape } from "./botReachForm";
 
@@ -982,7 +983,8 @@ export function botReachSpec(
         ...graveyardPlayPose(def),
         ...blinkPose(def),
         ...creatureSweepPose(def),
-        ...libraryPutPose(def)
+        ...libraryPutPose(def),
+        ...costAlternativesPose(def)
     );
     const stack = needsStackTarget(def)
         ? (stackPose(def, cycle[0]!) ?? DEFAULT_STACK_POSE)
