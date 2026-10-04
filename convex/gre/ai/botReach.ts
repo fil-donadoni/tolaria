@@ -494,6 +494,27 @@ function sacrificesCreature(def: CardDefinition): boolean {
 }
 
 /**
+ * CR 601.2b / 121.1 — does the card pay a creature for the cards its own draw
+ * finds ("As an additional cost to cast this spell, sacrifice a creature. Draw
+ * two cards.")? The draw must then be worth more than the body, and the search
+ * prices it on what the library HOLDS, never on its top cards (CR 401.2 — the
+ * order of a library is hidden, so every iteration re-shuffles the holder's
+ * own). Over the filler pile two draws found {@link DRAWN_SPELL} 8 times in
+ * 28, less than the sacrificed 1/1 and the card together, and the Bot rightly
+ * passed on 19 of 20 seat-seeds (issue #5029). The pose makes the holder's
+ * whole library the drawn spell, the way a player casts it into a deck of
+ * cards worth more than the spare body.
+ *
+ * Only this shape: a draw that costs the card alone is already paid for by the
+ * filler pile's share, and a library of nothing but spells makes every LATER
+ * natural draw worth one too — which the last window of an instant reads as a
+ * reason to wait (docs/findings/5029-last-window-pass-scored-a-round-later.md).
+ */
+function paysBodyForDraw(def: CardDefinition): boolean {
+    return drawsForController(def) && sacrificesCreature(def);
+}
+
+/**
  * CR 701.21 — the permanent types the card's SPELL script makes EVERY player
  * sacrifice: a `forEach` over `set: "players"` whose body is a
  * `sacrifice-permanents` choice of the battlefield for the iteration player
@@ -706,8 +727,14 @@ const SWEEP_SURPLUS = 3;
  *  it costs and than the creature a "sacrifice a creature" cost gives up. */
 const DRAWN_SPELL = "Serra Angel";
 /** How many of them sit on top of the holder's library — more than the biggest
- *  shipped draw takes, so every card drawn is one worth having. */
+ *  shipped draw takes. The search does not see that order (CR 401.2: it
+ *  re-shuffles the holder's own library at every iteration), so what it
+ *  prices is their SHARE of the pile: {@link DRAWN_SPELLS} over
+ *  {@link LIBRARY_FILLER} more basics. That share pays for a draw whose only
+ *  cost is the card; {@link paysBodyForDraw} is the pose where it does not. */
 const DRAWN_SPELLS = 8;
+/** The basic lands every generated library is filled with, both seats. */
+const LIBRARY_FILLER = 20;
 
 /** How many cards sit in the opponent's hand for a spell that makes a player
  *  discard: as many as the biggest shipped discard asks for (Three Tragedies,
@@ -884,13 +911,23 @@ export function botReachSpec(
             count: land ? landCount + SWEEP_SURPLUS : SWEEP_SURPLUS,
         });
     }
+    const wholeLibrary = paysBodyForDraw(def);
     if (drawsForController(def))
         cards.push({
             name: DRAWN_SPELL,
             owner: "me",
             zone: "library",
             position: 1,
-            count: DRAWN_SPELLS,
+            count: wholeLibrary ? DRAWN_SPELLS + LIBRARY_FILLER : DRAWN_SPELLS,
+        });
+    if (wholeLibrary)
+        // `libraryCount` fills BOTH libraries, so the pose that keeps the
+        // filler out of the holder's seeds the opponent's pile by hand.
+        cards.push({
+            name: cycle[0]!,
+            owner: "opp",
+            zone: "library",
+            count: LIBRARY_FILLER,
         });
     if (discardsFromTarget(def))
         cards.push({
@@ -919,7 +956,7 @@ export function botReachSpec(
                   ? "END_STEP"
                   : window,
         turn: 3,
-        libraryCount: 20,
+        libraryCount: wholeLibrary ? 0 : LIBRARY_FILLER,
         // CR 400.2 — a card the holder can discard or reveal that is never a
         // castable alternative: an opaque placeholder resolves to no
         // definition, so it cannot compete with the card for the decision.

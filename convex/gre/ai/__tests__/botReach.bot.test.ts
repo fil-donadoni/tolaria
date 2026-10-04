@@ -13,6 +13,8 @@ import type {
 } from "../../../cards/types";
 import { applyMoveInSearch, decidingPlayer, policyValue } from "../../search";
 import { cloneGameState } from "../../clone";
+import { determinize } from "../../determinize";
+import { makeRng } from "../../rng";
 import type { GameState } from "../../state";
 import { DEFAULT_EVAL_WEIGHTS } from "../evalWeights";
 import type { Move } from "../../moves";
@@ -28,7 +30,6 @@ import {
     classifyNoMove,
     playBotReach,
     playBotReachSeats,
-    type BotReachBudget,
     type BotReachVerdict,
 } from "../botReach";
 
@@ -473,19 +474,6 @@ const ETB_DISCARDER: CardDefinition = {
             ],
         },
     ],
-};
-
-/**
- * Issue #5029 — STOPGAP. The sacrifice-cost draw's pose is a close call that
- * passes by seed noise at `BOT_REACH_BUDGET` (9/20 seat-seeds on base weights,
- * 3/20 at issue #4882's refit): the rollouts price the sacrificed body above
- * the found cards, a valuation question the pose cannot answer. Thirty seeds
- * keep the sweep's own semantics — `played` if ANY seed chooses the card —
- * until issue #5029 returns it to `BOT_REACH_BUDGET`.
- */
-const NOISE_PINNED_REACH_BUDGET: BotReachBudget = {
-    iterations: BOT_REACH_BUDGET.iterations,
-    seeds: Array.from({ length: 30 }, (_, i) => i),
 };
 
 describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
@@ -1209,13 +1197,17 @@ describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
         withTemporaryDefinition(DRAW_SORCERY, () => {
             expect(playTwice(DRAW_SORCERY)).toEqual({ outcome: "played" });
         });
-        // Issue #5029: the sacrifice pose is a close call at 48 iterations
-        // (seat-seeds cast 9/20 on the base weights, 3/20 at issue #4882's
-        // refit; `material-tiebreak`, though the 1-ply leaf favours the cast).
+        // Issue #5029: paid for with a creature, the draw has to find more
+        // than the body, and over the filler pile it did not (1/20 seat-seeds
+        // cast). The pose stocks the holder's whole library.
         withTemporaryDefinition(SACRIFICE_DRAW_SORCERY, () => {
-            expect(
-                playBotReach(SACRIFICE_DRAW_SORCERY, NOISE_PINNED_REACH_BUDGET)
-            ).toEqual({ outcome: "played" });
+            expect(playTwice(SACRIFICE_DRAW_SORCERY)).toEqual({
+                outcome: "played",
+            });
+        });
+        // The catalogue card of the same shape, `ignored` on the filler pile.
+        expect(playTwice(getCardByName("Skulltap"))).toEqual({
+            outcome: "played",
         });
     }, 300_000);
 
@@ -1626,6 +1618,83 @@ describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
                 land
             );
         }
+    });
+
+    // Issue #5029: CR 401.2 — the order of a library is hidden, so the search
+    // re-shuffles the holder's own at every iteration and a draw is priced on
+    // what the pile HOLDS. Spells on top of twenty basics are 8 cards in 28.
+    it("a draw paid for with a creature finds a spell in every library slot", () => {
+        const spell = getCardByName("Serra Angel").id;
+        const libraries = (def: CardDefinition, seat: 0 | 1) => {
+            const { state, holderId } = buildBotReachState(def, seat);
+            const spellsOf = (mine: boolean) => {
+                const library = state.players.find(
+                    (p) => (p.id === holderId) === mine
+                )!.library;
+                return {
+                    cards: library.length,
+                    spells: library.filter((c) => c.card.id === spell).length,
+                };
+            };
+            return { holder: spellsOf(true), opponent: spellsOf(false) };
+        };
+        for (const seat of [0, 1] as const) {
+            withTemporaryDefinition(SACRIFICE_DRAW_SORCERY, () => {
+                expect(libraries(SACRIFICE_DRAW_SORCERY, seat)).toEqual({
+                    holder: { cards: 28, spells: 28 },
+                    opponent: { cards: 20, spells: 0 },
+                });
+            });
+            // A draw that costs the card alone keeps the filler pile.
+            withTemporaryDefinition(DRAW_SORCERY, () => {
+                expect(libraries(DRAW_SORCERY, seat)).toEqual({
+                    holder: { cards: 28, spells: 8 },
+                    opponent: { cards: 20, spells: 0 },
+                });
+            });
+        }
+    });
+
+    // The claim that does not depend on the budget: in every world the search
+    // deals itself (CR 401.2), giving up the body for the two cards reads as
+    // a gain at 1 ply. Over the filler pile it read as a loss in most of them.
+    it("a draw paid for with a creature beats pass at 1 ply in every sampled world", () => {
+        withTemporaryDefinition(SACRIFICE_DRAW_SORCERY, () => {
+            for (const seat of [0, 1] as const) {
+                const { state, holderId, instanceId } = buildBotReachState(
+                    SACRIFICE_DRAW_SORCERY,
+                    seat
+                );
+                const moves = enumerateMoves(state, holderId);
+                const cast = moves.find(
+                    (m) =>
+                        m.kind === "cast-spell" &&
+                        m.cardInstanceId === instanceId
+                )!;
+                const pass = moves.find((m) => m.kind === "pass")!;
+                for (const seed of [1, 2, 3, 4, 5, 6]) {
+                    const valueOf = (move: Move): number => {
+                        const world = determinize(
+                            cloneGameState(state),
+                            holderId,
+                            makeRng(seed)
+                        );
+                        applyMoveInSearch(world, holderId, move);
+                        return policyValue(
+                            world,
+                            holderId,
+                            move,
+                            DEFAULT_EVAL_WEIGHTS,
+                            holderId
+                        );
+                    };
+                    expect(
+                        valueOf(cast),
+                        `seat ${seat} seed ${seed}`
+                    ).toBeGreaterThan(valueOf(pass));
+                }
+            }
+        });
     });
 
     it("frozen — the engine offers the action and no Move uses the card", () => {
