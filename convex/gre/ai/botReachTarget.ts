@@ -65,6 +65,11 @@ const GRAVEYARD_ARTIFACT = "Stratadon";
  *  recursion spell it costs the holder, so casting it is an outcome the caster
  *  can want. */
 const GRAVEYARD_SPELL = "Ancestral Recall";
+/** The sorcery card a sorcery-only recursion ("return target sorcery card from
+ *  your graveyard") returns: an extra turn, worth more than the recursion spell
+ *  it costs the holder. Ancestral Recall is an instant, so a requirement naming
+ *  only the sorcery type cannot be posed with it. */
+const GRAVEYARD_SORCERY = "Time Walk";
 
 /** How many cards of the kind a look-and-distribute ETB Ability finds sit in
  *  the holder's library. The search re-deals the library's ORDER at every
@@ -705,10 +710,11 @@ function untapPose(def: CardDefinition): TargetPose | null {
 }
 
 /** The card a recursion spell returns, by the card type its requirement names
- *  — an artifact, or an instant or sorcery (the two spell types together). */
+ *  — an artifact, a sorcery, or an instant or sorcery (the two spell types together). */
 function graveyardCardFor(types: readonly string[]): string | null {
     if (types.length === 1 && types[0] === "Artifact")
         return GRAVEYARD_ARTIFACT;
+    if (types.length === 1 && types[0] === "Sorcery") return GRAVEYARD_SORCERY;
     if (
         types.length === 2 &&
         types.includes("Instant") &&
