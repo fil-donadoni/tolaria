@@ -17852,6 +17852,7 @@
         {"id":"601.2b","line":"// CR 601.2b — X is announced for a variable cost that WILL be paid, so a","sites":1,"status":"confirmed","ruleHash":"b29d06932bab0594"},
         {"id":"601.2b","line":"// CR 601.2b — X is announced; an absent X is 0 life, never NaN.","sites":1,"status":"baseline"},
         {"id":"601.2b","line":"// CR 601.2b — a cast announces an X whenever a variable cost is paid as it","sites":1,"status":"baseline"},
+        {"id":"601.2b","line":"// CR 601.2b — a discard leg of a caster-chosen disjunction (\"discard a card","sites":1,"status":"confirmed","ruleHash":"b29d06932bab0594"},
         {"id":"601.2b","line":"// CR 601.2b — a disjunction of one is not a choice; it is a plain","sites":1,"status":"baseline"},
         {"id":"601.2b","line":"// CR 601.2b — divides `objects` into two piles under `chosenBind` /","sites":1,"status":"baseline"},
         {"id":"601.2b","line":"// CR 601.2b — do NOT close the reveal here: a cast gated","sites":1,"status":"baseline"},
