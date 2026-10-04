@@ -191,7 +191,11 @@ const FILTERED_SWEEP_CANDIDATES = [
  */
 function filteredSweepSurplus(def: CardDefinition): string[] {
     const names = new Set<string>();
-    for (const { select, effects } of battlefieldForEaches(def)) {
+    for (const { select, effects } of battlefieldForEaches(
+        def,
+        true,
+        selfEnterEffects(def)
+    )) {
         if (select.controller !== undefined || !removesSomething(effects))
             continue;
         // `sweptTypes` already poses a type filter and a missing filter.
@@ -221,6 +225,19 @@ function filteredSweepSurplus(def: CardDefinition): string[] {
     return [...names];
 }
 
+/**
+ * CR 603.6a — the scripts of the card's own "when this enters" triggers. The
+ * cast resolves into the battlefield and the trigger fires at once, so a
+ * removing sweep hosted there (Desolation Angel's kicked "destroy all lands")
+ * is as much part of the card's play as a spell script's: the removing-sweep
+ * detectors read these as extra roots.
+ */
+function selfEnterEffects(def: CardDefinition): unknown[] {
+    return (def.compiledTriggeredAbilities ?? [])
+        .filter((t) => t.head.kind === "entered" && t.head.scope === "self")
+        .map((t) => t.effects);
+}
+
 /** A `forEach` over the battlefield, as the sweep detectors read it. */
 interface BattlefieldForEach {
     readonly select: Extract<EffectForEachSelector, { set: "permanents" }>;
@@ -230,9 +247,10 @@ interface BattlefieldForEach {
 /**
  * Every `forEach` over `set: "permanents"` in the card's SPELL script — only
  * `effects` and `modes` are read, plus any `extraRoots` a caller names (the
- * scripts of self-sacrifice abilities, see `spentSweepEffects`); a sweep
- * hosted by a triggered or any other activated ability is not one. The three detectors below read the same nodes
- * and differ only in which selector and body they claim.
+ * scripts of self-sacrifice abilities, see `spentSweepEffects`, and the
+ * card's own enters triggers, see `selfEnterEffects`); a sweep hosted by any
+ * other triggered or activated ability is not one. The three detectors below
+ * read the same nodes and differ only in which selector and body they claim.
  */
 function battlefieldForEaches(
     def: CardDefinition,
@@ -263,7 +281,8 @@ function selectsCreatures(select: BattlefieldForEach["select"]): boolean {
 }
 
 /**
- * The permanent types the card's SPELL script takes off every player's
+ * The permanent types the card's SPELL script (and its own enters triggers,
+ * {@link selfEnterEffects}) takes off every player's
  * battlefield — a `forEach` over `set: "permanents"` with no `controller` (an
  * omitted controller selects every player's battlefield) whose body removes
  * ({@link removesSomething}: destroy, exile, or a bounce — issue #4781).
@@ -277,7 +296,8 @@ function selectsCreatures(select: BattlefieldForEach["select"]): boolean {
  *    die to, and {@link shrinksEveryCreature} poses it;
  *  - a filter that names no `type` (`excludeType`, `subtype`, a colour):
  *    {@link filteredSweepSurplus} poses that one;
- *  - a sweep hosted by a triggered or activated ability.
+ *  - a sweep hosted by an activated ability or by a trigger other than the
+ *    card's own "when this enters" ({@link selfEnterEffects}).
  *
  * Lives HERE for the same reason as `needsStackTarget`: it decides what the
  * generated position CONTAINS, so it is a verdict input and must be inside the
@@ -285,7 +305,11 @@ function selectsCreatures(select: BattlefieldForEach["select"]): boolean {
  */
 function sweptTypes(def: CardDefinition): ReadonlySet<SweepableType> {
     const swept = new Set<SweepableType>();
-    for (const { select, effects } of battlefieldForEaches(def)) {
+    for (const { select, effects } of battlefieldForEaches(
+        def,
+        true,
+        selfEnterEffects(def)
+    )) {
         if (select.controller !== undefined || !removesSomething(effects))
             continue;
         const named =
