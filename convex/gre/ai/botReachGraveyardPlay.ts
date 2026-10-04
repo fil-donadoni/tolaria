@@ -1,7 +1,7 @@
 /**
  * What the Bot-play sweep puts in the HOLDER's graveyard for a spell that lets
  * its controller play lands and cast spells from that graveyard this turn
- * (CR 404.1, CR 601.2, CR 305.1, issue #4835).
+ * (CR 404.1, CR 601.2, issue #4835).
  *
  * "Until end of turn, you may play lands and cast spells from your graveyard"
  * is worth the cards it unlocks. On the position's filler graveyard (one
