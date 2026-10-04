@@ -16,6 +16,14 @@ describe("handPutPose", () => {
         ]);
     });
 
+    it("reaches past a creature the lands CAN cast (issue #4840)", () => {
+        // Through the Breach is MV 5, so the sweep gives it 7 lands: Force of
+        // Nature (MV 6) would be castable and the put would be pointless.
+        expect(handPutPose(getCardByName("Through the Breach")!, 7)).toEqual([
+            { name: "Scaled Wurm", owner: "me", zone: "hand" },
+        ]);
+    });
+
     it("poses nothing for a card with no hand put", () => {
         expect(handPutPose(getCardByName("Lightning Bolt")!, 5)).toEqual([]);
     });
@@ -24,6 +32,11 @@ describe("handPutPose", () => {
 describe("playBotReach on a hand put", () => {
     it("plays Show and Tell once there is a creature to put in", () => {
         const verdict = playBotReach(getCardByName("Show and Tell")!);
+        expect(verdict.outcome).toBe("played");
+    });
+
+    it("plays Through the Breach once the creature outsizes the lands (issue #4840)", () => {
+        const verdict = playBotReach(getCardByName("Through the Breach")!);
         expect(verdict.outcome).toBe("played");
     });
 });

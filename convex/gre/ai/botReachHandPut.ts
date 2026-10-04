@@ -20,8 +20,10 @@ import type { CardDefinition } from "../../cards/types";
 import type { ScenarioCard } from "../../debugScenarioSpec";
 import { manaValue } from "../constants";
 
-/** A creature of mana value 6 — beyond the lands any pose gives the caster. */
-const HAND_PUT_CREATURE = "Force of Nature";
+/** Vanilla-ish creatures, ascending mana value (6, 8): the first one beyond
+ *  the lands the pose gives the caster is handed over, so the free put stays
+ *  the only way it reaches the battlefield whatever the spell's own cost. */
+const HAND_PUT_CREATURES = ["Force of Nature", "Scaled Wurm"];
 
 /** True when `node` holds a hand pick that a `moveZone` sends to the
  *  battlefield and whose filter admits a creature, at any depth. */
@@ -48,7 +50,9 @@ export function handPutPose(
     const script = JSON.stringify(def.effects ?? []);
     if (!script.includes('"to":"battlefield"')) return [];
     if (!putsCreatureFromHand(def.effects)) return [];
-    const creature = tryGetCardByName(HAND_PUT_CREATURE);
-    if (!creature || manaValue(creature.manaCost) <= landCount) return [];
-    return [{ name: HAND_PUT_CREATURE, owner: "me", zone: "hand" }];
+    const name = HAND_PUT_CREATURES.find((candidate) => {
+        const creature = tryGetCardByName(candidate);
+        return creature !== null && manaValue(creature.manaCost) > landCount;
+    });
+    return name === undefined ? [] : [{ name, owner: "me", zone: "hand" }];
 }
