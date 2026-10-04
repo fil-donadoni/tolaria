@@ -1,25 +1,20 @@
 // Bot-play sweep (issue #4833) — a spell that has every player shuffle their
 // hand into their library and draw a fresh hand (CR 121.1, CR 701.24a) is
-// posed against an opponent who already holds a full hand. Verdicts go through
-// the real `playBotReach` pipeline.
+// posed against a library holding spells. Verdicts go through the real
+// `playBotReach` pipeline.
 
 import { describe, expect, it } from "vitest";
 import { getCardByName } from "../../../cards";
 import { playBotReach } from "../botReach";
-import { handRefillOpponentHand } from "../botReachHandRefill";
+import { handRefillSpell } from "../botReachHandRefill";
 
-describe("handRefillOpponentHand", () => {
-    it.each(["Timetwister", "Echo of Eons"])(
-        "fills the opponent's hand for %s",
-        (name) => {
-            expect(handRefillOpponentHand(getCardByName(name)!)).toBe(7);
-        }
-    );
+describe("handRefillSpell", () => {
+    it.each(["Timetwister", "Echo of Eons"])("recognises %s", (name) => {
+        expect(handRefillSpell(getCardByName(name)!)).toBe(true);
+    });
 
-    it("holds nothing for a spell that refills no hand", () => {
-        expect(
-            handRefillOpponentHand(getCardByName("Lightning Bolt")!)
-        ).toBeUndefined();
+    it("recognises no spell that refills no hand", () => {
+        expect(handRefillSpell(getCardByName("Lightning Bolt")!)).toBe(false);
     });
 });
 
