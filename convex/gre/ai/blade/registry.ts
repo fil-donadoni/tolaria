@@ -464,9 +464,13 @@ function activationIsDiscouraged(
 // Discriminants of the registry's declared Minimal Pairs (ADR 0148, issue
 // #4796). Each names WHY the anchor's move is wrong here and right in its
 // half; a half repeats its anchor's constant, which the derivation compares
-// field for field. An anchor with no half beside it is conditional debt: the
-// pair prose it keeps did not differ by this Discriminant only, or its other
-// half is no `moves` verdict (see each entry's PAIRED WITH).
+// field for field. An anchor with no half beside it is conditional debt: its
+// pair prose (kept, see each entry's PAIRED WITH) did not differ by this
+// Discriminant only, or its other half is no `moves` verdict. A pair whose
+// anchor is itself a `moves` verdict (entomb, free put) is left unclassified
+// instead: a `moves` verdict rules no move out, so nothing says it is wrong
+// NOW, and demoting it out of the fit moved `graveyardReachFraction` enough to
+// flip a noise-pinned reach guard.
 const DENSE_LIBRARY: Discriminant = {
     kind: "card",
     detail: "Craw Wurm in the library in place of a Forest",
@@ -487,15 +491,7 @@ const OWN_BESTOW_HOST: Discriminant = {
     kind: "card",
     detail: "an own creature to bestow onto",
 };
-const REANIMATE_IN_HAND: Discriminant = {
-    kind: "card",
-    detail: "Reanimate in hand",
-};
 const EXTRA_PLAINS: Discriminant = { kind: "card", detail: "one extra Plains" };
-const SECOND_CHOOSER: Discriminant = {
-    kind: "other",
-    detail: "the chooser's seat and the permanent the opponent put in",
-};
 
 export const BLADE_SCENARIOS: BladeScenario[] = [
     {
@@ -6500,10 +6496,6 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // all eight `CHOICE_TOP_K` slots with cards that do nothing in a
         // graveyard and never emits the one that does.
         label: "entomb: buries the self-reachable card, not the bigger body",
-        classification: {
-            kind: "conditional",
-            discriminant: REANIMATE_IN_HAND,
-        },
         spec: {
             cards: [
                 { name: "Entomb", owner: "me", zone: "hand" },
@@ -7261,7 +7253,6 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     //     `resolved-payoff`'s choice half reads the SETTLED margins instead.
     {
         label: "free put: the caster puts a permanent in off its own Show and Tell",
-        classification: { kind: "conditional", discriminant: SECOND_CHOOSER },
         spec: {
             cards: [
                 { name: "Show and Tell", owner: "me", zone: "hand" },
