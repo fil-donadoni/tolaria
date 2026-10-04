@@ -86,7 +86,7 @@ const TS_EXTENSIONS = [".ts", ".tsx", ".mts", ".cts"] as const;
 
 /** `useNodeDirectiveRegex` in the Convex bundler — what routes a file to the
  *  Node runtime, whose esbuild graph is separate from the isolate one. */
-const USE_NODE_DIRECTIVE = /^\s*("|')use node("|');?\s*$/m;
+export const USE_NODE_DIRECTIVE = /^\s*("|')use node("|');?\s*$/m;
 
 export interface ConvexBundleMeasurement {
     /** Bytes of emitted module source (the `.js` half of the push). */
@@ -319,7 +319,29 @@ export function nonFunctionEntryPoints(convexDir: string): string[] {
         );
 }
 
-/** Options copied verbatim from the Convex CLI's `innerEsbuild`. */
+/**
+ * Options copied verbatim from the Convex CLI's `innerEsbuild` — everything
+ * but the entry points, the platform and the output naming, which differ per
+ * caller. Shared with `convex-heap.ts`, so the heap of one call is measured on
+ * the bundle the push would produce.
+ */
+export const CONVEX_ESBUILD_OPTIONS = {
+    bundle: true,
+    format: "esm",
+    target: "esnext",
+    jsx: "automatic",
+    conditions: ["convex", "module"],
+    treeShaking: true,
+    minifySyntax: true,
+    minifyIdentifiers: true,
+    // Convex leaves whitespace unminified on purpose — it breaks their
+    // source maps. Keeping the flag matters: it is ~40% of the bytes.
+    minifyWhitespace: false,
+    keepNames: true,
+    define: { "process.env.NODE_ENV": '"production"' },
+    logLevel: "silent",
+} as const satisfies esbuild.BuildOptions;
+
 async function build(
     convexDir: string,
     entryPoints: string[],
@@ -335,30 +357,17 @@ async function build(
     if (entryPoints.length === 0)
         return { source: 0, map: 0, zipped: 0, files: 0, inputs: [] };
     const result = await esbuild.build({
+        ...CONVEX_ESBUILD_OPTIONS,
         entryPoints,
-        bundle: true,
         platform,
-        format: "esm",
-        target: "esnext",
-        jsx: "automatic",
         outdir: "out",
         outbase: convexDir,
-        conditions: ["convex", "module"],
         write: false,
         sourcemap: true,
         sourcesContent: false,
         splitting: true,
         chunkNames: join(chunksFolder, "[hash]"),
-        treeShaking: true,
-        minifySyntax: true,
-        minifyIdentifiers: true,
-        // Convex leaves whitespace unminified on purpose — it breaks their
-        // source maps. Keeping the flag matters: it is ~40% of the bytes.
-        minifyWhitespace: false,
-        keepNames: true,
-        define: { "process.env.NODE_ENV": '"production"' },
         metafile: true,
-        logLevel: "silent",
     });
     let source = 0;
     let map = 0;
