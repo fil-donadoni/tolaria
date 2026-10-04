@@ -13,6 +13,7 @@ import {
     verdictIdOf,
     type VerdictJudgement,
 } from "../gre/ai/verdicts/identity";
+import type { ScenarioSpec } from "../debugScenarioSpec";
 import type { Discriminant } from "../gre/ai/verdicts/types";
 import {
     missingHalvesOf,
@@ -50,8 +51,12 @@ const ANCHOR: VerdictJudgement = {
 const ANCHOR_ID = verdictIdOf(ANCHOR);
 
 /** The right-hand half: the same Bolt, at the opponent's end step. */
+const HALF_SPEC: ScenarioSpec = {
+    cards: [{ name: "Mountain", owner: "me" }],
+    phase: "ENDING",
+};
 const HALF_POSITION = {
-    spec: { cards: [{ name: "Mountain", owner: "me" }], phase: "ENDING" },
+    spec: HALF_SPEC,
     seat: "me" as const,
     candidates: CANDIDATES,
 };
