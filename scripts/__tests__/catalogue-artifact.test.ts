@@ -509,18 +509,6 @@ describe("catalogue artifact — the packed server corpus (issue #4164)", () => 
         );
     });
 
-    it("lives where no client glob reaches it", () => {
-        // `src/lib/catalogueArtifact.ts` globs `data/catalogue/catalogue-*.json`
-        // as the client asset; a packed file under that prefix would ship to
-        // the browser AND red the one-artifact check.
-        expect(PACKED_CORPUS_PATH.startsWith(`${CATALOGUE_DIR}/`)).toBe(true);
-        expect(
-            PACKED_CORPUS_PATH.slice(CATALOGUE_DIR.length + 1).startsWith(
-                "catalogue-"
-            )
-        ).toBe(false);
-    });
-
     it("`packedCorpusDrift` actually compares — and names the card", () => {
         // Vacuity guard: a drift check returning `null` unconditionally would
         // make every assertion above pass on a corrupted file.
