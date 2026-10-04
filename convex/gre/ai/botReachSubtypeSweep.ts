@@ -25,10 +25,10 @@ import { manaValue } from "../constants";
 const SWEPT_CREATURES = 2;
 
 /** The subtype a `destroy` inside a `forEach` sweeps, at any depth, or null. */
-function sweptSubtype(node: unknown, inForEach = false): string | null {
+function sweptSubtype(node: unknown): string | null {
     if (Array.isArray(node)) {
         for (const child of node) {
-            const found = sweptSubtype(child, inForEach);
+            const found = sweptSubtype(child);
             if (found) return found;
         }
         return null;
@@ -46,7 +46,7 @@ function sweptSubtype(node: unknown, inForEach = false): string | null {
         if (kills && typeof subtype === "string") return subtype;
     }
     for (const value of Object.values(rec)) {
-        const found = sweptSubtype(value, inForEach);
+        const found = sweptSubtype(value);
         if (found) return found;
     }
     return null;
