@@ -31,6 +31,9 @@
 //     below compare the BYTES the two sides actually hold — the server's
 //     bundled `compiledReadyDefinitions`, imported through the real module
 //     seam, against the committed artifact minus its hand-written rows.
+//  5. THE PACKED CORPUS (issue #4164, ADR 0113 Amendment III). The third
+//     rendering decodes to exactly the client's shared rows, under the same
+//     source hash, and packing is byte-deterministic.
 //
 // Proof-of-failure (gre-development.md § Proof-of-failure) is recorded in the
 // PR: each assertion below was driven red by breaking the thing it guards, and
@@ -43,6 +46,7 @@ import {
     buildCatalogue,
     committedArtifacts,
     committedIdentityDrift,
+    committedPackedDrift,
     sharedClientRows,
     unbaselinedDivergences,
 } from "../catalogue-artifact";
@@ -65,6 +69,15 @@ import {
     CATALOGUE_DIVERGENCE_BASELINE,
     baselineKey,
 } from "../lib/catalogue-divergence-baseline";
+import {
+    PACKED_BLOCK_ROWS,
+    PACKED_CORPUS_PATH,
+    packCorpus,
+    packedCorpusDrift,
+    serializePackedCorpus,
+    unpackCorpus,
+    type PackedCorpus,
+} from "../lib/packed-corpus";
 import { getAllCards, getAllRawCards } from "../../convex/cards/catalogue";
 import {
     CATALOGUE_SOURCE_HASH,
@@ -109,6 +122,9 @@ describe("catalogue artifact — freshness (ADR 0114 §2)", () => {
                 "utf-8"
             )
         ).toBe(BUILD.sourceHashBytes);
+        expect(readFileSync(join(REPO_ROOT, PACKED_CORPUS_PATH), "utf-8")).toBe(
+            BUILD.packedBytes
+        );
     });
 
     it("is minified — the committed shape is not the prettified one", () => {
@@ -449,6 +465,124 @@ describe("catalogue artifact — the two renderings are byte-identical (issue #3
             else seen.set(key, card.id);
         }
         expect(collisions).toEqual([]);
+    });
+});
+
+describe("catalogue artifact — the packed server corpus (issue #4164)", () => {
+    // ADR 0113 Amendment III ships the server's compiled rows PACKED, and the
+    // price of a third rendering is the same as the second's: the server
+    // resolving a card one way while the Brain plans against another. So the
+    // packed bytes are DECODED here — with the same inflate the server lookup
+    // will use — and compared row by row against the client asset.
+    const packed = () => JSON.parse(BUILD.packedBytes) as PackedCorpus;
+    const clientRows = () => sharedClientRows(BUILD.merge.rows);
+
+    it("decodes to exactly the client asset's compiled rows, naming the first differing card", () => {
+        expect(packedCorpusDrift(packed(), clientRows(), BUILD.hash)).toBe(
+            null
+        );
+        expect(unpackCorpus(packed()).length).toBeGreaterThan(RELOCATION_FLOOR);
+    });
+
+    it("the COMMITTED packed file decodes to the COMMITTED client asset's rows", () => {
+        expect(committedPackedDrift(REPO_ROOT)).toBe(null);
+    });
+
+    it("carries the one source hash, and its indexes cover every block", () => {
+        const p = packed();
+        expect(p.sourceHash).toBe(CATALOGUE_SOURCE_HASH);
+        expect(p.blockRows).toBe(PACKED_BLOCK_ROWS);
+        const blocks = Math.ceil(p.rowCount / p.blockRows);
+        expect([p.firstIds.length, p.blockOffsets.length]).toEqual([
+            blocks,
+            blocks + 1,
+        ]);
+        expect(p.blockOffsets.at(-1)).toBe(p.blocks.length);
+        expect(p.firstIds).toEqual(
+            [...p.firstIds].sort((a, b) => a.localeCompare(b))
+        );
+    });
+
+    it("packing the same rows twice is byte-identical", () => {
+        // Rows re-parsed from the client asset's bytes rather than the merge's
+        // own objects, so identity cannot ride on object reuse.
+        const reparsed = sharedClientRows(
+            JSON.parse(BUILD.bytes) as CardDefinition[]
+        );
+        expect(serializePackedCorpus(packCorpus(reparsed, BUILD.hash))).toBe(
+            BUILD.packedBytes
+        );
+    });
+
+    it("lives where no client glob reaches it", () => {
+        // `src/lib/catalogueArtifact.ts` globs `data/catalogue/catalogue-*.json`
+        // as the client asset; a packed file under that prefix would ship to
+        // the browser AND red the one-artifact check.
+        expect(PACKED_CORPUS_PATH.startsWith(`${CATALOGUE_DIR}/`)).toBe(true);
+        expect(
+            PACKED_CORPUS_PATH.slice(CATALOGUE_DIR.length + 1).startsWith(
+                "catalogue-"
+            )
+        ).toBe(false);
+    });
+
+    it("`packedCorpusDrift` actually compares — and names the card", () => {
+        // Vacuity guard: a drift check returning `null` unconditionally would
+        // make every assertion above pass on a corrupted file.
+        const rows = Array.from({ length: 40 }, (_, i) => ({
+            id: `id-${String(i).padStart(3, "0")}`,
+            name: `Card ${i}`,
+            effects: [{ op: "draw", count: i }],
+        })) as unknown as CardDefinition[];
+        const good = packCorpus(rows, "h", 16);
+        expect(unpackCorpus(good)).toEqual(rows);
+        expect(packedCorpusDrift(good, rows, "h")).toBe(null);
+
+        expect(packedCorpusDrift(good, rows, "other")).toMatch(/source hash/);
+
+        const edited = rows.map((r, i) =>
+            i === 20 ? { ...r, effects: [{ op: "draw", count: 99 }] } : r
+        );
+        expect(packedCorpusDrift(good, edited, "h")).toMatch(
+            /Card 20 \(id-020\) is TWO definitions/
+        );
+
+        // One corrupted block: the second block's bytes replaced by the
+        // first's, which inflate fine and carry the wrong cards.
+        const [a, b, c] = [0, 1, 2].map((k) =>
+            good.blocks.slice(good.blockOffsets[k], good.blockOffsets[k + 1])
+        );
+        const swapped: PackedCorpus = {
+            ...good,
+            blocks: a! + a! + good.blocks.slice(good.blockOffsets[2]),
+            blockOffsets: [
+                0,
+                a!.length,
+                2 * a!.length,
+                2 * a!.length + c!.length,
+            ],
+        };
+        expect(b).not.toBe(a);
+        expect(packedCorpusDrift(swapped, rows, "h")).toMatch(/Card 0|Card 16/);
+
+        // A block that does not inflate is named by its first card.
+        const garbled: PackedCorpus = {
+            ...good,
+            blocks:
+                a! +
+                "A".repeat(b!.length) +
+                good.blocks.slice(good.blockOffsets[2]),
+        };
+        expect(packedCorpusDrift(garbled, rows, "h")).toMatch(
+            /block 1 \(first row Card 16, id-016\)/
+        );
+
+        // An index that lies about a row is a drift too.
+        const misnamed: PackedCorpus = {
+            ...good,
+            names: good.names.map((n, i) => (i === 7 ? "Wrong" : n)),
+        };
+        expect(packedCorpusDrift(misnamed, rows, "h")).toMatch(/row 7/);
     });
 });
 

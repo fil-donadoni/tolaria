@@ -1,0 +1,230 @@
+/**
+ * The PACKED server corpus — the third rendering of the one catalogue merge
+ * (issue #4164, ADR 0113 Amendment III, PRD issue #4161).
+ *
+ * Today the server bundles the compiled rows as an object literal
+ * (`data/oracle-compiled-pool.json` through `convex/cards/compiledPool.ts`),
+ * and module globals do not survive a request: every mutation and query
+ * evaluates the whole literal again, +9.6 ms on cloud at 3,144 rows and growing
+ * with every row. The packed form costs nothing until a definition is asked
+ * for, and then only the block holding it.
+ *
+ * ── The shape ──────────────────────────────────────────────────────────────
+ *
+ * The SAME rows as the literal pool (`merge.serverRows`: compiled-only, sorted
+ * by id), each serialised exactly as the client asset serialises it, grouped
+ * into {@link PACKED_BLOCK_ROWS}-row blocks. Each block is raw-deflated against
+ * ONE shared dictionary sampled from the rows, base64-encoded, and the blocks
+ * are concatenated into one string; {@link PackedCorpus.blockOffsets} cuts it
+ * back up without a split. Beside it:
+ *
+ *   - `firstIds` — the id of every block's first row, so a lookup
+ *     binary-searches to the one block it has to inflate;
+ *   - `names` — every row's name in row order, so a name is validated, and its
+ *     block found, without inflating anything.
+ *
+ * Nothing reads it yet (the lookup fallback is a later slice of PRD #4161).
+ *
+ * ── Deterministic by construction ──────────────────────────────────────────
+ *
+ * Same rows in, same bytes out: the rows arrive sorted, the dictionary is a
+ * fixed-stride sample of them, the block grouping is fixed-size and deflate is
+ * a pure function of its input and options. Nothing reads a clock, a random
+ * source or the file system.
+ *
+ * The decoder uses only `atob`, `TextDecoder` and `fflate`'s synchronous
+ * inflate — what the Convex runtime offers (no native zlib, no async) — so the
+ * guard decodes with the same primitives the server lookup will.
+ */
+import { deflateSync, inflateSync } from "fflate";
+import type { CardDefinition } from "../../convex/cards/types";
+import { firstIdentityDrift, describeIdentityDrift } from "./catalogue-merge";
+
+/** Where the packed rendering lives. Inside `data/catalogue/` beside the
+ *  source hash, under a name the client's `catalogue-*.json` glob does not
+ *  match — so no client chunk can pick it up. */
+export const PACKED_CORPUS_PATH = "data/catalogue/packed-corpus.json";
+
+/**
+ * Rows per deflate block — the trade between bundle bytes (bigger blocks
+ * compress better) and the inflate a lookup pays (it inflates the whole
+ * block). The spike measured 16 against 64 at 34,890 rows: 24 ms against
+ * 67 ms for 76 lookups locally, for +0.2 MB. A later slice of PRD #4161 tunes
+ * it from a cloud sweep; it is recorded in the artefact so a decoder never
+ * assumes it.
+ */
+export const PACKED_BLOCK_ROWS = 16;
+
+/** The shared dictionary's size. Deflate's window is 32 KiB, so a longer
+ *  dictionary would never be referenced. */
+export const PACKED_DICTIONARY_BYTES = 32 * 1024;
+
+/** How many rows the dictionary samples, at a fixed stride across the sorted
+ *  rows — enough to cover the field vocabulary, few enough to fit the window. */
+const DICTIONARY_SAMPLE_ROWS = 96;
+
+export interface PackedCorpus {
+    /** The ONE source hash — the same value `data/catalogue/source-hash.json`
+     *  holds and the client asset carries in its file name. */
+    readonly sourceHash: string;
+    readonly blockRows: number;
+    readonly rowCount: number;
+    /** base64 of the raw deflate dictionary. */
+    readonly dictionary: string;
+    /** Every block's base64, concatenated. */
+    readonly blocks: string;
+    /** `blocks.slice(blockOffsets[k], blockOffsets[k + 1])` is block `k`;
+     *  one more entry than there are blocks. */
+    readonly blockOffsets: readonly number[];
+    /** The first row's id of every block, ascending. */
+    readonly firstIds: readonly string[];
+    /** Every row's name, in row order: row `i` lives in block
+     *  `floor(i / blockRows)`. */
+    readonly names: readonly string[];
+}
+
+const toBase64 = (bytes: Uint8Array): string =>
+    Buffer.from(bytes).toString("base64");
+
+function fromBase64(text: string): Uint8Array {
+    const binary = atob(text);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return bytes;
+}
+
+/**
+ * The shared dictionary: rows sampled at a fixed stride, serialised as the
+ * blocks serialise them, and the LAST {@link PACKED_DICTIONARY_BYTES} kept —
+ * deflate reaches the end of a dictionary with the shortest distances, so the
+ * tail is the part worth keeping.
+ */
+export function sampleDictionary(rows: readonly CardDefinition[]): Uint8Array {
+    const stride = Math.max(
+        1,
+        Math.floor(rows.length / DICTIONARY_SAMPLE_ROWS)
+    );
+    const sample: string[] = [];
+    for (let i = 0; i < rows.length; i += stride) {
+        sample.push(JSON.stringify(rows[i]));
+    }
+    const bytes = new TextEncoder().encode(sample.join(","));
+    return bytes.slice(Math.max(0, bytes.length - PACKED_DICTIONARY_BYTES));
+}
+
+/** Pack the server rows. `rows` must already be sorted by id — they are
+ *  `merge.serverRows`, which is. */
+export function packCorpus(
+    rows: readonly CardDefinition[],
+    sourceHash: string,
+    blockRows: number = PACKED_BLOCK_ROWS
+): PackedCorpus {
+    const dictionary = sampleDictionary(rows);
+    const encoder = new TextEncoder();
+    const encoded: string[] = [];
+    const blockOffsets: number[] = [0];
+    const firstIds: string[] = [];
+    let offset = 0;
+    for (let start = 0; start < rows.length; start += blockRows) {
+        const block = rows.slice(start, start + blockRows);
+        firstIds.push(block[0]!.id);
+        const deflated = deflateSync(encoder.encode(JSON.stringify(block)), {
+            level: 9,
+            dictionary,
+        });
+        const text = toBase64(deflated);
+        encoded.push(text);
+        offset += text.length;
+        blockOffsets.push(offset);
+    }
+    return {
+        sourceHash,
+        blockRows,
+        rowCount: rows.length,
+        dictionary: toBase64(dictionary),
+        blocks: encoded.join(""),
+        blockOffsets,
+        firstIds,
+        names: rows.map((r) => r.name),
+    };
+}
+
+/** The committed bytes: minified, newline-terminated, keys in declaration
+ *  order. `data/catalogue/` is in `.prettierignore`. */
+export const serializePackedCorpus = (packed: PackedCorpus): string =>
+    JSON.stringify(packed) + "\n";
+
+/** Inflate ONE block — the unit a server lookup will pay for. */
+export function inflateBlock(
+    packed: PackedCorpus,
+    block: number,
+    dictionary: Uint8Array = fromBase64(packed.dictionary)
+): CardDefinition[] {
+    const text = packed.blocks.slice(
+        packed.blockOffsets[block],
+        packed.blockOffsets[block + 1]
+    );
+    const bytes = inflateSync(fromBase64(text), { dictionary });
+    return JSON.parse(new TextDecoder().decode(bytes)) as CardDefinition[];
+}
+
+/** Every row, in order — the guard's view, never a request's. */
+export function unpackCorpus(packed: PackedCorpus): CardDefinition[] {
+    const dictionary = fromBase64(packed.dictionary);
+    const rows: CardDefinition[] = [];
+    for (let k = 0; k < packed.firstIds.length; k++) {
+        rows.push(...inflateBlock(packed, k, dictionary));
+    }
+    return rows;
+}
+
+/**
+ * The first way the packed rendering disagrees with the rows it must carry,
+ * as one gate line naming the card — or `null` when it decodes to exactly
+ * `expected`, under `sourceHash`, with both indexes true to the rows.
+ *
+ * A block that does not inflate is named by its first row's card (from the
+ * name index, which needs no inflate), because "block 41" is not a diagnosis.
+ */
+export function packedCorpusDrift(
+    packed: PackedCorpus,
+    expected: readonly CardDefinition[],
+    sourceHash: string
+): string | null {
+    if (packed.sourceHash !== sourceHash) {
+        return `source hash ${packed.sourceHash} is not the catalogue's ${sourceHash}`;
+    }
+    const dictionary = fromBase64(packed.dictionary);
+    const rows: CardDefinition[] = [];
+    for (let k = 0; k < packed.firstIds.length; k++) {
+        try {
+            rows.push(...inflateBlock(packed, k, dictionary));
+        } catch (error) {
+            const name = packed.names[k * packed.blockRows] ?? "?";
+            return (
+                `block ${k} (first row ${name}, ${packed.firstIds[k]}) does not decode: ` +
+                (error instanceof Error ? error.message : String(error))
+            );
+        }
+    }
+    const drift = firstIdentityDrift(rows, expected);
+    if (drift !== null) return describeIdentityDrift(drift);
+    if (packed.rowCount !== rows.length) {
+        return `rowCount says ${packed.rowCount}, the blocks hold ${rows.length}`;
+    }
+    for (let i = 0; i < rows.length; i++) {
+        if (packed.names[i] !== rows[i]!.name) {
+            return `name index row ${i} says ${packed.names[i]}, the row is ${rows[i]!.name} (${rows[i]!.id})`;
+        }
+        if (i % packed.blockRows === 0) {
+            const k = i / packed.blockRows;
+            if (packed.firstIds[k] !== rows[i]!.id) {
+                return `first-id index block ${k} says ${packed.firstIds[k]}, the block starts with ${rows[i]!.name} (${rows[i]!.id})`;
+            }
+        }
+    }
+    if (packed.names.length !== rows.length) {
+        return `name index holds ${packed.names.length} names for ${rows.length} rows`;
+    }
+    return null;
+}
