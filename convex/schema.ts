@@ -1,6 +1,10 @@
 import { authTables } from "@convex-dev/auth/server";
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
+import {
+    classificationValidator,
+    pairOfValidator,
+} from "./verdictClassificationValidators";
 // One Pool Arrangement entry (ADR 0060, issue #1247; Card Pins, ADR 0075
 // §3/§5, issue #1621). NOT re-declared here: the validator is exported from
 // `convex/limited/eventTypes.ts` alongside the `PoolArrangementEntry` type it
@@ -1319,6 +1323,12 @@ export default defineSchema({
                 })
             )
         ),
+        // Which wrong the judge meant, and the Minimal Pair link of a
+        // right-hand half (ADR 0148, issue #4800). Part of the judgement, so
+        // of its hash: `judgementOfRow` re-projects both, or the drain's stamp
+        // check would leave the row `pending` forever. Absent once stored.
+        classification: v.optional(classificationValidator),
+        pairOf: v.optional(pairOfValidator),
         // The Bot's OWN pick at the time, by candidate index — the whole point
         // of an in-play verdict is that the Bot already answered and a human
         // disagreed, so this is what makes the row a counter-example rather

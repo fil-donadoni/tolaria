@@ -30,6 +30,7 @@ import AiDecisionQuizCandidate from "./ai-decision-quiz-candidate";
 import AiDecisionQuizRefusal from "./ai-decision-quiz-refusal";
 import AiDecisionDroppedNotes from "./ai-decision-dropped-notes";
 import AiDecisionQuizHandReveal from "./ai-decision-quiz-hand-reveal";
+import AiDecisionQuizWrongMove from "./ai-decision-quiz-wrong-move";
 import ScenarioSpecBoard from "./scenario-spec-board";
 import { OWN_HAND_REMINDER, quizSeatLabels } from "./ai-decision-quiz-copy";
 
@@ -64,6 +65,10 @@ export default function AiDecisionVerdictQuiz({
               }
     );
     const [selected, setSelected] = useState<number | null>(null);
+    // Ruling the selected move wrong (issue #4800, ADR 0148): its own flow, with
+    // its own submissions, entered from the selection and left by Back or by
+    // everything it owed being stored.
+    const [ruling, setRuling] = useState(false);
     // Hidden on every opening: the reveal is consented to per judgement, never
     // remembered into the next one (ADR 0128 §12).
     const [handRevealed, setHandRevealed] = useState(false);
@@ -106,6 +111,16 @@ export default function AiDecisionVerdictQuiz({
         };
     }, [record]);
 
+    function finish() {
+        // Who judged it is shown to an admin only — a tester sees nothing
+        // but their own judgements, so their own name tells them nothing.
+        markAiTraceJudged(
+            record.id,
+            currentUser?.isAdmin ? currentUser.nickname : undefined
+        );
+        onClose();
+    }
+
     async function submit(rightIndex: number) {
         if (state.status !== "ready" || submitting) return;
         setSubmitting(true);
@@ -123,13 +138,7 @@ export default function AiDecisionVerdictQuiz({
                 ...(gameId ? { gameId } : {}),
                 ...(record.seq === undefined ? {} : { seq: record.seq }),
             });
-            // Who judged it is shown to an admin only — a tester sees nothing
-            // but their own judgements, so their own name tells them nothing.
-            markAiTraceJudged(
-                record.id,
-                currentUser?.isAdmin ? currentUser.nickname : undefined
-            );
-            onClose();
+            finish();
         } catch (cause: unknown) {
             setError(
                 cause instanceof Error
@@ -164,6 +173,21 @@ export default function AiDecisionVerdictQuiz({
 
     const { quiz } = state;
     const botPickIndex = quiz.botPickIndex;
+
+    if (ruling && selected !== null) {
+        return (
+            <div className="flex flex-col gap-1.5 rounded-sm border border-border-accent/30 p-1.5">
+                <AiDecisionQuizWrongMove
+                    quiz={quiz}
+                    wrongIndex={selected}
+                    seq={record.seq}
+                    onDone={finish}
+                    onBack={() => setRuling(false)}
+                />
+            </div>
+        );
+    }
+
     return (
         <div className="flex flex-col gap-1.5 rounded-sm border border-border-accent/30 p-1.5">
             <span className="text-label">Which move was right here?</span>
@@ -217,6 +241,14 @@ export default function AiDecisionVerdictQuiz({
                     disabled={submitting}
                 >
                     {submitting ? "Submitting…" : "Submit as the right move"}
+                </DebugButton>
+            )}
+            {selected !== null && (
+                <DebugButton
+                    onClick={() => setRuling(true)}
+                    disabled={submitting}
+                >
+                    Rule this move wrong
                 </DebugButton>
             )}
 

@@ -54,6 +54,7 @@ import type {
     Move,
 } from "@convex/gre";
 import type { GameState } from "@convex/gre/state";
+import { verdictIdOf } from "@convex/gre/ai/verdicts/identity";
 import { pushAiTrace, clearAiTraces } from "~/lib/ai/trace-store";
 import { QUIZ_REFUSALS } from "~/lib/ai/verdict-quiz";
 import AiDecisionTrace from "../ai-decision-trace";
@@ -427,6 +428,271 @@ describe("the verdict quiz, from the decision box (issue #3405)", () => {
             "verdict quiz refusal: position-not-held"
         );
 
+        expect(submitVerdict).not.toHaveBeenCalled();
+    });
+});
+
+// Ruling a move wrong: always or now, the Discriminant, the right-hand half
+// (issue #4800, PRD #4792, ADR 0148). Driven through the same surface and the
+// same mocked mutation as above; the right-hand positions are built by the real
+// engine, so a refused `sequence` pair is the derivation's own refusal.
+describe("ruling a move wrong (issue #4800, ADR 0148)", () => {
+    type Submitted = {
+        spec: ScenarioSpec;
+        setup?: unknown[];
+        seat: "me" | "opp";
+        candidates: { key: string; description: string }[];
+        answer: { kind: string } & Record<string, number[]>;
+        classification?: {
+            kind: string;
+            discriminant?: { kind: string; detail: string };
+        };
+        pairOf?: {
+            anchorId: string;
+            discriminant: { kind: string; detail: string };
+        };
+        gameId?: string;
+        seq?: number;
+    };
+    const submissions = () =>
+        submitVerdict.mock.calls.map(
+            (call) => (call as unknown as [Submitted])[0]
+        );
+
+    /** Open the quiz on the main-phase decision and rule "pass" wrong. */
+    async function rulePassWrong() {
+        pushDecision(
+            MAIN_PHASE,
+            (moves) => moves.find((m) => m.kind === "pass") ?? moves[0]
+        );
+        render(<AiDecisionTrace />);
+        await openQuiz();
+        const pass = screen
+            .getAllByRole("button")
+            .find(
+                (button) =>
+                    button.getAttribute("aria-pressed") !== null &&
+                    button.textContent?.startsWith("pass")
+            );
+        fireEvent.click(pass!);
+        fireEvent.click(
+            screen.getByRole("button", { name: "Rule this move wrong" })
+        );
+        await screen.findByRole("button", { name: "Wrong now" });
+    }
+
+    const wrongNow = () =>
+        fireEvent.click(screen.getByRole("button", { name: "Wrong now" }));
+
+    it("stores an Absolute Verdict: a forbidden answer, classified absolute, no pair", async () => {
+        await rulePassWrong();
+        fireEvent.click(screen.getByRole("button", { name: "Wrong always" }));
+        await waitFor(() => expect(submitVerdict).toHaveBeenCalledTimes(1));
+
+        const [anchor] = submissions();
+        expect(anchor.answer.kind).toBe("forbidden");
+        expect(anchor.classification).toEqual({ kind: "absolute" });
+        expect(anchor.pairOf).toBeUndefined();
+        expect(anchor.gameId).toBe("game-7");
+        expect(anchor.seq).toBe(SEQ);
+    });
+
+    it("stores a confirmed Conditional Verdict as two judgements, the half linked to its anchor by id", async () => {
+        await rulePassWrong();
+        wrongNow();
+        fireEvent.click(screen.getByRole("button", { name: "A life total" }));
+        fireEvent.change(screen.getByLabelText("Seat"), {
+            target: { value: "opp" },
+        });
+        fireEvent.change(screen.getByLabelText("Life total"), {
+            target: { value: "5" },
+        });
+        fireEvent.click(
+            screen.getByRole("button", { name: "Show the right-hand position" })
+        );
+
+        // The prefilled position is shown, with the Discriminant it was
+        // derived from, before anything is stored.
+        await screen.findByText("The same position, with one thing changed");
+        expect(screen.getByTestId("pair-discriminant").textContent).toBe(
+            "life: opp life 5"
+        );
+        expect(submitVerdict).not.toHaveBeenCalled();
+
+        const confirm = screen.getByRole("button", {
+            name: "The move is right here",
+        });
+        await waitFor(() =>
+            expect((confirm as HTMLButtonElement).disabled).toBe(false)
+        );
+        fireEvent.click(confirm);
+        await waitFor(() => expect(submitVerdict).toHaveBeenCalledTimes(2));
+
+        const [anchor, half] = submissions();
+        const discriminant = { kind: "life", detail: "opp life 5" };
+        expect(anchor.answer.kind).toBe("forbidden");
+        expect(anchor.classification).toEqual({
+            kind: "conditional",
+            discriminant,
+        });
+
+        // The half: the same move, right, on the copied position with ONLY the
+        // life total changed — and a link naming the id `submit` will stamp
+        // on the anchor.
+        expect(half.answer.kind).toBe("right");
+        expect(half.classification).toBeUndefined();
+        expect(half.spec.life?.opp).toBe(5);
+        expect(half.spec.cards).toEqual(anchor.spec.cards);
+        const moved = half.candidates[half.answer.rightIndexes[0]];
+        expect(moved.description).toBe("pass");
+        expect(half.pairOf).toEqual({
+            anchorId: verdictIdOf({
+                spec: anchor.spec,
+                seat: anchor.seat,
+                candidates: anchor.candidates,
+                answer: anchor.answer as never,
+                classification: anchor.classification as never,
+            }),
+            discriminant,
+        });
+    });
+
+    it("retries a failed half without storing the anchor twice, and locks the judgement meanwhile", async () => {
+        await rulePassWrong();
+        wrongNow();
+        fireEvent.click(screen.getByRole("button", { name: "A life total" }));
+        fireEvent.change(screen.getByLabelText("Life total"), {
+            target: { value: "5" },
+        });
+        fireEvent.click(
+            screen.getByRole("button", { name: "Show the right-hand position" })
+        );
+        const confirm = await screen.findByRole("button", {
+            name: "The move is right here",
+        });
+        await waitFor(() =>
+            expect((confirm as HTMLButtonElement).disabled).toBe(false)
+        );
+        // The anchor stores, then the half is refused by the server.
+        submitVerdict
+            .mockImplementationOnce(async () => "anchor")
+            .mockImplementationOnce(async () => {
+                throw new Error("unknown card name(s) in the position: Nope");
+            });
+        fireEvent.click(confirm);
+        await screen.findByText(/unknown card name\(s\) in the position/);
+        expect(submitVerdict).toHaveBeenCalledTimes(2);
+
+        // The anchor is stored: it can no longer be re-classified, because a
+        // second anchor is a second verdict id at the same position key.
+        expect(screen.queryByRole("button", { name: "Back" })).toBe(null);
+        fireEvent.click(
+            screen.getByRole("button", { name: "The move is right here" })
+        );
+        await waitFor(() => expect(submitVerdict).toHaveBeenCalledTimes(3));
+        const sent = submissions();
+        expect(sent.map((s) => s.pairOf !== undefined)).toEqual([
+            false,
+            true,
+            true,
+        ]);
+    });
+
+    it("stores only the Conditional Verdict when the half is deferred", async () => {
+        await rulePassWrong();
+        wrongNow();
+        fireEvent.click(screen.getByRole("button", { name: "The step" }));
+        fireEvent.click(
+            screen.getByRole("button", { name: "Defer the right-hand half" })
+        );
+        await waitFor(() => expect(submitVerdict).toHaveBeenCalledTimes(1));
+
+        const [anchor] = submissions();
+        expect(anchor.answer.kind).toBe("forbidden");
+        expect(anchor.classification?.kind).toBe("conditional");
+        expect(anchor.classification?.discriminant?.kind).toBe("step");
+        expect(anchor.pairOf).toBeUndefined();
+    });
+
+    it("asks for the judge's own words under `other`, and refuses the bare copy as the half", async () => {
+        await rulePassWrong();
+        wrongNow();
+        fireEvent.click(screen.getByRole("button", { name: "Other" }));
+        fireEvent.click(
+            screen.getByRole("button", { name: "Show the right-hand position" })
+        );
+        await screen.findByText("Say in your own words what changes");
+        expect(submitVerdict).not.toHaveBeenCalled();
+
+        fireEvent.change(
+            screen.getByLabelText("In your words: what changes?"),
+            {
+                target: { value: "the opponent holds a counterspell" },
+            }
+        );
+        fireEvent.click(
+            screen.getByRole("button", { name: "Show the right-hand position" })
+        );
+
+        // Nothing realises an `other` Discriminant by itself: the prefill is
+        // the anchor's own position, which is a Contested Position and not a
+        // pair — so the half cannot be confirmed as it stands.
+        const refusal = await screen.findByTestId("pair-refusal");
+        expect(refusal.getAttribute("data-refusal-reason")).toBe("no-change");
+        expect(
+            (
+                screen.getByRole("button", {
+                    name: "The move is right here",
+                }) as HTMLButtonElement
+            ).disabled
+        ).toBe(true);
+
+        fireEvent.click(
+            screen.getByRole("button", { name: "Defer the right-hand half" })
+        );
+        await waitFor(() => expect(submitVerdict).toHaveBeenCalledTimes(1));
+        expect(submissions()[0].classification).toEqual({
+            kind: "conditional",
+            discriminant: {
+                kind: "other",
+                detail: "the opponent holds a counterspell",
+            },
+        });
+    });
+
+    it("shows the reason a `sequence` pair is refused, and stores nothing", async () => {
+        await rulePassWrong();
+        wrongNow();
+        fireEvent.click(
+            screen.getByRole("button", { name: "A move already made" })
+        );
+        fireEvent.change(
+            screen.getByLabelText(
+                "The earlier move, as setup steps (JSON array)"
+            ),
+            {
+                target: {
+                    value: '[{"kind":"know-library-top","count":1,"of":"opp"}]',
+                },
+            }
+        );
+        fireEvent.change(screen.getByLabelText(/^Detail/), {
+            target: { value: "looked at the top of the opponent's library" },
+        });
+        fireEvent.click(
+            screen.getByRole("button", { name: "Show the right-hand position" })
+        );
+
+        const refusal = await screen.findByTestId("pair-refusal");
+        expect(refusal.getAttribute("data-refusal-reason")).toBe("no-trace");
+        await screen.findByText(/leaves no trace on the board/);
+        expect(
+            (
+                screen.getByRole("button", {
+                    name: "The move is right here",
+                }) as HTMLButtonElement
+            ).disabled
+        ).toBe(true);
         expect(submitVerdict).not.toHaveBeenCalled();
     });
 });
