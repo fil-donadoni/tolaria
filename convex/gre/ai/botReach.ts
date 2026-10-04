@@ -83,6 +83,7 @@ import {
     sorceryPumpRace,
     targetPose,
 } from "./botReachTarget";
+import { stackPose, type StackPose } from "./botReachStack";
 export { castShape } from "./botReachForm";
 
 /** CR 115.1 — a spell that targets a SPELL needs one on the stack. Lives
@@ -754,6 +755,13 @@ const TARGET_LIBRARY = 12;
  *  sacrifice or a discard can use — a real catalogue creature, both sides, in
  *  every zone a target requirement names. */
 const FILLER_CREATURE = "Grizzly Bears";
+
+/** The stack of a card whose spell target is an ENTERS trigger's, not its
+ *  own: the opponent's plain filler spell. */
+const DEFAULT_STACK_POSE: StackPose = {
+    cards: [],
+    stack: [{ kind: "spell", name: FILLER_CREATURE, controller: "opp" }],
+};
 /** An artifact, for artifact targets. NOT a noncreature one: Ornithopter is
  *  an artifact CREATURE, so a surplus of it is a surplus of bodies too. */
 const FILLER_ARTIFACT = "Ornithopter";
@@ -949,7 +957,10 @@ export function botReachSpec(
     const cost = costPose(def);
     const race = sorceryPumpRace(def) ?? sorceryLifeGainRace(def);
     cards.push(...target.cards, ...cost.cards, ...(race?.cards ?? []));
-    const stack = needsStackTarget(def);
+    const stack = needsStackTarget(def)
+        ? (stackPose(def, cycle[0]!) ?? DEFAULT_STACK_POSE)
+        : undefined;
+    if (stack) cards.push(...stack.cards);
     return {
         cards,
         phase:
@@ -977,17 +988,7 @@ export function botReachSpec(
         ...(window === TRICK_WINDOW ? combatTrickPosition(def) : null),
         ...(window === AMBUSH_WINDOW ? ambushPosition(def) : null),
         ...(cost.manaPool ? { manaPool: cost.manaPool } : {}),
-        ...(stack
-            ? {
-                  stack: [
-                      {
-                          kind: "spell" as const,
-                          name: FILLER_CREATURE,
-                          controller: "opp" as const,
-                      },
-                  ],
-              }
-            : {}),
+        ...(stack ? { stack: [...stack.stack] } : {}),
     };
 }
 
