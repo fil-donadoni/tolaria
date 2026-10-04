@@ -26,6 +26,16 @@
 // choice).
 import type { Feature } from "./featureBasis";
 
+/** The two fitted creature-in-hand discounts of ONE weight vector (issue
+ *  #5012) — `EvalWeights.latentCreatureDiscount` and
+ *  `latentFlashCreatureDiscount`, lifted out of the vector so a reader that
+ *  has only the registry id (`cardValueById`) can be priced at the SAME vector
+ *  as the hand term instead of the committed one. */
+export interface LatentCreatureDiscounts {
+    readonly creature: number;
+    readonly flash: number;
+}
+
 /** The fitted price of ONE UNIT of each feature-basis dimension — the latent
  *  worth an Effect Script Op contributes per unit of what it does (issue
  *  #3398, PRD #3397). One weight per `FEATURE_BASIS` dimension, so a verdict
@@ -438,32 +448,32 @@ export const FIT_BASE_EVAL_WEIGHTS: Readonly<EvalWeights> = Object.freeze({
 export const DEFAULT_EVAL_WEIGHTS: Readonly<EvalWeights> = Object.freeze({
     ...FIT_BASE_EVAL_WEIGHTS,
     lifeWeight: 8,
-    permanentWeight: 5.726945,
-    manaWeight: 13.259763,
-    tappedManaWeight: 11.759763,
+    permanentWeight: 5.73744,
+    manaWeight: 13.258528,
+    tappedManaWeight: 11.758528,
     finiteManaUseWeight: 4.006139,
-    manaDevWeight: 15.28029,
-    colorCoverageWeight: 24.350357,
-    flexWeight: 6.811915,
+    manaDevWeight: 15.270804,
+    colorCoverageWeight: 24.519424,
+    flexWeight: 6.809543,
     deckingWeight: 1.5,
-    graveyardEngineWeight: 62.532561,
-    graveyardReachFraction: 0.171778,
-    recoverableSweepFraction: 0.789838,
-    latentCreatureDiscount: 0.546847,
-    latentFlashCreatureDiscount: 0.867212,
+    graveyardEngineWeight: 62.528125,
+    graveyardReachFraction: 0.176022,
+    recoverableSweepFraction: 0.789084,
+    latentCreatureDiscount: 0.5742,
+    latentFlashCreatureDiscount: 0.83003,
     latent: Object.freeze({
-        damage: 22.254544,
-        cardAdvantage: 39.1844,
-        lifeSwing: 7.635096,
-        boardRemoval: 161.329457,
-        ramp: 11.759569,
+        damage: 22.250072,
+        cardAdvantage: 39.38408,
+        lifeSwing: 7.649963,
+        boardRemoval: 161.006194,
+        ramp: 11.759573,
         evasion: 40,
-        tempo: 53.955249,
-        disruption: 117.808398,
+        tempo: 53.983076,
+        disruption: 117.808544,
         recursion: 140,
-        tokens: 0.623747,
-        pump: 9.235001,
-        protection: 60.130825,
+        tokens: 0.622096,
+        pump: 9.2354,
+        protection: 60.099638,
     }),
 });
 

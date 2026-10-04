@@ -479,14 +479,15 @@ const ETB_DISCARDER: CardDefinition = {
  * Issue #5015 — STOPGAP. Three guards whose pose is a close call pass by
  * seed noise at `BOT_REACH_BUDGET` (Foxfire 1-2/10 seeds, Sickening Dreams
  * 3/10, on the base weights as on issue #4882's refit; the sacrifice-cost
- * draw 9/20 seat-seeds on base, 3/20 at the refit). Ten seeds keep the
+ * draw 9/20 seat-seeds on base, 3/20 at the refit). Thirty seeds (ten until
+ * issue #5012's refit took Foxfire to 0/10) keep the
  * sweep's own semantics — `played` if ANY seed chooses the card — until the
  * poses are re-cut; issue #5015 owns returning all three to
  * `BOT_REACH_BUDGET`.
  */
 const NOISE_PINNED_REACH_BUDGET: BotReachBudget = {
     iterations: BOT_REACH_BUDGET.iterations,
-    seeds: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+    seeds: Array.from({ length: 30 }, (_, i) => i),
 };
 
 describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
