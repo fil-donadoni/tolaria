@@ -1,6 +1,6 @@
 import { createContext, useContext, useMemo, useState } from "react";
-import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
+import { useResilientQuery } from "~/hooks/useResilientQuery";
 import {
     EMPTY_TOKEN_PRINT_INDEX,
     indexTokenPrintRows,
@@ -28,15 +28,23 @@ export function useTokenPrints(): TokenPrintIndex {
 export function useTokenPrintsState(
     printIds: readonly string[] | undefined
 ): TokenPrintIndex {
-    const rows = useQuery(
+    // Resilient like every other board subscription (issue #3266): a failed
+    // fetch of purely cosmetic rows must never tear the board down.
+    const rows = useResilientQuery(
         api.cardPrints.tokenPrintsForGame,
         printIds && printIds.length > 0 ? { printIds: [...printIds] } : "skip"
-    );
+    ).data;
     const [lastRows, setLastRows] = useState(rows);
     if (rows !== undefined && rows !== lastRows) setLastRows(rows);
     const shown = rows ?? lastRows;
     return useMemo(
-        () => (shown ? indexTokenPrintRows(shown) : EMPTY_TOKEN_PRINT_INDEX),
+        // `Array.isArray`: the rows are cosmetic, so an answer that is not a
+        // row list degrades to "no edition art" instead of throwing into the
+        // board's render.
+        () =>
+            Array.isArray(shown)
+                ? indexTokenPrintRows(shown)
+                : EMPTY_TOKEN_PRINT_INDEX,
         [shown]
     );
 }

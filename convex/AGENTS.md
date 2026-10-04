@@ -326,12 +326,13 @@ When adding/modifying cards in `convex/cards/sets/`:
   renders a placeholder, silently
   server-side:
     - **Tokens (`createToken`)**: prefer a shared spec from
-      `convex/cards/sharedTokens.ts`. New token: regenerate the lockfile
-      (`node scripts/fetch-token-prints.mjs --all`) or pin `imagePrintId` on
-      the spec. Guard: `tokenPrintLookup.test.ts` (#1305;
-      `NO_PRINTED_TOKEN_ALLOWLIST` only for genuine no-printed-token cases).
-      **Blind spot:** `resolve()`-created tokens are invisible to the guard —
-      pin `imagePrintId` by hand (see `ncc/colorless.cards.ts`).
+      `convex/cards/sharedTokens.ts`. Art is not wired: the engine stamps the
+      creating object's printing as the opaque `sourcePrintId` and the client
+      picks that edition's Token Print from the Card Prints table
+      (`src/lib/tokenArt.ts`, ADR 0140; issue #4120). Pin `imagePrintId` on
+      the spec only where the creating object is NOT the printing that names
+      the token (a granted ability — Squirrel Nest — or an eternalize/embalm
+      copy; see `ncc/colorless.cards.ts`).
     - **Emblems (`{ op: "emblem" }`)**: set `imagePrintId` on the
       `EmblemDefinition` (`convex/cards/emblems.ts`); guard:
       `emblemArt.test.ts`.

@@ -317,9 +317,11 @@ discipline, unchanged:
 - **One Oracle line = ONE `TriggeredAbility`** with `event: GameEventType[]`
   (CR 603.2).
 - **Token / emblem art is setup, not polish**: a shared spec from
-  `convex/cards/sharedTokens.ts`, else `node scripts/fetch-token-prints.mjs`,
-  else an explicit `imagePrintId`; an emblem's goes on its `EmblemDefinition`.
-  `tokenPrintLookup.test.ts` / `emblemArt.test.ts` red without it.
+  `convex/cards/sharedTokens.ts`; a token's edition art needs no wiring (the
+  client resolves the Token Print off `sourcePrintId`, ADR 0140), so pin
+  `imagePrintId` only where the creator is not the printing that names the
+  token; an emblem's goes on its `EmblemDefinition`. `emblemArt.test.ts` reds
+  without it.
 - **Uncomment every matching reprint stub** — `grep -rn "definitionId:
 \"<NEW_CARD_ID>\"" convex/cards/sets/`, uncomment the whole `CardPrint` block,
   drop the trailing ` (stub)`.

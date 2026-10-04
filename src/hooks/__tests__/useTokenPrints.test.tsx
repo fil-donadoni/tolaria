@@ -6,8 +6,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook } from "@testing-library/react";
 
 const useQuery = vi.fn();
-vi.mock("convex/react", () => ({
-    useQuery: (...args: unknown[]) => useQuery(...args),
+vi.mock("~/hooks/useResilientQuery", () => ({
+    useResilientQuery: (...args: unknown[]) => ({ data: useQuery(...args) }),
 }));
 
 import { useTokenPrintsState } from "../useTokenPrints";
@@ -55,5 +55,15 @@ describe("useTokenPrintsState", () => {
         useQuery.mockReturnValue(undefined);
         rerender({ ids: ["print-1", "print-2"] });
         expect(result.current.get("print-1")).toEqual(ROW);
+    });
+});
+
+describe("useTokenPrintsState — cosmetic rows never break the board", () => {
+    beforeEach(() => useQuery.mockReset());
+
+    it("an answer that is not a row list degrades to no edition art", () => {
+        useQuery.mockReturnValue({ not: "rows" });
+        const { result } = renderHook(() => useTokenPrintsState(["print-1"]));
+        expect(result.current.size).toBe(0);
     });
 });
