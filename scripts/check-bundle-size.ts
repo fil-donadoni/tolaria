@@ -47,6 +47,7 @@ import { gzipSync } from "node:zlib";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, dirname } from "node:path";
 import {
+    chunksInStaticCycle,
     entryAssets,
     lightSurfaceViolations,
     reachableChunks,
@@ -156,6 +157,11 @@ function main(): void {
     console.log(
         `[check:bundle] login page JS (entry + static graph): ${loginGzip} B gzip`
     );
+    for (const chunk of chunksInStaticCycle(distDir, "card-catalogue-")) {
+        failures.push(
+            `${chunk} is in a static import cycle — a set can evaluate before a helper it shares exists (issue #4854)`
+        );
+    }
     for (const v of lightSurfaceViolations(distDir)) {
         failures.push(`${v.surface}: ${v.chunk} — ${v.reason}`);
     }

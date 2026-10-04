@@ -77,29 +77,30 @@ export default defineConfig({
                 // from the app code and is referenced by the catalogue glue
                 // module (`convex/cards/catalogue.ts`).
                 codeSplitting: {
-                    // OFF on purpose (issue #4854). By default a group also
-                    // swallows every module its members import, so
-                    // `convex/cards/registry.ts` — which the sets import and
-                    // the lobby's image helpers read — was absorbed into
-                    // `card-catalogue`, and the entry statically imported the
-                    // 475 KB catalogue chunk for one `tryGetDefinition`. With
-                    // it off the chunk holds the set modules and nothing else;
-                    // what they share stays a plain shared chunk.
-                    includeDependenciesRecursively: false,
+                    // Dependencies stay INCLUDED (the default): turning that
+                    // off split the helpers the sets share into a chunk that
+                    // imports `card-catalogue` back, and whichever route
+                    // loaded first evaluated a set before its helper existed
+                    // (`TypeError: … is not a function`, built bundle only —
+                    // issue #4854). One-way chunk edges instead:
+                    //  - `card-registry` claims `convex/cards/registry.ts`
+                    //    FIRST (higher priority) so the registry the sets
+                    //    import — and the lobby's image helpers read — is
+                    //    not absorbed into `card-catalogue`, which would make
+                    //    the entry statically import the 475 KB catalogue
+                    //    chunk for one `tryGetDefinition`;
+                    //  - `card-catalogue` takes the set modules and whatever
+                    //    only they share.
                     groups: [
+                        {
+                            name: "card-registry",
+                            test: /convex[\\/]cards[\\/]registry\.ts/,
+                            priority: 20,
+                        },
                         {
                             name: "card-catalogue",
                             test: /convex[\\/]cards[\\/]sets[\\/]/,
-                        },
-                        // The rules engine, named so the built-asset-graph
-                        // guard can say "no engine chunk is reachable from
-                        // the login page or the lobby"
-                        // (`scripts/__tests__/client-bundle-lazy-routes.test.ts`).
-                        // The two leaves the lobby chrome reads stay out:
-                        // they import nothing from the engine.
-                        {
-                            name: "engine",
-                            test: /convex[\\/]gre[\\/](?!manaColors\.ts|difficulty\.ts)/,
+                            priority: 10,
                         },
                     ],
                 },

@@ -9,6 +9,8 @@ import {
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import {
+    ENGINE_SENTINEL,
+    chunksInStaticCycle,
     entryAssets,
     lightSurfaceViolations,
     reachableChunks,
@@ -74,7 +76,7 @@ describe("asset graph — light surfaces", () => {
         "util-CCCC3333.js": `export const x=1;`,
         "lobby.route-EEEE5555.js": `import{x}from"./util-CCCC3333.js";`,
         "game-DDDD4444.js": `import"./engine-FFFF6666.js";`,
-        "engine-FFFF6666.js": `export const e=1;`,
+        "engine-FFFF6666.js": `throw Error("${ENGINE_SENTINEL}")`,
         "card-catalogue-GGGG7777.js": `export const c=1;`,
     };
 
@@ -125,6 +127,16 @@ describe("asset graph — light surfaces", () => {
         );
     });
 
+    it("reds when no chunk carries the engine sentinel — the check cannot go vacuous", () => {
+        const dist = fakeDist(ENTRY, {
+            ...LIGHT,
+            "engine-FFFF6666.js": `export const e=1;`,
+        });
+        expect(lightSurfaceViolations(dist)).toContainEqual(
+            expect.objectContaining({ surface: "(all)" })
+        );
+    });
+
     it("reds when the lobby is not a route chunk of its own", () => {
         const rest = Object.fromEntries(
             Object.entries(LIGHT).filter(
@@ -138,6 +150,28 @@ describe("asset graph — light surfaces", () => {
                 chunk: "lobby.route-*.js",
             })
         );
+    });
+});
+
+describe("asset graph — chunk cycles", () => {
+    it("flags a card-catalogue chunk that imports a helper chunk importing it back", () => {
+        const dist = fakeDist(ENTRY, {
+            "index-AAAA1111.js": `export const i=1;`,
+            "card-catalogue-GGGG7777.js": `import{h}from"./helper-HHHH8888.js";`,
+            "helper-HHHH8888.js": `import"./card-catalogue-GGGG7777.js";export const h=1;`,
+        });
+        expect(chunksInStaticCycle(dist, "card-catalogue-")).toEqual([
+            "card-catalogue-GGGG7777.js",
+        ]);
+    });
+
+    it("passes a one-way edge", () => {
+        const dist = fakeDist(ENTRY, {
+            "index-AAAA1111.js": `export const i=1;`,
+            "card-catalogue-GGGG7777.js": `import{h}from"./helper-HHHH8888.js";`,
+            "helper-HHHH8888.js": `export const h=1;`,
+        });
+        expect(chunksInStaticCycle(dist, "card-catalogue-")).toEqual([]);
     });
 });
 
@@ -157,6 +191,10 @@ describe("source seams that keep the entry graph light", () => {
             /from\s+["']\.\/routes\/(?![\w-]+\.lazy["'])/
         );
         expect(router).not.toMatch(/components\/ui\/catalogue-gate["']/);
+    });
+
+    it("the engine sentinel is still a literal in the engine source", () => {
+        expect(read("convex/gre/activation.ts")).toContain(ENGINE_SENTINEL);
     });
 
     it("the two engine leaves the lobby reads import nothing at runtime", () => {

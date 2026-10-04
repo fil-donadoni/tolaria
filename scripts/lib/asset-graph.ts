@@ -45,10 +45,18 @@ export function reachableChunks(distDir: string, roots: string[]): Set<string> {
     return seen;
 }
 
-/** The chunk-name prefixes that must stay out of a light surface: the card set
- *  modules (`card-catalogue`, `vite.config.ts` → `codeSplitting`) and the rules
- *  engine (`engine`, same place). */
-export const HEAVY_CHUNK_PREFIXES = ["card-catalogue-", "engine-"] as const;
+/** The chunk-name prefix that must stay out of a light surface: the card set
+ *  modules (`card-catalogue`, `vite.config.ts` → `codeSplitting`). */
+export const HEAVY_CHUNK_PREFIXES = ["card-catalogue-"] as const;
+
+/** A literal only the rules engine carries (`convex/gre/activation.ts`), so a
+ *  chunk holding it IS an engine chunk whatever the bundler named it. The
+ *  engine is not a named chunk on purpose: a `codeSplitting` group for it
+ *  makes chunk cycles that leave a set helper `undefined` at load time
+ *  (issue #4854, found in a built bundle, never in dev). A reworded message
+ *  is caught by `lightSurfaceViolations` itself: no chunk holding it at all is
+ *  a violation, so the guard cannot go quietly vacuous. */
+export const ENGINE_SENTINEL = "Target spell is no longer on the stack";
 
 /** The route chunks a "light surface" adds on top of the entry. The login page
  *  is the entry alone; the lobby is the entry plus its own route chunk. */
@@ -79,6 +87,21 @@ export function lightSurfaceViolations(
 ): LightSurfaceViolation[] {
     const assets = readdirSync(join(distDir, "assets"));
     const out: LightSurfaceViolation[] = [];
+    if (
+        !assets.some(
+            (f) =>
+                f.endsWith(".js") &&
+                readFileSync(join(distDir, "assets", f), "utf8").includes(
+                    ENGINE_SENTINEL
+                )
+        )
+    ) {
+        out.push({
+            surface: "(all)",
+            chunk: "*.js",
+            reason: `no chunk carries the engine sentinel "${ENGINE_SENTINEL}" — the engine check is vacuous; update ENGINE_SENTINEL`,
+        });
+    }
     for (const [surface, routePrefixes] of Object.entries(surfaces)) {
         const routeChunks = routePrefixes.flatMap((prefix) => {
             const found = assets.filter(
@@ -106,6 +129,13 @@ export function lightSurfaceViolations(
                 });
             }
             const source = readFileSync(join(distDir, "assets", chunk), "utf8");
+            if (source.includes(ENGINE_SENTINEL)) {
+                out.push({
+                    surface,
+                    chunk,
+                    reason: "carries the rules engine and is reachable by static import or modulepreload",
+                });
+            }
             if (CATALOGUE_ASSET.test(source)) {
                 out.push({
                     surface,
@@ -116,4 +146,32 @@ export function lightSurfaceViolations(
         }
     }
     return out;
+}
+
+/**
+ * The chunks whose static imports lead back to themselves. A cycle through
+ * `card-catalogue` is the failure issue #4854 hit in a built bundle only: a
+ * helper the sets share sat in a chunk that imported the sets back, so the
+ * route that loaded first evaluated a set while its helper was still
+ * `undefined` (`TypeError: … is not a function`) — green in dev, in tsc and in
+ * every unit test.
+ */
+export function chunksInStaticCycle(distDir: string, prefix: string): string[] {
+    const assets = readdirSync(join(distDir, "assets")).filter((f) =>
+        f.endsWith(".js")
+    );
+    return assets
+        .filter((f) => f.startsWith(prefix))
+        .filter((chunk) => {
+            const seen = new Set<string>();
+            const queue = staticImports(distDir, chunk);
+            while (queue.length > 0) {
+                const next = queue.pop()!;
+                if (next === chunk) return true;
+                if (seen.has(next)) continue;
+                seen.add(next);
+                queue.push(...staticImports(distDir, next));
+            }
+            return false;
+        });
 }
