@@ -84,6 +84,7 @@ import {
     targetPose,
 } from "./botReachTarget";
 import { stackPose, type StackPose } from "./botReachStack";
+import { manaSinkPose } from "./botReachMana";
 export { castShape } from "./botReachForm";
 
 /** CR 115.1 — a spell that targets a SPELL needs one on the stack. Lives
@@ -956,7 +957,12 @@ export function botReachSpec(
         });
     const cost = costPose(def);
     const race = sorceryPumpRace(def) ?? sorceryLifeGainRace(def);
-    cards.push(...target.cards, ...cost.cards, ...(race?.cards ?? []));
+    cards.push(
+        ...target.cards,
+        ...cost.cards,
+        ...(race?.cards ?? []),
+        ...manaSinkPose(def, landCount)
+    );
     const stack = needsStackTarget(def)
         ? (stackPose(def, cycle[0]!) ?? DEFAULT_STACK_POSE)
         : undefined;
