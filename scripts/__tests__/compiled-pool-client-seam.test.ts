@@ -45,7 +45,8 @@ const POOL_IMPORT_RE =
  *  itself, which no alias covers and no spelling rule reaches. Only
  *  `convex/cards/compiledPool.ts` may, plus the scripts that generate and
  *  measure it. */
-const POOL_JSON_RE = /["'][^"']*oracle-compiled-pool\.json["']/;
+const POOL_JSON_RE =
+    /["'][^"']*(?:oracle-compiled-pool|catalogue\/packed-corpus)\.json["']/;
 const POOL_JSON_ALLOWED = new Set(["convex/cards/compiledPool.ts"]);
 
 interface Hit {
@@ -135,14 +136,29 @@ describe("the compiled pool's client seam (issue #3053)", () => {
         expect(offenders).toEqual([]);
     });
 
-    it("the browser replacement exports the same name, and nothing else", () => {
+    it("the browser replacement exports the same names, all empty or off", () => {
         const stub = readFileSync(
             resolve(ROOT, "src/lib/catalogue/compiled-pool.browser.ts"),
+            "utf8"
+        );
+        const server = readFileSync(
+            resolve(ROOT, "convex/cards/compiledPool.ts"),
             "utf8"
         );
         expect(stub).toMatch(
             /export const compiledReadyDefinitions: CardDefinition\[\] = \[\];/
         );
-        expect(stub.match(/^export /gm)).toHaveLength(1);
+        // Issue #4165 — the packed corpus and its lookup switch ride the same
+        // seam: no packed byte in a client chunk, the switch never on there.
+        expect(stub).toMatch(
+            /export const packedServerCorpus: PackedCorpus \| null = null;/
+        );
+        expect(stub).toMatch(
+            /export const PACKED_CORPUS_LOOKUP: boolean = false;/
+        );
+        const names = (text: string) =>
+            [...text.matchAll(/^export const (\w+)/gm)].map((m) => m[1]).sort();
+        expect(names(stub)).toEqual(names(server));
+        expect(stub.match(/^export /gm)).toHaveLength(3);
     });
 });
