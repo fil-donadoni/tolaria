@@ -724,8 +724,8 @@ function graveyardCardFor(types: readonly string[]): string | null {
     return null;
 }
 
-/** The requirement a single-target spell states on an ARTIFACT or an INSTANT
- *  OR SORCERY CARD in a graveyard, if it is one. */
+/** The requirement a single-target spell states on an ARTIFACT, a SORCERY or an
+ *  INSTANT OR SORCERY CARD in a graveyard, if it is one. */
 function graveyardCardRequirement(
     req: CardDefinition["targetRequirement"]
 ): TargetRequirement | null {
@@ -735,7 +735,8 @@ function graveyardCardRequirement(
 }
 
 /** The card a recursion spell ("return target artifact card from your
- *  graveyard", "return target instant or sorcery card from your graveyard") is
+ *  graveyard", "return target sorcery card from your graveyard", "return target
+ *  instant or sorcery card from your graveyard") is
  *  cast at. The position's graveyards hold only a creature card, so the engine
  *  refuses a HUMAN the cast too — no legal target. The card sits in the
  *  graveyard of the side the requirement names (the holder's own for "you", the
