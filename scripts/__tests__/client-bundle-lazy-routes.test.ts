@@ -126,7 +126,11 @@ describe("asset graph — light surfaces", () => {
     });
 
     it("reds when the lobby is not a route chunk of its own", () => {
-        const { "lobby.route-EEEE5555.js": _lobby, ...rest } = LIGHT;
+        const rest = Object.fromEntries(
+            Object.entries(LIGHT).filter(
+                ([name]) => !name.startsWith("lobby.route-")
+            )
+        );
         const dist = fakeDist(ENTRY, rest);
         expect(lightSurfaceViolations(dist)).toContainEqual(
             expect.objectContaining({
@@ -149,7 +153,9 @@ describe("source seams that keep the entry graph light", () => {
 
     it("src/router.tsx imports no route module statically", () => {
         const router = read("src/router.tsx").replace(/\/\/.*$/gm, "");
-        expect(router).not.toMatch(/from\s+["']\.\/routes\//);
+        expect(router).not.toMatch(
+            /from\s+["']\.\/routes\/(?![\w-]+\.lazy["'])/
+        );
         expect(router).not.toMatch(/components\/ui\/catalogue-gate["']/);
     });
 

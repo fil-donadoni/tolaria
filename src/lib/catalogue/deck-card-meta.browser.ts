@@ -10,7 +10,7 @@
 // not a state to paper over.
 import type { DeckCardMeta } from "@convex/cards/catalogue";
 
-export function resolveDeckCardMeta(_cardId: string): DeckCardMeta | null {
+export function resolveDeckCardMeta(): DeckCardMeta | null {
     throw new Error(
         "validateDeck was called in the browser without a `resolve` argument — pass one (issue #4854)"
     );

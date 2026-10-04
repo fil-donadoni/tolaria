@@ -1,4 +1,3 @@
-import { lazy } from "react";
 import {
     createRootRoute,
     createRoute,
@@ -13,17 +12,15 @@ import {
 import { AuthGate } from "./components/auth/auth-gate";
 import BugReportHost from "./components/bug-report/bug-report-host";
 import BugReportFloatingButton from "./components/bug-report/bug-report-floating-button";
+import { LazyDeckBuilderRoute } from "./routes/deck-builder.lazy";
 import AppShell from "./components/chrome/app-shell";
 import UserPreferencesEffect from "./components/settings/user-preferences-effect";
 import NotFoundPage from "./components/ui/not-found-page";
 import OfflineBanner from "./components/ui/offline-banner";
 
 // Route components are fetched on first navigation, never bundled into the
-// entry (issue #4854): the login page and the lobby must not download the
-// engine, and every surface below that reads the card registry loads it with
-// the `catalogue-gated` layout. `DeckBuilderRoute` takes props, so it goes
-// through `React.lazy` instead of `lazyRouteComponent`.
-const LazyDeckBuilderRoute = lazy(() => import("./routes/deck-builder.route"));
+// entry (issue #4854): `lazyRouteComponent` for a bare route component,
+// `LazyDeckBuilderRoute` (`React.lazy`) where the route passes props.
 
 // Root: auth first, then the shell, which mounts the shared header on every
 // route except the fullscreen board. `AppShell` owns the outlet.
