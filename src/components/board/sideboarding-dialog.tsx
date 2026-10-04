@@ -65,7 +65,7 @@ export default function SideboardingDialog({
     match,
     viewerId,
 }: SideboardingDialogProps) {
-    const submitSideboard = useMutation(api.game.submitSideboard);
+    const submitSideboard = useMutation(api.gameTable.submitSideboard);
     const setReady = useMutation(api.game.setReady);
     const { onSwitchGame } = useGameContext();
 

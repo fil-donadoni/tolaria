@@ -40,7 +40,7 @@ export type ScenarioLaunch = {
 /** The user's active game as reported by `myActiveGame` — the exact shape a
  *  blocked `test()` reads to decide whether (and how) to offer a concede. */
 export type ActiveGameInfo = NonNullable<
-    FunctionReturnType<typeof api.game.myActiveGame>
+    FunctionReturnType<typeof api.gameReads.myActiveGame>
 >;
 
 /** A `test()` click blocked because the user already has an active game
@@ -102,14 +102,14 @@ export function useScenarioTestGame(): ScenarioTestGame {
     const user = useCurrentUser();
     const navigate = useNavigate();
     const presetDecks = useQuery(api.decks.list, {});
-    const activeGame = useQuery(api.game.myActiveGame);
+    const activeGame = useQuery(api.gameReads.myActiveGame);
     const convex = useConvex();
     const createSoloGame = useMutation(api.game.createSoloGame);
     const chooseFirstPlayer = useMutation(api.game.chooseFirstPlayer);
     const setupScenario = useMutation(api.game.debugSetupScenario);
     const forfeitMatch = useMutation(api.game.forfeitMatch);
-    const manualConcedeMatch = useMutation(api.game.manualConcedeMatch);
-    const leaveGame = useMutation(api.game.leaveGame);
+    const manualConcedeMatch = useMutation(api.gameManual.manualConcedeMatch);
+    const leaveGame = useMutation(api.gameTable.leaveGame);
 
     const [launchingId, setLaunchingId] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
@@ -175,7 +175,7 @@ export function useScenarioTestGame(): ScenarioTestGame {
             // The pregame gate holds no board yet (issue #4907): build G1
             // before applying the spec. "play" is arbitrary — the scenario
             // replaces the board the toss dealt.
-            const game = await convex.query(api.game.getGame, { gameId });
+            const game = await convex.query(api.gameReads.getGame, { gameId });
             if (!game?.matchId)
                 throw new Error("Scenario game has no Match to start.");
             await chooseFirstPlayer({ matchId: game.matchId, choice: "play" });

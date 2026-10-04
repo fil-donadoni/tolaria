@@ -53,7 +53,7 @@ const EXEMPT: Record<string, string> = {};
  */
 const DEBT: Record<string, string> = {
     // The one row of issue #4419's nineteen that its slice could not pay. Its
-    // cards come from `useQuery(api.game.getManualLibraryTop, { gameId, … })`
+    // cards come from `useQuery(api.gameReads.getManualLibraryTop, { gameId, … })`
     // with no `"skip"` branch once a peek is open, and `useQuery` THROWS on a
     // query error — so a fixture `gameId` takes the whole census page down
     // rather than mounting a specimen. Paying it means a Manual Board surface

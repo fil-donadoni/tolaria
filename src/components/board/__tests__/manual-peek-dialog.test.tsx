@@ -24,7 +24,9 @@ vi.mock("convex/react", () => ({
     useQuery: (ref: unknown, args: unknown) => useQuery(ref, args),
 }));
 vi.mock("@convex/_generated/api", () => ({
-    api: { game: { getManualLibraryTop: { _name: "getManualLibraryTop" } } },
+    api: {
+        gameReads: { getManualLibraryTop: { _name: "getManualLibraryTop" } },
+    },
 }));
 vi.mock("@convex/cards", () => ({
     tryGetDefinition: () => undefined,

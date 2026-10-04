@@ -1,5 +1,5 @@
-// Structural census guard: every `debug*` mutation in `convex/game.ts` is
-// admin-gated (issue #1679 review finding #2).
+// Structural census guard: every `debug*` mutation in `convex/game.ts` and
+// `convex/debugBlade.ts` (issue #4855) is admin-gated (issue #1679 review finding #2).
 //
 // Before this guard, `adminAuth.test.ts` only unit-tested the pure
 // `isAdminUser` predicate — nothing asserted "every debug mutation calls it".
@@ -39,21 +39,31 @@ import * as path from "path";
 import type { Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
 import * as gameModule from "../game";
+import * as debugBladeModule from "../debugBlade";
 import { makeMutationCtx } from "./gameMutationHarness.fixture";
 
-const GAME_TS = path.join(__dirname, "..", "game.ts");
+/** The modules that register `debug*` mutations: source file + its exports. */
+const DEBUG_MODULES: { file: string; exports: Record<string, unknown> }[] = [
+    { file: path.join(__dirname, "..", "game.ts"), exports: gameModule },
+    {
+        file: path.join(__dirname, "..", "debugBlade.ts"),
+        exports: debugBladeModule,
+    },
+];
 
 /** Every `export const debug<Name> = mutation({ ... })` binding in
  *  `convex/game.ts`, by SOURCE SCAN — not a hand-maintained list. Queries
  *  (`= query(`) are excluded on purpose; this guard is about mutating debug
  *  endpoints. */
 function enumerateDebugMutationNames(): string[] {
-    const source = fs.readFileSync(GAME_TS, "utf8");
     const names: string[] = [];
-    const re = /export const (debug\w+)\s*=\s*mutation\(/g;
-    let match: RegExpExecArray | null;
-    while ((match = re.exec(source)) !== null) {
-        names.push(match[1]);
+    for (const { file } of DEBUG_MODULES) {
+        const source = fs.readFileSync(file, "utf8");
+        const re = /export const (debug\w+)\s*=\s*mutation\(/g;
+        let match: RegExpExecArray | null;
+        while ((match = re.exec(source)) !== null) {
+            names.push(match[1]);
+        }
     }
     return names;
 }
@@ -83,7 +93,7 @@ describe("debug* mutation census — admin gate (issue #1679)", () => {
     it.each(enumerateDebugMutationNames())(
         "%s rejects an unauthenticated caller via assertIsAdmin (not some other error)",
         async (name) => {
-            const fn = (gameModule as Record<string, unknown>)[name];
+            const fn = DEBUG_MODULES.map((m) => m.exports[name]).find(Boolean);
             expect(
                 fn,
                 `convex/game.ts exports \`${name}\` as a mutation binding but ` +

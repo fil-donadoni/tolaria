@@ -48,7 +48,7 @@ export default function ManualPeekDialog({
     onClose: () => void;
 }) {
     const result = useQuery(
-        api.game.getManualLibraryTop,
+        api.gameReads.getManualLibraryTop,
         request ? { gameId, playerId: request.playerId, n: request.n } : "skip"
     );
 

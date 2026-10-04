@@ -11,12 +11,8 @@
 // uses.
 import { describe, it, expect } from "vitest";
 import type { MutationCtx } from "../_generated/server";
-import {
-    createManualGame,
-    joinManualGame,
-    createGame,
-    joinGame,
-} from "../game";
+import { createGame, joinGame } from "../game";
+import { createManualGame, joinManualGame } from "../gameManual";
 import type { ManualGameState } from "../manual";
 
 type Doc = Record<string, unknown>;

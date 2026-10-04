@@ -150,7 +150,7 @@ export default function Board({
     // Owning Match (ADR 0029): the game-over screen shows the terminal Match
     // result. Resolve the matchId from the game doc, then the Match meta.
     const gameQuery = useResilientQuery(
-        api.game.getGame,
+        api.gameReads.getGame,
         pageVisible ? { gameId } : "skip"
     );
     const game = gameQuery.data;

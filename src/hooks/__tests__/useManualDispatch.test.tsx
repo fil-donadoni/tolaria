@@ -1,7 +1,7 @@
 // Which SERVER verb each manual dispatch key reaches.
 //
 // The bug this pins (QA: "the concede button in manual is still inert"):
-// `concede` was bound to `api.game.manualConcede`, a mutation that stamped
+// `concede` was bound to `api.gameManual.manualConcede`, a mutation that stamped
 // `concededBy` on the manual state and stopped — a field no client and no
 // server path ever read. The click wrote a row and ended nothing. Manual Mode
 // has exactly ONE terminator (ADR 0080: "a game ends by concede only"), so the
@@ -27,12 +27,12 @@ vi.mock("convex/react", () => ({
     },
 }));
 
-// A Proxy stands in for the generated `api.game`, so an unknown mutation name
+// A Proxy stands in for the generated `api.gameManual`, so an unknown mutation name
 // resolves to a ref instead of `undefined` — a typo'd binding then shows up as
 // a WRONG name in the assertion below rather than as a crash with no name.
 vi.mock("@convex/_generated/api", () => ({
     api: {
-        game: new Proxy(
+        gameManual: new Proxy(
             {},
             { get: (_t, prop: string) => ({ _name: prop }) }
         ) as Record<string, { _name: string }>,

@@ -24,7 +24,7 @@ import { canUseDebugSheet } from "~/lib/adminGating";
 import { clearSession, getStoredSession } from "~/lib/session";
 
 type GameStatus = NonNullable<
-    FunctionReturnType<typeof api.game.getGame>
+    FunctionReturnType<typeof api.gameReads.getGame>
 >["status"];
 
 // `/game` is one route with four faces; the title names the one on screen.
@@ -59,10 +59,10 @@ export default function GameRoute() {
     // here tears down the whole route, board included, past the same missing
     // error boundary the fix inside the board exists to stop reaching.
     const game = useResilientQuery(
-        api.game.getGame,
+        api.gameReads.getGame,
         pageVisible && session.gameId ? { gameId: session.gameId } : "skip"
     ).data;
-    const leaveGame = useMutation(api.game.leaveGame);
+    const leaveGame = useMutation(api.gameTable.leaveGame);
 
     useEffect(() => {
         if (!session.gameId || !session.playerId) {

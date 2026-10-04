@@ -27,7 +27,8 @@ vi.mock("convex/react", async () => {
 });
 vi.mock("@convex/_generated/api", () => ({
     api: {
-        game: { getGame: "game:getGame", leaveGame: "game:leaveGame" },
+        gameTable: { leaveGame: "gameTable:leaveGame" },
+        gameReads: { getGame: "gameReads:getGame" },
         users: { currentUser: "users:currentUser" },
     },
 }));

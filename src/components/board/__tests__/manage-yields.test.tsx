@@ -27,8 +27,8 @@ vi.mock("@convex/_generated/api", () => ({
         game: {
             concede: "concede",
             forfeitMatch: "forfeitMatch",
-            manualConcedeMatch: "manualConcedeMatch",
         },
+        gameManual: { manualConcedeMatch: "manualConcedeMatch" },
     },
 }));
 vi.mock("convex/react", () => ({

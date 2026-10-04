@@ -45,7 +45,7 @@ export default function ManualGameOverDialog({
 }) {
     const match =
         useQuery(api.matches.getMatch, matchId ? { matchId } : "skip") ?? null;
-    const continueMatch = useMutation(api.game.continueManualMatch);
+    const continueMatch = useMutation(api.gameManual.continueManualMatch);
     const [busy, setBusy] = useState(false);
 
     const winner = players.find((p) => p.id === winnerId);

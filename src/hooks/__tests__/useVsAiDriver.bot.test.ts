@@ -117,9 +117,6 @@ vi.mock("@convex/_generated/api", () => ({
     api: {
         game: {
             getPublicState: "getPublicState",
-            getGameTick: "getGameTick",
-            getGame: "getGame",
-            getSeatDeck: "getSeatDeck",
             playCard: "playCard",
             summonCompanion: "summonCompanion",
             announceCast: "announceCast",
@@ -158,6 +155,11 @@ vi.mock("@convex/_generated/api", () => ({
             selectActivationExileCost: "selectActivationExileCost",
             selectActivationDiscardCost: "selectActivationDiscardCost",
             passPriority: "passPriority",
+        },
+        gameReads: {
+            getGameTick: "getGameTick",
+            getGame: "getGame",
+            getSeatDeck: "getSeatDeck",
         },
     },
 }));
@@ -1026,7 +1028,7 @@ describe("useVsAiDriver (issue #110)", () => {
         // Not transient: escalates on the first failure rather than after the
         // backoff ladder.
         tickError = new Error(
-            "[CONVEX Q(game:getGameTick)] Uncaught ConvexError: nope"
+            "[CONVEX Q(gameReads:getGameTick)] Uncaught ConvexError: nope"
         );
         const { result } = renderHook(() => useVsAiDriver(GAME, BOT));
         await settleDriver();

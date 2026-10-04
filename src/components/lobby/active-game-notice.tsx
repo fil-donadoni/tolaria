@@ -52,9 +52,9 @@ type Props = {
  */
 export default function ActiveGameNotice({ activeGame, userId }: Props) {
     const navigate = useNavigate();
-    const leaveGame = useMutation(api.game.leaveGame);
+    const leaveGame = useMutation(api.gameTable.leaveGame);
     const forfeitMatch = useMutation(api.game.forfeitMatch);
-    const manualConcede = useMutation(api.game.manualConcedeMatch);
+    const manualConcede = useMutation(api.gameManual.manualConcedeMatch);
     const [isBusy, setIsBusy] = useState(false);
     const [confirmForfeit, setConfirmForfeit] = useState(false);
 

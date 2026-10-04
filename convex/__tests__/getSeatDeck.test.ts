@@ -27,7 +27,7 @@ import {
     makeInMemoryDb,
     type InMemoryRow,
 } from "./fixtures/inMemoryDb.fixture";
-import { getSeatDeck } from "../game";
+import { getSeatDeck } from "../gameReads";
 
 type Handler<A, R> = { _handler: (ctx: QueryCtx, args: A) => Promise<R> };
 

@@ -121,10 +121,12 @@ function Lobby() {
     const presetDecks = useQuery(api.decks.list, pageVisible ? {} : "skip");
     const createGame = useMutation(api.game.createGame);
     const createSoloGame = useMutation(api.game.createSoloGame);
-    const createManualSoloGame = useMutation(api.game.createManualSoloGame);
-    const createManualGame = useMutation(api.game.createManualGame);
+    const createManualSoloGame = useMutation(
+        api.gameManual.createManualSoloGame
+    );
+    const createManualGame = useMutation(api.gameManual.createManualGame);
     const joinGame = useMutation(api.game.joinGame);
-    const joinManualGame = useMutation(api.game.joinManualGame);
+    const joinManualGame = useMutation(api.gameManual.joinManualGame);
     // Inline Join from the Limited footer's Open Events row (issue #2648) —
     // its own single `useMutation` call rather than pulling in
     // `useLimitedEventMutations()`'s other seven mutations for one field.
@@ -139,13 +141,13 @@ function Lobby() {
     // this reason — the two orders are one fact written twice.
     const joinGameByCode = useMutation(api.game.joinGameByCode);
     const openGames = useQuery(
-        api.game.listOpenGames,
+        api.gameReads.listOpenGames,
         pageVisible ? {} : "skip"
     );
     // #155: a user holds at most one active game. When one exists the lobby
     // surfaces it (resume / leave) instead of attempting a rejected creation.
     const activeGame = useQuery(
-        api.game.myActiveGame,
+        api.gameReads.myActiveGame,
         pageVisible ? {} : "skip"
     );
     // The Limited footer's re-entry list (issue #1582) reuses the my-events

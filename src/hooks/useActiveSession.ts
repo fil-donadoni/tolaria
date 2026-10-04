@@ -25,7 +25,7 @@ import {
 /** Derived from the query, never restated: a hand-written mirror of a Convex
  *  return shape is exactly the drift `useLimitedEvent.ts` avoids the same way. */
 type MyActiveGame = NonNullable<
-    FunctionReturnType<typeof api.game.myActiveGame>
+    FunctionReturnType<typeof api.gameReads.myActiveGame>
 >;
 
 /** The game the viewer can return to, reduced to what chrome needs. */
@@ -82,7 +82,7 @@ const NOT_ASKED: ActiveSession = { game: null, event: null, loading: false };
 export function useActiveSession(enabled: boolean): ActiveSession {
     const pageVisible = usePageVisible();
     const live = enabled && pageVisible;
-    const activeGame = useQuery(api.game.myActiveGame, live ? {} : "skip");
+    const activeGame = useQuery(api.gameReads.myActiveGame, live ? {} : "skip");
     const events = useMyCurrentLimitedEvents(enabled);
 
     if (!enabled) return NOT_ASKED;

@@ -228,7 +228,7 @@ export function useVsAiDriver(
     // subscribes to would ever escalate on their behalf, and a parked
     // subscription never un-parks by itself — the bot would just stop moving.
     const tickQuery = useResilientQuery(
-        api.game.getGameTick,
+        api.gameReads.getGameTick,
         botId ? { gameId } : "skip"
     );
     const tick = tickQuery.data;
@@ -253,7 +253,7 @@ export function useVsAiDriver(
     // `getGame` subscription — it no longer re-executes on the `games` patches
     // that fire several times a turn.
     const botDeck = useResilientQuery(
-        api.game.getSeatDeck,
+        api.gameReads.getSeatDeck,
         botId ? { gameId, playerId: botId } : "skip"
     ).data;
     // The HUMAN seat's decklist (issue #2790, PRD #2787) — the second entry
@@ -276,7 +276,7 @@ export function useVsAiDriver(
     // at the moment of use.
     const humanId = botState?.players.find((p) => p.id !== botId)?.id ?? null;
     const humanDeck = useResilientQuery(
-        api.game.getSeatDeck,
+        api.gameReads.getSeatDeck,
         humanId ? { gameId, playerId: humanId } : "skip"
     ).data;
     // Per-seat deck knowledge (issue #2788, generalised to two seats by
@@ -291,7 +291,7 @@ export function useVsAiDriver(
     //   `informed` — plus the human seat, which only `expert` ever receives
     //                (`knowsOpponent`, `convex/gre/difficulty.ts`).
     //
-    // `getSeatDeck`'s ownership gate (`seatBelongsToUser`, `convex/game.ts`)
+    // `getSeatDeck`'s ownership gate (`seatBelongsToUser`, `convex/gameLifecycle.ts`)
     // enforces the seat rule server-side regardless of which shape is chosen.
     // Issue #3590 — the bot seat's decision history this turn, carried from one
     // Brain consult to the next (the Worker itself is stateless). Reset with

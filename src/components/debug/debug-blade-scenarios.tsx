@@ -22,7 +22,7 @@ import DebugButton from "./debug-button";
 /** One entry, DERIVED from the query that returns it rather than restated
  *  here — the backend `returns` validator stays the single definition. */
 type BladeScenarioRow = FunctionReturnType<
-    typeof api.game.debugListBladeScenarios
+    typeof api.debugBlade.debugListBladeScenarios
 >[number];
 
 /**
@@ -57,10 +57,10 @@ export default function DebugBladeScenarios({
     const isAdmin = user?.isAdmin === true;
 
     const scenarios = useQuery(
-        api.game.debugListBladeScenarios,
+        api.debugBlade.debugListBladeScenarios,
         isAdmin ? {} : "skip"
     );
-    const loadScenario = useMutation(api.game.debugLoadBladeScenario);
+    const loadScenario = useMutation(api.debugBlade.debugLoadBladeScenario);
 
     const [pendingLabel, setPendingLabel] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);

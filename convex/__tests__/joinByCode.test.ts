@@ -23,13 +23,8 @@ import { ConvexError } from "convex/values";
 
 import type { MutationCtx } from "../_generated/server";
 import type { Id } from "../_generated/dataModel";
-import {
-    createGame,
-    getJoinInfo,
-    joinGame,
-    joinGameByCode,
-    listOpenGames,
-} from "../game";
+import { createGame, joinGame, joinGameByCode } from "../game";
+import { getJoinInfo, listOpenGames } from "../gameReads";
 import { JOIN_CODE_REJECTED, mintJoinCode } from "../joinCodes";
 import {
     makeInMemoryDb,

@@ -61,9 +61,6 @@ vi.mock("@convex/_generated/api", () => {
     // deliberately the full surface.
     const names = [
         "getPublicState",
-        "getGameTick",
-        "getGame",
-        "getSeatDeck",
         "playCard",
         "summonCompanion",
         "announceCast",
@@ -108,6 +105,9 @@ vi.mock("@convex/_generated/api", () => {
     return {
         api: {
             game: Object.fromEntries(names.map((n) => [n, n])),
+            gameReads: Object.fromEntries(
+                ["getGameTick", "getGame", "getSeatDeck"].map((n) => [n, n])
+            ),
         },
     };
 });
