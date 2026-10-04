@@ -20,10 +20,7 @@
 // Pure: the `"use node"` action binds it to the store and the tables.
 
 import { verdictIdOf, type VerdictJudgement } from "./gre/ai/verdicts/identity";
-import {
-    minimalPairStandings,
-    type MinimalPairMember,
-} from "./gre/ai/verdicts/minimalPair";
+import { minimalPairStandings } from "./gre/ai/verdicts/minimalPair";
 import {
     quarantineContestedPositions,
     type AttestedVerdict,
@@ -437,6 +434,23 @@ function pairContextOf(
     return { role: "anchor", discriminant, anchor: null, halves };
 }
 
+const sameDiscriminant = (a: Discriminant, b: Discriminant): boolean =>
+    a.kind === b.kind && a.detail === b.detail;
+
+/** The verdict ids a Verdict Resolution rejected. Kept in the store as
+ *  evidence, but never a live member of a pair: a rejected half completes no
+ *  anchor, and a rejected anchor is owed no half. */
+function rejectedIdsOf(sources: ReviewSources): Set<string> {
+    const q = quarantineContestedPositions(
+        sources.verdicts,
+        sources.attestations,
+        sources.resolutions
+    );
+    return new Set(
+        q.resolved.flatMap((r) => r.rejected.map((x) => x.verdict.verdictId))
+    );
+}
+
 /** A Conditional Verdict whose right-hand half nobody has written. */
 export type MissingHalf = {
     /** The anchor's verdict id — what the half's `pairOf` will name. */
@@ -445,26 +459,65 @@ export type MissingHalf = {
     judgement: VerdictJudgement;
 };
 
+/** A right-hand half somebody wrote, offered to any tester to check. */
+export type HalfToReview = {
+    halfId: string;
+    positionKey: string;
+    /** The half's own judgement: its position, candidates and right move. */
+    judgement: VerdictJudgement;
+    /** The move the anchor ruled out — the one the half says is right. */
+    anchorMove: string | null;
+};
+
+/** The two lists a tester's pair queue shows. */
+export type PairQueue = {
+    missing: MissingHalf[];
+    halves: HalfToReview[];
+};
+
 /**
- * The queue of halves still owed (user stories 10, 11): every Conditional
- * Verdict that no right-hand half names. A half that exists but is contested
- * or unattested is NOT missing — someone wrote it, and the Contested Position
- * list is where a dispute is settled. Authors are deliberately absent: a
- * tester sees no one else's name (ADR 0128 §12).
+ * The tester's pair queue (ADR 0148, issue #4801, user stories 10, 11, 13).
+ *
+ * MISSING: every Conditional Verdict that no LIVE half completes. A half is
+ * live when a Verdict Resolution has not rejected it and it names the anchor's
+ * own Discriminant — `minimalPair.ts` refuses one that names another, so it
+ * completes nothing and the anchor stays owed. A half that exists but is
+ * contested is live: someone wrote it, and the contested list is where a
+ * dispute is settled. An anchor a resolution rejected is owed nothing.
+ *
+ * HALVES: every live half whose anchor is beside it, so a tester who disagrees
+ * can say so. Their answer lands at the half's position as an ordinary Contested
+ * Position.
+ *
+ * Authors are deliberately absent: a tester sees no one else's name (ADR 0128
+ * §12).
  */
-export function missingHalvesOf(sources: ReviewSources): MissingHalf[] {
+export function pairQueueOf(sources: ReviewSources): PairQueue {
     const all = distinctVerdicts(sources);
-    const named = new Set(
-        [...all.values()].flatMap((j) =>
-            j.pairOf === undefined ? [] : [j.pairOf.anchorId]
-        )
-    );
-    return [...all.entries()]
+    const rejected = rejectedIdsOf(sources);
+    const anchorDiscriminant = (id: string): Discriminant | null => {
+        const j = all.get(id);
+        return j?.classification?.kind === "conditional"
+            ? j.classification.discriminant
+            : null;
+    };
+    const liveHalves = [...all.entries()].filter(([id, j]) => {
+        if (j.pairOf === undefined || rejected.has(id)) return false;
+        const anchor = anchorDiscriminant(j.pairOf.anchorId);
+        return (
+            anchor !== null &&
+            !rejected.has(j.pairOf.anchorId) &&
+            sameDiscriminant(anchor, j.pairOf.discriminant)
+        );
+    });
+    const completed = new Set(liveHalves.map(([, j]) => j.pairOf!.anchorId));
+    const missing = [...all.entries()]
         .filter(
             ([id, j]) =>
                 j.classification?.kind === "conditional" &&
                 j.pairOf === undefined &&
-                !named.has(id)
+                !rejected.has(id) &&
+                !completed.has(id)
         )
         .sort(([a], [b]) => (a < b ? -1 : 1))
         .map(([anchorId, judgement]) => ({
@@ -472,6 +525,22 @@ export function missingHalvesOf(sources: ReviewSources): MissingHalf[] {
             positionKey: verdictStampOf(judgement).positionKey,
             judgement,
         }));
+    const halves = liveHalves
+        .sort(([a], [b]) => (a < b ? -1 : 1))
+        .map(([halfId, judgement]) => {
+            const anchor = all.get(judgement.pairOf!.anchorId)!;
+            const ruledOut =
+                anchor.answer.kind === "forbidden"
+                    ? anchor.candidates[anchor.answer.forbiddenIndexes[0]]
+                    : undefined;
+            return {
+                halfId,
+                positionKey: verdictStampOf(judgement).positionKey,
+                judgement,
+                anchorMove: ruledOut?.description ?? null,
+            };
+        });
+    return { missing, halves };
 }
 
 /** What the admin's pair filter sorts by. */
@@ -497,38 +566,72 @@ export type PairListEntry = {
  * Every classified verdict, sorted into the three groups the admin filters by
  * (user story 35): complete pairs (both halves), incomplete Conditional
  * Verdicts (an anchor owed its half, a half whose anchor is not beside it, a
- * stored unclassified `forbidden`), and Absolute Verdicts. The standing is
- * `minimalPairStandings`' — the rule Promotion applies — read over EVERY
- * verdict the sources hold, so the list says what the fit would say.
+ * stored unclassified `forbidden`), and Absolute Verdicts.
+ *
+ * The standing is `minimalPairStandings`' over the verdicts PROMOTION would
+ * read — attested and uncontested, or accepted by a resolution — so a pair the
+ * fit would not see as complete is not listed as one. A classified verdict that
+ * is not among them (contested, rejected, unattested) is listed incomplete,
+ * with the reason; an Absolute Verdict stays in its own group, since that is a
+ * claim about the judgement and not about the pair.
  */
 export function pairListOf(sources: ReviewSources): PairListEntry[] {
     const all = distinctVerdicts(sources);
-    const members: MinimalPairMember[] = [...all.entries()].map(
-        ([verdictId, judgement]) => ({ verdictId, judgement, stored: true })
+    const q = quarantineContestedPositions(
+        sources.verdicts,
+        sources.attestations,
+        sources.resolutions
     );
-    const standings = minimalPairStandings(members);
+    const live = new Set(q.promotable.map((v) => v.verdictId));
+    const contested = new Set(
+        q.contested.flatMap((c) => c.verdicts.map((v) => v.verdictId))
+    );
+    const rejected = rejectedIdsOf(sources);
+    const standings = minimalPairStandings(
+        [...all.entries()]
+            .filter(([verdictId]) => live.has(verdictId))
+            .map(([verdictId, judgement]) => ({
+                verdictId,
+                judgement,
+                stored: true,
+            }))
+    );
     const out: PairListEntry[] = [];
-    for (const { verdictId, judgement } of members) {
+    for (const [verdictId, judgement] of all) {
         const standing = standings.get(verdictId);
-        if (standing === undefined || standing.kind === "unclassified") {
-            continue;
-        }
+        const classified =
+            judgement.classification !== undefined ||
+            judgement.pairOf !== undefined;
+        if (standing === undefined && !classified) continue;
+        if (standing?.kind === "unclassified") continue;
         const indexes =
             judgement.answer.kind === "right"
                 ? judgement.answer.rightIndexes
                 : judgement.answer.forbiddenIndexes;
         const discriminant = discriminantOfJudgement(judgement);
+        const absolute = judgement.classification?.kind === "absolute";
+        const outOfFit =
+            standing === undefined
+                ? contested.has(verdictId)
+                    ? "held out of the fit while its position is contested"
+                    : rejected.has(verdictId)
+                      ? "rejected by a Verdict Resolution"
+                      : "not attested by a tester"
+                : null;
         out.push({
             verdictId,
             positionKey: verdictStampOf(judgement).positionKey,
-            kind:
-                standing.kind === "paired"
-                    ? "complete-pair"
-                    : standing.kind === "absolute"
-                      ? "absolute"
-                      : "incomplete",
-            ...(standing.kind === "paired" ? { role: standing.role } : {}),
-            ...(standing.kind === "incomplete" ? { why: standing.why } : {}),
+            kind: absolute
+                ? "absolute"
+                : standing?.kind === "paired"
+                  ? "complete-pair"
+                  : "incomplete",
+            ...(standing?.kind === "paired" ? { role: standing.role } : {}),
+            ...(standing?.kind === "incomplete"
+                ? { why: standing.why }
+                : outOfFit !== null && !absolute
+                  ? { why: outOfFit }
+                  : {}),
             ...(discriminant === null ? {} : { discriminant }),
             answerKind: judgement.answer.kind,
             moves: [...indexes]

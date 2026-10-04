@@ -11,16 +11,17 @@
 import { useCallback, useEffect, useState } from "react";
 import { useAction, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
-import type { MissingHalf } from "@convex/verdictReview";
+import type { PairQueue } from "@convex/verdictReview";
 import { canSubmitVerdicts } from "~/lib/adminGating";
 import DebugButton from "./debug-button";
 import MissingHalfRow from "./missing-half-row";
 import MissingHalfWriter from "./missing-half-writer";
+import PairHalvesReview from "./pair-halves-review";
 
 export default function MissingHalvesQueue() {
     const currentUser = useQuery(api.users.currentUser);
-    const loadQueue = useAction(api.verdictReviewActions.missingHalves);
-    const [halves, setHalves] = useState<MissingHalf[] | undefined>(undefined);
+    const loadQueue = useAction(api.verdictReviewActions.pairQueue);
+    const [queue, setQueue] = useState<PairQueue | undefined>(undefined);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [openId, setOpenId] = useState<string | null>(null);
@@ -31,7 +32,7 @@ export default function MissingHalvesQueue() {
             loadQueue({})
                 .then(
                     (result) => {
-                        setHalves(result as MissingHalf[]);
+                        setQueue(result as PairQueue);
                         setError(null);
                     },
                     (cause: unknown) =>
@@ -51,7 +52,8 @@ export default function MissingHalvesQueue() {
 
     if (!allowed) return null;
 
-    const open = halves?.find((h) => h.anchorId === openId) ?? null;
+    const missing = queue?.missing;
+    const open = missing?.find((h) => h.anchorId === openId) ?? null;
 
     function reload() {
         if (loading) return;
@@ -67,7 +69,7 @@ export default function MissingHalvesQueue() {
             <div className="flex items-baseline justify-between gap-2">
                 <span className="text-label">
                     Missing halves
-                    {halves === undefined ? "" : ` (${halves.length})`}
+                    {missing === undefined ? "" : ` (${missing.length})`}
                 </span>
                 <DebugButton onClick={reload} disabled={loading}>
                     {loading ? "Loading…" : "Reload"}
@@ -88,13 +90,13 @@ export default function MissingHalvesQueue() {
                     }}
                     onClose={() => setOpenId(null)}
                 />
-            ) : halves !== undefined && halves.length === 0 ? (
+            ) : missing !== undefined && missing.length === 0 ? (
                 <span className="text-[11px] text-text-disabled">
                     No right-hand half is owed.
                 </span>
             ) : (
                 <ul className="flex flex-col gap-1">
-                    {(halves ?? []).map((half) => (
+                    {(missing ?? []).map((half) => (
                         <MissingHalfRow
                             key={half.anchorId}
                             half={half}
@@ -103,6 +105,7 @@ export default function MissingHalvesQueue() {
                     ))}
                 </ul>
             )}
+            {open === null && <PairHalvesReview halves={queue?.halves ?? []} />}
         </div>
     );
 }

@@ -15,7 +15,22 @@
 // through the real `trace-store`, which is a bot-only module, and
 // `bot-suite-boundary.test.ts` puts every test that imports one in the bot
 // suite.
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
+
+// The box mounts the missing-halves queue (issue #4801), which reads the
+// Convex client. No account here is a tester, so it renders nothing.
+vi.mock("convex/react", () => ({
+    useQuery: () => null,
+    useMutation: () => vi.fn(),
+    useAction: () => vi.fn(),
+}));
+vi.mock("@convex/_generated/api", () => ({
+    api: {
+        users: { currentUser: "users:currentUser" },
+        verdicts: { submit: "verdicts:submit" },
+        verdictReviewActions: { pairQueue: "verdictReviewActions:pairQueue" },
+    },
+}));
 import { render, cleanup } from "@testing-library/react";
 import { clearAiDecisions, recordAiDecision } from "~/lib/ai/trace-store";
 

@@ -8,6 +8,7 @@ import AiDecisionQuizCandidate from "@/components/debug/ai-decision-quiz-candida
 import VerdictAnswerCard from "./verdict-answer-card";
 import VerdictPairContext from "./verdict-pair-context";
 import VerdictPositionBoard from "./verdict-position-board";
+import { halfDisagreementSubmission } from "~/lib/ai/verdict-pair";
 import { carriedPairFields } from "./verdict-review-model";
 
 /**
@@ -37,12 +38,30 @@ export default function VerdictColdJudgement({
     const [error, setError] = useState<string | null>(null);
     const { judgement } = verdict;
 
-    async function submit(answer: VerdictAnswer, outcome: "agreed" | "judged") {
+    async function send(
+        payload: Parameters<typeof submitVerdict>[0],
+        outcome: "agreed" | "judged"
+    ) {
         if (saving || recorded !== null) return;
         setSaving(true);
         setError(null);
         try {
-            await submitVerdict({
+            await submitVerdict(payload);
+            setRecorded(outcome);
+        } catch (cause) {
+            setError(
+                cause instanceof Error
+                    ? cause.message
+                    : "The judgement was refused"
+            );
+        } finally {
+            setSaving(false);
+        }
+    }
+
+    const submit = (answer: VerdictAnswer, outcome: "agreed" | "judged") =>
+        send(
+            {
                 spec: judgement.spec,
                 ...(judgement.setup?.length ? { setup: judgement.setup } : {}),
                 seat: judgement.seat,
@@ -55,18 +74,9 @@ export default function VerdictColdJudgement({
                 // record's classification and pair link, or it would not be
                 // an attestation of it.
                 ...carriedPairFields(answer, judgement),
-            });
-            setRecorded(outcome);
-        } catch (cause) {
-            setError(
-                cause instanceof Error
-                    ? cause.message
-                    : "The judgement was refused"
-            );
-        } finally {
-            setSaving(false);
-        }
-    }
+            },
+            outcome
+        );
 
     return (
         <section
@@ -97,16 +107,8 @@ export default function VerdictColdJudgement({
                                 variant="secondary"
                                 size="sm"
                                 onClick={() =>
-                                    void submit(
-                                        {
-                                            kind: "forbidden",
-                                            forbiddenIndexes:
-                                                judgement.answer.kind ===
-                                                "right"
-                                                    ? judgement.answer
-                                                          .rightIndexes
-                                                    : [],
-                                        },
+                                    void send(
+                                        halfDisagreementSubmission(judgement),
                                         "judged"
                                     )
                                 }

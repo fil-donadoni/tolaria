@@ -34,7 +34,7 @@ import { verdictDeploymentOf, type OutboxRow } from "./verdictsOutbox";
 import type { ResolutionOutboxRow } from "./verdictResolutionsOutbox";
 import {
     localUserIdOf,
-    missingHalvesOf,
+    pairQueueOf,
     openVerdictOf,
     pairListOf,
     resolutionAgainst,
@@ -139,15 +139,16 @@ export const review = action({
     },
 });
 
-/** Every Conditional Verdict still owed its right-hand half (ADR 0148, issue
- *  #4801) — the queue any tester can open one from. Tester-gated; carries no
- *  author. `v.any()` for the same reason `review` does: it holds positions. */
-export const missingHalves = action({
+/** The tester's pair queue (ADR 0148, issue #4801): the Conditional Verdicts
+ *  still owed a right-hand half, and the halves written so far that a tester
+ *  may disagree with. Tester-gated; carries no author. `v.any()` for the same
+ *  reason `review` does: it holds positions. */
+export const pairQueue = action({
     args: {},
     returns: v.any(),
     handler: async (ctx) => {
         const { sources } = await loadReview(ctx, "tester");
-        return missingHalvesOf(sources);
+        return pairQueueOf(sources);
     },
 });
 

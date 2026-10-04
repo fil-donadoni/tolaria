@@ -29,14 +29,14 @@ vi.mock("convex/react", () => ({
     useMutation: () => submitVerdict,
     useQuery: () => currentUser,
     useAction: (fn: string) =>
-        fn === "verdictReviewActions:missingHalves" ? loadQueue : vi.fn(),
+        fn === "verdictReviewActions:pairQueue" ? loadQueue : vi.fn(),
 }));
 vi.mock("@convex/_generated/api", () => ({
     api: {
         users: { currentUser: "users:currentUser" },
         verdicts: { submit: "verdicts:submit" },
         verdictReviewActions: {
-            missingHalves: "verdictReviewActions:missingHalves",
+            pairQueue: "verdictReviewActions:pairQueue",
         },
     },
 }));
@@ -47,7 +47,7 @@ import { describeMove } from "@convex/gre/describeMove";
 import { moveKey } from "@convex/gre/search";
 import type { ScenarioSpec } from "@convex/debugScenarioSpec";
 import type { VerdictJudgement } from "@convex/gre/ai/verdicts/identity";
-import type { MissingHalf } from "@convex/verdictReview";
+import type { HalfToReview, MissingHalf } from "@convex/verdictReview";
 import MissingHalvesQueue from "../missing-halves-queue";
 
 const MAIN_PHASE: ScenarioSpec = {
@@ -61,6 +61,11 @@ const MAIN_PHASE: ScenarioSpec = {
     landCount: 0,
     libraryCount: 20,
 };
+
+const queueOf = (missing: MissingHalf[], halves: HalfToReview[] = []) => ({
+    missing,
+    halves,
+});
 
 const ANCHOR_ID = "v1-" + "a".repeat(64);
 const DISCRIMINANT = { kind: "life" as const, detail: "opp life 5" };
@@ -104,7 +109,7 @@ beforeEach(() => {
 
 describe("the missing-halves queue", () => {
     it("lists a deferred Conditional Verdict by the move it ruled out and its Discriminant", async () => {
-        loadQueue.mockResolvedValue([anchorOf()]);
+        loadQueue.mockResolvedValue(queueOf([anchorOf()]));
         render(<MissingHalvesQueue />);
         const row = await screen.findByTestId("missing-half-row");
         expect(row.textContent).toContain("Wrong now: pass");
@@ -113,7 +118,7 @@ describe("the missing-halves queue", () => {
     });
 
     it("says so when no half is owed", async () => {
-        loadQueue.mockResolvedValue([]);
+        loadQueue.mockResolvedValue(queueOf([]));
         render(<MissingHalvesQueue />);
         expect(
             await screen.findByText("No right-hand half is owed.")
@@ -128,7 +133,9 @@ describe("the missing-halves queue", () => {
     });
 
     it("lets another tester write the half: one submission, the anchor's Discriminant verbatim, the anchor untouched", async () => {
-        loadQueue.mockResolvedValueOnce([anchorOf()]).mockResolvedValueOnce([]);
+        loadQueue
+            .mockResolvedValueOnce(queueOf([anchorOf()]))
+            .mockResolvedValueOnce(queueOf([]));
         render(<MissingHalvesQueue />);
         fireEvent.click(
             await screen.findByRole("button", {
@@ -184,7 +191,7 @@ describe("the missing-halves queue", () => {
     });
 
     it("leaves the half in the queue when the writer walks away", async () => {
-        loadQueue.mockResolvedValue([anchorOf()]);
+        loadQueue.mockResolvedValue(queueOf([anchorOf()]));
         render(<MissingHalvesQueue />);
         fireEvent.click(
             await screen.findByRole("button", {
@@ -199,7 +206,7 @@ describe("the missing-halves queue", () => {
     });
 
     it("leaves the half in the queue from the right-hand position too, storing nothing", async () => {
-        loadQueue.mockResolvedValue([anchorOf()]);
+        loadQueue.mockResolvedValue(queueOf([anchorOf()]));
         render(<MissingHalvesQueue />);
         fireEvent.click(
             await screen.findByRole("button", {
@@ -229,9 +236,9 @@ describe("the missing-halves queue", () => {
     });
 
     it("refuses an anchor that carries setup steps, saying why", async () => {
-        loadQueue.mockResolvedValue([
-            anchorOf({ setup: [{ kind: "pass" }] as never }),
-        ]);
+        loadQueue.mockResolvedValue(
+            queueOf([anchorOf({ setup: [{ kind: "pass" }] as never })])
+        );
         render(<MissingHalvesQueue />);
         fireEvent.click(
             await screen.findByRole("button", {
@@ -252,7 +259,7 @@ describe("the missing-halves queue", () => {
                 discriminant: { kind: "other", detail: "the opponent bluffs" },
             },
         });
-        loadQueue.mockResolvedValue([anchor]);
+        loadQueue.mockResolvedValue(queueOf([anchor]));
         render(<MissingHalvesQueue />);
         fireEvent.click(
             await screen.findByRole("button", {
@@ -272,5 +279,73 @@ describe("the missing-halves queue", () => {
             ).disabled
         ).toBe(true);
         expect(submitVerdict).not.toHaveBeenCalled();
+    });
+});
+
+describe("the halves to check", () => {
+    const half = (): HalfToReview => {
+        const { judgement } = anchorOf();
+        const wrong =
+            judgement.answer.kind === "forbidden"
+                ? judgement.answer.forbiddenIndexes[0]
+                : 0;
+        return {
+            halfId: "v1-" + "c".repeat(64),
+            positionKey: "v1-" + "d".repeat(64),
+            anchorMove: "pass",
+            judgement: {
+                spec: { ...MAIN_PHASE, life: { opp: 5 } },
+                seat: "me",
+                candidates: judgement.candidates,
+                answer: { kind: "right", rightIndexes: [wrong] },
+                pairOf: { anchorId: ANCHOR_ID, discriminant: DISCRIMINANT },
+            },
+        };
+    };
+
+    it("lists a written half beside the queue, with its Discriminant", async () => {
+        loadQueue.mockResolvedValue(queueOf([], [half()]));
+        render(<MissingHalvesQueue />);
+        const row = await screen.findByTestId("pair-half-row");
+        expect(row.textContent).toContain("Right here: pass (wrong now: pass)");
+        expect(row.textContent).toContain("Because of life: opp life 5");
+    });
+
+    it("lets any tester disagree: the move forbidden at the half's position, no pair link", async () => {
+        const written = half();
+        loadQueue.mockResolvedValue(queueOf([], [written]));
+        render(<MissingHalvesQueue />);
+        fireEvent.click(
+            await screen.findByRole("button", { name: "Show the position" })
+        );
+        fireEvent.click(
+            screen.getByRole("button", {
+                name: "Disagree: the move is not right here",
+            })
+        );
+        await waitFor(() => expect(submitVerdict).toHaveBeenCalledTimes(1));
+        const [sent] = submitVerdict.mock.calls[0] as unknown as [
+            Record<string, unknown>,
+        ];
+        expect(sent.answer).toEqual({
+            kind: "forbidden",
+            forbiddenIndexes: [
+                (written.judgement.answer as { rightIndexes: number[] })
+                    .rightIndexes[0],
+            ],
+        });
+        expect(sent.spec).toEqual(written.judgement.spec);
+        expect(sent.pairOf).toBeUndefined();
+        expect(sent.classification).toBeUndefined();
+        expect(
+            await screen.findByText(/position is now contested/)
+        ).toBeTruthy();
+    });
+
+    it("shows no halves section when none was written", async () => {
+        loadQueue.mockResolvedValue(queueOf([]));
+        render(<MissingHalvesQueue />);
+        await screen.findByText("No right-hand half is owed.");
+        expect(screen.queryByTestId("pair-halves-review")).toBe(null);
     });
 });

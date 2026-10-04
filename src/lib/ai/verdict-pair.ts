@@ -561,3 +561,27 @@ export function rightHalfSubmission(
         pairOf: { anchorId, discriminant },
     };
 }
+
+/** What `verdicts.submit` takes to DISAGREE with a right-hand half (ADR 0148,
+ *  issue #4801, user story 13): the half's own position, the move it calls
+ *  right ruled out instead. The answer is the tester's own word and says
+ *  nothing about a pair, so it carries neither classification nor link — it is
+ *  a different verdict at the half's position key, which is what makes the
+ *  position a Contested Position for the existing Verdict Resolution. ONE copy:
+ *  the cold judgement and the tester queue send the same thing. */
+export function halfDisagreementSubmission(half: VerdictJudgement) {
+    return {
+        spec: half.spec,
+        ...(half.setup?.length ? { setup: half.setup } : {}),
+        seat: half.seat,
+        ...(half.deckKnowledge?.length
+            ? { deckKnowledge: half.deckKnowledge }
+            : {}),
+        candidates: half.candidates,
+        answer: {
+            kind: "forbidden" as const,
+            forbiddenIndexes:
+                half.answer.kind === "right" ? half.answer.rightIndexes : [],
+        },
+    };
+}

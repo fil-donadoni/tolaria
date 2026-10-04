@@ -16,13 +16,14 @@ import {
 import type { ScenarioSpec } from "../debugScenarioSpec";
 import type { Discriminant } from "../gre/ai/verdicts/types";
 import {
-    missingHalvesOf,
+    pairQueueOf,
     openVerdictOf,
     pairListOf,
     reviewSourcesOf,
     verdictReviewOf,
 } from "../verdictReview";
 import type { OutboxRow, VerdictDeployment } from "../verdictsOutbox";
+import type { ResolutionOutboxRow } from "../verdictResolutionsOutbox";
 
 const HERE: VerdictDeployment = { name: "local-3210", kind: "local" };
 const NO_NAMES = () => undefined;
@@ -96,10 +97,35 @@ const sourcesOf = (...rows: OutboxRow[]) =>
         here: HERE,
     });
 
+/** `sourcesOf`, with an admin's decision over one position. */
+const resolvedSources = (
+    resolution: Pick<
+        ResolutionOutboxRow,
+        "positionKey" | "acceptedVerdictId" | "rejected"
+    >,
+    ...rows: OutboxRow[]
+) =>
+    reviewSourcesOf({
+        stored: null,
+        verdictRows: rows,
+        resolutionRows: [
+            {
+                _id: "r1",
+                resolutionId: "unused-by-the-read",
+                resolverAuthor: "local-3210:admin",
+                createdAt: 200,
+                deployment: HERE.name,
+                deploymentKind: "local",
+                ...resolution,
+            },
+        ],
+        here: HERE,
+    });
+
 describe("the missing-halves queue", () => {
     it("lists a Conditional Verdict nobody has written the half of, and nothing else", () => {
         const sources = sourcesOf(row(ANCHOR, "alice"), row(ABSOLUTE, "alice"));
-        const queue = missingHalvesOf(sources);
+        const queue = pairQueueOf(sources).missing;
         expect(queue.map((m) => m.anchorId)).toEqual([ANCHOR_ID]);
         expect(queue[0].positionKey).toBe(positionKeyOf(ANCHOR));
         expect(queue[0].judgement.classification).toEqual(
@@ -108,13 +134,13 @@ describe("the missing-halves queue", () => {
     });
 
     it("carries no author: a tester sees no one else's name", () => {
-        const [entry] = missingHalvesOf(sourcesOf(row(ANCHOR, "alice")));
+        const [entry] = pairQueueOf(sourcesOf(row(ANCHOR, "alice"))).missing;
         expect(JSON.stringify(entry)).not.toContain("alice");
     });
 
     it("drops the anchor once another tester writes the half, each claim attested by its own author", () => {
         const sources = sourcesOf(row(ANCHOR, "alice"), row(HALF, "bob"));
-        expect(missingHalvesOf(sources)).toEqual([]);
+        expect(pairQueueOf(sources).missing).toEqual([]);
 
         const anchor = openVerdictOf(sources, ANCHOR_ID, NO_NAMES)!;
         const half = openVerdictOf(sources, HALF_ID, NO_NAMES)!;
@@ -135,7 +161,7 @@ describe("the missing-halves queue", () => {
             },
         };
         const sources = sourcesOf(row(ANCHOR, "alice"), row(stray, "bob"));
-        expect(missingHalvesOf(sources).map((m) => m.anchorId)).toEqual([
+        expect(pairQueueOf(sources).missing.map((m) => m.anchorId)).toEqual([
             ANCHOR_ID,
         ]);
     });
@@ -263,5 +289,93 @@ describe("the pair beside a verdict opened cold", () => {
             NO_NAMES
         )!;
         expect(verdict.pair).toBeUndefined();
+    });
+});
+
+describe("the queue reads the resolutions and the pair rule", () => {
+    const DISAGREEMENT: VerdictJudgement = {
+        ...HALF_POSITION,
+        answer: { kind: "forbidden", forbiddenIndexes: [1] },
+    };
+
+    it("returns an anchor to the queue when its half was rejected by a resolution", () => {
+        const sources = resolvedSources(
+            {
+                positionKey: positionKeyOf(HALF),
+                acceptedVerdictId: verdictIdOf(DISAGREEMENT),
+                rejected: [{ verdictId: HALF_ID, reason: "bluffing" }],
+            },
+            row(ANCHOR, "alice"),
+            row(HALF, "bob"),
+            row(DISAGREEMENT, "carol")
+        );
+        expect(pairQueueOf(sources).missing.map((m) => m.anchorId)).toEqual([
+            ANCHOR_ID,
+        ]);
+        expect(pairQueueOf(sources).halves).toEqual([]);
+    });
+
+    it("owes nothing to an anchor a resolution rejected", () => {
+        const reclassified: VerdictJudgement = {
+            ...ANCHOR,
+            classification: {
+                kind: "conditional",
+                discriminant: { kind: "life", detail: "opp life 3" },
+            },
+        };
+        const sources = resolvedSources(
+            {
+                positionKey: positionKeyOf(ANCHOR),
+                acceptedVerdictId: verdictIdOf(reclassified),
+                rejected: [{ verdictId: ANCHOR_ID, reason: "wrong reason" }],
+            },
+            row(ANCHOR, "alice"),
+            row(reclassified, "alice")
+        );
+        expect(pairQueueOf(sources).missing.map((m) => m.anchorId)).toEqual([
+            verdictIdOf(reclassified),
+        ]);
+    });
+
+    it("does not count a half that names another Discriminant than its anchor's", () => {
+        const mismatched: VerdictJudgement = {
+            ...HALF,
+            pairOf: {
+                anchorId: ANCHOR_ID,
+                discriminant: { kind: "life", detail: "opp life 3" },
+            },
+        };
+        const queue = pairQueueOf(
+            sourcesOf(row(ANCHOR, "alice"), row(mismatched, "bob"))
+        );
+        expect(queue.missing.map((m) => m.anchorId)).toEqual([ANCHOR_ID]);
+        expect(queue.halves).toEqual([]);
+    });
+
+    it("offers a written half to check, with the move its anchor ruled out", () => {
+        const { halves } = pairQueueOf(
+            sourcesOf(row(ANCHOR, "alice"), row(HALF, "bob"))
+        );
+        expect(halves).toHaveLength(1);
+        expect(halves[0]).toMatchObject({
+            halfId: HALF_ID,
+            positionKey: positionKeyOf(HALF),
+            anchorMove: "cast Lightning Bolt",
+        });
+        expect(JSON.stringify(halves)).not.toContain("bob");
+    });
+
+    it("does not list a contested pair as complete: Promotion would not fit it", () => {
+        const sources = sourcesOf(
+            row(ANCHOR, "alice"),
+            row(HALF, "bob"),
+            row(DISAGREEMENT, "carol")
+        );
+        const list = pairListOf(sources);
+        const half = list.find((e) => e.verdictId === HALF_ID)!;
+        const anchor = list.find((e) => e.verdictId === ANCHOR_ID)!;
+        expect(half.kind).toBe("incomplete");
+        expect(half.why).toContain("contested");
+        expect(anchor.kind).toBe("incomplete");
     });
 });
