@@ -16,6 +16,7 @@
  */
 
 import type { BladeScenario, BladeSeat, MoveMatcher } from "./types";
+import type { Discriminant } from "../verdicts/types";
 import type { GameState } from "../../state";
 import type { Move } from "../../moves";
 import { enumerateMoves, enumerateRaisedTargetMoves } from "../../moves";
@@ -459,6 +460,38 @@ function activationIsDiscouraged(
         activations.every((m) => isDiscouragedRolloutMove(state, pid, m))
     );
 }
+
+// Discriminants of the registry's declared Minimal Pairs (ADR 0148, issue
+// #4796). Each names WHY the anchor's move is wrong here and right in its
+// half; a half repeats its anchor's constant, which the derivation compares
+// field for field. An anchor with no half beside it is conditional debt: its
+// pair prose (kept, see each entry's PAIRED WITH) did not differ by this
+// Discriminant only, or its other half is no `moves` verdict. A pair whose
+// anchor is itself a `moves` verdict (entomb, free put) is left unclassified
+// instead: a `moves` verdict rules no move out, so nothing says it is wrong
+// NOW, and demoting it out of the fit moved `graveyardReachFraction` enough to
+// flip a noise-pinned reach guard.
+const DENSE_LIBRARY: Discriminant = {
+    kind: "other",
+    detail: "a library of twenty creatures where the anchor's holds twenty lands",
+};
+const PAYOFF_BODY: Discriminant = {
+    kind: "card",
+    detail: "a body that pays on the way out, in place of a vanilla one",
+};
+const STIFLE_BACKUP: Discriminant = {
+    kind: "card",
+    detail: "Stifle in hand, with a land to cast it",
+};
+const TITANIA_PAYOFF: Discriminant = {
+    kind: "card",
+    detail: "Titania, Protector of Argoth on the battlefield",
+};
+const OWN_BESTOW_HOST: Discriminant = {
+    kind: "card",
+    detail: "an own creature to bestow onto",
+};
+const EXTRA_PLAINS: Discriminant = { kind: "card", detail: "one extra Plains" };
 
 export const BLADE_SCENARIOS: BladeScenario[] = [
     {
@@ -1300,6 +1333,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // Dreadnought itself, so every legal answer sacrifices the 12/12
         // immediately and the card is spent for nothing.
         label: "discriminating pair: does NOT cast Phyrexian Dreadnought with no out",
+        classification: { kind: "conditional", discriminant: STIFLE_BACKUP },
         spec: {
             cards: [
                 { name: "Phyrexian Dreadnought", owner: "me", zone: "hand" },
@@ -5184,6 +5218,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // inside the rollout-noise band, which is how the bot gave a land away
         // for 2 life on 1/5 seeds.
         label: "discriminating pair: does NOT sacrifice a land to Zuran Orb for 2 life (issue #2686)",
+        classification: { kind: "conditional", discriminant: TITANIA_PAYOFF },
         spec: {
             cards: [
                 { name: "Zuran Orb", owner: "me", zone: "battlefield" },
@@ -6223,6 +6258,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // must never be is the bot's PREFERENCE over the same Aura on its own
         // creature, or over simply casting the 1/1.
         label: "cast mode: never bestows the Aura onto the OPPONENT's creature",
+        classification: { kind: "conditional", discriminant: OWN_BESTOW_HOST },
         spec: {
             cards: [
                 { name: "Springheart Nantuko", owner: "me", zone: "hand" },
@@ -6279,6 +6315,10 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // falls to a tie-break (ADR 0070 §1 — an entry that passes on a tie
         // asserts nothing).
         label: "oath: takes the free body when its library is creature-dense",
+        pairOf: {
+            anchor: "oath: declines the dig when its library holds no creature",
+            discriminant: DENSE_LIBRARY,
+        },
         spec: {
             cards: [
                 { name: "Oath of Druids", owner: "me", zone: "battlefield" },
@@ -6303,7 +6343,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         seeds: [0xb1ade, 1, 2],
         tier: "must",
         expect: { moves: [{ kind: "may-pay", accept: true }] },
-        note: 'Half 1 of the discriminating pair — PAIRED WITH "oath: declines the dig when its library holds no creature". Also the FIRST blade position whose decision is a phase trigger: it needs the `phase-trigger` setup step (issue #2707), since a ScenarioSpec names a phase but only describes a board and no step advanced the turn, so no upkeep/draw/end-step trigger could previously be the decision under test. The reveal is CR 701.20a, the free arrival CR 400.7.',
+        note: "Half 1 of the discriminating pair. Also the FIRST blade position whose decision is a phase trigger: it needs the `phase-trigger` setup step (issue #2707), since a ScenarioSpec names a phase but only describes a board and no step advanced the turn, so no upkeep/draw/end-step trigger could previously be the decision under test. The reveal is CR 701.20a, the free arrival CR 400.7.",
     },
     {
         // DISCRIMINATING PAIR, HALF 2 of 2 (issue #2707).
@@ -6322,6 +6362,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // SEARCH to apply the Op through the real GRE and score the emptied
         // library.
         label: "oath: declines the dig when its library holds no creature",
+        classification: { kind: "conditional", discriminant: DENSE_LIBRARY },
         spec: {
             cards: [
                 { name: "Oath of Druids", owner: "me", zone: "battlefield" },
@@ -6346,7 +6387,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         seeds: [0xb1ade, 1, 2],
         tier: "must",
         expect: { moves: [{ kind: "may-pay", accept: false }] },
-        note: 'Half 2 of the discriminating pair — PAIRED WITH "oath: takes the free body when its library is creature-dense". Accepting empties a twenty-card library, which `libraryTerm` (evaluate.ts, CR 104.3c / 704.5b) scores steeply negative below its 12-card horizon; declining costs nothing. The pair is what proves the answer comes from the search applying the Op, not from the announcement\'s flat valuation — the valuer scores the two announcements identically.',
+        note: "Half 2 of the discriminating pair. Accepting empties a twenty-card library, which `libraryTerm` (evaluate.ts, CR 104.3c / 704.5b) scores steeply negative below its 12-card horizon; declining costs nothing. The pair is what proves the answer comes from the search applying the Op, not from the announcement's flat valuation — the valuer scores the two announcements identically.",
     },
     {
         // DISCRIMINATING PAIR, HALF 1 of 2 (issue #3041).
@@ -6887,6 +6928,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // adding a fifth land did not change the count, because the plan is
         // minimum-cardinality and still selected the source itself.
         label: "self-tap source: does NOT activate a {T} ability its OTHER lands cannot pay",
+        classification: { kind: "conditional", discriminant: EXTRA_PLAINS },
         spec: {
             cards: [
                 {
@@ -7128,6 +7170,10 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     // question — see its own note.
     {
         label: "cheat into play: casts for a body that pays on the way out",
+        pairOf: {
+            anchor: "cheat into play NEGATIVE CONTROL: passes for a vanilla body of the same mana value",
+            discriminant: PAYOFF_BODY,
+        },
         spec: {
             cards: [
                 { name: "Flash", owner: "me", zone: "hand" },
@@ -7143,10 +7189,11 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         seeds: [0xb1ade, 1, 2, 3, 4],
         tier: "must",
         expect: { moves: [{ kind: "cast-spell", card: "Flash" }] },
-        note: 'Issues #3293 and #3388, the half the shape exists for. PAIRED WITH "cheat into play NEGATIVE CONTROL: passes for a vanilla body of the same mana value". Cheating a seven-drop in for {1}{U} and sacrificing it is a REAL play when the body pays on the way out: the Tyrant leaves a token copy of itself behind when the sacrifice takes it, and the 1-ply probe prices that correctly (the settled cast scores 756.4 against 509.8 for passing, +201.6 on material margin). DISCRIMINATING at the DEFAULT budget: 0/5 seeds at 400 while the root pick fell to `selectRootMove`\'s material tie-break — which reads a mean accumulated over the whole SUBTREE, and the `pass` subtree casts the same spell one ply later, so the two means differ by rollout noise — and 5/5 at the same 400 once `resolved-payoff` (issue #3388) credited the cast on the leaf-decisive measurement the self-harm hold already refuses on. The negative control below is byte-identically unchanged by that rule, which is what says it reads the SIGN of the resolution rather than the shape.',
+        note: "Issues #3293 and #3388, the half the shape exists for. Cheating a seven-drop in for {1}{U} and sacrificing it is a REAL play when the body pays on the way out: the Tyrant leaves a token copy of itself behind when the sacrifice takes it, and the 1-ply probe prices that correctly (the settled cast scores 756.4 against 509.8 for passing, +201.6 on material margin). DISCRIMINATING at the DEFAULT budget: 0/5 seeds at 400 while the root pick fell to `selectRootMove`'s material tie-break — which reads a mean accumulated over the whole SUBTREE, and the `pass` subtree casts the same spell one ply later, so the two means differ by rollout noise — and 5/5 at the same 400 once `resolved-payoff` (issue #3388) credited the cast on the leaf-decisive measurement the self-harm hold already refuses on. The negative control below is byte-identically unchanged by that rule, which is what says it reads the SIGN of the resolution rather than the shape.",
     },
     {
         label: "cheat into play NEGATIVE CONTROL: passes for a vanilla body of the same mana value",
+        classification: { kind: "conditional", discriminant: PAYOFF_BODY },
         spec: {
             cards: [
                 { name: "Flash", owner: "me", zone: "hand" },
@@ -7162,10 +7209,14 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         seeds: [0xb1ade, 1, 2, 3, 4],
         tier: "must",
         expect: { forbidden: [{ kind: "cast-spell", card: "Flash" }] },
-        note: "Issue #3293's negative control, and the half that is now forced. PAIRED WITH \"cheat into play: casts for a body that pays on the way out\". Lady Orca is a 7/4 vanilla of the same mana value as the Tyrant above, so every cost in the position is identical and the ONLY difference is that nothing survives the sacrifice: two cards and the turn's mana for an empty board. DISCRIMINATING: 0/5 seeds before the confinement probe stopped counting the death bookkeeping a self-inflicted sacrifice writes, 5/5 after, at the same 400 iterations — and byte-identically unchanged on the payoff half above, which is what says the fix reads the position rather than the card.",
+        note: "Issue #3293's negative control, and the half that is now forced. Lady Orca is a 7/4 vanilla of the same mana value as the Tyrant above, so every cost in the position is identical and the ONLY difference is that nothing survives the sacrifice: two cards and the turn's mana for an empty board. DISCRIMINATING: 0/5 seeds before the confinement probe stopped counting the death bookkeeping a self-inflicted sacrifice writes, 5/5 after, at the same 400 iterations — and byte-identically unchanged on the payoff half above, which is what says the fix reads the position rather than the card.",
     },
     {
         label: "cheat into play: the reported Worldspine Wurm position",
+        pairOf: {
+            anchor: "cheat into play NEGATIVE CONTROL: passes for a vanilla body of the same mana value",
+            discriminant: PAYOFF_BODY,
+        },
         spec: {
             cards: [
                 { name: "Flash", owner: "me", zone: "hand" },
@@ -7185,7 +7236,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
             note: "Issue #3388's ORIGINAL report, kept as the record of what is still open on this shape — and filed `valuation` with no `passesAt` on purpose: no budget clears it, because the position is scored wrong rather than reached too rarely. The settle half of #3388 IS working here: the probe now settles through the hand pick, the forced sacrifice and the CR 603.3b trigger-order batch, and reads the real outcome — three 5/5 trample tokens (825 `creatures` + 15 `permanents`) with the Wurm shuffled back into the library. It loses to 932 for keeping the Wurm in hand, because the `hand` term prices an {8}{G}{G}{G} 15/15 held on TWO LANDS at full latent worth: there is no castability factor anywhere in `cardValue`, so a card nine turns from castable scores what it would score on eleven lands. `self-harm-removal` then refuses a cast whose settled margin drops, which is the right rule reading the one wrong number in the position. Fixing it is a change to a term on every ISMCTS leaf in every game, not a line in a settle fix — drafted in `docs/findings/3388-hand-term-prices-an-uncastable-fatty-at-full-latent-worth.md`. The pair above discriminates the MECHANISM this issue was about at the same 400 iterations; this entry pins the VALUATION that is left.",
         },
         expect: { moves: [{ kind: "cast-spell", card: "Flash" }] },
-        note: 'Issue #3388. The position a real game produced — three consecutive turns holding Flash + Worldspine Wurm with the mana up, passing every time. PAIRED WITH "cheat into play: casts for a body that pays on the way out", which is the same shape on a body whose hand worth its payoff can actually beat.',
+        note: "Issue #3388. The position a real game produced — three consecutive turns holding Flash + Worldspine Wurm with the mana up, passing every time. Its Minimal Pair (declared in `pairOf`) is the same shape on a body whose hand worth its payoff can actually beat.",
     },
     // Issue #4218 — the OPTIONAL own-hand put onto the battlefield (Show and
     // Tell's per-player pick; Sneak Attack's and an Elvish Piper put ride the

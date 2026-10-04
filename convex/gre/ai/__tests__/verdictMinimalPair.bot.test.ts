@@ -378,9 +378,13 @@ describe("reclassifying an old forbidden goes through a resolution (issue #4793)
 });
 
 describe("Eval Pair derivation skips an incomplete Conditional Verdict (issue #4793)", () => {
-    // A real registry position whose forbidden answer yields pairs today.
+    // A real registry position whose forbidden answer yields pairs today, and
+    // which the registry leaves unclassified (issue #4796 classifies some).
     const real = verdictsFromRegistry().verdicts.find(
-        (v) => v.answer.kind === "forbidden" && evalPairsOf(v).pairs.length > 0
+        (v) =>
+            v.answer.kind === "forbidden" &&
+            v.classification === undefined &&
+            evalPairsOf(v).pairs.length > 0
     )!;
 
     it("yields pairs unclassified, none once classified conditional and unpaired", () => {

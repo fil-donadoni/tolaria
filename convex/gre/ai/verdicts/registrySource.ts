@@ -36,6 +36,9 @@ import { buildBladeState } from "../blade/runner";
 import { matchesMove, seatPlayerId } from "../blade/matcher";
 import type { Move } from "../../moves";
 import type { BladeScenario, MoveMatcher } from "../blade/types";
+import { verdictIdOf } from "./identity";
+import { pairPositionDefect } from "./pairDiff";
+import { positionOf } from "./pairDerivation";
 import { candidateMoves } from "./position";
 import type { Verdict, VerdictCandidate, VerdictGap } from "./types";
 
@@ -136,6 +139,11 @@ export function verdictFromScenario(
         createdAt: REGISTRY_VERDICT_TIMESTAMP,
         source: "registry" as const,
         ...(scenario.note ? { note: scenario.note } : {}),
+        // Issue #4796 — the entry's own classification, when it declares one.
+        // A half carries none: its link classifies it (`derivePairs`).
+        ...(scenario.classification && !scenario.pairOf
+            ? { classification: scenario.classification }
+            : {}),
     };
 
     if (scenario.expect.moves) {
@@ -185,18 +193,100 @@ export function verdictFromScenario(
     };
 }
 
+/** Resolve the `pairOf` declarations: each half links to its anchor's verdict
+ *  id, or — when the declaration is refused — leaves the corpus as a `pair`
+ *  gap, because a right-hand half alone teaches "always" (ADR 0148). The
+ *  anchor of a refused pair stays conditional and unpaired. */
+function linkPairs(
+    scenarios: readonly BladeScenario[],
+    verdictOf: Map<string, Verdict>,
+    gaps: VerdictGap[]
+): void {
+    const byLabel = new Map(scenarios.map((s) => [s.label, s]));
+    for (const scenario of scenarios) {
+        const decl = scenario.pairOf;
+        const half = verdictOf.get(scenario.label);
+        if (decl === undefined || half === undefined) continue;
+        const refuse = (detail: string) => {
+            verdictOf.delete(scenario.label);
+            gaps.push({
+                label: scenario.label,
+                tier: scenario.tier,
+                reason: "pair",
+                detail: `refused as the right-hand half of "${decl.anchor}": ${detail}`,
+            });
+        };
+        const anchorScenario = byLabel.get(decl.anchor);
+        const anchor = verdictOf.get(decl.anchor);
+        if (scenario.classification !== undefined) {
+            refuse("a half is classified by its link, never by its own field");
+        } else if (half.answer.kind !== "right") {
+            refuse(
+                "a right-hand half names the move that is right here, so its expectation is `moves`"
+            );
+        } else if (anchorScenario === undefined) {
+            refuse("no registry entry carries that label");
+        } else if (anchor === undefined) {
+            refuse("the anchor yields no verdict");
+        } else if (
+            anchor.classification?.kind !== "conditional" ||
+            anchor.classification.discriminant.kind !==
+                decl.discriminant.kind ||
+            anchor.classification.discriminant.detail !==
+                decl.discriminant.detail
+        ) {
+            refuse(
+                "the anchor is not classified conditional with this same Discriminant"
+            );
+        } else if (
+            anchorScenario.expect.forbidden !== undefined &&
+            !anchorScenario.expect.forbidden.some((forbidden) =>
+                (scenario.expect.moves ?? []).some(
+                    (accepted) =>
+                        JSON.stringify(accepted) === JSON.stringify(forbidden)
+                )
+            )
+        ) {
+            // The half is where the anchor's ruled-out move is RIGHT
+            // (`minimalPair.ts` leaves that check to whoever writes the half).
+            refuse(
+                "the half accepts no move the anchor forbids — a right-hand half names the move its anchor ruled out"
+            );
+        } else {
+            const defect = pairPositionDefect(
+                positionOf(anchor),
+                positionOf(half),
+                decl.discriminant
+            );
+            if (defect !== null) refuse(defect);
+            else {
+                verdictOf.set(scenario.label, {
+                    ...half,
+                    pairOf: {
+                        anchorId: verdictIdOf(anchor),
+                        discriminant: decl.discriminant,
+                    },
+                });
+            }
+        }
+    }
+}
+
 /** Every verdict the blade registry yields, plus every entry that yielded
  *  none and why. Deterministic: the registry order, the blade builder's fixed
  *  seeds, and no clock. */
 export function verdictsFromRegistry(
     scenarios: readonly BladeScenario[] = BLADE_SCENARIOS
 ): RegistryVerdicts {
-    const verdicts: Verdict[] = [];
+    const verdictOf = new Map<string, Verdict>();
     const gaps: VerdictGap[] = [];
     for (const scenario of scenarios) {
         const out = verdictFromScenario(scenario);
-        if ("verdict" in out) verdicts.push(out.verdict);
+        if ("verdict" in out) verdictOf.set(scenario.label, out.verdict);
         else gaps.push(out.gap);
     }
+    linkPairs(scenarios, verdictOf, gaps);
+    // Registry order, whatever the refusals removed.
+    const verdicts = scenarios.flatMap((s) => verdictOf.get(s.label) ?? []);
     return { verdicts, gaps };
 }

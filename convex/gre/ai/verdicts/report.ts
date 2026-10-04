@@ -398,6 +398,14 @@ export function formatVerdictReport(
         }
     }
 
+    if (report.incomplete.length > 0) {
+        out.push(
+            `\n== INCOMPLETE pairs — debt (${report.incomplete.length}): kept as Test Positions, left out of the fit (ADR 0148)`
+        );
+        for (const row of report.incomplete)
+            out.push(`  ${row.verdictId}: ${row.why}`);
+    }
+
     if (report.errors.length > 0) {
         out.push(`\n== verdicts in ERROR (${report.errors.length})`);
         for (const e of report.errors) out.push(`  ${e.verdictId}: ${e.error}`);
