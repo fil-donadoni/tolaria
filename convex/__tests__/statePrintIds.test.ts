@@ -52,14 +52,17 @@ describe("statePrintIds", () => {
                 {
                     ...makeInstance(BIRDS, { id: "w" }),
                     card: { id: "token:Wasp|x" },
+                    castById: "p1",
                 } as StackItem,
                 {
                     ...makeInstance(BIRDS, { id: "l" }),
                     card: { id: `${BIRDS}#left` },
+                    castById: "p1",
                 } as StackItem,
                 {
                     ...makeInstance(BIRDS, { id: "f" }),
                     card: { id: "face-down:2-2" },
+                    castById: "p1",
                 } as StackItem,
             ],
         });
