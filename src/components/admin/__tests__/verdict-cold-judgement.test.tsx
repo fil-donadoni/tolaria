@@ -215,6 +215,25 @@ describe("VerdictColdJudgement", () => {
             expect(sent.spec).toEqual(HALF.judgement.spec);
         });
 
+        it("offers no disagreement button on a right answer that is no half", () => {
+            render(
+                <VerdictColdJudgement
+                    verdict={{
+                        ...HALF,
+                        judgement: {
+                            ...HALF.judgement,
+                            pairOf: undefined,
+                        },
+                    }}
+                />
+            );
+            expect(
+                screen.queryByRole("button", {
+                    name: "Disagree: the move is not right here",
+                })
+            ).toBe(null);
+        });
+
         it("offers no disagreement button on an anchor", () => {
             render(<VerdictColdJudgement verdict={ANCHOR} />);
             expect(

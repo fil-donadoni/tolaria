@@ -198,6 +198,36 @@ describe("the missing-halves queue", () => {
         expect(submitVerdict).not.toHaveBeenCalled();
     });
 
+    it("leaves the half in the queue from the right-hand position too, storing nothing", async () => {
+        loadQueue.mockResolvedValue([anchorOf()]);
+        render(<MissingHalvesQueue />);
+        fireEvent.click(
+            await screen.findByRole("button", {
+                name: "Write the right-hand half",
+            })
+        );
+        fireEvent.change(screen.getByLabelText("Seat"), {
+            target: { value: "opp" },
+        });
+        fireEvent.change(screen.getByLabelText("Life total"), {
+            target: { value: "5" },
+        });
+        fireEvent.click(
+            screen.getByRole("button", { name: "Show the right-hand position" })
+        );
+        const confirm = await screen.findByRole("button", {
+            name: "The move is right here",
+        });
+        await waitFor(() =>
+            expect((confirm as HTMLButtonElement).disabled).toBe(false)
+        );
+        fireEvent.click(
+            screen.getByRole("button", { name: "Leave it in the queue" })
+        );
+        expect(await screen.findByTestId("missing-half-row")).toBeTruthy();
+        expect(submitVerdict).not.toHaveBeenCalled();
+    });
+
     it("refuses an anchor that carries setup steps, saying why", async () => {
         loadQueue.mockResolvedValue([
             anchorOf({ setup: [{ kind: "pass" }] as never }),
