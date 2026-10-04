@@ -1,6 +1,6 @@
 /**
  * What the Bot-play sweep puts on the CASTER's battlefield for a spell that
- * exiles a creature its controller owns and returns it to the battlefield
+ * exiles a creature its caster controls and returns it to the battlefield
  * (CR 400.7, CR 603.6a, issue #4839).
  *
  * A blink is worth the enters-the-battlefield trigger it replays. On the
