@@ -424,7 +424,7 @@ describe("pairPositionDefect — one Discriminant, nothing else", () => {
         const tally = position({
             ...BASE,
             phase: "END_STEP",
-            spellsCastThisTurn: 2,
+            spellsCastThisTurn: { me: 2 },
         });
         expect(pairPositionDefect(anchor, tally, d("step"))).toContain(
             "beyond"
@@ -433,7 +433,7 @@ describe("pairPositionDefect — one Discriminant, nothing else", () => {
             ...BASE,
             phase: "END_STEP",
             turn: 4,
-            spellsCastThisTurn: 2,
+            spellsCastThisTurn: { me: 2 },
         });
         expect(pairPositionDefect(anchor, nextTurn, d("step"))).toBeNull();
     });
