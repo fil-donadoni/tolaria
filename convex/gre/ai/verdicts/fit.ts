@@ -105,6 +105,7 @@ import {
     SATISFIED_EPS,
     type Contradiction,
 } from "./report";
+import { verdictIdOf } from "./identity";
 import { minimalPairStandings } from "./minimalPair";
 import { DISCRIMINANT_KINDS, type Discriminant, type Verdict } from "./types";
 
@@ -875,16 +876,22 @@ export function minimalPairFitOutcomes(
     pairs: readonly Pick<EvalPair, "verdictId" | "delta">[]
 ): MinimalPairFitOutcome[] {
     const outcomeOf = verdictOutcomes(pairs);
+    // Standings speak CONTENT hashes (`verdictIdOf` — a half's link names its
+    // anchor by hash), while `pairs` and the rows speak `verdict.id`; the two
+    // coincide for a stored or authored verdict and differ for a registry one
+    // (`registry:<label>`), so map back at the edge (issue #4796 review).
+    const hashes = verdicts.map(verdictIdOf);
+    const idByHash = new Map(verdicts.map((v, i) => [hashes[i], v.id]));
     const standings = minimalPairStandings(
-        verdicts.map((v) => ({
-            verdictId: v.id,
+        verdicts.map((v, i) => ({
+            verdictId: hashes[i],
             judgement: v,
             stored: v.source === "store",
         }))
     );
     const out: MinimalPairFitOutcome[] = [];
-    for (const verdict of verdicts) {
-        const standing = standings.get(verdict.id);
+    for (const [i, verdict] of verdicts.entries()) {
+        const standing = standings.get(hashes[i]);
         if (standing?.kind !== "paired" || standing.role !== "anchor") continue;
         // `minimalPairStandings` reaches "paired"/"anchor" from exactly one
         // branch, a conditional classification — the throw names the
@@ -895,7 +902,8 @@ export function minimalPairFitOutcomes(
             );
         }
         const discriminant = verdict.classification.discriminant;
-        for (const halfId of standing.partnerIds) {
+        for (const partnerHash of standing.partnerIds) {
+            const halfId = idByHash.get(partnerHash) ?? partnerHash;
             out.push({
                 anchorId: verdict.id,
                 halfId,

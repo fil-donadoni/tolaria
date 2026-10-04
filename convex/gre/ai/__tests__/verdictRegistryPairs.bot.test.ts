@@ -18,6 +18,7 @@ import { pairPositionDefect } from "../verdicts/pairDiff";
 import {
     collectVerdictReport,
     formatVerdictReport,
+    minimalPairFitOutcomes,
     minimalPairStandings,
     verdictIdOf,
     verdictsFromRegistry,
@@ -288,15 +289,17 @@ describe("pairPositionDefect — one Discriminant, nothing else", () => {
         const life = position({ ...BASE, life: { me: 20, opp: 4 } });
         expect(pairPositionDefect(anchor, life, d("life"))).toBeNull();
         expect(pairPositionDefect(anchor, life, d("mana"))).toContain(
-            "share their mana"
+            "share their floating mana"
         );
         const mana = position({ ...BASE, manaPool: { me: { R: 2 } } });
         expect(pairPositionDefect(anchor, mana, d("mana"))).toBeNull();
         expect(pairPositionDefect(anchor, mana, d("life"))).toContain(
-            "share their life"
+            "share their life totals"
         );
         const lands = position({ ...BASE, landCount: 2 });
-        expect(pairPositionDefect(anchor, lands, d("mana"))).toBeNull();
+        expect(pairPositionDefect(anchor, lands, d("mana"))).toContain(
+            "share their floating mana"
+        );
     });
 
     it("sequence: the half's setup is the anchor's plus an earlier move", () => {
@@ -334,6 +337,155 @@ describe("pairPositionDefect — one Discriminant, nothing else", () => {
         });
         expect(pairPositionDefect(anchor, knowing, d("other"))).toContain(
             "deck knowledge"
+        );
+    });
+
+    it("a count of N is N cards, and a reorder is not a swap (review)", () => {
+        const withCount = (count: number, name = "Forest") =>
+            position({
+                ...BASE,
+                cards: [
+                    ...BASE.cards,
+                    { name, owner: "me", zone: "library", count },
+                ],
+            });
+        // twenty cards for twenty others are twenty cards, not one
+        expect(
+            pairPositionDefect(
+                withCount(20),
+                withCount(20, "Craw Wurm"),
+                d("card")
+            )
+        ).toContain("20 card(s) leave and 20 arrive");
+        // one more of the same card is one card
+        expect(
+            pairPositionDefect(withCount(2), withCount(3), d("card"))
+        ).toBeNull();
+        // the same cards, written two ways, are no difference at all
+        const split = position({
+            ...BASE,
+            cards: [
+                ...BASE.cards,
+                { name: "Forest", owner: "me", zone: "library" },
+                { name: "Forest", owner: "me", zone: "library" },
+            ],
+        });
+        expect(pairPositionDefect(withCount(2), split, d("card"))).toContain(
+            "same cards"
+        );
+        // a library reordered while a card arrives is two changes
+        const lib = (...names: string[]) =>
+            position({
+                ...BASE,
+                cards: [
+                    ...BASE.cards,
+                    ...names.map((name) => ({
+                        name,
+                        owner: "me" as const,
+                        zone: "library" as const,
+                    })),
+                ],
+            });
+        expect(
+            pairPositionDefect(
+                lib("Forest", "Island"),
+                lib("Island", "Forest", "Swamp"),
+                d("card")
+            )
+        ).toContain("reordered");
+        expect(
+            pairPositionDefect(
+                lib("Forest", "Island"),
+                lib("Forest", "Island", "Swamp"),
+                d("card")
+            )
+        ).toBeNull();
+    });
+
+    it("other: a resized array hides changes, so it is refused (review)", () => {
+        const grown = position({
+            ...BASE,
+            cards: [
+                { ...BASE.cards[0], tapped: true },
+                BASE.cards[1],
+                { name: "Shock", owner: "me", zone: "hand" },
+            ],
+        });
+        expect(pairPositionDefect(anchor, grown, d("other"))).toContain(
+            "not how many entries"
+        );
+    });
+
+    it("step: the same step and turn is no step; turn-scoped tallies move only with the turn (review)", () => {
+        const pooled = position({ ...BASE, manaPool: { me: { R: 1 } } });
+        expect(pairPositionDefect(anchor, pooled, d("step"))).toContain(
+            "share a step and a turn"
+        );
+        const tally = position({
+            ...BASE,
+            phase: "END_STEP",
+            spellsCastThisTurn: 2,
+        });
+        expect(pairPositionDefect(anchor, tally, d("step"))).toContain(
+            "beyond"
+        );
+        const nextTurn = position({
+            ...BASE,
+            phase: "END_STEP",
+            turn: 4,
+            spellsCastThisTurn: 2,
+        });
+        expect(pairPositionDefect(anchor, nextTurn, d("step"))).toBeNull();
+    });
+
+    it("life: one seat's total only; key order is not a difference (review)", () => {
+        const both = position({ ...BASE, life: { me: 1, opp: 1 } });
+        expect(pairPositionDefect(anchor, both, d("life"))).toContain(
+            "2 life totals"
+        );
+        const reordered = position({
+            ...BASE,
+            life: { opp: 20, me: 20 },
+            cards: BASE.cards.map((c) => ({
+                zone: c.zone,
+                owner: c.owner,
+                name: c.name,
+            })),
+        });
+        expect(pairPositionDefect(anchor, reordered, d("other"))).toContain(
+            "identical"
+        );
+    });
+});
+
+describe("registry pairs reach the Minimal Pair report (issue #4796 review)", () => {
+    it("minimalPairFitOutcomes names every registry pair — standings keyed by content hash, rows by verdict id", () => {
+        const { verdicts } = verdictsFromRegistry();
+        const rows = minimalPairFitOutcomes(verdicts, []);
+        const declared = BLADE_SCENARIOS.filter((s) => s.pairOf !== undefined);
+        expect(rows.map((r) => r.halfId).sort()).toEqual(
+            declared.map((s) => `registry:${s.label}`).sort()
+        );
+        for (const row of rows) {
+            expect(row.anchorId.startsWith("registry:")).toBe(true);
+        }
+    });
+
+    it("registry labels are unique — the pair declarations resolve by label", () => {
+        const labels = BLADE_SCENARIOS.map((s) => s.label);
+        expect(new Set(labels).size).toBe(labels.length);
+    });
+
+    it("a half that accepts no move its anchor forbids is refused", () => {
+        const half = byLabel(HALF);
+        const anchor = byLabel(ANCHOR);
+        const elsewhere: BladeScenario = {
+            ...half,
+            expect: { moves: [{ kind: "pass" }] },
+        };
+        const out = verdictsFromRegistry([anchor, elsewhere]);
+        expect(out.gaps.find((g) => g.label === half.label)?.detail).toContain(
+            "accepts no move the anchor forbids"
         );
     });
 });

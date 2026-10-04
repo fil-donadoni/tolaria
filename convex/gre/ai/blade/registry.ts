@@ -472,12 +472,12 @@ function activationIsDiscouraged(
 // NOW, and demoting it out of the fit moved `graveyardReachFraction` enough to
 // flip a noise-pinned reach guard.
 const DENSE_LIBRARY: Discriminant = {
-    kind: "card",
-    detail: "Craw Wurm in the library in place of a Forest",
+    kind: "other",
+    detail: "a library of twenty creatures where the anchor's holds twenty lands",
 };
 const PAYOFF_BODY: Discriminant = {
     kind: "card",
-    detail: "a body that pays on the way out, in place of a vanilla one of the same mana value",
+    detail: "a body that pays on the way out, in place of a vanilla one",
 };
 const STIFLE_BACKUP: Discriminant = {
     kind: "card",

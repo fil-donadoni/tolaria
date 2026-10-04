@@ -238,6 +238,20 @@ function linkPairs(
             refuse(
                 "the anchor is not classified conditional with this same Discriminant"
             );
+        } else if (
+            anchorScenario.expect.forbidden !== undefined &&
+            !anchorScenario.expect.forbidden.some((forbidden) =>
+                (scenario.expect.moves ?? []).some(
+                    (accepted) =>
+                        JSON.stringify(accepted) === JSON.stringify(forbidden)
+                )
+            )
+        ) {
+            // The half is where the anchor's ruled-out move is RIGHT
+            // (`minimalPair.ts` leaves that check to whoever writes the half).
+            refuse(
+                "the half accepts no move the anchor forbids — a right-hand half names the move its anchor ruled out"
+            );
         } else {
             const defect = pairPositionDefect(
                 positionOf(anchor),

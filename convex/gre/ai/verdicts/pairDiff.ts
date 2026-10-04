@@ -11,112 +11,164 @@
 // ONE FOOTPRINT PER KIND, mirroring what `deriveRightHalfPosition` edits for
 // that kind: the footprint is erased from both positions and what is left must
 // be identical, and the footprint itself must actually differ (a pair whose two
-// positions are equal realises no Discriminant). A `card` footprint is the
-// multiset of `spec.cards` and admits one card added, removed or swapped for
-// another. `other` names no footprint, so it admits exactly ONE differing value
-// anywhere in the position — the strictest reading of "the judge's own words".
+// positions are equal realises no Discriminant).
+//
+// - `card`: the spec's cards, a `count` of N read as N cards, in order. One
+//   card added, removed or swapped for another; the rest keep their relative
+//   order (a library is read top-down, so a reorder is a change).
+// - `step`: the phase, the turn holder, priority and what a step boundary
+//   implies (pools empty, combat ends). The turn-scoped state — the per-turn
+//   tallies, marked damage, activations — moves only when the turn itself
+//   advances.
+// - `life`: ONE seat's life total. `mana`: the floating pool. `stack`: the
+//   declared stack. `sequence`: the half's setup is the anchor's plus at least
+//   one earlier move.
+// - `other` names no footprint, so it admits exactly ONE differing value
+//   anywhere in the position, and never a changed number of entries — the
+//   strictest reading of "the judge's own words".
+//
 // The decision seat and the decklists the search may know are never a
 // Discriminant: they differ → refused.
 //
 // Pure, types only — the same bundle rule as `pairDerivation.ts`.
 
-import type { ScenarioSpec } from "../../../debugScenarioSpec";
+import type { ScenarioCard, ScenarioSpec } from "../../../debugScenarioSpec";
 import type { Discriminant } from "./types";
 import { PER_TURN_SPEC_KEYS, type PairPosition } from "./pairDerivation";
 
 type Json = unknown;
 
-const same = (a: Json, b: Json): boolean =>
-    JSON.stringify(a) === JSON.stringify(b);
+/** Key-sorted JSON: two spellings of one value compare equal, as the verdict
+ *  identity hash does (`identity.ts`). */
+function canon(value: Json): string {
+    if (Array.isArray(value)) return `[${value.map(canon).join(",")}]`;
+    if (value !== null && typeof value === "object") {
+        const rec = value as Record<string, Json>;
+        return `{${Object.keys(rec)
+            .filter((k) => rec[k] !== undefined)
+            .sort()
+            .map((k) => `${JSON.stringify(k)}:${canon(rec[k])}`)
+            .join(",")}}`;
+    }
+    return JSON.stringify(value) ?? "null";
+}
+
+const same = (a: Json, b: Json): boolean => canon(a) === canon(b);
 
 const copy = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 
-/** Every path at which `a` and `b` differ, to the leaf. Arrays of unequal
- *  length differ at the array itself. */
-function differingPaths(a: Json, b: Json, path = ""): string[] {
-    if (same(a, b)) return [];
-    const isObject = (x: Json): x is Record<string, Json> =>
-        typeof x === "object" && x !== null && !Array.isArray(x);
+const isObject = (x: Json): x is Record<string, Json> =>
+    typeof x === "object" && x !== null && !Array.isArray(x);
+
+/** Every path at which `a` and `b` differ, to the leaf. An array of unequal
+ *  length differs at the array itself and is also listed in `resized`. */
+function differingPaths(
+    a: Json,
+    b: Json,
+    path = "",
+    resized: string[] = []
+): { paths: string[]; resized: string[] } {
+    if (same(a, b)) return { paths: [], resized };
     if (isObject(a) && isObject(b)) {
         const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
-        return [...keys].flatMap((k) =>
-            differingPaths(a[k], b[k], `${path}.${k}`)
+        const paths = [...keys].flatMap(
+            (k) => differingPaths(a[k], b[k], `${path}.${k}`, resized).paths
         );
+        return { paths, resized };
     }
-    if (Array.isArray(a) && Array.isArray(b) && a.length === b.length) {
-        return a.flatMap((item, i) =>
-            differingPaths(item, b[i], `${path}[${i}]`)
+    if (Array.isArray(a) && Array.isArray(b)) {
+        if (a.length !== b.length) {
+            resized.push(path);
+            return { paths: [path], resized };
+        }
+        const paths = a.flatMap(
+            (item, i) =>
+                differingPaths(item, b[i], `${path}[${i}]`, resized).paths
         );
+        return { paths, resized };
     }
-    return [path];
+    return { paths: [path], resized };
 }
 
-/** The spec keys a `step` Discriminant legitimately moves
- *  (`deriveRightHalfPosition`, header: a step boundary). */
-const STEP_SPEC_KEYS = [
+type SpecKey = Exclude<keyof ScenarioSpec, "cards">;
+
+/** The spec keys a step boundary moves inside one turn (CR 106.4: pools
+ *  empty; CR 506.1: a combat lives inside its turn). */
+const STEP_KEYS: readonly SpecKey[] = [
     "phase",
     "activePlayer",
     "priority",
     "passCount",
     "manaPool",
     "combat",
+];
+
+/** What a NEW turn adds: its cleanup and the turn-scoped tallies
+ *  (`deriveRightHalfPosition`, `advanceTurn`). */
+const NEW_TURN_KEYS: readonly SpecKey[] = [
     "turn",
     "turnsTaken",
     "qualifyingActionLastTurn",
     ...PER_TURN_SPEC_KEYS,
-] as const satisfies readonly (keyof ScenarioSpec)[];
+];
 
 /** Per-card state a new turn clears. */
-const STEP_CARD_KEYS = [
+const NEW_TURN_CARD_KEYS = [
     "damageMarked",
     "activations",
     "abilityResolutions",
 ] as const;
 
-type SpecKey = keyof ScenarioSpec;
-
-/** Erase `keys` from the spec of a copy of `position`. */
-function without(position: PairPosition, keys: readonly SpecKey[]) {
+/** A copy of `position` with `keys` erased from its spec. */
+function without(
+    position: PairPosition,
+    keys: readonly SpecKey[]
+): PairPosition {
     const out = copy(position);
     for (const key of keys) delete out.spec[key];
     return out;
 }
 
-/** Both positions with `keys` erased, and whether those keys differed. */
-function eraseSpecKeys(
-    anchor: PairPosition,
-    half: PairPosition,
-    keys: readonly SpecKey[]
-) {
-    const touched = keys.some((k) => !same(anchor.spec[k], half.spec[k]));
-    return { a: without(anchor, keys), b: without(half, keys), touched };
+/** Everything but the footprint must be identical. */
+function restDefect(a: PairPosition, b: PairPosition): string | null {
+    const { paths } = differingPaths(a, b);
+    return paths.length === 0
+        ? null
+        : `differs beyond the Discriminant at ${paths.slice(0, 4).join(", ")}${paths.length > 4 ? ` (+${paths.length - 4} more)` : ""}`;
 }
 
-/** The cards in `from` that `other` lacks, multiset-wise. */
-function surplus(from: readonly Json[], other: readonly Json[]): string[] {
+/** The spec's cards as the engine sees them: a `count` of N is N cards. */
+function units(cards: readonly ScenarioCard[]): string[] {
+    return cards.flatMap((card) => {
+        const { count, ...one } = card;
+        return Array.from({ length: count ?? 1 }, () => canon(one));
+    });
+}
+
+/** `from` without one occurrence of each of `drop`, order kept. */
+function removing(from: readonly string[], drop: readonly string[]): string[] {
     const left = new Map<string, number>();
-    for (const card of other) {
-        const key = JSON.stringify(card);
-        left.set(key, (left.get(key) ?? 0) + 1);
-    }
-    const out: string[] = [];
-    for (const card of from) {
-        const key = JSON.stringify(card);
+    for (const key of drop) left.set(key, (left.get(key) ?? 0) + 1);
+    return from.filter((key) => {
         const n = left.get(key) ?? 0;
-        if (n > 0) left.set(key, n - 1);
-        else out.push(key);
-    }
-    return out;
+        if (n === 0) return true;
+        left.set(key, n - 1);
+        return false;
+    });
 }
 
 const cardName = (json: string): string =>
     String((JSON.parse(json) as { name?: unknown }).name);
 
 function cardDefect(anchor: PairPosition, half: PairPosition): string | null {
-    const gone = surplus(anchor.spec.cards, half.spec.cards);
-    const added = surplus(half.spec.cards, anchor.spec.cards);
+    const a = units(anchor.spec.cards);
+    const b = units(half.spec.cards);
+    const gone = removing(a, b);
+    const added = removing(b, a);
     if (gone.length + added.length === 0) {
-        return "the two positions hold the same cards, so no card realises the Discriminant";
+        return same(a, b)
+            ? "the two positions hold the same cards, so no card realises the Discriminant"
+            : "the cards are the same but listed in another order — a library is read top-down, so a reorder is not a card";
     }
     if (gone.length > 1 || added.length > 1) {
         return `${gone.length} card(s) leave and ${added.length} arrive — a card Discriminant is one card added, removed or swapped`;
@@ -128,19 +180,90 @@ function cardDefect(anchor: PairPosition, half: PairPosition): string | null {
     ) {
         return `the only card difference is a property of ${cardName(gone[0])}, not a different card`;
     }
-    const a = copy(anchor);
-    const b = copy(half);
-    a.spec.cards = [];
-    b.spec.cards = [];
+    // The cards both halves share keep their relative order.
+    if (!same(removing(a, gone), removing(b, added))) {
+        return "the shared cards are reordered between the halves — a library is read top-down";
+    }
+    const x = copy(anchor);
+    const y = copy(half);
+    x.spec.cards = [];
+    y.spec.cards = [];
+    return restDefect(x, y);
+}
+
+function stepDefect(anchor: PairPosition, half: PairPosition): string | null {
+    const moved = (key: SpecKey) => !same(anchor.spec[key], half.spec[key]);
+    if (!moved("phase") && !moved("activePlayer") && !moved("turn")) {
+        return "the halves share a step and a turn, so nothing realises the step Discriminant";
+    }
+    const newTurn = moved("turn");
+    const keys = newTurn ? [...STEP_KEYS, ...NEW_TURN_KEYS] : STEP_KEYS;
+    const a = without(anchor, keys);
+    const b = without(half, keys);
+    if (newTurn) {
+        for (const position of [a, b]) {
+            for (const card of position.spec.cards) {
+                for (const key of NEW_TURN_CARD_KEYS) delete card[key];
+            }
+        }
+    }
     return restDefect(a, b);
 }
 
-/** Everything but the footprint must be identical. */
-function restDefect(a: PairPosition, b: PairPosition): string | null {
-    const paths = differingPaths(a, b);
+function lifeDefect(anchor: PairPosition, half: PairPosition): string | null {
+    const { paths } = differingPaths(anchor.spec.life, half.spec.life);
+    if (paths.length === 0) {
+        return "the halves share their life totals, so nothing realises the Discriminant";
+    }
+    if (paths.length > 1) {
+        return `${paths.length} life totals differ — a life Discriminant moves one seat's`;
+    }
+    return restDefect(without(anchor, ["life"]), without(half, ["life"]));
+}
+
+function erasedDefect(
+    anchor: PairPosition,
+    half: PairPosition,
+    key: SpecKey,
+    what: string
+): string | null {
+    if (same(anchor.spec[key], half.spec[key])) {
+        return `the halves share their ${what}, so nothing realises the Discriminant`;
+    }
+    return restDefect(without(anchor, [key]), without(half, [key]));
+}
+
+function sequenceDefect(
+    anchor: PairPosition,
+    half: PairPosition
+): string | null {
+    const earlier = anchor.setup ?? [];
+    const later = half.setup ?? [];
+    if (
+        later.length <= earlier.length ||
+        !same(later.slice(0, earlier.length), earlier)
+    ) {
+        return "the half's setup is not the anchor's setup plus at least one earlier move";
+    }
+    const a = copy(anchor);
+    const b = copy(half);
+    delete a.setup;
+    delete b.setup;
+    return restDefect(a, b);
+}
+
+function otherDefect(anchor: PairPosition, half: PairPosition): string | null {
+    const { paths, resized } = differingPaths(
+        { spec: anchor.spec, setup: anchor.setup },
+        { spec: half.spec, setup: half.setup }
+    );
+    if (resized.length > 0) {
+        return `an "other" Discriminant changes a value, not how many entries there are (${resized.slice(0, 3).join(", ")})`;
+    }
+    if (paths.length === 1) return null;
     return paths.length === 0
-        ? null
-        : `differs beyond the Discriminant at ${paths.slice(0, 4).join(", ")}${paths.length > 4 ? ` (+${paths.length - 4} more)` : ""}`;
+        ? "the two positions are identical, so nothing realises the Discriminant"
+        : `an "other" Discriminant admits exactly one differing value; these differ at ${paths.length} (${paths.slice(0, 4).join(", ")})`;
 }
 
 /**
@@ -162,62 +285,18 @@ export function pairPositionDefect(
     switch (discriminant.kind) {
         case "card":
             return cardDefect(anchor, half);
-        case "step": {
-            const { a, b, touched } = eraseSpecKeys(
-                anchor,
-                half,
-                STEP_SPEC_KEYS
-            );
-            for (const position of [a, b]) {
-                for (const card of position.spec.cards) {
-                    for (const key of STEP_CARD_KEYS) delete card[key];
-                }
-            }
-            if (!touched) {
-                return "the halves share a step, so nothing realises the step Discriminant";
-            }
-            return restDefect(a, b);
-        }
+        case "step":
+            return stepDefect(anchor, half);
         case "life":
+            return lifeDefect(anchor, half);
         case "mana":
-        case "stack": {
-            const keys: SpecKey[] =
-                discriminant.kind === "life"
-                    ? ["life"]
-                    : discriminant.kind === "mana"
-                      ? ["manaPool", "landCount"]
-                      : ["stack"];
-            const { a, b, touched } = eraseSpecKeys(anchor, half, keys);
-            if (!touched) {
-                return `the halves share their ${discriminant.kind}, so nothing realises the Discriminant`;
-            }
-            return restDefect(a, b);
-        }
-        case "sequence": {
-            const earlier = anchor.setup ?? [];
-            const later = half.setup ?? [];
-            if (
-                later.length <= earlier.length ||
-                !same(later.slice(0, earlier.length), earlier)
-            ) {
-                return "the half's setup is not the anchor's setup plus at least one earlier move";
-            }
-            const a = copy(anchor);
-            const b = copy(half);
-            delete a.setup;
-            delete b.setup;
-            return restDefect(a, b);
-        }
-        case "other": {
-            const paths = differingPaths(
-                { spec: anchor.spec, setup: anchor.setup },
-                { spec: half.spec, setup: half.setup }
-            );
-            if (paths.length === 1) return null;
-            return paths.length === 0
-                ? "the two positions are identical, so nothing realises the Discriminant"
-                : `an "other" Discriminant admits exactly one differing value; these differ at ${paths.length} (${paths.slice(0, 4).join(", ")})`;
-        }
+            return erasedDefect(anchor, half, "manaPool", "floating mana");
+        case "stack":
+            return erasedDefect(anchor, half, "stack", "stack");
+        case "sequence":
+            return sequenceDefect(anchor, half);
+        case "other":
+            return otherDefect(anchor, half);
         default: {
             const never: never = discriminant.kind;
             return `unknown Discriminant kind ${String(never)}`;
