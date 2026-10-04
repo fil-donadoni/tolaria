@@ -1,6 +1,6 @@
 /**
  * What the Bot-play sweep puts on the OPPONENT's battlefield for a spell that
- * damages each player by the nonbasic lands that player controls (CR 305.6,
+ * damages each player by the nonbasic lands that player controls (CR 205.4a,
  * CR 120.3a, issue #4828).
  *
  * The caster's own board is basic lands, so on an empty opposing board the

@@ -1,5 +1,5 @@
 // Bot-play sweep (issue #4828) — a spell dealing damage by each player's
-// nonbasic lands (CR 305.6) is posed against an opponent who controls some.
+// nonbasic lands (CR 205.4a) is posed against an opponent who controls some.
 // Verdicts go through the real `playBotReach` pipeline.
 
 import { describe, expect, it } from "vitest";
