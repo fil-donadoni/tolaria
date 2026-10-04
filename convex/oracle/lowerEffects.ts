@@ -2469,11 +2469,12 @@ function recordActedOn(
  * in the shape every hand-written producer writes: the controller creates them (CR 111.2),
  * the name is the subtypes — a DEVIATION from CR 111.4, which appends the
  * word "Token", kept because it is the catalogue's convention for every
- * unnamed token and the key the client's Token Print resolver matches by (a
- * name is never read to decide anything here: no card in this form names its
- * own token) — and the art is NOT pinned on the spec: the engine stamps the
- * producer's printing as `sourcePrintId` and the client resolves the Token
- * Print from the Card Prints table (`src/lib/tokenArt.ts`).
+ * unnamed token and the key `token-prints.json` art is looked up by (a name
+ * is never read to decide anything here: no card in this form names its own
+ * token) — and the art is NOT pinned on the spec: the runtime resolves
+ * it per producer from `token-prints.json` (`tokenPrintIdFor`), and the
+ * compiled pool's art-completeness guard (`tokenPrintLookup.test.ts`) holds
+ * every compiled producer to it.
  *
  * "where X is that <noun>'s mana value" (CR 202.3) reads the object the
  * sentence before acted on, snapshotted by that Op's `bind` before it left

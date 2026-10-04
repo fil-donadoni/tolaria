@@ -18,7 +18,7 @@ import {
 import { modalBackFaceDefinitionId } from "@convex/cards/modalDfc";
 import { backFaceDefinitionIdOf } from "@convex/gre/transform";
 import type { CardInstance, Player } from "~/types/game";
-import type { EmblemInstance } from "@convex/cards/types";
+import type { EmblemInstance, TokenSpec } from "@convex/cards/types";
 
 const CLONE = getCardByName("Clone");
 const SERRA = getCardByName("Serra Angel");
@@ -846,15 +846,15 @@ describe("buildPreviewBody — the chosen printing (ADR 0140 §6, issue #4119)",
 });
 
 describe("buildPreviewBody — a token's edition art (ADR 0140 §4, issue #4120)", () => {
-    const SPEC = {
+    const SPEC: TokenSpec = {
         name: "Elephant",
         types: ["Creature"],
         subtypes: ["Elephant"],
         power: 3,
         toughness: 3,
         colors: ["G"],
-    } as const;
-    const DEF_ID = tokenDefinitionId({ ...SPEC, types: [...SPEC.types] });
+    };
+    const DEF_ID = tokenDefinitionId(SPEC);
     const CARD = "429a88cc-53db-4c5e-a061-f0f49a38c675";
     const EDITION_TOKEN = "22222222-2222-4222-8222-222222222222";
     const rows = indexTokenPrintRows([
