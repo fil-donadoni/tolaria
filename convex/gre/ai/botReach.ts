@@ -93,6 +93,7 @@ import { graveyardExilePose } from "./botReachGraveyardExile";
 import { graveyardReturnPose } from "./botReachGraveyardReturn";
 import { creatureSweepPose } from "./botReachCreatureSweep";
 import { libraryPutPose } from "./botReachLibraryPut";
+import { handRefillOpponentHand } from "./botReachHandRefill";
 export { castShape } from "./botReachForm";
 
 /** CR 115.1 — a spell that targets a SPELL needs one on the stack. Lives
@@ -932,7 +933,7 @@ export function botReachSpec(
         });
     }
     const wholeLibrary = paysBodyForDraw(def);
-    if (drawsForController(def))
+    if (drawsForController(def) || handRefillOpponentHand(def) !== undefined)
         cards.push({
             name: DRAWN_SPELL,
             owner: "me",
@@ -1002,6 +1003,9 @@ export function botReachSpec(
         hiddenHand: {
             me: 1,
             ...(discardsFromTarget(def) ? { opp: TARGET_HAND } : {}),
+            ...(handRefillOpponentHand(def) !== undefined
+                ? { opp: handRefillOpponentHand(def)! }
+                : {}),
         },
         activePlayer: window === OPPONENT_END_STEP_WINDOW ? "opp" : "me",
         priority: "me",
