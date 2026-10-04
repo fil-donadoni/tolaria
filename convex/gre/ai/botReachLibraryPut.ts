@@ -53,6 +53,9 @@ function libraryPutSearch(
         rec.kind === "search-library" &&
         rec.player === "controller" &&
         rec.zone === "library" &&
+        // A search split into per-category filters is never a filterless
+        // "a card" search.
+        rec.categories === undefined &&
         (rec.filter === undefined ||
             (typeof rec.filter === "object" && rec.filter !== null)) &&
         typeof rec.bind === "string"

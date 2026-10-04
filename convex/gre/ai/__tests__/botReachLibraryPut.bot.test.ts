@@ -41,6 +41,10 @@ describe("libraryPutPose", () => {
         });
     });
 
+    it("poses nothing for a search split into per-category filters", () => {
+        expect(libraryPutPose(getCardByName("Gaea's Balance")!)).toEqual([]);
+    });
+
     it("poses nothing for a spell that searches no library", () => {
         expect(libraryPutPose(getCardByName("Lightning Bolt")!)).toEqual([]);
     });
