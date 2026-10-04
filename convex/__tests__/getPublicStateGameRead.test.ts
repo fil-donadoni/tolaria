@@ -153,12 +153,12 @@ describe("gameStates insert stamps the mirror", () => {
     // (`chooseFirstPlayer` → `buildInitialGameState` off real decklists), and
     // the failure this defends against is not a wrong answer but a silent loss
     // of the saving — an unstamped row still projects correctly, by falling
-    // back to the fat read forever. `saveGameState` is private, and the schema
+    // back to the fat read forever. `saveGameState` lives in `gameStateStore.ts`, and the schema
     // comment states it is the SOLE inserter, so the invariant worth pinning is
     // exactly that: one insert site, and it writes both flags.
-    it('every insert("gameStates") in game.ts writes solo and vsAi', () => {
+    it('every insert("gameStates") in gameStateStore.ts writes solo and vsAi', () => {
         const source = fs.readFileSync(
-            path.join(import.meta.dirname, "..", "game.ts"),
+            path.join(import.meta.dirname, "..", "gameStateStore.ts"),
             "utf8"
         );
         const sites = [...source.matchAll(/insert\("gameStates",\s*\{/g)];
