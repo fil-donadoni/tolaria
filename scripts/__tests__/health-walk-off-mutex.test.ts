@@ -63,6 +63,7 @@ beforeEach(async () => {
                 "check:gaps": ok,
                 "check:targets": ok,
                 "check:test-hygiene": ok,
+                "check:convex-heap": ok,
                 test: ok,
                 "blade:robustness": ok,
                 "check:ui": "bun fake-ui.ts",
