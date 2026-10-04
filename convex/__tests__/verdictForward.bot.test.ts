@@ -262,6 +262,56 @@ describe("a local judgement reaches the bucket through the writer (issue #3745)"
         expect(row.deployment).toBe("local-3210");
     });
 
+    it("carries a classification and a pair link through the drain and the writer unchanged (issue #4800)", async () => {
+        // The two explicit projections the outbox row and the forward body
+        // each make: dropping either re-hashes the judgement to another id, so
+        // the drain's stamp check leaves the row pending (row) or the writer
+        // answers 422 (body).
+        const discriminant = { kind: "step" as const, detail: "end step" };
+        const anchorArgs = {
+            ...ARGS,
+            answer: { kind: "forbidden" as const, forbiddenIndexes: [0] },
+            classification: { kind: "conditional" as const, discriminant },
+        };
+        const halfArgs = {
+            ...ARGS,
+            pairOf: { anchorId: VERDICT_ID, discriminant },
+        };
+        const stub = makeMutationCtx("u-tester", [TESTER]);
+        const ids: string[] = [];
+        for (const args of [anchorArgs, halfArgs]) {
+            ids.push(
+                (await runMutation<typeof args, Id<"verdicts">>(
+                    submit,
+                    stub.ctx,
+                    args
+                )) as unknown as string
+            );
+        }
+        const store = createMemoryVerdictStore();
+
+        const report = await drainOutbox(
+            localDrainPorts(stub, ids, wire(writerPorts(store)))
+        );
+
+        expect(report).toEqual({ stored: 2, alreadySlim: 0, pending: [] });
+        const anchor: VerdictJudgement = {
+            spec: ARGS.spec,
+            seat: ARGS.seat,
+            candidates: ARGS.candidates,
+            answer: anchorArgs.answer,
+            classification: anchorArgs.classification,
+        };
+        const half: VerdictJudgement = {
+            ...JUDGEMENT,
+            pairOf: halfArgs.pairOf,
+        };
+        expect(await readVerdict(store, verdictIdOf(anchor))).toEqual(anchor);
+        expect(await readVerdict(store, verdictIdOf(half))).toEqual(half);
+        expect(stub.doc(ids[0]).storedAt).toBeDefined();
+        expect(stub.doc(ids[1]).storedAt).toBeDefined();
+    });
+
     it("a legacy row — no stamps, authorId only — forwards and slims the same way", async () => {
         const legacy: Row = {
             _id: "old-1",

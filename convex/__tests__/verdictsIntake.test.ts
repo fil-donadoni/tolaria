@@ -29,6 +29,11 @@ import {
 import { enqueueBulk, submit } from "../verdicts";
 import { listUserRoles, setTesterRole } from "../users";
 import type { Id } from "../_generated/dataModel";
+import {
+    judgementOfRow,
+    verdictStampOf,
+    type OutboxRow,
+} from "../verdictsOutbox";
 
 function user(id: string, nickname: string, flags: Row = {}): Row {
     return { _id: id, __table: "users", nickname, ...flags };
@@ -375,5 +380,99 @@ describe("the tester role, granted from the admin area (issue #3402)", () => {
             "Plain",
             "Tessa",
         ]);
+    });
+});
+
+describe("verdicts.submit — classification and pair link (issue #4800, ADR 0148)", () => {
+    const DISCRIMINANT = { kind: "step" as const, detail: "end step" };
+    const FORBIDDEN = {
+        kind: "forbidden" as const,
+        forbiddenIndexes: [0],
+    };
+    const ANCHOR = {
+        ...ARGS,
+        answer: FORBIDDEN,
+        classification: {
+            kind: "conditional" as const,
+            discriminant: DISCRIMINANT,
+        },
+    };
+    const HALF = {
+        ...ARGS,
+        pairOf: {
+            anchorId: "v1-" + "a".repeat(64),
+            discriminant: DISCRIMINANT,
+        },
+    };
+
+    it("stores both on the row and stamps a hash that covers them", async () => {
+        const { ctx, doc } = makeMutationCtx("u-tester", ALL_USERS);
+        const anchorId = await runMutation<typeof ANCHOR, string>(
+            submit,
+            ctx,
+            ANCHOR
+        );
+        const halfId = await runMutation<typeof HALF, string>(
+            submit,
+            ctx,
+            HALF
+        );
+
+        expect(doc(anchorId).classification).toEqual(ANCHOR.classification);
+        expect(doc(halfId).pairOf).toEqual(HALF.pairOf);
+        // The stamp is the one the drain re-derives from the row: a projection
+        // that dropped either field would leave the row pending forever.
+        for (const id of [anchorId, halfId]) {
+            const row = doc(id) as unknown as OutboxRow;
+            const judgement = judgementOfRow(row);
+            expect(judgement).not.toBeNull();
+            expect(verdictStampOf(judgement!).verdictHash).toBe(
+                row.verdictHash
+            );
+        }
+        // And "wrong now" is not "wrong always" about the same move.
+        const always = await runMutation<typeof ANCHOR, string>(submit, ctx, {
+            ...ANCHOR,
+            classification: { kind: "absolute" as const },
+        });
+        expect(doc(always).verdictHash).not.toBe(doc(anchorId).verdictHash);
+        expect(doc(always).positionKey).toBe(doc(anchorId).positionKey);
+    });
+
+    it("refuses a classification on a right answer", async () => {
+        const { ctx } = makeMutationCtx("u-tester", ALL_USERS);
+        await expect(
+            runMutation(submit, ctx, { ...ANCHOR, answer: ARGS.answer })
+        ).rejects.toThrow(/only a forbidden answer/);
+    });
+
+    it("refuses a pair link on a forbidden answer", async () => {
+        const { ctx } = makeMutationCtx("u-tester", ALL_USERS);
+        await expect(
+            runMutation(submit, ctx, { ...HALF, answer: FORBIDDEN })
+        ).rejects.toThrow(/must answer with the right move/);
+    });
+
+    it("refuses a half that is also classified", async () => {
+        const { ctx } = makeMutationCtx("u-tester", ALL_USERS);
+        await expect(
+            runMutation(submit, ctx, {
+                ...HALF,
+                classification: { kind: "absolute" as const },
+            })
+        ).rejects.toThrow(/classified by its pair link/);
+    });
+
+    it("refuses a Discriminant that says nothing", async () => {
+        const { ctx } = makeMutationCtx("u-tester", ALL_USERS);
+        await expect(
+            runMutation(submit, ctx, {
+                ...ANCHOR,
+                classification: {
+                    kind: "conditional" as const,
+                    discriminant: { kind: "other" as const, detail: "  " },
+                },
+            })
+        ).rejects.toThrow(/must say what changed/);
     });
 });

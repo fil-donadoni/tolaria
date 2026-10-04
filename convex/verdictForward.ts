@@ -249,7 +249,11 @@ function judgementOfBody(raw: Fields): VerdictJudgement | null {
         !Array.isArray(raw.candidates) ||
         !isObject(raw.answer) ||
         !(raw.setup === undefined || Array.isArray(raw.setup)) ||
-        !(raw.deckKnowledge === undefined || Array.isArray(raw.deckKnowledge))
+        !(
+            raw.deckKnowledge === undefined || Array.isArray(raw.deckKnowledge)
+        ) ||
+        !(raw.classification === undefined || isObject(raw.classification)) ||
+        !(raw.pairOf === undefined || isObject(raw.pairOf))
     ) {
         return null;
     }
@@ -262,6 +266,12 @@ function judgementOfBody(raw: Fields): VerdictJudgement | null {
             : { deckKnowledge: raw.deckKnowledge }),
         candidates: raw.candidates,
         answer: raw.answer,
+        // ADR 0148: part of the judgement, so of the hash — dropped here, the
+        // writer would re-hash to another id and refuse with a 422 mismatch.
+        ...(raw.classification === undefined
+            ? {}
+            : { classification: raw.classification }),
+        ...(raw.pairOf === undefined ? {} : { pairOf: raw.pairOf }),
     } as VerdictJudgement;
 }
 

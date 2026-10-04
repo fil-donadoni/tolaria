@@ -42,6 +42,10 @@ import {
 import { tryGetPlaceableCardByName } from "./cards";
 import { findTokenSpec } from "./cards/tokenCatalogue";
 import type { VerdictJudgement } from "./gre/ai/verdicts/identity";
+import {
+    classificationValidator,
+    pairOfValidator,
+} from "./verdictClassificationValidators";
 import { VERDICT_AUTHOR_PATTERN, verdictAuthorOf } from "./verdictStore";
 import {
     judgementOfRow,
@@ -90,8 +94,39 @@ type AdmissibleJudgement = {
     spec: Infer<typeof scenarioSpecValidator>;
     candidates: { key: string; description: string }[];
     answer: Infer<typeof answerValidator>;
+    classification?: Infer<typeof classificationValidator>;
+    pairOf?: Infer<typeof pairOfValidator>;
     botPickIndex?: number;
 };
+
+/** ADR 0148: which wrong a judgement means is said about a `forbidden` answer
+ *  only — a `right` one names no move to rule out — and a right-hand half is
+ *  classified by its link, never beside it. A Discriminant names a concrete
+ *  factor, so an empty `detail` is no Discriminant at all (`other` carries the
+ *  judge's words, and a blank phrase is nothing to count). */
+function assertClassified(args: AdmissibleJudgement): void {
+    const { classification, pairOf, answer } = args;
+    if (classification !== undefined && pairOf !== undefined) {
+        throw new Error(
+            "a right-hand half is classified by its pair link, not beside it"
+        );
+    }
+    if (classification !== undefined && answer.kind !== "forbidden") {
+        throw new Error(
+            "only a forbidden answer can be classified absolute or conditional"
+        );
+    }
+    if (pairOf !== undefined && answer.kind !== "right") {
+        throw new Error("a right-hand half must answer with the right move");
+    }
+    const discriminant =
+        classification?.kind === "conditional"
+            ? classification.discriminant
+            : pairOf?.discriminant;
+    if (discriminant !== undefined && discriminant.detail.trim() === "") {
+        throw new Error("a Discriminant must say what changed");
+    }
+}
 
 function assertAdmissible(args: AdmissibleJudgement): void {
     // Index bounds are checked HERE rather than left to the fit. An index
@@ -106,6 +141,7 @@ function assertAdmissible(args: AdmissibleJudgement): void {
     if (named.length === 0) {
         throw new Error("a verdict must name at least one candidate");
     }
+    assertClassified(args);
     // A NAME THE ENGINE DOES NOT HAVE is refused here for exactly the reason
     // the index bounds below are: uploaded, the row fails at fit time as
     // "position could not be rebuilt" — far from whoever could still say what
@@ -177,6 +213,10 @@ export const submit = mutation({
         deckKnowledge: v.optional(v.array(deckKnowledgeValidator)),
         candidates: v.array(candidateValidator),
         answer: answerValidator,
+        // Which wrong the judge meant, and the link of a right-hand half
+        // (ADR 0148, issue #4800). Both are part of the judgement.
+        classification: v.optional(classificationValidator),
+        pairOf: v.optional(pairOfValidator),
         botPickIndex: v.optional(v.number()),
         gameId: v.optional(v.string()),
         seq: v.optional(v.number()),
@@ -196,6 +236,10 @@ export const submit = mutation({
                 : { deckKnowledge: args.deckKnowledge }),
             candidates: args.candidates,
             answer: args.answer,
+            ...(args.classification === undefined
+                ? {}
+                : { classification: args.classification }),
+            ...(args.pairOf === undefined ? {} : { pairOf: args.pairOf }),
         } as VerdictJudgement;
 
         const id = await ctx.db.insert("verdicts", {
@@ -207,6 +251,10 @@ export const submit = mutation({
                 : { deckKnowledge: args.deckKnowledge }),
             candidates: args.candidates,
             answer: args.answer,
+            ...(args.classification === undefined
+                ? {}
+                : { classification: args.classification }),
+            ...(args.pairOf === undefined ? {} : { pairOf: args.pairOf }),
             ...(args.botPickIndex === undefined
                 ? {}
                 : { botPickIndex: args.botPickIndex }),
@@ -339,6 +387,8 @@ export const forwardAdmissible = internalQuery({
         deckKnowledge: v.optional(v.array(deckKnowledgeValidator)),
         candidates: v.array(candidateValidator),
         answer: answerValidator,
+        classification: v.optional(classificationValidator),
+        pairOf: v.optional(pairOfValidator),
         botPickIndex: v.optional(v.number()),
     },
     returns: v.null(),

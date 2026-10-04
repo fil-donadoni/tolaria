@@ -105,6 +105,8 @@ export interface OutboxRow {
     deckKnowledge?: { seat: "me" | "opp"; cards: string[] }[];
     candidates?: VerdictCandidate[];
     answer?: VerdictAnswer;
+    classification?: VerdictJudgement["classification"];
+    pairOf?: VerdictJudgement["pairOf"];
     botPickIndex?: number;
     seq?: number;
     // Provenance — kept on the slim row.
@@ -142,6 +144,10 @@ export function judgementOfRow(row: OutboxRow): VerdictJudgement | null {
             : { deckKnowledge: row.deckKnowledge }),
         candidates: row.candidates,
         answer: row.answer,
+        ...(row.classification === undefined
+            ? {}
+            : { classification: row.classification }),
+        ...(row.pairOf === undefined ? {} : { pairOf: row.pairOf }),
     };
 }
 
