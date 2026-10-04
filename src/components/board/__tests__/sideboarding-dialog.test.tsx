@@ -33,9 +33,9 @@ vi.mock("convex/react", () => ({
 vi.mock("@convex/_generated/api", () => ({
     api: {
         game: {
-            submitSideboard: { _name: "submitSideboard" },
             setReady: { _name: "setReady" },
         },
+        gameTable: { submitSideboard: { _name: "submitSideboard" } },
     },
 }));
 

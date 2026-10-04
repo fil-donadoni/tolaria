@@ -75,7 +75,8 @@ vi.mock("@convex/_generated/api", () => {
     // reference and rejects an object that carries no function name.
     return {
         api: {
-            game,
+            game: {},
+            gameManual: game,
             gameReads: { getManualState: "gameReads:getManualState" },
             manualLog: {},
         },

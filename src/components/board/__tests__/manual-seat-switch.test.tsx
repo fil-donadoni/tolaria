@@ -104,6 +104,7 @@ vi.mock("@convex/_generated/api", () => ({
     // its retry state) accepts a string reference, and `{}` is not one.
     api: {
         game: {},
+        gameManual: {},
         gameReads: { getManualState: "gameReads:getManualState" },
         manualLog: {},
     },

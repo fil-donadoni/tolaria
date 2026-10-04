@@ -32,7 +32,10 @@ vi.mock("convex/react", () => ({
     useMutation: () => concede,
 }));
 vi.mock("@convex/_generated/api", () => ({
-    api: { game: { concede: {}, forfeitMatch: {}, manualConcedeMatch: {} } },
+    api: {
+        game: { concede: {}, forfeitMatch: {} },
+        gameManual: { manualConcedeMatch: {} },
+    },
 }));
 vi.mock("~/lib/session", () => ({ clearSession: () => {} }));
 

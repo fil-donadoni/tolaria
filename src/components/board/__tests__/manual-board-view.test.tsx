@@ -69,7 +69,8 @@ vi.mock("@convex/_generated/api", () => {
     for (const n of MANUAL_MUTATION_NAMES) game[n] = { _name: n };
     return {
         api: {
-            game,
+            game: {},
+            gameManual: game,
             gameReads: { getManualState: { _name: "getManualState" } },
             manualLog: {},
         },

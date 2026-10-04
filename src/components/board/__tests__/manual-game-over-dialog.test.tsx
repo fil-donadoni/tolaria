@@ -31,7 +31,10 @@ vi.mock("convex/react", () => ({
               },
 }));
 vi.mock("@convex/_generated/api", () => ({
-    api: { matches: { getMatch: {} }, game: { continueManualMatch: {} } },
+    api: {
+        matches: { getMatch: {} },
+        gameManual: { continueManualMatch: {} },
+    },
 }));
 
 const storeSession = vi.fn();

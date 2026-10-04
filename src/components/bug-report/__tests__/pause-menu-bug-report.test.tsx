@@ -29,6 +29,8 @@ vi.mock("@convex/_generated/api", () => ({
         game: {
             concede: { _name: "concede" },
             forfeitMatch: { _name: "forfeitMatch" },
+        },
+        gameManual: {
             manualConcedeMatch: { _name: "manualConcedeMatch" },
         },
         users: { currentUser: { _name: "currentUser" } },
