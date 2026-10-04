@@ -490,6 +490,7 @@ export default function TriggerOrderPrompt({
                                         cardId={cardId}
                                         abilityText={abilityText}
                                         kind="triggered"
+                                        source={item}
                                     />
                                 </div>
                             );

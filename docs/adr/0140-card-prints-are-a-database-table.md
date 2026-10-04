@@ -47,7 +47,14 @@ printed card's definition. Three facts made that shape untenable:
    Only the reviewed rarity override file lives in the repo.
 4. **Each print row carries its Token Prints** (Scryfall `all_parts`): the
    same-edition token when one was printed, otherwise the one Scryfall pairs it
-   with. This replaces `convex/cards/generated/token-prints.json`.
+   with. This replaces `convex/cards/generated/token-prints.json`. The
+   printing whose id is the definition id has no row (§2), so its Token Prints
+   live in a small side table, `definitionTokenPrints` (`cardId`,
+   `tokenPrints`), written by the same sync only for definitions whose own
+   printing links a token. A token created by an object on its default
+   printing stamps the Card ID, and the Game-load query reads that table for
+   it (issue #4120). State-designation markers (the Monarch) ride the same
+   Token Print lists.
 5. **A deck entry names both ids**: `{definitionId, printId, cardName}` in
    user decks, sideboards and preset decks. Nothing on the client resolves a
    print id to a definition. Any consumer that needs print metadata (format

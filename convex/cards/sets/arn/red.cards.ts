@@ -82,8 +82,11 @@ export const rukhEgg: CardDefinition = {
                                 staticAbilities: ["flying"],
                                 // Printed token is named "Rukh" (Scryfall), while our
                                 // spec keeps the current Oracle wording's "Bird" name
-                                // — look up by card id alone (single-token card, CR
-                                // 707.1) rather than by a name that wouldn't match.
+                                // — the client resolves a Token Print by NAME, so
+                                // that would never match: pin the printed Rukh
+                                // token (CR 707.1) outright (issue #4120).
+                                imagePrintId:
+                                    "b5489e26-6aec-4706-9c3e-8454878fa6c3",
                             },
                             controller: "controller",
                         },

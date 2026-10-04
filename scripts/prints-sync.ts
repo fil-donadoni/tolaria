@@ -7,6 +7,11 @@
  * cards, then upserts the result into the `cardPrints` table
  * (`convex/cardPrints.ts:upsertBatch`) — idempotent, never deletes a row.
  *
+ * The printing whose id IS the Card ID gets no `cardPrints` row, but when it
+ * links a token its Token Prints go to `definitionTokenPrints`
+ * (`cardPrints:upsertDefinitionTokensBatch`, issue #4120) — the row an object
+ * on its default printing resolves its tokens through.
+ *
  * Three modes:
  *
  *   bun run prints:sync             — the real sync: writes to the LOCAL
@@ -39,9 +44,11 @@ import { streamDefaultCards } from "./lib/prints-bulk";
 import {
     buildCardPrintRow,
     buildDefinitionIndex,
+    buildDefinitionTokenRow,
     summarizePrintRows,
     type CardIndexRow,
     type CardPrintRow,
+    type DefinitionTokenRow,
 } from "./lib/prints-transform";
 import { loadRarityOverrides } from "./lib/prints-rarity";
 import {
@@ -64,23 +71,34 @@ function readCardIndex(): CardIndexRow[] {
     }));
 }
 
-async function buildRows(): Promise<{ rows: CardPrintRow[]; scanned: number }> {
+async function buildRows(): Promise<{
+    rows: CardPrintRow[];
+    definitionTokens: DefinitionTokenRow[];
+    scanned: number;
+}> {
     const definitionByOracleId = buildDefinitionIndex(readCardIndex());
     const overrides = loadRarityOverrides();
     const rows: CardPrintRow[] = [];
+    const definitionTokens: DefinitionTokenRow[] = [];
     let scanned = 0;
     await streamDefaultCards((row) => {
         scanned++;
         const built = buildCardPrintRow(row, definitionByOracleId, overrides);
         if (built) rows.push(built);
+        const definition = buildDefinitionTokenRow(row, definitionByOracleId);
+        if (definition) definitionTokens.push(definition);
     });
-    return { rows, scanned };
+    return { rows, definitionTokens, scanned };
 }
 
-function runDryRun(rows: readonly CardPrintRow[]): void {
+function runDryRun(
+    rows: readonly CardPrintRow[],
+    definitionTokens: readonly DefinitionTokenRow[]
+): void {
     const summary = summarizePrintRows(rows);
     console.log(
         `DRY RUN — rows: ${summary.rowCount}, token links: ${summary.tokenLinkCount}, ` +
+            `definition token rows: ${definitionTokens.length}, ` +
             `total bytes: ${summary.totalBytes} (${(
                 summary.totalBytes / 1_000_000
             ).toFixed(2)} MB). Nothing written.`
@@ -124,7 +142,19 @@ function runEquivalence(rows: readonly CardPrintRow[]): void {
     if (diffs.length > 0) process.exitCode = 1;
 }
 
-function runWrite(rows: readonly CardPrintRow[]): void {
+function runWrite(
+    rows: readonly CardPrintRow[],
+    definitionTokens: readonly DefinitionTokenRow[]
+): void {
+    upsertAll("cardPrints:upsertBatch", rows, "matched rows");
+    upsertAll(
+        "cardPrints:upsertDefinitionTokensBatch",
+        definitionTokens,
+        "definition token rows"
+    );
+}
+
+function upsertAll(fn: string, rows: readonly unknown[], what: string): void {
     const cwd = primaryCheckout();
     let inserted = 0;
     let patched = 0;
@@ -133,12 +163,7 @@ function runWrite(rows: readonly CardPrintRow[]): void {
         const batch = rows.slice(i, i + BATCH_SIZE);
         const result = spawnSync(
             "npx",
-            [
-                "convex",
-                "run",
-                "cardPrints:upsertBatch",
-                JSON.stringify({ rows: batch }),
-            ],
+            ["convex", "run", fn, JSON.stringify({ rows: batch })],
             { cwd, encoding: "utf8", timeout: 120_000 }
         );
         if (result.error || result.status !== 0) {
@@ -166,7 +191,7 @@ function runWrite(rows: readonly CardPrintRow[]): void {
     }
     console.log(
         `SYNC — inserted ${inserted}, patched ${patched}, unchanged ${unchanged} ` +
-            `(of ${rows.length} matched rows).`
+            `(of ${rows.length} ${what}).`
     );
 }
 
@@ -179,14 +204,15 @@ async function main(): Promise<void> {
         );
     }
 
-    const { rows, scanned } = await buildRows();
+    const { rows, definitionTokens, scanned } = await buildRows();
     process.stderr.write(
-        `prints-sync: scanned ${scanned} Scryfall printing(s), matched ${rows.length}\n`
+        `prints-sync: scanned ${scanned} Scryfall printing(s), matched ${rows.length}, ` +
+            `${definitionTokens.length} definition printing(s) link a token\n`
     );
 
     if (equivalence) return runEquivalence(rows);
-    if (dryRun) return runDryRun(rows);
-    return runWrite(rows);
+    if (dryRun) return runDryRun(rows, definitionTokens);
+    return runWrite(rows, definitionTokens);
 }
 
 if (import.meta.main) {

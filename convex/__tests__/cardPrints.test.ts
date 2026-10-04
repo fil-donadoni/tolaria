@@ -4,7 +4,11 @@
 // "skip an unchanged row" decision, `unchanged`, directly.
 
 import { describe, expect, it } from "vitest";
-import { unchanged, type CardPrintRowFields } from "../cardPrints";
+import {
+    definitionTokensUnchanged,
+    unchanged,
+    type CardPrintRowFields,
+} from "../cardPrints";
 import type { Doc } from "../_generated/dataModel";
 
 function existingRow(
@@ -116,5 +120,58 @@ describe("unchanged — the sync never writes an unchanged row (PRD #4115)", () 
                 })
             )
         ).toBe(true);
+    });
+});
+
+describe("definitionTokensUnchanged — the definition-token sync never writes an unchanged row (issue #4120)", () => {
+    const existing = {
+        _id: "fake-id",
+        _creationTime: 0,
+        cardId: "card-1",
+        tokenPrints: [{ name: "Wasp", tokenPrintId: "wasp-1" }],
+    } as Doc<"definitionTokenPrints">;
+
+    it("is true for identical Token Prints", () => {
+        expect(
+            definitionTokensUnchanged(existing, {
+                cardId: "card-1",
+                tokenPrints: [{ name: "Wasp", tokenPrintId: "wasp-1" }],
+            })
+        ).toBe(true);
+    });
+
+    it("is false when a token id differs, a token is added, or the order changes", () => {
+        const same = { cardId: "card-1" };
+        expect(
+            definitionTokensUnchanged(existing, {
+                ...same,
+                tokenPrints: [{ name: "Wasp", tokenPrintId: "wasp-2" }],
+            })
+        ).toBe(false);
+        expect(
+            definitionTokensUnchanged(existing, {
+                ...same,
+                tokenPrints: [
+                    { name: "Wasp", tokenPrintId: "wasp-1" },
+                    { name: "Bee", tokenPrintId: "bee-1" },
+                ],
+            })
+        ).toBe(false);
+        const two = {
+            ...existing,
+            tokenPrints: [
+                { name: "Wasp", tokenPrintId: "wasp-1" },
+                { name: "Bee", tokenPrintId: "bee-1" },
+            ],
+        } as Doc<"definitionTokenPrints">;
+        expect(
+            definitionTokensUnchanged(two, {
+                ...same,
+                tokenPrints: [
+                    { name: "Bee", tokenPrintId: "bee-1" },
+                    { name: "Wasp", tokenPrintId: "wasp-1" },
+                ],
+            })
+        ).toBe(false);
     });
 });

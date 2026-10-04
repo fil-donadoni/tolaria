@@ -1459,4 +1459,20 @@ export default defineSchema({
     })
         .index("by_printId", ["printId"])
         .index("by_cardId", ["cardId"]),
+
+    // The Token Prints of a Card Definition's OWN printing (ADR 0140 §4, issue
+    // #4120). `cardPrints` never holds that printing (the sync skips the one
+    // whose id IS the Card ID), yet an object on its default printing stamps
+    // exactly that id on the tokens it creates, so the Game-load query reads
+    // this table for it. Written by the same `prints:sync`, idempotent and
+    // never-deleting, and only for a definition whose printing links a token.
+    definitionTokenPrints: defineTable({
+        cardId: v.string(),
+        tokenPrints: v.array(
+            v.object({
+                name: v.string(),
+                tokenPrintId: v.string(),
+            })
+        ),
+    }).index("by_cardId", ["cardId"]),
 });

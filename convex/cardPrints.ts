@@ -110,6 +110,67 @@ export const upsertBatch = internalMutation({
     },
 });
 
+export const definitionTokenRowValidator = v.object({
+    cardId: v.string(),
+    tokenPrints: v.array(tokenPrintValidator),
+});
+
+/** True when `row` carries exactly the Token Prints already stored on
+ *  `existing` — same order-sensitive comparison as `unchanged`, for the same
+ *  reason (one deterministic transform feeds both sides). */
+export function definitionTokensUnchanged(
+    existing: Doc<"definitionTokenPrints">,
+    row: {
+        cardId: string;
+        tokenPrints: { name: string; tokenPrintId: string }[];
+    }
+): boolean {
+    return (
+        existing.tokenPrints.length === row.tokenPrints.length &&
+        existing.tokenPrints.every(
+            (t, i) =>
+                t.name === row.tokenPrints[i].name &&
+                t.tokenPrintId === row.tokenPrints[i].tokenPrintId
+        )
+    );
+}
+
+/**
+ * Idempotent, never-delete upsert of the definition printings' Token Prints
+ * (ADR 0140 §4, issue #4120), keyed by `cardId` via `by_cardId`. Like
+ * `upsertBatch`, an unchanged row is never written: a no-op patch would still
+ * re-execute every Game-load subscription holding it.
+ */
+export const upsertDefinitionTokensBatch = internalMutation({
+    args: { rows: v.array(definitionTokenRowValidator) },
+    returns: v.object({
+        inserted: v.number(),
+        patched: v.number(),
+        unchanged: v.number(),
+    }),
+    handler: async (ctx, { rows }) => {
+        let inserted = 0;
+        let patched = 0;
+        let unchangedCount = 0;
+        for (const row of rows) {
+            const existing = await ctx.db
+                .query("definitionTokenPrints")
+                .withIndex("by_cardId", (q) => q.eq("cardId", row.cardId))
+                .unique();
+            if (!existing) {
+                await ctx.db.insert("definitionTokenPrints", row);
+                inserted++;
+            } else if (definitionTokensUnchanged(existing, row)) {
+                unchangedCount++;
+            } else {
+                await ctx.db.patch(existing._id, row);
+                patched++;
+            }
+        }
+        return { inserted, patched, unchanged: unchangedCount };
+    },
+});
+
 /**
  * The deck builder's edition selector (issue #4117, ADR 0140): every
  * printing of ONE Card ID, paginated (a basic land has on the order of a
@@ -203,44 +264,58 @@ export interface TokenPrintRowFields {
     tokenPrints: { name: string; tokenPrintId: string }[];
 }
 
-/** The Card IDs whose DEFINITION printing the fetch must also read: every
- *  Card ID a chosen printing points at that is not itself already read. The
- *  client's chain falls back to that row when the chosen edition printed no
- *  token of the name (issue #4120). Pure core of `tokenPrintsForGame`. */
-export function definitionPrintIdsToRead(
-    own: readonly { printId: string; cardId: string }[]
+/** The Card ID each requested id stands for: a chosen printing's row names
+ *  its Card ID; an id with no row is taken to BE a Card ID (an unpinned deck
+ *  entry names its definition printing, which `cardPrints` never holds).
+ *  Pure core of `tokenPrintsForGame`. */
+export function cardIdsOf(
+    printIds: readonly string[],
+    rows: readonly { printId: string; cardId: string }[]
 ): string[] {
-    const have = new Set(own.map((r) => r.printId));
-    return [...new Set(own.map((r) => r.cardId).filter((id) => !have.has(id)))];
+    const byPrintId = new Map(rows.map((r) => [r.printId, r.cardId]));
+    return [...new Set(printIds.map((id) => byPrintId.get(id) ?? id))];
 }
 
-/** The rows `tokenPrintsForGame` returns: every row read, minus one that can
- *  neither name a token nor point at another printing (its own Card ID, no
- *  Token Prints). Pure core of `tokenPrintsForGame`. */
+/** The rows `tokenPrintsForGame` returns, in the one shape the client
+ *  indexes by `printId`: every `cardPrints` row read, plus a synthetic row for
+ *  each definition printing (`printId === cardId`) that links a token. A
+ *  `cardPrints` row that can neither name a token nor point at another
+ *  printing is dropped (its own Card ID, no Token Prints). Pure core of
+ *  `tokenPrintsForGame`. */
 export function toTokenPrintRows(
-    rows: readonly TokenPrintRowFields[]
+    rows: readonly TokenPrintRowFields[],
+    definitions: readonly {
+        cardId: string;
+        tokenPrints: { name: string; tokenPrintId: string }[];
+    }[]
 ): TokenPrintRowFields[] {
-    return rows
+    const slim = rows
         .filter((r) => r.tokenPrints.length > 0 || r.cardId !== r.printId)
         .map((r) => ({
             printId: r.printId,
             cardId: r.cardId,
             tokenPrints: r.tokenPrints,
         }));
+    const have = new Set(slim.map((r) => r.printId));
+    const synthetic = definitions
+        .filter((d) => d.tokenPrints.length > 0 && !have.has(d.cardId))
+        .map((d) => ({
+            printId: d.cardId,
+            cardId: d.cardId,
+            tokenPrints: d.tokenPrints,
+        }));
+    return [...slim, ...synthetic];
 }
 
 /**
  * The Game-load Token Print fetch (ADR 0140 §4, issue #4120): ONE query for
  * every Print ID in both decks, so a token's art is known the moment the board
- * renders and never flickers. The client's resolver (`src/lib/tokenArt.ts`)
- * reads a token's `sourcePrintId` row first, then the row of the DEFINITION
- * printing — which this query reads in the same handler for every row whose
- * `cardId` differs from its `printId`, so a chosen printing with no Token Print
- * of its own still reaches the Card's default one without a second round trip.
- *
- * Slim by construction: no set / rarity / flags, and a row that can neither
- * name a token nor point at another printing (its own Card ID, no Token
- * Prints) is omitted — the client treats an absent row as "nothing to show".
+ * renders and never flickers. Point reads only (`by_printId`, `by_cardId`
+ * unique) — no range scan. The client's resolver (`src/lib/tokenArt.ts`) reads
+ * a token's `sourcePrintId` row first, then the DEFINITION printing's, which
+ * lives in `definitionTokenPrints` because the sync never writes it to
+ * `cardPrints`; both arrive here as rows keyed by `printId`, the definition's
+ * with `printId === cardId`.
  */
 export const tokenPrintsForGame = query({
     args: { printIds: v.array(v.string()) },
@@ -252,18 +327,29 @@ export const tokenPrintsForGame = query({
         })
     ),
     handler: async (ctx, { printIds }) => {
-        const readRow = (printId: string) =>
-            ctx.db
-                .query("cardPrints")
-                .withIndex("by_printId", (q) => q.eq("printId", printId))
-                .unique();
         const wanted = [...new Set(printIds.slice(0, MAX_PRINT_IDS))];
-        const own = (await Promise.all(wanted.map(readRow))).flatMap((r) =>
-            r ? [r] : []
-        );
-        const definitions = (
-            await Promise.all(definitionPrintIdsToRead(own).map(readRow))
+        const rows = (
+            await Promise.all(
+                wanted.map((printId) =>
+                    ctx.db
+                        .query("cardPrints")
+                        .withIndex("by_printId", (q) =>
+                            q.eq("printId", printId)
+                        )
+                        .unique()
+                )
+            )
         ).flatMap((r) => (r ? [r] : []));
-        return toTokenPrintRows([...own, ...definitions]);
+        const definitions = (
+            await Promise.all(
+                cardIdsOf(wanted, rows).map((cardId) =>
+                    ctx.db
+                        .query("definitionTokenPrints")
+                        .withIndex("by_cardId", (q) => q.eq("cardId", cardId))
+                        .unique()
+                )
+            )
+        ).flatMap((r) => (r ? [r] : []));
+        return toTokenPrintRows(rows, definitions);
     },
 });

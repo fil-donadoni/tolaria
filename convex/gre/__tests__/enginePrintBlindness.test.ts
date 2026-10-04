@@ -72,9 +72,9 @@ const PRINT_READER_ALLOWLIST: readonly AllowlistEntry[] = [
     },
     {
         file: "state.ts",
-        count: 13,
+        count: 16,
         role: "token creation",
-        reason: "`SpellContext.createToken` stamps the creating object's printing (its `imagePrintId`, else its Card ID) on the spec as `sourcePrintId`, and `createTokenPermanents` copies it onto each token instance — never read back; an explicit `imagePrintId` spec pin still lands on the synthesized token definition.",
+        reason: "`SpellContext.createToken` stamps the creating object's printing (its `imagePrintId`, else its Card ID) on the spec as `sourcePrintId`, and `createTokenPermanents` copies it onto each token instance — never read back; a token's own ability inherits its creator's `sourcePrintId` and a token copy keeps the copied token's, so edition art follows the same printing; an explicit `imagePrintId` spec pin still lands on the synthesized token definition.",
     },
     {
         file: "transform.ts",

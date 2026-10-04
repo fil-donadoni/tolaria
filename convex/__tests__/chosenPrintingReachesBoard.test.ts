@@ -233,6 +233,30 @@ describe("a token's source printing reaches the board (issue #4120)", () => {
         expect(token.sourcePrintId).toBe(BIRDS);
     });
 
+    it("a token's own ability that makes a token passes its creator's recorded printing on", () => {
+        // The source here is itself a token — its Card ID is a synthetic
+        // `token:` id no print row names, so the printing the first token
+        // recorded is the one worth keeping.
+        const { token } = tokenMadeBy({
+            isToken: true,
+            sourcePrintId: BIRDS_2ED_PRINT,
+        });
+        expect(token.sourcePrintId).toBe(BIRDS_2ED_PRINT);
+    });
+
+    it("a copy of a token keeps the printing the copied token came from", () => {
+        const { state, token } = tokenMadeBy({ imagePrintId: BIRDS_2ED_PRINT });
+        const ctx = buildSpellContext(state, {
+            ...makeInstance(BIRDS, { id: "copier", controllerId: "p1" }),
+            zone: "stack",
+            castById: "p1",
+        } as StackItem);
+        const copyId = ctx.createTokenCopyOf(token.id, "p1");
+        const copy = state.players[0].battlefield.find((c) => c.id === copyId)!;
+        expect(copy).toBeDefined();
+        expect(copy.sourcePrintId).toBe(BIRDS_2ED_PRINT);
+    });
+
     it("survives the wire projection to both seats", () => {
         const { state } = tokenMadeBy({ imagePrintId: BIRDS_2ED_PRINT });
         for (const viewer of ["p1", "p2"]) {

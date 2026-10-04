@@ -14352,8 +14352,13 @@ export function buildSpellContext(
             // that into the edition's Token Print. An explicit
             // `spec.imagePrintId` (shared Treasure / Clue tokens, or a
             // deliberate override) still pins the art outright.
+            // A token's own ability that creates a token inherits the printing
+            // ITS creator recorded (`item.sourcePrintId`), never the synthetic
+            // `token:` definition id, which no print row names.
             const sourcePrintId =
-                item.imagePrintId ?? (item.card as { id?: string }).id;
+                item.imagePrintId ??
+                item.sourcePrintId ??
+                (item.card as { id?: string }).id;
             return createTokenPermanents(
                 state,
                 sourcePrintId ? { ...spec, sourcePrintId } : spec,
@@ -14480,9 +14485,8 @@ export function buildSpellContext(
             // `ctx.createToken` because the `copyOf` opt is not part of the
             // public `TokenSpec` surface. Nothing else is lost by bypassing the
             // closure: its only extra work is the `sourcePrintId` stamp, which
-            // names nothing for the synthetic "Copy" and which
-            // `applyCopy` supersedes anyway (the copy presents the SOURCE's
-            // definition, art included).
+            // is instead taken from the copied token itself, below (a copy
+            // presents the SOURCE's definition, art included).
             //
             // Everything this function used to do AFTER the call — `applyCopy`,
             // the copied definition's CR 121.6 entry counters, the CR 611 grant
@@ -14492,6 +14496,11 @@ export function buildSpellContext(
             // "as this enters" choices (CR 707.6): a parked token is in no zone
             // at all, so a post-call `findOnBattlefield` would have found
             // nothing and silently skipped every one of those steps.
+            // A copy of a TOKEN keeps the printing that token came from, so the
+            // client still picks the same edition's Token Print (issue #4120);
+            // a last-known-information source carries none (it is no instance).
+            const copiedSourcePrintId =
+                "defId" in source ? undefined : source.sourcePrintId;
             const [tokenId] = createTokenPermanents(
                 state,
                 {
@@ -14499,6 +14508,9 @@ export function buildSpellContext(
                     types: ["Creature"],
                     power: 0,
                     toughness: 0,
+                    ...(copiedSourcePrintId
+                        ? { sourcePrintId: copiedSourcePrintId }
+                        : {}),
                     ...(opts?.entersTapped ? { entersTapped: true } : {}),
                     ...(opts?.entersAttacking ? { entersAttacking: true } : {}),
                 },

@@ -29,6 +29,7 @@ import type {
     QueryCtx as ConvexQueryCtx,
 } from "./_generated/server";
 import type { DeckCard, MatchDeck, MatchPlayer } from "./matches";
+import type { GameState } from "./gre/state";
 
 // Only `db` is ever touched, and several callers (`buildNextGameForMatch`)
 // already thread a `Pick<…, "db">` ctx — take the narrowest thing that works.
@@ -89,6 +90,52 @@ export function deckCardIds(
     for (const seat of seats)
         for (const c of seat.deck.cards) ids.add(c.cardId);
     return Array.from(ids);
+}
+
+/** Every Print ID a loaded debug / Blade position can ask the client to
+ *  resolve a Token Print from (issue #4120): the Card ID of each card in play
+ *  (a staged token's `sourcePrintId` is its producer's), each chosen
+ *  printing, and each token's recorded source. A scenario replaces the board
+ *  without touching the decklists, so `games.cardIds` — the Game-load query's
+ *  input — would otherwise know none of them. Synthetic ids (tokens, twins,
+ *  face-down sentinels) name no print and are left out. */
+export function statePrintIds(state: GameState): string[] {
+    const ids = new Set<string>();
+    const add = (id: string | undefined) => {
+        if (id && !id.startsWith("token:") && !id.startsWith("face-down:")) {
+            if (!id.includes("#")) ids.add(id);
+        }
+    };
+    for (const player of state.players) {
+        for (const zone of [
+            player.hand,
+            player.library,
+            player.graveyard,
+            player.exile,
+            player.battlefield,
+        ]) {
+            for (const card of zone) {
+                add((card.card as { id?: string }).id);
+                add(card.imagePrintId);
+                add(card.sourcePrintId);
+            }
+        }
+    }
+    for (const item of state.stack) {
+        add((item.card as { id?: string }).id);
+        add(item.imagePrintId);
+        add(item.sourcePrintId);
+    }
+    return Array.from(ids);
+}
+
+/** `games.cardIds` after a position is loaded: the existing manifest, then any
+ *  Print ID the position adds, first-seen order (see {@link statePrintIds}). */
+export function withStatePrintIds(
+    cardIds: readonly string[] | undefined,
+    state: GameState
+): string[] {
+    return Array.from(new Set([...(cardIds ?? []), ...statePrintIds(state)]));
 }
 
 /** Strips the decklist off a seat, leaving the identity the `games` row keeps. */
