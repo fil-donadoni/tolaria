@@ -488,19 +488,14 @@ describe("catalogue artifact — the packed server corpus (issue #4164)", () => 
         expect(committedPackedDrift(REPO_ROOT)).toBe(null);
     });
 
-    it("carries the one source hash, and its indexes cover every block", () => {
+    it("carries the one source hash, in blocks of the named size", () => {
+        // The indexes' shape (offsets tiling the string, first ids in
+        // code-point order) is asserted inside `packedCorpusDrift`, so
+        // `catalogue:check` holds the committed file to it too.
         const p = packed();
         expect(p.sourceHash).toBe(CATALOGUE_SOURCE_HASH);
         expect(p.blockRows).toBe(PACKED_BLOCK_ROWS);
-        const blocks = Math.ceil(p.rowCount / p.blockRows);
-        expect([p.firstIds.length, p.blockOffsets.length]).toEqual([
-            blocks,
-            blocks + 1,
-        ]);
-        expect(p.blockOffsets.at(-1)).toBe(p.blocks.length);
-        expect(p.firstIds).toEqual(
-            [...p.firstIds].sort((a, b) => a.localeCompare(b))
-        );
+        expect(p.rowCount).toBe(BUILD.merge.serverRows.length);
     });
 
     it("packing the same rows twice is byte-identical", () => {
@@ -583,6 +578,30 @@ describe("catalogue artifact — the packed server corpus (issue #4164)", () => 
             names: good.names.map((n, i) => (i === 7 ? "Wrong" : n)),
         };
         expect(packedCorpusDrift(misnamed, rows, "h")).toMatch(/row 7/);
+
+        // Structure a lookup relies on: trailing bytes past the last offset,
+        // and first ids out of code-point order.
+        expect(
+            packedCorpusDrift(
+                { ...good, blocks: good.blocks + "AAAA" },
+                rows,
+                "h"
+            )
+        ).toMatch(/do not tile/);
+        expect(
+            packedCorpusDrift(
+                {
+                    ...good,
+                    firstIds: [
+                        good.firstIds[1]!,
+                        good.firstIds[0]!,
+                        good.firstIds[2]!,
+                    ],
+                },
+                rows,
+                "h"
+            )
+        ).toMatch(/code-point order/);
     });
 });
 

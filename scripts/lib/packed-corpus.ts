@@ -30,11 +30,15 @@
  * Same rows in, same bytes out: the rows arrive sorted, the dictionary is a
  * fixed-stride sample of them, the block grouping is fixed-size and deflate is
  * a pure function of its input and options. Nothing reads a clock, a random
- * source or the file system.
+ * source or the file system. `fflate` is pinned to an exact version in
+ * `package.json`: its deflate output IS the committed bytes, so a silent bump
+ * would repack the whole file with no source change.
  *
  * The decoder uses only `atob`, `TextDecoder` and `fflate`'s synchronous
- * inflate — what the Convex runtime offers (no native zlib, no async) — so the
- * guard decodes with the same primitives the server lookup will.
+ * inflate — what the Convex runtime offers (no native zlib, no async). It lives
+ * here while nothing on the server reads the file; the lookup slice of PRD
+ * #4161 moves it under `convex/cards/`, so the guard then decodes with the
+ * server's own code rather than a copy of its primitives.
  */
 import { deflateSync, inflateSync } from "fflate";
 import type { CardDefinition } from "../../convex/cards/types";
@@ -179,6 +183,37 @@ export function unpackCorpus(packed: PackedCorpus): CardDefinition[] {
 }
 
 /**
+ * The shape a lookup relies on before it inflates anything: one offset per
+ * block plus the end, offsets that tile the whole string, one first id per
+ * block, and first ids strictly ascending in CODE-POINT order — the order a
+ * binary search with `<` assumes, which `localeCompare` (the merge's sort)
+ * only agrees with because every id is a lowercase UUID.
+ */
+function structuralDrift(packed: PackedCorpus): string | null {
+    const blocks = Math.ceil(packed.rowCount / packed.blockRows);
+    if (packed.firstIds.length !== blocks) {
+        return `first-id index holds ${packed.firstIds.length} ids for ${blocks} blocks of ${packed.blockRows}`;
+    }
+    const offsets = packed.blockOffsets;
+    if (
+        offsets.length !== blocks + 1 ||
+        offsets[0] !== 0 ||
+        offsets[blocks] !== packed.blocks.length
+    ) {
+        return `block offsets do not tile the ${packed.blocks.length}-character block string in ${blocks} blocks`;
+    }
+    for (let k = 1; k < blocks; k++) {
+        if (offsets[k]! <= offsets[k - 1]!) {
+            return `block ${k} starts at ${offsets[k]}, not after block ${k - 1} (${offsets[k - 1]})`;
+        }
+        if (!(packed.firstIds[k - 1]! < packed.firstIds[k]!)) {
+            return `first-id index is not in code-point order at block ${k}: ${packed.firstIds[k - 1]} then ${packed.firstIds[k]}`;
+        }
+    }
+    return null;
+}
+
+/**
  * The first way the packed rendering disagrees with the rows it must carry,
  * as one gate line naming the card — or `null` when it decodes to exactly
  * `expected`, under `sourceHash`, with both indexes true to the rows.
@@ -194,6 +229,8 @@ export function packedCorpusDrift(
     if (packed.sourceHash !== sourceHash) {
         return `source hash ${packed.sourceHash} is not the catalogue's ${sourceHash}`;
     }
+    const structural = structuralDrift(packed);
+    if (structural !== null) return structural;
     const dictionary = fromBase64(packed.dictionary);
     const rows: CardDefinition[] = [];
     for (let k = 0; k < packed.firstIds.length; k++) {
