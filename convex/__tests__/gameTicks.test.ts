@@ -12,7 +12,8 @@
 import { describe, it, expect } from "vitest";
 import type { Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
-import { mill, getGameTick } from "../game";
+import { mill } from "../game";
+import { getGameTick } from "../gameReads";
 import type { GameState } from "../gre/state";
 import {
     makeInstance,

@@ -38,7 +38,7 @@ export default function LimitedRoundAction({
     const navigate = useNavigate();
     const user = useCurrentUser();
     const userDecks = useUserDecks();
-    const activeGame = useQuery(api.game.myActiveGame);
+    const activeGame = useQuery(api.gameReads.myActiveGame);
     const startPairingMatch = useMutation(api.game.startPairingMatch);
     const joinGame = useMutation(api.game.joinGame);
     const [pending, setPending] = useState(false);

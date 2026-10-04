@@ -38,7 +38,7 @@ export default function PauseMenuDialog({
     const [isBusy, setIsBusy] = useState(false);
     const concede = useMutation(api.game.concede);
     const forfeitMatch = useMutation(api.game.forfeitMatch);
-    const manualConcede = useMutation(api.game.manualConcedeMatch);
+    const manualConcede = useMutation(api.gameManual.manualConcedeMatch);
 
     // Issue #2353 — the Manual Board mounts this same dialog. The mode rides
     // the board context's explicit discriminator (issue #2346), never a probe

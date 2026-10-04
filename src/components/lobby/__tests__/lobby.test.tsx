@@ -168,7 +168,7 @@ beforeEach(() => {
     localStorage.setItem("tolaria:matchFormat", "3");
 });
 
-/** One open (waiting) table, as `api.game.listOpenGames` returns it: a games
+/** One open (waiting) table, as `api.gameReads.listOpenGames` returns it: a games
  *  doc plus its Match's `bestOf` (PRD #387/#397). `mode` decides which join
  *  mutation an `OpenTablesStrip` row would dispatch, so it is what makes a row
  *  mode-compatible or not. */

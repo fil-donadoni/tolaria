@@ -102,7 +102,11 @@ vi.mock("convex/react", async () => {
 vi.mock("@convex/_generated/api", () => ({
     // Plain names: `getFunctionName` (which `useResilientQuery` calls to key
     // its retry state) accepts a string reference, and `{}` is not one.
-    api: { game: { getManualState: "game:getManualState" }, manualLog: {} },
+    api: {
+        game: {},
+        gameReads: { getManualState: "gameReads:getManualState" },
+        manualLog: {},
+    },
 }));
 import {
     mockInstanceManaCost,

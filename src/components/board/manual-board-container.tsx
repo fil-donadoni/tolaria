@@ -47,7 +47,7 @@ export default function ManualBoardContainer({
     // the router's catch boundary — the crash class is the query, not the
     // board it feeds.
     const stateQuery = useResilientQuery(
-        api.game.getManualState,
+        api.gameReads.getManualState,
         pageVisible ? { gameId, viewerId: steeredSeat } : "skip"
     );
     const state = stateQuery.data;

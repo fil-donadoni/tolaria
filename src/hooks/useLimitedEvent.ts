@@ -45,7 +45,7 @@ export function useDraftableSets(): DraftableSetInfo[] | undefined {
 }
 
 // Both list queries below are gated on tab visibility, mirroring the lobby's
-// `api.decks.list` / `api.game.listOpenGames` subscriptions. They are LIST
+// `api.decks.list` / `api.gameReads.listOpenGames` subscriptions. They are LIST
 // scans over `limitedEvents`, so every write to ANY event re-runs them and
 // re-reads every scanned row; leaving them subscribed behind a hidden tab was
 // the single largest source of Convex database read bytes in development (a

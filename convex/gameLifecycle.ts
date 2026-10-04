@@ -1,5 +1,6 @@
 import type { GenericMutationCtx, GenericQueryCtx } from "convex/server";
 import type { DataModel, Doc } from "./_generated/dataModel";
+import type { LimitedRound } from "./limited/eventTypes";
 import { getCurrentUserId } from "./auth";
 
 /**
@@ -109,4 +110,31 @@ export async function findActiveGameForUser(
         if (mine) return mine;
     }
     return null;
+}
+
+/** The Rounds array as the `limitedEvents` schema declares it. `convex/limited/**`
+ *  never depends on `_generated`, so its `LimitedPairing.matchId` is a plain
+ *  `string` where the schema stores a branded `Id<"matches">` — the same
+ *  type-level reconciliation `limitedEvents.ts`'s `asDbRounds` performs, for
+ *  the two writes this module makes. Every `matchId` written here originates
+ *  from a real `insertMatchWithDecks` (`deckStore.ts`), never from client input. */
+export function asDbRounds(
+    rounds: LimitedRound[]
+): NonNullable<Doc<"limitedEvents">["rounds"]> {
+    return rounds as unknown as NonNullable<Doc<"limitedEvents">["rounds"]>;
+}
+
+/** Shared seat-ownership check for the sideboarding mutations: a 2-player caller
+ *  may only act on their own seat; a Solo/vs-AI caller owns both seats of the
+ *  Match (they all belong to the single user). */
+export function callerOwnsSeat(
+    match: Doc<"matches">,
+    seat: { id: string },
+    userId: string
+): boolean {
+    return (
+        match.solo === true ||
+        seat.id === userId ||
+        seat.id.startsWith(`${userId}-`)
+    );
 }

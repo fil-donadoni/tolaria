@@ -36,7 +36,7 @@ import OverlaySpecimens, { type OverlaySpecimen } from "./overlay-specimens";
  *  measures the real face and oracle text, not a fallback name. */
 const BOLT = "d573ef03-4730-45aa-93dd-e45ac1dbaf4a";
 
-/** A specimen active game: the shape `api.game.myActiveGame` returns. A
+/** A specimen active game: the shape `api.gameReads.myActiveGame` returns. A
  *  2-player game with a named opponent, so the confirm's subtitle is its
  *  longest variant — the one worth photographing on a phone. */
 const ACTIVE_GAME: ActiveGameInfo = {

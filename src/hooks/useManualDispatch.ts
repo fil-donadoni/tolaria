@@ -15,34 +15,34 @@ import type { ManualDispatch } from "~/lib/manual-runtime";
  *  Every entry maps 1:1 onto a `manual*` mutation that already exists in
  *  `convex/game.ts` — issue #2169 adds no server capability whatsoever. */
 export function useManualDispatch(gameId: Id<"games">): ManualDispatch {
-    const moveCard = useMutation(api.game.manualMoveCard);
-    const setTapped = useMutation(api.game.manualSetTapped);
-    const untapAll = useMutation(api.game.manualUntapAll);
-    const adjustLife = useMutation(api.game.manualAdjustLife);
-    const adjustCounter = useMutation(api.game.manualAdjustCounter);
-    const setFaceDown = useMutation(api.game.manualSetFaceDown);
-    const setLane = useMutation(api.game.manualSetLane);
-    const setBackColumn = useMutation(api.game.manualSetBackColumn);
-    const attach = useMutation(api.game.manualAttach);
-    const setArrow = useMutation(api.game.manualSetArrow);
-    const clearArrow = useMutation(api.game.manualClearArrow);
-    const draw = useMutation(api.game.manualDraw);
-    const mill = useMutation(api.game.manualMill);
-    const exileTop = useMutation(api.game.manualExileTop);
-    const peek = useMutation(api.game.manualPeek);
-    const shuffle = useMutation(api.game.manualShuffle);
-    const setNote = useMutation(api.game.manualSetNote);
-    const setPhase = useMutation(api.game.manualSetPhase);
-    const reveal = useMutation(api.game.manualReveal);
-    const revealHand = useMutation(api.game.manualRevealHand);
-    const endTurn = useMutation(api.game.manualEndTurn);
+    const moveCard = useMutation(api.gameManual.manualMoveCard);
+    const setTapped = useMutation(api.gameManual.manualSetTapped);
+    const untapAll = useMutation(api.gameManual.manualUntapAll);
+    const adjustLife = useMutation(api.gameManual.manualAdjustLife);
+    const adjustCounter = useMutation(api.gameManual.manualAdjustCounter);
+    const setFaceDown = useMutation(api.gameManual.manualSetFaceDown);
+    const setLane = useMutation(api.gameManual.manualSetLane);
+    const setBackColumn = useMutation(api.gameManual.manualSetBackColumn);
+    const attach = useMutation(api.gameManual.manualAttach);
+    const setArrow = useMutation(api.gameManual.manualSetArrow);
+    const clearArrow = useMutation(api.gameManual.manualClearArrow);
+    const draw = useMutation(api.gameManual.manualDraw);
+    const mill = useMutation(api.gameManual.manualMill);
+    const exileTop = useMutation(api.gameManual.manualExileTop);
+    const peek = useMutation(api.gameManual.manualPeek);
+    const shuffle = useMutation(api.gameManual.manualShuffle);
+    const setNote = useMutation(api.gameManual.manualSetNote);
+    const setPhase = useMutation(api.gameManual.manualSetPhase);
+    const reveal = useMutation(api.gameManual.manualReveal);
+    const revealHand = useMutation(api.gameManual.manualRevealHand);
+    const endTurn = useMutation(api.gameManual.manualEndTurn);
     // `manualConcedeMatch`, NOT `manualConcede`: the latter only stamps
     // `concededBy` on the manual state — a field NOTHING reads — so the
     // button looked wired and ended nothing (QA: "concede is still inert").
     // Conceding a Tabletop game is the ONLY terminator ADR 0080 gives it, so
     // it must be the mutation that finishes the game row, awards the
     // opponent and advances the Match.
-    const concede = useMutation(api.game.manualConcedeMatch);
+    const concede = useMutation(api.gameManual.manualConcedeMatch);
 
     return useMemo<ManualDispatch>(
         () => ({

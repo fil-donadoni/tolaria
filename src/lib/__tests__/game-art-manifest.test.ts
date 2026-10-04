@@ -27,7 +27,8 @@ import {
     makeInMemoryDb,
     type InMemoryRow,
 } from "@convex/__tests__/fixtures/inMemoryDb.fixture";
-import { createGame, joinGame, getGame } from "@convex/game";
+import { createGame, joinGame } from "@convex/game";
+import { getGame } from "@convex/gameReads";
 import { hydrateGameSeats } from "@convex/deckStore";
 import { gameArtCardIds } from "../game-card-ids";
 

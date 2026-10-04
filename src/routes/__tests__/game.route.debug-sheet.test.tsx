@@ -25,7 +25,10 @@ vi.mock("convex/react", async () => {
     };
 });
 vi.mock("@convex/_generated/api", () => ({
-    api: { game: { getGame: "game:getGame", leaveGame: "game:leaveGame" } },
+    api: {
+        gameTable: { leaveGame: "gameTable:leaveGame" },
+        gameReads: { getGame: "gameReads:getGame" },
+    },
 }));
 vi.mock("@tanstack/react-router", () => ({
     useNavigate: () => vi.fn(),

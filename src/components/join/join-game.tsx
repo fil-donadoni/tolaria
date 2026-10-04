@@ -38,7 +38,7 @@ type JoinGameProps = {
 export default function JoinGame({ gameId }: JoinGameProps) {
     const navigate = useNavigate();
     const user = useCurrentUser();
-    const info = useQuery(api.game.getJoinInfo, { gameId });
+    const info = useQuery(api.gameReads.getJoinInfo, { gameId });
     const presetDecks = useQuery(api.decks.list, {});
     const userDecks = useUserDecks();
     const joinGame = useMutation(api.game.joinGame);

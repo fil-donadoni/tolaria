@@ -73,8 +73,13 @@ vi.mock("@convex/_generated/api", () => {
     // A plain name, not a `{ _name }` stub: `getFunctionName` (which
     // `useResilientQuery` calls to key its retry state) accepts a string
     // reference and rejects an object that carries no function name.
-    game.getManualState = "game:getManualState";
-    return { api: { game, manualLog: {} } };
+    return {
+        api: {
+            game,
+            gameReads: { getManualState: "gameReads:getManualState" },
+            manualLog: {},
+        },
+    };
 });
 import {
     mockInstanceManaCost,

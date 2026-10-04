@@ -21,7 +21,9 @@ import { describe, it, expect } from "vitest";
 import type { Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
 import type { GameState } from "../gre/state";
-import { finalizeGameOver, leaveGame, myActiveGame } from "../game";
+import { finalizeGameOver } from "../game";
+import { myActiveGame } from "../gameReads";
+import { leaveGame } from "../gameTable";
 import {
     makeInMemoryDb,
     type InMemoryRow,

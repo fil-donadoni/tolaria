@@ -1,7 +1,7 @@
 // Which SERVER verb each manual dispatch key reaches.
 //
 // The bug this pins (QA: "the concede button in manual is still inert"):
-// `concede` was bound to `api.game.manualConcede`, a mutation that stamped
+// `concede` was bound to `api.gameManual.manualConcede`, a mutation that stamped
 // `concededBy` on the manual state and stopped — a field no client and no
 // server path ever read. The click wrote a row and ended nothing. Manual Mode
 // has exactly ONE terminator (ADR 0080: "a game ends by concede only"), so the

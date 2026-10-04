@@ -72,8 +72,8 @@ vi.mock("@tanstack/react-router", () => ({
     },
 }));
 
-// A path-carrying api stand-in: `api.game.myActiveGame` reads back as the
-// string `"game.myActiveGame"`, which is what lets the `useQuery` mock below
+// A path-carrying api stand-in: `api.gameReads.myActiveGame` reads back as the
+// string `"gameReads.myActiveGame"`, which is what lets the `useQuery` mock below
 // tell the two subscriptions apart instead of counting anonymous calls.
 vi.mock("@convex/_generated/api", () => {
     const node = (path: string): unknown =>
@@ -114,7 +114,7 @@ import ActiveGameNotice, {
     type ActiveGame,
 } from "~/components/lobby/active-game-notice";
 
-const GAME_QUERY = "game.myActiveGame";
+const GAME_QUERY = "gameReads.myActiveGame";
 const EVENTS_QUERY = "limitedEvents.myCurrentLimitedEvents";
 
 const RUNNING_GAME: ActiveGame = {

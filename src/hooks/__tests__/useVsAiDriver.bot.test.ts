@@ -117,9 +117,6 @@ vi.mock("@convex/_generated/api", () => ({
     api: {
         game: {
             getPublicState: "getPublicState",
-            getGameTick: "getGameTick",
-            getGame: "getGame",
-            getSeatDeck: "getSeatDeck",
             playCard: "playCard",
             summonCompanion: "summonCompanion",
             announceCast: "announceCast",
@@ -158,6 +155,11 @@ vi.mock("@convex/_generated/api", () => ({
             selectActivationExileCost: "selectActivationExileCost",
             selectActivationDiscardCost: "selectActivationDiscardCost",
             passPriority: "passPriority",
+        },
+        gameReads: {
+            getGameTick: "getGameTick",
+            getGame: "getGame",
+            getSeatDeck: "getSeatDeck",
         },
     },
 }));
