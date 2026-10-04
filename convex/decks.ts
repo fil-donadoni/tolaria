@@ -219,7 +219,7 @@ export function sortLobbyPresets(presets: LobbyPreset[]): LobbyPreset[] {
  * DB-backed (Alpha 40, Freeform) simply looks up `undefined` here, which
  * `presetRowToLobby`/`validateDeck` already treat as "use the code fallback".
  */
-async function loadBanlistOverridesByFormat(
+export async function loadBanlistOverridesByFormat(
     ctx: QueryCtx
 ): Promise<Partial<Record<FormatId, BanlistOverride>>> {
     const [premodern, oldSchool] = await Promise.all([

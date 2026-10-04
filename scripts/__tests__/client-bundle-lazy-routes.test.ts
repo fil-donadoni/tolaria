@@ -193,6 +193,18 @@ describe("source seams that keep the entry graph light", () => {
         expect(router).not.toMatch(/components\/ui\/catalogue-gate["']/);
     });
 
+    it("the formats seam plugin still names the one importer and the one specifier", () => {
+        const vite = read("vite.config.ts");
+        expect(vite).toContain('name: "formats-cards-browser-seam"');
+        expect(vite).toContain('source === "./cards"');
+        expect(vite).toContain('endsWith("/convex/formats.ts")');
+        // The plugin keys on this exact spelling: one import, written `./cards`.
+        const imports = read("convex/formats.ts").match(
+            /from\s+["']\.\/cards["']/g
+        );
+        expect(imports).toHaveLength(1);
+    });
+
     it("the engine sentinel is still a literal in the engine source", () => {
         expect(read("convex/gre/activation.ts")).toContain(ENGINE_SENTINEL);
     });

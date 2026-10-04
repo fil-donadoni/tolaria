@@ -113,12 +113,16 @@ export default defineConfig({
         // imports the catalogue. `convex/formats.ts` imports `./cards` (the
         // server barrel, set modules included) only for the DEFAULT of
         // `validateDeck`'s `resolve` parameter; the label/id half of that
-        // module is what the login page and the lobby read. Every client
-        // caller of `validateDeck` injects its own resolver, so the browser
-        // build swaps the barrel for a stub that refuses to be called. A
-        // plugin, not an alias, because the specifier `./cards` is spelled
-        // by other `convex/` modules too and only this importer is meant.
-        // Pinned by `scripts/__tests__/client-bundle-lazy-routes.test.ts`.
+        // module is what the login page and the lobby read. The browser build
+        // swaps the barrel for a late-bound stub
+        // (`src/lib/catalogue/deck-card-meta.browser.ts`) that
+        // `src/lib/catalogueArtifact.ts` binds to the real resolver once the
+        // catalogue loads — so a gated surface keeps today's default, and the
+        // lobby, which never loads the catalogue, derives no legality at all
+        // (`userDecks.listMine` attaches it server-side). A plugin, not an
+        // alias, because the specifier `./cards` is spelled by other
+        // `convex/` modules too and only this importer is meant. Pinned by
+        // `scripts/__tests__/client-bundle-lazy-routes.test.ts`.
         {
             name: "formats-cards-browser-seam",
             enforce: "pre",

@@ -5,7 +5,8 @@ import { internalMutation, mutation, query } from "./_generated/server";
 import { getCurrentUserId } from "./auth";
 import { withDefinitionId } from "./cards/catalogue";
 import { storedDeckColumnLayoutValidator } from "./deckLayoutStorage";
-import { type FormatId, isFormatId } from "./formats";
+import { loadBanlistOverridesByFormat } from "./decks";
+import { type FormatId, isFormatId, validateDeck } from "./formats";
 import { openPlayPhaseIfReady } from "./limitedEvents";
 import {
     assertLimitedSeatOwnership,
@@ -66,6 +67,12 @@ export const listMine = query({
             .order("desc")
             .collect();
 
+        // Legality for every non-limited deck is derived HERE, not in the
+        // browser (issue #4854): the lobby renders without the card catalogue,
+        // and `validateDeck` needs the definitions to resolve a card's set and
+        // rarity. Same derivation `decks.list` runs for presets — recomputed
+        // on every read (ADR 0036), reactive to a DB banlist sync.
+        const banlists = await loadBanlistOverridesByFormat(ctx);
         const eventCache = new Map<string, Doc<"limitedEvents"> | null>();
         return await Promise.all(
             rows.map(async (row) => {
@@ -74,7 +81,13 @@ export const listMine = query({
                     !row.limitedEventId ||
                     !row.limitedSeatId
                 ) {
-                    return row;
+                    const { isLegal, reasons } = validateDeck(
+                        row,
+                        row.format,
+                        undefined,
+                        banlists[row.format]
+                    );
+                    return { ...row, isLegal, reasons };
                 }
                 let event = eventCache.get(row.limitedEventId);
                 if (event === undefined) {
