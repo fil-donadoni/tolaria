@@ -189,7 +189,7 @@ describe("Myr Battlesphere (CR 111.1 / 508.1m / 118.12 / 506.2)", () => {
         );
     }
 
-    it("ETB creates four 1/1 colorless Myr artifact creature tokens with printed art", () => {
+    it("ETB creates four 1/1 colorless Myr artifact creature tokens from this printing", () => {
         const sphere = makeInstance(battlesphere.id, { id: "sphere" });
         const state = makeState({
             players: [
@@ -212,9 +212,9 @@ describe("Myr Battlesphere (CR 111.1 / 508.1m / 118.12 / 506.2)", () => {
         for (const token of myr) {
             expect(token.types).toEqual(["Artifact", "Creature"]);
             expect([token.power, token.toughness]).toEqual([1, 1]);
-            expect(
-                getDefinition(token.card.id as string).imagePrintId
-            ).toBeDefined();
+            // Printed art is the client's pick from the creating printing's
+            // Token Prints (ADR 0140 §6, issue #4120); the token records it.
+            expect(token.sourcePrintId).toBe(battlesphere.id);
         }
     });
 

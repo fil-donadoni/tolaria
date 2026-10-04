@@ -3,8 +3,9 @@ import {
     ART_CROP_RATIO,
     getArtCropImageUrl,
     resolveCardImageFace,
-    resolveCardImageId,
 } from "~/lib/images";
+import { useTokenPrints } from "~/hooks/useTokenPrints";
+import { resolveArtPrintId } from "~/lib/tokenArt";
 import { formatOracleText } from "~/lib/oracle-text";
 import TokenPlaceholder from "../cards/token-placeholder";
 
@@ -12,16 +13,21 @@ type StackAbilityTileProps = {
     cardId: string;
     abilityText: string;
     kind: "activated" | "triggered" | "delayed";
+    /** The ability's source object: its chosen printing / the printing a token
+     *  was made from pick the art, the way they do on the board (issue #4120). */
+    source?: { imagePrintId?: string; sourcePrintId?: string };
 };
 
 export default function StackAbilityTile({
     cardId,
     abilityText,
     kind,
+    source,
 }: StackAbilityTileProps) {
+    const tokenPrints = useTokenPrints();
     const def = tryGetDefinition(cardId);
     const name = def?.name ?? cardId;
-    const imageId = resolveCardImageId(cardId);
+    const imageId = resolveArtPrintId(cardId, source, tokenPrints);
     // A trigger/activated-ability tile's source can be a transformed
     // permanent's back-face def id (CR 712); resolve its rendered CDN face
     // (issue #1595).

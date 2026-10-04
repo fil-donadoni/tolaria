@@ -35,13 +35,15 @@ describe("token catalogue (CR 111 / 707.2)", () => {
         expect(wasp!.staticAbilities).toContain("flying");
     });
 
-    it("resolves token art the way `SpellContext.createToken` does at runtime", () => {
-        // The Hive's Wasp has no explicit `imagePrintId` on the spec — the art
-        // comes from the build-time Scryfall reverse-link keyed by (producing
-        // card id, token name). A catalogue entry must carry it, or a scenario
-        // token would render as a bare placeholder.
-        expect(findTokenSpec("Wasp")?.imagePrintId).toBe(
-            "09921372-126f-4c81-b6d8-ea50b1d0eb44"
+    it("names the producer's printing the way `SpellContext.createToken` does at runtime", () => {
+        // The Hive's Wasp has no explicit `imagePrintId` on the spec — a
+        // catalogue entry carries the PRODUCING card's Card ID as the opaque
+        // `sourcePrintId` (ADR 0140 §6, issue #4120), so the client picks the
+        // same Token Print a real creation would instead of a bare placeholder.
+        const wasp = findTokenSpec("Wasp");
+        expect(wasp?.imagePrintId).toBeUndefined();
+        expect(wasp?.sourcePrintId).toBe(
+            "544a7138-eae8-4ff9-9e17-680bfa717183"
         );
     });
 

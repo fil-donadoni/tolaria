@@ -2708,6 +2708,12 @@ export const CARD_STATE_ALLOWLIST = new Set<string>([
     "power",
     "toughness",
     "staticAbilities",
+    // ADR 0140 §6 (issue #4120) — a token's cosmetic source printing. Not
+    // spec-keyed data and not rules state: a rebuilt token re-derives it from
+    // the token catalogue's producer (`placeScenarioTokens`), and the engine
+    // never reads it, so losing it changes no rule — only which edition's
+    // Token Print the client shows.
+    "sourcePrintId",
     // Lowered explicitly by `lowerCard` below.
     "isTapped",
     "isToken",

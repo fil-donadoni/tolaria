@@ -24,7 +24,6 @@ import {
 } from "../../../__tests__/setup.helper";
 import { projectPublicState } from "../../../../gameProjections";
 import { effectiveTriggeredAbilities } from "../../../../gre/copy";
-import { tokenPrintIdFor } from "../../../tokenPrintLookup";
 import { getDefinition } from "../../../index";
 
 const astrologiansPlanisphere = getDefinition(
@@ -85,15 +84,6 @@ describe("Astrologian's Planisphere (FIN #46, Job select CR 702.182a — issue #
             (astrologiansPlanisphere.staticEffects ?? []).map((e) => e.kind)
         ).toEqual(["subtype-add", "triggered-grant"]);
         expect(astrologiansPlanisphere.triggeredGrantTemplates).toHaveLength(1);
-        expect(tokenPrintIdFor(astrologiansPlanisphere.id, "Hero")).toBe(
-            "17fa0c1f-6737-487c-9101-0bec2e586795"
-        );
-    });
-
-    it("resolves its own printed Hero token art", () => {
-        expect(tokenPrintIdFor(astrologiansPlanisphere.id, "Hero")).toBe(
-            "17fa0c1f-6737-487c-9101-0bec2e586795"
-        );
     });
 
     it("Job select creates a 1/1 colorless Hero and attaches to it (GRE and wire format)", () => {

@@ -16,7 +16,6 @@ import type {
     TokenSpec,
 } from "../../types";
 import { manaCostForCardId } from "../../manaCostLookup";
-import { tokenPrintIdFor } from "../../tokenPrintLookup";
 
 function colorsOfView(view: { card?: Record<string, unknown> }): string[] {
     const card = view.card ?? {};
@@ -39,7 +38,6 @@ const GOBLIN_TOKEN: TokenSpec = {
     power: 1,
     toughness: 1,
     colors: ["R"],
-    imagePrintId: tokenPrintIdFor(GOBLIN_WARRENS_ID, "Goblin"),
 };
 
 export const goblinWarDrums: CardDefinition = {

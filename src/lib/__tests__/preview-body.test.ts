@@ -4,7 +4,12 @@
 // instance/context. This suite pins the ORIGINAL-face contract: a printed
 // snapshot independent of any live-instance overrides.
 import { describe, it, expect } from "vitest";
-import { getCardByName, tryGetDefinition } from "@convex/cards";
+import {
+    getCardByName,
+    tokenDefinitionId,
+    tryGetDefinition,
+} from "@convex/cards";
+import { indexTokenPrintRows } from "../tokenArt";
 import {
     buildPreviewBody,
     buildEmblemPreviewBody,
@@ -13,7 +18,7 @@ import {
 import { modalBackFaceDefinitionId } from "@convex/cards/modalDfc";
 import { backFaceDefinitionIdOf } from "@convex/gre/transform";
 import type { CardInstance, Player } from "~/types/game";
-import type { EmblemInstance } from "@convex/cards/types";
+import type { EmblemInstance, TokenSpec } from "@convex/cards/types";
 
 const CLONE = getCardByName("Clone");
 const SERRA = getCardByName("Serra Angel");
@@ -837,5 +842,58 @@ describe("buildPreviewBody — the chosen printing (ADR 0140 §6, issue #4119)",
 
     it("no pin keeps the definition's own printing", () => {
         expect(buildPreviewBody(BIRDS.id).imageSrc).toContain(BIRDS.id);
+    });
+});
+
+describe("buildPreviewBody — a token's edition art (ADR 0140 §4, issue #4120)", () => {
+    const SPEC: TokenSpec = {
+        name: "Elephant",
+        types: ["Creature"],
+        subtypes: ["Elephant"],
+        power: 3,
+        toughness: 3,
+        colors: ["G"],
+    };
+    const DEF_ID = tokenDefinitionId(SPEC);
+    const CARD = "429a88cc-53db-4c5e-a061-f0f49a38c675";
+    const EDITION_TOKEN = "22222222-2222-4222-8222-222222222222";
+    const rows = indexTokenPrintRows([
+        {
+            printId: CARD,
+            cardId: CARD,
+            tokenPrints: [{ name: "Elephant", tokenPrintId: EDITION_TOKEN }],
+        },
+    ]);
+    const token = {
+        id: "token-1",
+        isToken: true,
+        card: { id: DEF_ID },
+        types: ["Creature"],
+        subtypes: ["Elephant"],
+        staticAbilities: [],
+        power: 3,
+        toughness: 3,
+        controllerId: "p1",
+        ownerId: "p1",
+        zone: "battlefield",
+        isTapped: false,
+        sourcePrintId: CARD,
+    } as CardInstance;
+
+    it("the preview paints the same Token Print the board does", () => {
+        const body = buildPreviewBody(
+            DEF_ID,
+            token,
+            undefined,
+            undefined,
+            undefined,
+            rows
+        );
+        expect(body.imageSrc).toContain(EDITION_TOKEN);
+        expect(body.printedImageSrc).toContain(EDITION_TOKEN);
+    });
+
+    it("without the Game's rows the face is the placeholder (no art)", () => {
+        expect(buildPreviewBody(DEF_ID, token).imageSrc).toBeNull();
     });
 });

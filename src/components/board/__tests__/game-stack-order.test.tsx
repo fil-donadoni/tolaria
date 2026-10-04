@@ -8,6 +8,12 @@ import { render, cleanup } from "@testing-library/react";
 import type { StackItem } from "~/types/game";
 import { GameContext } from "~/hooks/useGameContext";
 import { MONARCH_DESIGNATION } from "@convex/cards/designations";
+import { TokenPrintsContext } from "~/hooks/useTokenPrints";
+import {
+    EMPTY_TOKEN_PRINT_INDEX,
+    indexTokenPrintRows,
+    type TokenPrintIndex,
+} from "~/lib/tokenArt";
 
 vi.mock("convex/react", () => ({ useMutation: () => vi.fn() }));
 vi.mock("~/hooks/useDraggable", () => ({
@@ -40,7 +46,8 @@ function renderStack(
     stack: StackItem[],
     allPlayers: NonNullable<
         React.ContextType<typeof GameContext>
-    >["allPlayers"] = []
+    >["allPlayers"] = [],
+    tokenPrints: TokenPrintIndex = EMPTY_TOKEN_PRINT_INDEX
 ) {
     const value = {
         gameId: "game-id" as never,
@@ -59,7 +66,9 @@ function renderStack(
     } as React.ContextType<typeof GameContext>;
     return render(
         <GameContext value={value}>
-            <GameStack stack={stack} />
+            <TokenPrintsContext value={tokenPrints}>
+                <GameStack stack={stack} />
+            </TokenPrintsContext>
         </GameContext>
     );
 }
@@ -136,11 +145,12 @@ describe("GameStack ability-kind detection (#935)", () => {
         expect(container.textContent).not.toContain("Token");
     });
 
-    it("themes the Monarch tile to the per-source printing when present (CR 725, #1305)", () => {
-        // When the crowning card supplies a themed marker printing
-        // (`designationImagePrintId`), the tile renders THAT print — not the
-        // designation's global `imagePrintId` — so the art matches the card.
-        const themed = "63455c28-3e53-45b1-8d0b-a5045dab1fb9"; // Forth's LTR print
+    it("themes the Monarch tile to the crowning card's Token Print when it has one (CR 725, #1305, #4120)", () => {
+        // The crowning card's Card ID rides as `sourcePrintId`; its row's
+        // "The Monarch" Token Print — not the designation's global
+        // `imagePrintId` — is the art, so the tile matches the card.
+        const FORTH = "06c053d3-028e-4961-93a5-5b7bb5a8601c"; // Forth Eorlingas!
+        const themed = "63455c28-3e53-45b1-8d0b-a5045dab1fb9"; // its LTR marker
         const item = {
             ...makeStackItem("monarch-themed"),
             card: { id: "" },
@@ -148,14 +158,39 @@ describe("GameStack ability-kind detection (#935)", () => {
             delayedOracleText:
                 "At the beginning of the monarch's end step, that player draws a card.",
             designationId: MONARCH_DESIGNATION.id,
-            designationImagePrintId: themed,
+            sourcePrintId: FORTH,
         } as StackItem;
-        const { container } = renderStack([item]);
+        const rows = indexTokenPrintRows([
+            {
+                printId: FORTH,
+                cardId: FORTH,
+                tokenPrints: [
+                    { name: MONARCH_DESIGNATION.name, tokenPrintId: themed },
+                ],
+            },
+        ]);
+        const { container } = renderStack([item], [], rows);
 
         const img = container.querySelector("img");
         expect(img?.getAttribute("src")).toContain(themed);
         // Not the global fallback printing.
         expect(img?.getAttribute("src")).not.toContain(
+            MONARCH_DESIGNATION.imagePrintId
+        );
+    });
+
+    it("keeps the global marker when the crowning card's printing has no Monarch Token Print (#4120)", () => {
+        const item = {
+            ...makeStackItem("monarch-unthemed"),
+            card: { id: "" },
+            delayedTriggerId: "$inline-effects",
+            delayedOracleText:
+                "At the beginning of the monarch's end step, that player draws a card.",
+            designationId: MONARCH_DESIGNATION.id,
+            sourcePrintId: "06c053d3-028e-4961-93a5-5b7bb5a8601c",
+        } as StackItem;
+        const { container } = renderStack([item]);
+        expect(container.querySelector("img")?.getAttribute("src")).toContain(
             MONARCH_DESIGNATION.imagePrintId
         );
     });

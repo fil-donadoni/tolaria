@@ -599,7 +599,6 @@ convex/cards/
 │   ├── white.ts  blue.ts  black.ts  red.ts  green.ts
 │   ├── multicolor.ts  artifacts.ts  lands.ts
 │   └── __tests__/<colour>.test.ts   # file di test PARALLELO per colore
-└── generated/token-prints.json      # lockfile art dei token
 ```
 
 Regole non negoziabili:
@@ -621,12 +620,12 @@ l'immagine → si renderizza un placeholder testuale (e in un caso ha fatto
 crashare `<StackRow>`), silenziosamente lato server.
 
 - **token**: si preferisce una spec condivisa da `convex/cards/sharedTokens.ts`.
-  Un token nuovo prende l'art rigenerando il lockfile
-  (`node scripts/fetch-token-prints.mjs`) o fissando `imagePrintId` a mano. Il
-  guard `tokenPrintLookup.test.ts` fallisce su qualunque `createToken` DSL senza
-  art risolvibile. **Punto cieco**: un token creato da una `resolve()`
-  (`ctx.createToken(...)`) è invisibile al guard — lì l'`imagePrintId` va messo a
-  mano;
+  L'art di un token non si cabla: il motore marca il token con la stampa
+  che l'ha creato (`sourcePrintId`: l'`imagePrintId` dell'oggetto creatore, else
+  il suo Card ID) e il client sceglie il Token Print di quell'edizione dalla
+  tabella `cardPrints` (`src/lib/tokenArt.ts`, ADR 0140). Si fissa
+  `imagePrintId` a mano solo dove il creatore non è la carta che stampa il token
+  (un'abilità concessa, un eternalize);
 - **emblemi**: `imagePrintId` sulla `EmblemDefinition` in `convex/cards/emblems.ts`;
   `emblemArt.test.ts` presidia;
 - **regola di match**: il token associato alla stampa **della carta stessa** dove
@@ -1004,7 +1003,6 @@ perché sono ciò che ferma la deriva:
 | `effectScripts.test.ts`              | Effect Script strutturalmente invalido                                          |
 | `effectScriptSmoke.test.ts`          | script che non produce l'esito dichiarato                                       |
 | `triggerDedup.test.ts`               | trigger duplicati con lo stesso oracle text                                     |
-| `tokenPrintLookup.test.ts`           | token DSL senza art risolvibile                                                 |
 | `emblemArt.test.ts`                  | emblema senza `imagePrintId`                                                    |
 | `serialize.test.ts` (drift guard)    | campo di `GameState` assente da entrambi gli insiemi di chiavi                  |
 | `activation-affordability.catalogue` | forma di costo senza gate di affordabilità nel frontend                         |

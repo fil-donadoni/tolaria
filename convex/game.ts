@@ -536,6 +536,7 @@ import {
     loadMatchSeatDecks,
     patchGameSeats,
     saveMatchSeatDeck,
+    withStatePrintIds,
 } from "./deckStore";
 
 // The PURE activation path (CR 602) and the cost-payment machinery it drives
@@ -16105,6 +16106,11 @@ export const debugSetupScenario = mutation({
         // priority holder and the combat object together.
         assertLiveGameCanContinue(state);
 
+        // The Game-load Token Print query reads `games.cardIds` (issue #4120):
+        // widen it to the position just staged, so its tokens keep their art.
+        await ctx.db.patch(args.gameId, {
+            cardIds: withStatePrintIds(game.cardIds, state),
+        });
         await saveGameState(
             ctx,
             args.gameId,
@@ -16264,6 +16270,9 @@ export const debugLoadBladeScenario = mutation({
             await ctx.db.patch(gameState._id, { solo: true, vsAi: true });
         }
 
+        await ctx.db.patch(args.gameId, {
+            cardIds: withStatePrintIds(game.cardIds, state),
+        });
         await saveGameState(
             ctx,
             args.gameId,

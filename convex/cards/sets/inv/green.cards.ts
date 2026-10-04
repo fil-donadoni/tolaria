@@ -1048,7 +1048,7 @@ export const rootingKavu: CardDefinition = {
 // (`pls/green.cards.ts`) — counting the caster's own battlefield creatures at
 // RESOLUTION (CR 608.2), so a creature that died in response reduces the
 // count. Token art resolves from the committed Scryfall reverse-link
-// (`generated/token-prints.json`) keyed by this card's id + "Saproling", the
+// (the Card Prints table's Token Prints) keyed by this card's id + "Saproling", the
 // same 1/1 green Saproling the other INV producers use; no `imagePrintId` is
 // hand-pinned.
 export const saprolingSymbiosis: CardDefinition = {
@@ -1466,7 +1466,7 @@ export const restock: CardDefinition = {
 //    the cast choke point that emits.
 //
 // Token art resolves automatically from the committed Scryfall reverse-link
-// (`generated/token-prints.json`) keyed by this card's own id + the token
+// (the Card Prints table's Token Prints) keyed by this card's own id + the token
 // name, so no `imagePrintId` is hand-pinned. Invasion itself printed NO
 // tokens, so the lockfile maps this card to a same-characteristics substitute
 // (a 1/1 green Saproling from a modern printing) — the token/emblem art rule's
@@ -1589,7 +1589,7 @@ export const tangle: CardDefinition = {
 // permanent. The trigger is the Verduran Emissary pair (check-time
 // `conditionOnSelf` + resolution-time `additionalCostPaid` branch).
 // CR 613.4c — the anthem covers every Saproling and every OTHER Treefolk.
-// Token art: `generated/token-prints.json` keyed by this card's id.
+// Token art: the Card Prints table's Token Prints keyed by this card's id.
 // compiler-gap: "Saproling creatures and other Treefolk creatures get +1/+1." (#2693)
 // compiler-gap: "When Verdeloth enters, if it was kicked, create X 1/1 green Saproling creature tokens." (#2693)
 export const verdelothTheAncient: CardDefinition = {

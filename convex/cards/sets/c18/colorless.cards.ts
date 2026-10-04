@@ -2,7 +2,6 @@
 // registry's `import * as c18 from "./sets/c18/index.cards"` re-exports this module.
 // Modern Scryfall oracle text is authoritative (ADR 0004).
 import type { CardDefinition } from "../../types";
-import { tokenPrintIdFor } from "../../tokenPrintLookup";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 
 // Retrofitter Foundry — {1} Artifact (Vintage Cube token maker, issue #678).
@@ -48,10 +47,6 @@ export const retrofitterFoundry: CardDefinition = {
                         power: 1,
                         toughness: 1,
                         colors: [],
-                        imagePrintId: tokenPrintIdFor(
-                            RETROFITTER_FOUNDRY_ID,
-                            "Servo"
-                        ),
                     },
                     controller: "controller",
                 },
@@ -78,10 +73,6 @@ export const retrofitterFoundry: CardDefinition = {
                         toughness: 1,
                         staticAbilities: ["flying"],
                         colors: [],
-                        imagePrintId: tokenPrintIdFor(
-                            RETROFITTER_FOUNDRY_ID,
-                            "Thopter"
-                        ),
                     },
                     controller: "controller",
                 },
@@ -103,10 +94,6 @@ export const retrofitterFoundry: CardDefinition = {
                         power: 4,
                         toughness: 4,
                         colors: [],
-                        imagePrintId: tokenPrintIdFor(
-                            RETROFITTER_FOUNDRY_ID,
-                            "Construct"
-                        ),
                     },
                     controller: "controller",
                 },

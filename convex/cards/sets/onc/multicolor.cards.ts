@@ -8,10 +8,8 @@ import type { CardDefinition, EffectTokenSpec } from "../../types";
 // LOCAL spec, not a `sharedTokens.ts` entry: Otharri is the only Rebel producer
 // in the catalogue, and the shared file is for a token several cards create
 // ("extract after the second"). No `imagePrintId` is hand-wired — art is
-// auto-resolved at creation time by (producing card id, token name) out of
-// `cards/generated/token-prints.json`, which already links Otharri's own ONC
-// printing of the Rebel token (`tone` set); `tokenPrintLookup.test.ts` is the
-// catalogue-wide guard that this resolves.
+// picked by the client from the Card Prints table's Token Prints for the
+// creating printing (Otharri's own ONC printing links the `tone` Rebel).
 const REBEL_TOKEN: EffectTokenSpec = {
     name: "Rebel",
     types: ["Creature"],

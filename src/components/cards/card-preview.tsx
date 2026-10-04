@@ -1,6 +1,7 @@
 import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { GameContext } from "~/hooks/useGameContext";
+import { useTokenPrints } from "~/hooks/useTokenPrints";
 import { useLongPress } from "~/hooks/useLongPress";
 import { useRightPressPreview } from "~/hooks/useRightPressPreview";
 import type { CardInstance } from "~/types/game";
@@ -79,6 +80,7 @@ export default function CardPreview({
     // lobby alike). Mobile long-press overlay (`showOverlay`) is a separate,
     // untouched surface.
     const gameCtx = useContext(GameContext);
+    const tokenPrints = useTokenPrints();
     const [showAnchored, setShowAnchored] = useState(false);
     const [showHoverDock, setShowHoverDock] = useState(false);
     const [imgLoaded, setImgLoaded] = useState(false);
@@ -431,7 +433,14 @@ export default function CardPreview({
         bodyOverride ??
         (faceDownFace
             ? buildFaceDownPreviewBody(faceDownFace, cardInstance, gameCtx)
-            : buildPreviewBody(cardId, cardInstance, gameCtx, cardName));
+            : buildPreviewBody(
+                  cardId,
+                  cardInstance,
+                  gameCtx,
+                  cardName,
+                  undefined,
+                  tokenPrints
+              ));
     // Second face — the pure PRINTED identity, built from a definition id with
     // NO instance and no game context, so every live override falls back to the
     // printed card. Two producers, one composition:

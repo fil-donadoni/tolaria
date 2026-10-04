@@ -3,7 +3,6 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 import type { CardDefinition } from "../../../../convex/cards/types";
-import { tokenPrintIdFor } from "../../tokenPrintLookup";
 
 // Titania, Protector of Argoth — {3}{G}{G} Legendary Creature. "When Titania
 // enters, return target land card from your graveyard to the battlefield.
@@ -86,7 +85,6 @@ export const titaniaProtectorOfArgoth: CardDefinition = {
                         colors: ["G"],
                         power: 5,
                         toughness: 3,
-                        imagePrintId: tokenPrintIdFor(TITANIA_ID, "Elemental"),
                     },
                 },
             ],

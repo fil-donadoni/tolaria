@@ -105,8 +105,8 @@ export const moxOpal: CardDefinition = {
 // Cube (issue #3244).
 //
 // ETB: four 1/1 colorless Myr artifact creature tokens (CR 111.1); their art is
-// the card's own `all_parts` token print, resolved from the token-prints
-// lockfile at creation.
+// the card's own `all_parts` token print, picked by the client from the
+// Card Prints table's Token Prints.
 //
 // Attack trigger (CR 508.1m): "you may tap X untapped Myr you control. If you
 // do, …" is a cost paid as the trigger RESOLVES (CR 118.12), with X chosen by

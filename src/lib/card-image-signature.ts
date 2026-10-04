@@ -66,6 +66,9 @@ export function cardImageSignature(card: CardLike): string {
     // The chosen printing (ADR 0140 §6) or a copy token's frame: the board art
     // and both preview faces read it, and a copy effect rewrites it in place.
     if (card.imagePrintId) parts.push(`print:${card.imagePrintId}`);
+    // A token's edition (issue #4120): the board art and both preview faces
+    // pick its Token Print off this, so a different source is a different face.
+    if (card.sourcePrintId) parts.push(`src:${card.sourcePrintId}`);
 
     // Keyword grants/losses (landwalk and every other keyword): the resolved
     // `staticAbilities` array already reflects both, so it covers the diff

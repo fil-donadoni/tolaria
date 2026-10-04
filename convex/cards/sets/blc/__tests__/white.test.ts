@@ -17,7 +17,6 @@ import { emitAttackersDeclaredEvents } from "../../../../gre/phases";
 import { compactState, expandState } from "../../../../gre/serialize";
 import { getEffectivePower } from "../../../../gre/layers";
 import { projectPublicState } from "../../../../gameProjections";
-import { tokenPrintIdFor } from "../../../tokenPrintLookup";
 import { getDefinition } from "../../../index";
 
 const jackedRabbit = getDefinition("2c695df6-6bf2-4e6b-8500-e3116137ca27");
@@ -169,22 +168,20 @@ describe("Jacked Rabbit — attack trigger (CR 508.1 / 613)", () => {
         expect(tokens).toHaveLength(1);
     });
 
-    it("wires the token's art from the reverse-linked Scryfall lockfile (CR 111)", () => {
+    it("stamps the creating card's printing on the token (CR 111, ADR 0140 §6)", () => {
         // The shared RABBIT_TOKEN spec pins no `imagePrintId` on purpose —
-        // `SpellContext.createToken` resolves it per PRODUCING card, so the
-        // art matches this card's own printing.
-        const expected = tokenPrintIdFor(jackedRabbit.id, "Rabbit");
-        expect(expected).toBeDefined();
+        // `SpellContext.createToken` stamps the PRODUCING card's printing as
+        // `sourcePrintId`, and the client picks that edition's Token Print.
         const { state, rabbit } = castForX(0);
         declareAttackers(state, [rabbit.id]);
         resolveTopOfStack(state);
         const token = state.players[0].battlefield.find(
             (c) => c.isToken && c.subtypes?.includes("Rabbit")
         )!;
-        // The art lands on the token's synthesized CardDefinition (the
-        // instance keeps only `card: { id }`), which is what the client reads.
+        expect(token.sourcePrintId).toBe(jackedRabbit.id);
+        // No art is resolved engine-side: the definition carries no print.
         expect(getDefinition(token.card.id as string).imagePrintId).toBe(
-            expected
+            undefined
         );
     });
 

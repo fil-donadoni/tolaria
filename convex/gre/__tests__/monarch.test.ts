@@ -296,9 +296,10 @@ describe("Monarch — end-step draw (CR 725.2, issue #1199)", () => {
         expect(tile.designationId).toBe("monarch");
     });
 
-    it("themes the marker art to the card that crowned the monarch (Forth Eorlingas, #1305)", () => {
+    it("stamps the crowning card's printing on the draw tile (Forth Eorlingas, #1305, #4120)", () => {
         // Forth Eorlingas! (ltc) crowns via a DSL becomeMonarch; the draw tile
-        // must carry its set-themed "The Monarch" printing, not the global one.
+        // carries its Card ID as the opaque `sourcePrintId`, from which the
+        // client picks the set-themed "The Monarch" Token Print.
         const state = makeState({
             phase: "POSTCOMBAT_MAIN",
             turn: 2,
@@ -316,20 +317,17 @@ describe("Monarch — end-step draw (CR 725.2, issue #1199)", () => {
 
         advancePhase(state);
         const tile = state.stack[0];
-        // The LTR "The Monarch" print (tltc) — Forth's own all_parts marker.
-        expect(tile.designationImagePrintId).toBe(
-            "63455c28-3e53-45b1-8d0b-a5045dab1fb9"
-        );
+        expect(tile.sourcePrintId).toBe("06c053d3-028e-4961-93a5-5b7bb5a8601c");
         // Survives the wire projection (the client reads it off the tile).
         const projected = projectPublicState(state, 1, "p1");
-        expect(projected.stack[0].designationImagePrintId).toBe(
-            "63455c28-3e53-45b1-8d0b-a5045dab1fb9"
+        expect(projected.stack[0].sourcePrintId).toBe(
+            "06c053d3-028e-4961-93a5-5b7bb5a8601c"
         );
     });
 
     it("falls back to the global marker art when the crown was stolen in combat (no card source, #1305)", () => {
         // A CR 720.3 combat-damage steal crowns with no card source, so the
-        // themed override is cleared and the tile uses the global marker.
+        // themed source is cleared and the tile uses the global marker.
         const state = makeState({
             phase: "POSTCOMBAT_MAIN",
             turn: 2,
@@ -345,7 +343,7 @@ describe("Monarch — end-step draw (CR 725.2, issue #1199)", () => {
         expect(state.monarchSourceCardId).toBeUndefined();
 
         advancePhase(state);
-        expect(state.stack[0].designationImagePrintId).toBeUndefined();
+        expect(state.stack[0].sourcePrintId).toBeUndefined();
     });
 });
 

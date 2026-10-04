@@ -60,8 +60,8 @@ import { EFFECT_TREASURE_TOKEN } from "../../sharedTokens";
  *  Card-local rather than a `sharedTokens.ts` entry: Fable is its only
  *  producer in the catalogue, and the art-match rule wants the token
  *  associated with the PRODUCING card's own printing — resolved per producer
- *  from the Scryfall reverse-link lockfile (`generated/token-prints.json`) by
- *  `tokenPrintIdFor`, so no `imagePrintId` is pinned here. Promote it to
+ *  from the Scryfall reverse-link lockfile (the Card Prints table's Token Prints) by
+ *  the client's Token Print resolver, so no `imagePrintId` is pinned here. Promote it to
  *  `sharedTokens.ts` when a second producer ships (extract after the second).
  *
  *  The carried trigger is a `TokenTriggeredAbility` descriptor — JSON-pure,

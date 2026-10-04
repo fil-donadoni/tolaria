@@ -976,11 +976,6 @@ function compactStackItem(item: StackItem, ctx: CompactCtx): CompactCard {
     // must survive a save while the trigger sits on the stack, or the client
     // falls back to the empty "Token"/"Delayed trigger" placeholder.
     if (item.designationId) base.designationId = item.designationId;
-    // Per-source marker art override (issue #1305) — must survive a save so the
-    // themed Monarch tile keeps the granting card's printing after a reload.
-    if (item.designationImagePrintId) {
-        base.designationImagePrintId = item.designationImagePrintId;
-    }
     // CR 603.12/603.3d — a reflexive trigger sits on the stack awaiting
     // priority like any other; its marker and its inline target requirement
     // must survive a save taken while it is there (the requirement is what
@@ -1206,10 +1201,6 @@ function expandStackItem(compact: CompactCard, ctx?: ExpandCtx): StackItem {
     // Monarch's on-stack draw keeps its marker art after a save/load.
     if (compact.designationId) {
         item.designationId = compact.designationId as string;
-    }
-    if (compact.designationImagePrintId) {
-        item.designationImagePrintId =
-            compact.designationImagePrintId as string;
     }
     // CR 603.12/603.3d — restore the reflexive-trigger marker and its inline
     // target requirement.

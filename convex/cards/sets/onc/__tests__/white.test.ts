@@ -35,7 +35,6 @@ import {
     pushSpell,
 } from "../../../__tests__/setup.helper";
 import { projectPublicState } from "../../../../gameProjections";
-import { tokenPrintIdFor } from "../../../tokenPrintLookup";
 
 const staffOfTheStoryteller = getDefinition(
     "ab1d1461-1625-4163-aacd-a939f4871fad"
@@ -309,12 +308,6 @@ function fireForMirrodin(
 }
 
 describe("Glimmer Lens (ONC #6, For Mirrodin! CR 702.163a — issue #2610)", () => {
-    it("resolves its own printed Rebel token art", () => {
-        expect(tokenPrintIdFor(glimmerLens.id, "Rebel")).toBe(
-            "a41eb9df-d8b4-4697-a759-886faf16754d"
-        );
-    });
-
     it("For Mirrodin! creates a 2/2 red Rebel and attaches to it (GRE and wire format)", () => {
         const { state, lens } = setupGlimmerLens();
         const rebel = fireForMirrodin(state, lens);

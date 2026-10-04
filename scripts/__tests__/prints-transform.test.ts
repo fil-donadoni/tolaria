@@ -6,6 +6,7 @@ import {
     buildCardPrintRow,
     buildCardPrintRows,
     buildDefinitionIndex,
+    buildDefinitionTokenRow,
     summarizePrintRows,
     type ScryfallDefaultCardRow,
 } from "../lib/prints-transform";
@@ -137,7 +138,7 @@ describe("buildCardPrintRow — token link + fallback", () => {
         { oracleId: BIRDS_ORACLE, scryfallId: BIRDS_DEF_ID },
     ]);
 
-    it("takes only 'token'-component all_parts entries, as {name, tokenPrintId}", () => {
+    it("takes 'token'-component all_parts entries, as {name, tokenPrintId}, and ignores other components", () => {
         const built = buildCardPrintRow(
             row({
                 id: "p1",
@@ -150,7 +151,7 @@ describe("buildCardPrintRow — token link + fallback", () => {
                     { id: "token-id", name: "Elemental", component: "token" },
                     {
                         id: "combo-id",
-                        name: "The Monarch",
+                        name: "Some Other Piece",
                         component: "combo_piece",
                     },
                 ],
@@ -160,6 +161,29 @@ describe("buildCardPrintRow — token link + fallback", () => {
         );
         expect(built?.tokenPrints).toEqual([
             { name: "Elemental", tokenPrintId: "token-id" },
+        ]);
+    });
+
+    // CR 725 — the Monarch is a token-layout card Scryfall tags `combo_piece`.
+    // A card that grants it carries its set-themed marker like a token does
+    // (issue #1305), so the name-gated designation markers are kept.
+    it("keeps a state-designation marker (The Monarch) tagged combo_piece", () => {
+        const built = buildCardPrintRow(
+            row({
+                id: "p1",
+                all_parts: [
+                    {
+                        id: "monarch-marker-id",
+                        name: "The Monarch",
+                        component: "combo_piece",
+                    },
+                ],
+            }),
+            definitionByOracleId,
+            NO_OVERRIDES
+        );
+        expect(built?.tokenPrints).toEqual([
+            { name: "The Monarch", tokenPrintId: "monarch-marker-id" },
         ]);
     });
 
@@ -193,6 +217,68 @@ describe("buildCardPrintRow — token link + fallback", () => {
             NO_OVERRIDES
         );
         expect(built?.tokenPrints).toEqual([]);
+    });
+});
+
+describe("buildDefinitionTokenRow — the definition printing's Token Prints (issue #4120)", () => {
+    const definitionByOracleId = buildDefinitionIndex([
+        { oracleId: BIRDS_ORACLE, scryfallId: BIRDS_DEF_ID },
+    ]);
+    const wasp = [{ id: "wasp-id", name: "Wasp", component: "token" }];
+
+    it("takes the printing whose id IS the Card ID when it links a token", () => {
+        expect(
+            buildDefinitionTokenRow(
+                row({ id: BIRDS_DEF_ID, all_parts: wasp }),
+                definitionByOracleId
+            )
+        ).toEqual({
+            cardId: BIRDS_DEF_ID,
+            tokenPrints: [{ name: "Wasp", tokenPrintId: "wasp-id" }],
+        });
+    });
+
+    it("is null for any other printing — those are `cardPrints` rows", () => {
+        expect(
+            buildDefinitionTokenRow(
+                row({ id: "reprint-id", all_parts: wasp }),
+                definitionByOracleId
+            )
+        ).toBeNull();
+    });
+
+    it("is null when the definition printing links no token", () => {
+        expect(
+            buildDefinitionTokenRow(
+                row({ id: BIRDS_DEF_ID, all_parts: undefined }),
+                definitionByOracleId
+            )
+        ).toBeNull();
+    });
+
+    it("is null for an oversized card, an unknown oracle id or no oracle id", () => {
+        expect(
+            buildDefinitionTokenRow(
+                row({ id: BIRDS_DEF_ID, all_parts: wasp, oversized: true }),
+                definitionByOracleId
+            )
+        ).toBeNull();
+        expect(
+            buildDefinitionTokenRow(
+                row({ id: BIRDS_DEF_ID, all_parts: wasp, oracle_id: "nope" }),
+                definitionByOracleId
+            )
+        ).toBeNull();
+        expect(
+            buildDefinitionTokenRow(
+                row({
+                    id: BIRDS_DEF_ID,
+                    all_parts: wasp,
+                    oracle_id: undefined,
+                }),
+                definitionByOracleId
+            )
+        ).toBeNull();
     });
 });
 

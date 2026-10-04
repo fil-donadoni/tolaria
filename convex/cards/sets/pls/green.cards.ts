@@ -20,7 +20,6 @@ import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { additionalCostPaidCondition } from "../../abilities/triggers/shared";
 import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
 import { colorChoiceModes } from "../../abilities/chooseColor";
-import { tokenPrintIdFor } from "../../tokenPrintLookup";
 
 // Mirrorwood Treefolk — {3}{G} Creature — Treefolk, 2/4. "{2}{R}{W}: The next
 // time damage would be dealt to this creature this turn, that damage is
@@ -418,7 +417,7 @@ export const multanisHarmony: CardDefinition = {
 
 // Shared 1/1 green Saproling token (CR 111/707.2) for Nemata, Grove
 // Guardian. Art reverse-linked from Nemata's own PLS printing via Scryfall
-// `all_parts` (`scripts/fetch-token-prints.mjs`, `token-prints.json`) —
+// `all_parts` (`scripts/fetch-token-prints.mjs`, the Card Prints table's Token Prints) —
 // not promoted to `sharedTokens.ts` since no other PLS card in this slice
 // creates one (FEM's own Saproling stays local to `fem/green.cards.ts` for the
 // same reason; a later cross-set promotion is a separate, non-blocking
@@ -432,10 +431,6 @@ const NEMATA_SAPROLING_TOKEN: EffectTokenSpec = {
     power: 1,
     toughness: 1,
     colors: ["G"],
-    imagePrintId: tokenPrintIdFor(
-        "8c6a0ca4-5006-4c9b-91cd-e01d77e4fdc2",
-        "Saproling"
-    ),
 };
 
 // Nemata, Grove Guardian — {4}{G}{G} Legendary Creature — Treefolk, 4/5.

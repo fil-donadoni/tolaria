@@ -19,7 +19,6 @@ import {
     getEffectiveToughness,
 } from "../../../../gre/layers";
 import { projectPublicState } from "../../../../gameProjections";
-import { tokenPrintIdFor } from "../../../tokenPrintLookup";
 import { getDefinition } from "../../../index";
 
 const adelineResplendentCathar = getDefinition(
@@ -175,10 +174,7 @@ describe("Adeline attack trigger (CR 508.1/508.4) — token per opponent, tapped
         expect(state.stack).toHaveLength(0);
     });
 
-    it("wires the token's art from the reverse-linked Scryfall lockfile (CR 111)", () => {
-        const expected = tokenPrintIdFor(adelineResplendentCathar.id, "Human");
-        expect(expected).toBeDefined();
-
+    it("stamps the creating card's printing on the token (CR 111, ADR 0140 §6)", () => {
         const adeline = makeInstance(adelineResplendentCathar.id, {
             id: "adeline",
         });
@@ -189,8 +185,9 @@ describe("Adeline attack trigger (CR 508.1/508.4) — token per opponent, tapped
         const token = state.players[0].battlefield.find(
             (c) => c.isToken && c.subtypes?.includes("Human")
         )!;
+        expect(token.sourcePrintId).toBe(adelineResplendentCathar.id);
         expect(getDefinition(token.card.id as string).imagePrintId).toBe(
-            expected
+            undefined
         );
     });
 });

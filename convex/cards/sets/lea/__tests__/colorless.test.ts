@@ -1418,22 +1418,16 @@ describe("The Hive ({5}, {T}: create a 1/1 colorless flying Wasp Insect artifact
         expect(getEffectiveToughness(projected, wasp!)).toBe(1);
     });
 
-    it("synthesized def carries the 10E Wasp imagePrintId for the image layer", () => {
+    it("records The Hive's printing on the Wasp for the image layer (ADR 0140 §6, issue #4120)", () => {
         const { state, hive } = setup();
         activate(state, hive);
         const wasp = state.players[0].battlefield.find((c) => c.isToken)!;
-        const defId = (wasp.card as { id: string }).id;
-        const def = tryGetDefinition(defId);
+        // The engine resolves no art: the token only names the printing it
+        // came from, and the client picks that edition's Wasp Token Print.
+        expect(wasp.sourcePrintId).toBe(theHive.id);
+        const def = tryGetDefinition((wasp.card as { id: string }).id);
         expect(def).not.toBeNull();
-        expect(def!.imagePrintId).toBe("09921372-126f-4c81-b6d8-ea50b1d0eb44");
-        // The id encoding includes the print id as a delimited `|`-segment
-        // (index 8) so the client lazy-synthesizer recovers it without server
-        // registration. A trailing empty static-effects segment (#293) now
-        // follows it, so it's no longer the LAST segment — assert it's present
-        // as its own segment instead.
-        expect(
-            defId.split("|").includes("09921372-126f-4c81-b6d8-ea50b1d0eb44")
-        ).toBe(true);
+        expect(def!.imagePrintId).toBeUndefined();
     });
 });
 

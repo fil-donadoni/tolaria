@@ -19,7 +19,6 @@ import { AURA_AFFECTS_HOST } from "../../types";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { payOrSacrificeUpkeepTrigger } from "../leg/index.cards";
-import { tokenPrintIdFor } from "../../tokenPrintLookup";
 
 const BREEDING_PIT_ID = "a0d7e85f-eba5-4fc5-9fc0-109109d368aa"; // FEM 35
 
@@ -32,7 +31,6 @@ const THRULL_TOKEN: EffectTokenSpec = {
     power: 0,
     toughness: 1,
     colors: ["B"],
-    imagePrintId: tokenPrintIdFor(BREEDING_PIT_ID, "Thrull"),
 };
 
 export const armorThrullFemB: CardPrint = {

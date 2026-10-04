@@ -1,7 +1,6 @@
 // Emblem art + registration completeness catalogue guard (CR 114).
 //
-// The emblem analogue of the `createToken` art guard
-// (`tokenPrintLookup.test.ts`, issue #1305). An emblem an effect creates is
+// An emblem an effect creates is
 // referenced by KEY only (`{ op: "emblem", emblem: <id> }`); its art, name and
 // abilities live in `EMBLEM_REGISTRY` (`convex/cards/emblems.ts`). Two silent
 // failure modes this guard catches — both shipped once on Chandra, Torch of

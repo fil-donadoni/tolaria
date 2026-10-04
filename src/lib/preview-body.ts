@@ -13,7 +13,6 @@ import {
     getPrintedCardImageUrl,
     resolveBackFaceImageId,
     resolveCardImageFace,
-    resolveCardImageId,
     type CardImageFace,
 } from "~/lib/images";
 import {
@@ -25,6 +24,11 @@ import {
     type DisplayAbilities,
 } from "~/lib/card-utils";
 import { effectivePower, effectiveToughness } from "~/lib/effective-stats";
+import {
+    EMPTY_TOKEN_PRINT_INDEX,
+    resolveArtPrintId,
+    type TokenPrintIndex,
+} from "~/lib/tokenArt";
 import { getEffectiveColorDisplay } from "~/lib/color-override";
 import { getCounterDisplays, type CounterDisplay } from "~/lib/counters";
 import { attachmentHostName } from "~/lib/attachment";
@@ -392,7 +396,8 @@ export function buildPreviewBody(
     cardInstance?: CardInstance,
     gameCtx?: PreviewGameCtx | null,
     fallbackName?: string,
-    imagePrintId?: string
+    imagePrintId?: string,
+    tokenPrints: TokenPrintIndex = EMPTY_TOKEN_PRINT_INDEX
 ): PreviewBodyContent {
     const def = tryGetDefinition(defId);
     const abilities = def
@@ -472,8 +477,10 @@ export function buildPreviewBody(
     // 0140 §6), or a copy token's own frame (CR 707.9) — wins over the
     // definition's art, exactly as it does on the board (`card-image.tsx`), so
     // the preview never shows a different printing from the card it enlarges.
+    // A token with no pin of its own resolves its edition's Token Print
+    // through the same chain as the board (`tokenArt.ts`, issue #4120).
     const imageId =
-        imagePrintId ?? cardInstance?.imagePrintId ?? resolveCardImageId(defId);
+        imagePrintId ?? resolveArtPrintId(defId, cardInstance, tokenPrints);
     // A transformed permanent's `defId` is the registered back-face
     // definition (CR 712); resolve its rendered CDN face (issue #1595) so the
     // hover/zoom preview matches the board art.

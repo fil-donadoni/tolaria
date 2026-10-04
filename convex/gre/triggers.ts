@@ -23,7 +23,6 @@ import type {
 } from "../cards/types";
 import { tryGetDefinition } from "../cards";
 import { MONARCH_DESIGNATION } from "../cards/designations";
-import { tokenPrintIdFor } from "../cards/tokenPrintLookup";
 import { INLINE_DELAYED_TRIGGER_ID } from "./effects/interpreter";
 import { tryGetEmblemDefinition } from "../cards/emblems";
 import type {
@@ -122,14 +121,13 @@ export function buildMonarchDrawStackItem(
     monarchId: string
 ): StackItem {
     const draw: EffectOp = { op: "draw", player: "controller", count: 1 };
-    // Cosmetic per-source art (issue #1305): theme the marker to the card that
-    // crowned this monarch (Forth Eorlingas → LTR "The Monarch", Palace Jailer
-    // → the Conspiracy one), the way a token's art matches its producer. Falls
-    // back to the designation's global marker when there is no themed source
-    // (a CR 720.3 combat-damage steal) or the lockfile has no entry.
-    const themedPrintId = state.monarchSourceCardId
-        ? tokenPrintIdFor(state.monarchSourceCardId, MONARCH_DESIGNATION.name)
-        : undefined;
+    // Cosmetic per-source art (issue #1305, ADR 0140 §6, issue #4120): the
+    // marker themes to the card that crowned this monarch (Forth Eorlingas →
+    // LTR "The Monarch", Palace Jailer → the Conspiracy one), the way a
+    // token's art matches its producer. The engine only stamps the crowning
+    // card's Card ID as the opaque `sourcePrintId` — the client picks the
+    // Token Print. No themed source (a CR 725.2 combat-damage steal) → none,
+    // and the designation's global marker shows.
     return {
         id: allocInstanceId(state),
         card: { id: "" },
@@ -148,7 +146,9 @@ export function buildMonarchDrawStackItem(
         // Cosmetic: keys the Monarch marker art + name for the stack tile
         // (a card-less inline trigger would otherwise render an empty tile).
         designationId: MONARCH_DESIGNATION.id,
-        ...(themedPrintId ? { designationImagePrintId: themedPrintId } : {}),
+        ...(state.monarchSourceCardId
+            ? { sourcePrintId: state.monarchSourceCardId }
+            : {}),
     };
 }
 

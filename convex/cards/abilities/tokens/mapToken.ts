@@ -63,9 +63,9 @@ export const MAP_TOKEN_SPEC: EffectTokenSpec = {
     ],
     // Real printed Map token art (tlci #17, the LCI token set the Map was
     // printed in). Pinned rather than left to the per-producer reverse-link:
-    // every Map in the game is the same object, and `tokenPrintLookup`'s
-    // producer-printing rule has nothing to resolve for a token whose only
-    // producers are themselves LCI cards.
+    // every Map in the game is the same object, and the producer-printing
+    // rule has nothing to resolve for a token whose only producers are
+    // themselves LCI cards.
     imagePrintId: "64839118-09d2-4645-9d3c-f80755ac781f",
 };
 

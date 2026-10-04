@@ -12,11 +12,17 @@ import { describe, it, expect } from "vitest";
 import { buildInitialGameState, type PlayerInput } from "../game";
 import { createInitialGameState } from "../gre/setup";
 import { projectPublicState } from "../gameProjections";
-import { getCardByName } from "../cards";
+import { getCardByName, getDefinition } from "../cards";
 import { birdsOfParadise2ed } from "../cards/sets/2ed/green.cards";
 import { turnFaceDown } from "../gre/faceDown";
 import { NO_BOARD_LAYER_VIEW } from "../gre/layers";
-import type { CardInstanceState, GameState, StackItem } from "../gre/state";
+import {
+    buildSpellContext,
+    type CardInstanceState,
+    type GameState,
+    type StackItem,
+} from "../gre/state";
+import type { TokenSpec } from "../cards/types";
 import {
     makeInstance,
     makePlayer,
@@ -168,5 +174,119 @@ describe("a face-down object's printing is hidden like its identity (CR 708.5 / 
         const theirs = projectPublicState(state, 1, "p2").players[0].exile[0];
         expect(mine.imagePrintId).toBe(BIRDS_2ED_PRINT);
         expect(theirs.imagePrintId).toBeUndefined();
+    });
+});
+
+// ADR 0140 §6, issue #4120 — a created token records the printing it came from
+// as the opaque `sourcePrintId`; the client alone turns it into an image.
+describe("a token's source printing reaches the board (issue #4120)", () => {
+    const WASP: TokenSpec = {
+        name: "Wasp",
+        types: ["Creature"],
+        subtypes: ["Insect"],
+        power: 1,
+        toughness: 1,
+    };
+
+    /** Runs `createToken` as `source` resolves and returns the one token. */
+    function tokenMadeBy(
+        source: Partial<StackItem>,
+        spec: TokenSpec = WASP
+    ): { state: GameState; token: CardInstanceState } {
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        const item = {
+            ...makeInstance(BIRDS, { id: "src", controllerId: "p1" }),
+            zone: "stack",
+            castById: "p1",
+            ...source,
+        } as StackItem;
+        buildSpellContext(state, item).createToken(spec, "p1");
+        const token = state.players[0].battlefield.find((c) => c.isToken)!;
+        return { state, token };
+    }
+
+    it("stamps the creating object's Card ID when it has no chosen printing", () => {
+        expect(tokenMadeBy({}).token.sourcePrintId).toBe(BIRDS);
+    });
+
+    it("stamps the creating object's CHOSEN printing in preference to its Card ID", () => {
+        const { token } = tokenMadeBy({ imagePrintId: BIRDS_2ED_PRINT });
+        expect(token.sourcePrintId).toBe(BIRDS_2ED_PRINT);
+    });
+
+    it("resolves no art engine-side — the synthesized definition carries no print", () => {
+        const { token } = tokenMadeBy({});
+        expect(token.imagePrintId).toBeUndefined();
+        expect(
+            getDefinition(token.card.id as string).imagePrintId
+        ).toBeUndefined();
+    });
+
+    it("leaves an explicit spec pin on the definition, and still records the source", () => {
+        const PINNED = "09921372-126f-4c81-b6d8-ea50b1d0eb44";
+        const { token } = tokenMadeBy({}, { ...WASP, imagePrintId: PINNED });
+        expect(getDefinition(token.card.id as string).imagePrintId).toBe(
+            PINNED
+        );
+        expect(token.sourcePrintId).toBe(BIRDS);
+    });
+
+    it("a token's own ability that makes a token passes its creator's recorded printing on", () => {
+        // The source here is itself a token — its Card ID is a synthetic
+        // `token:` id no print row names, so the printing the first token
+        // recorded is the one worth keeping.
+        const { token } = tokenMadeBy({
+            isToken: true,
+            sourcePrintId: BIRDS_2ED_PRINT,
+        });
+        expect(token.sourcePrintId).toBe(BIRDS_2ED_PRINT);
+    });
+
+    it("a copy of a token keeps the printing the copied token came from", () => {
+        const { state, token } = tokenMadeBy({ imagePrintId: BIRDS_2ED_PRINT });
+        const ctx = buildSpellContext(state, {
+            ...makeInstance(BIRDS, { id: "copier", controllerId: "p1" }),
+            zone: "stack",
+            castById: "p1",
+        } as StackItem);
+        const copyId = ctx.createTokenCopyOf(token.id, "p1");
+        const copy = state.players[0].battlefield.find((c) => c.id === copyId)!;
+        expect(copy).toBeDefined();
+        expect(copy.sourcePrintId).toBe(BIRDS_2ED_PRINT);
+    });
+
+    it("survives the wire projection to both seats", () => {
+        const { state } = tokenMadeBy({ imagePrintId: BIRDS_2ED_PRINT });
+        for (const viewer of ["p1", "p2"]) {
+            const slim = projectPublicState(state, 1, viewer).players[0]
+                .battlefield[0];
+            expect(slim.sourcePrintId).toBe(BIRDS_2ED_PRINT);
+        }
+    });
+
+    // A print id is a Scryfall id: on a face-down object it names the card
+    // underneath as surely as `faceDownOf` does, so it hides with it.
+    it("is hidden from an opponent on a face-down permanent, like the chosen printing", () => {
+        const card = makeInstance(BIRDS, {
+            id: "fd-token",
+            controllerId: "p1",
+            ownerId: "p1",
+            sourcePrintId: BIRDS_2ED_PRINT,
+        });
+        turnFaceDown(NO_BOARD_LAYER_VIEW, card, "morph");
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [card] }),
+                makePlayer("p2"),
+            ],
+        });
+        const mine = projectPublicState(state, 1, "p1").players[0]
+            .battlefield[0];
+        const theirs = projectPublicState(state, 1, "p2").players[0]
+            .battlefield[0];
+        expect(mine.sourcePrintId).toBe(BIRDS_2ED_PRINT);
+        expect(theirs.sourcePrintId).toBeUndefined();
     });
 });

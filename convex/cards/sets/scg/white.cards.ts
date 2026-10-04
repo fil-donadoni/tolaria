@@ -2,7 +2,6 @@
 // `import * as scg from "./sets/scg/index.cards"` resolves here via scg/index.cards.ts.
 import type { CardDefinition } from "../../types";
 import { cyclingAbility, cycledTrigger } from "../../abilities/cycling";
-import { tokenPrintIdFor } from "../../tokenPrintLookup";
 
 const DECREE_OF_JUSTICE_ID = "5e8a7e5c-f252-4de8-94d7-e7327210bf26";
 
@@ -43,7 +42,6 @@ export const decreeOfJustice: CardDefinition = {
                 toughness: 4,
                 colors: ["W"],
                 staticAbilities: ["flying"],
-                imagePrintId: tokenPrintIdFor(DECREE_OF_JUSTICE_ID, "Angel"),
             },
             controller: "controller",
             count: { X: true },
@@ -75,10 +73,6 @@ export const decreeOfJustice: CardDefinition = {
                         power: 1,
                         toughness: 1,
                         colors: ["W"],
-                        imagePrintId: tokenPrintIdFor(
-                            DECREE_OF_JUSTICE_ID,
-                            "Soldier"
-                        ),
                     },
                     controller: "controller",
                     count: { ref: "$paid" },

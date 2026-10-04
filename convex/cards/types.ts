@@ -3082,6 +3082,12 @@ export interface TokenSpec {
      *  `09921372-126f-4c81-b6d8-ea50b1d0eb44`). When omitted, the renderer
      *  falls back to an in-app placeholder showing the name / abilities / P/T. */
     imagePrintId?: string;
+    /** The printing this token was created from (ADR 0140 §6, issue #4120):
+     *  the creating object's `imagePrintId`, else its Card ID. Stamped by
+     *  `SpellContext.createToken` (or by the token catalogue, for a staged
+     *  board) and copied verbatim onto `CardInstanceState.sourcePrintId`.
+     *  Opaque — no rules reader; the client picks the Token Print. */
+    sourcePrintId?: string;
     /** Activated abilities the token enters with (CR 707.2, issue #1191 —
      *  Investigate's Clue: "{2}, Sacrifice this token: Draw a card."). Folded
      *  onto the synthesized token `CardDefinition` exactly like a printed

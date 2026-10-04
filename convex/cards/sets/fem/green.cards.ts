@@ -19,7 +19,6 @@ import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { untapRestriction } from "../../abilities/static/untapRestriction";
 import { payOrSacrificeUpkeepTrigger } from "../leg/index.cards";
-import { tokenPrintIdFor } from "../../tokenPrintLookup";
 
 const THALLID_ID = "4caaf31b-86a9-485b-8da7-d5b526ed1233"; // FEM 74a (canonical art)
 
@@ -35,7 +34,6 @@ const SAPROLING_TOKEN: EffectTokenSpec = {
     power: 1,
     toughness: 1,
     colors: ["G"],
-    imagePrintId: tokenPrintIdFor(THALLID_ID, "Saproling"),
 };
 
 function sporeUpkeepTrigger(id: string) {

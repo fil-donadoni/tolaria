@@ -67,7 +67,6 @@ import {
 } from "../cards/registry";
 import { resolveTokenStaticEffects } from "../cards/tokenStaticEffects";
 import { getEmblemDefinition, tryGetEmblemDefinition } from "../cards/emblems";
-import { tokenPrintIdFor } from "../cards/tokenPrintLookup";
 import { getKeywordCounterGrant } from "../cards/mechanicsRegistry";
 import { classLevelOf } from "../cards/abilities/classLevels";
 import {
@@ -3229,8 +3228,8 @@ export function emitEntersWithCounterEvents(
  *
  *  EXCLUDED (audited, judged out of scope, see
  *  `docs/findings/2137-reflexive-trigger-fields.md`): `delayedOracleText` /
- *  `inlineTargetRequirement` / `reflexiveTrigger` / `designationId` /
- *  `designationImagePrintId`, which are set only on synthetic non-card
+ *  `inlineTargetRequirement` / `reflexiveTrigger` / `designationId`,
+ *  which are set only on synthetic non-card
  *  ability/delayed-trigger stack items (`buildDelayedTriggerStackItem`,
  *  `buildMonarchDrawStackItem`, `reflexiveTrigger` Op — all in
  *  `triggers.ts`/here, ALWAYS alongside `delayedTriggerId`) that never reach
@@ -14346,28 +14345,23 @@ export function buildSpellContext(
         // `applyExistingGrantsTo` (CR 611). CR 704.5d cleanup is handled by
         // `checkTokenExistenceSBA` if the token ever leaves the battlefield.
         createToken(spec, controllerId, count = 1, createdBy): string[] {
-            // Auto-resolve real token art (issue #1305). A card's token spec
-            // usually omits `imagePrintId`; the correct printed-token art is
-            // looked up from the committed association lockfile keyed by
-            // (producing card's Scryfall id, token name). This keeps the
-            // card→token art association durable inside Tolaria WITHOUT every
-            // card hand-wiring `tokenPrintIdFor` — the single choke point
-            // through which every DSL and resolve() token creation flows. An
-            // explicit `imagePrintId` already on the spec (shared Treasure /
-            // Clue tokens, or a deliberate override) wins and skips the lookup.
-            let effectiveSpec = spec;
-            if (spec.imagePrintId === undefined) {
-                const sourceCardId = (item.card as { id?: string }).id;
-                const resolved = sourceCardId
-                    ? tokenPrintIdFor(sourceCardId, spec.name)
-                    : undefined;
-                if (resolved !== undefined) {
-                    effectiveSpec = { ...spec, imagePrintId: resolved };
-                }
-            }
+            // ADR 0140 §6 (issue #4120) — the engine is blind to prints: it
+            // stamps the printing the token came from (the creating object's
+            // chosen `imagePrintId`, else its Card ID) as the opaque cosmetic
+            // `sourcePrintId` and never reads it back. The client alone turns
+            // that into the edition's Token Print. An explicit
+            // `spec.imagePrintId` (shared Treasure / Clue tokens, or a
+            // deliberate override) still pins the art outright.
+            // A token's own ability that creates a token inherits the printing
+            // ITS creator recorded (`item.sourcePrintId`), never the synthetic
+            // `token:` definition id, which no print row names.
+            const sourcePrintId =
+                item.imagePrintId ??
+                item.sourcePrintId ??
+                (item.card as { id?: string }).id;
             return createTokenPermanents(
                 state,
-                effectiveSpec,
+                sourcePrintId ? { ...spec, sourcePrintId } : spec,
                 controllerId,
                 count,
                 createdBy
@@ -14490,10 +14484,9 @@ export function buildSpellContext(
             // Calls `createTokenPermanents` DIRECTLY rather than through
             // `ctx.createToken` because the `copyOf` opt is not part of the
             // public `TokenSpec` surface. Nothing else is lost by bypassing the
-            // closure: its only extra work is the `tokenPrintIdFor` art lookup,
-            // which cannot resolve for the synthetic name "Copy" and which
-            // `applyCopy` supersedes anyway (the copy presents the SOURCE's
-            // definition, art included).
+            // closure: its only extra work is the `sourcePrintId` stamp, which
+            // is instead taken from the copied token itself, below (a copy
+            // presents the SOURCE's definition, art included).
             //
             // Everything this function used to do AFTER the call — `applyCopy`,
             // the copied definition's CR 121.6 entry counters, the CR 611 grant
@@ -14503,6 +14496,11 @@ export function buildSpellContext(
             // "as this enters" choices (CR 707.6): a parked token is in no zone
             // at all, so a post-call `findOnBattlefield` would have found
             // nothing and silently skipped every one of those steps.
+            // A copy of a TOKEN keeps the printing that token came from, so the
+            // client still picks the same edition's Token Print (issue #4120);
+            // a last-known-information source carries none (it is no instance).
+            const copiedSourcePrintId =
+                "defId" in source ? undefined : source.sourcePrintId;
             const [tokenId] = createTokenPermanents(
                 state,
                 {
@@ -14510,6 +14508,9 @@ export function buildSpellContext(
                     types: ["Creature"],
                     power: 0,
                     toughness: 0,
+                    ...(copiedSourcePrintId
+                        ? { sourcePrintId: copiedSourcePrintId }
+                        : {}),
                     ...(opts?.entersTapped ? { entersTapped: true } : {}),
                     ...(opts?.entersAttacking ? { entersAttacking: true } : {}),
                 },
@@ -18377,6 +18378,9 @@ export function createTokenPermanents(
             // permanent so a source can later identify the tokens it made
             // (Tetravus exiles its own Tetravites to recover +1/+1 counters).
             ...(createdBy ? { createdBy } : {}),
+            ...(spec.sourcePrintId
+                ? { sourcePrintId: spec.sourcePrintId }
+                : {}),
         };
         // CR 707.5 (issue #2558) — "An object that enters the battlefield 'as a
         // copy' … becomes a copy AS it enters the battlefield. It doesn't enter

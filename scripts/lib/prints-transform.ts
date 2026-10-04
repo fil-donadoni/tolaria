@@ -4,6 +4,7 @@
 // here is a fixture-driven unit test in `scripts/__tests__/prints-transform.test.ts`.
 
 import type { Rarity } from "../../convex/cards/types";
+import { STATE_DESIGNATIONS } from "../../convex/cards/designations";
 import { resolveRarity, type RarityOverridesFile } from "./prints-rarity";
 
 /** The fields this transform reads off one Scryfall `default_cards` row. */
@@ -31,6 +32,14 @@ export interface CardIndexRow {
 export interface TokenPrintRow {
     name: string;
     tokenPrintId: string;
+}
+
+/** What the definition printing (the one whose id IS the Card ID, so it has
+ *  no `cardPrints` row) links to — the Token Prints an unpinned token's
+ *  `sourcePrintId` (its Card ID) resolves through (issue #4120). */
+export interface DefinitionTokenRow {
+    cardId: string;
+    tokenPrints: TokenPrintRow[];
 }
 
 export interface CardPrintRow {
@@ -61,6 +70,27 @@ export function buildDefinitionIndex(
     return byOracleId;
 }
 
+const DESIGNATION_MARKER_NAMES: ReadonlySet<string> = new Set(
+    Object.values(STATE_DESIGNATIONS).map((d) => d.name.toLowerCase())
+);
+
+/** The `all_parts` entries of one printing that are Token Prints: every
+ *  `"token"` part, plus the state-designation markers (The Monarch, CR 725) —
+ *  token-layout cards Scryfall tags `combo_piece`, kept so a card that GRANTS
+ *  the designation carries its set-themed marker art, keyed by the granting
+ *  printing exactly like its tokens (issue #1305). Names mirror
+ *  `STATE_DESIGNATIONS` (`convex/cards/designations.ts`). */
+function tokenPrintsOf(row: ScryfallDefaultCardRow): TokenPrintRow[] {
+    return (row.all_parts ?? [])
+        .filter(
+            (part) =>
+                part.component === "token" ||
+                (part.component === "combo_piece" &&
+                    DESIGNATION_MARKER_NAMES.has(part.name.toLowerCase()))
+        )
+        .map((part) => ({ name: part.name, tokenPrintId: part.id }));
+}
+
 /**
  * One Scryfall `default_cards` row -> zero or one `CardPrintRow`.
  *
@@ -84,9 +114,7 @@ export function buildCardPrintRow(
     if (!cardId) return null;
     if (row.id === cardId) return null;
 
-    const tokenPrints: TokenPrintRow[] = (row.all_parts ?? [])
-        .filter((part) => part.component === "token")
-        .map((part) => ({ name: part.name, tokenPrintId: part.id }));
+    const tokenPrints = tokenPrintsOf(row);
 
     return {
         printId: row.id,
@@ -97,6 +125,25 @@ export function buildCardPrintRow(
         promo: Boolean(row.promo),
         tokenPrints,
     };
+}
+
+/**
+ * One Scryfall `default_cards` row -> the definition printing's Token Prints,
+ * or `null`. Only the row whose id IS the Card ID qualifies (the printing
+ * `buildCardPrintRow` skips), and only when it links at least one token: ADR
+ * 0140 §4 gives every print row its Token Prints, and an unpinned token's
+ * `sourcePrintId` is its creator's Card ID — which has no `cardPrints` row.
+ */
+export function buildDefinitionTokenRow(
+    row: ScryfallDefaultCardRow,
+    definitionByOracleId: ReadonlyMap<string, string>
+): DefinitionTokenRow | null {
+    if (row.oversized) return null;
+    if (!row.oracle_id) return null;
+    const cardId = definitionByOracleId.get(row.oracle_id);
+    if (!cardId || row.id !== cardId) return null;
+    const tokenPrints = tokenPrintsOf(row);
+    return tokenPrints.length > 0 ? { cardId, tokenPrints } : null;
 }
 
 export function buildCardPrintRows(

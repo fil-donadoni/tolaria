@@ -54,7 +54,7 @@ export const yavimayaCradleOfGrowth: CardDefinition = {
  *  inline closure, and why the art is a per-consumer argument rather than part
  *  of the shared spec.
  *
- *  `imagePrintId` is pinned by hand, not left to the `token-prints.json`
+ *  `imagePrintId` is pinned by hand, not left to the the Card Prints table's Token Prints
  *  lockfile: this spec is handed to `SpellContext.createToken` from a
  *  `resolve()` closure, which the DSL art guard
  *  (`cards/__tests__/tokenPrintLookup.test.ts`, issue #1305) cannot see — the

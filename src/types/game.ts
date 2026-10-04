@@ -388,6 +388,11 @@ export interface CardInstance {
      *  Preferred by `<CardImage>` over the definition-derived art. Mirrors
      *  `CardInstanceState.imagePrintId`. */
     imagePrintId?: string;
+    /** The printing a token was created from (ADR 0140 §6, issue #4120): the
+     *  creating object's `imagePrintId`, else its Card ID. The engine never
+     *  reads it; `src/lib/tokenArt.ts` resolves the edition's Token Print from
+     *  it. Mirrors `CardInstanceState.sourcePrintId`. */
+    sourcePrintId?: string;
     /** Layer 5 color GRANT (CR 613.1d) — a colour ADDED by another permanent's
      *  static effect (Dralnu's Crusade "All Goblins are black", Sinister
      *  Strength), unioned with the printed cost's colours rather than replacing
@@ -646,11 +651,6 @@ export interface StackItem extends CardInstance {
      *  art + name instead of the empty tile a card-less inline trigger would
      *  render. Undefined for every normal stack item. */
     designationId?: string;
-    /** Per-source marker-art override (issue #1305) — themes the designation
-     *  tile to the granting card's own printing (Forth Eorlingas → the LTR
-     *  "The Monarch"). Undefined ⇒ the client uses the designation's global
-     *  `imagePrintId`. Cosmetic. */
-    designationImagePrintId?: string;
     /** CR 700.2a (issue #1274, ADR 0094) — the mode instance(s) a modal spell
      *  or trigger announced (`SpellMode.id`s, printed order). Survives the
      *  wire projection via `slimCard` (`SlimStackItem` keeps every StackItem

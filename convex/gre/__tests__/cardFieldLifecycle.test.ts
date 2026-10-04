@@ -519,6 +519,7 @@ describe("Card Field Lifecycle — reset scopes (issue #4453)", () => {
             "notedManaSpentOnCast",
             "pileLabel",
             "reboundExiled",
+            "sourcePrintId",
             "tapBonusMana",
             "timedCopyEffects",
             "transformed",

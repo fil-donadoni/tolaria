@@ -155,6 +155,7 @@ export function everyOptionalCardField(): EveryOptionalCardField {
         colorOverride: ["B"],
         manaCostOverride: {},
         imagePrintId: "print-1",
+        sourcePrintId: "print-2",
         temporaryColorOverride: {
             colors: ["R"],
             restoreColorOverride: ["B"],

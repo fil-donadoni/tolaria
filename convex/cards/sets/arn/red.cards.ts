@@ -10,7 +10,6 @@ import type { CardDefinition, TargetSelection } from "../../types";
 import { resolveCompiledStatic } from "../../compiledStatics";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { untapRestriction } from "../../abilities/static/untapRestriction";
-import { tokenPrintIdFor } from "../../tokenPrintLookup";
 
 export const birdMaiden: CardDefinition = {
     id: "5c1ba0b9-db01-447f-90cc-a2fc2c24146e",
@@ -83,9 +82,11 @@ export const rukhEgg: CardDefinition = {
                                 staticAbilities: ["flying"],
                                 // Printed token is named "Rukh" (Scryfall), while our
                                 // spec keeps the current Oracle wording's "Bird" name
-                                // — look up by card id alone (single-token card, CR
-                                // 707.1) rather than by a name that wouldn't match.
-                                imagePrintId: tokenPrintIdFor(RUKH_EGG_ID),
+                                // — the client resolves a Token Print by NAME, so
+                                // that would never match: pin the printed Rukh
+                                // token (CR 111) outright (issue #4120).
+                                imagePrintId:
+                                    "b5489e26-6aec-4706-9c3e-8454878fa6c3",
                             },
                             controller: "controller",
                         },

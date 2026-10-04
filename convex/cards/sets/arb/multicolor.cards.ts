@@ -4,7 +4,6 @@
 // cost (CR 202.2).
 
 import type { CardDefinition } from "../../types";
-import { tokenPrintIdFor } from "../../tokenPrintLookup";
 
 // Thopter Foundry — {W/B}{U} Artifact (Cube FREE residue token-maker, issue
 // #1304, unblocked by issue #1926 / PRD #1736 hybrid mana wave). "{1},
@@ -23,9 +22,9 @@ import { tokenPrintIdFor } from "../../tokenPrintLookup";
 // self-exclusion needed: unlike Legion Extruder's "sacrifice ANOTHER
 // artifact", "a nontoken artifact" legitimately allows the source to
 // sacrifice ITSELF to pay its own cost, CR 602.1 — correct per the real
-// card). Token art auto-resolves via `tokenPrintIdFor` — the
+// card). Token art auto-resolves via the client's Token Print resolver — the
 // (card id, "Thopter") pair is already present in
-// `generated/token-prints.json` (reverse-linked from Thopter Foundry's own
+// the Card Prints table's Token Prints (reverse-linked from Thopter Foundry's own
 // Scryfall `all_parts`).
 const THOPTER_FOUNDRY_ID = "42b8d797-b01d-49cf-9818-d84bba17029d";
 
@@ -58,10 +57,6 @@ export const thopterFoundry: CardDefinition = {
                         toughness: 1,
                         colors: ["U"],
                         staticAbilities: ["flying"],
-                        imagePrintId: tokenPrintIdFor(
-                            THOPTER_FOUNDRY_ID,
-                            "Thopter"
-                        ),
                     },
                     controller: "controller",
                 },

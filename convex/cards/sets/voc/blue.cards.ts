@@ -2,7 +2,6 @@
 // ADR 0043. The registry's `import * as voc from "./sets/voc/index.cards"` resolves through
 // voc/index.cards.ts. Modern Scryfall oracle text is authoritative (ADR 0004).
 import type { CardDefinition, CardType, SpellContext } from "../../types";
-import { tokenPrintIdFor } from "../../tokenPrintLookup";
 
 const OCCULT_EPIPHANY_ID = "6920c895-bc98-4871-a53f-219fa27a74e5";
 
@@ -67,10 +66,6 @@ export const occultEpiphany: CardDefinition = {
                         power: 1,
                         toughness: 1,
                         staticAbilities: ["flying"],
-                        imagePrintId: tokenPrintIdFor(
-                            OCCULT_EPIPHANY_ID,
-                            "Spirit"
-                        ),
                     },
                     me,
                     distinctTypes.size,

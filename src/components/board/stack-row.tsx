@@ -1,5 +1,7 @@
 import { tryGetDefinition, FACE_DOWN_CARD_ID } from "@convex/cards";
 import { isFaceDownCard } from "~/lib/face-down";
+import { useTokenPrints } from "~/hooks/useTokenPrints";
+import { resolveArtPrintId, resolveTokenPrintId } from "~/lib/tokenArt";
 import { tryGetStateDesignation } from "@convex/cards/designations";
 import { tryGetEmblemDefinition } from "@convex/cards/emblems";
 import { motion, useReducedMotion } from "motion/react";
@@ -118,6 +120,7 @@ export default function StackRow({
     showTargetLine?: boolean;
 }) {
     const reduceMotion = useReducedMotion();
+    const tokenPrints = useTokenPrints();
     const kind = stackAbilityKindOf(item);
     // CR 725 (issue #1305) — a source-less inherent designation triggered
     // ability (the Monarch's end-step draw) carries `designationId` but no card
@@ -156,15 +159,25 @@ export default function StackRow({
           : null;
     const modeLines = getStackModeLines(item);
     // Per-source marker art (issue #1305) wins over the designation's global
-    // printing, so the Monarch tile matches the card that crowned the player.
+    // printing, so the Monarch tile matches the card that crowned the player:
+    // the crowning card's `sourcePrintId` names the edition, and its Token
+    // Print called like the designation is that card's own marker (#4120).
     const imageId =
-        item.designationImagePrintId ??
+        (designation
+            ? resolveTokenPrintId(
+                  item.sourcePrintId,
+                  designation.name,
+                  tokenPrints
+              )
+            : undefined) ??
         designation?.imagePrintId ??
         emblem?.imagePrintId ??
-        // The chosen printing (ADR 0140 §6) — never for a face-down item,
-        // whose art is the anonymous face even for its caster.
-        (isFaceDownCard(item) ? undefined : item.imagePrintId) ??
-        resolveCardImageId(identityId);
+        // The chosen printing (ADR 0140 §6) and, for a token's own ability,
+        // its edition's Token Print — never for a face-down item, whose art
+        // is the anonymous face even for its caster.
+        (isFaceDownCard(item)
+            ? resolveCardImageId(identityId)
+            : resolveArtPrintId(identityId, item, tokenPrints));
     // Only the permanent-sourced fallback above can be a transformed
     // permanent's back face (a designation/emblem marker never transforms) —
     // resolving on `identityId` regardless is still correct since neither
