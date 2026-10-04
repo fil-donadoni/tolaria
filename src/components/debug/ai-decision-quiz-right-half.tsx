@@ -30,6 +30,7 @@ export default function AiDecisionQuizRightHalf({
     onConfirm,
     onTouchUp,
     onDefer,
+    deferLabel = "Defer the right-hand half",
     onBack,
 }: {
     position: PairPosition;
@@ -41,6 +42,9 @@ export default function AiDecisionQuizRightHalf({
     onConfirm: () => void;
     onTouchUp: () => void;
     onDefer: () => void;
+    /** The defer button's words: the queue's writer leaves the half where it
+     *  is rather than deferring it a first time. */
+    deferLabel?: string;
     /** Absent once the anchor is stored: the judgement can no longer change. */
     onBack?: () => void;
 }) {
@@ -109,7 +113,7 @@ export default function AiDecisionQuizRightHalf({
                 Touch up the position
             </DebugButton>
             <DebugButton onClick={onDefer} disabled={disabled}>
-                Defer the right-hand half
+                {deferLabel}
             </DebugButton>
             {onBack && (
                 <DebugButton onClick={onBack} disabled={disabled}>

@@ -25,7 +25,12 @@ import type {
     Discriminant,
     VerdictClassification,
 } from "@convex/gre/ai/verdicts/types";
-import { anchorIdOf, prefillRightHalf, withSpec } from "~/lib/ai/verdict-pair";
+import {
+    anchorIdOf,
+    prefillRightHalf,
+    rightHalfSubmission,
+    withSpec,
+} from "~/lib/ai/verdict-pair";
 import type { RightHalfCheck } from "~/lib/ai/verdict-pair-build";
 import { QUIZ_SEAT, type VerdictQuiz } from "~/lib/ai/verdict-quiz";
 import { getStoredSession } from "~/lib/session";
@@ -185,18 +190,12 @@ export default function AiDecisionQuizWrongMove({
             const classification = conditional(choice.discriminant);
             await storeAnchor(classification);
             await submitVerdict({
-                spec: position.spec,
-                ...(position.setup?.length ? { setup: position.setup } : {}),
-                seat: position.seat,
-                ...(position.deckKnowledge?.length
-                    ? { deckKnowledge: position.deckKnowledge }
-                    : {}),
-                candidates,
-                answer: { kind: "right", rightIndexes: [rightIndex] },
-                pairOf: {
-                    anchorId: anchorIdOf(quiz, wrongIndex, classification),
-                    discriminant: choice.discriminant,
-                },
+                ...rightHalfSubmission(
+                    position,
+                    { candidates, rightIndex },
+                    anchorIdOf(quiz, wrongIndex, classification),
+                    choice.discriminant
+                ),
                 ...provenance(),
             });
         });

@@ -16,7 +16,7 @@
 import { makeFunctionReference } from "convex/server";
 import { v } from "convex/values";
 import { internalMutation, internalQuery } from "./_generated/server";
-import { assertIsAdmin } from "./auth";
+import { assertIsAdmin, assertIsTester } from "./auth";
 import type { VerdictJudgement } from "./gre/ai/verdicts/identity";
 import { LANE_FIXTURE_NOTE } from "./gre/ai/verdicts/laneFixture";
 import {
@@ -52,13 +52,19 @@ const rejectedValidator = v.array(
  * written twice.
  */
 export const reviewOutbox = internalQuery({
-    args: {},
+    // `tester` is the missing-halves queue's gate (ADR 0148, issue #4801):
+    // any tester may open a deferred half. Admin stays the default, so the
+    // review surface's call is unchanged.
+    args: {
+        access: v.optional(v.union(v.literal("admin"), v.literal("tester"))),
+    },
     returns: v.object({
         verdictRows: v.array(v.any()),
         resolutionRows: v.array(v.any()),
     }),
-    handler: async (ctx) => {
-        await assertIsAdmin(ctx);
+    handler: async (ctx, args) => {
+        if (args.access === "tester") await assertIsTester(ctx);
+        else await assertIsAdmin(ctx);
         const verdictRows = await ctx.db
             .query("verdicts")
             .withIndex("by_storedAt", (q) => q.eq("storedAt", undefined))

@@ -6,7 +6,9 @@ import type { ReviewVerdict } from "@convex/verdictReview";
 import { Button } from "@/components/ui/button";
 import AiDecisionQuizCandidate from "@/components/debug/ai-decision-quiz-candidate";
 import VerdictAnswerCard from "./verdict-answer-card";
+import VerdictPairContext from "./verdict-pair-context";
 import VerdictPositionBoard from "./verdict-position-board";
+import { carriedPairFields } from "./verdict-review-model";
 
 /**
  * One verdict opened cold (issue #3582, ADR 0128): the position rebuilt away
@@ -49,6 +51,10 @@ export default function VerdictColdJudgement({
                     : {}),
                 candidates: judgement.candidates,
                 answer,
+                // Part of a verdict's identity (ADR 0148): agreeing carries the
+                // record's classification and pair link, or it would not be
+                // an attestation of it.
+                ...carriedPairFields(answer, judgement),
             });
             setRecorded(outcome);
         } catch (cause) {
@@ -69,6 +75,7 @@ export default function VerdictColdJudgement({
         >
             <VerdictPositionBoard verdicts={[verdict]} />
             <VerdictAnswerCard verdict={verdict} index={0} />
+            {verdict.pair && <VerdictPairContext pair={verdict.pair} />}
             <div className="flex flex-col gap-2">
                 <span className="text-label">Your judgement</span>
                 <div>
@@ -82,6 +89,33 @@ export default function VerdictColdJudgement({
                         Agree with the answer on record
                     </Button>
                 </div>
+                {judgement.pairOf !== undefined &&
+                    judgement.answer.kind === "right" && (
+                        <div>
+                            <Button
+                                type="button"
+                                variant="secondary"
+                                size="sm"
+                                onClick={() =>
+                                    void submit(
+                                        {
+                                            kind: "forbidden",
+                                            forbiddenIndexes:
+                                                judgement.answer.kind ===
+                                                "right"
+                                                    ? judgement.answer
+                                                          .rightIndexes
+                                                    : [],
+                                        },
+                                        "judged"
+                                    )
+                                }
+                                disabled={saving || recorded !== null}
+                            >
+                                Disagree: the move is not right here
+                            </Button>
+                        </div>
+                    )}
                 <p className="text-xs text-text-muted">
                     Or name the one move that was right:
                 </p>
