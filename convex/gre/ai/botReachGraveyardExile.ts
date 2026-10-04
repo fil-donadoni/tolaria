@@ -21,8 +21,8 @@ import type { ScenarioCard } from "../../debugScenarioSpec";
 /** A card the opponent can cast from its graveyard (flashback). */
 const FLASHBACK_CARD = "Firebolt";
 
-/** A `forEach` over a graveyard whose body exiles from a graveyard, at any
- *  depth of the script. */
+/** A `moveZone` to exile that reads from a graveyard, at any depth of the
+ *  script. */
 function exilesGraveyard(node: unknown): boolean {
     if (Array.isArray(node)) return node.some(exilesGraveyard);
     if (node === null || typeof node !== "object") return false;
