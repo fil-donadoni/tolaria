@@ -4,7 +4,7 @@
 
 import { describe, expect, it } from "vitest";
 import { getCardByName } from "../../../cards";
-import { playBotReach } from "../botReach";
+import { BOT_REACH_BUDGET, playBotReach } from "../botReach";
 import { graveyardExilePose } from "../botReachGraveyardExile";
 
 describe("graveyardExilePose", () => {
@@ -23,7 +23,14 @@ describe("graveyardExilePose", () => {
 
 describe("playBotReach on graveyard exile", () => {
     it("plays Haunting Echoes against a graveyard worth exiling", () => {
-        const verdict = playBotReach(getCardByName("Haunting Echoes")!);
+        // Seed-split, not valuation (issue #3981): the cast is chosen on 8 of
+        // seeds 1–20 at one seat or the other, identically under the weights
+        // before and after that refit, and the two default seeds happened to
+        // be among them before it. Twenty seeds read the pose, not the dice.
+        const verdict = playBotReach(getCardByName("Haunting Echoes")!, {
+            ...BOT_REACH_BUDGET,
+            seeds: Array.from({ length: 20 }, (_, i) => i + 1),
+        });
         expect(verdict.outcome).toBe("played");
     });
 });
