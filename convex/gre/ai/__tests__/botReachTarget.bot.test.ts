@@ -15,6 +15,7 @@ import type {
     EffectOp,
     TargetRequirement,
 } from "../../../cards/types";
+import { getCardByName } from "../../../cards";
 import { getLegalActions } from "../../rules";
 import {
     botReachSpec,
@@ -22,7 +23,7 @@ import {
     playBotReach,
     TRICK_WINDOW,
 } from "../botReach";
-import { combatTrickPosition, targetPose } from "../botReachTarget";
+import { combatTrickPosition, costPose, targetPose } from "../botReachTarget";
 
 const targetPoseCards = (def: CardDefinition) => targetPose(def).cards;
 
@@ -456,5 +457,22 @@ describe("mana value equality and granted keyword with a combat role (issue #426
             combatRoleFilter: ["attacking"],
         });
         expect(targetPose(def).cards).toEqual([]);
+    });
+});
+
+// Issue #4842 — a discard leg behind an `additionalCosts.oneOf` disjunction
+// (CR 601.2b) is posed with its fodder in hand, like a flat discard cost.
+describe("costPose — discard leg of a caster-chosen additional cost", () => {
+    it("holds a card to discard for Bone Shards", () => {
+        const hand = costPose(getCardByName("Bone Shards")!).cards.filter(
+            (c) => c.zone === "hand"
+        );
+        expect(hand.length).toBeGreaterThan(0);
+    });
+
+    it("plays Bone Shards", () => {
+        expect(playBotReach(getCardByName("Bone Shards")!).outcome).toBe(
+            "played"
+        );
     });
 });
