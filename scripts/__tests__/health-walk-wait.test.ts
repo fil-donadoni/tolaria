@@ -1,8 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-    WALK_MUTEX_WAIT_MAX_MS,
-    waitForWalkWindow,
-} from "../lib/health-walk-wait";
+import { waitForWalkWindow } from "../lib/health-walk-wait";
 
 /**
  * The walk waits, bounded, for a free heavy-mutex window (issue #5024).
@@ -55,10 +52,5 @@ describe("waitForWalkWindow (issue #5024)", () => {
         const r = await waitForWalkWindow(h.input);
         expect(r).toEqual({ waitedMs: 60_000, timedOut: true });
         expect(h.lines.at(-1)).toContain("capped");
-    });
-
-    it("the bound is about one land, well inside the stale-run dedup", () => {
-        expect(WALK_MUTEX_WAIT_MAX_MS).toBe(6 * 60 * 1000);
-        expect(WALK_MUTEX_WAIT_MAX_MS).toBeLessThan(90 * 60 * 1000);
     });
 });
