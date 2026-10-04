@@ -10,7 +10,7 @@ import { playBotReach } from "../botReach";
 import { stackPose } from "../botReachStack";
 
 describe("stackPose", () => {
-    it("stacks a noncreature spell for 'target noncreature spell' (CR 114.1)", () => {
+    it("stacks a noncreature spell for 'target noncreature spell' (CR 601.2c)", () => {
         const pose = stackPose(getCardByName("Spell Pierce")!, "Island");
         expect(pose?.stack).toEqual([
             { kind: "spell", name: "Castle", controller: "opp" },
@@ -22,7 +22,7 @@ describe("stackPose", () => {
         expect(pose?.stack[0]).toMatchObject({ kind: "spell", name: "Castle" });
     });
 
-    it("stacks an ability, with its source on the opponent's battlefield (CR 113.7a)", () => {
+    it("stacks an ability, with its source on the opponent's battlefield (CR 113.1c)", () => {
         const pose = stackPose(getCardByName("Stifle")!, "Island");
         expect(pose?.stack[0]).toMatchObject({
             kind: "ability",

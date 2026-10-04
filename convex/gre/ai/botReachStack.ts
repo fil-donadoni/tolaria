@@ -31,7 +31,7 @@ const BASE_SPELL = "Grizzly Bears";
  *  a creature, a noncreature enchantment, an artifact creature. */
 const SPELL_CANDIDATES = [BASE_SPELL, "Castle", "Ornithopter"] as const;
 /** An activated ability that names a player, for a requirement on an ability
- *  (CR 113.7a: an ability on the stack is not a spell). */
+ *  (CR 113.1c: an ability on the stack is an object; CR 112.1: a spell is a card). */
 const ABILITY_SOURCE = "Prodigal Sorcerer";
 /** A spell that targets a land, for a requirement on what the stacked object
  *  targets (CR 601.2c). */
