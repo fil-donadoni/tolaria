@@ -33,11 +33,18 @@ export function costAlternativesPose(def: CardDefinition): ScenarioCard[] {
     const delves = abilities.includes("delve");
     const convokes = abilities.includes("convoke");
     if (!delves || !convokes) return [];
-    const hybrid = def.manaCost.hybrid ?? [];
-    // Only the green-capable pips are modelled: a pip of another colour would
-    // need a creature of that colour, and no card shape asks for one yet.
+    const cost = def.manaCost;
+    if (!cost) return [];
+    const hybrid = cost.hybrid ?? [];
+    // Only green-capable pips are modelled: a pip of another colour would need
+    // a creature of that colour, and no card shape asks for one yet. A
+    // variable `{X}` has no fixed fodder count either.
     if (!hybrid.every((pip) => pip.includes("G"))) return [];
-    const generic = def.manaCost.X ?? 0;
+    if ((cost.W ?? 0) + (cost.U ?? 0) + (cost.B ?? 0) + (cost.R ?? 0) > 0)
+        return [];
+    if ((cost.C ?? 0) > 0 || typeof cost.X === "string") return [];
+    const generic = (cost.X ?? 0) + (cost.generic ?? 0);
+    const convoked = hybrid.length + (cost.G ?? 0);
     const cards: ScenarioCard[] = [];
     if (generic > 0)
         cards.push({
@@ -46,12 +53,12 @@ export function costAlternativesPose(def: CardDefinition): ScenarioCard[] {
             zone: "graveyard",
             count: generic,
         });
-    if (hybrid.length > 0)
+    if (convoked > 0)
         cards.push({
             name: CONVOKE_CREATURE,
             owner: "me",
             zone: "battlefield",
-            count: hybrid.length,
+            count: convoked,
         });
     return cards;
 }

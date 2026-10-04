@@ -18,6 +18,16 @@ describe("costAlternativesPose", () => {
         ]);
     });
 
+    it("poses nothing for a cost with a pip no green creature pays", () => {
+        const hogaak = getCardByName("Hogaak, Arisen Necropolis")!;
+        expect(
+            costAlternativesPose({
+                ...hogaak,
+                manaCost: { ...hogaak.manaCost, W: 1 },
+            })
+        ).toEqual([]);
+    });
+
     it("poses nothing for a spell paid with mana", () => {
         expect(costAlternativesPose(getCardByName("Grizzly Bears")!)).toEqual(
             []
