@@ -66,6 +66,14 @@ describe("playBotReach on narrowed counterspells", () => {
         }
     );
 
+    it.each(["Bind", "Confound", "Fork"])(
+        "%s is posed — never a harness refusal",
+        (name) => {
+            const verdict = playBotReach(getCardByName(name)!);
+            expect(verdict.cause).not.toBe("position-unmodelled");
+        }
+    );
+
     it("Teferi's Response is posed — the Bot weighs it, never a harness refusal", () => {
         const verdict = playBotReach(getCardByName("Teferi's Response")!);
         expect(verdict.cause).not.toBe("position-unmodelled");

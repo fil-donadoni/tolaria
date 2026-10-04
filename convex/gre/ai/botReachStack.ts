@@ -29,7 +29,16 @@ import type { ScenarioCard, ScenarioStackItem } from "../../debugScenarioSpec";
 const BASE_SPELL = "Grizzly Bears";
 /** Stacked spells tried in order for a requirement on the spell's card types:
  *  a creature, a noncreature enchantment, an artifact creature. */
-const SPELL_CANDIDATES = [BASE_SPELL, "Castle", "Ornithopter"] as const;
+const SPELL_CANDIDATES = [
+    BASE_SPELL,
+    "Castle",
+    "Ornithopter",
+    "Lightning Bolt",
+] as const;
+/** A spell that targets a creature, for a requirement on what the stacked
+ *  object targets when it names no Land (CR 601.2c), and the instant
+ *  candidate for a requirement on the spell's card types. */
+const CREATURE_TARGETING_SPELL = "Lightning Bolt";
 /** An activated ability that names a player, for a requirement on an ability
  *  (CR 113.1c: an ability on the stack is an object; CR 112.1: a spell is a card). */
 const ABILITY_SOURCE = "Prodigal Sorcerer";
@@ -80,7 +89,10 @@ export function stackPose(
 ): StackPose | undefined {
     const req = spellRequirement(def);
     if (!req) return undefined;
-    if (req.spellStackKind === "ability") {
+    if (
+        req.spellStackKind === "ability" ||
+        req.spellStackKind === "activated-ability"
+    ) {
         const ability =
             tryGetCardByName(ABILITY_SOURCE)?.activatedAbilities?.[0];
         if (!ability) return undefined;
@@ -99,16 +111,31 @@ export function stackPose(
             ],
         };
     }
-    if (req.spellTargetsPermanentFilter) {
+    const aimed = req.spellTargetsPermanentFilter;
+    if (aimed) {
+        // The aimed-at permanent is on the seat the filter's controller names
+        // (`"opponent"` → the opponent's; anything else → the holder's), of
+        // the type the filter names: a Land for a land-targeting spell, else
+        // the position's plain creature, which both seats control.
+        const seat = aimed.controller === "opponent" ? "opp" : "me";
+        const types = asArray<CardType>(aimed.types);
+        const land = types.length > 0 && !types.includes("Creature");
+        if (land && seat === "opp") return undefined;
         return {
             cards: [],
             stack: [
                 {
                     kind: "spell",
-                    name: LAND_TARGETING_SPELL,
+                    name: land
+                        ? LAND_TARGETING_SPELL
+                        : CREATURE_TARGETING_SPELL,
                     controller: "opp",
                     targets: [
-                        { kind: "permanent", name: holderLand, seat: "me" },
+                        {
+                            kind: "permanent",
+                            name: land ? holderLand : BASE_SPELL,
+                            seat,
+                        },
                     ],
                 },
             ],
@@ -117,6 +144,19 @@ export function stackPose(
     const name = SPELL_CANDIDATES.find((n) => spellFits(n, req)) ?? BASE_SPELL;
     return {
         cards: [],
-        stack: [{ kind: "spell", name, controller: "opp" }],
+        stack: [
+            {
+                kind: "spell",
+                name,
+                controller: "opp",
+                ...(name === CREATURE_TARGETING_SPELL
+                    ? {
+                          targets: [
+                              { kind: "player" as const, seat: "me" as const },
+                          ],
+                      }
+                    : {}),
+            },
+        ],
     };
 }
