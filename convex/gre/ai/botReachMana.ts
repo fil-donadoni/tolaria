@@ -1,6 +1,6 @@
 /**
  * What the Bot-play sweep puts in the holder's hand for a card that ADDS MANA
- * (CR 106.1, CR 605.1a, issue #4822).
+ * (CR 106.1, issue #4822).
  *
  * A ritual is worth the spell it pays for: mana added in a main phase empties
  * at the end of that phase (CR 500.5), so with nothing in hand to spend it on
