@@ -12326,6 +12326,7 @@
         {"id":"400.3","line":"// its OWNER's hand (CR 400.3).","sites":1,"status":"confirmed","ruleHash":"16c56515612de5e8"},
         {"id":"400.3","line":"// mode a positional library insert into that owner's library (CR 400.3). The","sites":1,"status":"baseline"},
         {"id":"400.3","line":"// move, so its identity in hand is known to all (CR 400.3 — a zone change","sites":1,"status":"baseline"},
+        {"id":"400.3","line":"// term runs per leaf. In hand the holder is the owner (CR 400.3).","sites":1,"status":"confirmed","ruleHash":"16c56515612de5e8"},
         {"id":"400.3","line":"// which routes it through `removePermanentTo(…, \"hand\")` so CR 400.3's \"it","sites":1,"status":"baseline"},
         {"id":"400.3","line":"// wrong player. Ownership is untouched (CR 400.3).","sites":1,"status":"baseline"},
         {"id":"400.3","line":"describe(\"Compost (CR 603.6c graveyard-from-anywhere trigger, CR 400.3 owner's graveyard)\", () => {","sites":1,"status":"baseline"},
