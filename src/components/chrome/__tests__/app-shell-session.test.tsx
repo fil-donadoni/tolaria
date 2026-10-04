@@ -43,6 +43,12 @@ const h = vi.hoisted(() => ({
     navigate: vi.fn(),
 }));
 
+// `RouteOutlet` reads route matches (issue #4854); this file measures the
+// shell's own contract, so the outlet is the stub the router mock gave it.
+vi.mock("../route-outlet", () => ({
+    default: () => <>{h.outlet}</>,
+}));
+
 vi.mock("@tanstack/react-router", () => ({
     useRouterState: () => h.pathname,
     useNavigate: () => h.navigate,

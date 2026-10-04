@@ -22,7 +22,7 @@
 // reads these class names off the REAL rendered DOM and runs them through that
 // arithmetic, so dropping a `shrink-0` or a `min-h-0` here changes a verdict
 // there.
-import { Outlet, useRouterState } from "@tanstack/react-router";
+import { useRouterState } from "@tanstack/react-router";
 import { resolveShellChrome, shellShowsReturnBanner } from "@/lib/shellChrome";
 import { useViewportMode } from "~/hooks/useViewportMode";
 import { useActiveSession } from "~/hooks/useActiveSession";
@@ -30,6 +30,7 @@ import AppHeader from "./app-header";
 import AppBottomNav from "./app-bottom-nav";
 import AppContextBar from "./app-context-bar";
 import AppReturnBanner from "./app-return-banner";
+import RouteOutlet from "./route-outlet";
 
 export default function AppShell() {
     const pathname = useRouterState({
@@ -121,7 +122,7 @@ export default function AppShell() {
                 if something upstream miscalculates, containing the overflow
                 to `<main>` instead of blowing out the whole document again. */}
             <main className="flex flex-1 min-h-0 flex-col overflow-y-auto">
-                <Outlet />
+                <RouteOutlet />
             </main>
             {showsBottomNav && (
                 // Wrapped, like every other band: the `shrink-0` that keeps a

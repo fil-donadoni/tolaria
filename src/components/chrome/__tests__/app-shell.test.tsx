@@ -17,6 +17,12 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, cleanup } from "@testing-library/react";
 
+// `RouteOutlet` reads route matches (issue #4854); this file measures the
+// shell's own contract, so the outlet is the stub the router mock gave it.
+vi.mock("../route-outlet", () => ({
+    default: () => <div data-testid="outlet" />,
+}));
+
 vi.mock("@tanstack/react-router", () => ({
     useRouterState: () => "/",
     Outlet: () => <div data-testid="outlet" />,

@@ -26,13 +26,15 @@ import OfflineBanner from "./components/ui/offline-banner";
 const LazyDeckBuilderRoute = lazy(() => import("./routes/deck-builder.route"));
 
 // Root: auth first, then the shell, which mounts the shared header on every
-// route except the fullscreen board. `AppShell` owns the `Outlet`.
+// route except the fullscreen board. `AppShell` owns the outlet.
 //
 // The card catalogue is NOT gated here any more (issue #4854, was ADR 0113
 // §1/§3, issue #3053): the login page and the lobby render without the engine
-// or the catalogue, so the gate lives in the `catalogue-gated` layout below,
-// which every surface that can read the registry sits under. Nothing outside
-// that layout may call `getDefinition`/`tryGetDefinition`.
+// or the catalogue. The gate is mounted by `RouteOutlet` (inside the shell's
+// `<main>`) around every route that does not declare
+// `staticData: { lightSurface: true }` — so a new route is GATED by default
+// and a surface opts OUT, never in. Nothing under an opted-out route may call
+// `getDefinition`/`tryGetDefinition` and rely on an answer.
 const rootRoute = createRootRoute({
     component: () => (
         <AuthGate>
@@ -48,27 +50,16 @@ const rootRoute = createRootRoute({
     ),
 });
 
-// The one place the catalogue gate is mounted (issue #4854). A pathless layout
-// route: it adds no URL segment, only the `CatalogueGate` above its `Outlet`,
-// so a surface under it renders nothing until `getDefinition` is synchronous
-// (ADR 0113 §1). The component is lazy because the gate module itself imports
-// the catalogue glue — a static import here would put it back in the entry.
-const catalogueGatedRoute = createRoute({
-    getParentRoute: () => rootRoute,
-    id: "catalogue-gated",
-    component: lazyRouteComponent(
-        () => import("./routes/catalogue-gated.route")
-    ),
-});
-
 const indexRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: "/",
+    // The lobby renders before the catalogue is fetched (issue #4854).
+    staticData: { lightSurface: true },
     component: lazyRouteComponent(() => import("./routes/lobby.route")),
 });
 
 const decksCreateRoute = createRoute({
-    getParentRoute: () => catalogueGatedRoute,
+    getParentRoute: () => rootRoute,
     path: "/decks/create",
     // Optional `?format=` seed carried from the lobby's format filter, so New
     // Deck opens on the selected format instead of resetting to Freeform. An
@@ -83,13 +74,13 @@ const decksCreateRoute = createRoute({
 });
 
 const deckDetailRoute = createRoute({
-    getParentRoute: () => catalogueGatedRoute,
+    getParentRoute: () => rootRoute,
     path: "/decks/$slug",
     component: lazyRouteComponent(() => import("./routes/deck-detail.route")),
 });
 
 const deckEditRoute = createRoute({
-    getParentRoute: () => catalogueGatedRoute,
+    getParentRoute: () => rootRoute,
     path: "/decks/$slug/edit",
     component: () => <LazyDeckBuilderRoute mode="edit" />,
 });
@@ -99,7 +90,7 @@ const deckEditRoute = createRoute({
 // (server-gated by `assertIsAdmin`), which derives the slug from the name. The
 // lobby exposes the entry point only to admins.
 const presetCreateRoute = createRoute({
-    getParentRoute: () => catalogueGatedRoute,
+    getParentRoute: () => rootRoute,
     path: "/presets/create",
     component: () => <LazyDeckBuilderRoute mode="create" kind="preset" />,
 });
@@ -108,13 +99,13 @@ const presetCreateRoute = createRoute({
 // `api.decks.getPreset` and saves through `decks.updatePreset` (server-gated by
 // `assertIsAdmin`). The lobby exposes the entry point only to admins.
 const presetEditRoute = createRoute({
-    getParentRoute: () => catalogueGatedRoute,
+    getParentRoute: () => rootRoute,
     path: "/presets/$slug/edit",
     component: () => <LazyDeckBuilderRoute mode="edit" kind="preset" />,
 });
 
 const gameRoute = createRoute({
-    getParentRoute: () => catalogueGatedRoute,
+    getParentRoute: () => rootRoute,
     path: "/game",
     component: lazyRouteComponent(() => import("./routes/game.route")),
 });
@@ -123,7 +114,7 @@ const gameRoute = createRoute({
 // visitor sees the host + game format and picks a deck before being credited
 // into the match (instead of routing through the lobby).
 const joinRoute = createRoute({
-    getParentRoute: () => catalogueGatedRoute,
+    getParentRoute: () => rootRoute,
     path: "/join/$gameId",
     component: lazyRouteComponent(() => import("./routes/join.route")),
 });
@@ -150,7 +141,7 @@ type LimitedEventsSearch = {
 };
 
 const limitedEventsRoute = createRoute({
-    getParentRoute: () => catalogueGatedRoute,
+    getParentRoute: () => rootRoute,
     path: "/limited",
     validateSearch: (search): LimitedEventsSearch => {
         const out: LimitedEventsSearch = {};
@@ -200,7 +191,7 @@ const limitedEventsRoute = createRoute({
 // so the source order documents the precedence instead of relying on it
 // silently.
 const limitedYourEventsRoute = createRoute({
-    getParentRoute: () => catalogueGatedRoute,
+    getParentRoute: () => rootRoute,
     path: "/limited/events",
     component: lazyRouteComponent(
         () => import("./routes/limited-your-events.route")
@@ -208,7 +199,7 @@ const limitedYourEventsRoute = createRoute({
 });
 
 const limitedEventDetailRoute = createRoute({
-    getParentRoute: () => catalogueGatedRoute,
+    getParentRoute: () => rootRoute,
     path: "/limited/$eventId",
     component: lazyRouteComponent(
         () => import("./routes/limited-event-detail.route")
@@ -220,7 +211,7 @@ const limitedEventDetailRoute = createRoute({
 // mounted inside. Its shell mode lives in `SHELL_ROUTE_RULES`
 // (`~/lib/shellChrome`), not here — the room owns its chrome.
 const limitedDraftRoomRoute = createRoute({
-    getParentRoute: () => catalogueGatedRoute,
+    getParentRoute: () => rootRoute,
     path: "/limited/$eventId/draft",
     component: lazyRouteComponent(
         () => import("./routes/limited-draft-room.route")
@@ -231,7 +222,7 @@ const limitedDraftRoomRoute = createRoute({
 // constrained builder, entered from the event detail page once the event has
 // started and the viewer's own Pool exists.
 const limitedDeckBuilderRoute = createRoute({
-    getParentRoute: () => catalogueGatedRoute,
+    getParentRoute: () => rootRoute,
     path: "/limited/$eventId/build",
     component: lazyRouteComponent(
         () => import("./routes/limited-deck-builder.route")
@@ -242,7 +233,7 @@ const limitedDeckBuilderRoute = createRoute({
 // stops and the Oracle/Printed preview default, one surface, per user. A
 // general-user route (like `/limited`), NOT under `adminRoute`.
 const settingsRoute = createRoute({
-    getParentRoute: () => catalogueGatedRoute,
+    getParentRoute: () => rootRoute,
     path: "/settings",
     component: lazyRouteComponent(() => import("./routes/settings.route")),
 });
@@ -257,7 +248,7 @@ const settingsRoute = createRoute({
 // path anyone could guess (`/draft-lab`, `/design-system`).
 // ─────────────────────────────────────────────────────────────────────────
 const adminRoute = createRoute({
-    getParentRoute: () => catalogueGatedRoute,
+    getParentRoute: () => rootRoute,
     path: "/admin",
     component: lazyRouteComponent(
         () => import("./routes/admin/admin-layout.route")
@@ -357,7 +348,7 @@ const adminDraftLabRoute = createRoute({
 });
 
 // Permanent design-system census (phase 3): the living reference for tokens,
-// chrome, and component variants. Unlike /prototype/* spikes this is kept.
+// chrome, and component variants. Unlike the prototype spikes this is kept.
 const adminDesignSystemRoute = createRoute({
     getParentRoute: () => adminRoute,
     path: "design-system",
@@ -366,33 +357,31 @@ const adminDesignSystemRoute = createRoute({
 
 const routeTree = rootRoute.addChildren([
     indexRoute,
-    catalogueGatedRoute.addChildren([
-        decksCreateRoute,
-        deckDetailRoute,
-        deckEditRoute,
-        presetCreateRoute,
-        presetEditRoute,
-        gameRoute,
-        joinRoute,
-        limitedEventsRoute,
-        limitedYourEventsRoute,
-        limitedEventDetailRoute,
-        limitedDraftRoomRoute,
-        limitedDeckBuilderRoute,
-        settingsRoute,
-        adminRoute.addChildren([
-            adminIndexRoute,
-            adminScenariosRoute,
-            adminTestersRoute,
-            adminVerdictsRoute,
-            adminBanlistsRoute,
-            adminPickRatingsRoute,
-            adminCardProfilesRoute,
-            adminBugReportsRoute,
-            adminBotFindingsRoute,
-            adminDraftLabRoute,
-            adminDesignSystemRoute,
-        ]),
+    decksCreateRoute,
+    deckDetailRoute,
+    deckEditRoute,
+    presetCreateRoute,
+    presetEditRoute,
+    gameRoute,
+    joinRoute,
+    limitedEventsRoute,
+    limitedYourEventsRoute,
+    limitedEventDetailRoute,
+    limitedDraftRoomRoute,
+    limitedDeckBuilderRoute,
+    settingsRoute,
+    adminRoute.addChildren([
+        adminIndexRoute,
+        adminScenariosRoute,
+        adminTestersRoute,
+        adminVerdictsRoute,
+        adminBanlistsRoute,
+        adminPickRatingsRoute,
+        adminCardProfilesRoute,
+        adminBugReportsRoute,
+        adminBotFindingsRoute,
+        adminDraftLabRoute,
+        adminDesignSystemRoute,
     ]),
 ]);
 
@@ -414,5 +403,10 @@ export const router = createRouter({
 declare module "@tanstack/react-router" {
     interface Register {
         router: typeof router;
+    }
+    interface StaticDataRouteOption {
+        /** The route renders without the card catalogue hydrated; `RouteOutlet`
+         *  mounts no `CatalogueGate` for a match tree made only of these. */
+        lightSurface?: boolean;
     }
 }
