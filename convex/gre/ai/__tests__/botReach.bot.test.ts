@@ -476,14 +476,12 @@ const ETB_DISCARDER: CardDefinition = {
 };
 
 /**
- * Issue #5015 — STOPGAP. Three guards whose pose is a close call pass by
- * seed noise at `BOT_REACH_BUDGET` (Foxfire 1-2/10 seeds, Sickening Dreams
- * 3/10, on the base weights as on issue #4882's refit; the sacrifice-cost
- * draw 9/20 seat-seeds on base, 3/20 at the refit). Thirty seeds (ten until
- * issue #5012's refit took Foxfire to 0/10) keep the
- * sweep's own semantics — `played` if ANY seed chooses the card — until the
- * poses are re-cut; issue #5015 owns returning all three to
- * `BOT_REACH_BUDGET`.
+ * Issue #5029 — STOPGAP. The sacrifice-cost draw's pose is a close call that
+ * passes by seed noise at `BOT_REACH_BUDGET` (9/20 seat-seeds on base weights,
+ * 3/20 at issue #4882's refit): the rollouts price the sacrificed body above
+ * the found cards, a valuation question the pose cannot answer. Thirty seeds
+ * keep the sweep's own semantics — `played` if ANY seed chooses the card —
+ * until issue #5029 returns it to `BOT_REACH_BUDGET`.
  */
 const NOISE_PINNED_REACH_BUDGET: BotReachBudget = {
     iterations: BOT_REACH_BUDGET.iterations,
@@ -918,13 +916,11 @@ describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
     });
 
     it("played — a damage sweep is cast where it wins", () => {
-        // Already played on the level pose: a discard-X cost keeps it.
-        expect(
-            playBotReach(
-                getCardByName("Sickening Dreams"),
-                NOISE_PINNED_REACH_BUDGET
-            )
-        ).toEqual({ outcome: "played" });
+        // The pose holds discard fodder for the X (issue #5015): without it
+        // the sweep's X was at most 1 and the cast a near no-op.
+        expect(playBotReach(getCardByName("Sickening Dreams"))).toEqual({
+            outcome: "played",
+        });
         for (const name of [
             "Pyroclasm",
             "Tremor",
@@ -1213,7 +1209,7 @@ describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
         withTemporaryDefinition(DRAW_SORCERY, () => {
             expect(playTwice(DRAW_SORCERY)).toEqual({ outcome: "played" });
         });
-        // Issue #5015: the sacrifice pose is a close call at 48 iterations
+        // Issue #5029: the sacrifice pose is a close call at 48 iterations
         // (seat-seeds cast 9/20 on the base weights, 3/20 at issue #4882's
         // refit; `material-tiebreak`, though the 1-ply leaf favours the cast).
         withTemporaryDefinition(SACRIFICE_DRAW_SORCERY, () => {
@@ -1458,12 +1454,7 @@ describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
     // Issue #4288: an untap spell whose target narrows keeps the pose that
     // narrowing asks for — Foxfire's attacking creature is posed in combat.
     it("played — an untap spell aimed at an attacking creature", () => {
-        expect(
-            playBotReachSeats(
-                getCardByName("Foxfire"),
-                NOISE_PINNED_REACH_BUDGET
-            )
-        ).toEqual([
+        expect(playBotReachSeats(getCardByName("Foxfire"))).toEqual([
             { holderId: "p1", verdict: { outcome: "played" } },
             { holderId: "p2", verdict: { outcome: "played" } },
         ]);
