@@ -84,7 +84,7 @@ export const rukhEgg: CardDefinition = {
                                 // spec keeps the current Oracle wording's "Bird" name
                                 // — the client resolves a Token Print by NAME, so
                                 // that would never match: pin the printed Rukh
-                                // token (CR 707.1) outright (issue #4120).
+                                // token (CR 111) outright (issue #4120).
                                 imagePrintId:
                                     "b5489e26-6aec-4706-9c3e-8454878fa6c3",
                             },
