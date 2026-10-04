@@ -17,9 +17,9 @@ import type {
  *  `cost.tap: true` taps the token, `cost.sacrifice: true` sacrifices the
  *  ability's own source (the token itself, CR 602.1). The DSL-only
  *  `effects: [{ op: "gainLife", ... }]` body gains 3 life for the
- *  activating controller. No `imagePrintId` — no Food print is wired into
- *  `tokenPrintLookup.ts` yet; the renderer falls back to the in-app
- *  placeholder (name/abilities), same as Clue/Blood. */
+ *  activating controller. No `imagePrintId` — the client picks the
+ *  Food Token Print of the creating printing's edition
+ *  (`src/lib/tokenArt.ts`), else the in-app placeholder (name/abilities). */
 export const FOOD_TOKEN_SPEC: EffectTokenSpec = {
     name: "Food",
     types: ["Artifact"],

@@ -72,9 +72,9 @@ const PRINT_READER_ALLOWLIST: readonly AllowlistEntry[] = [
     },
     {
         file: "state.ts",
-        count: 8,
+        count: 13,
         role: "token creation",
-        reason: "`createTokenPermanents` resolves a token spec's printed-token art and stamps it on the synthesized token definition / instance.",
+        reason: "`SpellContext.createToken` stamps the creating object's printing (its `imagePrintId`, else its Card ID) on the spec as `sourcePrintId`, and `createTokenPermanents` copies it onto each token instance — never read back; an explicit `imagePrintId` spec pin still lands on the synthesized token definition.",
     },
     {
         file: "transform.ts",
@@ -101,10 +101,22 @@ const PRINT_READER_ALLOWLIST: readonly AllowlistEntry[] = [
         reason: "forwards a copy Op's `except.imagePrintId` into the `CopyEffectOptions` `copy.ts` applies.",
     },
     {
-        file: "state/cardFieldLifecycle.ts",
+        file: "triggers.ts",
         count: 1,
+        role: "token creation",
+        reason: "`buildMonarchDrawStackItem` stamps the crowning card's Card ID as `sourcePrintId` on the Monarch draw tile, the way a token records its creator — the client picks the themed marker's Token Print.",
+    },
+    {
+        file: "state/cardFieldLifecycle.ts",
+        count: 2,
         role: "serialisation",
         reason: "the `CARD_FIELD_LIFECYCLE` codec row that compacts and expands the instance field.",
+    },
+    {
+        file: "scenarioBuilder.ts",
+        count: 1,
+        role: "cosmetic-key exclusion",
+        reason: "names the field in `CARD_STATE_ALLOWLIST` so a lowered position does not report a token's source printing as dropped rules state — a rebuilt token re-derives it from the catalogue's producer.",
     },
     {
         file: "ai/botReachTarget.ts",

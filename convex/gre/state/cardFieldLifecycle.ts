@@ -183,6 +183,7 @@ export const CARD_FIELD_LIFECYCLE = {
     // `{}` IS the override (Eternalize / Embalm), so presence, not truthiness.
     manaCostOverride:           { codec: "defined", reset: NONE },
     imagePrintId:               { codec: "scalar",  reset: NONE },
+    sourcePrintId:              { codec: "scalar",  reset: NONE },
     exileOnDeath:               { codec: "flag",    reset: TURN_ZONE },
     damageLockThisTurn:         { codec: "flag",    reset: TURN_ZONE },
     exileOnLeave:               { codec: "flag",    reset: NONE },

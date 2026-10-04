@@ -27,10 +27,10 @@ import type {
  *  card." — `cost.sacrifice: true` sacrifices the ability's own source (the
  *  token itself, CR 602.1), `cost.mana: { generic: 2 }` is the {2} generic
  *  cost, and the DSL-only `effects: [{ op: "draw", ... }]` body draws one
- *  card for the activating controller. No `imagePrintId` — no Clue print is
- *  wired into `tokenPrintLookup.ts` yet; the renderer falls back to the
- *  in-app placeholder (name/abilities), same as every other token without a
- *  registered print. */
+ *  card for the activating controller. No `imagePrintId` — the client picks
+ *  the Clue Token Print of the creating printing's edition
+ *  (`src/lib/tokenArt.ts`) and falls back to the in-app placeholder
+ *  (name/abilities) when that edition printed none. */
 export const CLUE_TOKEN_SPEC: EffectTokenSpec = {
     name: "Clue",
     types: ["Artifact"],

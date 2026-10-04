@@ -12,7 +12,6 @@
 import type { CardDefinition, CardPrint, SpellContext } from "../../types";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
-import { tokenPrintIdFor } from "../../tokenPrintLookup";
 
 export const combatMedic: CardDefinition = {
     id: "9cfd96cb-03d6-4845-8595-50bf17b35726", // FEM 1a
@@ -578,7 +577,6 @@ export const icatianTown: CardDefinition = {
                 power: 1,
                 toughness: 1,
                 colors: ["W"],
-                imagePrintId: tokenPrintIdFor(ICATIAN_TOWN_ID, "Citizen"),
             },
             controller: "controller",
             count: 4,

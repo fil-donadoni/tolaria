@@ -70,7 +70,7 @@ const ARMY_YOU_CONTROL: EffectCountSpec = {
  *  line — rendered here as "Orc Army" rather than CR 111.4's literal "Orc
  *  Army Token", the same trailing-"Token"-elided convention every other spec
  *  in this catalogue uses ("Treasure", "Incubator"). That is also the name of
- *  the printed Scryfall token every amass source links to, so `tokenPrintIdFor`
+ *  the printed Scryfall token every amass source links to, so the client's Token Print resolver
  *  (keyed by producing card id + token name) resolves its art with no
  *  hand-pinned `imagePrintId`. */
 export function makeArmyTokenSpec(subtype: string): EffectTokenSpec {

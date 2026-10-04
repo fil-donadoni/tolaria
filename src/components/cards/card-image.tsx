@@ -5,7 +5,6 @@ import {
     getImageSrcSet,
     getImageUrl,
     resolveCardImageFace,
-    resolveCardImageId,
 } from "~/lib/images";
 import { tryGetDefinition } from "@convex/cards";
 import type { CardInstance } from "~/types/game";
@@ -23,6 +22,8 @@ import CardImageLoader from "./card-image-loader";
 import TokenPlaceholder from "./token-placeholder";
 import CardBack from "./card-back";
 import useCardSlotFloor from "~/hooks/useCardSlotFloor";
+import { useTokenPrints } from "~/hooks/useTokenPrints";
+import { resolveArtPrintId } from "~/lib/tokenArt";
 
 // `contain: paint` + promoted layer keep Chrome's compositor from shipping
 // the bitmap as a low-res tile while ancestors are transitioning/rotating.
@@ -128,6 +129,7 @@ function CardImageImpl({
     } = useCardSlotFloor<HTMLDivElement>();
     const slot = floor ?? { sizes, includeThumb };
     const [loaded, setLoaded] = useState(false);
+    const tokenPrints = useTokenPrints();
     // WebP-first with jpg fallback. Keyed to the image id (not a boolean) so a
     // memo-retained component that switches identity re-tries WebP for the new
     // card instead of inheriting the previous card's failure.
@@ -154,6 +156,10 @@ function CardImageImpl({
     // when the card defines one (e.g. The Hive → 10E Wasp print). Tokens
     // without a printed image render the in-app TokenPlaceholder.
     //
+    // A token with no printed image of its own (every auto-resolved one since
+    // issue #4120) gets the Token Print of the edition that created it, off
+    // the instance's `sourcePrintId` and the Game-load rows (`tokenArt.ts`).
+    //
     // An INSTANCE-level pin wins over both (CR 111 / 707.2): a token COPY
     // presents the copied card's definition, so a definition-keyed lookup would
     // render the creature's own printing — wrong for an Eternalize / Embalm
@@ -166,7 +172,7 @@ function CardImageImpl({
         ? faceDownFace.kind === "print"
             ? faceDownFace.imagePrintId
             : null
-        : (cardInstance?.imagePrintId ?? resolveCardImageId(defId));
+        : resolveArtPrintId(defId, cardInstance, tokenPrints);
     // A transformed permanent's `defId` is swapped to its registered
     // back-face definition (CR 712, `gre/transform.ts`); resolve which
     // Scryfall CDN face segment that definition renders (issue #1595). A

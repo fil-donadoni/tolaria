@@ -7,7 +7,6 @@ import type {
 } from "../../types";
 import { countDomain, EFFECT_AFFECTS_SELF } from "../../types";
 import { INSECT_TOKEN, literalTokenPT } from "../../sharedTokens";
-import { tokenPrintIdFor } from "../../tokenPrintLookup";
 import { cardIsInOwnerGraveyard } from "../../graveyardOrder";
 import { attacksTrigger } from "../../abilities/triggers/attacksTrigger";
 
@@ -132,10 +131,9 @@ export const masterOfDeath: CardDefinition = {
 const GRIST_ID = "69af2825-18c2-4463-b6ba-42eaa070ccc1";
 
 /** Grist's Insect token, with the art of Grist's OWN MH2 printing's token
- *  (CLAUDE.md § Card definition checklist art-match rule). Resolved from the
- *  reverse-linked lockfile rather than pinned, but read HERE rather than left
- *  to `createToken`'s fallback because `tokenPrintLookup.test.ts` only sees
- *  DSL `createToken` Ops — a `resolve()`-created token is invisible to it.
+ *  (CLAUDE.md § Card definition checklist art-match rule). Not pinned: the
+ *  `resolve()` below creates it through `SpellContext.createToken`, which
+ *  stamps Grist's printing and lets the client pick that edition's Token Print.
  *
  *  Restated as a `TokenSpec` (the imperative `SpellContext.createToken` shape)
  *  rather than spread from the `EffectTokenSpec` constant, because the two
@@ -151,7 +149,6 @@ const gristInsectToken: TokenSpec = {
     power: literalTokenPT(INSECT_TOKEN.power),
     toughness: literalTokenPT(INSECT_TOKEN.toughness),
     colors: INSECT_TOKEN.colors,
-    imagePrintId: tokenPrintIdFor(GRIST_ID, "Insect"),
 };
 
 export const gristTheHungerTide: CardDefinition = {

@@ -247,7 +247,7 @@ export function behaviouralProjection(
  * one token), so the catalogue writes it both ways and neither is more
  * correct. A token spec's `imagePrintId` is ART, not rules text (CR 111.3
  * defines a token's characteristics; the picture is none of them): the
- * runtime resolves it per producer from `token-prints.json`, and an author
+ * runtime resolves it per producer from the Card Prints table's Token Prints, and an author
  * pins it by hand only where that lookup has nothing — a fact about Scryfall's
  * `all_parts`, never about the Oracle line. Folding it keeps ADR 0114 §4: the
  * engine reads it to DRAW, never to DECIDE.

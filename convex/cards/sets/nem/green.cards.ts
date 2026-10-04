@@ -6,7 +6,6 @@
 
 import type { CardDefinition } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
-import { tokenPrintIdFor } from "../../tokenPrintLookup";
 
 // Blastoderm — "Shroud (This creature can't be the target of spells or
 // abilities.) Fading 3 (This creature enters with three fade counters on it.
@@ -89,10 +88,6 @@ export const deepForestHermit: CardDefinition = {
                         power: 1,
                         toughness: 1,
                         colors: ["G"],
-                        imagePrintId: tokenPrintIdFor(
-                            DEEP_FOREST_HERMIT_ID,
-                            "Squirrel"
-                        ),
                     },
                     controller: "controller",
                     count: 4,

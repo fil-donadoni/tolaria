@@ -1,7 +1,6 @@
 // ody — green cards (ADR 0043 colour split).
 import type { CardDefinition } from "../../types";
 import { AURA_AFFECTS_HOST, EFFECT_AFFECTS_SELF } from "../../types";
-import { tokenPrintIdFor } from "../../tokenPrintLookup";
 
 const SQUIRREL_NEST_ID = "22eccb27-1723-4c5a-96b8-85e6e5739c30";
 
@@ -49,10 +48,11 @@ export const squirrelNest: CardDefinition = {
                         power: 1,
                         toughness: 1,
                         colors: ["G"],
-                        imagePrintId: tokenPrintIdFor(
-                            SQUIRREL_NEST_ID,
-                            "Squirrel"
-                        ),
+                        // Pinned: the ability is GRANTED, so the creating object
+                        // is the enchanted land, whose printing names no
+                        // Squirrel token (ADR 0140 §6, issue #4120) — the
+                        // Nest's own ODY Squirrel is the art.
+                        imagePrintId: "fd0474f3-682d-4c6d-b902-84f3250aa269",
                     },
                     controller: "controller",
                     count: 1,
@@ -70,8 +70,9 @@ const CALL_OF_THE_HERD_ID = "429a88cc-53db-4c5e-a061-f0f49a38c675";
 // stack; the whole keyword is engine infra, `convex/gre/flashback.ts`, driven
 // by the `flashback` printed-cost field, exactly as Krosan Reclamation
 // `jud/green.ts` uses it). The body is the plain `createToken` Op (CR 111 /
-// 701.7) with the token's own printed art pinned through `tokenPrintIdFor`
-// (CR 114 — a missing image renders a placeholder silently).
+// 701.7) with the token's printed art resolved by the client from the creating
+// printing's Token Print (CR 114 — a missing image renders a placeholder
+// silently).
 export const callOfTheHerd: CardDefinition = {
     id: CALL_OF_THE_HERD_ID,
     name: "Call of the Herd",
@@ -90,7 +91,6 @@ export const callOfTheHerd: CardDefinition = {
                 power: 3,
                 toughness: 3,
                 colors: ["G"],
-                imagePrintId: tokenPrintIdFor(CALL_OF_THE_HERD_ID, "Elephant"),
             },
             controller: "controller",
             count: 1,

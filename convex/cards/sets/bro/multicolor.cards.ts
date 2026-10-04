@@ -2,7 +2,6 @@
 // `import * as bro from "./sets/bro/index.cards"` re-exports this module.
 // Modern Scryfall oracle text is authoritative (ADR 0004).
 import type { CardDefinition, GameEvent, PermanentView } from "../../types";
-import { tokenPrintIdFor } from "../../tokenPrintLookup";
 
 // Third Path Iconoclast — {U}{R} Creature — Human Monk 2/1 (Vintage Cube token
 // maker, issue #678). "Whenever you cast a noncreature spell, create a 1/1
@@ -45,10 +44,6 @@ export const thirdPathIconoclast: CardDefinition = {
                         subtypes: ["Soldier"],
                         power: 1,
                         toughness: 1,
-                        imagePrintId: tokenPrintIdFor(
-                            THIRD_PATH_ICONOCLAST_ID,
-                            "Soldier"
-                        ),
                     },
                     controller: "controller",
                 },

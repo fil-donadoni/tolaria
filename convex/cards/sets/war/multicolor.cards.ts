@@ -1,7 +1,6 @@
 // war — multicolor cards (ADR 0043 colour split).
 
 import type { CardDefinition, GameEvent, PermanentView } from "../../types";
-import { tokenPrintIdFor } from "../../tokenPrintLookup";
 
 // TODO(issue #679 stub — still blocked, but on a NARROWER gap than before.
 // The categorized shared-window half of #1364 HAS since shipped as the
@@ -175,10 +174,6 @@ export const saheeliSublimeArtificer: CardDefinition = {
                         subtypes: ["Servo"],
                         power: 1,
                         toughness: 1,
-                        imagePrintId: tokenPrintIdFor(
-                            SAHEELI_SUBLIME_ARTIFICER_ID,
-                            "Servo"
-                        ),
                     },
                     controller: "controller",
                 },

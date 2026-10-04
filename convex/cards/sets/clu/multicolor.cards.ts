@@ -53,7 +53,7 @@ function controllerHandSizeAtMost(max: number) {
 // then `investigateOp(controller, 4)`. "Investigate four times" is CR
 // 701.16a's N separate Clue creations, expressed as ONE `createToken` with
 // `count: 4` over the shared `CLUE_TOKEN_SPEC` (primitive reuse); the Clue
-// art resolves through this card's own `generated/token-prints.json` row.
+// art resolves through this card's own the Card Prints table's Token Prints row.
 // Both Ops are already exercised by shipped cards (Wheel of Fortune, Thraben
 // Inspector), so the per-Op regime applies — no hand-written per-card test.
 //

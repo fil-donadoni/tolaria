@@ -9,11 +9,13 @@
 // designation id — the direct analogue of the emblem registry
 // (`convex/cards/emblems.ts`). On TOP of it, a designation may be themed
 // per-source like a token (issue #1305): the card that grants it carries its
-// own set-printing of the marker in `token-prints.json` (Forth Eorlingas → the
-// LTR "The Monarch", Palace Jailer → the Conspiracy one), resolved by
-// `buildMonarchDrawStackItem` into `StackItem.designationImagePrintId`. When no
-// themed source exists (a CR 720.3 combat-damage steal, or a card with no
-// lockfile entry), the tile falls back to the global `imagePrintId` here.
+// own set-printing of the marker as a Token Print (Forth Eorlingas → the LTR
+// "The Monarch", Palace Jailer → the Conspiracy one). The engine stamps the
+// crowning card's Card ID as `StackItem.sourcePrintId` in
+// `buildMonarchDrawStackItem` (ADR 0140 §6, issue #4120) and the client's
+// token-art resolver picks the Token Print. When no themed source exists (a
+// CR 720.3 combat-damage steal, or a card with no Token Print of that name),
+// the tile falls back to the global `imagePrintId` here.
 //
 // This is pure display data (no closures / engine imports), so both the engine
 // and the client import it freely. Monarch storage/behaviour lives in the GRE

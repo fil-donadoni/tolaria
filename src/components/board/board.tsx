@@ -31,6 +31,10 @@ import {
     MinimizedChoiceContext,
     useMinimizedChoiceState,
 } from "~/hooks/useMinimizedChoice";
+import {
+    TokenPrintsContext,
+    useTokenPrintsState,
+} from "~/hooks/useTokenPrints";
 import { preloadCardImages } from "~/lib/image-preload";
 import { gameArtCardIds } from "~/lib/game-card-ids";
 import {
@@ -158,6 +162,10 @@ export default function Board({
     // and was deleted because it was a SECOND subscription on the same document
     // `<Board>` already holds — pure duplicated read bandwidth.
     const gameCardIds = useMemo(() => gameArtCardIds(game), [game]);
+    // ADR 0140 §4 (issue #4120): ONE query for the Token Prints of every Print
+    // ID in both decks, fetched at Game load so a token's edition art is in
+    // hand before the token exists.
+    const tokenPrints = useTokenPrintsState(gameCardIds);
 
     const matchId = game?.matchId ?? null;
     // Resilient too (issue #3266 review): a timeout on THIS subscription, a
@@ -429,318 +437,335 @@ export default function Board({
                 onSwitchGame,
             }}
         >
-            <SkipPhasePrefsContext value={skipPhasePrefs}>
-                <YieldPrefsContext value={yieldPrefs}>
-                    <PendingChoiceBufferContext value={pendingChoiceBuffer}>
-                        <AttackSequenceContext value={attackSequence}>
-                            <DivideBufferContext value={divideBuffer}>
-                                <MinimizedChoiceContext value={minimizedChoice}>
-                                    <main className="flex h-full w-full flex-col relative overflow-hidden">
-                                        <BoardBackground />
-                                        <AutoPassController solo={solo} />
-                                        {vsAi && (
-                                            <VsAiDriver
-                                                gameId={gameId}
-                                                botId={botId}
+            <TokenPrintsContext value={tokenPrints}>
+                <SkipPhasePrefsContext value={skipPhasePrefs}>
+                    <YieldPrefsContext value={yieldPrefs}>
+                        <PendingChoiceBufferContext value={pendingChoiceBuffer}>
+                            <AttackSequenceContext value={attackSequence}>
+                                <DivideBufferContext value={divideBuffer}>
+                                    <MinimizedChoiceContext
+                                        value={minimizedChoice}
+                                    >
+                                        <main className="flex h-full w-full flex-col relative overflow-hidden">
+                                            <BoardBackground />
+                                            <AutoPassController solo={solo} />
+                                            {vsAi && (
+                                                <VsAiDriver
+                                                    gameId={gameId}
+                                                    botId={botId}
+                                                />
+                                            )}
+                                            <BoardSurface
+                                                opponent={opponent}
+                                                me={me}
+                                                orderedPlayers={orderedPlayers}
+                                                viewerId={viewerId}
+                                                activePlayerId={activePlayerId}
+                                                stackItems={stackItems}
+                                                combat={combat}
+                                                isPortrait={isPortrait}
+                                                landscapeCompact={
+                                                    landscapeCompact
+                                                }
+                                                viewportHeight={viewportHeight}
+                                                landscapeCards={landscapeCards}
+                                                landscapeHandLayout={
+                                                    landscapeHandLayout
+                                                }
                                             />
-                                        )}
-                                        <BoardSurface
-                                            opponent={opponent}
-                                            me={me}
-                                            orderedPlayers={orderedPlayers}
-                                            viewerId={viewerId}
-                                            activePlayerId={activePlayerId}
-                                            stackItems={stackItems}
-                                            combat={combat}
-                                            isPortrait={isPortrait}
-                                            landscapeCompact={landscapeCompact}
-                                            viewportHeight={viewportHeight}
-                                            landscapeCards={landscapeCards}
-                                            landscapeHandLayout={
-                                                landscapeHandLayout
-                                            }
-                                        />
-                                        {pendingTarget &&
-                                            pendingTarget.playerId ===
-                                                viewerId &&
-                                            (isGraveyardTargetForViewer(
-                                                pendingTarget,
-                                                viewerId
-                                            ) ? (
-                                                <GraveyardTargetDialog
-                                                    pendingTarget={
-                                                        pendingTarget
-                                                    }
-                                                    me={me}
-                                                    allPlayers={allPlayers}
-                                                    gameId={gameId}
-                                                    playerId={viewerId}
-                                                    activePlayerId={
-                                                        activePlayerId
-                                                    }
-                                                />
-                                            ) : (
-                                                <TargetSelectionBanner
-                                                    pendingTarget={
-                                                        pendingTarget
-                                                    }
-                                                    me={me}
-                                                    stack={stackItems}
-                                                    gameId={gameId}
-                                                    playerId={viewerId}
-                                                />
-                                            ))}
-                                        {pendingCast &&
-                                            pendingCast.playerId === viewerId &&
-                                            // CR 601.2g — the generic-mana spend
-                                            // choice is the LAST payment gate
-                                            // (mana is already tapped/floating by
-                                            // the time it's set), so it takes
-                                            // precedence over every other picker
-                                            // below and the payment banner.
-                                            (manaSpendChoice?.container ===
-                                            "cast" ? (
-                                                <ManaSpendChoiceDialog
-                                                    choice={
-                                                        manaSpendChoice.choice
-                                                    }
-                                                    container="cast"
-                                                    gameId={gameId}
-                                                    playerId={viewerId}
-                                                />
-                                            ) : // CR 702.34a / 118.5 — the flashback "exile X
-                                            // blue cards from your graveyard" cost (Flash of
-                                            // Insight) needs a dedicated card picker before
-                                            // the payment banner takes over.
-                                            pendingCast.convokeCreatureChoice &&
-                                              !pendingCast.convokeCreatureChoice
-                                                  .pickedCreatureIds ? (
-                                                // CR 702.51 (issue #1338) — Convoke
-                                                // creature picker (Hogaak). Prompts
-                                                // BEFORE the delve exile picker.
-                                                <ConvokeCreatureDialog
-                                                    choice={
-                                                        pendingCast.convokeCreatureChoice
-                                                    }
-                                                    me={me}
-                                                    gameId={gameId}
-                                                    playerId={viewerId}
-                                                />
-                                            ) : pendingCast.exileFromGraveyardChoice &&
-                                              !pendingCast
-                                                  .exileFromGraveyardChoice
-                                                  .pickedCardIds ? (
-                                                <CastExileCostDialog
-                                                    choice={
-                                                        pendingCast.exileFromGraveyardChoice
-                                                    }
-                                                    me={me}
-                                                    gameId={gameId}
-                                                    playerId={viewerId}
-                                                />
-                                            ) : pendingCast.alternativeCostHandChoice &&
-                                              !pendingCast
-                                                  .alternativeCostHandChoice
-                                                  .pickedCardIds ? (
-                                                // CR 118.9 — the alternative-cost hand leg
-                                                // (Force of Will "exile a blue card", Foil
-                                                // "discard an Island card and another card")
-                                                // needs a dedicated hand-card picker before
+                                            {pendingTarget &&
+                                                pendingTarget.playerId ===
+                                                    viewerId &&
+                                                (isGraveyardTargetForViewer(
+                                                    pendingTarget,
+                                                    viewerId
+                                                ) ? (
+                                                    <GraveyardTargetDialog
+                                                        pendingTarget={
+                                                            pendingTarget
+                                                        }
+                                                        me={me}
+                                                        allPlayers={allPlayers}
+                                                        gameId={gameId}
+                                                        playerId={viewerId}
+                                                        activePlayerId={
+                                                            activePlayerId
+                                                        }
+                                                    />
+                                                ) : (
+                                                    <TargetSelectionBanner
+                                                        pendingTarget={
+                                                            pendingTarget
+                                                        }
+                                                        me={me}
+                                                        stack={stackItems}
+                                                        gameId={gameId}
+                                                        playerId={viewerId}
+                                                    />
+                                                ))}
+                                            {pendingCast &&
+                                                pendingCast.playerId ===
+                                                    viewerId &&
+                                                // CR 601.2g — the generic-mana spend
+                                                // choice is the LAST payment gate
+                                                // (mana is already tapped/floating by
+                                                // the time it's set), so it takes
+                                                // precedence over every other picker
+                                                // below and the payment banner.
+                                                (manaSpendChoice?.container ===
+                                                "cast" ? (
+                                                    <ManaSpendChoiceDialog
+                                                        choice={
+                                                            manaSpendChoice.choice
+                                                        }
+                                                        container="cast"
+                                                        gameId={gameId}
+                                                        playerId={viewerId}
+                                                    />
+                                                ) : // CR 702.34a / 118.5 — the flashback "exile X
+                                                // blue cards from your graveyard" cost (Flash of
+                                                // Insight) needs a dedicated card picker before
                                                 // the payment banner takes over.
-                                                <CastAlternativeHandCostDialog
-                                                    choice={
-                                                        pendingCast.alternativeCostHandChoice
-                                                    }
-                                                    me={me}
-                                                    gameId={gameId}
-                                                    playerId={viewerId}
-                                                />
-                                            ) : (
-                                                <PaymentBanner
-                                                    kind="cast"
-                                                    pendingCast={pendingCast}
-                                                    me={me}
-                                                    gameId={gameId}
-                                                    playerId={viewerId}
-                                                />
-                                            ))}
-                                        {pendingActivation &&
-                                            pendingActivation.playerId ===
-                                                viewerId &&
-                                            // CR 601.2g — same precedence rule as
-                                            // the cast branch above.
-                                            (manaSpendChoice?.container ===
-                                            "activation" ? (
-                                                <ManaSpendChoiceDialog
-                                                    choice={
-                                                        manaSpendChoice.choice
-                                                    }
-                                                    container="activation"
-                                                    gameId={gameId}
-                                                    playerId={viewerId}
-                                                />
-                                            ) : // CR 602.1 / 118.5 — the exile-from-graveyard
-                                            // cost (Night Soil) needs a dedicated card
-                                            // picker before the payment banner takes over.
-                                            pendingActivation.exileFromGraveyardChoice &&
-                                              !pendingActivation
-                                                  .exileFromGraveyardChoice
-                                                  .pickedCardIds ? (
-                                                <ExileCostDialog
-                                                    choice={
-                                                        pendingActivation.exileFromGraveyardChoice
-                                                    }
-                                                    allPlayers={allPlayers}
-                                                    gameId={gameId}
-                                                    playerId={viewerId}
-                                                />
-                                            ) : // CR 602.1 / 118.3 — the discard-a-card
-                                            // cost (Survival of the Fittest) needs a
-                                            // dedicated hand-card picker before the
-                                            // payment banner takes over.
-                                            pendingActivation.discardFilterChoice &&
-                                              !pendingActivation
-                                                  .discardFilterChoice
-                                                  .pickedCardIds ? (
-                                                <DiscardCostDialog
-                                                    choice={
-                                                        pendingActivation.discardFilterChoice
-                                                    }
-                                                    me={me}
-                                                    gameId={gameId}
-                                                    playerId={viewerId}
-                                                />
-                                            ) : (
-                                                <PaymentBanner
-                                                    kind="activation"
-                                                    pendingActivation={
-                                                        pendingActivation
-                                                    }
-                                                    me={me}
-                                                    gameId={gameId}
-                                                    playerId={viewerId}
-                                                />
-                                            ))}
-                                        {/* CR 508.1c/1g / 701.21a — the attack-declaration
+                                                pendingCast.convokeCreatureChoice &&
+                                                  !pendingCast
+                                                      .convokeCreatureChoice
+                                                      .pickedCreatureIds ? (
+                                                    // CR 702.51 (issue #1338) — Convoke
+                                                    // creature picker (Hogaak). Prompts
+                                                    // BEFORE the delve exile picker.
+                                                    <ConvokeCreatureDialog
+                                                        choice={
+                                                            pendingCast.convokeCreatureChoice
+                                                        }
+                                                        me={me}
+                                                        gameId={gameId}
+                                                        playerId={viewerId}
+                                                    />
+                                                ) : pendingCast.exileFromGraveyardChoice &&
+                                                  !pendingCast
+                                                      .exileFromGraveyardChoice
+                                                      .pickedCardIds ? (
+                                                    <CastExileCostDialog
+                                                        choice={
+                                                            pendingCast.exileFromGraveyardChoice
+                                                        }
+                                                        me={me}
+                                                        gameId={gameId}
+                                                        playerId={viewerId}
+                                                    />
+                                                ) : pendingCast.alternativeCostHandChoice &&
+                                                  !pendingCast
+                                                      .alternativeCostHandChoice
+                                                      .pickedCardIds ? (
+                                                    // CR 118.9 — the alternative-cost hand leg
+                                                    // (Force of Will "exile a blue card", Foil
+                                                    // "discard an Island card and another card")
+                                                    // needs a dedicated hand-card picker before
+                                                    // the payment banner takes over.
+                                                    <CastAlternativeHandCostDialog
+                                                        choice={
+                                                            pendingCast.alternativeCostHandChoice
+                                                        }
+                                                        me={me}
+                                                        gameId={gameId}
+                                                        playerId={viewerId}
+                                                    />
+                                                ) : (
+                                                    <PaymentBanner
+                                                        kind="cast"
+                                                        pendingCast={
+                                                            pendingCast
+                                                        }
+                                                        me={me}
+                                                        gameId={gameId}
+                                                        playerId={viewerId}
+                                                    />
+                                                ))}
+                                            {pendingActivation &&
+                                                pendingActivation.playerId ===
+                                                    viewerId &&
+                                                // CR 601.2g — same precedence rule as
+                                                // the cast branch above.
+                                                (manaSpendChoice?.container ===
+                                                "activation" ? (
+                                                    <ManaSpendChoiceDialog
+                                                        choice={
+                                                            manaSpendChoice.choice
+                                                        }
+                                                        container="activation"
+                                                        gameId={gameId}
+                                                        playerId={viewerId}
+                                                    />
+                                                ) : // CR 602.1 / 118.5 — the exile-from-graveyard
+                                                // cost (Night Soil) needs a dedicated card
+                                                // picker before the payment banner takes over.
+                                                pendingActivation.exileFromGraveyardChoice &&
+                                                  !pendingActivation
+                                                      .exileFromGraveyardChoice
+                                                      .pickedCardIds ? (
+                                                    <ExileCostDialog
+                                                        choice={
+                                                            pendingActivation.exileFromGraveyardChoice
+                                                        }
+                                                        allPlayers={allPlayers}
+                                                        gameId={gameId}
+                                                        playerId={viewerId}
+                                                    />
+                                                ) : // CR 602.1 / 118.3 — the discard-a-card
+                                                // cost (Survival of the Fittest) needs a
+                                                // dedicated hand-card picker before the
+                                                // payment banner takes over.
+                                                pendingActivation.discardFilterChoice &&
+                                                  !pendingActivation
+                                                      .discardFilterChoice
+                                                      .pickedCardIds ? (
+                                                    <DiscardCostDialog
+                                                        choice={
+                                                            pendingActivation.discardFilterChoice
+                                                        }
+                                                        me={me}
+                                                        gameId={gameId}
+                                                        playerId={viewerId}
+                                                    />
+                                                ) : (
+                                                    <PaymentBanner
+                                                        kind="activation"
+                                                        pendingActivation={
+                                                            pendingActivation
+                                                        }
+                                                        me={me}
+                                                        gameId={gameId}
+                                                        playerId={viewerId}
+                                                    />
+                                                ))}
+                                            {/* CR 508.1c/1g / 701.21a — the attack-declaration
                                 land tax (Flooded Woodlands) suspends the
                                 declaration on a parked sacrifice choice. Without
                                 a prompt the board looks frozen, so surface the
                                 pick the same way casts/activations do. */}
-                                        {combat?.pendingAttackSacrifice &&
-                                            combat.pendingAttackSacrifice
-                                                .playerId === viewerId &&
-                                            !isSacrificeComplete(
+                                            {combat?.pendingAttackSacrifice &&
                                                 combat.pendingAttackSacrifice
-                                            ) && (
-                                                <SacrificeBanner
-                                                    selection={
-                                                        combat.pendingAttackSacrifice
-                                                    }
-                                                />
-                                            )}
-                                        {/* CR 508.1c/1g — the per-attacker MANA attack
+                                                    .playerId === viewerId &&
+                                                !isSacrificeComplete(
+                                                    combat.pendingAttackSacrifice
+                                                ) && (
+                                                    <SacrificeBanner
+                                                        selection={
+                                                            combat.pendingAttackSacrifice
+                                                        }
+                                                    />
+                                                )}
+                                            {/* CR 508.1c/1g — the per-attacker MANA attack
                                 tax (Propaganda / Collective Restraint) suspends
                                 the declaration on a parked payment. Prompt the
                                 attacking player to pay (Auto-tap / manual taps)
                                 or cancel, the same way casts do. */}
-                                        {combat?.pendingAttackManaTax &&
-                                            combat.pendingAttackManaTax
-                                                .playerId === viewerId && (
-                                                <AttackManaTaxBanner
-                                                    gameId={gameId}
-                                                    playerId={viewerId}
-                                                    payment={
-                                                        combat.pendingAttackManaTax
-                                                    }
-                                                />
-                                            )}
-                                        {pendingChoices &&
-                                            pendingChoices.length > 0 &&
-                                            (minimizedChoice.isMinimized &&
-                                            pendingChoices[0].playerId ===
-                                                viewerId ? (
-                                                <MinimizedChoiceIndicator
-                                                    choice={pendingChoices[0]}
-                                                />
-                                            ) : (
-                                                <PendingChoicePrompt
-                                                    choice={pendingChoices[0]}
-                                                    playerId={viewerId}
-                                                    gameId={gameId}
-                                                />
-                                            ))}
-                                        {/* Fact or Fiction (ADR 0053) — the divider's
+                                            {combat?.pendingAttackManaTax &&
+                                                combat.pendingAttackManaTax
+                                                    .playerId === viewerId && (
+                                                    <AttackManaTaxBanner
+                                                        gameId={gameId}
+                                                        playerId={viewerId}
+                                                        payment={
+                                                            combat.pendingAttackManaTax
+                                                        }
+                                                    />
+                                                )}
+                                            {pendingChoices &&
+                                                pendingChoices.length > 0 &&
+                                                (minimizedChoice.isMinimized &&
+                                                pendingChoices[0].playerId ===
+                                                    viewerId ? (
+                                                    <MinimizedChoiceIndicator
+                                                        choice={
+                                                            pendingChoices[0]
+                                                        }
+                                                    />
+                                                ) : (
+                                                    <PendingChoicePrompt
+                                                        choice={
+                                                            pendingChoices[0]
+                                                        }
+                                                        playerId={viewerId}
+                                                        gameId={gameId}
+                                                    />
+                                                ))}
+                                            {/* Fact or Fiction (ADR 0053) — the divider's
                                     3-zone drag stage / the chooser's face-up
                                     two-pile pick. Owns the surface for the
                                     chooser; the generic prompt above suppresses
                                     itself for these kinds and shows only the
                                     non-chooser's "Waiting" line. */}
-                                        {pendingChoices &&
-                                            pendingChoices.length > 0 &&
-                                            !minimizedChoice.isMinimized &&
-                                            pendingChoices[0].playerId ===
-                                                viewerId &&
-                                            (pendingChoices[0].kind ===
-                                                "divide-piles" ||
-                                                pendingChoices[0].kind ===
-                                                    "pick-pile") && (
-                                                <PileDivisionPicker
-                                                    choice={pendingChoices[0]}
-                                                    cards={resolvePileDivisionCards(
-                                                        state.players,
-                                                        pendingChoices[0]
-                                                    )}
-                                                    playerId={viewerId}
-                                                    gameId={gameId}
+                                            {pendingChoices &&
+                                                pendingChoices.length > 0 &&
+                                                !minimizedChoice.isMinimized &&
+                                                pendingChoices[0].playerId ===
+                                                    viewerId &&
+                                                (pendingChoices[0].kind ===
+                                                    "divide-piles" ||
+                                                    pendingChoices[0].kind ===
+                                                        "pick-pile") && (
+                                                    <PileDivisionPicker
+                                                        choice={
+                                                            pendingChoices[0]
+                                                        }
+                                                        cards={resolvePileDivisionCards(
+                                                            state.players,
+                                                            pendingChoices[0]
+                                                        )}
+                                                        playerId={viewerId}
+                                                        gameId={gameId}
+                                                    />
+                                                )}
+                                            <HandCardPick />
+                                            <RevealHandView />
+                                            <RevealNotificationOverlay />
+                                            <PutBackPicker />
+
+                                            {mulligan &&
+                                                !mulligan.bottoming && (
+                                                    <MulliganPrompt
+                                                        gameId={gameId}
+                                                        viewerId={viewerId}
+                                                        mulligan={mulligan}
+                                                        allPlayers={allPlayers}
+                                                    />
+                                                )}
+                                            <Controller
+                                                onOpenMenu={openPauseMenu}
+                                            />
+                                            {gameOver && (
+                                                <GameOverDialog
+                                                    gameOver={gameOver}
+                                                    allPlayers={allPlayers}
+                                                    match={match ?? null}
+                                                    viewerId={playerId}
                                                 />
                                             )}
-                                        <HandCardPick />
-                                        <RevealHandView />
-                                        <RevealNotificationOverlay />
-                                        <PutBackPicker />
-
-                                        {mulligan && !mulligan.bottoming && (
-                                            <MulliganPrompt
+                                            <PauseMenuDialog
+                                                open={pauseMenuOpen}
+                                                onOpenChange={setPauseMenuOpen}
                                                 gameId={gameId}
-                                                viewerId={viewerId}
-                                                mulligan={mulligan}
-                                                allPlayers={allPlayers}
-                                            />
-                                        )}
-                                        <Controller
-                                            onOpenMenu={openPauseMenu}
-                                        />
-                                        {gameOver && (
-                                            <GameOverDialog
-                                                gameOver={gameOver}
-                                                allPlayers={allPlayers}
+                                                playerId={viewerId}
                                                 match={match ?? null}
-                                                viewerId={playerId}
                                             />
-                                        )}
-                                        <PauseMenuDialog
-                                            open={pauseMenuOpen}
-                                            onOpenChange={setPauseMenuOpen}
-                                            gameId={gameId}
-                                            playerId={viewerId}
-                                            match={match ?? null}
-                                        />
-                                        <ErrorToast
-                                            error={
-                                                pendingChoiceBuffer.lastError
-                                            }
-                                            gameId={gameId}
-                                            onDismiss={
-                                                pendingChoiceBuffer.dismissError
-                                            }
-                                        />
-                                    </main>
-                                </MinimizedChoiceContext>
-                            </DivideBufferContext>
-                        </AttackSequenceContext>
-                    </PendingChoiceBufferContext>
-                </YieldPrefsContext>
-            </SkipPhasePrefsContext>
+                                            <ErrorToast
+                                                error={
+                                                    pendingChoiceBuffer.lastError
+                                                }
+                                                gameId={gameId}
+                                                onDismiss={
+                                                    pendingChoiceBuffer.dismissError
+                                                }
+                                            />
+                                        </main>
+                                    </MinimizedChoiceContext>
+                                </DivideBufferContext>
+                            </AttackSequenceContext>
+                        </PendingChoiceBufferContext>
+                    </YieldPrefsContext>
+                </SkipPhasePrefsContext>
+            </TokenPrintsContext>
         </GameContext>
     );
 }

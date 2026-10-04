@@ -136,7 +136,7 @@ export const ELDRAZI_SPAWN_TOKEN: EffectTokenSpec = {
  *  No pinned `imagePrintId`, the `RABBIT_TOKEN`/`KNIGHT_TOKEN` treatment:
  *  Goblin is a printed token in many sets and the art-match rule is "the
  *  token associated with the PRODUCING card's own printing", resolved per
- *  producer by `tokenPrintIdFor` from `generated/token-prints.json`. */
+ *  producer by the client's Token Print resolver (`src/lib/tokenArt.ts`). */
 export const GOBLIN_TOKEN: EffectTokenSpec = {
     name: "Goblin",
     types: ["Creature"],
@@ -156,13 +156,10 @@ export const GOBLIN_TOKEN: EffectTokenSpec = {
  *  `ELDRAZI_SPAWN_TOKEN` above. Rabbit is a printed token in many sets, and
  *  the art-match rule is "the token associated with the PRODUCING card's own
  *  printing" — so leaving it unpinned is what keeps that true as the spec is
- *  reused: `SpellContext.createToken` falls back to
- *  `tokenPrintIdFor(<producing card id>, "Rabbit")`, which reads the
- *  reverse-linked Scryfall `all_parts` lockfile
- *  (`generated/token-prints.json`) and resolves per producer. Jacked Rabbit's
- *  entry is already in the lockfile and resolves to the BLC Rabbit print. A
- *  pinned id here would instead freeze one set's art onto every future
- *  producer. */
+ *  reused: `SpellContext.createToken` stamps the producing object's printing
+ *  as `sourcePrintId` and the client picks that edition's Rabbit Token Print
+ *  (the Card Prints table's Token Prints, `src/lib/tokenArt.ts`). A pinned id
+ *  here would instead freeze one set's art onto every future producer. */
 export const RABBIT_TOKEN: EffectTokenSpec = {
     name: "Rabbit",
     types: ["Creature"],
@@ -181,8 +178,8 @@ export const RABBIT_TOKEN: EffectTokenSpec = {
  *  token in many sets with different characteristics, and the art-match rule
  *  is "the token associated with the PRODUCING card's own printing". The
  *  producer's own DOM Knight print is reverse-linked in
- *  `generated/token-prints.json` and resolved per producer by
- *  `tokenPrintIdFor`, so a later Knight producer picks up ITS printing's art
+ *  the Card Prints table's Token Prints and resolved per producer by
+ *  the client's Token Print resolver, so a later Knight producer picks up ITS printing's art
  *  instead of inheriting DOM's. */
 export const KNIGHT_TOKEN: EffectTokenSpec = {
     name: "Knight",
@@ -206,8 +203,8 @@ export const KNIGHT_TOKEN: EffectTokenSpec = {
  *  No pinned `imagePrintId`, the `RABBIT_TOKEN`/`KNIGHT_TOKEN`/`HUMAN_TOKEN`
  *  treatment: the art-match rule is "the token associated with the PRODUCING
  *  card's own printing", and Stormchaser's Talent's own BLB printing
- *  reverse-links its Otter in `generated/token-prints.json`, resolved per
- *  producer by `tokenPrintIdFor` — so a later Otter producer picks up ITS
+ *  reverse-links its Otter in the Card Prints table's Token Prints, resolved per
+ *  producer by the client's Token Print resolver — so a later Otter producer picks up ITS
  *  printing's art instead of inheriting BLB's. */
 export const OTTER_TOKEN: EffectTokenSpec = {
     name: "Otter",
@@ -232,7 +229,7 @@ export const OTTER_TOKEN: EffectTokenSpec = {
  *  treatment: Human is a printed token in many sets with different art, and
  *  the art-match rule is "the token associated with the PRODUCING card's own
  *  printing" — `SpellContext.createToken` resolves it per producer from
- *  `generated/token-prints.json` (`tokenPrintIdFor`), reverse-linked from
+ *  the client's Token Print resolver (`src/lib/tokenArt.ts`), reverse-linked from
  *  Adeline's own MID #1 printing's `all_parts` Human token. */
 export const HUMAN_TOKEN: EffectTokenSpec = {
     name: "Human",
@@ -254,10 +251,9 @@ export const HUMAN_TOKEN: EffectTokenSpec = {
  *  specs above: every Living Weapon card has its OWN printed Germ token, so
  *  pinning one id here would stamp (say) Batterskull's NPH Germ onto Kaldra
  *  Compleat. `SpellContext.createToken` auto-resolves the art per PRODUCING
- *  card from `generated/token-prints.json` keyed by (card id, "Phyrexian
- *  Germ") — the token/emblem art-match rule. A new Living Weapon card must
- *  therefore refresh the lockfile (`node scripts/fetch-token-prints.mjs
- *  <its set file>`) or `tokenPrintLookup.test.ts` fails CI. */
+ *  card from the Card Prints table's Token Prints (the client's resolver,
+ *  `src/lib/tokenArt.ts`) — the token/emblem art-match rule. A new Living
+ *  Weapon card needs no art wiring: its printing's row names its Germ. */
 export const PHYREXIAN_GERM_TOKEN: EffectTokenSpec = {
     name: "Phyrexian Germ",
     types: ["Creature"],
@@ -274,7 +270,7 @@ export const PHYREXIAN_GERM_TOKEN: EffectTokenSpec = {
  *
  *  Deliberately NO pinned `imagePrintId` — the `RABBIT_TOKEN`/`SKELETON_TOKEN`
  *  treatment: `SpellContext.createToken` auto-resolves the art per PRODUCING
- *  card from `generated/token-prints.json` (`tokenPrintIdFor`). */
+ *  card from the client's Token Print resolver (`src/lib/tokenArt.ts`). */
 export const REBEL_TOKEN: EffectTokenSpec = {
     name: "Rebel",
     types: ["Creature"],
@@ -289,7 +285,7 @@ export const REBEL_TOKEN: EffectTokenSpec = {
  *  (`fin/blue.ts`). Vanilla; `colors` omitted = colorless (CR 105.2/110.5).
  *
  *  Deliberately NO pinned `imagePrintId`, the `REBEL_TOKEN` treatment above —
- *  art resolves per producer from `generated/token-prints.json`. */
+ *  art resolves per producer from the Card Prints table's Token Prints. */
 export const HERO_TOKEN: EffectTokenSpec = {
     name: "Hero",
     types: ["Creature"],
@@ -308,7 +304,7 @@ export const HERO_TOKEN: EffectTokenSpec = {
  *  treatment: Zombie is a printed token in many sets with different art, and
  *  the art-match rule is "the token associated with the PRODUCING card's own
  *  printing" — `SpellContext.createToken` resolves it per producer from
- *  `generated/token-prints.json` (`tokenPrintIdFor`), reverse-linked from
+ *  the client's Token Print resolver (`src/lib/tokenArt.ts`), reverse-linked from
  *  Zombie Infestation's own ODY printing's `all_parts` Zombie token. */
 export const ZOMBIE_TOKEN: EffectTokenSpec = {
     name: "Zombie",
@@ -332,7 +328,7 @@ export const ZOMBIE_TOKEN: EffectTokenSpec = {
  *  `HUMAN_TOKEN` treatment: Skeleton is a printed token in many sets with
  *  different art, and the art-match rule is "the token associated with the
  *  PRODUCING card's own printing" — `SpellContext.createToken` resolves it
- *  per producer from `generated/token-prints.json` (`tokenPrintIdFor`),
+ *  per producer from the client's Token Print resolver (`src/lib/tokenArt.ts`),
  *  reverse-linked from Gut's own CLB #180 printing's `all_parts` Skeleton
  *  token. */
 export const SKELETON_TOKEN: EffectTokenSpec = {
@@ -420,12 +416,10 @@ export const SPIRIT_SPIRITS_ONLY_COMBAT_TOKEN: EffectTokenSpec = {
  *
  *  Deliberately NO pinned `imagePrintId`, following `RABBIT_TOKEN` above:
  *  Golem is a printed token in many sets and the art-match rule is "the token
- *  associated with the PRODUCING card's own printing", so
- *  `tokenPrintIdFor(<producing card id>, "Golem")` resolves it per producer
- *  from the reverse-linked Scryfall `all_parts` lockfile
- *  (`generated/token-prints.json`). Both producers are already in that
- *  lockfile (they happen to share the same Golem print today — pinning would
- *  freeze that coincidence onto every future producer). */
+ *  associated with the PRODUCING card's own printing", so the client resolves
+ *  it per producer from the Card Prints table's Token Prints
+ *  (`src/lib/tokenArt.ts`). Pinning would freeze one print onto every future
+ *  producer. */
 export const GOLEM_TOKEN: EffectTokenSpec = {
     name: "Golem",
     types: ["Artifact", "Creature"],
@@ -453,7 +447,7 @@ export const GOLEM_TOKEN: EffectTokenSpec = {
  *  `HUMAN_TOKEN`/`SKELETON_TOKEN` treatment: Pest is a printed token across
  *  several sets, and the art-match rule is "the token associated with the
  *  PRODUCING card's own printing" — `SpellContext.createToken` resolves it
- *  per producer from `generated/token-prints.json` (`tokenPrintIdFor`),
+ *  per producer from the client's Token Print resolver (`src/lib/tokenArt.ts`),
  *  reverse-linked from each producer's own printing's `all_parts` Pest
  *  token entry. */
 export const PEST_TOKEN: EffectTokenSpec = {
@@ -486,11 +480,10 @@ export const PEST_TOKEN: EffectTokenSpec = {
  *  Deliberately NO pinned `imagePrintId`, the `RABBIT_TOKEN`/`KNIGHT_TOKEN`/
  *  `HUMAN_TOKEN` treatment: the art-match rule is "the token associated with
  *  the PRODUCING card's own printing", resolved per producer from
- *  `generated/token-prints.json` (`tokenPrintIdFor`). Grist's own MH2 #202
- *  printing reverse-links to the TMH2 #13 black-and-green Insect token, and
- *  its `resolve()` body passes that id explicitly — `tokenPrintLookup.test.ts`
- *  is blind to `resolve()`-created tokens (CLAUDE.md § Card definition
- *  checklist), so the producer, not this spec, carries the lookup. */
+ *  the client's Token Print resolver (`src/lib/tokenArt.ts`). Grist's own MH2 #202
+ *  printing reverse-links to the TMH2 #13 black-and-green Insect token; its
+ *  `resolve()` body goes through `SpellContext.createToken`, which stamps
+ *  Grist's printing as `sourcePrintId`. */
 export const INSECT_TOKEN: EffectTokenSpec = {
     name: "Insect",
     types: ["Creature"],
@@ -514,8 +507,8 @@ export const INSECT_TOKEN: EffectTokenSpec = {
  *
  *  Deliberately NO pinned `imagePrintId`, the `INSECT_TOKEN` treatment: the
  *  art-match rule is "the token associated with the PRODUCING card's own
- *  printing", resolved per producer from `generated/token-prints.json`
- *  (`tokenPrintIdFor`). Springheart Nantuko's MH3 #171 printing reverse-links
+ *  printing", resolved per producer from the Card Prints table's Token Prints
+ *  (the client's Token Print resolver). Springheart Nantuko's MH3 #171 printing reverse-links
  *  to the TMH3 #25 mono-green Insect token, which is exactly this spec. */
 export const GREEN_INSECT_TOKEN: EffectTokenSpec = {
     name: "Insect",
@@ -535,7 +528,7 @@ export const GREEN_INSECT_TOKEN: EffectTokenSpec = {
  *  `HUMAN_TOKEN` treatment: Cat is a printed token across many sets with
  *  different characteristics, and the art-match rule is "the token associated
  *  with the PRODUCING card's own printing" — `SpellContext.createToken` resolves
- *  it per producer from `generated/token-prints.json` (`tokenPrintIdFor`),
+ *  it per producer from the client's Token Print resolver (`src/lib/tokenArt.ts`),
  *  reverse-linked from Esika's Chariot's own KHM #167 printing's `all_parts`
  *  2/2 green Cat token. */
 export const CAT_TOKEN: EffectTokenSpec = {
@@ -557,7 +550,7 @@ export const CAT_TOKEN: EffectTokenSpec = {
  *  characteristics (VOW's 1/1 black flier, MID's, LCI's), and the art-match
  *  rule is "the token associated with the PRODUCING card's own printing" —
  *  `SpellContext.createToken` resolves it per producer from
- *  `generated/token-prints.json` (`tokenPrintIdFor`), reverse-linked from
+ *  the client's Token Print resolver (`src/lib/tokenArt.ts`), reverse-linked from
  *  Sanguine Evangelist's own LCI #34 printing's `all_parts` Bat token. */
 export const BAT_TOKEN: EffectTokenSpec = {
     name: "Bat",
@@ -590,7 +583,7 @@ export const BAT_TOKEN: EffectTokenSpec = {
  *  `HUMAN_TOKEN` treatment: Food is a printed token across many sets and the
  *  art-match rule is "the token associated with the PRODUCING card's own
  *  printing", which `SpellContext.createToken` resolves per producer from
- *  `generated/token-prints.json` (`tokenPrintIdFor`) — Oko's own ELD #197
+ *  the client's Token Print resolver (`src/lib/tokenArt.ts`) — Oko's own ELD #197
  *  printing reverse-links to the ELD Food token. */
 export const FOOD_TOKEN: EffectTokenSpec = {
     name: "Food",

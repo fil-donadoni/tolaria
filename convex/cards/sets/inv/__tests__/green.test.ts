@@ -1084,12 +1084,11 @@ describe("Saproling Infestation (CR 702.33d / 603.2)", () => {
         const tokenDef = getDefinition((tokens[0].card as { id: string }).id);
         expect(tokenDef.name).toBe("Saproling");
         expect(tokenDef.manaCost).toEqual({ G: 1 });
-        // CR 707.2 token art — auto-resolved from this card's own Scryfall
-        // reverse-link (`token-prints.json` → the Invasion Saproling print),
-        // not hand-pinned. Undefined here would render a bare placeholder.
-        expect(tokenDef.imagePrintId).toBe(
-            "248ade83-ac57-42d6-985c-1e4cc3639f36"
-        );
+        // CR 707.2 token art — never resolved engine-side (ADR 0140 §6): the
+        // token only records the printing it was made from, and the client
+        // picks that edition's Token Print.
+        expect(tokenDef.imagePrintId).toBeUndefined();
+        expect(tokens[0].sourcePrintId).toBe(saprolingInfestation.id);
     });
 
     it("is SYMMETRIC — the OPPONENT's kick still gives the controller the token (CR 603.2)", () => {

@@ -901,13 +901,14 @@ describe("gameStates serialize round-trip", () => {
                 delayedOracleText:
                     "At the beginning of the monarch's end step, that player draws a card.",
                 designationId: "monarch",
-                // Per-source themed marker (Forth Eorlingas' LTR printing).
-                designationImagePrintId: "63455c28-3e53-45b1-8d0b-a5045dab1fb9",
+                // The crowning card's Card ID (ADR 0140 §6, issue #4120) — the
+                // client picks the themed marker from its Token Print.
+                sourcePrintId: "63455c28-3e53-45b1-8d0b-a5045dab1fb9",
             },
         ];
         const expanded = expandState(compactState(state));
         expect(expanded.stack[0].designationId).toBe("monarch");
-        expect(expanded.stack[0].designationImagePrintId).toBe(
+        expect(expanded.stack[0].sourcePrintId).toBe(
             "63455c28-3e53-45b1-8d0b-a5045dab1fb9"
         );
     });

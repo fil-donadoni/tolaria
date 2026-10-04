@@ -938,12 +938,12 @@ describe("buildStateFromScenario — tokens (CR 111 / 707.2)", () => {
         expect(slim.isToken).toBe(true);
         // The projection strips `card` down to `{ id }`, so the client rebuilds
         // the token's characteristics from the content-derived id alone
-        // (`maybeSynthesizeToken`) — including its art.
+        // (`maybeSynthesizeToken`); its art rides as the `sourcePrintId` the
+        // instance carries (ADR 0140 §6, issue #4120).
         const synthesized = tryGetDefinition((slim.card as { id: string }).id);
         expect(synthesized?.name).toBe("Wasp");
-        expect(synthesized?.imagePrintId).toBe(
-            findTokenSpec("Wasp")!.imagePrintId
-        );
+        expect(slim.sourcePrintId).toBe(findTokenSpec("Wasp")!.sourcePrintId);
+        expect(slim.sourcePrintId).toBeDefined();
     });
 });
 

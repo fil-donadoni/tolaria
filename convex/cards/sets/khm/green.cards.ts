@@ -29,7 +29,7 @@ import { CAT_TOKEN } from "../../sharedTokens";
 // effect creating two token markers), on the shared `CAT_TOKEN` spec
 // (`cards/sharedTokens.ts`) so every future Cat producer hashes to the same
 // synthesized `tokenDefinitionId`. Art is resolved per producer from
-// `generated/token-prints.json` — Esika's Chariot's own KHM printing
+// the Card Prints table's Token Prints — Esika's Chariot's own KHM printing
 // reverse-links to the TKHM 2/2 green Cat (CR 111 / 114).
 //
 // ATTACK trigger: "create a token that's a copy of target token you control."

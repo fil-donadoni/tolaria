@@ -38,9 +38,9 @@ export const BLOOD_TOKEN_SPEC: EffectTokenSpec = {
     name: "Blood",
     types: ["Artifact"],
     subtypes: ["Blood"],
-    // Printed Blood token art reverse-linked from Voldaren Epicure (vow) via
-    // tokenPrintLookup.ts; catalogue guard #941 requires it on any DSL
-    // createToken spec with a known printed counterpart.
+    // Printed Blood token art reverse-linked from Voldaren Epicure (vow);
+    // catalogue guard #941 requires it on any DSL createToken spec with a
+    // known printed counterpart.
     imagePrintId: "a6f374bc-cd29-469f-808a-6a6c004ee8aa",
     activatedAbilities: [
         {

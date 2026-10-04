@@ -14,10 +14,9 @@ import { landfallTrigger } from "../../abilities/triggers/landfallTrigger";
 import { eternalizeAbility } from "../../abilities/eternalize";
 
 /** CR 111 — Fanatic of Rhonas's own printed eternalize token (tmh3 #15, a 4/4
- *  black Token Creature — Zombie Snake Druid). Pinned by hand: the catalogue's
- *  token-art guard (`tokenPrintLookup.test.ts`) only walks `createToken`
- *  specs, and an eternalize token is created by `createTokenCopy`, which has no
- *  static spec to inspect. */
+ *  black Token Creature — Zombie Snake Druid). Pinned by hand: an eternalize token
+ *  is created by `createTokenCopy`, which has no static spec to resolve a
+ *  Token Print from. */
 const FANATIC_OF_RHONAS_TOKEN_PRINT_ID = "6ef58164-4155-4e5b-8c16-f16f2ab65baa";
 
 // Fanatic of Rhonas — {1}{G} Creature — Snake Druid, 1/4.

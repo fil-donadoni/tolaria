@@ -72,7 +72,7 @@ export const sulfuricVortex: CardDefinition = {
 // Siege-Gang Commander — {3}{R}{R} 2/2 Goblin. "When this creature enters,
 // create three 1/1 red Goblin creature tokens." (CR 603.6a ETB trigger,
 // CR 111 / 701.7 token creation — the shared `GOBLIN_TOKEN` spec, its art
-// resolved from THIS card's own printing through `tokenPrintIdFor`.)
+// resolved from THIS card's own printing through the client's Token Print resolver.)
 // "{1}{R}, Sacrifice a Goblin: This creature deals 2 damage to any target."
 // (CR 602.1 activation, CR 701.21 sacrifice as a cost, CR 115.4 "any
 // target".) The sacrifice leg is `cost.sacrificeFilter` — a filtered

@@ -1072,6 +1072,12 @@ export type CardInstanceState = {
      *  Rhonas's tmh3 #15 Zombie Snake Druid frame, not the MH3 creature's), and
      *  preferred by the card renderer over the definition-derived art. */
     imagePrintId?: string;
+    /** CR 111 (ADR 0140 §6, issue #4120) — the printing a TOKEN was created
+     *  from: the creating object's `imagePrintId`, else its Card ID. Stamped at
+     *  token creation, opaque to every rules module (the engine-blindness
+     *  guard), and read ONLY by the client's token-art resolver
+     *  (`src/lib/tokenArt.ts`) to pick the Token Print of that edition. */
+    sourcePrintId?: string;
     /** Timed color override (CR 305.7 / 613.1d — "becomes the color of your
      *  choice until end of turn", Kavu Chameleon, issue #1065). While
      *  present, `colorOverride` above has been overwritten with `colors`;
@@ -2330,13 +2336,6 @@ export type StackItem = Omit<CardInstanceState, "chosenModeId"> & {
      *  trigger would otherwise show (`card.id` is ""). Purely cosmetic — the
      *  resolution path is the inline `delayedEffects` one. */
     designationId?: string;
-    /** Per-source Scryfall print id overriding the designation's global marker
-     *  art on this tile (issue #1305). Set by `buildMonarchDrawStackItem` from
-     *  `state.monarchSourceCardId` (resolved via `tokenPrintIdFor`) so the
-     *  Monarch draw shows the granting card's own set-themed marker; omitted
-     *  when there is no themed source, and the client falls back to
-     *  `designation.imagePrintId`. Cosmetic only. */
-    designationImagePrintId?: string;
     /** Resume checkpoint for a multi-step resolve (CR 608.3). Index into
      *  `CardDefinition.resolveSteps`. Advanced by the engine after a step
      *  completes without enqueueing pending choices. Undefined = start from

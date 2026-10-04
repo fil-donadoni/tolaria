@@ -26,7 +26,6 @@
 import { getAllCards, tokenDefinitionId } from "./index";
 import * as SHARED_TOKENS from "./sharedTokens";
 import { literalTokenPT } from "./sharedTokens";
-import { tokenPrintIdFor } from "./tokenPrintLookup";
 import { resolveTokenTriggeredAbilities } from "./tokenTriggeredAbilities";
 import { childOpArrays } from "../gre/ai/effectOpChildren";
 import type {
@@ -45,7 +44,9 @@ export type TokenCatalogueEntry = {
     key: string;
     /** The token's display name (CR 707.2) — may repeat across entries. */
     name: string;
-    /** The spec to hand to `createTokenPermanents`, art already resolved. */
+    /** The spec to hand to `createTokenPermanents`; carries the producer's
+     *  `sourcePrintId` so the client picks the same Token Print a real
+     *  creation would. */
     spec: TokenSpec;
     /** Content-derived definition id (`tokenDefinitionId`) — the identity this
      *  entry is deduped by. */
@@ -90,7 +91,8 @@ export function allTokenSpecsFor(card: CardDefinition): EffectTokenSpec[] {
 // ---- Spec normalization ----------------------------------------------------
 
 /** Turn a JSON-pure `EffectTokenSpec` into the `TokenSpec` the engine
- *  primitive takes, resolving art and collapsing `entersWith` counts.
+ *  primitive takes, naming its source printing and collapsing `entersWith`
+ *  counts.
  *
  *  `EffectTokenSpec.entersWith.counters[].count` is an `EffectValue` resolved
  *  at execution time against the script's bindings (`createToken` in
@@ -130,11 +132,12 @@ function toTokenSpec(
         ...(literalTokenPT(toughness) === undefined
             ? {}
             : { toughness: literalTokenPT(toughness) }),
-        // CR 707.1 — art resolution mirrors `SpellContext.createToken`: an
-        // explicit `imagePrintId` wins, else the build-time Scryfall
-        // reverse-link keyed by (producing card id, token name).
-        ...(spec.imagePrintId === undefined && producerCardId !== undefined
-            ? { imagePrintId: tokenPrintIdFor(producerCardId, spec.name) }
+        // CR 707.1 / ADR 0140 §6 (issue #4120) — mirrors
+        // `SpellContext.createToken`: an explicit `imagePrintId` stays on the
+        // spec, and the PRODUCING card's Card ID rides as the opaque
+        // `sourcePrintId` the client resolves a Token Print from.
+        ...(producerCardId !== undefined
+            ? { sourcePrintId: producerCardId }
             : {}),
         ...(counters && counters.length > 0
             ? { entersWith: { counters } }
@@ -188,10 +191,9 @@ function collectRawEntries(): RawEntry[] {
         // Dedupe by the shape's CHARACTERISTICS, i.e. the content-derived id
         // with the art segment stripped: the same 1/1 white Spirit created by
         // two different cards is ONE catalogue entry even though each carries
-        // its own producer's printed art. Art is then upgraded in place, so
-        // the surviving entry is the one that actually renders (a shared spec
-        // with no `imagePrintId` loses to a producer whose Scryfall
-        // reverse-link resolved one).
+        // its own producer's `sourcePrintId`. An explicit `imagePrintId` pin then
+        // upgrades the entry in place, so the surviving entry is the one that
+        // renders pinned art (a spec with no pin loses to a producer with one).
         const shapeKey = tokenDefinitionId({
             ...spec,
             imagePrintId: undefined,

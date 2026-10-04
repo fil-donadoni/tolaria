@@ -553,16 +553,19 @@ function projectLibrary(
 /** Strips from a slimmed face-down object the two fields that would name the
  *  card underneath, for a viewer the rules do not let look at it (CR 708.5 on
  *  the battlefield and stack, CR 406.3 in exile): `faceDownOf`, the real id,
- *  and `imagePrintId`, the chosen printing (ADR 0140 §6, issue #4119) — a
+ *  `imagePrintId`, the chosen printing (ADR 0140 §6, issue #4119), and
+ *  `sourcePrintId`, the printing a token was made from (issue #4120) — a
  *  print id is a Scryfall id, so it identifies the card as surely as the
  *  definition id does. ONE helper for all three face-down legs, so a field
  *  added here is hidden everywhere at once. */
 function hideFaceDownIdentity(slimmed: {
     faceDownOf?: string;
     imagePrintId?: string;
+    sourcePrintId?: string;
 }): void {
     delete slimmed.faceDownOf;
     delete slimmed.imagePrintId;
+    delete slimmed.sourcePrintId;
 }
 
 /** Projects one battlefield permanent for a given viewer. The battlefield is

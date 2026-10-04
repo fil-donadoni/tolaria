@@ -15,10 +15,10 @@
 // Art: the real MOM "Incubator // Phyrexian" double-faced token print
 // (Scryfall id 2c5ed737-657b-43bf-b222-941da7579a4a, shared by every printed
 // Incubate source per Scryfall's `all_parts`) is pinned explicitly on both
-// faces rather than relying on `tokenPrintIdFor` auto-resolution — the
+// faces rather than relying on the client's Token Print resolver auto-resolution — the
 // lockfile's entry name is the concatenated DFC name "Incubator //
 // Phyrexian", not this spec's own front-face name "Incubator"
-// (`tokenPrintIdFor` name-matches exactly, so the auto-resolve path would
+// (the client's Token Print resolver name-matches exactly, so the auto-resolve path would
 // miss). Once transformed, the back face renders the correct BACK-face art:
 // `registerBackFaceDefinition` (`gre/transform.ts`) stamps the synthesized
 // Phyrexian definition `imagePrintFace: "back"`, and `src/lib/images.ts`

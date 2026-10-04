@@ -50,7 +50,6 @@ import { projectPublicState } from "../../../../gameProjections";
 import { sagaBoard, tickChapter } from "./urzasSagaFixtures.fixture";
 import { type StackItem } from "../../../../gre/state";
 import { effectiveTriggeredAbilities } from "../../../../gre/copy";
-import { tokenPrintIdFor } from "../../../tokenPrintLookup";
 
 const yavimayaCradleOfGrowth = getDefinition(
     "4e4b6e22-93b2-4896-bba5-0ceaa5d8ea3c"
@@ -713,9 +712,6 @@ describe("Kaldra Compleat (MH2 #232, Living Weapon — issue #1340)", () => {
         expect(kaldraCompleat.triggeredGrantTemplates![0].id).toBe(
             "kaldra-compleat-granted-exile"
         );
-        expect(tokenPrintIdFor(kaldraCompleat.id, "Phyrexian Germ")).toBe(
-            "b53e0681-603e-4180-bc86-3dadf214e61a"
-        );
     });
 
     it("living weapon makes a 5/5 first-striking Germ with every granted keyword (GRE and wire format)", () => {
@@ -822,9 +818,6 @@ describe("Nettlecyst (MH2 #231, Living Weapon — issue #1340)", () => {
         expect((nettlecyst.staticEffects ?? []).map((e) => e.kind)).toEqual([
             "pt-cda",
         ]);
-        expect(tokenPrintIdFor(nettlecyst.id, "Phyrexian Germ")).toBe(
-            "b53e0681-603e-4180-bc86-3dadf214e61a"
-        );
     });
 
     // CR 604.3 — a live board count, re-read at stat-read time. Nettlecyst

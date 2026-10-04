@@ -24,7 +24,6 @@ import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { diedTrigger } from "../../abilities/triggers/diedTrigger";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { untapRestriction } from "../../abilities/static/untapRestriction";
-import { tokenPrintIdFor } from "../../tokenPrintLookup";
 
 export const ankhOfMishra: CardDefinition = {
     id: "f594b7aa-d44e-47c4-989b-565f881e25f1",
@@ -1297,9 +1296,8 @@ export const sunglassesOfUrza: CardDefinition = {
 // token with flying named Wasp." (CR 111 / 707.1 token creation, 702.9
 // flying.) Uses the new `createToken` primitive; the token is wiped from
 // any non-battlefield zone by CR 704.5d (`checkTokenExistenceSBA`).
-// Token print Scryfall id is resolved from
-// `convex/cards/generated/token-prints.json` — refresh that mapping by
-// running `node scripts/fetch-token-prints.mjs convex/cards/sets/*.ts`.
+// The token's print is picked by the client from the Card Prints table's
+// Token Prints for the creating printing.
 const HIVE_ID = "544a7138-eae8-4ff9-9e17-680bfa717183";
 
 export const theHive: CardDefinition = {
@@ -1330,7 +1328,6 @@ export const theHive: CardDefinition = {
                         power: 1,
                         toughness: 1,
                         staticAbilities: ["flying"],
-                        imagePrintId: tokenPrintIdFor(HIVE_ID, "Wasp"),
                     },
                     controller: "controller",
                 },

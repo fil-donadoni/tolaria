@@ -32,7 +32,6 @@ import {
     getEffectiveToughness,
 } from "../../../../gre/layers";
 import { projectPublicState } from "../../../../gameProjections";
-import { tokenPrintIdFor } from "../../../tokenPrintLookup";
 import { getDefinition } from "../../../index";
 
 const batterskull = getDefinition("cd114ec3-d286-4c70-a122-3043bc53cc88");
@@ -78,14 +77,6 @@ function findGerm(state: GameState): CardInstanceState | undefined {
 }
 
 describe("Batterskull (NPH #128, Living Weapon — issue #1340)", () => {
-    // CR 114 / token art rule — Batterskull's OWN printing's Germ, not a
-    // substitute borrowed from another Living Weapon card.
-    it("resolves its own printed Phyrexian Germ token art", () => {
-        expect(tokenPrintIdFor(batterskull.id, "Phyrexian Germ")).toBe(
-            "65c65445-1016-4fd3-963e-1c9eb252d4a6"
-        );
-    });
-
     // CR 702.92a — create the Germ, THEN attach this Equipment to it.
     it("living weapon creates a 0/0 black Germ and attaches to it (GRE and wire format)", () => {
         const { state, skull } = setup();

@@ -17,7 +17,6 @@ import {
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { emitAttackersDeclaredEvents } from "../../../../gre/phases";
 import { projectPublicState } from "../../../../gameProjections";
-import { tokenPrintIdFor } from "../../../tokenPrintLookup";
 import { getDefinition } from "../../../index";
 
 const gutTrueSoulZealot = getDefinition("3d8ca18d-9099-4f1e-95c1-f04da58a26bd");
@@ -224,11 +223,6 @@ describe("Gut, True Soul Zealot attack trigger (CR 508.1) — optional sacrifice
                 cardInstanceIds: [gut.id],
             })
         ).toThrow("Card does not match the required filter");
-    });
-
-    it("wires the Skeleton's art from the reverse-linked Scryfall lockfile (CR 111)", () => {
-        const expected = tokenPrintIdFor(gutTrueSoulZealot.id, "Skeleton");
-        expect(expected).toBeDefined();
     });
 });
 

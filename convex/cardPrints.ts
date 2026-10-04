@@ -1,7 +1,8 @@
 // Card Prints (ADR 0140, issue #4116/#4117) — `upsertBatch` (via
 // `bun run prints:sync`) is the ONLY writer of this table; `listByCardId`
 // below is its first reader, the deck builder's edition selector (issue
-// #4117). Engine transport and token art are later slices of PRD #4115.
+// #4117); `getByPrintIds` serves the deck builder's resolver (issue #4118) and
+// `tokenPrintsForGame` the board's token art (issue #4120).
 
 import { v } from "convex/values";
 import { paginationOptsValidator } from "convex/server";
@@ -192,5 +193,77 @@ export const getByPrintIds = query({
                   ]
                 : []
         );
+    },
+});
+
+/** The slim row `tokenPrintsForGame` ships. */
+export interface TokenPrintRowFields {
+    printId: string;
+    cardId: string;
+    tokenPrints: { name: string; tokenPrintId: string }[];
+}
+
+/** The Card IDs whose DEFINITION printing the fetch must also read: every
+ *  Card ID a chosen printing points at that is not itself already read. The
+ *  client's chain falls back to that row when the chosen edition printed no
+ *  token of the name (issue #4120). Pure core of `tokenPrintsForGame`. */
+export function definitionPrintIdsToRead(
+    own: readonly { printId: string; cardId: string }[]
+): string[] {
+    const have = new Set(own.map((r) => r.printId));
+    return [...new Set(own.map((r) => r.cardId).filter((id) => !have.has(id)))];
+}
+
+/** The rows `tokenPrintsForGame` returns: every row read, minus one that can
+ *  neither name a token nor point at another printing (its own Card ID, no
+ *  Token Prints). Pure core of `tokenPrintsForGame`. */
+export function toTokenPrintRows(
+    rows: readonly TokenPrintRowFields[]
+): TokenPrintRowFields[] {
+    return rows
+        .filter((r) => r.tokenPrints.length > 0 || r.cardId !== r.printId)
+        .map((r) => ({
+            printId: r.printId,
+            cardId: r.cardId,
+            tokenPrints: r.tokenPrints,
+        }));
+}
+
+/**
+ * The Game-load Token Print fetch (ADR 0140 §4, issue #4120): ONE query for
+ * every Print ID in both decks, so a token's art is known the moment the board
+ * renders and never flickers. The client's resolver (`src/lib/tokenArt.ts`)
+ * reads a token's `sourcePrintId` row first, then the row of the DEFINITION
+ * printing — which this query reads in the same handler for every row whose
+ * `cardId` differs from its `printId`, so a chosen printing with no Token Print
+ * of its own still reaches the Card's default one without a second round trip.
+ *
+ * Slim by construction: no set / rarity / flags, and a row that can neither
+ * name a token nor point at another printing (its own Card ID, no Token
+ * Prints) is omitted — the client treats an absent row as "nothing to show".
+ */
+export const tokenPrintsForGame = query({
+    args: { printIds: v.array(v.string()) },
+    returns: v.array(
+        v.object({
+            printId: v.string(),
+            cardId: v.string(),
+            tokenPrints: v.array(tokenPrintValidator),
+        })
+    ),
+    handler: async (ctx, { printIds }) => {
+        const readRow = (printId: string) =>
+            ctx.db
+                .query("cardPrints")
+                .withIndex("by_printId", (q) => q.eq("printId", printId))
+                .unique();
+        const wanted = [...new Set(printIds.slice(0, MAX_PRINT_IDS))];
+        const own = (await Promise.all(wanted.map(readRow))).flatMap((r) =>
+            r ? [r] : []
+        );
+        const definitions = (
+            await Promise.all(definitionPrintIdsToRead(own).map(readRow))
+        ).flatMap((r) => (r ? [r] : []));
+        return toTokenPrintRows([...own, ...definitions]);
     },
 });
