@@ -27,12 +27,14 @@ import type { ScenarioCard } from "../../debugScenarioSpec";
  *  search's filter matches is the one the library holds. */
 const LIBRARY_CANDIDATES = ["Craw Wurm", "Juggernaut"] as const;
 
-/** The filter of the holder's library search whose result the script moves to
- *  the battlefield, at any depth, or undefined. */
-function libraryPutFilter(node: unknown): EffectCardFilter | undefined {
+/** The holder's library search (its filter and the binding its result lands
+ *  in), at any depth, or undefined. */
+function libraryPutSearch(
+    node: unknown
+): { filter: EffectCardFilter; bind: string } | undefined {
     if (Array.isArray(node)) {
         for (const child of node) {
-            const found = libraryPutFilter(child);
+            const found = libraryPutSearch(child);
             if (found) return found;
         }
         return undefined;
@@ -48,26 +50,36 @@ function libraryPutFilter(node: unknown): EffectCardFilter | undefined {
         rec.filter !== null &&
         typeof rec.bind === "string"
     )
-        return rec.filter as EffectCardFilter;
+        return { filter: rec.filter as EffectCardFilter, bind: rec.bind };
     for (const child of Object.values(rec)) {
-        const found = libraryPutFilter(child);
+        const found = libraryPutSearch(child);
         if (found) return found;
     }
     return undefined;
 }
 
-/** Does the script move the card bound to a search onto the battlefield? */
-function putsOntoBattlefield(def: CardDefinition): boolean {
-    return JSON.stringify(def.effects ?? []).includes('"to":"battlefield"');
+/** Does the script move the card bound to `bind` onto the battlefield? */
+function putsBoundCard(node: unknown, bind: string): boolean {
+    if (Array.isArray(node)) return node.some((n) => putsBoundCard(n, bind));
+    if (node === null || typeof node !== "object") return false;
+    const rec = node as Record<string, unknown>;
+    const cards = rec.cards as { ref?: unknown } | undefined;
+    if (
+        rec.op === "moveZone" &&
+        rec.to === "battlefield" &&
+        cards?.ref === bind
+    )
+        return true;
+    return Object.values(rec).some((child) => putsBoundCard(child, bind));
 }
 
 /** The library card the position hands a spell that puts a searched card onto
  *  the battlefield, or none. */
 export function libraryPutPose(def: CardDefinition): ScenarioCard[] {
     if (!def.types.some((t) => t === "Instant" || t === "Sorcery")) return [];
-    if (!putsOntoBattlefield(def)) return [];
-    const filter = libraryPutFilter(def.effects ?? []);
-    if (!filter) return [];
+    const search = libraryPutSearch(def.effects ?? []);
+    if (!search || !putsBoundCard(def.effects ?? [], search.bind)) return [];
+    const filter = search.filter;
     for (const name of LIBRARY_CANDIDATES) {
         const candidate = tryGetCardByName(name);
         if (!candidate || !handCardMatchesFilter({ card: candidate }, filter))
