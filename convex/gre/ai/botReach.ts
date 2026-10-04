@@ -91,6 +91,7 @@ import { landTapPose } from "./botReachLandTap";
 import { nonbasicBurnPose } from "./botReachNonbasicBurn";
 import { graveyardExilePose } from "./botReachGraveyardExile";
 import { graveyardReturnPose } from "./botReachGraveyardReturn";
+import { graveyardPlayPose } from "./botReachGraveyardPlay";
 import { creatureSweepPose } from "./botReachCreatureSweep";
 import { libraryPutPose } from "./botReachLibraryPut";
 import { handRefillSpell } from "./botReachHandRefill";
@@ -977,6 +978,7 @@ export function botReachSpec(
         ...nonbasicBurnPose(def),
         ...graveyardExilePose(def),
         ...graveyardReturnPose(def),
+        ...graveyardPlayPose(def),
         ...creatureSweepPose(def),
         ...libraryPutPose(def)
     );
