@@ -11,8 +11,8 @@
 //
 // WHAT A PROMOTION COMPUTES IS WHAT THE GUARD COMPUTES. The corpus is the
 // blade registry's verdicts followed by the lock's (`lockedVerdictCorpus`),
-// the pairs are built at `FIT_BASE_EVAL_WEIGHTS`, and the fit starts there —
-// the exact pipeline `weightFit.bot.test.ts` re-runs. The weights this writes
+// the pairs are built at `FIT_BASE_EVAL_WEIGHTS`, the fit reads their fit side
+// (`heldOut.ts`) and starts there — the exact pipeline `weightFit.bot.test.ts` re-runs. The weights this writes
 // are therefore the weights that guard demands of the lock it writes, and a
 // lock committed without them is red.
 
@@ -22,6 +22,7 @@ import {
     collectVerdictReport,
     formatTimingSection,
     evalPairsOf,
+    fitInputPairs,
     fitWeights,
     formatPromotionReport,
     formatStoreValidation,
@@ -33,6 +34,7 @@ import {
     formatTesterQuality,
     rewriteDefaultEvalWeights,
     serializeVerdictLock,
+    testPositionKeysOf,
     testerQualityOf,
     validateStoreObjects,
     verdictsFromRegistry,
@@ -122,7 +124,17 @@ export function runVerdictPromotionStep(
                 .join("\n")}`
         );
     }
-    const result = fitWeights(before.pairs, FIT_BASE_EVAL_WEIGHTS);
+    // The fit reads the fit side of the held-out split only (issue #3981):
+    // the held-out side's pairs never reach `fitWeights`. Everything else
+    // below — the re-derived report, Minimal Pairs — reads the whole corpus.
+    const result = fitWeights(
+        fitInputPairs(
+            before.pairs,
+            corpus.verdicts,
+            testPositionKeysOf(scenarios)
+        ),
+        FIT_BASE_EVAL_WEIGHTS
+    );
     // The report's pairs are RE-DERIVED at the fitted vector, as
     // `bun run fit:weights` does: the fit's own `predicted` is first-order.
     const after = collectVerdictReport(corpus.verdicts, {

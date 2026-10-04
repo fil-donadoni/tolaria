@@ -50,22 +50,27 @@ import {
     FITTABLE_WEIGHT_KEYS,
     VERDICT_LOCK_PATH,
     collectVerdictReport,
+    fitInputPairs,
     fitWeights,
     rewriteDefaultEvalWeights,
     serializeVerdictLock,
+    testPositionKeysOf,
     verdictPackObjectName,
+    verdictSideOf,
     verdictsFromLock,
     verdictsFromRegistry,
     weightValue,
     type EvalPair,
     type FittableWeightKey,
     type RegistryVerdicts,
+    type Verdict,
 } from "../verdicts";
 import type { EvalTerms } from "../../evaluate";
 
 const REPO = resolve(__dirname, "../../../..");
 
-/** The guard's pipeline over a corpus: pairs at the prior, fit from it. */
+/** The guard's pipeline over a corpus: pairs at the prior, the fit side of
+ *  the held-out split (issue #3981), fit from it. */
 function guardFit(corpus: RegistryVerdicts) {
     const report = collectVerdictReport(corpus.verdicts, {
         gaps: corpus.gaps,
@@ -73,7 +78,14 @@ function guardFit(corpus: RegistryVerdicts) {
     });
     return {
         errors: report.errors,
-        result: fitWeights(report.pairs, FIT_BASE_EVAL_WEIGHTS),
+        result: fitWeights(
+            fitInputPairs(
+                report.pairs,
+                corpus.verdicts,
+                testPositionKeysOf(BLADE_SCENARIOS)
+            ),
+            FIT_BASE_EVAL_WEIGHTS
+        ),
     };
 }
 
@@ -342,75 +354,125 @@ describe("the guard's corpus is the registry, then the lock (issue #3583, ADR 01
     });
 });
 
-describe("widening the lock and moving the weights are ONE change (issue #3583, ADR 0128 §7)", () => {
-    it("a promoted lock without its weights reds the guard; the weights it writes are the refit", async () => {
-        const registry = verdictsFromRegistry(BLADE_SCENARIOS);
-        const committed = guardFit(registry).result;
-        // A NEW explicit judgement — a position no blade entry judges (a
-        // registry one a turn later), carrying the answer its original
-        // gets. A re-stated registry judgement would be refused as already in
-        // the corpus, and would move the weights only by double counting.
-        const original = registry.verdicts.find((v) =>
-            committed.violated.some((o) => o.pair.verdictId === v.id)
+/** A NEW explicit judgement — a position no blade entry judges (a registry
+ *  one some turns later), carrying the answer its original gets, on the
+ *  requested side of the held-out split (issue #3981). A re-stated registry
+ *  judgement would be refused as already in the corpus, and would move the
+ *  weights only by double counting. */
+function leverOn(original: Verdict, side: "fit" | "held-out"): Verdict {
+    const testPositions = testPositionKeysOf(BLADE_SCENARIOS);
+    for (let later = 1; later < 100; later++) {
+        const lever: Verdict = {
+            ...original,
+            id: `lever:${later}`,
+            source: "authored",
+            spec: {
+                ...original.spec,
+                turn: (original.spec.turn ?? 1) + later,
+            },
+        };
+        if (verdictSideOf(lever, testPositions) === side) return lever;
+    }
+    throw new Error(`no later turn puts ${original.id} ${side}`);
+}
+
+/** Promote ONE attested lever over an empty lock, through the real step. */
+async function promoteOne(lever: Verdict) {
+    const store = createMemoryVerdictStore();
+    const { verdictId } = await putVerdict(store, lever);
+    await putAttestation(store, {
+        verdictId,
+        author: "jovial-guineapig-250:tester1",
+        sourceAxis: "explicit",
+    });
+    const snapshot = async (prefix: string) =>
+        Promise.all(
+            (await store.list(prefix)).map(async (name) => ({
+                name,
+                base64: Buffer.from((await store.get(name))!).toString(
+                    "base64"
+                ),
+            }))
         );
+    const source = readFileSync(join(REPO, EVAL_WEIGHTS_PATH), "utf8");
+    const promoted = runVerdictPromotionStep({
+        mode: "promote",
+        lock: null,
+        evalWeightsSource: source,
+        verdictObjects: await snapshot(VERDICT_OBJECT_PREFIX),
+        attestationObjects: await snapshot(ATTESTATION_OBJECT_PREFIX),
+    });
+    if (promoted.mode !== "promote" || promoted.noop) {
+        throw new Error("expected a promotion that writes");
+    }
+    expect(promoted.lock.verdictIds).toEqual([verdictId]);
+    const locked = verdictsFromLock(promoted.lock, [
+        { verdictId, payload: await readVerdict(store, verdictId) },
+    ]);
+    return { promoted, source, locked };
+}
+
+describe("widening the lock and moving the weights are ONE change (issue #3583, ADR 0128 §7)", () => {
+    const registry = verdictsFromRegistry(BLADE_SCENARIOS);
+    const committed = guardFit(registry).result;
+    const original = registry.verdicts.find((v) =>
+        committed.violated.some((o) => o.pair.verdictId === v.id)
+    );
+
+    it("a promoted lock without its weights reds the guard; the weights it writes are the refit", async () => {
         expect(
             original,
             "the committed fit satisfies every registry pair — this demonstration needs another position"
         ).toBeDefined();
-        const lever = {
-            ...original!,
-            spec: { ...original!.spec, turn: (original!.spec.turn ?? 1) + 1 },
-        };
-
-        const store = createMemoryVerdictStore();
-        const { verdictId } = await putVerdict(store, lever);
-        await putAttestation(store, {
-            verdictId,
-            author: "jovial-guineapig-250:tester1",
-            sourceAxis: "explicit",
-        });
-        const snapshot = async (prefix: string) =>
-            Promise.all(
-                (await store.list(prefix)).map(async (name) => ({
-                    name,
-                    base64: Buffer.from((await store.get(name))!).toString(
-                        "base64"
-                    ),
-                }))
-            );
-        const source = readFileSync(join(REPO, EVAL_WEIGHTS_PATH), "utf8");
-        const promoted = runVerdictPromotionStep({
-            mode: "promote",
-            lock: null,
-            evalWeightsSource: source,
-            verdictObjects: await snapshot(VERDICT_OBJECT_PREFIX),
-            attestationObjects: await snapshot(ATTESTATION_OBJECT_PREFIX),
-        });
-        if (promoted.mode !== "promote" || promoted.noop) {
-            throw new Error("expected a promotion that writes");
-        }
-        expect(promoted.lock.verdictIds).toEqual([verdictId]);
+        const { promoted, source, locked } = await promoteOne(
+            leverOn(original!, "fit")
+        );
 
         // The checkout holding the promotion's lock but NOT its weights: the
         // guard's own corpus shape, pipeline and comparison — red.
         const widened: RegistryVerdicts = {
-            verdicts: [
-                ...registry.verdicts,
-                ...verdictsFromLock(promoted.lock, [
-                    { verdictId, payload: await readVerdict(store, verdictId) },
-                ]),
-            ],
+            verdicts: [...registry.verdicts, ...locked],
             gaps: registry.gaps,
         };
         const { errors, result } = guardFit(widened);
         expect(errors).toEqual([]);
         expect(result.weights).not.toEqual(DEFAULT_EVAL_WEIGHTS);
+        expect(result.weights).not.toEqual(committed.weights);
 
         // The weights the promotion wrote are exactly that refit, so the same
         // checkout WITH them holds the literal the guard then demands.
         expect(promoted.evalWeightsSource).not.toBe(source);
         expect(promoted.evalWeightsSource).toBe(
             rewriteDefaultEvalWeights(source, result)
+        );
+    });
+
+    it("a promoted HELD-OUT verdict never reaches the fit: the weights are the registry's alone (issue #3981)", async () => {
+        const { promoted, source, locked } = await promoteOne(
+            leverOn(original!, "held-out")
+        );
+        // It is in the lock and in the corpus — it rebuilds, and it yields
+        // pairs the fit would have to answer…
+        const corpus = [...registry.verdicts, ...locked];
+        const widened = collectVerdictReport(corpus, {
+            gaps: registry.gaps,
+            weights: FIT_BASE_EVAL_WEIGHTS,
+        });
+        expect(widened.errors).toEqual([]);
+        expect(widened.pairs.some((p) => p.verdictId === locked[0].id)).toBe(
+            true
+        );
+        // …and the fit's input carries none of them, so the promotion writes
+        // the registry-only fit, to the byte.
+        expect(
+            fitInputPairs(
+                widened.pairs,
+                corpus,
+                testPositionKeysOf(BLADE_SCENARIOS)
+            ).some((p) => p.verdictId === locked[0].id)
+        ).toBe(false);
+        expect(promoted.evalWeightsSource).toBe(
+            rewriteDefaultEvalWeights(source, committed)
         );
     });
 });
