@@ -4362,6 +4362,7 @@
         {"id":"115.1","line":"// CR 115.1 — \"target instant or sorcery card in your graveyard\" needs one there.","sites":1,"status":"confirmed","ruleHash":"2feba56fa1398f08"},
         {"id":"115.1","line":"// CR 115.1 — \"target player\" (any player, including the controller).","sites":1,"status":"baseline"},
         {"id":"115.1","line":"// CR 115.1 — \"target player\" is any player, the controller included.","sites":1,"status":"baseline"},
+        {"id":"115.1","line":"// CR 115.1 — \"target sorcery card in your graveyard\" needs one there.","sites":1,"status":"confirmed","ruleHash":"2feba56fa1398f08"},
         {"id":"115.1","line":"// CR 115.1 — a sweep announces nothing, so there is no slot to point at;","sites":1,"status":"confirmed","ruleHash":"2feba56fa1398f08"},
         {"id":"115.1","line":"// CR 115.1 — a target is ANNOUNCED. The ability's own source is not, and","sites":1,"status":"confirmed","ruleHash":"2feba56fa1398f08"},
         {"id":"115.1","line":"// CR 115.1 — the one branch that VARIES the generated position. No","sites":1,"status":"confirmed","ruleHash":"2feba56fa1398f08"},
