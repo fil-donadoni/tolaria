@@ -44,9 +44,9 @@ describe("waitForWalkWindow (issue #5024)", () => {
         const held = "pid 4242 · land 5001";
         const h = harness([held, held, held, null]);
         const r = await waitForWalkWindow(h.input);
-        expect(r).toEqual({ waitedMs: 10_000, timedOut: false });
+        expect(r).toEqual({ waitedMs: 15_000, timedOut: false });
         expect(h.lines[0]).toContain(held);
-        expect(h.lines[1]).toContain("waited 10s");
+        expect(h.lines[1]).toContain("waited 15s");
         expect(h.lines[1]).toContain("free");
     });
 
