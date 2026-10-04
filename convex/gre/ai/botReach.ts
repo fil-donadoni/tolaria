@@ -92,6 +92,7 @@ import { nonbasicBurnPose } from "./botReachNonbasicBurn";
 import { graveyardExilePose } from "./botReachGraveyardExile";
 import { graveyardReturnPose } from "./botReachGraveyardReturn";
 import { creatureSweepPose } from "./botReachCreatureSweep";
+import { libraryPutPose } from "./botReachLibraryPut";
 export { castShape } from "./botReachForm";
 
 /** CR 115.1 — a spell that targets a SPELL needs one on the stack. Lives
@@ -975,7 +976,8 @@ export function botReachSpec(
         ...nonbasicBurnPose(def),
         ...graveyardExilePose(def),
         ...graveyardReturnPose(def),
-        ...creatureSweepPose(def)
+        ...creatureSweepPose(def),
+        ...libraryPutPose(def)
     );
     const stack = needsStackTarget(def)
         ? (stackPose(def, cycle[0]!) ?? DEFAULT_STACK_POSE)
