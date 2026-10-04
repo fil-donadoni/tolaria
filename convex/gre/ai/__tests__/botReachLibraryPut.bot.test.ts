@@ -29,13 +29,28 @@ describe("libraryPutPose", () => {
         });
     });
 
+    // Issue #4843 — a search that puts the card on top of the library is
+    // posed with a card BELOW the top, so the swap changes the next draw.
+    it("poses a card below the top for a put-on-top search with no filter", () => {
+        const pose = libraryPutPose(getCardByName("Imperial Seal")!);
+        expect(pose).toHaveLength(1);
+        expect(pose[0]).toMatchObject({
+            owner: "me",
+            zone: "library",
+            position: 2,
+        });
+    });
+
     it("poses nothing for a spell that searches no library", () => {
         expect(libraryPutPose(getCardByName("Lightning Bolt")!)).toEqual([]);
     });
 });
 
 describe("playBotReach on a library search", () => {
-    it.each(["Natural Order", "Tinker"])("plays %s", (name) => {
-        expect(playBotReach(getCardByName(name)!).outcome).toBe("played");
-    });
+    it.each(["Natural Order", "Tinker", "Imperial Seal"])(
+        "plays %s",
+        (name) => {
+            expect(playBotReach(getCardByName(name)!).outcome).toBe("played");
+        }
+    );
 });
