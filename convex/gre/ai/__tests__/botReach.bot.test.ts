@@ -1008,6 +1008,36 @@ describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
     // creature and player (CR 120.3e), so its pose is the land-target position
     // plus the opponent's surplus of small bodies; the Bot now casts it at both
     // seats.
+    // Issue #4890 — CR 603.6a: the sweep is hosted by the card's own "when this
+    // enters" trigger, so the pose reads it like a spell script's: the
+    // opponent's lands exceed the holder's, which the kicked leg destroys too.
+    it("an enters-trigger land sweep is posed against the opponent's surplus of lands", () => {
+        const def = getCardByName("Desolation Angel");
+        const lands = (owner: "me" | "opp"): number =>
+            botReachSpec(def)
+                .cards.filter(
+                    (c) =>
+                        c.owner === owner &&
+                        c.zone === "battlefield" &&
+                        [
+                            "Plains",
+                            "Island",
+                            "Swamp",
+                            "Mountain",
+                            "Forest",
+                        ].includes(c.name)
+                )
+                .reduce((n, c) => n + (c.count ?? 1), 0);
+        expect(lands("opp")).toBeGreaterThan(lands("me"));
+    });
+
+    it("played — a creature whose enters-trigger destroys every land", () => {
+        for (const name of ["Desolation Angel", "Desolation Giant"] as const)
+            expect(playBotReach(getCardByName(name)), name).toEqual({
+                outcome: "played",
+            });
+    }, 300_000);
+
     it("played — a land destroyer that also damages every creature", () => {
         expect(playBotReachSeats(getCardByName("Devastate"))).toEqual([
             { holderId: "p1", verdict: { outcome: "played" } },

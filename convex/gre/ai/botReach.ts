@@ -191,7 +191,11 @@ const FILTERED_SWEEP_CANDIDATES = [
  */
 function filteredSweepSurplus(def: CardDefinition): string[] {
     const names = new Set<string>();
-    for (const { select, effects } of battlefieldForEaches(def)) {
+    for (const { select, effects } of battlefieldForEaches(
+        def,
+        true,
+        selfEnterEffects(def)
+    )) {
         if (select.controller !== undefined || !removesSomething(effects))
             continue;
         // `sweptTypes` already poses a type filter and a missing filter.
@@ -219,6 +223,19 @@ function filteredSweepSurplus(def: CardDefinition): string[] {
         }
     }
     return [...names];
+}
+
+/**
+ * CR 603.6a — the scripts of the card's own "when this enters" triggers. The
+ * cast resolves into the battlefield and the trigger fires at once, so a
+ * removing sweep hosted there (Desolation Angel's kicked "destroy all lands")
+ * is as much part of the card's play as a spell script's: the removing-sweep
+ * detectors read these as extra roots.
+ */
+function selfEnterEffects(def: CardDefinition): unknown[] {
+    return (def.compiledTriggeredAbilities ?? [])
+        .filter((t) => t.head.kind === "entered" && t.head.scope === "self")
+        .map((t) => t.effects);
 }
 
 /** A `forEach` over the battlefield, as the sweep detectors read it. */
@@ -277,7 +294,8 @@ function selectsCreatures(select: BattlefieldForEach["select"]): boolean {
  *    die to, and {@link shrinksEveryCreature} poses it;
  *  - a filter that names no `type` (`excludeType`, `subtype`, a colour):
  *    {@link filteredSweepSurplus} poses that one;
- *  - a sweep hosted by a triggered or activated ability.
+ *  - a sweep hosted by an activated ability or by a trigger other than the
+ *    card's own "when this enters" ({@link selfEnterEffects}).
  *
  * Lives HERE for the same reason as `needsStackTarget`: it decides what the
  * generated position CONTAINS, so it is a verdict input and must be inside the
@@ -285,7 +303,11 @@ function selectsCreatures(select: BattlefieldForEach["select"]): boolean {
  */
 function sweptTypes(def: CardDefinition): ReadonlySet<SweepableType> {
     const swept = new Set<SweepableType>();
-    for (const { select, effects } of battlefieldForEaches(def)) {
+    for (const { select, effects } of battlefieldForEaches(
+        def,
+        true,
+        selfEnterEffects(def)
+    )) {
         if (select.controller !== undefined || !removesSomething(effects))
             continue;
         const named =
