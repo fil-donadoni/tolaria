@@ -247,9 +247,10 @@ interface BattlefieldForEach {
 /**
  * Every `forEach` over `set: "permanents"` in the card's SPELL script — only
  * `effects` and `modes` are read, plus any `extraRoots` a caller names (the
- * scripts of self-sacrifice abilities, see `spentSweepEffects`); a sweep
- * hosted by a triggered or any other activated ability is not one. The three detectors below read the same nodes
- * and differ only in which selector and body they claim.
+ * scripts of self-sacrifice abilities, see `spentSweepEffects`, and the
+ * card's own enters triggers, see `selfEnterEffects`); a sweep hosted by any
+ * other triggered or activated ability is not one. The three detectors below
+ * read the same nodes and differ only in which selector and body they claim.
  */
 function battlefieldForEaches(
     def: CardDefinition,
@@ -280,7 +281,8 @@ function selectsCreatures(select: BattlefieldForEach["select"]): boolean {
 }
 
 /**
- * The permanent types the card's SPELL script takes off every player's
+ * The permanent types the card's SPELL script (and its own enters triggers,
+ * {@link selfEnterEffects}) takes off every player's
  * battlefield — a `forEach` over `set: "permanents"` with no `controller` (an
  * omitted controller selects every player's battlefield) whose body removes
  * ({@link removesSomething}: destroy, exile, or a bounce — issue #4781).
