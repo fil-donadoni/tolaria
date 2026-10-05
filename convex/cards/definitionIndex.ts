@@ -22,9 +22,11 @@
 // by the generator, from the definitions; at load the catalogue reads the
 // result and touches no definition.
 //
-// Pure: no JSON import, no module-load work. The generator imports it to
-// write the index, the catalogue to read it, the client's compiled hydration
-// (`registerCompiledDefinitions`) to derive the same entries for a fetched row.
+// No JSON import and no module-load work of its own (it imports the registry
+// for `tokenDefinitionId`, and with it the registry's own load). The
+// generator imports it to write the index, the catalogue to read it, the
+// client's compiled hydration (`registerCompiledDefinitions`) to derive the
+// same entries for a fetched row.
 import type { CardDefinition } from "./types";
 import { chooseableNamesOf } from "./cardNames";
 import { backFaceAsTokenSpec } from "./backFaceSpec";

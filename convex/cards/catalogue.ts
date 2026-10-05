@@ -367,12 +367,39 @@ const setModules: { code: string; exports: Record<string, unknown> }[] = [
 
 const setModuleByCode = new Map(setModules.map((m) => [m.code, m.exports]));
 
-const handWrittenIndex =
-    definitionIndexJson as unknown as HandWrittenDefinitionIndex;
+// Both sections are read DEFENSIVELY: `catalogue:pack` imports this module,
+// so a committed index of an older or partial shape (a merge that kept one
+// side) must still load — for the generator, run by `land`'s resolver, to
+// rewrite it. Reporting it stale is the freshness gate's job
+// (`scripts/__tests__/catalogue-artifact.test.ts`), never a load-time throw.
+const EMPTY_LOOKUPS: DefinitionIndexLookups = {
+    twinNames: {},
+    chooseableNames: {},
+    backFaceTriggers: {},
+};
+
+const handWrittenIndex: HandWrittenDefinitionIndex = (() => {
+    const raw = definitionIndexJson as unknown as
+        | Partial<HandWrittenDefinitionIndex>
+        | undefined;
+    return {
+        entries: raw?.entries ?? [],
+        lookups: { ...EMPTY_LOOKUPS, ...raw?.lookups },
+    };
+})();
 
 /** The COMPILED section: the packed corpus's index on the server, `null` in a
  *  client graph, whose compiled rows arrive from the fetched artifact. */
-const compiledIndex: CompiledDefinitionIndex | null = packedServerCorpus;
+const compiledIndex: CompiledDefinitionIndex | null = (() => {
+    const raw = packedServerCorpus as Partial<CompiledDefinitionIndex> | null;
+    if (raw === null) return null;
+    return {
+        ids: raw.ids ?? [],
+        names: raw.names ?? [],
+        setCodes: raw.setCodes ?? [],
+        lookups: { ...EMPTY_LOOKUPS, ...raw.lookups },
+    };
+})();
 
 const handWrittenEntryById = new Map(
     handWrittenIndex.entries.map((entry) => [entry[0], entry])
@@ -517,15 +544,17 @@ function addLookups(lookups: DefinitionIndexLookups): void {
     }
 }
 
-/** One compiled card joins the populations. A module-declared card wins its
- *  Set and its name; a row already registered is not registered twice. */
+/** One compiled card joins the populations. A compiled row for a hand-written
+ *  card never does (ADR 0108 — the same rule `excludeHandWritten` states for
+ *  a fetched row); a module-declared card wins its Set and its name; a row
+ *  already registered is not registered twice. */
 function addCompiled(
     id: string,
     name: string,
     setCode: string | undefined,
     twinNames: readonly NameEntry[]
 ): void {
-    if (compiledIdSet.has(id)) return;
+    if (handWrittenIds.has(id) || compiledIdSet.has(id)) return;
     compiledIdSet.add(id);
     compiledIds.push(id);
     compiledNames.push(name);

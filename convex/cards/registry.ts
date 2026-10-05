@@ -64,6 +64,12 @@ import { setCardSupertypeLookup } from "./supertypeLookup";
  *  the lazy source, or via `preloadDefinitions` (client compiled rows). */
 const registry = new Map<string, CardDefinition>();
 
+/** Parent id → the ids of the derived faces `preloadDefinitions` registered
+ *  with it, in registration order — so {@link registeredDefinitions} yields a
+ *  card's twins right after the card, as the eager preload's insertion order
+ *  did (issue #4856). */
+const twinIdsByParent = new Map<string, readonly string[]>();
+
 /** CR 113.6c (issue #2391) — the registry keys whose definition declares
  *  `offBattlefieldCharacteristics`. Exists purely so the hot readers in
  *  `gre/zoneCharacteristics.ts` can answer "does this card have a
@@ -346,6 +352,7 @@ export const declaresCastPermission = (cardId: string): boolean =>
 export function preloadDefinitions(defs: CardDefinition[]): void {
     for (const def of defs) {
         setRegistryEntry(def.id, def);
+        const twinIds: string[] = [];
         // CR 715.2 / 722.2 (ADR 0120 §2) — THE seam where an inset spell's
         // TWIN definition enters the registry. Here, and not in
         // `setRegistryEntry`, for two reasons: this is the one BATCH funnel
@@ -362,7 +369,10 @@ export function preloadDefinitions(defs: CardDefinition[]): void {
         // `check:index` and `getAllCardNames` cannot see it (CR 715.2c — one
         // card is one card).
         const twin = insetSpellTwinDefinition(def);
-        if (twin) setRegistryEntry(twin.id, twin);
+        if (twin) {
+            setRegistryEntry(twin.id, twin);
+            twinIds.push(twin.id);
+        }
         // CR 709.3b (ADR 0121 §2) — the same seam for a SPLIT card's two
         // halves: "while on the stack, only the characteristics of the half
         // being cast exist", so each half is a real definition under
@@ -372,7 +382,10 @@ export function preloadDefinitions(defs: CardDefinition[]): void {
         // `getAllCardNames` keep seeing exactly one Wax // Wane.
         for (const side of SPLIT_HALF_SIDES) {
             const half = splitHalfTwinDefinition(def, side);
-            if (half) setRegistryEntry(half.id, half);
+            if (half) {
+                setRegistryEntry(half.id, half);
+                twinIds.push(half.id);
+            }
         }
         // CR 712.8f (ADR 0122 §1) — the same seam for a MODAL double-faced
         // card's back face: "while a modal double-faced permanent is on the
@@ -385,7 +398,11 @@ export function preloadDefinitions(defs: CardDefinition[]): void {
         // Stupor and deck legality, the Limited pool, `check:index` and
         // `getAllCardNames` learn nothing new.
         const modalBack = modalBackTwinDefinition(def);
-        if (modalBack) setRegistryEntry(modalBack.id, modalBack);
+        if (modalBack) {
+            setRegistryEntry(modalBack.id, modalBack);
+            twinIds.push(modalBack.id);
+        }
+        if (twinIds.length > 0) twinIdsByParent.set(def.id, twinIds);
     }
 }
 
@@ -616,7 +633,14 @@ export function* registeredDefinitions(): Generator<CardDefinition> {
         for (const id of sourceIds()) {
             listed.add(id);
             const def = resolveRaw(id);
-            if (def && def.id === id) yield expandDefinition(def);
+            if (!def || def.id !== id) continue;
+            yield expandDefinition(def);
+            for (const twinId of twinIdsByParent.get(id) ?? []) {
+                const twin = registry.get(twinId);
+                if (twin?.id !== twinId || listed.has(twinId)) continue;
+                listed.add(twinId);
+                yield expandDefinition(twin);
+            }
         }
     }
     for (const [id, def] of registry) {
