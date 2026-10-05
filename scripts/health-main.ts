@@ -8,8 +8,10 @@
  * 0136 §6), and `bun run health` runs it by hand. It runs the FULL gate
  * (`HEALTH_SCRIPTS` in `lib/health-step.ts`: `check:all`, the derived Op census
  * `check:gaps`, the Coverage Invariant `check:targets`, the test-suite
- * hygiene census `check:test-hygiene`, all three test suites, and the full
- * `check:ui --all` browser walk, issue #4913) against the
+ * hygiene census `check:test-hygiene`, all three test suites, and the
+ * `check:ui` browser walk the BATCH owes — none, its scope, or `--all`; always
+ * `--all` under `--ui-all`, which `release` passes: `lib/health-walk-plan.ts`,
+ * issue #5076) against the
  * merged tip, in a throwaway worktree, and leaves a durable verdict in
  * `.claude/telemetry/health/`:
  *

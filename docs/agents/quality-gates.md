@@ -969,14 +969,15 @@ order of weight:
 3. It is slower than the whole static gate — measured ~4 min for eight
    surfaces × five viewports on this machine, most of it axe.
 
-**The full walk runs in batch health, never on a PR** (issue #4913, ADR 0131
-amendment). A PR's receipt is `SCOPED` to what its diff can reach — a specimen
+**The full walk runs at `release`, never on a PR** (issue #4913, ADR 0131
+amendment; batch health walks only the batch's scope — skipped, scoped or full
+by the same scoper — issue #5076). A PR's receipt is `SCOPED` to what its diff can reach — a specimen
 row of `/admin/design-system` by its section and its mount, a route surface by
 its route closure, a type-only import counting as no edge. What the scoper
 accepts not to see (a mount a section renders unconditionally, a sibling
 section's frame under an open layer, the Tailwind class scan, base-branch graph
-drift) is what `check:ui --all` as the last `HEALTH_SCRIPTS` step exists to
-catch: it runs after every offline verdict on the batch's tip. It is the one
+drift) is what the full walk exists to catch: `release` runs `check:ui --all` on
+the tip it releases, after every offline verdict. It is the one
 health step that is not offline, and the three reasons above still keep it out
 of `check:all`. It walks the tip's frontend against whatever Convex functions
 the shared local deployment serves, since `check:ui` pushes none — on a PR as
