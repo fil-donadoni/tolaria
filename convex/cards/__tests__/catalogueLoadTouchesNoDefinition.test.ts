@@ -38,14 +38,19 @@ const TOUCHED = "definition touched at load";
 
 /** A Proxy every one of whose traps throws, naming `what`. */
 const THROWING_STUB = `
-const stub = (what) => new Proxy({}, new Proxy({}, {
+const stub = (what, target = {}) => new Proxy(target, new Proxy({}, {
     get: (_, trap) => () => {
         throw new Error(${JSON.stringify(TOUCHED)} + ": " + what + " (" + String(trap) + ")");
     },
 }));
 const isDefinition = (v) =>
-    (typeof v === "object" && v !== null && "id" in v && "name" in v && "types" in v) ||
-    (typeof v === "function" && v[Symbol.for("tolaria.cardFactory")] === true);
+    typeof v === "object" && v !== null && "id" in v && "name" in v && "types" in v;
+// A \`defineCard\` factory (issue #4857) is stubbed as a FUNCTION, so calling it
+// — building the definition — throws like any other touch.
+const isFactory = (v) =>
+    typeof v === "function" && v[Symbol.for("tolaria.cardFactory")] === true;
+const untouchable = (what, v) =>
+    isFactory(v) ? stub(what, function () {}) : isDefinition(v) ? stub(what) : v;
 `;
 
 /** Counts what the plugin substituted, so a test can refuse a vacuous load. */
@@ -76,7 +81,7 @@ const untouchableDefinitions: esbuild.Plugin = {
             const lines = [`import * as real from ${real};`, THROWING_STUB];
             for (const [, name] of consts) {
                 lines.push(
-                    `export const ${name} = isDefinition(real.${name}) ? stub(${JSON.stringify(name)}) : real.${name};`
+                    `export const ${name} = untouchable(${JSON.stringify(name)}, real.${name});`
                 );
             }
             for (const [, name] of functions) {
