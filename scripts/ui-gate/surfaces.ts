@@ -4841,6 +4841,10 @@ export const SURFACES: readonly Surface[] = [
         // (`shouldAutoPassYield`), which in solo mode hands the view to the
         // other seat — whose store is empty — and the control is gone before
         // the walk can click it.
+        //
+        // The LAST game row, so it ENDS the solo game its scenario was loaded
+        // into: the lobby rows of the next viewport pass refuse to start while
+        // the account still holds a game the lane did not create there.
         id: "game-manage-yields",
         // The yields box is open over the board at measurement (issue #3420).
         mounts: ["src/components/board/manage-yields-dialog.tsx"],
@@ -4895,9 +4899,18 @@ export const SURFACES: readonly Surface[] = [
             }
             await settle(page);
         },
-        async cleanup(page) {
+        async cleanup(page, ctx) {
             await page.keyboard.press("Escape");
             await settle(page);
+            if (!ctx.createdGame) return;
+            const trace: string[] = [];
+            if (await concedeLaneGame(page, ctx, trace)) {
+                ctx.createdGame = false;
+                return;
+            }
+            throw new Error(
+                `could not end the solo game this lane created — the lobby rows of the next viewport will read as unreachable [${trace.join("; ")}]`
+            );
         },
     },
 ];
