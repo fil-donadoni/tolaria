@@ -96,19 +96,44 @@ describe("parseDecklist — format-aware printing selection", () => {
         );
     });
 
-    it("remaps to the earliest legal printing under a restricted format (Premodern)", () => {
-        const result = parseDecklist("1 Counterspell", "premodern");
-        const meta = resolveDeckCardMeta(result.cards[0].cardId);
+    // The printings come from `cardPrints` (issue #5106): the caller fetches
+    // the earliest row per Card ID inside the Format's sets and hands it in.
+    const row4ed = { printId: "counterspell-4ed-print", set: "4ed" };
+
+    it("remaps to the earliest legal printing's table row under a restricted format (Premodern)", () => {
+        const result = parseDecklist(
+            "1 Counterspell",
+            "premodern",
+            undefined,
+            new Map([[counterspell.id, row4ed]])
+        );
 
         // Never the out-of-pool LEA original...
         expect(result.cards[0].cardId).not.toBe(counterspell.id);
-        expect(meta?.setCode).not.toBe("lea");
-        // ...and legal by construction: the printing's set is in the pool.
-        expect(PREMODERN_LEGAL_SETS).toContain(meta?.setCode);
-        // Earliest in the format's set order — 4th Edition heads the pool.
-        expect(meta?.setCode).toBe("4ed");
+        // ...but the row's printing, legal by construction: its set is in the
+        // pool, and 4th Edition heads it.
+        expect(result.cards[0].cardId).toBe(row4ed.printId);
+        expect(PREMODERN_LEGAL_SETS).toContain(row4ed.set);
+        expect(PREMODERN_LEGAL_SETS[0]).toBe("4ed");
         // Display name is preserved regardless of the picked printing.
         expect(result.cards[0].cardName).toBe("Counterspell");
+    });
+
+    it("keeps the home printing when the table has no legal row for the card (Premodern)", () => {
+        const result = parseDecklist("1 Counterspell", "premodern");
+        expect(result.cards[0].cardId).toBe(counterspell.id);
+    });
+
+    it("prefers the home printing over a row when the home Set ranks first (Old School)", () => {
+        // Old School's pool is LEA first: Counterspell's own LEA printing
+        // outranks any later-set row.
+        const result = parseDecklist(
+            "1 Counterspell",
+            "old-school",
+            undefined,
+            new Map([[counterspell.id, { printId: "p-3ed", set: "3ed" }]])
+        );
+        expect(result.cards[0].cardId).toBe(counterspell.id);
     });
 });
 

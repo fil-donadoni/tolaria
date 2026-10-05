@@ -139,6 +139,7 @@ function makeStubCtx(
                 withIndex: () => ({
                     collect: async () => [],
                     unique: async () => null,
+                    first: async () => null,
                     take: async () => [],
                 }),
             }),

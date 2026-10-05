@@ -152,7 +152,7 @@ describe("equivalence over the whole pool (issue #4165)", () => {
         for (const id of compiledIds) compare(id);
         let prints = 0;
         for (const id of compiledIds) {
-            for (const printId of literal.getPrintsForCard(id)) {
+            for (const printId of literal.getAliasedPrintIds(id)) {
                 if (printId === id) continue;
                 prints++;
                 compare(printId);

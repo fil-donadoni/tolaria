@@ -1468,7 +1468,12 @@ export default defineSchema({
         ),
     })
         .index("by_printId", ["printId"])
-        .index("by_cardId", ["cardId"]),
+        .index("by_cardId", ["cardId"])
+        // One Card ID's printings in ONE Set (issue #5106): the Limited
+        // drafted-set basic and the decklist import's earliest-legal-printing
+        // pick read it as a point range instead of scanning the ~1,000 rows a
+        // basic land has.
+        .index("by_cardId_set", ["cardId", "set"]),
 
     // The Token Prints of a Card Definition's OWN printing (ADR 0140 §4, issue
     // #4120). `cardPrints` never holds that printing (the sync skips the one

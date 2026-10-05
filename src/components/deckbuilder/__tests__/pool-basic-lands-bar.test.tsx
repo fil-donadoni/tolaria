@@ -14,6 +14,17 @@ import type { ViewportMode } from "~/hooks/useViewportMode";
 // The compact-fold seam under test (issue #2671 review M1), driven exactly
 // like `compact-chrome.test.tsx` drives it.
 let mode: ViewportMode = "desktop";
+vi.mock("~/lib/useBasicLandPrintings", async () => ({
+    useBasicLandPrintings: (
+        await import("~/components/deckbuilder/__tests__/basicLandPrintRows")
+    ).useBasicLandPrintingsStub,
+}));
+vi.mock("~/lib/useBasicLandPreferenceRows", async () => ({
+    useBasicLandPreferenceRows: (
+        await import("~/components/deckbuilder/__tests__/basicLandPrintRows")
+    ).useBasicLandPreferenceRowsStub,
+}));
+
 vi.mock("~/hooks/useViewportMode", () => ({
     useViewportMode: () => mode,
 }));

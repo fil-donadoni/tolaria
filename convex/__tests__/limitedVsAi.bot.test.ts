@@ -10,13 +10,9 @@
 // (`convex/limited/autoBuild.ts`) and BOTH `createSoloGame` legality gates
 // (`assertDeckLegal`, `convex/game.ts`) — the human's own Limited deck AND
 // the bot seat's Auto-Built deck.
+import { makeResolveBasicLand } from "../limited/resolveBasicLand";
 import { describe, it, expect } from "vitest";
-import {
-    getCardByName,
-    getPrintingsForCard,
-    resolveDeckCardMeta,
-    tryGetDefinition,
-} from "../cards";
+import { resolveDeckCardMeta, tryGetDefinition } from "../cards";
 import { getCardColorIdentity, getPipCountsFromCost } from "../cards/colors";
 import { assertDeckLegal, type GateDeck } from "../formats";
 import { getDefinitionProducibleColors, manaValue } from "../gre/constants";
@@ -26,7 +22,6 @@ import {
     type AutoBuildEventContext,
     type GetAutoBuildCardMeta,
     type ResolveBasicLand,
-    type TrueColor,
 } from "../limited/autoBuild";
 import {
     assignFreeSeat,
@@ -69,20 +64,9 @@ const getAutoBuildCardMeta: GetAutoBuildCardMeta = (scryfallId) => {
 };
 
 function resolveBasicLandFor(setCode: string): ResolveBasicLand {
-    return (color: TrueColor) => {
-        const name = {
-            W: "Plains",
-            U: "Island",
-            B: "Swamp",
-            R: "Mountain",
-            G: "Forest",
-        }[color];
-        const def = getCardByName(name);
-        const printing = getPrintingsForCard(def.id).find(
-            (p) => p.setCode === setCode
-        );
-        return { cardId: printing?.printId ?? def.id, cardName: name };
-    };
+    // No `cardPrints` rows in a unit test: the LEA basics resolve to the
+    // definition's own printing, the same answer the table-less path gives.
+    return makeResolveBasicLand(setCode, new Map());
 }
 
 describe("Auto-Build + vs-AI hookup: sealed event → auto-built bot decks → createSoloGame reaches a playable board (issue #1115)", () => {

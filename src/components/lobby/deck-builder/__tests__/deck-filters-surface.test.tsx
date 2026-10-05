@@ -30,6 +30,20 @@ const h = vi.hoisted(() => ({
 // A REAL search-param store: `useSearch` subscribes to it and `useNavigate`
 // writes through `buildSearch`, so `encodeFilters`/`decodeFilters` are exercised
 // on every filter change exactly as they are in the app.
+vi.mock("~/lib/useEarliestPrintFetcher", () => ({
+    useEarliestPrintFetcher: () => async () => new Map(),
+}));
+vi.mock("~/lib/useBasicLandPrintings", async () => ({
+    useBasicLandPrintings: (
+        await import("~/components/deckbuilder/__tests__/basicLandPrintRows")
+    ).useBasicLandPrintingsStub,
+}));
+vi.mock("~/lib/useBasicLandPreferenceRows", async () => ({
+    useBasicLandPreferenceRows: (
+        await import("~/components/deckbuilder/__tests__/basicLandPrintRows")
+    ).useBasicLandPreferenceRowsStub,
+}));
+
 vi.mock("@tanstack/react-router", () => ({
     useSearch: () =>
         useSyncExternalStore(

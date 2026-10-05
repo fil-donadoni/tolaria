@@ -30,7 +30,7 @@ import {
     seatRowNeedsInterning,
 } from "../limitedSeatStore";
 import { resolveCardMeta } from "../limitedCardMeta";
-import { getAllCards, getPrintsForCard } from "../cards/catalogue";
+import { getAliasedPrintIds, getAllCards } from "../cards/catalogue";
 import { startDraft } from "../limited/draftEngine";
 import {
     buildCubePool,
@@ -449,14 +449,14 @@ describe("limitedSeatStore — projection agreement", () => {
 
 /** `count` real registry ids, as PRINT ids where the definition has one — the
  *  shape a Booster actually draws (`generateBooster` yields printings, and
- *  `printById` aliases each into the registry so `resolveCardMeta` maps it
+ *  the print alias registers each in the registry so `resolveCardMeta` maps it
  *  back to the canonical `cardId`). Taken from the live catalogue rather than
  *  hard-coded so this cannot rot against a card being renamed or re-set. */
 function realScryfallIds(count: number): string[] {
     const ids: string[] = [];
     for (const def of getAllCards()) {
         if (ids.length >= count) break;
-        ids.push(getPrintsForCard(def.id)[0] ?? def.id);
+        ids.push(getAliasedPrintIds(def.id)[0] ?? def.id);
     }
     if (ids.length < count) {
         throw new Error(`catalogue has fewer than ${count} cards`);

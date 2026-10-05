@@ -22,6 +22,20 @@ import {
 } from "~/components/deckbuilder/__tests__/zoneQueries";
 import { COLUMN_DELETE_BLOCKED_REASON } from "~/components/deckbuilder/deck-column-actions";
 
+vi.mock("~/lib/useEarliestPrintFetcher", () => ({
+    useEarliestPrintFetcher: () => async () => new Map(),
+}));
+vi.mock("~/lib/useBasicLandPrintings", async () => ({
+    useBasicLandPrintings: (
+        await import("~/components/deckbuilder/__tests__/basicLandPrintRows")
+    ).useBasicLandPrintingsStub,
+}));
+vi.mock("~/lib/useBasicLandPreferenceRows", async () => ({
+    useBasicLandPreferenceRows: (
+        await import("~/components/deckbuilder/__tests__/basicLandPrintRows")
+    ).useBasicLandPreferenceRowsStub,
+}));
+
 vi.mock("@tanstack/react-router", () => ({
     useNavigate: () => vi.fn(),
     useSearch: () => ({}),

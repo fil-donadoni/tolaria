@@ -9,6 +9,7 @@
 // registry and the REAL checked-in LEA Booster Config. Every observable claim
 // is then asserted THROUGH `projectLimitedEvent`, the seam the client actually
 // receives — never a hand-built view.
+import { makeResolveBasicLand } from "../limited/resolveBasicLand";
 import { describe, it, expect } from "vitest";
 import type { Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
@@ -36,9 +37,6 @@ import { evaluateDeckStrength, type DeckStrength } from "../limited/matchSim";
 import { getRuntimeBoosterConfig } from "../limited/registry";
 import { openRound, type ResolveSeatStrength } from "../limited/rounds";
 import { startDraft, runBotAutoPicks } from "../limited/draftEngine";
-import { basicLandsForColors } from "../cards/colors";
-import { getCardByName, getPrintingsForCard } from "../cards";
-import type { Color } from "../cards/types";
 import type { ResolveBasicLand } from "../limited/autoBuild";
 
 // ── The exact resolver wiring `convex/limitedEvents.ts` injects ──────────────
@@ -86,14 +84,9 @@ const getAutoBuildCardMeta = (scryfallId: string) => {
 };
 
 function resolveBasicLandFor(setCode: string): ResolveBasicLand {
-    return (color: Color) => {
-        const name = basicLandsForColors([color])[0];
-        const def = getCardByName(name);
-        const printing = getPrintingsForCard(def.id).find(
-            (p) => p.setCode === setCode
-        );
-        return { cardId: printing?.printId ?? def.id, cardName: name };
-    };
+    // No `cardPrints` rows in a unit test: the LEA basics resolve to the
+    // definition's own printing, the same answer the table-less path gives.
+    return makeResolveBasicLand(setCode, new Map());
 }
 
 /** A real 8-seat LEA Sealed event with one human (seat 0) and seven bots,
@@ -540,6 +533,7 @@ describe("an all-bot table reaches the play phase (issue #1644)", () => {
                         return {
                             collect: async () => matching(),
                             unique: async () => matching()[0] ?? null,
+                            first: async () => matching()[0] ?? null,
                             take: async (n: number) => matching().slice(0, n),
                         };
                     },

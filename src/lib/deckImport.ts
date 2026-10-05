@@ -1,4 +1,8 @@
-import { getPrintingsForCard, tryGetCardByName } from "@convex/cards/catalogue";
+import { tryGetCardByName } from "@convex/cards/catalogue";
+import {
+    earliestLegalPrintId,
+    type PrintingRow,
+} from "@convex/cards/printingList";
 import { FORMAT_RULES, type FormatId } from "@convex/formats";
 import type { DeckCard } from "~/types/game";
 import type { CatalogueNameResolver } from "./fullCatalogue";
@@ -53,27 +57,31 @@ function isSectionHeader(line: string): Section | null {
  * when one of the card's built printings has one, never a legality
  * requirement.
  *
+ * The printings come from the `cardPrints` table (issue #5106), never from a
+ * hand-written list: the caller fetches the earliest row per Card ID inside
+ * `allowedSets` (`cardPrints.earliestInSets`) and passes it in as
+ * `earliestRows`.
+ *
  * Falls back to the home printing (`defId`) when the format is unrestricted
  * (`allowedSets === null`, Freeform) or when no built printing of the card is
  * in `allowedSets` — for Alpha 40/Old School the deck's validator then
  * surfaces the illegality, exactly as before; for Premodern the deck still
  * validates fine regardless, per above. */
-function pickPrintingForFormat(defId: string, format: FormatId): string {
+function pickPrintingForFormat(
+    defId: string,
+    format: FormatId,
+    earliestRows: EarliestPrintRows
+): string {
     const allowedSets = FORMAT_RULES[format].allowedSets;
     if (!allowedSets) return defId;
-    const order = new Map(allowedSets.map((set, i) => [set, i]));
-
-    let bestId = defId;
-    let bestRank = Infinity;
-    for (const printing of getPrintingsForCard(defId)) {
-        const rank = order.get(printing.setCode);
-        if (rank !== undefined && rank < bestRank) {
-            bestRank = rank;
-            bestId = printing.printId;
-        }
-    }
-    return bestId;
+    return earliestLegalPrintId(defId, allowedSets, earliestRows.get(defId));
 }
+
+/** The earliest `cardPrints` row per Card ID inside the Format's allowed Sets
+ *  (`cardPrints.earliestInSets`, issue #5106) — what the import needs from the
+ *  table to choose a printing. Empty (every card keeps its home printing, or
+ *  the one the registry's own Set offers) until the caller has fetched it. */
+export type EarliestPrintRows = ReadonlyMap<string, PrintingRow>;
 
 /** Parse a pasted decklist into Maindeck and Sideboard piles.
  *
@@ -109,7 +117,8 @@ function pickPrintingForFormat(defId: string, format: FormatId): string {
 export function parseDecklist(
     text: string,
     format: FormatId = "freeform",
-    resolveCatalogueName?: CatalogueNameResolver
+    resolveCatalogueName?: CatalogueNameResolver,
+    earliestRows: EarliestPrintRows = new Map()
 ): ParsedDecklist {
     const cards: DeckCard[] = [];
     const sideboard: DeckCard[] = [];
@@ -137,7 +146,7 @@ export function parseDecklist(
         const def = tryGetCardByName(name);
         const resolved: DeckCard | null = def
             ? {
-                  cardId: pickPrintingForFormat(def.id, format),
+                  cardId: pickPrintingForFormat(def.id, format, earliestRows),
                   cardName: def.name,
               }
             : (resolveCatalogueName?.(name) ?? null);

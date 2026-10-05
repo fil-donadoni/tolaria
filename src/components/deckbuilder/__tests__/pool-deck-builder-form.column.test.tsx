@@ -25,6 +25,17 @@ const setColumnMock = vi.fn().mockResolvedValue(null);
 const createMock = vi.fn().mockResolvedValue("deck-1");
 const updateMock = vi.fn().mockResolvedValue(undefined);
 
+vi.mock("~/lib/useBasicLandPrintings", async () => ({
+    useBasicLandPrintings: (
+        await import("~/components/deckbuilder/__tests__/basicLandPrintRows")
+    ).useBasicLandPrintingsStub,
+}));
+vi.mock("~/lib/useBasicLandPreferenceRows", async () => ({
+    useBasicLandPreferenceRows: (
+        await import("~/components/deckbuilder/__tests__/basicLandPrintRows")
+    ).useBasicLandPreferenceRowsStub,
+}));
+
 vi.mock("@tanstack/react-router", () => ({
     useNavigate: () => navigate,
 }));

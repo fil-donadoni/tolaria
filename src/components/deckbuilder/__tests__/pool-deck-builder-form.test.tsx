@@ -28,6 +28,17 @@ const useMutationMock = vi.fn();
 // `useMutation` call in this file returns the same stub).
 const setColumnMock = vi.hoisted(() => vi.fn().mockResolvedValue(null));
 
+vi.mock("~/lib/useBasicLandPrintings", async () => ({
+    useBasicLandPrintings: (
+        await import("~/components/deckbuilder/__tests__/basicLandPrintRows")
+    ).useBasicLandPrintingsStub,
+}));
+vi.mock("~/lib/useBasicLandPreferenceRows", async () => ({
+    useBasicLandPreferenceRows: (
+        await import("~/components/deckbuilder/__tests__/basicLandPrintRows")
+    ).useBasicLandPreferenceRowsStub,
+}));
+
 vi.mock("@tanstack/react-router", () => ({
     useNavigate: () => navigate,
 }));

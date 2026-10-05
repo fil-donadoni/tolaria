@@ -131,6 +131,7 @@ function makeStubCtx(event: Record<string, unknown>): StubCtxHandle {
                 withIndex: () => ({
                     collect: async () => [],
                     unique: async () => null,
+                    first: async () => null,
                     take: async () => [],
                 }),
             }),

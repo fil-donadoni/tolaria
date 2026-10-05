@@ -1,10 +1,11 @@
-import { useCallback, useState } from "react";
-import type { FormatId } from "@convex/formats";
+import { useCallback, useRef, useState } from "react";
+import { FORMAT_RULES, type FormatId } from "@convex/formats";
 import { Banner } from "~/components/ui/banner";
 import { Button } from "~/components/ui/button";
 import GameDialog from "~/components/ui/game-dialog";
 import { type ParsedDecklist, parseDecklist } from "~/lib/deckImport";
 import type { CatalogueNameResolver } from "~/lib/fullCatalogue";
+import { useEarliestPrintFetcher } from "~/lib/useEarliestPrintFetcher";
 
 interface DeckImportDialogProps {
     open: boolean;
@@ -44,8 +45,15 @@ export default function DeckImportDialog({
     const [text, setText] = useState("");
     const [parsed, setParsed] = useState<ParsedDecklist | null>(null);
     const [copied, setCopied] = useState(false);
+    const [parsing, setParsing] = useState(false);
+    const fetchEarliest = useEarliestPrintFetcher();
+    // Bumped on every edit/reset so a Parse still awaiting the table cannot
+    // land its result over text the user has since changed.
+    const parseEpoch = useRef(0);
 
     const reset = useCallback(() => {
+        parseEpoch.current++;
+        setParsing(false);
         setText("");
         setParsed(null);
         setCopied(false);
@@ -65,9 +73,36 @@ export default function DeckImportDialog({
 
     const total = parsed ? parsed.cards.length + parsed.sideboard.length : 0;
 
-    const handleParse = useCallback(() => {
-        setParsed(parseDecklist(text, format, resolveCatalogueName));
-    }, [text, format, resolveCatalogueName]);
+    // The printing each name imports under comes from the `cardPrints` table
+    // (issue #5106): parse once to learn the Card IDs, fetch the earliest
+    // legal row per Card ID, parse again with them. An unrestricted Format
+    // (Freeform) needs no fetch.
+    const handleParse = useCallback(async () => {
+        const epoch = ++parseEpoch.current;
+        const first = parseDecklist(text, format, resolveCatalogueName);
+        const allowedSets = FORMAT_RULES[format].allowedSets;
+        if (!allowedSets) {
+            setParsed(first);
+            return;
+        }
+        setParsing(true);
+        try {
+            const earliest = await fetchEarliest(
+                [...first.cards, ...first.sideboard].map((c) => c.cardId),
+                allowedSets
+            );
+            if (epoch !== parseEpoch.current) return;
+            setParsed(
+                parseDecklist(text, format, resolveCatalogueName, earliest)
+            );
+        } catch {
+            // The table is unreachable: import under the home printings, as a
+            // Format with no printing of the card in its Sets would.
+            if (epoch === parseEpoch.current) setParsed(first);
+        } finally {
+            if (epoch === parseEpoch.current) setParsing(false);
+        }
+    }, [text, format, resolveCatalogueName, fetchEarliest]);
 
     const handleConfirm = useCallback(() => {
         if (parsed) onImport(parsed);
@@ -86,6 +121,8 @@ export default function DeckImportDialog({
                 <textarea
                     value={text}
                     onChange={(e) => {
+                        parseEpoch.current++;
+                        setParsing(false);
                         setText(e.target.value);
                         setParsed(null);
                         setCopied(false);
@@ -154,8 +191,8 @@ export default function DeckImportDialog({
                         <Button
                             type="button"
                             variant="primary"
-                            onClick={handleParse}
-                            disabled={text.trim() === ""}
+                            onClick={() => void handleParse()}
+                            disabled={text.trim() === "" || parsing}
                         >
                             Preview
                         </Button>

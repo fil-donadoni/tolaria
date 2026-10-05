@@ -18,7 +18,8 @@ import {
 } from "../index.cards";
 import {
     getDefinition,
-    getPrintingsForCard,
+    getAliasedPrintIds,
+    getDefinitionSetCode,
     getAllSetCodes,
 } from "../../../index";
 import { setName } from "../../../setMeta";
@@ -52,12 +53,14 @@ describe("2ED registry parity (ADR 0014)", () => {
 
 describe("2ED as an extra printing", () => {
     it("appends Unlimited to the LEA + LEB printing list, original first", () => {
-        const printings = getPrintingsForCard(lightningBolt.id);
-        expect(printings[0].setCode).toBe("lea");
-        expect(printings).toContainEqual({
-            printId: lightningBolt2ed.printId,
-            setCode: "2ed",
-        });
+        // The printing list itself is the `cardPrints` table's (issue #5106);
+        // what this set file owns is the record and its wiring to the
+        // definition, so assert the alias carries it and the home Set is LEA.
+        expect(getDefinitionSetCode(lightningBolt.id)).toBe("lea");
+        expect(lightningBolt2ed.setCode).toBe("2ed");
+        expect(getAliasedPrintIds(lightningBolt.id)).toContain(
+            lightningBolt2ed.printId
+        );
     });
 
     it("is included in the catalogue's set codes", () => {

@@ -778,28 +778,20 @@ export interface CardPrinting {
     setCode: string;
 }
 
-export const getPrintingsForCard = (definitionId: string): CardPrinting[] => {
-    const printings: CardPrinting[] = [
-        {
-            printId: definitionId,
-            setCode: definitionSetCode.get(definitionId) ?? "",
-        },
-    ];
-    for (const print of allPrints) {
-        if (print.definitionId === definitionId) {
-            printings.push({ printId: print.printId, setCode: print.setCode });
-        }
-    }
-    return printings;
-};
+/** The print ids the hand-written `CardPrint` records alias onto
+ *  `definitionId` — the ALIAS's own contents, for the tests that pin its
+ *  wiring (`packedCorpusLookup`, `limitedSeatStore`). Not a printing list:
+ *  every consumer of printings reads the `cardPrints` table (issue #5106),
+ *  and this goes with the alias in issue #4121. */
+export const getAliasedPrintIds = (definitionId: string): string[] =>
+    allPrints
+        .filter((print) => print.definitionId === definitionId)
+        .map((print) => print.printId);
 
 /** A Card Definition's own (first-printing) Set code — the one Set the
  *  registry knows without a printing list. Empty when unknown. */
 export const getDefinitionSetCode = (definitionId: string): string =>
     definitionSetCode.get(definitionId) ?? "";
-
-export const getPrintsForCard = (definitionId: string): string[] =>
-    getPrintingsForCard(definitionId).map((p) => p.printId);
 
 export const isPrintedInSet = (cardId: string, setCode: string): boolean => {
     const def = tryGetDefinition(cardId);
@@ -813,12 +805,6 @@ export const getAllSetCodes = (): string[] => {
     for (const print of allPrints) codes.add(print.setCode);
     return [...codes].sort();
 };
-
-// printId → its own `CardPrint` (a reprint pins its set/rarity to THAT
-// printing, which may differ from the home-set definition). Built once.
-const printById = new Map<string, CardPrint>(
-    allPrints.map((print) => [print.printId, print])
-);
 
 export interface DeckCardMeta {
     cardId: string;
@@ -840,16 +826,8 @@ export const resolveDeckCardMeta = (cardId: string): DeckCardMeta | null => {
     const def = tryGetDefinition(cardId);
     if (!def) return null;
     const isBasic = def.supertypes?.includes("Basic") ?? false;
-    const print = printById.get(cardId);
-    if (print) {
-        return {
-            cardId: def.id,
-            name: def.name,
-            setCode: print.setCode,
-            rarity: print.rarity,
-            isBasic,
-        };
-    }
+    // The definition's OWN printing: a reprint's Set and Rarity live on its
+    // `cardPrints` row (`makeResolveCardFromRows`, issue #5106), not here.
     return {
         cardId: def.id,
         name: def.name,

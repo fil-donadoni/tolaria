@@ -57,3 +57,29 @@ export function loadDeckPrintRows(
         ...(deck.sideboard ?? []).map((c) => c.cardId),
     ]);
 }
+
+/** The first printing row of each of `cardIds` in `setCode`, by Card ID —
+ *  Limited's drafted-set basics (issue #5106). One indexed range probe per
+ *  Card ID (`by_cardId_set`), never a scan of a basic's ~1,000 printings. A
+ *  Card ID with no printing in the Set is simply absent. */
+export async function loadPrintIdsInSet(
+    ctx: Pick<QueryCtx, "db">,
+    cardIds: readonly string[],
+    setCode: string
+): Promise<ReadonlyMap<string, string>> {
+    const rows = await Promise.all(
+        [...new Set(cardIds)].map((cardId) =>
+            ctx.db
+                .query("cardPrints")
+                .withIndex("by_cardId_set", (q) =>
+                    q.eq("cardId", cardId).eq("set", setCode)
+                )
+                .first()
+        )
+    );
+    return new Map(
+        rows.flatMap((row): [string, string][] =>
+            row ? [[row.cardId, row.printId]] : []
+        )
+    );
+}
