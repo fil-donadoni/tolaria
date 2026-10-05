@@ -33,6 +33,9 @@ export interface HealthStep {
     /** Run here instead of the batch worktree (`StepRunOptions.cwd`) — a step
      *  that writes to the primary checkout (`gaps:sync`, issue #4944). */
     cwd?: string;
+    /** Extra environment for this step only, over `StepRunOptions.env`
+     *  (`BLADE_ROBUSTNESS_LABELS`, issue #5078). */
+    env?: Record<string, string>;
 }
 
 export interface StepRunOptions {
@@ -158,9 +161,10 @@ export function healthStepArgs(entry: string): string[] {
 }
 
 /**
- * Gates a batch owes ONLY when its diff touched the Bot's globs
- * (`batchTouchesBot`, the decision the Bot Findings refresh already makes) —
- * run after `HEALTH_SCRIPTS`.
+ * Gates a batch owes ONLY when its diff can have moved them — run after
+ * `HEALTH_SCRIPTS`. The decision is `robustnessMode`
+ * (`health-robustness-trigger.ts`, issue #5078), NOT `batchTouchesBot`, which
+ * keeps gating the Bot Findings refresh.
  *
  * `blade:robustness` (issue #4875): the blade `must` tier re-run over a wide
  * seed list and jittered weight vectors, failing on an entry that passes by
@@ -168,8 +172,8 @@ export function healthStepArgs(entry: string): string[] {
  * loaded machine — far over the lane budget, so a health cost by the
  * issue-#4963 rule (never `check:pr` / `check:lane` / `land`), and only for a
  * batch that can have moved it: a pin appears when the search, the evaluator,
- * the weights or the registry change — every one of them under the Bot's
- * globs.
+ * the weights or the registry change — the first three as an import closure,
+ * the registry as its changed entries alone.
  *
  * Its failure is NOT red like the others' (issue #5016): baseline drift — a
  * new pin, a row gone robust — is filed as an issue and the tip stays green;
@@ -179,16 +183,17 @@ export function healthStepArgs(entry: string): string[] {
 export const BOT_HEALTH_SCRIPTS: readonly string[] = ["blade:robustness"];
 
 /** The gates one health run executes, in order: `base` (the caller passes
- *  `HEALTH_SCRIPTS`), then `BOT_HEALTH_SCRIPTS` iff the batch touched the Bot.
+ *  `HEALTH_SCRIPTS`), then `BOT_HEALTH_SCRIPTS` iff the batch owes the
+ *  robustness audit (`robustnessOwed`).
  *
- *  Known blind spot, accepted for the cost: a batch OUTSIDE the Bot's globs
- *  (an engine or card change that shifts RNG consumption) can create or clear
- *  a pin without running the audit, and the next Bot batch reds for it. */
+ *  Known blind spot, accepted for the cost: a batch that changes only the
+ *  engine or a card (shifting RNG consumption) can create or clear a pin
+ *  without running the audit, and the next triggering batch reds for it. */
 export function healthGates(
     base: readonly string[],
-    touchesBot: boolean
+    robustnessOwed: boolean
 ): readonly string[] {
-    return touchesBot ? [...base, ...BOT_HEALTH_SCRIPTS] : base;
+    return robustnessOwed ? [...base, ...BOT_HEALTH_SCRIPTS] : base;
 }
 
 /** The browser walk's own steps: a fresh worktree needs its bootstrap first. */
@@ -290,7 +295,7 @@ export function runHealthStep(
     return new Promise((resolvePromise) => {
         const child = spawn(step.cmd, step.args, {
             cwd: opts.cwd,
-            env: opts.env,
+            env: step.env ? { ...opts.env, ...step.env } : opts.env,
             stdio: ["ignore", "pipe", "pipe"],
         });
         let stdout = "";
