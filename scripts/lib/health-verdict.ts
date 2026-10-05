@@ -389,6 +389,8 @@ export type UiWalkState =
     | "pending"
     /** A process is walking now — another `--phase=walk` must not start. */
     | "walking"
+    /** The batch reached no surface: no walk ran (issue #5076). */
+    | "skipped"
     | "not run";
 
 export function uiWalkStateOf(

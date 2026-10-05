@@ -9,7 +9,8 @@ account). **Amended 2026-09-30 (issue #4913)**: the argument is re-made at
 SURFACE granularity for the specimen rows, type-only imports are no edge, and
 the full walk moves to batch health — § Amendment below. **Amended
 (issue #5075)**: staff-only tooling (the debug sheet, the `/admin` pages) is out
-of scope.
+of scope. **Amended (issue #5076)**: batch
+health walks the batch's scope, never `--all`; the full walk is `release`'s.
 
 ## Context
 
@@ -364,3 +365,59 @@ module the sheet imports would then go unwalked. Revisit if the cost shows.
 An admin page can break a layout nobody measures; that is the accepted cost of
 the ruling. The census (`ui-census.test.ts`) exempts the same files by the
 same predicate, so the two cannot disagree.
+
+## Amendment (issue #5076) — batch health walks the batch's scope
+
+### What the unconditional walk cost
+
+Decision 8 made `check:ui --all` the last step of every batch health run. It
+fired about four times a day, measured 527–2192 s over eight recent walks (mean
+1148 s), the longest health step, on batches that were mostly engine, card,
+script or prose changes no browser can see. Issue #5074 and issue #5075 taught
+the scoper that server-only paths and staff-only tooling reach no surface; the
+batch is the same kind of diff a PR is, so the same scoper can read it.
+
+### The rule
+
+Decision 8 is replaced:
+
+8. **Batch health walks what the batch can reach; only `release` walks
+   everything.** The batch is the diff from the last GREEN tip
+   (`.claude/telemetry/green-sha`) to the tip being gated, planned by
+   `lib/health-walk-plan.ts` in the tree the offline gates proved, through the
+   tip's own `check:ui --scope-only --base=<last GREEN tip>` — the scoper
+   `check:ui` and `land` use, never a second derivation:
+    - **no DOM-reaching path** (prose only, or a scope of zero surfaces) → no
+      walk. The offline half alone decides GREEN, and `last.json` records
+      `ui: "skipped"`;
+    - **some surfaces** → a SCOPED walk, `check:ui --base=<last GREEN tip>`,
+      which re-derives the same scope and prints `SCOPED`;
+    - **`full`** (a global input, the lane's own directory, the surface table)
+      → `check:ui --all`.
+9. **Every input that cannot be read walks full**, never less: an unknown or
+   unreadable last GREEN tip, a scoper that failed or printed a line nobody can
+   parse, a batch that edits `scripts/ui-gate/surfaces.ts` (the scoper reads that
+   file's edits against the merge-base with the base branch, not against the
+   batch).
+10. **`bun run release` keeps the full walk** — it spawns health with
+    `--ui-all` on the tip it releases — and so does an explicit `--ui-all` by
+    hand. A by-hand `bun run health` otherwise follows the batch rule.
+11. **The probation ledger and RED semantics (issue #4962) apply to a scoped
+    walk unchanged.** A skipped walk is not a walk: it neither advances nor
+    resets the streak.
+
+`last.json` names which walk the run owed in its `walk` field (`skipped`,
+`scoped — N surface(s)`, `full — <reason>`) and `bun run health:status` prints
+it.
+
+### Residual
+
+A skipped or scoped batch accepts what Decision 8 of the previous amendment
+accepted the full walk for: the Tailwind class scan, sibling sections, graph
+drift. Each batch walked less than before, so a drift can now sit across
+several GREEN batches. `release` is the backstop: it re-proves the exact tip
+with the full walk before the release branch moves.
+
+A prose-only batch is the one case planned without the scoper, and the only
+one whose Convex preflight is skipped: every other batch preflights, since it
+may still plan to a walk.
