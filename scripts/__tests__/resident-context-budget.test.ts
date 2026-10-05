@@ -84,6 +84,59 @@ const RESIDENT_CEILING_BYTES = 35_500;
  */
 const ON_DEMAND_CEILING_BYTES = 24_850;
 
+/**
+ * TIER 3 — SKILL MANIFEST (PRD #5096 D6, issue #5100). A skill's `SKILL.md`
+ * enters context in full the moment the skill is invoked, and stays for the
+ * rest of that session; `/next-issue` is invoked by every pass of the loop.
+ * Its sibling files (a skill DIRECTORY discloses branch-only material behind
+ * pointers) are read on demand and are not budgeted here.
+ *
+ * One ceiling per tracked manifest, and each ceiling only goes DOWN: every
+ * skill was recorded at its measured size on 2026-10-05, so a skill that
+ * grows has to split first — move branch-only steps to a sibling file behind
+ * a pointer, history to `docs/agents/` — or raise its row in a commit someone
+ * signs. Lower a row whenever a manifest shrinks.
+ *
+ * `next-issue` was 23,658 bytes / 394 lines before issue #5100 split it and
+ * 10,302 after; its ceiling keeps ~2% headroom. Every other row is its
+ * measured size, no headroom.
+ *
+ * Discovered from git, so a new skill with no row here goes red the day it
+ * lands rather than escaping the tier.
+ */
+const SKILL_MANIFEST_CEILING_BYTES: Record<string, number> = {
+    "audit-tracker": 20_944,
+    "bot-slice": 20_347,
+    "cluster-gaps": 10_978,
+    explain: 18_771,
+    "grammar-rule": 17_934,
+    "gre-test": 4_372,
+    grill: 4_330,
+    "health-fix": 13_199,
+    "mtg-rules-check": 4_280,
+    "new-card": 20_844,
+    "new-op": 15_073,
+    "new-qa-issue": 16_518,
+    "new-set": 32_806,
+    "next-issue": 10_500,
+    "to-prd": 6_076,
+    "to-tickets": 13_587,
+};
+
+/** Every tracked skill manifest, keyed by skill name. */
+function skillManifests(): Map<string, string> {
+    const out = execFileSync("git", ["ls-files", ".claude/skills/*/SKILL.md"], {
+        cwd: REPO_ROOT,
+        encoding: "utf8",
+    });
+    return new Map(
+        out
+            .split("\n")
+            .filter(Boolean)
+            .map((rel) => [path.basename(path.dirname(rel)), rel])
+    );
+}
+
 function residentFiles(): string[] {
     const out: string[] = [];
     for (const rel of RESIDENT) {
@@ -194,5 +247,55 @@ describe("on-demand context budget (nested CLAUDE.md)", () => {
             );
         }
         expect(total).toBeLessThanOrEqual(ON_DEMAND_CEILING_BYTES);
+    });
+});
+
+describe("skill manifest budget (PRD #5096 D6, issue #5100)", () => {
+    it("finds the manifest corpus", () => {
+        const manifests = skillManifests();
+        // A bad glob would pass every ceiling vacuously.
+        expect(manifests.size).toBeGreaterThan(10);
+        expect(manifests.has("next-issue")).toBe(true);
+    });
+
+    it("every tracked manifest has a ceiling, and every ceiling a manifest", () => {
+        const manifests = skillManifests();
+        const unrecorded = [...manifests.keys()].filter(
+            (s) => !(s in SKILL_MANIFEST_CEILING_BYTES)
+        );
+        expect(
+            unrecorded,
+            "record each new skill at its measured size in SKILL_MANIFEST_CEILING_BYTES"
+        ).toEqual([]);
+        const stale = Object.keys(SKILL_MANIFEST_CEILING_BYTES).filter(
+            (s) => !manifests.has(s)
+        );
+        expect(stale, "ceiling rows for skills that no longer exist").toEqual(
+            []
+        );
+    });
+
+    it("each manifest stays under its ceiling", () => {
+        const over = [...skillManifests()]
+            .map(([skill, rel]) => ({
+                skill,
+                rel,
+                bytes: fs.statSync(path.join(REPO_ROOT, rel)).size,
+                ceiling: SKILL_MANIFEST_CEILING_BYTES[skill] ?? Infinity,
+            }))
+            .filter((m) => m.bytes > m.ceiling)
+            .map(
+                (m) =>
+                    `  ${m.rel}: ${m.bytes} bytes, ceiling ${m.ceiling} (+${m.bytes - m.ceiling})`
+            );
+        expect(
+            over,
+            `Skill manifest(s) over their ceiling:\n${over.join("\n")}\n\n` +
+                `A manifest is read whole on every invocation. Keep in it the steps ` +
+                `every run takes; move a branch-only procedure to a sibling file in ` +
+                `the skill's directory behind a pointer that says what it is and when ` +
+                `to read it, and measurements or history to docs/agents/. A raise is ` +
+                `a row edit in this file, in the same commit.`
+        ).toEqual([]);
     });
 });
