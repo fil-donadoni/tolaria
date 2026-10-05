@@ -76,7 +76,7 @@ describe("registeredDefinitions — the client-safe enumeration seam (#2530)", (
         }
     });
 
-    it("yields each definition ONCE — print aliases do not duplicate a reprint", () => {
+    it("yields each definition ONCE — a derived face never repeats its parent", () => {
         const ids = [...registeredDefinitions()].map((d) => d.id);
         expect(ids).toEqual([...new Set(ids)]);
     });

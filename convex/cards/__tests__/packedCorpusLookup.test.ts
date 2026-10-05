@@ -135,7 +135,7 @@ describe("the packed lookup's memo (issue #4165)", () => {
 });
 
 describe("equivalence over the whole pool (issue #4165)", () => {
-    it("every derived face, every compiled row and every print of one resolves deep-equal to the literal path", () => {
+    it("every derived face and every compiled row resolves deep-equal to the literal path", () => {
         // Derived faces FIRST, so each resolves through a parent that is not
         // yet resident: the lazy derivation, not the eager one, is what runs.
         const faces = derivedFaceIds();
@@ -150,21 +150,6 @@ describe("equivalence over the whole pool (issue #4165)", () => {
         };
         for (const id of faces) compare(id);
         for (const id of compiledIds) compare(id);
-        let prints = 0;
-        for (const id of compiledIds) {
-            for (const printId of literal.getAliasedPrintIds(id)) {
-                if (printId === id) continue;
-                prints++;
-                compare(printId);
-                expect(packed.getDefinition(printId)).toBe(
-                    packed.getDefinition(id)
-                );
-            }
-        }
-        // A reprint of a compiled-only definition is wired LAZILY with the
-        // switch on (`registerLazyPrintAlias`); the floor keeps that path
-        // exercised.
-        expect(prints).toBeGreaterThan(0);
         expect(mismatches.slice(0, 5)).toEqual([]);
         expect(packed.packedCorpusInflations()).toBe(corpus.firstIds.length);
     });

@@ -16,9 +16,16 @@ import {
     indexPrintRows,
     makeResolveCardFromRows,
     makeResolveCardMetaFromRows,
+    withRowDefinitionIds,
     type PrintRow,
 } from "../cards/printRows";
-import { loadDeckPrintRows } from "../cardPrintRows";
+import {
+    fillDefinitionIds,
+    loadDeckPrintRows,
+    withSeatDefinitionIds,
+} from "../cardPrintRows";
+import { buildInitialGameState } from "../game";
+import type { PlayerInput } from "../gameSeats";
 
 const angel = tryGetCardByName("Serra Angel")!;
 const bolt = tryGetCardByName("Lightning Bolt")!;
@@ -165,5 +172,108 @@ describe("loadDeckPrintRows reads by point lookup, skipping Card IDs (issue #411
         expect(seen.sort()).toEqual(["p-db", "p-missing"]);
         expect(index.get("p-db")?.set).toBe("lea");
         expect(index.has("p-missing")).toBe(false);
+    });
+});
+
+describe("a chosen printing becomes a Card Definition at the server boundary (issue #4121)", () => {
+    const printRow = {
+        printId: "p-db",
+        cardId: angel.id,
+        set: "lea",
+        rarity: "rare",
+    };
+    const ctxWith = (rows: Record<string, unknown>) => ({
+        db: {
+            query: () => ({
+                withIndex: (
+                    _index: string,
+                    build: (q: {
+                        eq: (f: string, v: string) => string;
+                    }) => string
+                ) => {
+                    const printId = build({ eq: (_f, v) => v });
+                    return { unique: async () => rows[printId] ?? null };
+                },
+            }),
+        },
+    });
+    const seat = (cardId: string): PlayerInput => ({
+        id: "p1",
+        name: "p1",
+        bgColor: "#000",
+        deck: {
+            id: "d",
+            name: "d",
+            format: "freeform",
+            cards: [{ cardId, cardName: angel.name }],
+            sideboard: [{ cardId, cardName: angel.name }],
+        },
+    });
+
+    it("fills definitionId from the row on the main board and the sideboard, and leaves a Card ID alone", () => {
+        const index = indexPrintRows([printRow as PrintRow]);
+        expect(
+            withRowDefinitionIds(
+                [{ cardId: "p-db" }, { cardId: bolt.id }, { cardId: "p-none" }],
+                index
+            )
+        ).toEqual([
+            { cardId: "p-db", definitionId: angel.id },
+            { cardId: bolt.id },
+            { cardId: "p-none" },
+        ]);
+    });
+
+    it("full path: rows -> seats -> buildInitialGameState puts the card on the board with the printing pinned", async () => {
+        const seats = await withSeatDefinitionIds(
+            ctxWith({ "p-db": printRow }) as never,
+            [seat("p-db")]
+        );
+        expect(seats[0].deck.cards[0].definitionId).toBe(angel.id);
+        expect(seats[0].deck.sideboard?.[0].definitionId).toBe(angel.id);
+        const state = buildInitialGameState(seats, "p1");
+        const mine = [
+            ...state.players[0].hand,
+            ...state.players[0].library,
+        ].find((c) => c.card.id === angel.id);
+        expect(mine?.imagePrintId).toBe("p-db");
+    });
+
+    it("a deck write that sent no definitionId gets it from the row; one that sent it costs no read", async () => {
+        const probed: string[] = [];
+        const ctx = {
+            db: {
+                query: () => ({
+                    withIndex: (
+                        _index: string,
+                        build: (q: {
+                            eq: (f: string, v: string) => string;
+                        }) => string
+                    ) => {
+                        const printId = build({ eq: (_f, v) => v });
+                        probed.push(printId);
+                        return {
+                            unique: async () =>
+                                printId === "p-db" ? printRow : null,
+                        };
+                    },
+                }),
+            },
+        };
+        const filled = await fillDefinitionIds(ctx as never, [
+            { cardId: "p-db", cardName: "Angel" },
+            { cardId: "p-sent", cardName: "Angel", definitionId: angel.id },
+        ]);
+        expect(filled.map((c) => c.definitionId)).toEqual([angel.id, angel.id]);
+        expect(probed).toEqual(["p-db"]);
+    });
+
+    it("a Print ID no row resolves is never looked up: setup throws instead of guessing", async () => {
+        const seats = await withSeatDefinitionIds(ctxWith({}) as never, [
+            seat("p-none"),
+        ]);
+        expect(() => buildInitialGameState(seats, "p1")).toThrow(
+            "Card not found: p-none"
+        );
     });
 });

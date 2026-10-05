@@ -98,7 +98,11 @@ describe("poolCopyPinKey (issue #1626)", () => {
 // Zone — and the decision has to keep every recorded Pin visible, since a Pin
 // is a Maindeck-only concept.
 describe("assignPoolCopies (issue #1626, review B1)", () => {
-    const named = (cardId: string) => ({ cardId, cardName: cardId });
+    const named = (cardId: string, definitionId?: string) => ({
+        cardId,
+        cardName: cardId,
+        definitionId,
+    });
 
     it("puts the PINNED copy in the Maindeck, whichever Pool position it holds", () => {
         const pool = [card("bolt"), card("bolt"), card("bolt")];
@@ -171,7 +175,11 @@ describe("assignPoolCopies — Basic-land re-attachment survives an art rewrite 
     // Different CARD, same subtype (Mountain) — the case G2 closed: the
     // earlier subtype-based match conflated this with plain Mountain.
     const SNOW_MOUNTAIN = "ccd3afb3-5574-4f2d-adbe-969a428f1c63"; // ICE Snow-Covered Mountain, own definition
-    const named = (cardId: string) => ({ cardId, cardName: cardId });
+    const named = (cardId: string, definitionId?: string) => ({
+        cardId,
+        cardName: cardId,
+        definitionId,
+    });
 
     it("without the fix would miss: re-attaches a saved Basic re-arted after being seeded from the Pool, by canonical definition id", () => {
         // The Pool holds the LEA printing (what the seat opened).
@@ -182,7 +190,7 @@ describe("assignPoolCopies — Basic-land re-attachment survives an art rewrite 
         // The saved deck holds the LEB printing — the player picked a
         // different art for this Mountain after it entered the working deck.
         const out = assignPoolCopies(pool, arrangement, {
-            cards: [named(LEB_MOUNTAIN_PRINT)],
+            cards: [named(LEB_MOUNTAIN_PRINT, MOUNTAIN)],
             sideboard: [],
         });
         expect(out.cards[0].poolIndex).toBe(0);
@@ -194,7 +202,10 @@ describe("assignPoolCopies — Basic-land re-attachment survives an art rewrite 
             { poolIndex: 1, pins: { mv: makeColumnId("mv", "lands") } },
         ];
         const out = assignPoolCopies(pool, arrangement, {
-            cards: [named(LEB_MOUNTAIN_PRINT), named(LEB_MOUNTAIN_PRINT)],
+            cards: [
+                named(LEB_MOUNTAIN_PRINT, MOUNTAIN),
+                named(LEB_MOUNTAIN_PRINT, MOUNTAIN),
+            ],
             sideboard: [],
         });
         expect(out.cards.map((c) => c.poolIndex).sort()).toEqual([0, 1]);

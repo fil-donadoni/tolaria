@@ -10,9 +10,11 @@
 import type { QueryCtx } from "./_generated/server";
 import {
     indexPrintRows,
+    withRowDefinitionIds,
     type PrintRow,
     type PrintRowIndex,
 } from "./cards/printRows";
+import { withDefinitionId } from "./cards/catalogue";
 import { tryGetDefinition } from "./cards/registry";
 
 /** True when `id` is a Card Definition's own id — no `cardPrints` row exists
@@ -56,6 +58,66 @@ export function loadDeckPrintRows(
         ...deck.cards.map((c) => c.cardId),
         ...(deck.sideboard ?? []).map((c) => c.cardId),
     ]);
+}
+
+/** Deck entries as a write stores them: every `definitionId` present. A caller
+ *  that sent none (a client that predates the field) gets it from its
+ *  printing's `cardPrints` row; an entry already carrying one is left alone
+ *  and costs no read. A printing with no row degrades to `cardId` itself
+ *  (`withDefinitionId`) — the registry no longer knows Print IDs. */
+export async function fillDefinitionIds<
+    T extends { cardId: string; cardName: string; definitionId?: string },
+>(
+    ctx: Pick<QueryCtx, "db">,
+    cards: readonly T[]
+): Promise<(T & { definitionId: string })[]> {
+    const index = await loadPrintRows(
+        ctx,
+        cards.filter((c) => !c.definitionId).map((c) => c.cardId)
+    );
+    return withRowDefinitionIds(cards, index).map(
+        (c) => withDefinitionId(c) as T & { definitionId: string }
+    );
+}
+
+interface SeatLike {
+    deck: {
+        cards: readonly { cardId: string; definitionId?: string }[];
+        sideboard?: readonly { cardId: string; definitionId?: string }[];
+    };
+}
+
+/** `seats` with every deck entry's `definitionId` resolved from the
+ *  `cardPrints` rows of the printings the seats name — the one place a chosen
+ *  printing becomes a Card Definition before `buildInitialGameState` builds the
+ *  libraries (ADR 0140 §5-6). The result feeds setup only: it carries a field
+ *  the stored `games` / `matchDecks` snapshots do not, so it is never
+ *  persisted. */
+export async function withSeatDefinitionIds<S extends SeatLike>(
+    ctx: Pick<QueryCtx, "db">,
+    seats: readonly S[]
+): Promise<S[]> {
+    const index = await loadPrintRows(
+        ctx,
+        seats.flatMap((s) =>
+            [...s.deck.cards, ...(s.deck.sideboard ?? [])].map((c) => c.cardId)
+        )
+    );
+    return seats.map((seat) => ({
+        ...seat,
+        deck: {
+            ...seat.deck,
+            cards: withRowDefinitionIds(seat.deck.cards, index),
+            ...(seat.deck.sideboard
+                ? {
+                      sideboard: withRowDefinitionIds(
+                          seat.deck.sideboard,
+                          index
+                      ),
+                  }
+                : {}),
+        },
+    }));
 }
 
 /** The first printing row of each of `cardIds` in `setCode`, by Card ID —

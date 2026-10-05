@@ -31,7 +31,10 @@ import type {
     LimitedEventSeat,
     LimitedPoolCard,
 } from "./limited/eventTypes";
-import { resolveCardMeta } from "./limitedCardMeta";
+import { resolveSheetCardMeta } from "./limitedCardMeta";
+import { loadPrintRows } from "./cardPrintRows";
+import { makeResolveCardMetaFromRows } from "./cards/printRows";
+import type { ResolveCardMeta } from "./limited/eventLogic";
 
 /** The four fields that live in `limitedSeats`. Named once so the split's
  *  membership is stated in exactly one place — adding a fifth heavy field
@@ -89,6 +92,29 @@ function pickPayload(seat: Partial<StoredPayload>): StoredPayload {
     return payload;
 }
 
+/** The `ResolveCardMeta` the seat expansion runs: a printing resolves through
+ *  its `cardPrints` row (ADR 0140 §5) — the SAME resolution the producers
+ *  inject (`limitedEvents.ts`'s `makeResolveCardMetaFromRows`), so the store's
+ *  expansion still reproduces the producer's output byte for byte — then the
+ *  registry and the checked-in sheets' own reprint map (`resolveSheetCardMeta`) for
+ *  an id with no row. One point read per distinct non-definition id. */
+async function resolverFor(
+    ctx: Pick<QueryCtx, "db">,
+    payloads: readonly StoredPayload[]
+): Promise<ResolveCardMeta> {
+    const ids = payloads.flatMap((p) =>
+        [
+            ...(p.pool ?? []),
+            ...(p.currentPack ?? []),
+            ...(p.packQueue ?? []).flat(),
+        ].map((c) => c.scryfallId)
+    );
+    return makeResolveCardMetaFromRows(
+        await loadPrintRows(ctx, ids),
+        resolveSheetCardMeta
+    );
+}
+
 /** Rebuilds a stored card's `cardId`/`cardName` from its `scryfallId`.
  *
  *  The fallback expression is the producers' own, VERBATIM — `generateSealedPools`
@@ -106,7 +132,10 @@ function pickPayload(seat: Partial<StoredPayload>): StoredPayload {
  *  A legacy row's own `cardId`/`cardName` WIN over a fresh resolve: they are
  *  what that draft has been running on, and a catalogue rename mid-draft must
  *  not reshuffle an existing Pool Arrangement. */
-function expandPoolCard(stored: StoredPoolCard): LimitedPoolCard {
+function expandPoolCard(
+    stored: StoredPoolCard,
+    resolve: ResolveCardMeta
+): LimitedPoolCard {
     if (stored.cardId !== undefined && stored.cardName !== undefined) {
         return {
             scryfallId: stored.scryfallId,
@@ -114,7 +143,7 @@ function expandPoolCard(stored: StoredPoolCard): LimitedPoolCard {
             cardName: stored.cardName,
         };
     }
-    const meta = resolveCardMeta(stored.scryfallId);
+    const meta = resolve(stored.scryfallId);
     return {
         scryfallId: stored.scryfallId,
         cardId: meta?.cardId ?? stored.scryfallId,
@@ -122,23 +151,31 @@ function expandPoolCard(stored: StoredPoolCard): LimitedPoolCard {
     };
 }
 
-function expandPackCard(stored: StoredPackCard): DraftPackCard {
-    return { ...expandPoolCard(stored), pickId: stored.pickId };
+function expandPackCard(
+    stored: StoredPackCard,
+    resolve: ResolveCardMeta
+): DraftPackCard {
+    return { ...expandPoolCard(stored, resolve), pickId: stored.pickId };
 }
 
 /** Stored payload → the `LimitedEventSeat` shape every consumer above this
  *  seam already expects. `poolArrangement` is carried through untouched: it
  *  keys on `poolIndex`, never on card identity. */
-function expandPayload(stored: StoredPayload): SeatPayload {
+function expandPayload(
+    stored: StoredPayload,
+    resolve: ResolveCardMeta
+): SeatPayload {
     const payload: SeatPayload = {};
     if (stored.pool !== undefined)
-        payload.pool = stored.pool.map(expandPoolCard);
+        payload.pool = stored.pool.map((c) => expandPoolCard(c, resolve));
     if (stored.currentPack !== undefined) {
-        payload.currentPack = stored.currentPack.map(expandPackCard);
+        payload.currentPack = stored.currentPack.map((c) =>
+            expandPackCard(c, resolve)
+        );
     }
     if (stored.packQueue !== undefined) {
         payload.packQueue = stored.packQueue.map((pack) =>
-            pack.map(expandPackCard)
+            pack.map((c) => expandPackCard(c, resolve))
         );
     }
     if (stored.poolArrangement !== undefined) {
@@ -314,6 +351,7 @@ async function loadPayloads(
     seatIndexes?: readonly number[]
 ): Promise<Map<number, SeatPayload>> {
     const byIndex = new Map<number, SeatPayload>();
+    const stored: { seatIndex: number; payload: StoredPayload }[] = [];
     // A targeted hydration (the common case: just the viewer's own seat) does
     // point lookups on the full `(eventId, seatIndex)` index instead of
     // reading every seat of the event — the whole reason the index carries
@@ -326,16 +364,26 @@ async function loadPayloads(
                     q.eq("eventId", eventId).eq("seatIndex", seatIndex)
                 )
                 .unique();
-            if (row) byIndex.set(seatIndex, expandPayload(pickPayload(row)));
+            if (row) stored.push({ seatIndex, payload: pickPayload(row) });
         }
-        return byIndex;
+    } else {
+        const rows = await ctx.db
+            .query("limitedSeats")
+            .withIndex("by_event", (q) => q.eq("eventId", eventId))
+            .collect();
+        for (const row of rows) {
+            stored.push({
+                seatIndex: row.seatIndex,
+                payload: pickPayload(row),
+            });
+        }
     }
-    const rows = await ctx.db
-        .query("limitedSeats")
-        .withIndex("by_event", (q) => q.eq("eventId", eventId))
-        .collect();
-    for (const row of rows) {
-        byIndex.set(row.seatIndex, expandPayload(pickPayload(row)));
+    const resolve = await resolverFor(
+        ctx,
+        stored.map((s) => s.payload)
+    );
+    for (const { seatIndex, payload } of stored) {
+        byIndex.set(seatIndex, expandPayload(payload, resolve));
     }
     return byIndex;
 }
@@ -542,7 +590,12 @@ export async function saveSeatPayload(
     // patch arrives in the hydrated (`LimitedEventSeat`) shape, and a legacy
     // row merged with it raw would leave the untouched keys fat.
     const next = internPayload({
-        ...(row ? expandPayload(pickPayload(row)) : {}),
+        ...(row
+            ? expandPayload(
+                  pickPayload(row),
+                  await resolverFor(ctx, [pickPayload(row)])
+              )
+            : {}),
         ...patch,
     });
     if (row) {

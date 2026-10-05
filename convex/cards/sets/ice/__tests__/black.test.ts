@@ -3,11 +3,6 @@
 // cites the CR section it exercises.
 
 import { describe, it, expect } from "vitest";
-import {
-    darkRitualIce,
-    fearIce,
-    howlFromBeyondIce,
-} from "../../ice/index.cards";
 import { applyLandManaReplacement, manaValue } from "../../../../gre/constants";
 import {
     getDefinition,
@@ -155,24 +150,6 @@ const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 // ═══════════════════════════════════════════════════════════════════════════
 // Black free tranche (#632)
 // ═══════════════════════════════════════════════════════════════════════════
-
-describe("ICE Black reprints (CardPrint wiring, ADR 0014)", () => {
-    it("Dark Ritual print resolves to the LEA definition", () => {
-        expect(getDefinition(darkRitualIce.printId).name).toBe("Dark Ritual");
-        expect(darkRitualIce.definitionId).toBe(
-            "ebb6664d-23ca-456e-9916-afcd6f26aa7f"
-        );
-        expect(darkRitualIce.setCode).toBe("ice");
-    });
-    it("Fear print resolves to the LEA definition", () => {
-        expect(getDefinition(fearIce.printId).name).toBe("Fear");
-    });
-    it("Howl from Beyond print resolves to the LEA definition", () => {
-        expect(getDefinition(howlFromBeyondIce.printId).name).toBe(
-            "Howl from Beyond"
-        );
-    });
-});
 
 describe("Brine Shaman (sacrifice engine, CR 602.1 / 118.5)", () => {
     it("pumps the target +2/+2 until end of turn", () => {
@@ -614,13 +591,6 @@ describe("ICE Black tranche registry parity", () => {
         for (const name of expected) {
             expect(getCardByName(name).name).toBe(name);
         }
-    });
-    it("registers the three Black reprints by print id", () => {
-        expect(getDefinition(darkRitualIce.printId).name).toBe("Dark Ritual");
-        expect(getDefinition(fearIce.printId).name).toBe("Fear");
-        expect(getDefinition(howlFromBeyondIce.printId).name).toBe(
-            "Howl from Beyond"
-        );
     });
 });
 

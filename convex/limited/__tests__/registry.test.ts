@@ -4,6 +4,7 @@ import { describe, it, expect } from "vitest";
 import {
     getBoosterConfig,
     getRuntimeBoosterConfig,
+    getSheetPrintCardId,
     isDraftableSet,
     listDraftableSets,
 } from "../registry";
@@ -82,7 +83,11 @@ describe("registry (ADR 0056/0059)", () => {
 
             for (const [sheetName, sheet] of Object.entries(runtime.sheets)) {
                 for (const scryfallId of Object.keys(sheet.cards)) {
-                    expect(tryGetDefinition(scryfallId)).not.toBeNull();
+                    expect(
+                        tryGetDefinition(
+                            getSheetPrintCardId(scryfallId) ?? scryfallId
+                        )
+                    ).not.toBeNull();
                 }
                 // Every survivor is still present on the RAW sheet — nothing
                 // invented, only removed.

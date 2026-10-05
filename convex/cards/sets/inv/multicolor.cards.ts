@@ -14,7 +14,6 @@ import type {
     EffectOp,
     PermanentView,
     StaticKeywordGrant,
-    CardPrint,
 } from "../../types";
 import {
     AURA_AFFECTS_HOST,
@@ -997,17 +996,6 @@ export const barrinsSpite: CardDefinition = {
     ],
 };
 
-// lobotomy — INV reprint of the Tempest definition (CardPrint).
-// The card was first implemented here, against this printing; its home set is
-// its earliest paper printing (ADR 0041), so the mechanics live in
-// `tmp/multicolor.cards.ts`.
-export const lobotomyInv: CardPrint = {
-    printId: "ff307dbb-4ab6-457b-be56-47106864bf61", // INV 258
-    definitionId: "ee7ba92d-d327-4b1c-be40-708c5abb27df", // lobotomy (Tempest)
-    setCode: "inv",
-    rarity: "uncommon",
-};
-
 // Seer's Vision — {2}{U}{B} Enchantment. "Your opponents play with their
 // hands revealed. Sacrifice this enchantment: Look at target player's hand
 // and choose a card from it. That player discards that card. Activate only
@@ -1848,17 +1836,6 @@ export const ragingKavu: CardDefinition = {
     power: 3,
     toughness: 1,
     staticAbilities: ["flash", "haste"],
-};
-
-// simoon — INV reprint of the Visions definition (CardPrint).
-// The card was first implemented here, against this printing; its home set is
-// its earliest paper printing (ADR 0041), so the mechanics live in
-// `vis/multicolor.cards.ts`.
-export const simoonInv: CardPrint = {
-    printId: "84b1930d-2e4b-472f-98a9-008fd632f3be", // INV 279
-    definitionId: "642d9239-82e0-4696-ad99-10796042d1f8", // simoon (Visions)
-    setCode: "inv",
-    rarity: "uncommon",
 };
 
 // Voracious Cobra — {2}{R}{G} Creature — Snake, 2/2. "First strike.

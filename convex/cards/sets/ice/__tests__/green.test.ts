@@ -3,13 +3,6 @@
 // cites the CR section it exercises.
 
 import { describe, it, expect } from "vitest";
-import {
-    giantGrowthIce,
-    hurricaneIce,
-    lureIce,
-    regenerationIce,
-    wildGrowthIce,
-} from "../../ice/index.cards";
 import { applyLandManaReplacement } from "../../../../gre/constants";
 import { untapStep } from "../../../../gre/phases";
 import {
@@ -1331,15 +1324,6 @@ describe("ICE Green tranche registry parity", () => {
         for (const name of expected) {
             expect(getCardByName(name).name).toBe(name);
         }
-    });
-    it("registers the five Green reprints by print id", () => {
-        expect(getDefinition(giantGrowthIce.printId).name).toBe("Giant Growth");
-        expect(getDefinition(hurricaneIce.printId).name).toBe("Hurricane");
-        expect(getDefinition(lureIce.printId).name).toBe("Lure");
-        expect(getDefinition(regenerationIce.printId).name).toBe(
-            "Regeneration"
-        );
-        expect(getDefinition(wildGrowthIce.printId).name).toBe("Wild Growth");
     });
 });
 

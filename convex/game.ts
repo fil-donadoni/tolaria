@@ -132,7 +132,7 @@ import {
 import { declineMadness, consumeMadnessCastChoice } from "./gre/madness";
 import { declineRebound, consumeReboundCastChoice } from "./gre/rebound";
 import { assertDeckLegal, type ResolvePool } from "./formats";
-import { loadDeckPrintRows } from "./cardPrintRows";
+import { loadDeckPrintRows, withSeatDefinitionIds } from "./cardPrintRows";
 import { makeResolveCardFromRows } from "./cards/printRows";
 import {
     JOIN_CODE_REJECTED,
@@ -554,20 +554,22 @@ function buildCompanionInstance(
     player: PlayerInput,
     counter: { nextInstanceId?: number }
 ): CardInstanceState | undefined {
+    const definitionOf = (c: { cardId: string; definitionId?: string }) =>
+        c.definitionId ?? c.cardId;
     const def = selectCompanion(
-        (player.deck.sideboard ?? []).map((c) => c.cardId),
-        player.deck.cards.map((c) => c.cardId)
+        (player.deck.sideboard ?? []).map(definitionOf),
+        player.deck.cards.map(definitionOf)
     );
     if (!def) return undefined;
     // The sideboard entry the companion came from, for its chosen printing
     // (ADR 0140 §6) — `selectCompanion` answers with the definition only.
     const entry = (player.deck.sideboard ?? []).find(
-        (c) => tryGetDefinition(c.cardId)?.id === def.id
+        (c) => tryGetDefinition(definitionOf(c))?.id === def.id
     );
     // CR 702.139 — `exile` is a nominal tag only; the companion slot is not a
     // real zone (see the `PlayerState.companion` / serialize.ts doc).
     return instantiateDeckCard(
-        { cardId: entry?.cardId ?? def.id },
+        entry ?? { cardId: def.id },
         player.id,
         "exile",
         counter
@@ -3516,7 +3518,10 @@ export const chooseFirstPlayer = mutation({
         // CR 103.5: opening hands are drawn only after the starting player is
         // decided. The on-the-play skip-first-draw rule (CR 103.8) is already
         // handled by the engine (turn === 1).
-        const initialState = buildInitialGameState(seats, activePlayerId);
+        const initialState = buildInitialGameState(
+            await withSeatDefinitionIds(ctx, seats),
+            activePlayerId
+        );
         await saveGameState(ctx, gameId, 0, initialState, null);
 
         return { gameId };
@@ -3812,7 +3817,10 @@ async function buildNextGameForMatch(
     // CR 103: the next Game starts fresh from the post-sideboard maindeck. The
     // play/draw choice sets the turn-1 active player; the on-the-play skip-first-
     // draw rule is already correct in the engine (turn === 1, CR 103.8).
-    const initialState = buildInitialGameState(seats, activePlayerId);
+    const initialState = buildInitialGameState(
+        await withSeatDefinitionIds(ctx, seats),
+        activePlayerId
+    );
     await saveGameState(ctx, gameId, 0, initialState, null);
 
     return { gameId, gameNumber: nextGameNumber };
@@ -14531,7 +14539,10 @@ export const debugResetGame = mutation({
         const idCounter: { nextInstanceId?: number } = {};
         // Decklists live in `gameDecks` (issue #2506) — a reset rebuilds the
         // libraries, so this is one of the paths that must hydrate in full.
-        const seats = await hydrateGameSeats(ctx, game);
+        const seats = await withSeatDefinitionIds(
+            ctx,
+            await hydrateGameSeats(ctx, game)
+        );
         const playersState = seats.map((p) =>
             buildPlayerState(p as PlayerInput, idCounter)
         );

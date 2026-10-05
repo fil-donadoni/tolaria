@@ -47,7 +47,6 @@ import {
     generateSealedPools,
     MAX_SEATS,
     releaseSeat,
-    type ResolveCardMeta,
 } from "../limited/eventLogic";
 import {
     projectLimitedEvent,
@@ -69,8 +68,10 @@ import {
 import {
     getBoosterConfig,
     getRuntimeBoosterConfig,
+    getSheetPrintCardId,
     isDraftableSet,
 } from "../limited/registry";
+import { resolveCardMeta, resolveSheetCardMeta } from "../limitedCardMeta";
 // The real mutation, driven end-to-end against the shared in-memory ctx — see
 // the `setPoolArrangementEntry through the REAL mutation handler` block below.
 import type { Doc, Id } from "../_generated/dataModel";
@@ -79,17 +80,14 @@ import { setPoolArrangementEntry } from "../limitedEvents";
 import { hydrateSeats } from "../limitedSeatStore";
 import { makeInMemoryDb } from "./fixtures/inMemoryDb.fixture";
 
-const resolveCardMeta: ResolveCardMeta = (scryfallId) => {
-    const def = tryGetDefinition(scryfallId);
-    if (!def) return null;
-    const meta = resolveDeckCardMeta(scryfallId);
-    return meta ? { cardId: meta.cardId, cardName: def.name } : null;
-};
+// Production's own registry-side resolver (`limitedCardMeta.ts`): the db-less
+// test ctx has no `cardPrints` rows, so a sheet's reprint resolves through the
+// checked-in config's `printCardIds`, exactly as the Draft Lab's does.
 
 // The same `GetCardEvalMeta` wiring `convex/limitedEvents.ts` uses, against
 // the REAL card registry — the Bot Drafter's Pick Heuristic input.
 const getCardEvalMeta: GetCardEvalMeta = (scryfallId) => {
-    const meta = resolveDeckCardMeta(scryfallId);
+    const meta = resolveSheetCardMeta(scryfallId);
     if (!meta) return null;
     const def = tryGetDefinition(meta.cardId);
     if (!def) return null;
@@ -244,7 +242,11 @@ describe("Limited Event: create → join → start → pools exist (PRD #1107)",
                 // every dealt card resolves to a real, implemented
                 // CardDefinition — no placeholder ever reaches a Pool, even
                 // though the checked-in ICE config isn't 100% implemented.
-                expect(tryGetDefinition(card.scryfallId)).not.toBeNull();
+                expect(
+                    tryGetDefinition(
+                        getSheetPrintCardId(card.scryfallId) ?? card.scryfallId
+                    )
+                ).not.toBeNull();
                 expect(card.cardName).not.toBe(card.scryfallId);
             }
         }

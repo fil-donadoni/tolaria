@@ -17,7 +17,11 @@ import {
     type ResolveCard,
     validateDeck,
 } from "./formats";
-import { loadDeckPrintRows, loadPrintRows } from "./cardPrintRows";
+import {
+    fillDefinitionIds,
+    loadDeckPrintRows,
+    loadPrintRows,
+} from "./cardPrintRows";
 import { makeResolveCardFromRows } from "./cards/printRows";
 
 // Typed deck Format (ADR 0036). An Admin chooses it when authoring a preset.
@@ -326,6 +330,20 @@ export interface PresetCreateInput {
     featuredCardId?: string;
 }
 
+/** Admin-written preset entries with `definitionId` resolved from the
+ *  printings' `cardPrints` rows (a chosen basic-land printing is no Card ID). */
+async function withPrintDefinitionIds(
+    ctx: Pick<QueryCtx, "db">,
+    input: PresetCreateInput
+): Promise<PresetCreateInput> {
+    return {
+        ...input,
+        cards: input.cards && (await fillDefinitionIds(ctx, input.cards)),
+        sideboard:
+            input.sideboard && (await fillDefinitionIds(ctx, input.sideboard)),
+    };
+}
+
 /**
  * Pure builder for a brand-new preset row (PRD #466, ADR 0033, issue #469).
  * Auto-derives the stable `slug` from the name via `slugify` — the slug is the
@@ -401,7 +419,16 @@ export const updatePreset = mutation({
             .withIndex("by_slug", (q) => q.eq("slug", args.slug))
             .unique();
         if (!row) throw new Error("Preset not found");
-        const patch = buildPresetPatch(args.patch);
+        // A printing's Card ID lives in its `cardPrints` row, not the registry.
+        const patch = buildPresetPatch({
+            ...args.patch,
+            cards:
+                args.patch.cards &&
+                (await fillDefinitionIds(ctx, args.patch.cards)),
+            sideboard:
+                args.patch.sideboard &&
+                (await fillDefinitionIds(ctx, args.patch.sideboard)),
+        });
         if (Object.keys(patch).length === 0) return null;
         await ctx.db.patch(row._id, patch);
         return null;
@@ -418,7 +445,9 @@ export const createPreset = mutation({
     returns: v.object({ slug: v.string() }),
     handler: async (ctx, args) => {
         await assertIsAdmin(ctx);
-        const row = buildNewPresetRow(args.input);
+        const row = buildNewPresetRow(
+            await withPrintDefinitionIds(ctx, args.input)
+        );
         const existing = await ctx.db
             .query("presetDecks")
             .withIndex("by_slug", (q) => q.eq("slug", row.slug))
@@ -598,7 +627,9 @@ export const seedPresetDirect = internalMutation({
         slug: v.string(),
     }),
     handler: async (ctx, args) => {
-        const row = buildNewPresetRow(args.input);
+        const row = buildNewPresetRow(
+            await withPrintDefinitionIds(ctx, args.input)
+        );
         if (row.slug !== args.expectedSlug) {
             throw new Error(
                 `slug mismatch: canonical list says "${args.expectedSlug}", ` +

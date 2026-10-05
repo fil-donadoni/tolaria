@@ -30,7 +30,7 @@ import {
     seatRowNeedsInterning,
 } from "../limitedSeatStore";
 import { resolveCardMeta } from "../limitedCardMeta";
-import { getAliasedPrintIds, getAllCards } from "../cards/catalogue";
+import { getAllCards } from "../cards/catalogue";
 import { startDraft } from "../limited/draftEngine";
 import {
     buildCubePool,
@@ -447,16 +447,15 @@ describe("limitedSeatStore — projection agreement", () => {
 
 // --- Card payload interning (issue #2507) ------------------------------------
 
-/** `count` real registry ids, as PRINT ids where the definition has one — the
- *  shape a Booster actually draws (`generateBooster` yields printings, and
- *  the print alias registers each in the registry so `resolveCardMeta` maps it
- *  back to the canonical `cardId`). Taken from the live catalogue rather than
+/** `count` real registry ids — Card IDs, the id a Booster's card resolves to
+ *  (a printing resolves to its Card ID through the `cardPrints` rows, never
+ *  the registry, ADR 0140 §5). Taken from the live catalogue rather than
  *  hard-coded so this cannot rot against a card being renamed or re-set. */
 function realScryfallIds(count: number): string[] {
     const ids: string[] = [];
     for (const def of getAllCards()) {
         if (ids.length >= count) break;
-        ids.push(getAliasedPrintIds(def.id)[0] ?? def.id);
+        ids.push(def.id);
     }
     if (ids.length < count) {
         throw new Error(`catalogue has fewer than ${count} cards`);

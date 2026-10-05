@@ -56,7 +56,6 @@ import type {
     ManaCost,
     PermanentView,
     StaticEffectContext,
-    CardPrint,
 } from "../../types";
 import {
     AURA_AFFECTS_HOST,
@@ -133,17 +132,6 @@ export const opt: CardDefinition = {
         },
         { op: "draw", player: "controller", count: 1 },
     ],
-};
-
-// disrupt — INV reprint of the Weatherlight definition (CardPrint).
-// The card was first implemented here, against this printing; its home set is
-// its earliest paper printing (ADR 0041), so the mechanics live in
-// `wth/blue.cards.ts`.
-export const disruptInv: CardPrint = {
-    printId: "c000a02f-6b7e-4925-a938-59e645e980d7", // INV 60
-    definitionId: "c6cc89b0-9acf-452b-ac1a-bc7e90eb32fc", // disrupt (Weatherlight)
-    setCode: "inv",
-    rarity: "uncommon",
 };
 
 // Empress Galina — {3}{U}{U} Legendary Creature — Merfolk Noble, 1/3.
@@ -313,17 +301,6 @@ export const sapphireLeech: CardDefinition = {
             costIncrease: { U: 1 },
         },
     ],
-};
-
-// shimmeringWings — INV reprint of the Tempest definition (CardPrint).
-// The card was first implemented here, against this printing; its home set is
-// its earliest paper printing (ADR 0041), so the mechanics live in
-// `tmp/blue.cards.ts`.
-export const shimmeringWingsInv: CardPrint = {
-    printId: "9615a6c2-1732-4a04-9be1-cc0a8d39de3f", // INV 84
-    definitionId: "a6a8dc46-04c7-479a-90c1-b55e6c67e0e3", // shimmeringWings (Tempest)
-    setCode: "inv",
-    rarity: "common",
 };
 
 // Sky Weaver — {1}{U} Creature — Metathran Wizard, 2/1. "{2}: Target white or

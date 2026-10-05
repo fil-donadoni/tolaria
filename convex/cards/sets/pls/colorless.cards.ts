@@ -3,12 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type {
-    CardDefinition,
-    CardPrint,
-    ManaCost,
-    MayPayCost,
-} from "../../types";
+import type { CardDefinition, ManaCost, MayPayCost } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { makeTapForMana } from "../../abilities";
@@ -368,17 +363,6 @@ export const skyshipWeatherlight: CardDefinition = {
             effects: [{ op: "randomExileToHand" }],
         },
     ],
-};
-
-// Skyship Weatherlight — PLS 133★, the foil-only alternate-illustration
-// variant printed in the SAME set (ADR 0014: one CardDefinition + one
-// CardPrint per artwork). Rarity/mechanics are identical to the canonical
-// print above; only the Scryfall art id differs.
-export const skyshipWeatherlightAlt: CardPrint = {
-    printId: "99791ef7-ff51-4982-b0ef-55560f9577ff", // PLS 133★
-    definitionId: skyshipWeatherlight.id,
-    setCode: "pls",
-    rarity: "rare",
 };
 
 // ─────────────────────────────────────────────────────────────────────────────

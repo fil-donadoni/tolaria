@@ -557,7 +557,7 @@ export type CardSupertype =
 
 /** Printed rarity of a card (CR 206). Rarity is a property of a *printing*,
  *  not of the underlying card — a card reprinted at a different rarity carries
- *  a different `rarity` on each `CardPrint`. Restricted to the three classic
+ *  a different `rarity` on each `cardPrints` row. Restricted to the three classic
  *  rarities used by the implemented sets (LEA–LEG era); modern "mythic" /
  *  "special" / "bonus" can be added when those sets ship. Consumed by
  *  rarity-budgeted Formats (Alpha 40, ADR 0036). Informational for Basic
@@ -19196,7 +19196,7 @@ export interface CardDefinition {
     name: string;
     /** Printed rarity of this card in its HOME set (the set the definition is
      *  declared in). Reprints in other sets carry their own rarity on the
-     *  `CardPrint`. Required: a new card must declare its rarity (CR 206) —
+     *  `cardPrints` row. Required: a new card must declare its rarity (CR 206) —
      *  the registry self-check and the generator both enforce presence. */
     rarity: Rarity;
     /** The Set a COMPILED row was first printed in — the card-index's
@@ -19206,7 +19206,7 @@ export interface CardDefinition {
      *  (`catalogue.ts`'s `definitionSetCode`), and a compiled row's value
      *  feeds that same map on registration, so every reader of the home set
      *  (search, Format validation, `isPrintedInSet`) sees one answer for both
-     *  populations. Reprints are `CardPrint`s, not this field. */
+     *  populations. Reprints are `cardPrints` rows, not this field. */
     setCode?: string;
     manaCost?: ManaCost;
     types: CardType[];
@@ -20421,33 +20421,4 @@ export interface CardDefinition {
      *  moment a `transformPermanent` swap points `card.card.id` at it. See
      *  {@link CardImageFace}. */
     imagePrintFace?: CardImageFace;
-}
-
-/** Reprint of an existing `CardDefinition` in another set. The mechanics are
- *  defined exactly once on the original `CardDefinition`; reprints declare
- *  only the metadata that varies between physical printings: a per-print
- *  Scryfall UUID (used for the card image) and the set code.
- *
- *  Resolution: the card registry maps both `CardDefinition.id` and every
- *  `CardPrint.printId` to the same underlying `CardDefinition`, so a
- *  `getDefinition(printId)` lookup transparently returns the original
- *  mechanics regardless of which printing the deck/instance references.
- *  The instance retains the print's id (`card.id === printId`) so the image
- *  layer renders the chosen edition's art. */
-export interface CardPrint {
-    /** Per-print Scryfall UUID. Used as the image lookup key and as the id
-     *  stored on `CardInstanceState.card.id` when the player picks this
-     *  edition. Must be globally unique across all sets. */
-    printId: CardId;
-    /** Id of the original `CardDefinition` whose mechanics this print uses
-     *  (typically the LEA print's Scryfall UUID for cards first printed in
-     *  Alpha). The registry resolves `printId → definitionId → CardDefinition`. */
-    definitionId: CardId;
-    /** Lowercase set code of this printing (e.g. "leb", "2ed"). Informational
-     *  — used by the deck builder UI to label the print. */
-    setCode: string;
-    /** Printed rarity of THIS printing (CR 206). May differ from the home-set
-     *  `CardDefinition.rarity` when a card is reprinted at a different rarity.
-     *  Required: every printing declares its own rarity. */
-    rarity: Rarity;
 }

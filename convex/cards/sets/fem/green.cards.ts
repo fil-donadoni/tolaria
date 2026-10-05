@@ -11,7 +11,6 @@
 
 import type {
     CardDefinition,
-    CardPrint,
     EffectTokenSpec,
     SpellContext,
 } from "../../types";
@@ -90,27 +89,6 @@ export const thallid: CardDefinition = {
     ],
 };
 
-export const thallidFemB: CardPrint = {
-    printId: "80f8f778-ae31-45cd-b27f-f93a07853ede", // FEM 74b
-    definitionId: thallid.id,
-    setCode: "fem",
-    rarity: "common",
-};
-
-export const thallidFemC: CardPrint = {
-    printId: "2cf2f3da-9101-439d-8caa-910ff40bfbb3", // FEM 74c
-    definitionId: thallid.id,
-    setCode: "fem",
-    rarity: "common",
-};
-
-export const thallidFemD: CardPrint = {
-    printId: "01827286-b104-41c5-bac9-7c38414bc40e", // FEM 74d
-    definitionId: thallid.id,
-    setCode: "fem",
-    rarity: "common",
-};
-
 export const thallidDevourer: CardDefinition = {
     id: "aa533845-4c4b-4072-aa39-8e56ce7ec325", // FEM 75
     rarity: "uncommon",
@@ -184,27 +162,6 @@ export const thornThallid: CardDefinition = {
             effects: [{ op: "dealDamage", amount: 1, to: { target: 0 } }],
         },
     ],
-};
-
-export const thornThallidFemB: CardPrint = {
-    printId: "84283348-789b-4236-b406-7fc6338a867d", // FEM 80b
-    definitionId: thornThallid.id,
-    setCode: "fem",
-    rarity: "common",
-};
-
-export const thornThallidFemC: CardPrint = {
-    printId: "1537a338-3b68-4a41-bac6-554e8e530e46", // FEM 80c
-    definitionId: thornThallid.id,
-    setCode: "fem",
-    rarity: "common",
-};
-
-export const thornThallidFemD: CardPrint = {
-    printId: "1e8f50be-1629-40eb-8916-019903d2e6a4", // FEM 80d
-    definitionId: thornThallid.id,
-    setCode: "fem",
-    rarity: "common",
 };
 
 export const feralThallid: CardDefinition = {
@@ -300,27 +257,6 @@ export const elvishFarmer: CardDefinition = {
     ],
 };
 
-export const elvenFortressFemB: CardPrint = {
-    printId: "091b5ed4-91f5-47c1-b1a1-5443f7346078", // FEM 65b
-    definitionId: "9387105d-46d0-4db0-8980-dd0fded15eef",
-    setCode: "fem",
-    rarity: "common",
-};
-
-export const elvenFortressFemC: CardPrint = {
-    printId: "960b542f-cb24-4f74-92da-d31559d87c2d", // FEM 65c
-    definitionId: "9387105d-46d0-4db0-8980-dd0fded15eef",
-    setCode: "fem",
-    rarity: "common",
-};
-
-export const elvenFortressFemD: CardPrint = {
-    printId: "c52743f0-5c5b-46b9-bbbd-67950d4c89e5", // FEM 65d
-    definitionId: "9387105d-46d0-4db0-8980-dd0fded15eef",
-    setCode: "fem",
-    rarity: "common",
-};
-
 export const elvishHunter: CardDefinition = {
     id: "e00455ac-c7ce-4916-98ed-cca9354e3f22", // FEM 67a (canonical art)
     rarity: "common",
@@ -346,20 +282,6 @@ export const elvishHunter: CardDefinition = {
             effects: [{ op: "skipNextUntap", target: { target: 0 } }],
         },
     ],
-};
-
-export const elvishHunterFemB: CardPrint = {
-    printId: "51ff096c-487f-42f9-a394-a298503391da", // FEM 67b
-    definitionId: elvishHunter.id,
-    setCode: "fem",
-    rarity: "common",
-};
-
-export const elvishHunterFemC: CardPrint = {
-    printId: "204c8aff-b103-4606-b86b-d794bc5dcde1", // FEM 67c
-    definitionId: elvishHunter.id,
-    setCode: "fem",
-    rarity: "common",
 };
 
 export const elvishScout: CardDefinition = {
@@ -402,20 +324,6 @@ export const elvishScout: CardDefinition = {
     ],
 };
 
-export const elvishScoutFemB: CardPrint = {
-    printId: "1faff88d-594e-473c-a2d1-cd60f51b2ee7", // FEM 68b
-    definitionId: elvishScout.id,
-    setCode: "fem",
-    rarity: "common",
-};
-
-export const elvishScoutFemC: CardPrint = {
-    printId: "d414bf5a-2604-426c-8c68-5c1696557b57", // FEM 68c
-    definitionId: elvishScout.id,
-    setCode: "fem",
-    rarity: "common",
-};
-
 export const sporeCloud: CardDefinition = {
     id: "1691a9f4-4ea7-440f-9bdc-4214ab3c90f0", // FEM 72a (canonical art)
     rarity: "uncommon",
@@ -453,20 +361,6 @@ export const sporeCloud: CardDefinition = {
             }
         }
     },
-};
-
-export const sporeCloudFemB: CardPrint = {
-    printId: "2c3070f8-6dae-4f22-b186-e2a3a9647cc5", // FEM 72b
-    definitionId: sporeCloud.id,
-    setCode: "fem",
-    rarity: "uncommon",
-};
-
-export const sporeCloudFemC: CardPrint = {
-    printId: "17fe098c-c9b5-4bba-92b5-5720d6919073", // FEM 72c
-    definitionId: sporeCloud.id,
-    setCode: "fem",
-    rarity: "uncommon",
 };
 
 export const theloniteDruid: CardDefinition = {
@@ -711,18 +605,4 @@ export const nightSoil: CardDefinition = {
             ],
         },
     ],
-};
-
-export const nightSoilFemB: CardPrint = {
-    printId: "4f25a497-46dc-47aa-8586-d514578a6d25", // FEM 71b
-    definitionId: nightSoil.id,
-    setCode: "fem",
-    rarity: "common",
-};
-
-export const nightSoilFemC: CardPrint = {
-    printId: "ee3eb61b-698c-42b1-8a33-0ce7c3829e07", // FEM 71c
-    definitionId: nightSoil.id,
-    setCode: "fem",
-    rarity: "common",
 };

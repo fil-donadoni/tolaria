@@ -220,10 +220,17 @@ describe("countBasicLandCopies (issue #1627: the bar's per-subtype Maindeck coun
 // that function counted, this function must be able to take out.
 describe("findBasicLandRemovalIndex", () => {
     it("matches by SUBTYPE, so a non-canonical PRINTING of the same basic is removable", () => {
-        // The search grid adds by print id; `tryGetDefinition` resolves this
-        // LEB print back to the Mountain definition, which is exactly why the
-        // counter sees it and a `cardId === MOUNTAIN` match did not.
-        const cards = [{ cardId: LEB_MOUNTAIN_PRINT }];
+        // The search grid adds by print id; the registry no longer resolves a
+        // Print ID (issue #4121), so the entry's `definitionId` names the
+        // Mountain definition — which is why the counter sees it and a
+        // `cardId === MOUNTAIN` match did not.
+        const cards = [{ cardId: LEB_MOUNTAIN_PRINT, definitionId: MOUNTAIN }];
+        expect(countBasicLandCopies(cards).Mountain).toBe(1);
+        expect(findBasicLandRemovalIndex(cards, "Mountain")).toBe(0);
+    });
+
+    it("classifies a Pool printing carrying only its cardName (no definitionId)", () => {
+        const cards = [{ cardId: LEB_MOUNTAIN_PRINT, cardName: "Mountain" }];
         expect(countBasicLandCopies(cards).Mountain).toBe(1);
         expect(findBasicLandRemovalIndex(cards, "Mountain")).toBe(0);
     });
@@ -238,7 +245,7 @@ describe("findBasicLandRemovalIndex", () => {
     it("prefers an UNPINNED copy over a pinned Pool copy (NB1: a bar remove must never strand a recorded Column)", () => {
         const cards = [
             { cardId: MOUNTAIN, pinKey: "0" },
-            { cardId: LEB_MOUNTAIN_PRINT },
+            { cardId: LEB_MOUNTAIN_PRINT, definitionId: MOUNTAIN },
         ];
         expect(findBasicLandRemovalIndex(cards, "Mountain")).toBe(1);
     });

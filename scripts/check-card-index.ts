@@ -130,7 +130,7 @@ if (reprinted.length) {
         `✗ card-index: ${reprinted.length} card(s) implemented against a REPRINT ` +
             `instead of their first printing (ADR 0041 — home set = earliest paper printing).\n` +
             `Move the definition to its home-set module, use the first-printing id, and\n` +
-            `leave a \`CardPrint\` behind for the printing it was written against:\n`
+            `the printing it was written against becomes a \`cardPrints\` row (\`bun run prints:sync\`):\n`
     );
     for (const e of reprinted.slice(0, 30)) {
         console.error(

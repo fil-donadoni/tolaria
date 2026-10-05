@@ -20,6 +20,7 @@ import type {
 
 export interface MtgjsonCardIdentifiers {
     scryfallId?: string;
+    scryfallOracleId?: string;
 }
 
 export interface MtgjsonCard {
@@ -59,6 +60,10 @@ export interface BuildBoosterConfigOptions {
     /** Scryfall ids to strip from every sheet, weights renormalized.
      *  Defaults to the ADR 0010 exclusion list; overridable for tests. */
     excludedScryfallIds?: ReadonlySet<string>;
+    /** Scryfall oracle id → the Card ID of the Card Definition for that card
+     *  (`data/card-index.json`). When given, every sheet card that is a
+     *  reprint of a definition lands in `BoosterConfig.printCardIds`. */
+    definitionIdByOracleId?: ReadonlyMap<string, string>;
 }
 
 /** Builds a `BoosterConfig` from a parsed MTGJSON set `data` object. Pure and
@@ -121,12 +126,49 @@ export function buildBoosterConfig(
 
     const boostersTotalWeight = boosters.reduce((sum, v) => sum + v.weight, 0);
 
+    const printCardIds = buildPrintCardIds(
+        raw,
+        sheets,
+        options.definitionIdByOracleId
+    );
     return {
         setCode: raw.code.toLowerCase(),
         boostersTotalWeight,
         boosters,
         sheets,
+        ...(printCardIds ? { printCardIds } : {}),
     };
+}
+
+/** Print ID → Card ID for the sheet cards that are a reprint of a Card
+ *  Definition (its oracle id resolves to a Card ID other than the sheet id).
+ *  `undefined` when there are none, so a config of first printings carries no
+ *  empty map. Keys follow first appearance in the sheets — deterministic. */
+function buildPrintCardIds(
+    raw: MtgjsonSetData,
+    sheets: Record<string, BoosterSheet>,
+    definitionIdByOracleId: ReadonlyMap<string, string> | undefined
+): Record<string, string> | undefined {
+    if (!definitionIdByOracleId) return undefined;
+    const oracleByScryfall = new Map<string, string>();
+    for (const card of raw.cards) {
+        const { scryfallId, scryfallOracleId } = card.identifiers ?? {};
+        if (scryfallId && scryfallOracleId)
+            oracleByScryfall.set(scryfallId, scryfallOracleId);
+    }
+    const printCardIds: Record<string, string> = {};
+    for (const sheet of Object.values(sheets)) {
+        for (const scryfallId of Object.keys(sheet.cards)) {
+            const oracleId = oracleByScryfall.get(scryfallId);
+            const cardId =
+                oracleId === undefined
+                    ? undefined
+                    : definitionIdByOracleId.get(oracleId);
+            if (cardId !== undefined && cardId !== scryfallId)
+                printCardIds[scryfallId] = cardId;
+        }
+    }
+    return Object.keys(printCardIds).length > 0 ? printCardIds : undefined;
 }
 
 function buildSheet(

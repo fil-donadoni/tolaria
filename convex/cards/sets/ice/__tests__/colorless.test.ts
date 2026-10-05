@@ -3,14 +3,7 @@
 // cites the CR section it exercises.
 
 import { describe, it, expect } from "vitest";
-import {
-    icyManipulatorIce,
-    plainsIce,
-    islandIce,
-    swampIce,
-    mountainIce,
-    forestIce,
-} from "../../ice/index.cards";
+import {} from "../../ice/index.cards";
 import {
     applyLandManaReplacement,
     getManaTapOptionsDetailed,
@@ -415,10 +408,8 @@ describe("Fyndhorn Bow ({3},{T}: grant first strike, CR 605 / 702.7)", () => {
 });
 
 describe("Icy Manipulator ({1},{T}: tap any of three types, CR 605 / 701.20a)", () => {
-    it("taps the targeted permanent — from the ICE reprint print id", () => {
-        // Instantiating the ICE `printId` proves the reprint resolves to the LEA
-        // definition's mechanics (registry printId → definitionId).
-        const icy = makeInstance(icyManipulatorIce.printId, {
+    it("taps the targeted permanent", () => {
+        const icy = makeInstance("29dc1596-a2e7-4d60-9f99-89babaef8a06", {
             id: "icy",
             controllerId: "p1",
             ownerId: "p1",
@@ -775,30 +766,6 @@ describe("Ice Floe ({T}: tap-lock a non-flying attacker, CR 611.2 / 508.1)", () 
             (c) => c.id === "atk"
         )!;
         expect(slim.isTapped).toBe(true);
-    });
-});
-
-describe("ICE basic-land reprints (CardPrint wiring, ADR 0014 / CR 305.6)", () => {
-    it("registers each basic by its ICE print id onto the LEA definition", () => {
-        expect(getDefinition(plainsIce.printId).name).toBe("Plains");
-        expect(getDefinition(islandIce.printId).name).toBe("Island");
-        expect(getDefinition(swampIce.printId).name).toBe("Swamp");
-        expect(getDefinition(mountainIce.printId).name).toBe("Mountain");
-        expect(getDefinition(forestIce.printId).name).toBe("Forest");
-    });
-    it("each print declares setCode ice and points at the LEA basic", () => {
-        for (const print of [
-            plainsIce,
-            islandIce,
-            swampIce,
-            mountainIce,
-            forestIce,
-        ]) {
-            expect(print.setCode).toBe("ice");
-            const def = getDefinition(print.definitionId);
-            expect(def.supertypes).toContain("Basic");
-            expect(def.types).toEqual(["Land"]);
-        }
     });
 });
 

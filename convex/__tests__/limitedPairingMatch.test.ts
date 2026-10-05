@@ -25,14 +25,13 @@ import {
 } from "../game";
 import { expireRoundDeadline } from "../limitedEvents";
 import type { GameState } from "../gre/state";
-import { resolveDeckCardMeta, tryGetDefinition } from "../cards";
+import { resolveDeckCardMeta } from "../cards";
 import { makeRng } from "../gre/rng";
 import {
     assignFreeSeat,
     buildEmptySeats,
     fillBotSeats,
     generateSealedPools,
-    type ResolveCardMeta,
 } from "../limited/eventLogic";
 import {
     projectLimitedEvent,
@@ -40,13 +39,9 @@ import {
 } from "../limited/eventProjection";
 import { getBoosterConfig } from "../limited/registry";
 import { saveSeats } from "../limitedSeatStore";
-
-const resolveCardMeta: ResolveCardMeta = (scryfallId) => {
-    const def = tryGetDefinition(scryfallId);
-    if (!def) return null;
-    const meta = resolveDeckCardMeta(scryfallId);
-    return meta ? { cardId: meta.cardId, cardName: def.name } : null;
-};
+// Production's resolver: LEA's basic lands are reprint prints, which the
+// registry no longer resolves (ADR 0140 §5) — the checked-in sheet does.
+import { resolveCardMeta } from "../limitedCardMeta";
 
 type Row = Record<string, unknown>;
 

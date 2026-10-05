@@ -29,6 +29,19 @@ export function getBoosterConfig(setCode: string): BoosterConfig | null {
     return CHECKED_IN_BOOSTER_CONFIGS[setCode.toLowerCase()] ?? null;
 }
 
+/** The Card ID a checked-in sheet's Print ID is a printing of
+ *  (`BoosterConfig.printCardIds`), or `undefined` for any other id. The
+ *  registry cannot resolve a Print ID (ADR 0140 §5); this is how the client's
+ *  Draft Lab, which has no `cardPrints` rows, still recognises a sheet's
+ *  reprint cards. */
+export function getSheetPrintCardId(printId: string): string | undefined {
+    for (const config of Object.values(CHECKED_IN_BOOSTER_CONFIGS)) {
+        const cardId = config.printCardIds?.[printId];
+        if (cardId !== undefined) return cardId;
+    }
+    return undefined;
+}
+
 /** Per-sheet Draftability verdict for one set (ADR 0059) — the reason a
  *  sheet is or isn't why the set overall is Draftable. */
 export interface DraftableSheetInfo {

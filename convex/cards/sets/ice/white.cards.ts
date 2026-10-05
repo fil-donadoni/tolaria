@@ -5,7 +5,6 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2).
 import type {
     CardDefinition,
-    CardPrint,
     Color,
     ManaCost,
     PermanentView,
@@ -639,41 +638,6 @@ export const caribouRange: CardDefinition = {
         },
     ],
 };
-// TODO(#628): implement.
-// Circle of Protection cycle — ICE reprints of the LEA/LEB Circles (CR 615
-// prevention). Mechanics live on the existing definitions; these are CardPrints
-// (ADR 0014). CoP: Black's home definition is the LEB original; the other four
-// are LEA.
-export const circleOfProtectionBlackIce: CardPrint = {
-    printId: "d528045d-3b80-48fd-b606-c132da052685",
-    definitionId: "fa47b4cd-8da4-4544-b011-ba92b7009203",
-    setCode: "ice",
-    rarity: "common",
-};
-export const circleOfProtectionBlueIce: CardPrint = {
-    printId: "e0d377ec-c43c-43b9-934a-91b4d11650ab",
-    definitionId: "848b1a7f-e8ba-40b5-92b7-af1e963a0319",
-    setCode: "ice",
-    rarity: "common",
-};
-export const circleOfProtectionGreenIce: CardPrint = {
-    printId: "487dfb1f-b3ab-4daa-bbd9-c43dc91a5fba",
-    definitionId: "1ae32d20-b438-4f43-b603-e8f706ecfb03",
-    setCode: "ice",
-    rarity: "common",
-};
-export const circleOfProtectionRedIce: CardPrint = {
-    printId: "5790ce22-a94f-402e-bcc7-b98f71af9fe5",
-    definitionId: "b3dd94c5-42f6-4148-be6e-2a3a4226cc0e",
-    setCode: "ice",
-    rarity: "common",
-};
-export const circleOfProtectionWhiteIce: CardPrint = {
-    printId: "48bc4bb0-350c-424e-976e-b800915f7fb4",
-    definitionId: "92df19c9-e127-42d9-8dd2-7fa5a7095428",
-    setCode: "ice",
-    rarity: "common",
-};
 // Cold Snap — cumulative upkeep {2} (CR 702.24, ADR 0042) plus a phase trigger
 // at the beginning of EACH player's upkeep (scope "each", CR 603.6a) that deals
 // damage to that player equal to the number of snow lands they control
@@ -742,22 +706,7 @@ export const cooperation: CardDefinition = {
         },
     ],
 };
-// Death Ward — ICE reprint of the LEA instant (CR 701.19 regenerate). The
-// mechanics live on the LEA definition; this is a CardPrint onto it (ADR 0014).
-export const deathWardIce: CardPrint = {
-    printId: "c7b21d29-050d-4704-a4c8-93e3b55086ac",
-    definitionId: "fa5466cc-aa57-4a7f-8b21-d92b2fe02e13",
-    setCode: "ice",
-    rarity: "common",
-};
 // Disenchant — ICE reprint of the LEA instant (destroy target artifact or
-// enchantment). CardPrint onto the LEA definition (ADR 0014).
-export const disenchantIce: CardPrint = {
-    printId: "b6085d0c-ab2b-445d-bf9d-0fa0a19183a2",
-    definitionId: "2722d7e2-61c6-4934-9c21-875ee78fd06c",
-    setCode: "ice",
-    rarity: "common",
-};
 // Drought — the upkeep "sacrifice unless you pay {W}{W}" clause reuses the leg
 // `payOrSacrificeUpkeepTrigger` (CR 117.3a). Its board-wide, static,
 // per-black-pip NON-mana additional cost ("Sacrifice a Swamp" for each black
@@ -2061,15 +2010,6 @@ export const snowHound: CardDefinition = {
             ],
         },
     ],
-};
-// Swords to Plowshares — ICE reprint of the LEA instant (exile target
-// creature, its controller gains life equal to its power). CardPrint onto the
-// LEA definition (ADR 0014).
-export const swordsToPlowsharesIce: CardPrint = {
-    printId: "375fd2cb-443b-4be4-ad60-6d1a8e74f510",
-    definitionId: "386ea9eb-abc1-4862-aa2d-8fb808d79490",
-    setCode: "ice",
-    rarity: "uncommon",
 };
 // Warning — "Prevent all combat damage that would be dealt by target attacking
 // creature this turn." (CR 615) — a genuine source-scoped combat-damage

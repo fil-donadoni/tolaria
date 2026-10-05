@@ -29,7 +29,7 @@
 // (#1066, #1067); the 2 split cards (Stand // Deliver, Wax // Wane) are
 // out-of-scope (ADR 0010/0041, unmodelled `split` layout) and carry no stub.
 
-import type { CardDefinition, Color, CardPrint } from "../../types";
+import type { CardDefinition, Color } from "../../types";
 import {
     AURA_AFFECTS_HOST,
     countDomain,
@@ -77,17 +77,6 @@ export const alabasterLeech: CardDefinition = {
 // ─────────────────────────────────────────────────────────────────────────
 // ETB triggers (CR 603.6a) — Effect Script
 // ─────────────────────────────────────────────────────────────────────────
-
-// angelOfMercy — INV reprint of the Portal Second Age definition (CardPrint).
-// The card was first implemented here, against this printing; its home set is
-// its earliest paper printing (ADR 0041), so the mechanics live in
-// `p02/white.cards.ts`.
-export const angelOfMercyInv: CardPrint = {
-    printId: "5b6de688-685f-4389-be35-a472ada988e1", // INV 3
-    definitionId: "dac5c913-4eb5-4cfb-9c24-223f14f07064", // angelOfMercy (Portal Second Age)
-    setCode: "inv",
-    rarity: "uncommon",
-};
 
 // ─────────────────────────────────────────────────────────────────────────
 // Kicker (CR 702.33) — entersWith.counters
@@ -673,17 +662,6 @@ export const reyaDawnbringer: CardDefinition = {
 // ─────────────────────────────────────────────────────────────────────────
 // Aura (CR 303) — does-not-untap keyword grant + return-to-hand ability
 // ─────────────────────────────────────────────────────────────────────────
-
-// shackles — INV reprint of the Exodus definition (CardPrint).
-// The card was first implemented here, against this printing; its home set is
-// its earliest paper printing (ADR 0041), so the mechanics live in
-// `exo/white.cards.ts`.
-export const shacklesInv: CardPrint = {
-    printId: "35b3da05-9a3e-4827-96b8-5de244128db3", // INV 27
-    definitionId: "c5315668-b8ef-49ab-a8f5-144adc7bcd84", // shackles (Exodus)
-    setCode: "inv",
-    rarity: "common",
-};
 
 // ─────────────────────────────────────────────────────────────────────────
 // Targeted pump with a color-filtered target

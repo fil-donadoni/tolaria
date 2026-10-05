@@ -501,13 +501,13 @@ describe("cardTestFiles — card tests are colour-split PER SET (ADR 0043)", () 
     });
 
     it("finds a card named only by its per-set file, and indexes nothing else", () => {
-        // Death Ward's only test is `sets/ice/__tests__/white.test.ts`.
-        const index = perCardTests(ROOT, new Set(["Death Ward"]));
-        expect(index.get("Death Ward") ?? []).toContain(
+        // Drought's only test is `sets/ice/__tests__/white.test.ts`.
+        const index = perCardTests(ROOT, new Set(["Drought"]));
+        expect(index.get("Drought") ?? []).toContain(
             "convex/cards/sets/ice/__tests__/white.test.ts"
         );
         // Only the names asked for: indexing every literal matched "Island"
         // in files about neither card (review of PR #3978).
-        expect([...index.keys()]).toEqual(["Death Ward"]);
+        expect([...index.keys()]).toEqual(["Drought"]);
     });
 });

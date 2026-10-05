@@ -27,7 +27,7 @@ import {
 } from "../cards/__tests__/setup.helper";
 
 const METALLIC_REBUKE = "f712ac26-dca4-459b-84c1-010597007f60"; // {2}{U} Instant, improvise
-const DISRUPT = "c000a02f-6b7e-4925-a938-59e645e980d7"; // {U} Instant, no improvise
+const DISRUPT = "c6cc89b0-9acf-452b-ac1a-bc7e90eb32fc"; // {U} Instant, no improvise
 const MILLSTONE = "107646bc-2181-49f4-8821-1eaa46291855"; // {2} Artifact, no mana ability
 const MOUNTAIN = "eace2c85-976c-425e-9800-5a6ccbd91b56"; // {T}: R (not an artifact)
 const ISLAND = "90a57c0e-fa61-45ef-955d-d296403967d5"; // {T}: U
