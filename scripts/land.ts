@@ -935,8 +935,9 @@ export function issueOfBranch(branch: string): number | null {
  * wrong twice over, because that path exists for a PR whose worktree is
  * already gone and is therefore invoked from the primary checkout:
  *
- *  - the branch would be the BASE branch, so `releaseClaimStep` and
- *    `umbrellaDetachStep` would find no issue in it and silently return null,
+ *  - the branch would be the BASE branch, so `releaseClaimStep` would find no
+ *    issue in it and silently return null, `umbrellaDetachStep` would skip the
+ *    landed issue and sweep only,
  *    and the ref cleanup would ask git to delete `staging` — locally and on
  *    the remote;
  *  - the worktree would be the PRIMARY CHECKOUT, so the teardown would ask
@@ -1011,18 +1012,22 @@ export function releaseClaimStep(branch: string): string | null {
  * the gap sync does its network work first, which is what gives the merge's
  * `Closes #N` time to close the issue (measured 1-2 s after `mergedAt`) — the
  * step never detaches one that is still open, and says so loudly. Non-gating: an outage leaves the closed child listed
- * until `umbrella:detach` is run by hand. Returns null for a branch that names
- * no issue.
+ * until the next landing's sweep.
+ *
+ * `--sweep` (issue #5081) also detaches every OTHER closed child of every
+ * censused umbrella — `gaps:sync` closures, cluster absorption and hand
+ * closes never name a branch. A branch that names no issue runs the sweep
+ * alone.
  */
 export function umbrellaDetachStep(
     primaryCheckout: string,
     branch: string
-): string | null {
+): string {
     const issue = issueOfBranch(branch);
-    if (issue === null) return null;
+    const target = issue === null ? "" : `${issue} `;
     return (
-        `(cd ${shQuote(primaryCheckout)} && bun ${shQuote(UMBRELLA_DETACH)} ${issue} || ` +
-        `echo "land: umbrella:detach failed — issue #${issue} may still be listed under its umbrella" >&2; true)`
+        `(cd ${shQuote(primaryCheckout)} && bun ${shQuote(UMBRELLA_DETACH)} ${target}--sweep || ` +
+        `echo "land: umbrella:detach failed — closed children may still be listed under their umbrella" >&2; true)`
     );
 }
 
@@ -1233,8 +1238,7 @@ export function postMergeHousekeepingSteps(
     if (release !== null) steps.push(release);
     // AFTER `gaps:sync` above, whose network work is what gives the merge's
     // `Closes #N` time to close the issue this step requires (issue #4235).
-    const detach = umbrellaDetachStep(opts.primaryCheckout, opts.branch);
-    if (detach !== null) steps.push(detach);
+    steps.push(umbrellaDetachStep(opts.primaryCheckout, opts.branch));
     // BEFORE the teardown below, which removes the worktree this command
     // runs from. `spawn` is synchronous and creates nothing but a process
     // — the health worktree is created minutes later, by the detached

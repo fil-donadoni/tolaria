@@ -19,6 +19,14 @@
 // open issue would silently drop live work out of the queue's band. The
 // outcome says so, and names the command to re-run once it is closed by hand.
 //
+// The SWEEP (issue #5081) applies the same rule to every child of every
+// censused umbrella. The single-issue step only ever saw the issue a landed
+// branch names, so every other close path — `gaps:sync` closing a gap whose
+// row left the allowlist, a cluster absorbing its singles, a hand close —
+// left the child listed: hand-tail #4241 held 15 closed children and no open
+// one when this was written. `land` runs the sweep after every merge, so any
+// close path is cleaned at the next landing.
+//
 // NON-GATING by contract, like every other post-merge step of `land`: every
 // failure is an outcome the caller prints, never a throw.
 
@@ -46,6 +54,16 @@ export interface DetachDeps {
     readIssue: (issue: number) => IssueEdge;
     /** Remove `childId` from `parent`'s sub-issues. May throw. */
     removeSubIssue: (parent: number, childId: number) => void;
+}
+
+export interface UmbrellaChild {
+    readonly number: number;
+    readonly state: "open" | "closed";
+}
+
+export interface SweepDeps extends DetachDeps {
+    /** Every sub-issue of `umbrella`, all pages. May throw. */
+    listChildren: (umbrella: number) => UmbrellaChild[];
 }
 
 export type DetachOutcome =
@@ -95,6 +113,53 @@ export function detachFromUmbrella(
     return { kind: "detached", parent: edge.parent };
 }
 
+export type SweepResult =
+    | {
+          readonly umbrella: number;
+          readonly issue: number;
+          readonly outcome: DetachOutcome;
+      }
+    | { readonly umbrella: number; readonly listFailed: string };
+
+/**
+ * Detach every CLOSED child of every censused umbrella (issue #5081). Each
+ * candidate goes through `detachFromUmbrella`, so the edge is re-read before
+ * the removal and read back after it — the listing's `state` only nominates.
+ * An open child is never touched. One umbrella whose listing fails is a
+ * result, and the sweep moves on to the next.
+ */
+export function sweepUmbrellas(
+    deps: SweepDeps,
+    census: ReadonlySet<number> = censusedUmbrellas()
+): SweepResult[] {
+    const results: SweepResult[] = [];
+    for (const umbrella of [...census].sort((a, b) => a - b)) {
+        let children: UmbrellaChild[];
+        try {
+            children = deps.listChildren(umbrella);
+        } catch (err) {
+            results.push({ umbrella, listFailed: (err as Error).message });
+            continue;
+        }
+        for (const child of children) {
+            if (child.state !== "closed") continue;
+            results.push({
+                umbrella,
+                issue: child.number,
+                outcome: detachFromUmbrella(child.number, deps, census),
+            });
+        }
+    }
+    return results;
+}
+
+/** One printable line per sweep result. */
+export function describeSweepResult(result: SweepResult): string {
+    if ("listFailed" in result)
+        return `umbrella:detach: could not list umbrella #${result.umbrella}'s children (${result.listFailed})`;
+    return describeOutcome(result.issue, result.outcome);
+}
+
 /** One printable line per outcome — the caller decides the stream. */
 export function describeOutcome(issue: number, outcome: DetachOutcome): string {
     switch (outcome.kind) {
@@ -116,8 +181,32 @@ export function describeOutcome(issue: number, outcome: DetachOutcome): string {
  *  and the DELETE arguments without a network. */
 export function makeDetachDeps(
     ghClient: (args: string[]) => string = gh
-): DetachDeps {
+): SweepDeps {
     return {
+        listChildren(umbrella) {
+            const raw = ghClient([
+                "api",
+                "--paginate",
+                `repos/{owner}/{repo}/issues/${umbrella}/sub_issues?per_page=100`,
+                "--jq",
+                ".[] | {number, state}",
+            ]);
+            return raw
+                .split("\n")
+                .filter((line) => line.trim() !== "")
+                .map((line) => {
+                    const j = JSON.parse(line) as {
+                        number?: number;
+                        state?: string;
+                    };
+                    if (
+                        typeof j.number !== "number" ||
+                        (j.state !== "open" && j.state !== "closed")
+                    )
+                        throw new Error(`unexpected sub-issue payload ${line}`);
+                    return { number: j.number, state: j.state };
+                });
+        },
         readIssue(issue) {
             const raw = ghClient([
                 "api",
@@ -157,4 +246,4 @@ export function makeDetachDeps(
     };
 }
 
-export const LIVE_DETACH_DEPS: DetachDeps = makeDetachDeps();
+export const LIVE_DETACH_DEPS: SweepDeps = makeDetachDeps();
