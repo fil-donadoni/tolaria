@@ -107,7 +107,7 @@ async function call(
     });
 }
 
-/** Both players pass until the stack is empty (CR 117.4 / 608.3). */
+/** Both players pass until the stack is empty (CR 117.4). */
 async function passUntilResolved(harness: MutationStub): Promise<void> {
     for (let guard = 0; guard < 6; guard++) {
         const live = harness.state();
