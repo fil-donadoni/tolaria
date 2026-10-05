@@ -52,6 +52,51 @@ function isTracked(relPath: string): boolean {
     }
 }
 
+/**
+ * A skill is its whole directory, not its manifest (PRD #5096 D5, issue
+ * #5100): `SKILL.md` holds the steps every run takes and discloses the rest
+ * to sibling files behind pointers. A contract assertion that read only the
+ * manifest would go red the day a rule moved one pointer away — or, worse,
+ * stay green on a manifest that still names a rule its sibling contradicts.
+ * So contracts read this: the manifest first, then every other `.md` file in
+ * the directory tree, each opened by a `<!-- file: … -->` marker so a section
+ * slice can stop at its own file's end.
+ */
+const FILE_MARKER = "<!-- file: ";
+
+function skillFiles(skill: string): string[] {
+    const dir = path.join(REPO_ROOT, ".claude", "skills", skill);
+    const out: string[] = [];
+    const walk = (rel: string): void => {
+        for (const entry of fs.readdirSync(path.join(dir, rel)).sort()) {
+            const child = rel ? path.join(rel, entry) : entry;
+            if (fs.statSync(path.join(dir, child)).isDirectory()) walk(child);
+            else out.push(child);
+        }
+    };
+    walk("");
+    return ["SKILL.md", ...out.filter((f) => f !== "SKILL.md")];
+}
+
+function skillCorpus(skill: string): string {
+    const dir = path.join(REPO_ROOT, ".claude", "skills", skill);
+    return skillFiles(skill)
+        .filter((f) => f.endsWith(".md"))
+        .map(
+            (f) =>
+                `${FILE_MARKER}${f} -->\n${fs.readFileSync(path.join(dir, f), "utf8")}`
+        )
+        .join("\n");
+}
+
+/** From `heading` to the end of the file that holds it. */
+function fileTail(text: string, heading: string): string {
+    const start = text.indexOf(heading);
+    if (start < 0) return "";
+    const end = text.indexOf(FILE_MARKER, start);
+    return text.slice(start, end < 0 ? undefined : end);
+}
+
 describe("project skills live in the repo (PRD #2180)", () => {
     for (const skill of IN_REPO_SKILLS) {
         const rel = path.join(".claude", "skills", skill, "SKILL.md");
@@ -245,9 +290,7 @@ describe("Tolaria is project-skills-only (ADR 0150, issue #5098)", () => {
 });
 
 describe("next-issue consumes the planner (issue #2184, re-homed by ADR 0110)", () => {
-    const rel = path.join(".claude", "skills", "next-issue", "SKILL.md");
-    const body = (): string =>
-        fs.readFileSync(path.join(REPO_ROOT, rel), "utf8");
+    const body = (): string => skillCorpus("next-issue");
 
     it("tells the session to run the planner, and the script it names exists", () => {
         expect(body()).toMatch(/bun run queue:plan/);
@@ -262,7 +305,7 @@ describe("next-issue consumes the planner (issue #2184, re-homed by ADR 0110)", 
 
     it("the abort step releases through `queue:release` and wires a prerequisite in both stores (issue #4752)", () => {
         const text = body();
-        const abort = text.slice(text.indexOf("### Abort"));
+        const abort = fileTail(text, "### Abort");
         expect(text.indexOf("### Abort")).toBeGreaterThan(-1);
         expect(abort).toMatch(/bun run queue:release N/);
         expect(abort).toMatch(/--add-blocked-by/);
@@ -336,9 +379,8 @@ describe("next-issue consumes the planner (issue #2184, re-homed by ADR 0110)", 
         // all — is the one line of the flow a reader cannot reconstruct
         // afterwards. `land` prints it; §6 has to carry it out of the log.
         const text = body();
-        const report = text.indexOf("## 6. Report");
-        expect(report).toBeGreaterThan(-1);
-        const section = text.slice(report);
+        expect(text.indexOf("## 6. Report")).toBeGreaterThan(-1);
+        const section = fileTail(text, "## 6. Report");
         expect(section).toMatch(/lane: ran/);
         expect(section).toMatch(/lane: skipped/);
 
@@ -348,6 +390,46 @@ describe("next-issue consumes the planner (issue #2184, re-homed by ADR 0110)", 
         );
         expect(landSrc).toContain("lane: ran");
         expect(landSrc).toContain("lane: skipped");
+    });
+
+    it("every file in the skill's directory is reachable from a pointer in the manifest (issue #5100)", () => {
+        // Disclosure only works if the session can find what was disclosed.
+        // A sibling file no pointer names is dead text — or, worse, the
+        // abort protocol a pass never reads because nothing told it the file
+        // exists. A pointer also has to say WHAT the file is and WHEN to read
+        // it, or the session must open it to learn whether it needed to.
+        const manifest = fs.readFileSync(
+            path.join(REPO_ROOT, ".claude", "skills", "next-issue", "SKILL.md"),
+            "utf8"
+        );
+        const siblings = skillFiles("next-issue").slice(1);
+        expect(siblings.length).toBeGreaterThan(0);
+        const pointers = new Map<string, string>();
+        for (const m of manifest.matchAll(
+            /^- → `([^`]+)` — ([\s\S]*?)(?=\n- →|\n\n)/gm
+        )) {
+            pointers.set(m[1], m[2].replace(/\s+/g, " "));
+        }
+        const orphans = siblings.filter((f) => !pointers.has(f));
+        expect(orphans, "sibling file(s) no manifest pointer names").toEqual(
+            []
+        );
+        const vague = [...pointers]
+            .filter(([, text]) => !/\S.* Read it when: \S/.test(text))
+            .map(([f]) => f);
+        expect(
+            vague,
+            "pointer(s) that do not say what the file is and when to read it"
+        ).toEqual([]);
+        const dangling = [...pointers.keys()].filter(
+            (f) => !siblings.includes(f)
+        );
+        expect(dangling, "pointer(s) to a file that does not exist").toEqual(
+            []
+        );
+        // The abort protocol is the disclosure a pass can least afford to
+        // miss: the pointer is pinned by name, not only by the census above.
+        expect(pointers.get("abort.md")).toMatch(/cannot land/);
     });
 
     it("§5 runs no lane gate before the PR — `land` pays it once (ADR 0136 §1, issue #3779)", () => {
@@ -525,8 +607,9 @@ describe("every filing skill points at the filing stamp (issue #4457)", () => {
         "to-prd",
         "to-tickets",
     ];
-    const body = (name: string) =>
-        fs.readFileSync(path.join(SKILLS, name, "SKILL.md"), "utf8");
+    // The whole skill, not its manifest (issue #5100): `/next-issue` keeps
+    // its filing procedure one pointer away, in `filing.md`.
+    const body = (name: string) => skillCorpus(name);
 
     it("covers every skill that types `gh issue create`", () => {
         const creators = fs

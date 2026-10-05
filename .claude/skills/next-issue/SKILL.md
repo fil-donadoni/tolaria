@@ -42,10 +42,11 @@ Every token a tool result adds is re-read by every later turn.
     Read with `grep -c` / `grep -n` / `sed -n 'A,Bp'` before `cat`. `land`
     is the exception: it goes through `gate:run` below.
 
-3. **Never poll.** No `sleep N; echo` turns. Background work that is NOT a
-   gate re-invokes you when it exits — start it with `run_in_background`;
-   external state the harness cannot see → `Monitor` with an until-loop. A
-   gate is the one exception, to `run_in_background` itself:
+3. **Never poll.** No `sleep N; echo` turns.
+   Background work that is NOT a gate re-invokes you when it exits — start
+   it with `run_in_background`; external state the harness cannot see →
+   `Monitor` with an until-loop. A gate is the one exception, to
+   `run_in_background` itself:
 
 <!-- <<<GATE-RULE>>> -->
 
@@ -128,9 +129,10 @@ then `bun run check:lane --plan` (prints the lane, runs nothing):
 - **`cards`** (only `convex/cards/sets/**` + regenerated `data/**`, prose
   may ride along): the SHORT PATH — definition, `## Preset scenario` JSON,
   regenerated artefacts, CR lines confirmed (`bun run cr <id>`, then
-  `bun run cr:ledger confirm <file>:<line>`). **No hand-written test, no
-  proof-of-failure, no bot or frontend seam walk.** Tripwire: writing a test
-  for a `cards` diff means an unexercised Op — stop, file it per `/new-op`.
+  `bun run cr:ledger confirm <file>:<line>`).
+  No hand-written test, no proof-of-failure, no bot or frontend seam walk.
+  Tripwire: writing a test for a `cards` diff means an unexercised Op —
+  stop, file it per `/new-op`.
 - **any other lane** (`engine`, `skin`, `full`): everything below.
 
 The short path is keyed on the LANE, never on how simple the card reads.

@@ -42,7 +42,8 @@ to files: `grep -c` or `grep -n 'export function'` before `cat`, `sed -n` for
 a known region, `--files-with-matches` when you only need the list.
 `deny-guard.sh` § 3 refuses a `bun run` piped into a pager, and the
 file-redirect idiom is what it asks for. The log path is in the session
-scratchpad, never a shared `/tmp` name another session's run can overwrite.
+scratchpad, never a shared temp-directory name another session's run can
+overwrite.
 
 ## 3. Never poll
 
