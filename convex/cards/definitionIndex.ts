@@ -166,7 +166,7 @@ export function buildIndexLookups(
         const tokenId = backFaceTriggerTokenId(def);
         if (
             tokenId !== undefined &&
-            !Object.hasOwn(backFaceTriggers, tokenId)
+            !Object.prototype.hasOwnProperty.call(backFaceTriggers, tokenId)
         ) {
             backFaceTriggers[tokenId] = def.id;
         }

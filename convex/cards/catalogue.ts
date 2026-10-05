@@ -494,7 +494,7 @@ const chooseableById = new Map<string, readonly string[]>();
 const backFaceOwner = new Map<string, string>();
 
 const ownEntries = <T>(record: Readonly<Record<string, T>>, key: string) =>
-    Object.hasOwn(record, key) ? record[key] : undefined;
+    Object.prototype.hasOwnProperty.call(record, key) ? record[key] : undefined;
 
 function addName([key, id]: NameEntry): void {
     if (!nameIndex.has(key)) nameIndex.set(key, id);

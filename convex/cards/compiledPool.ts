@@ -49,7 +49,7 @@ export const compiledReadyDefinitions: CardDefinition[] =
  *  equivalence test over the whole pool needs both, and deleting the literal
  *  import above is the LAST slice of PRD #4161's rollout order. */
 export const packedServerCorpus: PackedCorpus | null =
-    packedCorpus as PackedCorpus;
+    packedCorpus as unknown as PackedCorpus;
 
 /**
  * THE SWITCH (issue #4165): when on, the server never preloads the compiled
