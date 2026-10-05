@@ -15,7 +15,12 @@
  *                 makes it pass.
  */
 
-import type { BladeScenario, BladeSeat, MoveMatcher } from "./types";
+import type {
+    BladeScenario,
+    BladeSeat,
+    MoveMatcher,
+    RegistryBladeScenario,
+} from "./types";
 import type { Discriminant } from "../verdicts/types";
 import type { GameState } from "../../state";
 import type { Move } from "../../moves";
@@ -493,7 +498,7 @@ const OWN_BESTOW_HOST: Discriminant = {
 };
 const EXTRA_PLAINS: Discriminant = { kind: "card", detail: "one extra Plains" };
 
-export const BLADE_SCENARIOS: BladeScenario[] = [
+export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
     {
         // ORDERED TARGET GROUP reachability (CR 601.2c / 702.33g, issue
         // #4193). Kicked Jilt announces TWO targets through one widened
@@ -516,6 +521,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // table, and `announcedTargetSlotsDiffer` is what keeps every
         // symmetric group (Magma Burst) on the cheaper combination path.
         label: "ordered targets: bounces the Angel and burns the Bears, not the reverse",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "an Angel the burn spell can kill",
+            },
+        },
         spec: {
             cards: [
                 { name: "Jilt", owner: "me", zone: "hand" },
@@ -569,6 +581,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // Move, and nothing but this entry and `kickerXBot.bot.test.ts` goes
         // red if it stops being one.
         label: "Kicker {X}: kicks Verdeloth for every spare mana",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "a second spell in hand to spend the spare mana on",
+            },
+        },
         spec: {
             cards: [
                 { name: "Verdeloth the Ancient", owner: "me", zone: "hand" },
@@ -618,6 +637,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // forever — with every suite green, the same silent failure the
         // adventure and MDFC entries below exist for.
         label: "depletion land: casts a two-drop off one tap of Hickory Woodlot",
+        classification: { kind: "absolute" },
         spec: {
             cards: [
                 { name: "Hickory Woodlot", owner: "me", zone: "battlefield" },
@@ -674,6 +694,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // unfittable, the candidates without the term hand the search a choice
         // it evaluates backwards.
         label: "depletion land: pays the two-drop with the basics, sparing the land's charge",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "a Fireball in hand that is lethal only with the land's last charge",
+            },
+        },
         spec: {
             cards: [
                 { name: "Hickory Woodlot", owner: "me", zone: "battlefield" },
@@ -716,6 +743,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // Only one that PRICES the charge — and lets a win dominate it, as
         // `evaluate`'s terminal band does — answers both.
         label: "depletion land: spends the last charge because it is the only lethal",
+        classification: { kind: "absolute" },
         spec: {
             cards: [
                 {
@@ -788,6 +816,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // needs a live combat step and would test the mana through a second
         // mechanism at the same time.
         label: "floating mana: casts off a tagged-but-unrestricted unit with no permanent on the board",
+        classification: { kind: "absolute" },
         spec: {
             cards: [{ name: "Goblin Ski Patrol", owner: "me", zone: "hand" }],
             restrictedMana: {
@@ -838,6 +867,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // beneficence row that read the first Op as a reason NOT to cast would
         // show up here as a bot that declines a free kill.
         label: "adventure: casts Stomp to kill the blocker, not the Giant it cannot afford",
+        classification: { kind: "absolute" },
         spec: {
             cards: [
                 { name: "Bonecrusher Giant", owner: "me", zone: "hand" },
@@ -876,6 +906,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // matcher resolves the card by its FRONT face's name, which is the
         // card's own name (CR 712.8a) — there is no second name to match on.
         label: "mdfc: plays the land face of a card whose front face is an instant",
+        classification: { kind: "absolute" },
         spec: {
             cards: [{ name: "Sink into Stupor", owner: "me", zone: "hand" }],
             phase: "PRECOMBAT_MAIN",
@@ -909,6 +940,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // not to stress the bot. If this entry ever goes red, suspect the
         // harness (or a genuine land-drop regression) before the position.
         label: "positive-control: plays its only land on an empty board",
+        classification: { kind: "absolute" },
         spec: {
             cards: [{ name: "Forest", owner: "me", zone: "hand" }],
             phase: "PRECOMBAT_MAIN",
@@ -941,6 +973,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // noise. Three-for-one against one-for-one is a wide enough gap that
         // it needs no lookahead: the board after is visible at depth 1.
         label: "overloads Damn to wrath three creatures instead of killing one",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "a creature of the bot's own the overloaded wrath would also kill",
+            },
+        },
         spec: {
             cards: [
                 { name: "Damn", owner: "me", zone: "hand" },
@@ -986,6 +1025,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // bot could not see. That failure is invisible to every other suite:
         // nothing goes red, the bot simply never ninjutsus.
         label: "ninjutsu: swaps its unblocked attacker for Fallen Shinobi",
+        classification: { kind: "absolute" },
         spec: {
             cards: [
                 { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
@@ -1048,6 +1088,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // what makes this a pin rather than a position the bot swings into
         // regardless.
         label: "battle cry: swings for exactly-lethal only the pump provides",
+        classification: { kind: "absolute" },
         spec: {
             cards: [
                 {
@@ -1109,6 +1150,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // Angel). Drop any one of them and the paid variant is either never
         // offered or scores identically to declining.
         label: "must: exerts Glorybringer to kill the blocker it would trade with",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "an opposing attacker Glorybringer must stay untapped to block next turn",
+            },
+        },
         spec: {
             cards: [
                 {
@@ -1151,6 +1199,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // of entry that can go seed-sensitive, which is exactly what this tier
         // is for. Promote it to `must` once it is proven stable across seeds.
         label: "stretch: attacks with a lone 3/3 into an empty board",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "an opposing creature that cracks back for lethal",
+            },
+        },
         spec: {
             cards: [
                 {
@@ -1202,6 +1257,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // the hand-built state in `convex/gre/__tests__/dreadnought-stifle.bot.test.ts`
         // whose own comment admits it "mirrors processPendingActionTriggers".
         label: "charter: Stifles its own Phyrexian Dreadnought trigger",
+        classification: { kind: "absolute" },
         spec: {
             cards: [
                 {
@@ -1279,6 +1335,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // search, flips the answer to Island on all five seeds and the entry
         // goes red.
         label: "charter: fetches the land that makes its removal castable",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "a blue spell in hand needing the Island, in place of Terror",
+            },
+        },
         spec: {
             cards: [
                 { name: "Polluted Delta", owner: "me", zone: "battlefield" },
@@ -1377,6 +1440,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // BUDGET (ADR 0070 §2): the pair's own production-range 400, declared
         // before the position was built and never raised to make it pass.
         label: "refusal: does NOT cast Phyrexian Dreadnought onto a fodder board with no out",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "Stifle in hand, with a land to cast it",
+            },
+        },
         spec: {
             cards: [
                 { name: "Phyrexian Dreadnought", owner: "me", zone: "hand" },
@@ -1408,6 +1478,10 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // the mana for it: now the trigger can be countered, so casting the
         // Dreadnought is a free 12/12 and IS expected.
         label: "discriminating pair: casts Phyrexian Dreadnought WITH an out (Stifle)",
+        classification: {
+            kind: "conditional",
+            discriminant: { kind: "card", detail: "no Stifle in hand" },
+        },
         spec: {
             cards: [
                 { name: "Phyrexian Dreadnought", owner: "me", zone: "hand" },
@@ -1520,6 +1594,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // subtree is valued correctly. Its support is exactly zero on any board
         // whose untapped lands all produce mana (ADR 0070 §5).
         label: "charter: cracks its fetchland for the only answer to a trigger on the stack",
+        classification: { kind: "absolute" },
         spec: {
             cards: [
                 {
@@ -1614,6 +1689,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // engine really cast, not a hand-built StackItem the engine could never
         // have produced. It throws if the cast finds no purchase.
         label: "charter: picks the modal mode that survives a lethal red spell",
+        classification: { kind: "absolute" },
         spec: {
             cards: [
                 // The active opponent's kill spell and the 21 Mountains that
@@ -1720,6 +1796,10 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // the block window by the ENGINE (`applyMoveInSearch`), never by a
         // hand-seeded `combat.attackerIds`.
         label: "charter: chump-blocks to survive lethal (block or die)",
+        classification: {
+            kind: "conditional",
+            discriminant: { kind: "life", detail: "the bot at 40 life" },
+        },
         spec: {
             cards: [
                 {
@@ -1813,6 +1893,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // a "block or die" entry pass for the wrong reason had it been
         // authored without care.
         label: "life-dependent: does NOT chump-block when the incoming damage isn't lethal (issue #2147)",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "life",
+                detail: "the bot at 20 life, where the unblocked damage is lethal",
+            },
+        },
         spec: {
             cards: [
                 {
@@ -1916,6 +2003,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // greens, per the ADR (raising the declared budget to force it green is
         // the forbidden move).
         label: "deep lethal block: does NOT greedily swing its only blocker",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "life",
+                detail: "the bot at a life total the crackback does not kill",
+            },
+        },
         spec: {
             cards: [
                 {
@@ -1980,6 +2074,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // seeds. The decision is a payment-legality question, not a depth
         // one, so it is stable at budget.
         label: "zero-output mana source: casts its removal instead of tapping a 0-counter Everflowing Chalice",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "no opposing creature for the removal to hit",
+            },
+        },
         spec: {
             cards: [
                 {
@@ -2027,6 +2128,10 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     // pruning must have exactly-zero effect there.
     {
         label: "dominance: does not cast Damnation into an empty board",
+        classification: {
+            kind: "conditional",
+            discriminant: { kind: "card", detail: "three opposing Craw Wurms" },
+        },
         spec: {
             cards: [{ name: "Damnation", owner: "me", zone: "hand" }],
             phase: "PRECOMBAT_MAIN",
@@ -2043,6 +2148,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "dominance NEGATIVE CONTROL: still casts Damnation into a real board",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "no creature on either battlefield",
+            },
+        },
         spec: {
             cards: [
                 { name: "Damnation", owner: "me", zone: "hand" },
@@ -2068,6 +2180,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "dominance: does not cast Sheoldred's Edict at an empty opponent",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "an opposing creature to sacrifice",
+            },
+        },
         spec: {
             cards: [{ name: "Sheoldred's Edict", owner: "me", zone: "hand" }],
             phase: "PRECOMBAT_MAIN",
@@ -2086,6 +2205,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "dominance NEGATIVE CONTROL: still casts the Edict at a real creature",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "an opponent with no creature and no planeswalker",
+            },
+        },
         spec: {
             cards: [
                 { name: "Sheoldred's Edict", owner: "me", zone: "hand" },
@@ -2113,6 +2239,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "dominance: does not activate Sandstorm Salvager with no tokens out",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "a creature token of the bot's own",
+            },
+        },
         spec: {
             cards: [
                 {
@@ -2140,6 +2273,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "dominance NEGATIVE CONTROL: activates the Salvager once a token exists",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "no creature token of the bot's own",
+            },
+        },
         spec: {
             cards: [
                 {
@@ -2171,6 +2311,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "dominance: does not cast Shallow Grave into a creature-less graveyard",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "a creature card in the bot's graveyard",
+            },
+        },
         spec: {
             cards: [{ name: "Shallow Grave", owner: "me", zone: "hand" }],
             phase: "PRECOMBAT_MAIN",
@@ -2187,6 +2334,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "dominance NEGATIVE CONTROL: still casts Shallow Grave onto a creature in the graveyard",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "a graveyard with no creature card",
+            },
+        },
         spec: {
             // Griselbrand (also the GRE per-card test's reanimation target,
             // `mir/black.test.ts`): a hasty 7/7 flier that can pay life to
@@ -2214,6 +2368,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "dominance NEGATIVE CONTROL: a delayed-trigger card whose residue is NOT inert still casts (Battle Cry)",
+        classification: { kind: "absolute" },
         spec: {
             cards: [{ name: "Battle Cry", owner: "me", zone: "hand" }],
             phase: "PRECOMBAT_MAIN",
@@ -2241,6 +2396,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     // payoff plus the per-Op beneficence sign (`ai/beneficence.ts`).
     {
         label: "cast variant: enchants its OWN land with Wild Growth",
+        classification: { kind: "absolute" },
         spec: {
             cards: [
                 { name: "Wild Growth", owner: "me", zone: "hand" },
@@ -2274,6 +2430,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "ability variant: fateseals atop the OPPONENT's library, never its own",
+        classification: { kind: "absolute" },
         spec: {
             cards: [
                 {
@@ -2310,6 +2467,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "cast variant: casts Flash of Insight at X ≥ 1, never X = 0",
+        classification: { kind: "absolute" },
         spec: {
             cards: [
                 { name: "Flash of Insight", owner: "me", zone: "hand" },
@@ -2341,6 +2499,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "cast variant: picks Vision Charm's mill mode at the opponent",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "a graveyard payoff of the bot's own (e.g. a reanimation target in hand)",
+            },
+        },
         spec: {
             cards: [
                 { name: "Vision Charm", owner: "me", zone: "hand" },
@@ -2368,6 +2533,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "choice-behind payoff: no self-only re-type of the sole mana source",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "opposing Forests the re-type mode can reach",
+            },
+        },
         spec: {
             cards: [
                 { name: "Vision Charm", owner: "me", zone: "hand" },
@@ -2395,6 +2567,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "choice-behind payoff: the re-type mode denies the opponent the colour it is visibly using",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "only the bot's own Island on the battlefield",
+            },
+        },
         spec: {
             cards: [
                 { name: "Vision Charm", owner: "me", zone: "hand" },
@@ -2432,6 +2611,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "cast variant: Ancestral Recall draws for the BOT, not the opponent",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "other",
+                detail: "the opponent's library down to two cards, so the draw decks them",
+            },
+        },
         spec: {
             cards: [
                 { name: "Ancestral Recall", owner: "me", zone: "hand" },
@@ -2459,6 +2645,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "stretch: Chrome Mox imprints a card rather than nothing",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "no spell in hand the extra mana could cast",
+            },
+        },
         spec: {
             cards: [
                 { name: "Chrome Mox", owner: "me", zone: "battlefield" },
@@ -2502,6 +2695,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     // -----------------------------------------------------------------------
     {
         label: "activation timing: holds Mother of Runes at sorcery speed",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "stack",
+                detail: "a removal spell on the stack aimed at Mother of Runes",
+            },
+        },
         spec: {
             cards: [
                 {
@@ -2539,6 +2739,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "activation timing: Mother of Runes stays available against removal on the stack",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "stack",
+                detail: "an empty stack in the bot's own main phase",
+            },
+        },
         spec: {
             cards: [
                 {
@@ -2590,6 +2797,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     // the ones that flip are marked DISCRIMINATING with their seed counts.
     {
         label: "activation payoff: Mother of Runes protects itself against removal on the stack",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "stack",
+                detail: "an empty stack in the bot's own main phase",
+            },
+        },
         spec: {
             cards: [
                 {
@@ -2630,6 +2844,10 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "activation payoff: Prodigal Sorcerer zaps in response to removal aimed at it",
+        classification: {
+            kind: "conditional",
+            discriminant: { kind: "life", detail: "the opponent at 1 life" },
+        },
         spec: {
             cards: [
                 {
@@ -2675,6 +2893,10 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "activation payoff: Iron-Shield Elf saves itself from removal on the stack",
+        classification: {
+            kind: "conditional",
+            discriminant: { kind: "stack", detail: "an empty stack" },
+        },
         spec: {
             cards: [
                 {
@@ -2710,6 +2932,10 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "activation timing: does not shoot away its own last counter at a face on 20",
+        classification: {
+            kind: "conditional",
+            discriminant: { kind: "life", detail: "the opponent at 1 life" },
+        },
         spec: {
             cards: [
                 {
@@ -2737,6 +2963,10 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "activation payoff: shoots its own last counter at a face on 1",
+        classification: {
+            kind: "conditional",
+            discriminant: { kind: "life", detail: "the opponent at 20 life" },
+        },
         spec: {
             cards: [
                 {
@@ -2770,6 +3000,10 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "activation timing: does not shoot away its own last counter at the opponent's end step",
+        classification: {
+            kind: "conditional",
+            discriminant: { kind: "life", detail: "the opponent at 1 life" },
+        },
         spec: {
             cards: [
                 {
@@ -2802,6 +3036,10 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "activation payoff: shoots its own last counter at the opponent's end step for lethal",
+        classification: {
+            kind: "conditional",
+            discriminant: { kind: "life", detail: "the opponent at 20 life" },
+        },
         spec: {
             cards: [
                 {
@@ -2836,6 +3074,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "activation timing: does not shoot away its own last counter after attacking with it",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "an opposing 2/2 blocking the Ballista",
+            },
+        },
         spec: {
             cards: [
                 {
@@ -2877,6 +3122,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "activation payoff: shoots its own last counter when the block has already doomed it",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "no blocker on the Ballista",
+            },
+        },
         spec: {
             cards: [
                 {
@@ -2919,6 +3171,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "activation timing: does not shoot away its own last counter after surviving a block",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "step",
+                detail: "the declare-blockers step, before combat damage, with the 2/2 block pending",
+            },
+        },
         spec: {
             cards: [
                 {
@@ -2966,6 +3225,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "activation timing: does not activate Iron-Shield Elf with no threat",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "stack",
+                detail: "a Lightning Bolt on the stack aimed at the Elf",
+            },
+        },
         spec: {
             cards: [
                 { name: "Iron-Shield Elf", owner: "me", zone: "battlefield" },
@@ -2987,6 +3253,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "defensive grant: does NOT buy indestructible for an UNBLOCKED attacker",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "a 1/1 blocker assigned to the Elf",
+            },
+        },
         spec: {
             cards: [
                 {
@@ -3022,6 +3295,10 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "defensive grant NEGATIVE CONTROL: buys indestructible against a lethal block",
+        classification: {
+            kind: "conditional",
+            discriminant: { kind: "card", detail: "the Elf unblocked" },
+        },
         spec: {
             cards: [
                 {
@@ -3065,6 +3342,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "activation timing: does not crack Sylvan Safekeeper with no threat",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "stack",
+                detail: "a Bolt on the stack aimed at the Bears",
+            },
+        },
         spec: {
             cards: [
                 { name: "Sylvan Safekeeper", owner: "me", zone: "battlefield" },
@@ -3088,6 +3372,10 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "activation payoff: cracks Sylvan Safekeeper against removal on the stack",
+        classification: {
+            kind: "conditional",
+            discriminant: { kind: "stack", detail: "an empty stack" },
+        },
         spec: {
             cards: [
                 {
@@ -3139,6 +3427,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "activation timing: does not animate Mishra's Factory after its own combat",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "step",
+                detail: "the bot's beginning of combat, before attackers",
+            },
+        },
         spec: {
             cards: [
                 { name: "Mishra's Factory", owner: "me", zone: "battlefield" },
@@ -3159,6 +3454,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "activation timing: Mishra's Factory stays available before combat",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "step",
+                detail: "the bot's second main phase, its combat over",
+            },
+        },
         spec: {
             cards: [
                 { name: "Mishra's Factory", owner: "me", zone: "battlefield" },
@@ -3186,6 +3488,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // at the END_OF_COMBAT exit with NOTHING queued, the mover's combat
         // really is over and the issue-#1890 suppression must still fire.
         label: "activation timing: still declines to animate Mishra's Factory at end of combat with no extra combat owed",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "other",
+                detail: "an extra combat owed after this one (CR 500.8)",
+            },
+        },
         spec: {
             cards: [
                 { name: "Mishra's Factory", owner: "me", zone: "battlefield" },
@@ -3216,6 +3525,10 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // anywhere in the bot; this is the one that did, and this entry is what
         // goes red if it comes back.
         label: "extra combat: animates Mishra's Factory at end of combat when an extra combat is owed (CR 500.8)",
+        classification: {
+            kind: "conditional",
+            discriminant: { kind: "other", detail: "no extra combat owed" },
+        },
         spec: {
             cards: [
                 { name: "Mishra's Factory", owner: "me", zone: "battlefield" },
@@ -3241,6 +3554,10 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "activation timing: holds a sacrifice engine through its own main phase",
+        classification: {
+            kind: "conditional",
+            discriminant: { kind: "step", detail: "the opponent's end step" },
+        },
         spec: {
             cards: [
                 { name: "Zuran Orb", owner: "me", zone: "battlefield" },
@@ -3267,6 +3584,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "activation timing: converts a sacrifice engine at the opponent's end step",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "step",
+                detail: "the bot's own precombat main phase",
+            },
+        },
         spec: {
             cards: [
                 { name: "Zuran Orb", owner: "opp", zone: "battlefield" },
@@ -3298,6 +3622,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "activation cost: names the discard for Survival of the Fittest",
+        classification: { kind: "absolute" },
         spec: {
             cards: [
                 {
@@ -3357,6 +3682,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // arbitrary-but-legal answer is already the difference between a
         // playable game and a dead one. See `answersRaisedTargetLegally`.
         label: "raised target: answers its own Flickerwisp ETB trigger (#2283)",
+        classification: { kind: "absolute" },
         spec: {
             cards: [
                 {
@@ -3408,6 +3734,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // (`requirementFromPendingTarget`), and a dropped filter there is the
         // documented way an enumerator offers a target the server then rejects.
         label: "raised target: answers its own Badgermole Cub earthbend trigger (#2283)",
+        classification: { kind: "absolute" },
         spec: {
             cards: [
                 {
@@ -3458,6 +3785,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // than the 2/2 bear?) and is deliberately out of scope, exactly as in
         // the two entries above.
         label: "raised target: answers its own Skyclave Apparition ETB trigger (up to one, mv-filtered) (#2384)",
+        classification: { kind: "absolute" },
         spec: {
             cards: [
                 {
@@ -3514,6 +3842,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "combo: casts Splinter Twin on Deceiver Exarch with both pieces assembled",
+        classification: { kind: "absolute" },
         spec: {
             cards: [
                 {
@@ -3562,6 +3891,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "combo: activates Splinter Twin on granted Grizzly Bears (#2469)",
+        classification: { kind: "absolute" },
         spec: {
             cards: [
                 {
@@ -3599,6 +3929,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "combo: activates Splinter Twin on enchanted Deceiver Exarch",
+        classification: { kind: "absolute" },
         spec: {
             cards: [
                 {
@@ -3641,6 +3972,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "channel: activates a player-level grant to fund a lethal Fireball (#2903)",
+        classification: { kind: "absolute" },
         spec: {
             cards: [
                 { name: "Channel", owner: "me", zone: "hand" },
@@ -3696,6 +4028,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     // -----------------------------------------------------------------------
     {
         label: "protection colour choice: Mother of Runes picks the opponent's shown colour",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "a lethal red attacker on the opponent's board",
+            },
+        },
         spec: {
             cards: [
                 {
@@ -3750,6 +4089,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "protection colour choice: Thornscape Master picks the opponent's shown colour (shared seam)",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "a lethal red attacker on the opponent's board",
+            },
+        },
         spec: {
             cards: [
                 {
@@ -3813,6 +4159,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "protection colour choice: negative control — the lethal threat's colour wins over evidence share",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "no red attacker on the opponent's board",
+            },
+        },
         spec: {
             cards: [
                 {
@@ -3888,6 +4241,10 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     // it to fire and it doesn't.
     {
         label: "flash permanent: holds Containment Priest in its own main with no threat",
+        classification: {
+            kind: "conditional",
+            discriminant: { kind: "step", detail: "the opponent's end step" },
+        },
         spec: {
             cards: [{ name: "Containment Priest", owner: "me", zone: "hand" }],
             phase: "PRECOMBAT_MAIN",
@@ -3906,6 +4263,10 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "flash permanent NEGATIVE CONTROL: casts Containment Priest as the only surviving block",
+        classification: {
+            kind: "conditional",
+            discriminant: { kind: "life", detail: "the Bot at 30 life" },
+        },
         spec: {
             cards: [
                 {
@@ -3936,6 +4297,10 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "flash permanent NEGATIVE CONTROL: still casts hasty Raging Kavu for lethal this turn",
+        classification: {
+            kind: "conditional",
+            discriminant: { kind: "life", detail: "the opponent at 30 life" },
+        },
         spec: {
             cards: [
                 {
@@ -3980,6 +4345,10 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     // spend, owned by `standing-spend-hold` / `last-window-fire`.
     {
         label: "keep mana open: holds Impulse in its own main with no threat",
+        classification: {
+            kind: "conditional",
+            discriminant: { kind: "step", detail: "the opponent's end step" },
+        },
         spec: {
             cards: [{ name: "Impulse", owner: "me", zone: "hand" }],
             phase: "PRECOMBAT_MAIN",
@@ -3998,6 +4367,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "keep mana open: casts Impulse at the opponent's end step",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "step",
+                detail: "the Bot's own precombat main with no threat",
+            },
+        },
         spec: {
             cards: [{ name: "Impulse", owner: "opp", zone: "hand" }],
             phase: "END_STEP",
@@ -4020,6 +4396,10 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "keep mana open: holds Accumulated Knowledge in its own main with no threat",
+        classification: {
+            kind: "conditional",
+            discriminant: { kind: "step", detail: "the opponent's end step" },
+        },
         spec: {
             cards: [
                 { name: "Accumulated Knowledge", owner: "me", zone: "hand" },
@@ -4040,6 +4420,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "keep mana open: casts Accumulated Knowledge at the opponent's end step",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "step",
+                detail: "the Bot's own precombat main with no threat",
+            },
+        },
         spec: {
             cards: [
                 { name: "Accumulated Knowledge", owner: "opp", zone: "hand" },
@@ -4064,6 +4451,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "keep mana open: casts Containment Priest at the opponent's end step",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "step",
+                detail: "the Bot's own precombat main with no threat",
+            },
+        },
         spec: {
             cards: [{ name: "Containment Priest", owner: "opp", zone: "hand" }],
             phase: "END_STEP",
@@ -4093,6 +4487,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     // a `timingMeasurement` predicate, so none of them reaches the weight fit.
     {
         label: "removal timing: holds Terror in its own main with no immediate threat",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "step",
+                detail: "the opponent's declare attackers step, the Bears attacking",
+            },
+        },
         spec: {
             cards: [
                 { name: "Terror", owner: "me", zone: "hand" },
@@ -4118,6 +4519,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "removal timing: exiles the attacker in the last window before damage",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "step",
+                detail: "the Bot's own precombat main, the Bears not yet attacking",
+            },
+        },
         spec: {
             cards: [
                 {
@@ -4162,6 +4570,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "response timing: bolts the attacker in response to its pump",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "stack",
+                detail: "the pump already resolved, the stack empty",
+            },
+        },
         spec: {
             cards: [
                 {
@@ -4215,6 +4630,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "response timing: saves its blocker by pumping it in response to removal",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "stack",
+                detail: "no Bolt on the stack, the stack empty",
+            },
+        },
         spec: {
             cards: [
                 {
@@ -4282,6 +4704,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // written — `enumerateCastMoves` emitted nothing for an unaffordable
         // printed cost.
         label: "morph: casts Exalted Angel face down for {3} on three lands",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "mana",
+                detail: "six lands including two Plains",
+            },
+        },
         spec: {
             cards: [
                 { name: "Exalted Angel", owner: "me", zone: "hand" },
@@ -4316,6 +4745,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // is unambiguous here regardless: there is only one face-down
         // permanent in the position.
         label: "morph: turns a face-down Exalted Angel face up for its morph cost",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "a better spell in hand competing for the four mana",
+            },
+        },
         spec: {
             cards: [
                 {
@@ -4361,6 +4797,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // empty so nothing competes, and the opponent's only permanent is a
         // 4/4 flier. The −2 edict (a sacrifice, CR 701.21) is the whole board.
         label: "loyalty: activates Liliana's −2 to eat the opponent's only creature",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "other",
+                detail: "Liliana at one loyalty, too low for the \u22122",
+            },
+        },
         spec: {
             cards: [
                 {
@@ -4411,6 +4854,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // question — it is "does the enumerator's CR 606.6 floor survive all
         // the way to the root decision".
         label: "loyalty: does NOT reach for a −2 it cannot pay",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "other",
+                detail: "Liliana with three loyalty to pay the \u22122",
+            },
+        },
         spec: {
             cards: [
                 {
@@ -4511,6 +4961,10 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // issue's `moves.ts` fix is what put a dash-cast Move on the table at
         // all (`enumerateCastMoves` used to read only the PRINTED cost).
         label: "dashes Ragavan for the lethal attack",
+        classification: {
+            kind: "conditional",
+            discriminant: { kind: "life", detail: "the opponent at 30 life" },
+        },
         spec: {
             cards: [
                 {
@@ -4578,6 +5032,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // ability. Paying with it means the ability resolves with nothing to
         // pump (CR 609.3): a creature spent for an empty resolution.
         label: "sac outlet: never eats itself when its whole payoff is on the source",
+        classification: { kind: "absolute" },
         spec: {
             cards: [
                 { name: "Fallen Angel", owner: "me", zone: "battlefield" },
@@ -4606,6 +5061,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // (`autoResolveFungible` — one candidate, one needed), so the victim
         // never reaches `costPicks` and only the final-victim check sees it.
         label: "sac outlet: does not activate at all when it is its own only victim",
+        classification: { kind: "absolute" },
         spec: {
             cards: [{ name: "Fallen Angel", owner: "me", zone: "battlefield" }],
             phase: "PRECOMBAT_MAIN",
@@ -4632,6 +5088,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // survives the Chirurgeon's death. Eating itself to save something
         // better is a real play and must stay searchable.
         label: "sac outlet: still eats itself when the payoff is independent of the source",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "the payoff printed on the source itself",
+            },
+        },
         spec: {
             cards: [
                 { name: "Goblin Chirurgeon", owner: "me", zone: "battlefield" },
@@ -4701,6 +5164,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     // Sampling from the decklist is what makes it visible every iteration.
     {
         label: "informed opponent: does NOT attack into the trick its deck must be holding",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "a decklist that cannot hold the combat trick",
+            },
+        },
         spec: {
             cards: [
                 {
@@ -4738,6 +5208,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "informed opponent: DOES attack when the deck cannot hold the trick",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "a decklist that must be holding the combat trick",
+            },
+        },
         spec: {
             cards: [
                 {
@@ -4813,6 +5290,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // arms — the decklist changed nothing, which is exactly the structural
         // blindness the issue reports.
         label: "informed defender: does NOT block into the trick the attacker's deck must be holding",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "a decklist that cannot hold the combat trick",
+            },
+        },
         spec: {
             cards: [
                 {
@@ -4857,6 +5341,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "informed defender: DOES block when the attacker's deck cannot hold the trick",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "a decklist that must be holding the combat trick",
+            },
+        },
         spec: {
             cards: [
                 {
@@ -4908,6 +5399,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // could not cast off a Mountain, declined the block and donated 2
         // damage plus a free kill on every seed.
         label: "informed defender: DOES block when the attacker's open land cannot PAY for the trick",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "mana",
+                detail: "the open land of the colour that pays for the trick",
+            },
+        },
         spec: {
             cards: [
                 {
@@ -4977,6 +5475,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // this entry the whole full-information behaviour change is unguarded
         // in both directions.
         label: "blind defender: blocks anyway — the trick is in hand, but nothing lawfully says so",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "other",
+                detail: "the attacker's decklist known to the Bot, holding the trick",
+            },
+        },
         spec: {
             cards: [
                 {
@@ -5033,6 +5538,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // legal block never reaches it); the `extra-combat` step then declines
         // the block (CR 509.1) on its way to the second combat.
         label: "extra combat: does not stall in the second combat phase (CR 500.8)",
+        classification: { kind: "absolute" },
         spec: {
             cards: [
                 {
@@ -5091,6 +5597,10 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // Bot-side twin of the North Star / Robber of the Rich cast-scoped
         // grants #2890 adds, which ride the exact same seam.
         label: "sunglasses of urza: spends white mana as red for exact lethal (CR 609.4b)",
+        classification: {
+            kind: "conditional",
+            discriminant: { kind: "life", detail: "the opponent at 10 life" },
+        },
         spec: {
             cards: [
                 {
@@ -5141,6 +5651,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // a legal confirm" case already passed before the fix — the defect lived
         // entirely in what the Bot SENT.)
         label: "up to X target: an 'up to X' cast with no legal target confirms zero targets (CR 601.2c)",
+        classification: { kind: "absolute" },
         spec: {
             cards: [
                 { name: "Pest Infestation", owner: "me", zone: "hand" },
@@ -5215,6 +5726,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // `processPendingActionTriggers` stacks Titania's trigger; it resolves a
         // ply later (measured: material margin 427.5 → 654.5 on resolution).
         label: "discriminating pair: activates Zuran Orb when Titania pays the land off (issue #2686)",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "no Titania, Protector of Argoth on the battlefield",
+            },
+        },
         spec: {
             cards: [
                 {
@@ -5312,6 +5830,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // the real ScenarioSpec pipeline, and dies when `manaDevWeight` is
         // zeroed.
         label: "flooded base: a land the hand's curve no longer wants earns no development bonus (issue #2927)",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "a hand whose curve still wants the fifth land",
+            },
+        },
         spec: {
             cards: [
                 ...Array.from({ length: 5 }, () => ({
@@ -5374,6 +5899,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // BOTH before and after the fix — bodies that big outrun the toll, and
         // an entry built on one would have been vacuous.
         label: "cast-invariance: casts an affordable creature off a base its curve already justifies (issue #2928)",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "other",
+                detail: "a base too small to justify the cast, a land short",
+            },
+        },
         spec: {
             cards: [
                 ...Array.from({ length: 8 }, () => ({
@@ -5420,6 +5952,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     // the hold must have exactly zero effect.
     {
         label: "wasted mana: does not cast Metamorphosis with no creature spell to spend it on",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "a creature spell in hand to spend the mana on",
+            },
+        },
         spec: {
             cards: [
                 { name: "Metamorphosis", owner: "me", zone: "hand" },
@@ -5445,6 +5984,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "wasted mana: does not burn Dark Ritual into an empty hand",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "a spell in hand the Ritual turns on",
+            },
+        },
         spec: {
             cards: [{ name: "Dark Ritual", owner: "me", zone: "hand" }],
             phase: "PRECOMBAT_MAIN",
@@ -5461,6 +6007,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "wasted mana NEGATIVE CONTROL: casts Dark Ritual when it turns on a Craw Wurm",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "mana",
+                detail: "one land fewer, the Craw Wurm a mana short",
+            },
+        },
         spec: {
             cards: [
                 { name: "Dark Ritual", owner: "me", zone: "hand" },
@@ -5497,6 +6050,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // its own Grizzly Bears for a boast the server would refuse, which in
         // live play is a frozen action, not a bad one.
         label: "boast: does not activate Broadside Bombardiers before it has attacked",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "sequence",
+                detail: "Broadside Bombardiers has attacked this turn",
+            },
+        },
         spec: {
             cards: [
                 {
@@ -5565,6 +6125,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // that seam is pinned by its own unit test
         // (`convex/cards/sets/lcc/__tests__/red.test.ts`), not here.
         label: "boast: eats its Grizzly Bears to boast for lethal after attacking",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "sequence",
+                detail: "Broadside Bombardiers has not attacked this turn",
+            },
+        },
         spec: {
             cards: [
                 {
@@ -5628,6 +6195,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // the predicate the mutation reads. Drop that evaluation and the move is
         // offered with the restriction failing — a move the server refuses.
         label: "activation restriction: does not sacrifice Barbarian Ring below threshold",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "seven cards in the graveyard, threshold reached",
+            },
+        },
         spec: {
             cards: [
                 { name: "Barbarian Ring", owner: "me", zone: "battlefield" },
@@ -5662,6 +6236,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // so this move did not exist in the Bot's move set at all. Half 1 and
         // half 2 red on OPPOSITE breaks of the same enumerator line.
         label: "activation restriction: sacrifices Barbarian Ring at threshold for lethal",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "six cards in the graveyard, below threshold",
+            },
+        },
         spec: {
             cards: [
                 { name: "Barbarian Ring", owner: "me", zone: "battlefield" },
@@ -5703,6 +6284,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     // all — `getLegalActions` said "cast", the candidate SET never asked.
     {
         label: "graveyard-cast: flashes back Firebolt from the graveyard for lethal",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "Firebolt in the library instead of the graveyard",
+            },
+        },
         spec: {
             // Firebolt: {R} Sorcery, "deals 2 damage to any target",
             // Flashback {4}{R} (CR 702.34). Five Mountains is exactly the
@@ -5729,6 +6317,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "graveyard-cast: does not reach for a Firebolt sitting in the library",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "Firebolt in the graveyard instead of the library",
+            },
+        },
         spec: {
             // The SAME board, one field changed. No cast-from-top permission
             // is in play, so the library card is unreachable — and the Bot
@@ -5761,6 +6356,10 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     // casting anyway, so it would pass with the grant broken.
     {
         label: "granted-flashback: casts the Lightning Bolt Snapcaster Mage's ETB granted flashback, for lethal",
+        classification: {
+            kind: "conditional",
+            discriminant: { kind: "life", detail: "the opponent at 10 life" },
+        },
         spec: {
             cards: [
                 {
@@ -5812,6 +6411,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     // cost under the grant, and the single Mountain is exactly that.
     {
         label: "escape: reaches for a Lightning Bolt Underworld Breach made escapable",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "one fewer card of graveyard fodder",
+            },
+        },
         spec: {
             cards: [
                 { name: "Underworld Breach", owner: "me", zone: "battlefield" },
@@ -5839,6 +6445,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "escape: does not reach for it when the graveyard cannot pay the exile cost",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "one more card of graveyard fodder",
+            },
+        },
         spec: {
             cards: [
                 { name: "Underworld Breach", owner: "me", zone: "battlefield" },
@@ -5874,6 +6487,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     // -----------------------------------------------------------------------
     {
         label: "madness-cast-when-affordable",
+        classification: { kind: "absolute" },
         spec: {
             cards: [
                 // Basking Rootwalla, Madness {0}: the cast costs LITERALLY
@@ -5906,6 +6520,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "madness-decline-when-unaffordable",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "mana",
+                detail: "mana to pay the madness cost",
+            },
+        },
         spec: {
             cards: [
                 // Anje's Ravager: printed {2}{R}, Madness {1}{R}. ONE Mountain
@@ -5951,6 +6572,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     // -----------------------------------------------------------------------
     {
         label: "storm: Grapeshot is lethal because the search counts the spell cast before it",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "mana",
+                detail: "one fewer Mountain, no prior cast fits beside Grapeshot",
+            },
+        },
         spec: {
             cards: [
                 // Three Mountains: the setup cast below taps one, leaving
@@ -5997,6 +6625,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "storm: does NOT reach for Grapeshot one prior cast short",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "mana",
+                detail: "one more Mountain, a prior cast fitting beside Grapeshot",
+            },
+        },
         spec: {
             cards: [
                 // TWO Mountains where half 1 has three — the one field that
@@ -6031,6 +6666,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "known top: digs with a cantrip because it knows the Bolt is there",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "a blank pinned on top in place of the Lightning Bolt",
+            },
+        },
         spec: {
             // Island + Mountain is EXACTLY {U} + {R}: Thought Scour and then
             // the Bolt it draws, or the Robber, never both. The two lines
@@ -6070,6 +6712,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "known top: plays the creature instead when the known top is a blank",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "Lightning Bolt pinned on top in place of the blank",
+            },
+        },
         spec: {
             // The SAME board, ONE card changed: a Swamp on top instead of the
             // Bolt. The dig now finds nothing, and the 2/2 haste is the play.
@@ -6111,6 +6760,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // the cast and the bot passed with lethal in hand — while
         // `getLegalActions` told the human the Cast was legal.
         label: "burst mana: kills with a two-mana spell off a single Black Lotus",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "mana",
+                detail: "a Mox Ruby in place of the Black Lotus",
+            },
+        },
         spec: {
             cards: [
                 {
@@ -6150,6 +6806,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // let any source cover any number of pips would pass half 1 and fail
         // here.
         label: "burst mana: does NOT reach the two-mana kill off a ONE-mana source",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "mana",
+                detail: "a Black Lotus in place of the Mox Ruby",
+            },
+        },
         spec: {
             cards: [
                 {
@@ -6199,6 +6862,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // cards. On this branch it plays the line above on every seed and every
         // budget measured, and the opponent's library reaches 0.
         label: "decking: casts the storm kill that recurs its own Black Lotus",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "other",
+                detail: "an opponent library too deep for the storm count to mill out",
+            },
+        },
         spec: {
             cards: [
                 { name: "Underworld Breach", owner: "me", zone: "battlefield" },
@@ -6259,6 +6929,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // the two: it is the one where the bestow line has no correctly-
         // directed sibling to fall back on.
         label: "cast mode: casts the creature for its printed cost rather than gifting the bestow",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "an own creature to bestow onto",
+            },
+        },
         spec: {
             cards: [
                 { name: "Springheart Nantuko", owner: "me", zone: "hand" },
@@ -6467,6 +7144,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // and Reanimate returns only a CREATURE card. No plan-quality
         // judgement, no averages.
         label: "entomb: buries the reanimation target, not one of eight lands",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "the reanimation spell removed from hand",
+            },
+        },
         spec: {
             cards: [
                 { name: "Entomb", owner: "me", zone: "hand" },
@@ -6538,6 +7222,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // all eight `CHOICE_TOP_K` slots with cards that do nothing in a
         // graveyard and never emits the one that does.
         label: "entomb: buries the self-reachable card, not the bigger body",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "a reanimation spell in hand",
+            },
+        },
         spec: {
             cards: [
                 { name: "Entomb", owner: "me", zone: "hand" },
@@ -6594,6 +7285,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // the material tie-break: the rollout margin actually favours the swing,
         // because a survived attacker leaves board material unchanged.
         label: "wasteful attack: does not swing a 3/5 into a blocker that absorbs it for free",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "no untapped blocker able to absorb the 3/5",
+            },
+        },
         spec: {
             cards: [
                 {
@@ -6661,6 +7359,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // "chump one" and "take it" is a judgement, throwing two creatures away
         // for nothing is not.
         label: "chump block: never double-blocks a 2/2 with two bodies that cannot kill it",
+        classification: { kind: "absolute" },
         spec: {
             cards: [
                 {
@@ -6731,6 +7430,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     // makes these two positions differ at all.
     {
         label: "scry: bottoms two dead cards to draw off a deck of bombs",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "two bombs on top of a deck of blanks",
+            },
+        },
         spec: {
             cards: [
                 { name: "Preordain", owner: "me", zone: "hand" },
@@ -6788,6 +7494,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "scry: keeps two bombs on top of a deck of blanks",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "two blanks on top of a deck of bombs",
+            },
+        },
         spec: {
             cards: [
                 { name: "Preordain", owner: "me", zone: "hand" },
@@ -6837,6 +7550,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "explore: bins the revealed blank instead of leaving it as the next draw",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "a bomb revealed instead of the blank",
+            },
+        },
         spec: {
             cards: [
                 // CR 111.10 — the Map token (LCI): "{1}, {T}, Sacrifice this
@@ -6902,6 +7622,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // red, the bot simply never uses the Aluren it controls, which is the
         // whole point of the card.
         label: "cast permission: casts a creature for free under Aluren with no lands",
+        classification: { kind: "absolute" },
         spec: {
             cards: [
                 { name: "Aluren", owner: "me", zone: "battlefield" },
@@ -6927,6 +7648,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // simulate through. A search that could not answer either would
         // stall on the rollout, and the move would never be preferred.
         label: "cast permission: casts Raven Familiar for free under Aluren with no lands",
+        classification: { kind: "absolute" },
         spec: {
             cards: [
                 { name: "Aluren", owner: "me", zone: "battlefield" },
@@ -7028,6 +7750,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // along and the entry was passing on its seed selection; the refit
         // moved the noise, not the preference.
         label: "self-tap source: pays a {T} ability entirely from the OTHER lands",
+        classification: { kind: "absolute" },
         spec: {
             cards: [
                 {
@@ -7094,6 +7817,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // 113.7a — the permanent whose ability it was) and draws two. There is
         // no line in which the pass is better, so it must hold on any seed.
         label: "reachability: counters an opponent's land-targeting activation with Teferi's Response",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "Icy Manipulator's activation targeting a creature, not a land",
+            },
+        },
         spec: {
             cards: [
                 {
@@ -7295,6 +8025,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     //     `resolved-payoff`'s choice half reads the SETTLED margins instead.
     {
         label: "free put: the caster puts a permanent in off its own Show and Tell",
+        classification: { kind: "absolute" },
         spec: {
             cards: [
                 { name: "Show and Tell", owner: "me", zone: "hand" },
@@ -7328,6 +8059,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "free put: the second chooser still puts its creature in after the opponent's bigger one",
+        classification: { kind: "absolute" },
         spec: {
             cards: [
                 { name: "Show and Tell", owner: "me", zone: "hand" },
@@ -7355,6 +8087,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "free put NEGATIVE CONTROL: declines a pick that dies on entry",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "a creature on the battlefield for Phantasmal Image to copy",
+            },
+        },
         spec: {
             cards: [
                 { name: "Show and Tell", owner: "me", zone: "hand" },
@@ -7382,6 +8121,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "sacrifice sign: does not cast a creature whose ETB eats its own board",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "a 1/1 token as the only other creature to sacrifice",
+            },
+        },
         spec: {
             cards: [
                 { name: "Kjeldoran Dead", owner: "me", zone: "hand" },
@@ -7425,6 +8171,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // opponent-side prefix) — the predicate rejects any id the chooser does
         // not control.
         label: "choose-permanents: Frantic Search untaps all three of its own lands, never the opponent's",
+        classification: { kind: "absolute" },
         spec: {
             cards: [
                 { name: "Frantic Search", owner: "me", zone: "hand" },
@@ -7481,6 +8228,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // untapped and only a size-1 branch does anything. The generator emits
         // that branch (the intermediate cardinality); the SEARCH cannot price it.
         label: "choose-permanents: Magnetic Mountain picks exactly the one creature it can pay for",
+        classification: { kind: "absolute" },
         spec: {
             cards: [
                 {
@@ -7546,6 +8294,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // minimal-legal fallback answered the FLOOR — zero — and the bot died
         // to a card it had the mana to survive, with every suite green.
         label: "variable mana payment: pays to prevent lethal from Errant Minion",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "life",
+                detail: "the Bot at a life total above Errant Minion's damage",
+            },
+        },
         spec: {
             cards: [
                 {
@@ -7593,6 +8348,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "sacrifice sign NEGATIVE CONTROL: still casts a genuine edict",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "no creature on the opponent's battlefield",
+            },
+        },
         spec: {
             cards: [
                 { name: "Sheoldred's Edict", owner: "me", zone: "hand" },
@@ -7675,6 +8437,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // So what ships here is the VALUATION half of the line: given the
         // mana, the bot spends all of it on bodies.
         label: "landstill key line: pays {X} on the cycled Decree for Soldiers",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "an instant in hand that needs the same mana on the opponent's turn",
+            },
+        },
         spec: {
             cards: [{ name: "Decree of Justice", owner: "me", zone: "hand" }],
             phase: "PRECOMBAT_MAIN",
@@ -7734,6 +8503,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // and anything left over would fund the nomination from the pool and
         // silently restore the entry above.
         label: "landstill key line: taps for {X} on the cycled Decree (empty pool)",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "an instant in hand that needs the same mana on the opponent's turn",
+            },
+        },
         spec: {
             cards: [{ name: "Decree of Justice", owner: "me", zone: "hand" }],
             phase: "PRECOMBAT_MAIN",
@@ -7809,6 +8585,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // prefers an outcome-equal cast to `pass`.) A `must` entry nothing can
         // red is not evidence; the dominance pair reds on the first break.
         label: "replenish: casts the mass return with three enchantments in the graveyard",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "no enchantment in the Bot's graveyard",
+            },
+        },
         spec: {
             cards: [
                 { name: "Plains", owner: "me", zone: "battlefield", count: 4 },
@@ -7862,6 +8645,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // has a position whose right answer is unambiguous (`selectRootMove —
         // sorcery-speed permanent tie-break`, `gre/__tests__/search.bot.test.ts`).
         label: "sorcery-speed permanent: deploys a Seal with the mana open and nothing else to do",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "an instant in hand that needs the same mana on the opponent's turn",
+            },
+        },
         spec: {
             cards: [
                 { name: "Swamp", owner: "me", zone: "battlefield", count: 5 },
@@ -7899,6 +8689,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // than the land is on the board, and casting it is the gain it always
         // was.
         label: "board-aware removal: casts Stone Rain on a land when there is nothing better to do",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "a castable creature in hand",
+            },
+        },
         spec: {
             cards: [
                 { name: "Stone Rain", owner: "me", zone: "hand" },
@@ -7931,6 +8728,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // a preference this entry has no business pinning — the blunder is
         // what is unambiguous.
         label: "board-aware removal: deploys the creature instead of Stone Rain when both are castable",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "no castable creature in hand",
+            },
+        },
         spec: {
             cards: [
                 { name: "Stone Rain", owner: "me", zone: "hand" },
@@ -7975,6 +8779,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // answer, and the search has to be the thing that decides that: the
         // prior itself is unsigned (it ranks presence, never side).
         label: "as-enters creature type: names the opponent's tribe, not its own and not the alphabet",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "Humans on the opponent's battlefield instead of Goblins",
+            },
+        },
         spec: {
             cards: [
                 { name: "Engineered Plague", owner: "me", zone: "hand" },
@@ -8019,6 +8830,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "colour denial: destroys the only source of a colour the opponent is visibly using",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "Savannah Lions in place of the Grizzly Bears",
+            },
+        },
         spec: {
             cards: [
                 { name: "Stone Rain", owner: "me", zone: "hand" },
@@ -8050,6 +8868,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "colour denial: does not spend the card on a colour nothing but the land itself evidences",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "Grizzly Bears in place of the Savannah Lions",
+            },
+        },
         spec: {
             cards: [
                 { name: "Stone Rain", owner: "me", zone: "hand" },
@@ -8080,6 +8905,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "recoverable sweep: casts Armageddon when the Bot keeps its mana in rocks and the opponent has only lands",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "other",
+                detail: "the mana rocks on the opponent's side and only lands on the Bot's",
+            },
+        },
         spec: {
             cards: [
                 { name: "Armageddon", owner: "me", zone: "hand" },
@@ -8102,6 +8934,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "recoverable sweep: holds Armageddon when the opponent keeps its mana in rocks and the Bot has only lands",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "other",
+                detail: "the mana rocks on the Bot's side and only lands on the opponent's",
+            },
+        },
         spec: {
             cards: [
                 { name: "Armageddon", owner: "me", zone: "hand" },
@@ -8124,6 +8963,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "symmetric sweep: holds Armageddon when the Bot holds the land surplus and the opponent the board",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "other",
+                detail: "the land surplus on the opponent's side and the board on the Bot's",
+            },
+        },
         spec: {
             cards: [
                 { name: "Armageddon", owner: "me", zone: "hand" },
@@ -8149,6 +8995,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "damage sweep: casts Pyroclasm when the opponent holds the bodies it kills and the Bot a survivor",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "other",
+                detail: "the bodies Pyroclasm kills on the Bot's side and the survivor on the opponent's",
+            },
+        },
         spec: {
             cards: [
                 { name: "Pyroclasm", owner: "me", zone: "hand" },
@@ -8181,6 +9034,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "damage sweep: holds Pyroclasm when the Bot holds the bodies it kills and the opponent a survivor",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "other",
+                detail: "the bodies Pyroclasm kills on the opponent's side and the survivor on the Bot's",
+            },
+        },
         spec: {
             cards: [
                 { name: "Pyroclasm", owner: "me", zone: "hand" },
@@ -8213,6 +9073,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "bounce sweep: casts Hibernation when the opponent's green board outweighs its mana",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "other",
+                detail: "the green surplus on the Bot's side",
+            },
+        },
         spec: {
             cards: [
                 { name: "Hibernation", owner: "me", zone: "hand" },
@@ -8245,6 +9112,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "bounce sweep: holds Hibernation when the Bot holds the green surplus",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "other",
+                detail: "the green board on the opponent's side",
+            },
+        },
         spec: {
             cards: [
                 { name: "Hibernation", owner: "me", zone: "hand" },
@@ -8293,6 +9167,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     // ------------------------------------------------------------------
     {
         label: "informed colour denial: the decklist, not the board, picks which land dies",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "other",
+                detail: "the opponent's decklist of {2}{W} creatures instead of {2}{B}",
+            },
+        },
         spec: {
             cards: [
                 {
@@ -8344,6 +9225,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "informed colour denial: the same board demands the OTHER land on the mirrored decklist",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "other",
+                detail: "the opponent's decklist of {2}{B} creatures instead of {2}{W}",
+            },
+        },
         spec: {
             cards: [
                 {
@@ -8408,6 +9296,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // three drops were always enumerated — keeping the Island its own move
         // is.
         label: "interchangeable collapse: two Forests are one option, the Island is not",
+        classification: { kind: "absolute" },
         spec: {
             cards: [
                 { name: "Forest", owner: "me", zone: "hand" },
@@ -8468,6 +9357,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // Discriminating: without the decision history the Bot re-exiles the
         // Wave on seed 0xb1ade (and on half of eight seeds).
         label: "optional loop: does not refill Parallax Wave again from a position it already occupied",
+        classification: { kind: "absolute" },
         spec: {
             cards: [
                 { name: "Opalescence", owner: "me", zone: "battlefield" },
@@ -8543,6 +9433,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // Discriminating: without the decision history the Bot recasts the
         // Harpy on seed 2 (two of eight seeds).
         label: "optional loop: does not recast a self-bouncing creature under Aluren from a position it already occupied",
+        classification: { kind: "absolute" },
         spec: {
             cards: [
                 { name: "Aluren", owner: "me", zone: "battlefield" },
@@ -8594,6 +9485,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // Discriminating: with the template reader disabled the bot fetches a
         // Plains on all five seeds; the Bauble's draw is worth zero to it.
         label: "delayed trigger: tutors the card whose whole value is a delayed draw",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "no land on the Bot's battlefield",
+            },
+        },
         spec: {
             cards: [
                 ...Array.from({ length: 6 }, () => ({
@@ -8666,6 +9564,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // and the second half of every splice card would be dead in the one
         // place no suite looks.
         label: "splice onto Arcane: reveals Through the Breach off Lava Spike rather than casting it",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "a creature in hand worth putting in with Through the Breach",
+            },
+        },
         spec: {
             cards: [
                 { name: "Mountain", owner: "me", zone: "battlefield" },
@@ -8731,6 +9636,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // through, and a rejected submission freezes the bot exactly as hard
         // as no submission at all.
         label: "flagbearer: cannot bolt the face for lethal past a Standard Bearer",
+        classification: { kind: "absolute" },
         spec: {
             cards: [
                 { name: "Lightning Bolt", owner: "me", zone: "hand" },
@@ -8763,6 +9669,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "categorised search: finds one land of EACH basic type, never two of one",
+        classification: { kind: "absolute" },
         spec: {
             cards: [
                 { name: "Gaea's Balance", owner: "me", zone: "hand" },
@@ -8836,6 +9743,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "redirection shield: shields ITS OWN side and points the damage at the opponent",
+        classification: { kind: "absolute" },
         spec: {
             cards: [
                 { name: "Captain's Maneuver", owner: "me", zone: "hand" },
@@ -8920,6 +9828,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // its own verdict, "ever played?" in either main phase; "cast
         // precombat?" is guarded by nothing, deliberately.
         label: "Sacrifice outlet with a transient payoff: casts the creature",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "an instant in hand that needs the same mana on the opponent's turn",
+            },
+        },
         spec: {
             cards: [
                 { name: "Nantuko Husk", owner: "me", zone: "hand" },
@@ -8968,6 +9883,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // combat in sight is a creature thrown away for nothing, and the
         // activation is still available in a window where the payoff matters.
         label: "Sacrifice outlet with a transient payoff: no sacrifice in the main phase",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "step",
+                detail: "the declare blockers step, with Nantuko Husk attacking unblocked",
+            },
+        },
         spec: {
             cards: [
                 { name: "Nantuko Husk", owner: "me", zone: "battlefield" },
@@ -9007,6 +9929,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // body without the ability was cast. Fixed by class, not by card:
         // `isSourceConfinedSacrificeConversion` (`search.ts`).
         label: "Self-growing sacrifice outlet: casts the creature",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "an instant in hand that needs the same mana on the opponent's turn",
+            },
+        },
         spec: {
             cards: [
                 { name: "Scarland Thrinax", owner: "me", zone: "hand" },
@@ -9054,6 +9983,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // spare Grizzly Bears to feed it. A +1/+1 counter bought with a whole
         // creature moves worth around the board and creates none.
         label: "Self-growing sacrifice outlet: no sacrifice in the main phase",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "stack",
+                detail: "a removal spell on the stack targeting the creature to sacrifice",
+            },
+        },
         spec: {
             cards: [
                 { name: "Scarland Thrinax", owner: "me", zone: "battlefield" },
@@ -9102,6 +10038,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // (`botReach.bot.test.ts`) still asks "ever played?" in either main
         // phase; "cast precombat?" is guarded by nothing, deliberately.
         label: "Sacrifice-for-removal outlet: casts the creature",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "an instant in hand that needs the same mana on the opponent's turn",
+            },
+        },
         spec: {
             cards: [
                 { name: "Frostling", owner: "me", zone: "hand" },
@@ -9145,6 +10088,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // against a Grizzly Bears it cannot kill. One damage bought with the
         // whole creature trades a body for nothing.
         label: "Sacrifice-for-removal outlet: no sacrifice in the main phase",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "an opposing 1-toughness creature worth killing",
+            },
+        },
         spec: {
             cards: [
                 { name: "Frostling", owner: "me", zone: "battlefield" },
@@ -9192,6 +10142,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // (`botReach.bot.test.ts`) still asks "ever played?" in either main
         // phase; "cast precombat?" is guarded by nothing, deliberately.
         label: "Sacrifice-for-discard outlet: casts the creature",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "an instant in hand that needs the same mana on the opponent's turn",
+            },
+        },
         spec: {
             cards: [
                 { name: "Sadistic Hypnotist", owner: "me", zone: "hand" },
@@ -9244,6 +10201,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // the cast. Fixed by class, not by card: `abilityIsDiscardExchange`
         // (`discardExchange.ts`) reads either discarding Op.
         label: "Sacrifice-for-random-discard outlet: casts the creature",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "an instant in hand that needs the same mana on the opponent's turn",
+            },
+        },
         spec: {
             cards: [
                 { name: "Urborg Mindsucker", owner: "me", zone: "hand" },
@@ -9307,6 +10271,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // The precombat pick stays covered by the sweep itself
         // (`botReach.bot.test.ts`), which asks "ever played?", not "cast now?".
         label: "Sacrifice-for-drain outlet: casts the creature",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "an instant in hand that needs the same mana on the opponent's turn",
+            },
+        },
         spec: {
             cards: [
                 { name: "Death Cultist", owner: "me", zone: "hand" },
@@ -9368,6 +10339,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // still asks "ever played?" in either main phase; "cast precombat?"
         // is guarded by nothing, deliberately.
         label: "Sacrifice-for-draw outlet: casts the creature",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "an instant in hand that needs the same mana on the opponent's turn",
+            },
+        },
         spec: {
             cards: [
                 { name: "Limestone Golem", owner: "me", zone: "hand" },
@@ -9420,6 +10398,10 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // flash creature are one play a turn apart, a tie that rollout noise
         // settles for `pass`.
         label: "Flash creature: casts it to block an attacker",
+        classification: {
+            kind: "conditional",
+            discriminant: { kind: "card", detail: "no attacking creature" },
+        },
         spec: {
             cards: [
                 { name: "Benalish Knight", owner: "me", zone: "hand" },
@@ -9491,6 +10473,10 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // turn. No filler now: the opponent's library is the Angels, the
         // Bot's own is Swamps.
         label: "Discard sorcery with a sacrifice cost: casts it into a full hand",
+        classification: {
+            kind: "conditional",
+            discriminant: { kind: "card", detail: "an empty opponent hand" },
+        },
         spec: {
             cards: [
                 { name: "Tendrils of Despair", owner: "me", zone: "hand" },
@@ -9570,6 +10556,10 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // was ever cast. `boonsEveryTarget` exempts a cast whose every
         // announced slot the script signs beneficial.
         label: "boon on own creature: casts the haste grant instead of holding the card",
+        classification: {
+            kind: "conditional",
+            discriminant: { kind: "step", detail: "the postcombat main phase" },
+        },
         spec: {
             cards: [
                 { name: "Unnatural Speed", owner: "me", zone: "hand" },
@@ -9616,6 +10606,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     // issue names, which the mandatory target keeps honest on its own.
     {
         label: "ETB Ability spent: holds Skyclave Apparition while its ETB has nothing to exile",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "an opposing Hill Giant to exile",
+            },
+        },
         spec: {
             cards: [{ name: "Skyclave Apparition", owner: "me", zone: "hand" }],
             phase: "PRECOMBAT_MAIN",
@@ -9634,6 +10631,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "ETB Ability realized: casts Skyclave Apparition into a permanent worth exiling",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "no opposing nonland permanent to exile",
+            },
+        },
         spec: {
             cards: [
                 { name: "Skyclave Apparition", owner: "me", zone: "hand" },
@@ -9660,6 +10664,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "ETB Ability spent: holds Flametongue Kavu when its ETB can only hit its own side",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "an opposing creature to take the 4 damage",
+            },
+        },
         spec: {
             cards: [
                 { name: "Flametongue Kavu", owner: "me", zone: "hand" },
@@ -9686,6 +10697,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "ETB Ability realized: casts Flametongue Kavu into an opposing creature worth killing",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "no opposing creature on the battlefield",
+            },
+        },
         spec: {
             cards: [
                 { name: "Flametongue Kavu", owner: "me", zone: "hand" },
@@ -9713,6 +10731,10 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     // Issue #4895 — blade coverage for the cards the issue #4758 review named.
     {
         label: "opponent's choice: casts Ravenous Rats into a two-card hand",
+        classification: {
+            kind: "conditional",
+            discriminant: { kind: "card", detail: "an empty opponent hand" },
+        },
         spec: {
             cards: [
                 { name: "Ravenous Rats", owner: "me", zone: "hand" },
@@ -9761,6 +10783,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "opponent's choice: casts Chainer's Edict at the opponent's only creature",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "no creature on the opponent's battlefield",
+            },
+        },
         spec: {
             cards: [
                 { name: "Chainer's Edict", owner: "me", zone: "hand" },
@@ -9785,6 +10814,10 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "opponent's choice: casts Mind Rot into a two-card hand",
+        classification: {
+            kind: "conditional",
+            discriminant: { kind: "card", detail: "an empty opponent hand" },
+        },
         spec: {
             cards: [
                 { name: "Mind Rot", owner: "me", zone: "hand" },
@@ -9825,6 +10858,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "self-sacrificing ETB: casts Phlage from hand for lethal",
+        classification: { kind: "absolute" },
         spec: {
             cards: [
                 {
@@ -9852,6 +10886,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "self-sacrificing ETB: hard-casts Phlage with no lethal and no creature",
+        classification: { kind: "absolute" },
         spec: {
             cards: [
                 {
@@ -9878,6 +10913,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "escape: casts Phlage from the graveyard",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "an instant in hand that needs the same mana on the opponent's turn",
+            },
+        },
         spec: {
             cards: [
                 {
@@ -9911,6 +10953,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "self-sacrificing ETB: hard-casts Uro for its enter trigger",
+        classification: { kind: "absolute" },
         spec: {
             cards: [
                 {
@@ -9941,6 +10984,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "alternate win: casts Thassa's Oracle when its trigger wins on the spot",
+        classification: { kind: "absolute" },
         spec: {
             cards: [
                 { name: "Thassa's Oracle", owner: "me", zone: "hand" },
@@ -9971,6 +11015,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "ETB bounce: casts Man-o'-War on an opposing Craw Wurm",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "no opposing creature on the battlefield",
+            },
+        },
         spec: {
             cards: [
                 { name: "Man-o'-War", owner: "me", zone: "hand" },
@@ -9995,6 +11046,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "type-blind potential: casts Monk Realist into an opposing Glorious Anthem",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "no opposing enchantment or artifact on the battlefield",
+            },
+        },
         spec: {
             cards: [
                 { name: "Monk Realist", owner: "me", zone: "hand" },
@@ -10026,6 +11084,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "granted flashback: casts Stingcaster Mage to flash back Lightning Bolt for lethal",
+        classification: { kind: "absolute" },
         spec: {
             cards: [
                 { name: "Stingcaster Mage", owner: "me", zone: "hand" },
@@ -10049,6 +11108,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "pay-to-keep ETB: holds Mold Demon with one Swamp",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "two more Swamps on the Bot's battlefield",
+            },
+        },
         spec: {
             cards: [
                 { name: "Mold Demon", owner: "me", zone: "hand" },
@@ -10074,6 +11140,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "casts Solitude to exile a lethal attacker",
+        classification: { kind: "absolute" },
         spec: {
             cards: [
                 { name: "Solitude", owner: "me", zone: "hand" },
@@ -10103,6 +11170,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "evoke with no mana: evokes Solitude to exile a lethal attacker",
+        classification: { kind: "absolute" },
         spec: {
             cards: [
                 { name: "Solitude", owner: "me", zone: "hand" },
@@ -10134,6 +11202,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "Fireblast with no mana open: sacrifices two Mountains for lethal",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "life",
+                detail: "the opponent at more than 4 life",
+            },
+        },
         spec: {
             cards: [
                 { name: "Fireblast", owner: "me", zone: "hand" },
@@ -10173,6 +11248,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "hybrid evoke: evokes Wistfulness on two Forests to exile an opposing artifact",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "no opposing artifact or enchantment on the battlefield",
+            },
+        },
         spec: {
             cards: [
                 { name: "Wistfulness", owner: "me", zone: "hand" },
@@ -10198,6 +11280,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     // itself, rebuilt from the bug report's game state.
     {
         label: "Snapcaster Mage: holds it in its own main phase with an empty graveyard",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "Flame Slash in the graveyard and an opposing Serra Angel to kill",
+            },
+        },
         spec: {
             cards: [
                 { name: "Snapcaster Mage", owner: "me", zone: "hand" },
@@ -10227,6 +11316,10 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "Snapcaster Mage: casts it to flash back a sorcery that kills a Serra Angel",
+        classification: {
+            kind: "conditional",
+            discriminant: { kind: "card", detail: "an empty graveyard" },
+        },
         spec: {
             cards: [
                 { name: "Snapcaster Mage", owner: "me", zone: "hand" },
@@ -10257,6 +11350,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     },
     {
         label: "Snapcaster Mage (issue #4217 reported position): holds it on turn 4 with an empty graveyard",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "an instant or sorcery worth flashing back in the graveyard",
+            },
+        },
         spec: {
             // Rebuilt from the bug report's state (one turn later, the Mage on
             // the battlefield): the Bot's Island + Plains untapped and the land
