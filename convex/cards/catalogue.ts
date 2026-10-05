@@ -154,6 +154,7 @@ import * as dst from "./sets/dst/index.cards";
 import {
     preloadDefinitions,
     setLazyDefinitionSource,
+    setPrintedBackFaceIndex,
     tryGetDefinition,
     getDefinition,
 } from "./registry";
@@ -161,26 +162,34 @@ import {
 // the full contract. Registered into the SAME `registry` map hand-written
 // cards use, so `getDefinition`/`tryGetDefinition` never distinguish the two.
 import { excludeHandWritten } from "./compiledCatalogue";
-import { insetSpellDefinitionId } from "./insetSpell";
 import { chooseableNamesOf } from "./cardNames";
-import {
-    isModalDoubleFaced,
-    modalBackFaceDefinitionId,
-    modalBackFaceParentId,
-} from "./modalDfc";
-import {
-    SPLIT_HALF_SIDES,
-    SPLIT_NAME_SEPARATOR,
-    splitHalfDefinitionId,
-} from "./splitCard";
+import { modalBackFaceParentId } from "./modalDfc";
 import { isTwinDefinitionId } from "./twinId";
+import {
+    backFaceTriggerTokenId,
+    twinNameEntriesOf,
+    type CompiledDefinitionIndex,
+    type DefinitionIndexLookups,
+    type HandWrittenDefinitionIndex,
+    type HandWrittenExport,
+    type NameEntry,
+} from "./definitionIndex";
+// The HAND-WRITTEN section of the Definition Index (issue #4856), written by
+// `bun run catalogue:pack` (`scripts/lib/definition-index.ts`). Bundled on
+// both sides: every hand-written definition is in both graphs.
+import definitionIndexJson from "../../data/catalogue/definition-index.json";
 // The pool as a BUNDLED module. On the SERVER this is
 // `data/oracle-compiled-pool.json`; in a CLIENT build `vite.config.ts`
 // aliases this exact relative specifier to an empty array and the rows arrive
 // from the fetched artifact instead (ADR 0113 §2, issue #3053). Keep it the
 // only importer of `./compiledPool` — pinned by
-// `scripts/__tests__/compiled-pool-client-seam.test.ts`.
-import { compiledReadyDefinitions, packedCorpusLookup } from "./compiledPool";
+// `scripts/__tests__/compiled-pool-client-seam.test.ts`. The packed corpus
+// beside it carries the COMPILED section of the Definition Index.
+import {
+    compiledReadyDefinitions,
+    packedCorpusLookup,
+    packedServerCorpus,
+} from "./compiledPool";
 
 function isCardDefinition(value: unknown): value is CardDefinition {
     return (
@@ -342,153 +351,244 @@ const setModules: { code: string; exports: Record<string, unknown> }[] = [
     { code: "dst", exports: dst },
 ];
 
-const allCards: CardDefinition[] = setModules.flatMap((m) =>
-    Object.values(m.exports).filter(isCardDefinition)
+// ── The Definition Index (issue #4856, ADR 0113 Amendment IV) ───────────────
+//
+// At load this module reads the index and touches NO definition: every index
+// below — Set membership, the name lookup and its twin-name keys, the
+// choosable names, the printed back-face trigger lookup — is built from the
+// generated index (`./definitionIndex`), and a definition is reached only when
+// someone asks for it, through the lazy source installed at the end of this
+// block. Pinned by `__tests__/catalogueLoadTouchesNoDefinition.test.ts`, which
+// loads this module with every definition replaced by a throwing stub.
+//
+// The definitions are still BUILT eagerly — every Set module evaluates its
+// object literals when imported. What changed is that nothing here needs them
+// at load; making them factories is the next slice of PRD #4849.
+
+const setModuleByCode = new Map(setModules.map((m) => [m.code, m.exports]));
+
+const handWrittenIndex =
+    definitionIndexJson as unknown as HandWrittenDefinitionIndex;
+
+/** The COMPILED section: the packed corpus's index on the server, `null` in a
+ *  client graph, whose compiled rows arrive from the fetched artifact. */
+const compiledIndex: CompiledDefinitionIndex | null = packedServerCorpus;
+
+const handWrittenEntryById = new Map(
+    handWrittenIndex.entries.map((entry) => [entry[0], entry])
 );
 
-// definitionId → home set code (the module the CardDefinition is declared in).
-const definitionSetCode = new Map<string, string>();
-for (const m of setModules) {
-    for (const value of Object.values(m.exports)) {
-        if (isCardDefinition(value)) definitionSetCode.set(value.id, m.code);
+/** Every hand-written Card ID. A compiled row for one of them never registers
+ *  (ADR 0108 — `excludeHandWritten`). The collision is resolved at BUILD
+ *  (ADR 0114 §2, issue #3052) — `scripts/catalogue-artifact.ts` excludes a
+ *  hand-written oracle id at generation — so on the server the filter has
+ *  nothing left to drop. That it never does is asserted in the GATE
+ *  (`scripts/__tests__/catalogue-artifact.test.ts`), never here: see
+ *  `excludeHandWritten`'s own comment for why a module-load throw is the wrong
+ *  place to notice a stale pool. */
+const handWrittenIds: ReadonlySet<string> = new Set(
+    handWrittenEntryById.keys()
+);
+
+const staleIndex = (what: string): Error =>
+    new Error(
+        `The Definition Index is stale: ${what}. Run: bun run catalogue:pack`
+    );
+
+/** The hand-written definition for `id`, read from the Set module export the
+ *  index locates — the module's own object, unexpanded. */
+function handWrittenDefinition(id: string): CardDefinition | null {
+    const entry = handWrittenEntryById.get(id);
+    if (entry === undefined) return null;
+    const [, name, setCode, exportName] = entry;
+    const value = setModuleByCode.get(setCode)?.[exportName];
+    if (!isCardDefinition(value) || value.id !== id) {
+        throw staleIndex(`${name} (${id}) is not ${setCode}.${exportName}`);
     }
+    return value;
 }
 
-// Populate the runtime registry with all card definitions.
-preloadDefinitions(allCards);
-
-// Compiled-card hydration (issue #2702). The collision between a compiled row
-// and a hand-written definition for the same print id is resolved at BUILD
-// (ADR 0114 §2, issue #3052) — `scripts/catalogue-artifact.ts` excludes a
-// hand-written oracle id at generation and `scripts/catalogue-artifact.ts`
-// merges the two populations into one artifact — so on the server this filter
-// has nothing left to drop. That it never does is asserted in the GATE
-// (`scripts/__tests__/catalogue-artifact.test.ts`), never here: see
-// `excludeHandWritten`'s own comment for why a module-load throw is the wrong
-// place to notice a stale pool.
-const handWrittenIds = new Set(allCards.map((c) => c.id));
-
-// Compiled names join the SAME lookup debug scenarios use
-// (`tryGetCardByName` — `convex/debugScenarios.ts`), so a compiled `ready`
-// card is reachable by name exactly like a hand-written one (issue #2702
-// acceptance criterion). A hand-written card always wins its name key: it is
-// seeded here first and `registerCompiledDefinitions` never overwrites an
-// entry — the same precedence the previous `[...compiled, ...allCards]` Map
-// construction expressed by write order.
-//
-// Among COMPILED rows the precedence is inverted, and that is not a hidden
-// equivalence: the old construction let the LAST row with a given name win,
-// first-write-wins makes it the FIRST. It is only safe because compiled names
-// are unique, which `scripts/__tests__/catalogue-artifact.test.ts` asserts
-// rather than assumes — a duplicate there would make the two shapes disagree.
-//
-// SWAP-BLIND: a module-load `const`, never rewritten by `preloadDefinitions`
-// (`registry.ts`) — the behavioural gold harness's swap
-// (`convex/oracle/behavioural.ts`) writes the registry Map, not this Map, so
-// a card test resolving its subject here would read the hand-written
-// definition even while the twin is registered. Closed by
-// `scripts/__tests__/card-test-seam-boundary.test.ts` (issue #3048), which
-// forbids a per-card test from reaching `getCardByName`/`tryGetCardByName`
-// as its subject — see `convex/oracle/behavioural.ts` § "Gap 1 disposition"
-// (issue #3060) for the full argument.
-const nameRegistry = new Map<string, CardDefinition>(
-    allCards.map((card) => [card.name.toLowerCase(), card])
+const bundledCompiledRow = new Map(
+    (compiledIndex?.ids ?? []).map((id, row) => [id, row])
 );
 
-/** Every `[nameKey, definition]` pair a card contributes to the name
- *  registry BESIDE its own printed name — an inset spell's alternative name
- *  (CR 715.5 / 722.5), a split card's two half names (CR 709.4a), and a modal
- *  double-faced card's back-face name plus its full `front // back` name.
+/** The compiled definition the SERVER bundles for `id`: the packed corpus's
+ *  row with the switch on (issue #4165), else the literal pool's — the same
+ *  row index, because both renderings are `merge.serverRows` in order. An id
+ *  the index does not hold inflates nothing. */
+function bundledCompiledDefinition(id: string): CardDefinition | null {
+    const row = bundledCompiledRow.get(id);
+    if (row === undefined) return null;
+    if (packedCorpusLookup !== null) return packedCorpusLookup.lookup(id);
+    const def = compiledReadyDefinitions[row];
+    if (def?.id !== id) throw staleIndex(`compiled row ${row} is not ${id}`);
+    return def;
+}
+
+/** Compiled rows registered at runtime — the CLIENT's fetched artifact
+ *  (`registerCompiledDefinitions`). */
+const fetchedCompiled = new Map<string, CardDefinition>();
+
+/** A catalogue card's definition exactly as declared, unexpanded: the Set
+ *  module's object, or the compiled row.
  *
- *  The twin is looked up rather than rebuilt: `preloadDefinitions` registered
- *  it, so a name resolves to the SAME object every other def-derived reader
- *  sees. A half whose twin failed to hydrate contributes nothing — fail
- *  closed, so a resolvable name always names a real definition. */
-function twinNameEntries(
-    card: CardDefinition
-): Array<[string, CardDefinition]> {
-    const entries: Array<[string, CardDefinition]> = [];
-    const inset = card.insetSpell;
-    if (inset) {
-        const twin = tryGetDefinition(
-            insetSpellDefinitionId(card.id, inset.kind)
-        );
-        if (twin) entries.push([inset.name.toLowerCase(), twin]);
-    }
-    if (card.splitHalves) {
-        for (const side of SPLIT_HALF_SIDES) {
-            const twin = tryGetDefinition(splitHalfDefinitionId(card.id, side));
-            if (twin) entries.push([twin.name.toLowerCase(), twin]);
-        }
-    }
-    // CR 712.19 (ADR 0122) — "if an effect instructs a player to choose a card
-    // name, the player may choose the name of either face of a double-faced
-    // card but not both." The card's own name is its FRONT face's (CR 712.8a)
-    // and is already in the registry; the modal BACK face's has to resolve
-    // here or the name-choice button offers a name `tryGetCardByName` — the
-    // server's own submit gate — then refuses. Naming "Soporific Springs"
-    // names the LAND face, not the instant that carries it.
-    if (isModalDoubleFaced(card)) {
-        const twin = tryGetDefinition(modalBackFaceDefinitionId(card.id));
-        if (twin) {
-            entries.push([twin.name.toLowerCase(), twin]);
-            // The printed "front // back" spelling (Scryfall's, and so a deck
-            // list's or a Bot Finding's) names the CARD, not a face: CR 712.8a
-            // gives it its front face's characteristics everywhere a list is
-            // read from, so the key resolves to `card` itself (issue #4767).
-            entries.push([
-                `${card.name}${SPLIT_NAME_SEPARATOR}${twin.name}`.toLowerCase(),
-                card,
-            ]);
-        }
-    }
-    return entries;
+ *  SWAP-BLIND for a hand-written card: it reads the module, never the
+ *  registry Map, so the behavioural gold harness's swap
+ *  (`convex/oracle/behavioural.ts`), which writes the Map, does not reach a
+ *  card resolved here by NAME. Closed by
+ *  `scripts/__tests__/card-test-seam-boundary.test.ts` (issue #3048), which
+ *  forbids a per-card test from reaching `getCardByName`/`tryGetCardByName`
+ *  as its subject — see `convex/oracle/behavioural.ts` § "Gap 1 disposition"
+ *  (issue #3060). */
+const rawCatalogueDefinition = (id: string): CardDefinition | null =>
+    handWrittenDefinition(id) ??
+    bundledCompiledDefinition(id) ??
+    fetchedCompiled.get(id) ??
+    null;
+
+/** The compiled population, in catalogue order: the bundled index's rows at
+ *  load (server), then rows registered at runtime (client). Stated
+ *  POSITIVELY, never inferred from the registry, which is a LIVE map that
+ *  grows during play — `maybeSynthesizeToken` and `registerTokenDefinition`
+ *  write synthesized token definitions (CR 111.1) into it, and a consumer
+ *  that enumerated it would pick those up as printed cards (issue #3054's
+ *  search index did, offering `token:Soldier|Creature|…` in the deck
+ *  builder). */
+const compiledIds: string[] = [];
+const compiledNames: string[] = [];
+const compiledIdSet = new Set<string>();
+
+/** definitionId → home Set code: a hand-written card's module, a compiled
+ *  row's first printing (issue #4363). */
+const definitionSetCode = new Map<string, string>();
+
+/** Lowercase name → the id of the definition it names. The definition
+ *  itself is resolved on lookup (`resolveNamed`).
+ *
+ *  Precedence is first-write-wins, in the order the eager catalogue wrote:
+ *  hand-written printed names, then hand-written twin names, then each
+ *  compiled row's printed name followed by its own twin names. So a printed
+ *  name always wins its key over a twin's, and a hand-written card over a
+ *  compiled one (ADR 0108). Among compiled rows first-write-wins is only safe
+ *  because compiled names are unique, which
+ *  `scripts/__tests__/catalogue-artifact.test.ts` asserts rather than
+ *  assumes; hand-written names are unique by the generator's own refusal
+ *  (`scripts/lib/definition-index.ts`).
+ *
+ *  The twin keys — CR 715.5 / 722.5 (ADR 0120): "if an effect instructs a
+ *  player to choose a card name and the player wants to choose an adventurer
+ *  card's ALTERNATIVE name, the player may do so"; CR 709.4a: a split card's
+ *  half names; CR 712.19 (ADR 0122): a modal double-faced card's back-face
+ *  name and its full `front // back` name — live in this LOOKUP only. Every
+ *  enumerated population (deck legality, the Limited pool, `check:index`,
+ *  `getAllCardNames`, the deck-builder search index) still sees exactly one
+ *  card (CR 715.2c, 709.2). */
+const nameIndex = new Map<string, string>();
+
+/** definitionId → its choosable names, where they are not just its printed
+ *  name (CR 715.5 / 709.4a / 712.19). */
+const chooseableById = new Map<string, readonly string[]>();
+
+/** A printed nonmodal back face's token id → the declaring card's id
+ *  (CR 712.8e, issue #3249). */
+const backFaceOwner = new Map<string, string>();
+
+const ownEntries = <T>(record: Readonly<Record<string, T>>, key: string) =>
+    Object.hasOwn(record, key) ? record[key] : undefined;
+
+function addName([key, id]: NameEntry): void {
+    if (!nameIndex.has(key)) nameIndex.set(key, id);
 }
 
-// CR 715.5 / 722.5 (ADR 0120) — "if an effect instructs a player to choose a
-// card name and the player wants to choose an adventurer card's ALTERNATIVE
-// name, the player may do so." So the inset half's name resolves here, to the
-// registered TWIN: naming "Petty Theft" must name the Adventure, not the
-// creature that carries it.
-//
-// The name registry alone, never `allCards`: this map is a LOOKUP, and every
-// enumerated population — deck legality, the Limited pool, `check:index`,
-// `getAllCardNames`, the deck-builder search index — is built from `allCards`
-// or `getAllCatalogueCards()` and so still sees exactly one card (CR 715.2c).
-// A printed name always wins the key, the same first-write-wins precedence
-// compiled rows get below.
-for (const card of allCards) {
-    for (const [key, twin] of twinNameEntries(card)) {
-        if (nameRegistry.has(key)) continue;
-        nameRegistry.set(key, twin);
+function addChooseable(id: string, names: readonly string[]): void {
+    if (!chooseableById.has(id)) chooseableById.set(id, names);
+}
+
+function addBackFaceOwner(tokenId: string, id: string): void {
+    if (!backFaceOwner.has(tokenId)) backFaceOwner.set(tokenId, id);
+}
+
+function addLookups(lookups: DefinitionIndexLookups): void {
+    for (const [id, names] of Object.entries(lookups.chooseableNames)) {
+        addChooseable(id, names);
+    }
+    for (const [tokenId, id] of Object.entries(lookups.backFaceTriggers)) {
+        addBackFaceOwner(tokenId, id);
     }
 }
 
-// The compiled rows this graph actually registered, kept because the runtime
-// registry is NOT a usable stand-in for "the catalogue's cards": it is a LIVE
-// map that grows during play. `maybeSynthesizeToken` and
-// `registerTokenDefinition` write synthesized token definitions (CR 111.1)
-// into it on any main-thread engine run or board render, and a consumer that
-// enumerated the registry would pick those up as if they were printed cards —
-// issue #3054's search index did exactly that, and the deck builder would then
-// offer `token:Soldier|Creature|…` as an addable card, non-deterministically by
-// navigation order. So the catalogue population is stated POSITIVELY here and
-// never inferred from the map.
-const compiledRegistered: CardDefinition[] = [];
+/** One compiled card joins the populations. A module-declared card wins its
+ *  Set and its name; a row already registered is not registered twice. */
+function addCompiled(
+    id: string,
+    name: string,
+    setCode: string | undefined,
+    twinNames: readonly NameEntry[]
+): void {
+    if (compiledIdSet.has(id)) return;
+    compiledIdSet.add(id);
+    compiledIds.push(id);
+    compiledNames.push(name);
+    if (setCode && !definitionSetCode.has(id))
+        definitionSetCode.set(id, setCode);
+    addName([name.toLowerCase(), id]);
+    for (const entry of twinNames) addName(entry);
+}
+
+for (const [id, name, setCode] of handWrittenIndex.entries) {
+    definitionSetCode.set(id, setCode);
+    addName([name.toLowerCase(), id]);
+}
+for (const [id] of handWrittenIndex.entries) {
+    for (const entry of ownEntries(handWrittenIndex.lookups.twinNames, id) ??
+        []) {
+        addName(entry);
+    }
+}
+addLookups(handWrittenIndex.lookups);
+
+if (compiledIndex !== null) {
+    compiledIndex.ids.forEach((id, row) =>
+        addCompiled(
+            id,
+            compiledIndex.names[row]!,
+            compiledIndex.setCodes[row],
+            ownEntries(compiledIndex.lookups.twinNames, id) ?? []
+        )
+    );
+    addLookups(compiledIndex.lookups);
+}
+
+/** Every Card ID the catalogue serves, in catalogue order. */
+function* catalogueIds(): Generator<string> {
+    for (const [id] of handWrittenIndex.entries) yield id;
+    yield* compiledIds;
+}
+
+// The lazy source (issue #4165, widened by issue #4856): a registry miss asks
+// the hand-written modules first, then the bundled compiled rows. Hand-written
+// first keeps ADR 0108's precedence; the registry registers what it returns
+// through `preloadDefinitions`, so twins and static-kind indexes are derived
+// exactly as the eager preload derived them.
+setLazyDefinitionSource(
+    (id) => handWrittenDefinition(id) ?? bundledCompiledDefinition(id),
+    catalogueIds
+);
+setPrintedBackFaceIndex((tokenId) => backFaceOwner.get(tokenId));
+
 let expandedCatalogueCards: CardDefinition[] | null = null;
 
 /**
- * Register compiled definitions into the runtime registry — the ONE seam
- * both halves of ADR 0113 §2's asymmetric delivery go through.
- *
- * The server calls it once at module load, below, with the bundled pool
- * (`./compiledPool`). The client calls it from the loading gate with the rows
- * it FETCHED (`src/lib/catalogueArtifact.ts`, issue #3053), where the same
- * `excludeHandWritten` filter drops the artifact's relocated hand-written
- * rows in favour of the module the engine actually runs.
+ * Register compiled definitions into the runtime registry — the CLIENT's half
+ * of ADR 0113 §2's asymmetric delivery: it calls this from the loading gate
+ * with the rows it FETCHED (`src/lib/catalogueArtifact.ts`, issue #3053),
+ * where `excludeHandWritten` drops the artifact's relocated hand-written rows
+ * in favour of the module the engine actually runs. The server registers
+ * nothing here: its compiled rows are served lazily from the Definition
+ * Index above.
  *
  * Idempotent by construction: `preloadDefinitions` is a keyed write and the
- * name map never overwrites. Returns how many rows it actually registered, so
+ * populations never take a row twice. Returns how many rows it registered, so
  * a caller can assert the fetch was not a no-op.
  */
 export function registerCompiledDefinitions(
@@ -497,46 +597,49 @@ export function registerCompiledDefinitions(
     const fresh = excludeHandWritten(rows, handWrittenIds);
     preloadDefinitions(fresh);
     for (const card of fresh) {
-        // A compiled row's home Set joins the hand-written modules' map, so
-        // `getPrintingsForCard`, `getAllSetCodes`, `isPrintedInSet` and
-        // `resolveDeckCardMeta` answer for both populations from one source
-        // (issue #4363). Never overwrites: a module-declared card wins.
-        if (card.setCode !== undefined && !definitionSetCode.has(card.id)) {
-            definitionSetCode.set(card.id, card.setCode);
+        if (!bundledCompiledRow.has(card.id)) {
+            fetchedCompiled.set(card.id, card);
         }
-        const key = card.name.toLowerCase();
-        if (!nameRegistry.has(key)) nameRegistry.set(key, card);
-        // CR 715.5 / 709.4a — the same half-name keys the hand-written loop
-        // above seeds, for a COMPILED adventurer or split row.
-        // `preloadDefinitions` has already registered their twins.
-        for (const [key, twin] of twinNameEntries(card)) {
-            if (nameRegistry.has(key)) continue;
-            nameRegistry.set(key, twin);
+        // The same entries the generator derives for a bundled row
+        // (`./definitionIndex`), derived here from the row in hand.
+        addCompiled(card.id, card.name, card.setCode, twinNameEntriesOf(card));
+        const chooseable = chooseableNamesOf(card);
+        if (chooseable.length !== 1 || chooseable[0] !== card.name) {
+            addChooseable(card.id, chooseable);
         }
+        const tokenId = backFaceTriggerTokenId(card);
+        if (tokenId !== undefined) addBackFaceOwner(tokenId, card.id);
     }
-    compiledRegistered.push(...fresh);
     // The CLIENT calls this after module load (from the loading gate), so a
     // population memo taken earlier would be missing every compiled row.
     expandedCatalogueCards = null;
     return fresh.length;
 }
 
-// Issue #4165 (PRD #4161) — the packed fallback, behind `PACKED_CORPUS_LOOKUP`
-// (`./compiledPool`, off by default; the lookup is built there, behind the
-// client alias). Off: the compiled pool is preloaded at
-// module load, exactly as it always was. On: NOTHING compiled is preloaded —
-// that per-request evaluation is the cost PRD #4161 removes — and
-// `getDefinition` resolves a compiled id from the packed corpus on first
-// lookup, one block at a time, so loading this module inflates no block at all.
-//
-// With the switch on, the catalogue-wide populations fed from the compiled rows
-// (`compiledRegistered`, the name map, `definitionSetCode`) stay empty of them:
-// giving each of those a disposition is the enumerator slice of PRD #4161.
-// The client never takes this branch — its alias exports the switch `false`.
-if (packedCorpusLookup === null) {
-    registerCompiledDefinitions(compiledReadyDefinitions);
-} else {
-    setLazyDefinitionSource(packedCorpusLookup.lookup);
+/** Every hand-written definition, walked from the Set modules' exports at
+ *  CALL time — never at load. The generator's input
+ *  (`scripts/catalogue-artifact.ts`, which writes the Definition Index from
+ *  it) and the eager walk the index is proven equal to.
+ *
+ *  Set modules in their declared order, each one's exports in CODE-UNIT order
+ *  of their names — the order an ES module namespace object lists its exports
+ *  in, made explicit because not every runtime this runs under materialises a
+ *  real namespace (vitest's transform lists source order). One order
+ *  everywhere, so the index the generator writes under bun is the walk a test
+ *  compares it with. */
+export function walkHandWrittenDefinitions(): HandWrittenExport[] {
+    const walk: HandWrittenExport[] = [];
+    for (const m of setModules) {
+        const exports = Object.entries(m.exports).sort(([a], [b]) =>
+            a < b ? -1 : a > b ? 1 : 0
+        );
+        for (const [exportName, value] of exports) {
+            if (isCardDefinition(value)) {
+                walk.push({ setCode: m.code, exportName, definition: value });
+            }
+        }
+    }
+    return walk;
 }
 
 /** How many packed blocks this module graph has inflated — `0` with the switch
@@ -544,18 +647,26 @@ if (packedCorpusLookup === null) {
 export const packedCorpusInflations = (): number =>
     packedCorpusLookup?.inflations() ?? 0;
 
+/** What a name key resolves to: a TWIN through the registry (it is minted
+ *  by `preloadDefinitions` when its parent is resolved, and expanded like any
+ *  registered definition), a printed card as its catalogue declares it. */
+const resolveNamed = (id: string): CardDefinition | null =>
+    isTwinDefinitionId(id) ? tryGetDefinition(id) : rawCatalogueDefinition(id);
+
 export const getCardByName = (name: string): CardDefinition => {
-    const card = nameRegistry.get(name.toLowerCase());
+    const card = tryGetCardByName(name);
     if (!card) {
         throw new Error(`Card not found by name: ${name}`);
     }
     return card;
 };
 
-export const tryGetCardByName = (name: string): CardDefinition | null =>
-    nameRegistry.get(name.toLowerCase()) ?? null;
+export const tryGetCardByName = (name: string): CardDefinition | null => {
+    const id = nameIndex.get(name.toLowerCase());
+    return id === undefined ? null : resolveNamed(id);
+};
 
-// `getAllCatalogueCards()`, not `allCards`: a retired hand-written card
+// The whole catalogue, not the hand-written half: a retired hand-written card
 // (ADR 0114 §2, issue #4027) is still placeable through
 // `tryGetPlaceableCardByName` below, and every consumer of this list treats
 // it as the allow-list of names that CAN be placed — the LLM scenario
@@ -564,8 +675,13 @@ export const tryGetCardByName = (name: string): CardDefinition | null =>
 // autocomplete field. Narrowing it to hand-written-only would let the
 // allow-list and the placement resolver disagree on exactly the cards this
 // migration retires.
-export const getAllCardNames = (): string[] =>
-    getAllCatalogueCards().map((card) => card.name);
+//
+// Read from the Definition Index: the catalogue's names, with no definition
+// built to read them (issue #4856).
+export const getAllCardNames = (): string[] => [
+    ...handWrittenIndex.entries.map(([, name]) => name),
+    ...compiledNames,
+];
 
 /** CR 715.4 / 715.2c — `tryGetCardByName` restricted to names that can be
  *  PLACED as a card: a printed catalogue card, never an inset spell's twin.
@@ -620,20 +736,24 @@ export const getChooseableCardNames = (): string[] => {
     // The hand-written population's own names first — this seam WIDENS
     // `getAllCardNames`, and the client's candidate list is built by
     // difference against it.
+    //
+    // Read from the Definition Index (issue #4856): no definition is built.
     const names: string[] = [];
-    for (const card of allCards) names.push(...chooseableNamesOf(card));
+    for (const [id, name] of handWrittenIndex.entries) {
+        names.push(...(chooseableById.get(id) ?? [name]));
+    }
     // A COMPILED row contributes its FULL `chooseableNamesOf`, own printed
     // name included — `getAllCardNames` widened to `getAllCatalogueCards()`
     // in issue #4027 (a retired hand-written card is compiled-only and must
     // stay choosable), so a compiled row's own name is no longer absent from
     // that seam either. The two seams are widened TOGETHER on purpose: ADR
     // 0113 §2's asymmetric delivery (bundled on the server, fetched on the
-    // client) means both sides build this same list from `compiledRegistered`
-    // once hydrated, so the submit gate and the button's candidate list still
-    // agree.
-    for (const card of compiledRegistered) {
-        names.push(...chooseableNamesOf(card));
-    }
+    // client) means both sides build this same list from the compiled
+    // population once hydrated, so the submit gate and the button's
+    // candidate list still agree.
+    compiledIds.forEach((id, i) =>
+        names.push(...(chooseableById.get(id) ?? [compiledNames[i]!]))
+    );
     return names;
 };
 
@@ -642,19 +762,21 @@ export const getChooseableCardNames = (): string[] => {
 // registry seam — but `expandDefinition` is not exported. Instead, route
 // through `getDefinition` to get the expanded version.
 
-/** All registered `CardDefinition`s in load order. Routed through
+/** Every HAND-WRITTEN `CardDefinition`, in catalogue order. Routed through
  *  `getDefinition` (ADR 0054) so the catalogue and the `getDefinition`
  *  seam return the SAME (expanded) object for a keyword card.
  *
  *  SWAP-BLIND once memoized: `vitest.setup.node.ts` calls this in its freeze
  *  loop BEFORE the behavioural swap block runs, so `expandedAllCards` bakes
  *  in the hand-written population for the rest of that worker. Same
- *  disposition as `nameRegistry` above — see `convex/oracle/behavioural.ts`
+ *  disposition as the name lookup's — see `convex/oracle/behavioural.ts`
  *  § "Gap 1 disposition" (issue #3060). */
 let expandedAllCards: CardDefinition[] | null = null;
 export const getAllCards = (): CardDefinition[] => {
     if (!expandedAllCards)
-        expandedAllCards = allCards.map((c) => getDefinition(c.id));
+        expandedAllCards = handWrittenIndex.entries.map(([id]) =>
+            getDefinition(id)
+        );
     return expandedAllCards;
 };
 
@@ -662,7 +784,7 @@ export const getAllCards = (): CardDefinition[] => {
  *  and nothing else.
  *
  *  This is the population a catalogue-wide sweep wants, and the reason it is
- *  not `[...registeredDefinitions()]` is the comment on `compiledRegistered`
+ *  not `[...registeredDefinitions()]` is the comment on `compiledIds`
  *  above: the registry also holds runtime-synthesized tokens and the face-down
  *  sentinel (CR 708.2), neither of which is a printed card. It is not
  *  `getAllCards()` either — that is the HAND-WRITTEN half only (ADR 0108 §3),
@@ -675,7 +797,7 @@ export const getAllCatalogueCards = (): CardDefinition[] => {
     if (!expandedCatalogueCards)
         expandedCatalogueCards = [
             ...getAllCards(),
-            ...compiledRegistered.map((c) => getDefinition(c.id)),
+            ...compiledIds.map((id) => getDefinition(id)),
         ];
     return expandedCatalogueCards;
 };
@@ -690,7 +812,8 @@ export const getAllCatalogueCards = (): CardDefinition[] => {
  *  read, and expanding an already-expanded definition injects an implicit
  *  keyword's triggers a second time. Relocation is a MOVE of the module's own
  *  bytes; expansion is the registry's job on the far side. */
-export const getAllRawCards = (): readonly CardDefinition[] => allCards;
+export const getAllRawCards = (): readonly CardDefinition[] =>
+    walkHandWrittenDefinitions().map((e) => e.definition);
 
 /** A single printing of a card: its image-key print id and the set it was
  *  printed in. */

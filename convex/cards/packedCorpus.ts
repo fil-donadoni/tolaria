@@ -13,8 +13,13 @@
 // the Convex runtime offers (no native zlib, no async).
 import { inflateSync } from "fflate";
 import type { CardDefinition } from "./types";
+import type { CompiledDefinitionIndex } from "./definitionIndex";
 
-export interface PackedCorpus {
+/** The packed rows AND the compiled section of the Definition Index (issue
+ *  #4856, `./definitionIndex`): `ids`, `names`, `setCodes` and `lookups` are
+ *  the index the catalogue reads at load, so it learns every compiled card
+ *  without inflating a block. */
+export interface PackedCorpus extends CompiledDefinitionIndex {
     /** The ONE source hash — the same value `data/catalogue/source-hash.json`
      *  holds and the client asset carries in its file name. */
     readonly sourceHash: string;

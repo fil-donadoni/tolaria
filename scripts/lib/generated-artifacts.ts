@@ -54,6 +54,12 @@ import { LEDGER_PATH } from "./cr-ledger";
  *     line, so two branches that both regenerate always collide, and no
  *     hunk-picking can yield bytes that decode. Re-derived by the same
  *     `catalogue:pack` run as the source hash.
+ *   - `data/catalogue/definition-index.json` — IN THIS CLASS (issue #4856).
+ *     The hand-written Definition Index: one entry per line, which git could
+ *     merge, but its derived `lookups` are ONE line of whole-file state: two
+ *     branches that each add a card with a twin name both rewrite that line.
+ *     Re-derived by the same
+ *     `catalogue:pack` run.
  *   - `data/catalogue/catalogue-<hash>.json` — CONTENT-ADDRESSED BY NAME, and
  *     so outside this class for a different reason (issue #3052, ADR 0114 §2).
  *     Its bytes are whole-file state, but two branches that regenerate it
@@ -142,6 +148,14 @@ export const REGENERATED_ARTIFACTS: readonly RegeneratedArtifact[] = [
         script: "catalogue:pack",
         wholeFileState: "blocks, blockOffsets, dictionary, sourceHash",
         // The same offline join as the source hash above (issue #4164).
+        requiresCorpus: false,
+    },
+    {
+        path: "data/catalogue/definition-index.json",
+        script: "catalogue:pack",
+        wholeFileState: "lookups",
+        // The hand-written Definition Index (issue #4856): a walk of the
+        // module graph alone — offline, written by the same run.
         requiresCorpus: false,
     },
 ] as const;

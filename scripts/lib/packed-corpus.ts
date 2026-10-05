@@ -46,6 +46,7 @@ import {
     inflateBlock,
     type PackedCorpus,
 } from "../../convex/cards/packedCorpus";
+import { buildIndexLookups } from "../../convex/cards/definitionIndex";
 import { firstIdentityDrift, describeIdentityDrift } from "./catalogue-merge";
 
 /** Where the packed rendering lives. Inside `data/catalogue/` beside the
@@ -129,6 +130,12 @@ export function packCorpus(
         blockOffsets,
         firstIds,
         names: rows.map((r) => r.name),
+        // The compiled section of the Definition Index (issue #4856,
+        // `convex/cards/definitionIndex.ts`): what the catalogue reads at load
+        // instead of walking the rows.
+        ids: rows.map((r) => r.id),
+        setCodes: rows.map((r) => r.setCode ?? ""),
+        lookups: buildIndexLookups(rows),
     };
 }
 
@@ -215,6 +222,12 @@ export function packedCorpusDrift(
         return `rowCount says ${packed.rowCount}, the blocks hold ${rows.length}`;
     }
     for (let i = 0; i < rows.length; i++) {
+        if (packed.ids[i] !== rows[i]!.id) {
+            return `id index row ${i} says ${packed.ids[i]}, the row is ${rows[i]!.name} (${rows[i]!.id})`;
+        }
+        if (packed.setCodes[i] !== (rows[i]!.setCode ?? "")) {
+            return `set index row ${i} says ${packed.setCodes[i]}, the row ${rows[i]!.name} is from ${rows[i]!.setCode ?? "no Set"}`;
+        }
         if (packed.names[i] !== rows[i]!.name) {
             return `name index row ${i} says ${packed.names[i]}, the row is ${rows[i]!.name} (${rows[i]!.id})`;
         }
@@ -227,6 +240,18 @@ export function packedCorpusDrift(
     }
     if (packed.names.length !== rows.length) {
         return `name index holds ${packed.names.length} names for ${rows.length} rows`;
+    }
+    if (
+        packed.ids.length !== rows.length ||
+        packed.setCodes.length !== rows.length
+    ) {
+        return `id/set indexes hold ${packed.ids.length}/${packed.setCodes.length} entries for ${rows.length} rows`;
+    }
+    if (
+        JSON.stringify(packed.lookups) !==
+        JSON.stringify(buildIndexLookups(rows))
+    ) {
+        return "the Definition Index lookups (twin names, choosable names, back-face triggers) are not the rows' — run `bun run catalogue:pack`";
     }
     return null;
 }

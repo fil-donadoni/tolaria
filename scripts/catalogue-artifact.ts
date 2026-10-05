@@ -45,7 +45,12 @@
  *     deflated in blocks against one shared dictionary, with its first-id and
  *     name indexes, carrying the same source hash. Nothing reads it yet; it
  *     sits beside the literal pool until the lookup slice of PRD #4161 swaps
- *     one for the other (`scripts/lib/packed-corpus.ts`).
+ *     one for the other (`scripts/lib/packed-corpus.ts`). It also carries
+ *     the COMPILED section of the Definition Index (issue #4856);
+ *   - `data/catalogue/definition-index.json` — the HAND-WRITTEN section of
+ *     the Definition Index (issue #4856, `scripts/lib/definition-index.ts`):
+ *     every hand-written definition's id, name, Set and export, plus the
+ *     lookups the catalogue reads at load instead of walking the modules.
  *
  * `--check` writes nothing. It compares the two COMMITTED renderings against
  * each other first — byte-for-byte on the definitions they share, naming the
@@ -71,7 +76,10 @@ import {
     writeFileSync,
 } from "node:fs";
 import { join, resolve } from "node:path";
-import { getAllRawCards } from "../convex/cards/catalogue";
+import {
+    getAllRawCards,
+    walkHandWrittenDefinitions,
+} from "../convex/cards/catalogue";
 import type { CardDefinition } from "../convex/cards/types";
 import {
     CATALOGUE_DIR,
@@ -95,6 +103,11 @@ import {
     serializePackedCorpus,
     type PackedCorpus,
 } from "./lib/packed-corpus";
+import {
+    DEFINITION_INDEX_PATH,
+    buildHandWrittenIndex,
+    serializeDefinitionIndex,
+} from "./lib/definition-index";
 import {
     BASELINE_KEYS,
     baselineKey,
@@ -131,6 +144,8 @@ export interface CatalogueBuild {
     readonly sourceHashBytes: string;
     /** The PACKED server rendering's bytes — {@link PACKED_CORPUS_PATH}. */
     readonly packedBytes: string;
+    /** The hand-written Definition Index's bytes — {@link DEFINITION_INDEX_PATH}. */
+    readonly definitionIndexBytes: string;
     readonly hash: string;
     readonly fileName: string;
     /** `ready` rows the join could not resolve an `id`/`rarity`/`setCode` for. */
@@ -222,6 +237,9 @@ export function buildCatalogue(repoRoot: string): CatalogueBuild {
         poolBytes: serializePool(merge.serverRows),
         sourceHashBytes: serializeSourceHash(hash),
         packedBytes: serializePackedCorpus(packCorpus(merge.serverRows, hash)),
+        definitionIndexBytes: serializeDefinitionIndex(
+            buildHandWrittenIndex(walkHandWrittenDefinitions())
+        ),
         hash,
         fileName: artifactFileName(hash),
         unjoinable,
@@ -424,6 +442,7 @@ function main() {
             [POOL_PATH, build.poolBytes],
             [sourceHashPath, build.sourceHashBytes],
             [PACKED_CORPUS_PATH, build.packedBytes],
+            [DEFINITION_INDEX_PATH, build.definitionIndexBytes],
         ] as const) {
             if (readCommitted(repoRoot, path) === expected) continue;
             console.error(
@@ -434,7 +453,7 @@ function main() {
         }
         console.log(
             `${GREEN}✓${RESET} ${committed} is current — ${summary}\n` +
-                `${DIM}  ${POOL_PATH} + ${PACKED_CORPUS_PATH} + ${sourceHashPath} agree with it, hash ${build.hash}${RESET}`
+                `${DIM}  ${POOL_PATH} + ${PACKED_CORPUS_PATH} + ${DEFINITION_INDEX_PATH} + ${sourceHashPath} agree with it, hash ${build.hash}${RESET}`
         );
         return;
     }
@@ -451,6 +470,11 @@ function main() {
         build.packedBytes,
         "utf-8"
     );
+    writeFileSync(
+        resolve(repoRoot, DEFINITION_INDEX_PATH),
+        build.definitionIndexBytes,
+        "utf-8"
+    );
     console.log(
         `${GREEN}✓${RESET} ${join(CATALOGUE_DIR, build.fileName)} ` +
             `(${(build.bytes.length / 1024).toFixed(0)} KB) — ${summary}\n` +
@@ -460,6 +484,8 @@ function main() {
             `${GREEN}✓${RESET} ${PACKED_CORPUS_PATH} ` +
             `(${build.packedBytes.length} B, ${(build.packedBytes.length / Math.max(1, build.merge.serverRows.length)).toFixed(0)} B/row) ` +
             `— the SAME rows, packed (issue #4164)\n` +
+            `${GREEN}✓${RESET} ${DEFINITION_INDEX_PATH} ` +
+            `(${(build.definitionIndexBytes.length / 1024).toFixed(0)} KB) — the hand-written Definition Index (issue #4856)\n` +
             `${GREEN}✓${RESET} ${sourceHashPath} — ${build.hash}\n` +
             `${DIM}  provenance stays on the lockfile (ADR 0114 §2); the file name is the content hash${RESET}`
     );

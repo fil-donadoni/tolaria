@@ -63,20 +63,23 @@ const derivedFaceIds = (): string[] =>
         });
 
 describe("the switch (issue #4165)", () => {
-    it("is off by default: the literal graph inflates nothing and preloads every compiled row", () => {
-        expect(literal.packedCorpusInflations()).toBe(0);
-        const resident = new Set(
-            [...literal.registeredDefinitions()].map((def) => def.id)
+    it("is off by default: the literal graph serves every compiled row and inflates nothing", () => {
+        // Issue #4856: off, a compiled row is served from the literal pool on
+        // first request (the Definition Index locates it) — no longer
+        // preloaded at load, and still never from a packed block.
+        const unresolved = compiledIds.filter(
+            (id) => literal.tryGetDefinition(id)?.id !== id
         );
-        expect(compiledIds.filter((id) => !resident.has(id))).toEqual([]);
+        expect(unresolved).toEqual([]);
+        expect(literal.packedCorpusInflations()).toBe(0);
     });
 
     it("switched on, loading the catalogue preloads no compiled row and inflates no block", () => {
         expect(packed.packedCorpusInflations()).toBe(0);
-        const preloaded = [...packed.registeredDefinitions()].filter((def) =>
-            compiledIdSet.has(def.id)
+        const preloaded = [...packed.residentDefinitionIds()].filter((id) =>
+            compiledIdSet.has(id)
         );
-        expect(preloaded.map((def) => def.name)).toEqual([]);
+        expect(preloaded).toEqual([]);
     });
 
     it("hand-written definitions and tokens resolve exactly as before and inflate nothing", () => {
