@@ -17,6 +17,14 @@ describe("makeResolveBasicLand", () => {
         });
     });
 
+    it("prefers the definition's own printing over a table row in the same Set", () => {
+        const resolve = makeResolveBasicLand(
+            "lea",
+            new Map([[mountain.id, "mountain-lea-reprint"]])
+        );
+        expect(resolve("R").cardId).toBe(mountain.id);
+    });
+
     it("returns the table's printing in the drafted Set when the home Set differs", () => {
         const resolve = makeResolveBasicLand(
             "4ed",
