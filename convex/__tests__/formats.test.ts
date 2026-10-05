@@ -33,6 +33,7 @@ import {
     tryGetCardByName,
     type DeckCardMeta,
 } from "../cards";
+import { indexPrintRows, makeResolveCardFromRows } from "../cards/printRows";
 import { normalizeLegacyFormat } from "../userDecks";
 import { resolveBanlistEnforcementForFormat } from "../banlists";
 
@@ -918,16 +919,29 @@ describe("validateDeck — Premodern legality by Scryfall, REAL registry (issue 
     // validator would have rejected outright.
     const CITY_OF_BRASS_ARN = "f4e32327-380d-471e-813b-4c27477787ce";
 
-    it("resolves each reprint printId to its canonical definition (unaffected by the legality change)", () => {
-        const cs = resolveDeckCardMeta(COUNTERSPELL_TMP);
+    it("resolves each reprint printId to its canonical definition through its cardPrints row (unaffected by the legality change; issue #5106)", () => {
+        const row = (printId: string, cardId: string, set: string) => ({
+            printId,
+            cardId,
+            set,
+            rarity: "common" as const,
+        });
+        const resolve = makeResolveCardFromRows(
+            indexPrintRows([
+                row(COUNTERSPELL_TMP, COUNTERSPELL_DEF, "tmp"),
+                row(BOLT_4ED, BOLT_DEF, "4ed"),
+                row(BALL_LIGHTNING_BTD, BALL_LIGHTNING_DEF, "btd"),
+            ])
+        );
+        const cs = resolve(COUNTERSPELL_TMP);
         expect(cs?.setCode).toBe("tmp");
         expect(cs?.cardId).toBe(COUNTERSPELL_DEF);
 
-        const bolt = resolveDeckCardMeta(BOLT_4ED);
+        const bolt = resolve(BOLT_4ED);
         expect(bolt?.setCode).toBe("4ed");
         expect(bolt?.cardId).toBe(BOLT_DEF);
 
-        const ball = resolveDeckCardMeta(BALL_LIGHTNING_BTD);
+        const ball = resolve(BALL_LIGHTNING_BTD);
         expect(ball?.setCode).toBe("btd");
         expect(ball?.cardId).toBe(BALL_LIGHTNING_DEF);
     });
