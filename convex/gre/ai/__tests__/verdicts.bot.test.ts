@@ -32,6 +32,7 @@ import {
     withWeight,
     type ReportScore,
     type Verdict,
+    testPositionKeysOf,
 } from "../verdicts";
 
 const PASS_KEY = JSON.stringify({ kind: "pass" });
@@ -306,7 +307,10 @@ describe("the violation / contradiction report", () => {
         // timing routing sees it — so both directions are exercised on the
         // pre-ADR 0148 reading, and the classified corpus is checked below.
         const { verdicts, gaps } = verdictsFromRegistry();
-        const classified = collectVerdictReport(verdicts, { gaps });
+        const classified = collectVerdictReport(verdicts, {
+            testPositions: testPositionKeysOf(BLADE_SCENARIOS),
+            gaps,
+        });
         const classifiedTiming = new Set(classified.timing);
         expect(classified.pairs.filter((p) => classifiedTiming.has(p))).toEqual(
             []

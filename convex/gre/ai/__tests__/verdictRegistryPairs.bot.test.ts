@@ -127,7 +127,10 @@ describe("the registry's declared Minimal Pairs (ADR 0148)", () => {
         const slice = verdictsFromRegistry([predicate]);
         expect(slice.verdicts).toEqual([]);
         const text = formatVerdictReport(
-            collectVerdictReport(slice.verdicts, { gaps: slice.gaps }),
+            collectVerdictReport(slice.verdicts, {
+                gaps: slice.gaps,
+                testPositions: testPositionKeysOf(BLADE_SCENARIOS),
+            }),
             0
         );
         expect(text).toContain("INCOMPLETE pairs — debt (1)");
@@ -142,7 +145,10 @@ describe("the registry's declared Minimal Pairs (ADR 0148)", () => {
         );
         expect(
             formatVerdictReport(
-                collectVerdictReport(derived.verdicts, { gaps: derived.gaps }),
+                collectVerdictReport(derived.verdicts, {
+                    gaps: derived.gaps,
+                    testPositions: testPositionKeysOf(BLADE_SCENARIOS),
+                }),
                 0
             )
         ).toContain(`INCOMPLETE pairs — debt (${unpaired.length})`);
