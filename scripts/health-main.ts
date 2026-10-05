@@ -70,14 +70,15 @@
  * A batch whose diff touched the Bot's globs (`lib/bot-globs.ts`) also
  * re-measures the Bot Findings page (`lib/health-bot-refresh.ts`, ADR 0141 § 5,
  * issue #4181) AFTER the gates pass: `bot:reach`, then `seed:bot-findings`.
- * `BOT_HEALTH_SCRIPTS` (the blade robustness audit, issue #4875) is owed by a
- * narrower set of batches (`lib/health-robustness-trigger.ts`, issue #5078):
- * a changed file in the Bot globs AND in the audit's import closure runs it in
- * full; a batch whose only such change is blade registry entries audits just
- * those entries; any other Bot batch skips it. It runs after the other gates
- * and before the refresh. It reds the tip only on a `must` entry failing its
- * own seeds; baseline drift is filed as an issue and the tip stays green
- * (`lib/health-robustness-drift.ts`, issue #5016).
+ * The blade robustness audit (issue #4875) is NOT a gate of this run (issue
+ * #5079): a batch that owes it (`lib/health-robustness-trigger.ts`, issue
+ * #5078) leaves a request beside `last.json` (`lib/health-robustness-audit.ts`)
+ * and `health-cadence` runs it after the verdict, off the critical path. Its
+ * only `wrong` — an entry failing its own seeds — is what `test:blade` already
+ * reds in this run. Declared residual: only `health-cadence` starts it, so a
+ * `release` or by-hand run leaves its request unclaimed (per-tip file, never
+ * overwritten) and that batch's audit waits for a later cadence fire to be
+ * re-requested by a triggering batch.
  * The two refresh steps NEVER fail the batch — a stale page is marked stale, not a
  * red tip — and neither `land` nor `check:pr` runs them.
  *
@@ -91,7 +92,8 @@
  * Zero imports beyond node builtins, `lib/branches.ts`, `lib/health-step.ts`,
  * `lib/health-verdict.ts`, `lib/convex-reachable.ts`,
  * `lib/machine-admission.ts` (builtins and `lib/branches.ts`),
- * `lib/health-robustness-drift.ts` (builtins and `lib/gh.ts`),
+ * `lib/health-robustness-audit.ts` (builtins, `lib/health-robustness-drift.ts`
+ * and `lib/health-robustness-trigger.ts`, so `lib/gh.ts` too),
  * `lib/health-robustness-trigger.ts` (builtins, `lib/bot-globs.ts`,
  * `lib/import-graph.ts`, `lib/blade-registry-entries.ts`) and
  * `lib/health-bot-refresh.ts` (builtins and the import-free
@@ -108,21 +110,19 @@ import {
     REFRESHED_ARTIFACT_NAME,
 } from "./lib/health-bot-refresh";
 import {
-    fileDriftIssues,
-    ROBUSTNESS_STEP,
-    robustnessOutcome,
-} from "./lib/health-robustness-drift";
+    describeAuditRecord,
+    readAuditRecord,
+    writeAuditRequest,
+} from "./lib/health-robustness-audit";
 import {
     describeRobustnessMode,
     robustnessModeFromGit,
     robustnessOwed,
-    robustnessStepEnv,
 } from "./lib/health-robustness-trigger";
 import {
     healthGateEnv,
     healthStepArgs,
     runHealthStep,
-    healthGates,
     splitHealthGates,
     HEALTH_SCRIPTS,
     WALK_BOOTSTRAP,
@@ -366,6 +366,11 @@ function status(root: string): never {
         console.log(
             `  offline: ${last.offline ?? "unrecorded"} · ui: ${last.ui ?? "unrecorded"} (${probation})${last.walk ? `\n  walk: ${last.walk}` : ""}${last.robustness ? `\n  blade: ${last.robustness}` : ""}`
         );
+    const audit = readAuditRecord(dir);
+    if (audit)
+        console.log(
+            `  blade audit: ${describeAuditRecord(audit, pidAlive(audit.pid))}`
+        );
     const stale = staleWorktrees(root);
     if (stale.length > 0) {
         console.log(
@@ -374,6 +379,16 @@ function status(root: string): never {
         for (const s of stale) console.log(`    · ${s}`);
     }
     process.exit(red ? 1 : 0);
+}
+
+function pidAlive(pid: number | undefined): boolean {
+    if (pid === undefined) return true;
+    try {
+        process.kill(pid, 0);
+        return true;
+    } catch {
+        return false;
+    }
 }
 
 type Phase = "offline" | "walk" | "all";
@@ -803,8 +818,10 @@ async function main(): Promise<void> {
     });
     console.log(`health-main: ${describeRobustnessMode(robustness)}`);
     ctx.robustness = describeRobustnessMode(robustness);
+    // The audit is asked for here and run after the verdict (issue #5079).
+    writeAuditRequest(dir, tip, robustness, robustnessOwed(robustness));
     const scripts = HEALTH_SCRIPTS;
-    const gates = healthGates(scripts, robustnessOwed(robustness));
+    const gates = scripts;
     const { offline, walk } = splitHealthGates(gates);
     // The deployment `check:ui` needs, asked BEFORE ~40 minutes of gates
     // (issue #4943) — the same probe `check:ui` makes, on the URL it reads.
@@ -855,10 +872,6 @@ async function main(): Promise<void> {
         name,
         cmd: "bun",
         args: healthStepArgs(name),
-        env:
-            name === ROBUSTNESS_STEP
-                ? robustnessStepEnv(robustness)
-                : undefined,
     }));
 
     const refreshSteps = refreshBot ? botRefreshSteps(steps.length, root) : [];
@@ -897,23 +910,6 @@ async function main(): Promise<void> {
                     repeatedMachineTimeout(last, step.name)
                 )
                     failedCause = null;
-                // Baseline drift in the blade robustness audit is filed, not
-                // gated (issue #5016): only an entry failing its OWN seeds
-                // reds the tip. The machine's excuse is judged first.
-                if (failedCause === null && step.name === ROBUSTNESS_STEP) {
-                    const outcome = robustnessOutcome(r.output, {
-                        sha: tip,
-                        log: logPath,
-                    });
-                    if (outcome.verdict === "advisory") {
-                        console.error(
-                            `health-main: ${step.name} found drift, not a red tip — filing (${logPath})`
-                        );
-                        for (const line of fileDriftIssues(outcome.issues))
-                            console.error(`health-main:   ${line}`);
-                        continue;
-                    }
-                }
                 failedStep = step.name;
                 break;
             }

@@ -5,7 +5,8 @@
  * things, and only one of them is the tree being wrong:
  *
  *   - `wrong`     — a `must` entry fails its OWN seeds. A real regression:
- *                   the tip is RED, as before.
+ *                   `test:blade` reds the tip for it
+ *                 in the same health run (issue #5079).
  *   - `unlisted`  — an entry passes its own seeds but some wide-seed or
  *                   jittered run fails, and no baseline row names it.
  *   - `cleared`   — a baseline row whose entry is robust now.
@@ -29,7 +30,8 @@
  * one entry's crash hidden behind another's drift, is the failure that would
  * otherwise hide here.
  *
- * Pure decision + an injected `gh`; `health-main.ts` runs it. Node builtins
+ * Pure decision + an injected `gh`; `lib/health-robustness-audit.ts` runs it
+ * after the health verdict (issue #5079). Node builtins
  * and `lib/gh.ts` (builtins only) — `health-main.ts`'s own constraint.
  */
 import { execFileSync } from "node:child_process";

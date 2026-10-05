@@ -9,7 +9,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { HEALTH_SCRIPTS, healthGates } from "../lib/health-step";
+import { HEALTH_SCRIPTS } from "../lib/health-step";
 
 const ROOT = join(__dirname, "..", "..");
 const pkg = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8")) as {
@@ -24,16 +24,20 @@ describe("blade:robustness wiring (issue #4875)", () => {
         expect(body).toContain("robustness.shard");
     });
 
-    it("health runs it after the every-batch gates, only when the trigger says so", () => {
+    it("health does not gate on it: the trigger asks, the cadence runs it after the verdict (issue #5079)", () => {
         expect(HEALTH_SCRIPTS).not.toContain("blade:robustness");
-        expect(healthGates(HEALTH_SCRIPTS, false)).toEqual(HEALTH_SCRIPTS);
-        expect(healthGates(HEALTH_SCRIPTS, true)).toEqual([
-            ...HEALTH_SCRIPTS,
-            "blade:robustness",
-        ]);
-        const src = readFileSync(join(ROOT, "scripts/health-main.ts"), "utf8");
-        expect(src).toContain(
-            "healthGates(scripts, robustnessOwed(robustness))"
+        const main = readFileSync(join(ROOT, "scripts/health-main.ts"), "utf8");
+        expect(main).toContain(
+            "writeAuditRequest(dir, tip, robustness, robustnessOwed(robustness))"
+        );
+        expect(main).not.toContain("robustnessOutcome(");
+        const cadence = readFileSync(
+            join(ROOT, "scripts/health-cadence.ts"),
+            "utf8"
+        );
+        // After the verdict is on disk, never before it.
+        expect(cadence.indexOf("spawnRobustnessAudit(root);")).toBeGreaterThan(
+            cadence.indexOf("writeCadence(root, action.state);")
         );
     });
 

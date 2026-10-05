@@ -12,8 +12,11 @@
  * has become robust (delete its row). A label is matched verbatim, so
  * retitling a listed entry is a delete plus an add. In `health` either is
  * DRIFT, filed as an issue with the tip left green (issue #5016,
- * `scripts/lib/health-robustness-drift.ts`) — only an entry failing its own
- * seeds reds the tip.
+ * `scripts/lib/health-robustness-drift.ts`) by an audit that runs AFTER the
+ * health verdict (issue #5079); only an entry failing its own seeds is a
+ * `wrong`, and `test:blade` reds the tip for that. The baseline's SHAPE (names
+ * a `must` entry, once, with an issue) is gated in `test:bot`
+ * (`robustness.bot.test.ts`).
  *
  * `land` refuses a PR that closes a row's owning issue while the row is still
  * here (issue #4980): delete it, or re-point it to its next owner.

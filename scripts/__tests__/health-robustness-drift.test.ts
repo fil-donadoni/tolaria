@@ -1,8 +1,6 @@
 // Baseline drift in the blade robustness audit is filed, not gated (issue
 // #5016): a health batch reds only on a `must` entry failing its own seeds.
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import {
     DRIFT_LABELS,
     failedRobustnessTests,
@@ -10,12 +8,9 @@ import {
     NO_VERDICT_TITLE,
     parseRobustnessDrift,
     ROBUSTNESS_FINDING_PREFIX,
-    ROBUSTNESS_STEP,
     robustnessOutcome,
 } from "../lib/health-robustness-drift";
-import { healthGates } from "../lib/health-step";
 
-const ROOT = join(__dirname, "..", "..");
 const CTX = { sha: "c43c4b5a3c58", log: "/health/c43c4b5a3c58.log" };
 
 const SPEC = "convex/gre/ai/blade/__tests__/robustness.shard-0.spec.ts";
@@ -280,31 +275,5 @@ describe("fileDriftIssues", () => {
         expect(lines).toEqual([
             `NOT filed (Error: gh: rate limited): ${issue.title}`,
         ]);
-    });
-});
-
-describe("health-main wiring (issue #5016)", () => {
-    const src = readFileSync(join(ROOT, "scripts/health-main.ts"), "utf8");
-
-    it("judges the step health actually runs", () => {
-        expect(healthGates([], true)).toContain(ROBUSTNESS_STEP);
-        expect(healthGates([], false)).not.toContain(ROBUSTNESS_STEP);
-    });
-
-    it("an advisory outcome files and moves on; the machine's excuse is read first", () => {
-        const infra = src.indexOf("failedCause = infraCause(");
-        const judged = src.indexOf("robustnessOutcome(r.output");
-        const filed = src.indexOf("fileDriftIssues(outcome.issues)");
-        const red = src.indexOf("failedStep = step.name;", infra);
-        expect(infra).toBeGreaterThan(-1);
-        expect(judged).toBeGreaterThan(infra);
-        expect(filed).toBeGreaterThan(judged);
-        // RED is only assigned after the advisory branch had its `continue`.
-        expect(red).toBeGreaterThan(filed);
-        expect(src.slice(filed, red)).toContain("continue;");
-        // Only this step is ever read as advisory.
-        expect(src.slice(infra, judged)).toMatch(
-            /step\.name === ROBUSTNESS_STEP/
-        );
     });
 });
