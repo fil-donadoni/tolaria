@@ -78,7 +78,16 @@ import {
     unpackCorpus,
     type PackedCorpus,
 } from "../lib/packed-corpus";
-import { getAllCards, getAllRawCards } from "../../convex/cards/catalogue";
+import {
+    getAllCards,
+    getAllRawCards,
+    walkHandWrittenDefinitions,
+} from "../../convex/cards/catalogue";
+import {
+    DEFINITION_INDEX_PATH,
+    buildHandWrittenIndex,
+    serializeDefinitionIndex,
+} from "../lib/definition-index";
 import {
     CATALOGUE_SOURCE_HASH,
     excludeHandWritten,
@@ -125,6 +134,19 @@ describe("catalogue artifact — freshness (ADR 0114 §2)", () => {
         expect(readFileSync(join(REPO_ROOT, PACKED_CORPUS_PATH), "utf-8")).toBe(
             BUILD.packedBytes
         );
+    });
+
+    it("the hand-written Definition Index is current, and deterministic (issue #4856)", () => {
+        expect(
+            readFileSync(join(REPO_ROOT, DEFINITION_INDEX_PATH), "utf-8")
+        ).toBe(BUILD.definitionIndexBytes);
+        // Two runs, byte-identical: nothing in the walk reads a clock, a
+        // random source or the file system.
+        expect(
+            serializeDefinitionIndex(
+                buildHandWrittenIndex(walkHandWrittenDefinitions())
+            )
+        ).toBe(BUILD.definitionIndexBytes);
     });
 
     it("is minified — the committed shape is not the prettified one", () => {
