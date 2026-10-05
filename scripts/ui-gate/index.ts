@@ -169,9 +169,12 @@ import {
 } from "./lane-account.ts";
 import {
     collectRun,
+    growingLimit,
+    parallelismLine,
     parseParallelOverride,
     runPool,
     viewportParallelism,
+    type PoolGrowth,
     type ViewportResult,
 } from "./parallel.ts";
 import { ORIGIN_BASE } from "../lib/branches.ts";
@@ -864,25 +867,39 @@ async function main(): Promise<number> {
     const ncpu = os.cpus().length;
     const totalMem = os.totalmem();
     const heavyHolder = machine.beside ?? heavyHolderLive(gateLockRoot());
-    const parallel =
+    const cappedBy =
+        opts.parallel === null && heavyHolder !== null
+            ? { pid: heavyHolder.pid, label: heavyHolder.label }
+            : null;
+    const startSize =
         opts.parallel ??
         viewportParallelism(ncpu, totalMem, heavyHolder !== null);
-    const parallelLine =
-        `viewport parallelism: ${parallel} of ${VIEWPORTS.length} at a time, ` +
-        `${parallel} lane account(s) — ` +
-        (opts.parallel !== null
-            ? `--parallel=${opts.parallel}`
-            : heavyHolder
-              ? `capped: heavy gate held by pid ${heavyHolder.pid} (${heavyHolder.label})`
-              : `sized from ${ncpu} cpus and ${(totalMem / 1024 ** 3).toFixed(0)} GiB (load ${loadAtStart.toFixed(1)} not consulted)`);
-    log(`ui-gate: ${parallelLine}`);
+    // What an uncapped run would have walked at: the pool may grow to it once
+    // the holder leaves (issue #5023), and the fleet is provisioned for it up
+    // front. `--parallel=N` is the user's count and never grows.
+    const uncappedSize = opts.parallel ?? viewportParallelism(ncpu, totalMem);
+    const sizedFrom = `sized from ${ncpu} cpus and ${(totalMem / 1024 ** 3).toFixed(0)} GiB (load ${loadAtStart.toFixed(1)} not consulted)`;
+    const parallelLine = (
+        final: number,
+        growth: PoolGrowth | null = null
+    ): string =>
+        parallelismLine({
+            start: startSize,
+            final,
+            accounts: uncappedSize,
+            override: opts.parallel,
+            cappedBy,
+            growth,
+            sizedFrom,
+        });
+    log(`ui-gate: ${parallelLine(startSize)}`);
 
     // The run's own accounts (issue #3626, one per lane since issue #3653).
     // Teardown runs from `withLaneFleet`'s `finally` on every normal exit and
     // from the signal handler on SIGINT / SIGTERM, which never reach a
     // `finally`.
     const fleet = createLaneFleet({
-        accounts: Array.from({ length: parallel }, () => newLaneAccount()),
+        accounts: Array.from({ length: uncappedSize }, () => newLaneAccount()),
         // Hosts the unlisted table `join-table` walks (issue #4670).
         host: newLaneAccount(),
         run: localConvexRunner(),
@@ -893,7 +910,7 @@ async function main(): Promise<number> {
         log,
     });
     // The RUN's id, not an account's: the screenshots outlive every account the
-    // run owned, and there are `parallel` of those.
+    // run owned, and there are `uncappedSize` of those.
     const shotDir = runScreenshotDir(SHOT_ROOT, newRunId());
 
     // Not `let server: AppServer | null = null`: it is assigned inside the
@@ -1459,11 +1476,19 @@ async function main(): Promise<number> {
                 // a run that outlives this prints the viewports still open
                 // plus the cells of those that finished, then exits non-zero
                 // through the normal teardown — never a silent hang.
+                const poolSize = growingLimit({
+                    start: startSize,
+                    uncapped: uncappedSize,
+                    cappedBy,
+                    holderNow: () => heavyHolderLive(gateLockRoot()),
+                    now: Date.now,
+                    startedAtMs: startedAt,
+                });
                 const results = await withDeadline(
                     () =>
                         runPool(
                             VIEWPORTS,
-                            parallel,
+                            poolSize.limit,
                             async (viewport, _index, lane) => {
                                 progress.set(
                                     viewport.id,
@@ -1528,7 +1553,10 @@ async function main(): Promise<number> {
                     evaluate(knownIds, collected.walks, diffScope),
                     [
                         machineLoadLine(loadAtStart, loadAverage()),
-                        parallelLine,
+                        parallelLine(
+                            poolSize.growth()?.to ?? startSize,
+                            poolSize.growth()
+                        ),
                         server.line,
                         bandLine,
                         `console errors: ${consoleErrors.length === 0 ? "none" : consoleErrors.length}`,
