@@ -4242,13 +4242,14 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             discriminant: { kind: "step", detail: "the opponent's end step" },
         },
         spec: {
-            cards: [{ name: "Containment Priest", owner: "me", zone: "hand" }],
+            cards: [{ name: "Containment Priest", owner: "opp", zone: "hand" }],
             phase: "PRECOMBAT_MAIN",
+            activePlayer: "opp",
             turn: 3,
             landCount: 2,
             libraryCount: 20,
         },
-        bot: "me",
+        bot: "opp",
         budget: { iterations: 300 },
         seeds: [0xb1ade, 1, 2, 3, 4],
         tier: "must",
@@ -4346,13 +4347,14 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             discriminant: { kind: "step", detail: "the opponent's end step" },
         },
         spec: {
-            cards: [{ name: "Impulse", owner: "me", zone: "hand" }],
+            cards: [{ name: "Impulse", owner: "opp", zone: "hand" }],
             phase: "PRECOMBAT_MAIN",
+            activePlayer: "opp",
             turn: 3,
             landCount: 2,
             libraryCount: 20,
         },
-        bot: "me",
+        bot: "opp",
         budget: { iterations: 300 },
         seeds: [0xb1ade, 1, 2, 3, 4],
         tier: "must",
@@ -4363,24 +4365,21 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
     },
     {
         label: "keep mana open: casts Impulse at the opponent's end step",
-        classification: {
-            kind: "conditional",
-            discriminant: {
-                kind: "step",
-                detail: "the Bot's own precombat main with no threat",
-            },
+        pairOf: {
+            anchor: "keep mana open: holds Impulse in its own main with no threat",
+            discriminant: { kind: "step", detail: "the opponent's end step" },
         },
         spec: {
             cards: [{ name: "Impulse", owner: "opp", zone: "hand" }],
             phase: "END_STEP",
+            // The opponent's end step (CR 513.1): `me` is the active
+            // player, the bot (`opp`) holds priority.
+            activePlayer: "me",
+            priority: "opp",
             turn: 3,
             landCount: 2,
             libraryCount: 20,
         },
-        // `me` is always the ACTIVE player in a `ScenarioSpec`, so the bot
-        // sits in the `opp` seat for this to be the OPPONENT's end step; one
-        // `pass` walks priority to it (CR 513.1).
-        setup: [{ kind: "pass", seat: "me" }],
         bot: "opp",
         budget: { iterations: 300 },
         seeds: [0xb1ade, 1, 2, 3, 4],
@@ -4398,14 +4397,15 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         },
         spec: {
             cards: [
-                { name: "Accumulated Knowledge", owner: "me", zone: "hand" },
+                { name: "Accumulated Knowledge", owner: "opp", zone: "hand" },
             ],
             phase: "PRECOMBAT_MAIN",
+            activePlayer: "opp",
             turn: 3,
             landCount: 2,
             libraryCount: 20,
         },
-        bot: "me",
+        bot: "opp",
         budget: { iterations: 300 },
         seeds: [0xb1ade, 1, 2, 3, 4],
         tier: "must",
@@ -4416,26 +4416,23 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
     },
     {
         label: "keep mana open: casts Accumulated Knowledge at the opponent's end step",
-        classification: {
-            kind: "conditional",
-            discriminant: {
-                kind: "step",
-                detail: "the Bot's own precombat main with no threat",
-            },
+        pairOf: {
+            anchor: "keep mana open: holds Accumulated Knowledge in its own main with no threat",
+            discriminant: { kind: "step", detail: "the opponent's end step" },
         },
         spec: {
             cards: [
                 { name: "Accumulated Knowledge", owner: "opp", zone: "hand" },
             ],
             phase: "END_STEP",
+            // The opponent's end step (CR 513.1): `me` is the active
+            // player, the bot (`opp`) holds priority.
+            activePlayer: "me",
+            priority: "opp",
             turn: 3,
             landCount: 2,
             libraryCount: 20,
         },
-        // `me` is always the ACTIVE player in a `ScenarioSpec`, so the bot
-        // sits in the `opp` seat for this to be the OPPONENT's end step; one
-        // `pass` walks priority to it (CR 513.1).
-        setup: [{ kind: "pass", seat: "me" }],
         bot: "opp",
         budget: { iterations: 300 },
         seeds: [0xb1ade, 1, 2, 3, 4],
@@ -4447,24 +4444,21 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
     },
     {
         label: "keep mana open: casts Containment Priest at the opponent's end step",
-        classification: {
-            kind: "conditional",
-            discriminant: {
-                kind: "step",
-                detail: "the Bot's own precombat main with no threat",
-            },
+        pairOf: {
+            anchor: "flash permanent: holds Containment Priest in its own main with no threat",
+            discriminant: { kind: "step", detail: "the opponent's end step" },
         },
         spec: {
             cards: [{ name: "Containment Priest", owner: "opp", zone: "hand" }],
             phase: "END_STEP",
+            // The opponent's end step (CR 513.1): `me` is the active
+            // player, the bot (`opp`) holds priority.
+            activePlayer: "me",
+            priority: "opp",
             turn: 3,
             landCount: 2,
             libraryCount: 20,
         },
-        // `me` is always the ACTIVE player in a `ScenarioSpec`, so the bot
-        // sits in the `opp` seat for this to be the OPPONENT's end step; one
-        // `pass` walks priority to it (CR 513.1).
-        setup: [{ kind: "pass", seat: "me" }],
         bot: "opp",
         budget: { iterations: 300 },
         seeds: [0xb1ade, 1, 2, 3, 4],
@@ -6568,11 +6562,11 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
     // -----------------------------------------------------------------------
     {
         label: "storm: Grapeshot is lethal because the search counts the spell cast before it",
-        classification: {
-            kind: "conditional",
+        pairOf: {
+            anchor: "storm: does NOT reach for Grapeshot one prior cast short",
             discriminant: {
-                kind: "mana",
-                detail: "one fewer Mountain, no prior cast fits beside Grapeshot",
+                kind: "sequence",
+                detail: "a prior cast this turn, so Grapeshot's storm count is one",
             },
         },
         spec: {
@@ -6624,21 +6618,21 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         classification: {
             kind: "conditional",
             discriminant: {
-                kind: "mana",
-                detail: "one more Mountain, a prior cast fitting beside Grapeshot",
+                kind: "sequence",
+                detail: "a prior cast this turn, so Grapeshot's storm count is one",
             },
         },
         spec: {
             cards: [
-                // TWO Mountains where half 1 has three — the one field that
-                // makes the prior cast unaffordable ALONGSIDE Grapeshot, so
-                // the storm count stays at zero and Grapeshot deals 1 into a
-                // 2-life opponent.
+                // Three Mountains like half 1, but the prior cast has NOT
+                // happened yet: Grapeshot now is storm count zero, one damage
+                // into a 2-life opponent. The prior cast is the whole
+                // difference (the pair's `sequence` Discriminant).
                 {
                     name: "Mountain",
                     owner: "me",
                     zone: "battlefield",
-                    count: 2,
+                    count: 3,
                     tapped: false,
                 },
                 { name: "Grapeshot", owner: "me", zone: "hand" },
@@ -6656,7 +6650,9 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         seeds: [0xb1ade, 1, 2, 3, 4],
         tier: "must",
         expect: {
-            forbidden: [{ kind: "cast-spell", card: "Grapeshot" }],
+            forbidden: [
+                { kind: "cast-spell", card: "Grapeshot", target: "opp" },
+            ],
         },
         note: 'Issue #3026, half 2 — the discriminating twin. Same hand, one fewer Mountain, so no prior cast fits alongside Grapeshot and its storm count is 0: one damage into two life wins nothing and spends the turn, while the same two mana buy a 2/2 body. A bot that reads storm as "always at least one copy" passes half 1 and fails here.',
     },
