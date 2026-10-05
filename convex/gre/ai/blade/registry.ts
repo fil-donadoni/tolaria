@@ -7100,7 +7100,6 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         expect: { moves: [{ kind: "may-pay", accept: false }] },
         note: "Half 2 of the discriminating pair. Accepting empties a twenty-card library, which `libraryTerm` (evaluate.ts, CR 104.3c / 704.5b) scores steeply negative below its 12-card horizon; declining costs nothing. The pair is what proves the answer comes from the search applying the Op, not from the announcement's flat valuation — the valuer scores the two announcements identically.",
     },
-
     {
         // DISCRIMINATING PAIR, HALF 2 of 2 (issue #3041).
         // The ANCHOR of the Minimal Pair its right-hand half declares
@@ -7180,35 +7179,9 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: "Half 2 of the discriminating pair (issue #3041) — the anchor of the Minimal Pair its right-hand half declares. Removing the recursion from hand flips the correct answer from the largest card to the self-reachable one, which is what proves the change is a destination-and-reachability PRICING fix and not a size rule: half 1 alone passes for a bot that always buries the biggest thing it can find. Proof-of-failure: the same call-site revert reds this entry — destination-blind, the eight bodies (108 to 252) all out-rank Lingering Souls (78.8) and fill every `CHOICE_TOP_K` slot, so the one card that does anything from a graveyard is never emitted and the bot buries a creature it can never get back.",
     },
     {
-        // DISCRIMINATING PAIR, HALF 2 of 2 (issue #3041).
-        // The ANCHOR of the Minimal Pair its right-hand half declares
-        // (issue #5108). Same tutor, same graveyard destination, same crowd as
-        // the half, which holds Reanimate: here there is no recursion in hand
-        // and the right answer changes, which is the whole point: the fix
-        // prices a find by whether its owner can REACH it out of the
-        // graveyard, not by how big it is.
-        //
-        // With nothing to return them, the eight huge creatures are buried
-        // dead, however large they are. Lingering Souls' printed Flashback
-        // (CR 702.34) makes it usable from the graveyard on its own
-        // (`graveyardReach.ts` reach shape 1) for {1}{B}, which the two Swamps
-        // can actually pay, so it is two 1/1 fliers rather than nothing. That
-        // is the leg an "always entomb the fatty" rule fails, and it is why the
-        // fix routes through the reachability gate instead of through size.
-        //
-        // THE CROWD IS FATTIES HERE, not lands, and for a measured reason. The
-        // pruning is what makes the bug uncorrectable, so the crowd has to
-        // out-rank the right answer under the OLD blind pricing: Lingering
-        // Souls' blind script worth is 78.8 — ABOVE a land's 50, so a crowd of
-        // lands leaves it admitted second and the reward simply corrects the
-        // order (measured: that version passes with the fix reverted and
-        // asserts nothing). Every creature below has a blind body worth of 108
-        // or more (`permanentWorth`, p² + t² + 10), so blind admission fills
-        // all eight `CHOICE_TOP_K` slots with cards that do nothing in a
-        // graveyard and never emits the one that does.
         // DISCRIMINATING PAIR, HALF 1 of 2 (issue #3041), re-cut as a
         // Minimal Pair (issue #5108): the right-hand half of the anchor
-        // below, its position plus ONE card — Reanimate in hand. Same
+        // above, its position plus ONE card — Reanimate in hand. Same
         // graveyard-bound search, same crowd of eight fatties, same two
         // Swamps (one pays Entomb, the other Reanimate): with the recursion
         // held the graveyard is genuinely reachable, so burying a big body
