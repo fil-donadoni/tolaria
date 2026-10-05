@@ -134,7 +134,7 @@ One question per turn, with your recommended answer stated
 (`feedback_grill_one_step_at_a_time`). Decide autonomously when the new case is
 structurally equivalent to one already confirmed
 (`feedback_autonomous_when_consistent`). For anything touching the domain model
-or an ADR, use `/grill-with-docs` instead of grilling inline.
+or an ADR, use `/grill` instead of grilling inline.
 
 Unresolved forks are **not** a reason to withhold the ticket: write them into
 the ticket's "Design questions" and label it `needs-design`.
@@ -311,6 +311,6 @@ convex/cards/__tests__/divergenceMarkers.test.ts` (every marker paragraph must
 
 - Conventions inherited: `.claude/skills/new-set/SKILL.md` § "What you already know"
 - Marker rules: `.claude/rules/gre-development.md` § Guard B (documented-divergence-needs-issue)
-- Related skills: `/mtg-rules-check`, `/grill-with-docs`, `/to-tickets`, `/new-qa-issue`
+- Related skills: `/mtg-rules-check`, `/grill`, `/to-tickets`, `/new-qa-issue`
 - Worked example: **#1097** (10 gaps → 6 shipped, 2 `wrong-premise`, 4 tickets
   #2139–#2142, markers re-pointed in #2143)
