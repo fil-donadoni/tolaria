@@ -70,11 +70,14 @@
  * A batch whose diff touched the Bot's globs (`lib/bot-globs.ts`) also
  * re-measures the Bot Findings page (`lib/health-bot-refresh.ts`, ADR 0141 § 5,
  * issue #4181) AFTER the gates pass: `bot:reach`, then `seed:bot-findings`.
- * Such a batch also owes `BOT_HEALTH_SCRIPTS` (the blade robustness audit,
- * issue #4875), run after the other gates and before the refresh. It reds
- * the tip only on a `must` entry failing its own seeds; baseline drift is
- * filed as an issue and the tip stays green (`lib/health-robustness-drift.ts`,
- * issue #5016).
+ * `BOT_HEALTH_SCRIPTS` (the blade robustness audit, issue #4875) is owed by a
+ * narrower set of batches (`lib/health-robustness-trigger.ts`, issue #5078):
+ * a changed file in the Bot globs AND in the audit's import closure runs it in
+ * full; a batch whose only such change is blade registry entries audits just
+ * those entries; any other Bot batch skips it. It runs after the other gates
+ * and before the refresh. It reds the tip only on a `must` entry failing its
+ * own seeds; baseline drift is filed as an issue and the tip stays green
+ * (`lib/health-robustness-drift.ts`, issue #5016).
  * The two refresh steps NEVER fail the batch — a stale page is marked stale, not a
  * red tip — and neither `land` nor `check:pr` runs them.
  *
@@ -88,7 +91,9 @@
  * Zero imports beyond node builtins, `lib/branches.ts`, `lib/health-step.ts`,
  * `lib/health-verdict.ts`, `lib/convex-reachable.ts`,
  * `lib/machine-admission.ts` (builtins and `lib/branches.ts`),
- * `lib/health-robustness-drift.ts` (builtins and `lib/gh.ts`) and
+ * `lib/health-robustness-drift.ts` (builtins and `lib/gh.ts`),
+ * `lib/health-robustness-trigger.ts` (builtins, `lib/bot-globs.ts`,
+ * `lib/import-graph.ts`, `lib/blade-registry-entries.ts`) and
  * `lib/health-bot-refresh.ts` (builtins and the import-free
  * `lib/bot-globs.ts` only), and through `lib/health-verdict.ts` the
  * `ui-gate/infra-verdict.ts` (builtins and `lib/convex-reachable.ts`) — same constraint as
@@ -107,6 +112,12 @@ import {
     ROBUSTNESS_STEP,
     robustnessOutcome,
 } from "./lib/health-robustness-drift";
+import {
+    describeRobustnessMode,
+    robustnessModeFromGit,
+    robustnessOwed,
+    robustnessStepEnv,
+} from "./lib/health-robustness-trigger";
 import {
     healthGateEnv,
     healthStepArgs,
@@ -195,6 +206,10 @@ interface LastRun {
     /** Which walk this run owed (issue #5076): `describeWalkPlan`'s text, for
      *  `health:status`. */
     walk?: string;
+    /** Which blade robustness audit this run owed (issue #5078):
+     *  `describeRobustnessMode`'s text — mode and the first triggering path —
+     *  for `health:status`. */
+    robustness?: string;
     /** `running`, `phase: "walk"` only: the plan the walk phase executes, and
      *  the last GREEN tip a scoped walk diffs against. */
     walkPlan?: WalkPlan;
@@ -349,7 +364,7 @@ function status(root: string): never {
         : `probation ${ledger.streak}/${UI_WALK_PROBATION_RUNS} non-infra walks — a walk failure is not RED`;
     if (last)
         console.log(
-            `  offline: ${last.offline ?? "unrecorded"} · ui: ${last.ui ?? "unrecorded"} (${probation})${last.walk ? `\n  walk: ${last.walk}` : ""}`
+            `  offline: ${last.offline ?? "unrecorded"} · ui: ${last.ui ?? "unrecorded"} (${probation})${last.walk ? `\n  walk: ${last.walk}` : ""}${last.robustness ? `\n  blade: ${last.robustness}` : ""}`
         );
     const stale = staleWorktrees(root);
     if (stale.length > 0) {
@@ -391,11 +406,17 @@ interface RunCtx {
     walkPlan?: WalkPlan;
     /** The last GREEN tip the plan's batch diff started from. */
     walkBase?: string | null;
+    /** The blade audit this run owed, as `describeRobustnessMode` words it
+     *  (issue #5078); carried into the walk phase from the offline record. */
+    robustness?: string;
 }
 
-/** The record fields that say which walk the run owed. */
-function walkFields(ctx: RunCtx): Pick<LastRun, "walk"> {
-    return ctx.walkPlan ? { walk: describeWalkPlan(ctx.walkPlan) } : {};
+/** The record fields that say which walk and which blade audit the run owed. */
+function walkFields(ctx: RunCtx): Pick<LastRun, "walk" | "robustness"> {
+    return {
+        ...(ctx.walkPlan ? { walk: describeWalkPlan(ctx.walkPlan) } : {}),
+        ...(ctx.robustness ? { robustness: ctx.robustness } : {}),
+    };
 }
 
 function finishInfra(
@@ -653,6 +674,7 @@ async function walkPhase(root: string, dir: string): Promise<void> {
             previous: last.prior ?? null,
             walkPlan: plan,
             walkBase: last.walkBase ?? null,
+            robustness: last.robustness,
         },
         walk
     );
@@ -770,9 +792,19 @@ async function main(): Promise<void> {
     const batch = batchChangedFiles(root, tip);
     const greenBase = readGreenSha(root);
     const refreshBot = batchTouchesBot(batch);
-    // A Bot batch also owes the Bot-only gates (issue #4875), after the rest.
+    // A batch that can have moved the blade audit also owes it (issue
+    // #4875), after the rest — in full, or cut to the changed registry
+    // entries (issue #5078).
+    const robustness = robustnessModeFromGit({
+        root,
+        green: greenBase,
+        tip,
+        changed: batch,
+    });
+    console.log(`health-main: ${describeRobustnessMode(robustness)}`);
+    ctx.robustness = describeRobustnessMode(robustness);
     const scripts = HEALTH_SCRIPTS;
-    const gates = healthGates(scripts, refreshBot);
+    const gates = healthGates(scripts, robustnessOwed(robustness));
     const { offline, walk } = splitHealthGates(gates);
     // The deployment `check:ui` needs, asked BEFORE ~40 minutes of gates
     // (issue #4943) — the same probe `check:ui` makes, on the URL it reads.
@@ -823,6 +855,10 @@ async function main(): Promise<void> {
         name,
         cmd: "bun",
         args: healthStepArgs(name),
+        env:
+            name === ROBUSTNESS_STEP
+                ? robustnessStepEnv(robustness)
+                : undefined,
     }));
 
     const refreshSteps = refreshBot ? botRefreshSteps(steps.length, root) : [];

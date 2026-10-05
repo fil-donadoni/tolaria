@@ -15,6 +15,13 @@
  * baseline (`compareRobustness` over one row). Shard 0 also checks the
  * baseline's shape once.
  *
+ * `BLADE_ROBUSTNESS_LABELS` (a JSON array of `must` labels) narrows the audit
+ * to those entries — the INCREMENTAL mode of a health batch whose only
+ * trigger-relevant change was registry entries (issue #5078). The baseline's
+ * shape check on shard 0 runs in every mode, and shard 0 also reds on a
+ * requested label that names no `must` entry (a filter that audits nothing is
+ * a silently dead audit).
+ *
  * By hand inside an issue worktree the heavy gate refuses (`gate.ts`'s
  * issue-worktree guard): `TOLARIA_ALLOW_FULL_SUITE=1 bun run blade:robustness`.
  */
@@ -49,6 +56,20 @@ const ENV: Record<string, string | undefined> =
 
 const ENABLED = ENV.BLADE_ROBUSTNESS === "1";
 
+/** The label filter, `null` for the full audit. A malformed value throws: the
+ *  audit must never quietly widen or narrow itself. */
+function labelFilter(): ReadonlySet<string> | null {
+    const raw = ENV.BLADE_ROBUSTNESS_LABELS;
+    if (raw === undefined || raw === "") return null;
+    const parsed: unknown = JSON.parse(raw);
+    if (
+        !Array.isArray(parsed) ||
+        !parsed.every((l): l is string => typeof l === "string")
+    )
+        throw new Error("BLADE_ROBUSTNESS_LABELS must be a JSON string array");
+    return new Set(parsed);
+}
+
 /** One entry is ~31 searches at its own budget; the 2000-iteration entries
  *  measured past the config's 120 s on a loaded machine (issue #4875). */
 const ENTRY_TIMEOUT_MS = 900_000;
@@ -65,6 +86,7 @@ export function registerRobustnessShard(shard: number): void {
 
     const must = bladeScenariosForTier("must");
     const vectors = robustnessVectors();
+    const only = labelFilter();
 
     describe(title, () => {
         if (shard === 0) {
@@ -76,9 +98,23 @@ export function registerRobustnessShard(shard: number): void {
                 });
                 expectNoFindings(findings, shapeTest);
             });
+            if (only !== null) {
+                it("every requested label names a must entry", () => {
+                    const known = new Set(must.map((s) => s.label));
+                    expect([...only].filter((l) => !known.has(l))).toEqual([]);
+                });
+            }
         }
 
-        for (const scenario of bladeShardSlice(must, shard)) {
+        const audited = bladeShardSlice(must, shard).filter(
+            (s) => only === null || only.has(s.label)
+        );
+        // A filtered shard may own none of the entries; vitest reds a suite
+        // with no test in it.
+        if (shard !== 0 && audited.length === 0)
+            it.skip("no entry of the label filter in this shard", () => {});
+
+        for (const scenario of audited) {
             it(scenario.label, { timeout: ENTRY_TIMEOUT_MS }, () => {
                 const row = auditBladeScenario(scenario, vectors);
                 console.log(`[blade:robustness] ${formatRobustnessRow(row)}`);

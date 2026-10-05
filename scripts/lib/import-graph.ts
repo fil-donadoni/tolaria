@@ -177,10 +177,19 @@ export interface ImportGraph {
     closureOf(entry: string, options?: ClosureOptions): Set<string>;
 }
 
+/** Where a graph reads files from: the disk under `root` by default, or any
+ *  other tree (a git revision — `health-robustness-trigger.ts`, issue #5078). */
+export interface ImportGraphSource {
+    isFile(repoPath: string): boolean;
+    readFile(repoPath: string): string;
+}
+
 export interface ImportGraphOptions {
     /** Absolute path every repo-relative path is resolved against. */
     root: string;
     aliases?: readonly ImportAlias[];
+    /** Overrides the disk reads at `root`. */
+    source?: ImportGraphSource;
 }
 
 /**
@@ -190,6 +199,7 @@ export interface ImportGraphOptions {
 export function createImportGraph({
     root,
     aliases = APP_ALIASES,
+    source,
 }: ImportGraphOptions): ImportGraph {
     const edges = new Map<string, readonly string[]>();
     const typeEdges = new Map<string, readonly string[]>();
@@ -199,7 +209,9 @@ export function createImportGraph({
         let known = fileCache.get(repoPath);
         if (known === undefined) {
             try {
-                known = statSync(join(root, repoPath)).isFile();
+                known = source
+                    ? source.isFile(repoPath)
+                    : statSync(join(root, repoPath)).isFile();
             } catch {
                 known = false;
             }
@@ -213,13 +225,15 @@ export function createImportGraph({
         let runtime: string[] = [];
         let typeOnly: string[] = [];
         if (isFile(repoPath) && !repoPath.endsWith(".json")) {
-            const source = readFileSync(join(root, repoPath), "utf8");
+            const text = source
+                ? source.readFile(repoPath)
+                : readFileSync(join(root, repoPath), "utf8");
             const resolve = (specifiers: string[]) =>
                 specifiers
                     .map((s) => resolveSpecifier(repoPath, s, aliases, isFile))
                     .filter((p): p is string => p !== null);
-            runtime = resolve(importSpecifiers(source));
-            typeOnly = resolve(typeOnlySpecifiers(source));
+            runtime = resolve(importSpecifiers(text));
+            typeOnly = resolve(typeOnlySpecifiers(text));
         }
         edges.set(repoPath, [...new Set(runtime)]);
         typeEdges.set(repoPath, [...new Set(typeOnly)]);

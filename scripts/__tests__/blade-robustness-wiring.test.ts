@@ -1,6 +1,6 @@
 /**
  * The blade robustness audit's wiring (issue #4875): a `health` gate for a
- * batch that touched the Bot's globs, and nothing else — never `check:pr`, `check:lane` or `land`. Minutes of search
+ * batch that can have moved it (`robustnessMode`, issue #5078), and nothing else — never `check:pr`, `check:lane` or `land`. Minutes of search
  * per run is a batch cost (issue #4490: a new guard goes on `health`, never on
  * a PR-phase gate). What its failure means to the batch — RED only for an
  * entry failing its own seeds, drift filed as an issue — is
@@ -24,7 +24,7 @@ describe("blade:robustness wiring (issue #4875)", () => {
         expect(body).toContain("robustness.shard");
     });
 
-    it("health runs it after the every-batch gates, only on a Bot batch", () => {
+    it("health runs it after the every-batch gates, only when the trigger says so", () => {
         expect(HEALTH_SCRIPTS).not.toContain("blade:robustness");
         expect(healthGates(HEALTH_SCRIPTS, false)).toEqual(HEALTH_SCRIPTS);
         expect(healthGates(HEALTH_SCRIPTS, true)).toEqual([
@@ -32,7 +32,9 @@ describe("blade:robustness wiring (issue #4875)", () => {
             "blade:robustness",
         ]);
         const src = readFileSync(join(ROOT, "scripts/health-main.ts"), "utf8");
-        expect(src).toContain("healthGates(scripts, refreshBot)");
+        expect(src).toContain(
+            "healthGates(scripts, robustnessOwed(robustness))"
+        );
     });
 
     it("no other package script invokes it", () => {
