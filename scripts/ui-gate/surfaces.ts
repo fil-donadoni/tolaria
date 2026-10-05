@@ -1063,9 +1063,9 @@ async function ensureBoard(page: Page, ctx: WalkContext): Promise<void> {
         //    both `disabled`, so this addresses the first tile that can
         //    actually take the selection — and the step is skipped outright
         //    when a tile already carries the selection. That is the SECOND
-        //    `ensureBoard` call inside one viewport (`game-board` then
-        //    `game-debug-sheet`, both below — `game-stress` names the same
-        //    pairing but is still declared unwalked, issue #3506), which
+        //    `ensureBoard` call inside one viewport (`game-board` then a later
+        //    board row — `game-stress` names the same pairing but is still
+        //    declared unwalked, issue #3506), which
         //    shares the context and so the
         //    `tolaria:selectedDeckId` the first call wrote. It is NOT how a
         //    later VIEWPORT starts: `index.ts`'s `browser.newContext({viewport,
@@ -1203,7 +1203,7 @@ async function loadScenarioOnBoard(page: Page, label: string): Promise<void> {
     // The sheet is SETUP here, not the subject: `game-stress` and
     // `game-card-preview` measure the board, and at `lg` an open sheet takes
     // 480px off it (issue #3493) while at phone width it paints over the very
-    // hand card the preview walk right-presses. `game-debug-sheet` re-opens it.
+    // hand card the preview walk right-presses.
     await closeDebugSheet(page);
     await settle(page);
 }

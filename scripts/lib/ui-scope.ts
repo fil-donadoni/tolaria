@@ -228,18 +228,27 @@ export function computeUiScope({
     };
 
     // Everything the staff-only routes reach, type-only edges included — a
-    // type change that matters fails `check:ts`, not a walk. Built on first
-    // use, and only for a path no surface closure contains.
+    // type change that matters fails `check:ts`, not a walk — MINUS whatever
+    // any other router import reaches at runtime: a module an undeclared
+    // (orphan) route also renders is walked by nothing and must stay `full`.
+    // Built on first use, and only for a path no surface closure contains.
     let staffOnly: Set<string> | null = null;
     const staffOnlyReachable = (path: string): boolean => {
         if (staffOnly === null) {
             staffOnly = new Set();
+            const other = new Set<string>();
             for (const entry of graph.importsOf(ROUTER_MODULE)) {
-                if (!isStaffOnlyRouteEntry(entry)) continue;
-                for (const file of graph.closureOf(entry, { types: true })) {
-                    staffOnly.add(file);
+                if (isStaffOnlyRouteEntry(entry)) {
+                    for (const file of graph.closureOf(entry, {
+                        types: true,
+                    })) {
+                        staffOnly.add(file);
+                    }
+                } else {
+                    for (const file of graph.closureOf(entry)) other.add(file);
                 }
             }
+            for (const file of other) staffOnly.delete(file);
         }
         return staffOnly.has(path);
     };

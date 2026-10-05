@@ -52,7 +52,7 @@ const FILES: Record<string, string> = {
     // router, declared by NO surface. `admin-widget` is theirs alone;
     // `deck-shelf` is shared with the lobby, `admin-tool` is shared by both
     // staff pages, and `admin-shape` is named only through a type import.
-    "src/routes/admin/admin-panel.route.tsx": `import { AdminWidget } from "~/components/admin/admin-widget";\nimport { Tool } from "~/components/admin/admin-tool";\nimport { DeckShelf } from "~/components/deck-shelf";\nimport type { AdminShape } from "~/components/admin/admin-shape";\n`,
+    "src/routes/admin/admin-panel.route.tsx": `import { Widget } from "~/components/orphan-widget";\nimport { AdminWidget } from "~/components/admin/admin-widget";\nimport { Tool } from "~/components/admin/admin-tool";\nimport { DeckShelf } from "~/components/deck-shelf";\nimport type { AdminShape } from "~/components/admin/admin-shape";\n`,
     "src/routes/draft-lab.route.tsx": `import { Tool } from "~/components/admin/admin-tool";\n`,
     "src/components/admin/admin-widget.tsx": `export const AdminWidget = 1;\n`,
     "src/components/admin/admin-tool.tsx": `export const Tool = 1;\n`,
@@ -245,7 +245,7 @@ describe("computeUiScope — staff-only routes (issue #5075)", () => {
         });
     });
 
-    it("the rule places a module only the staff-only pages reach — an unrelated orphan route's module still selects full", () => {
+    it("a module a staff-only page shares with an undeclared route still selects full — walked by nothing", () => {
         expect(scopeOf("src/components/orphan-widget.tsx").kind).toBe("full");
     });
 });
