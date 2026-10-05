@@ -179,15 +179,19 @@ describe("describeRobustnessMode", () => {
 
 describe("the audit's closure on the real tree", () => {
     const root = join(__dirname, "..", "..");
-    const graph = createImportGraph({
-        root,
-        source: gitTreeSource(root, "HEAD"),
-    });
-    const closure = new Set<string>();
-    for (const entry of ROBUSTNESS_ROOTS)
-        for (const f of graph.closureOf(entry)) closure.add(f);
+    const closureAtHead = (): Set<string> => {
+        const graph = createImportGraph({
+            root,
+            source: gitTreeSource(root, "HEAD"),
+        });
+        const closure = new Set<string>();
+        for (const entry of ROBUSTNESS_ROOTS)
+            for (const f of graph.closureOf(entry)) closure.add(f);
+        return closure;
+    };
 
     it("holds what the search runs", () => {
+        const closure = closureAtHead();
         for (const f of [
             WEIGHTS,
             VALUER,
@@ -201,6 +205,7 @@ describe("the audit's closure on the real tree", () => {
     });
 
     it("drops the Bot tooling the search never imports", () => {
+        const closure = closureAtHead();
         expect(closure.has("convex/gre/ai/botReach.ts")).toBe(false);
         expect(closure.has("src/lib/ai/eval-term-labels.ts")).toBe(false);
         const tooling = [...closure].filter(
