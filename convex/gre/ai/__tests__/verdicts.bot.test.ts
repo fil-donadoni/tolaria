@@ -301,9 +301,16 @@ describe("the violation / contradiction report", () => {
     });
 
     it("routes TIMING pairs out of the fit over the whole registry corpus (issue #4764)", () => {
-        // Read unclassified: every timing entry is a Conditional Verdict
-        // (issue #4797), out of the fit before timing routing ever sees it.
+        // Read unclassified: every timing entry but a paired anchor is an
+        // unpaired Conditional Verdict (issue #4797), out of the fit before
+        // timing routing sees it — so both directions are exercised on the
+        // pre-ADR 0148 reading, and the classified corpus is checked below.
         const { verdicts, gaps } = verdictsFromRegistry();
+        const classified = collectVerdictReport(verdicts, { gaps });
+        const classifiedTiming = new Set(classified.timing);
+        expect(classified.pairs.filter((p) => classifiedTiming.has(p))).toEqual(
+            []
+        );
         const report = collectVerdictReport(verdicts.map(unclassified), {
             testPositions: new Set(),
             gaps,

@@ -404,12 +404,22 @@ export function formatVerdictReport(
         }
     }
 
-    if (report.incomplete.length > 0) {
+    // A conditional registry entry that lowers to no verdict (a `predicate`,
+    // an unbuildable board…) owes its pair all the same (issue #4797).
+    const conditionalGaps = report.gaps.filter(
+        (g) => g.conditional !== undefined
+    );
+    const debt = report.incomplete.length + conditionalGaps.length;
+    if (debt > 0) {
         out.push(
-            `\n== INCOMPLETE pairs — debt (${report.incomplete.length}): kept as Test Positions, left out of the fit (ADR 0148)`
+            `\n== INCOMPLETE pairs — debt (${debt}): kept as Test Positions, left out of the fit (ADR 0148)`
         );
         for (const row of report.incomplete)
             out.push(`  ${row.verdictId}: ${row.why}`);
+        for (const g of conditionalGaps)
+            out.push(
+                `  registry:${g.label}: Conditional Test Position (${g.conditional!.kind}: ${g.conditional!.detail}) with no right-hand half, and no verdict of its own (${g.reason}) (ADR 0148)`
+            );
     }
 
     if (report.errors.length > 0) {
