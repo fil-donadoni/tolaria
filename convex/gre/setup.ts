@@ -29,7 +29,7 @@ export type DeckInput = {
     id: string;
     name: string;
     format: string;
-    cards: { cardId: string; cardName: string }[];
+    cards: { cardId: string; cardName: string; definitionId?: string }[];
 };
 
 export type PlayerInput = {
@@ -54,15 +54,17 @@ export function deckPrintPin(
 
 /** One deck card as a fresh instance in `zone`: characteristics hydrated from
  *  its definition, the chosen printing carried as a cosmetic pin
- *  ({@link deckPrintPin}). The one instantiation every game-start path shares
- *  (`buildPlayerState` here and in `convex/game.ts`). */
+ *  ({@link deckPrintPin}). The definition is `definitionId` when the entry
+ *  names one, else `cardId` — a Print ID is never looked up (ADR 0140 §5).
+ *  The one instantiation every game-start path shares (`buildPlayerState` here
+ *  and in `convex/game.ts`). */
 export function instantiateDeckCard(
-    deckCard: { cardId: string },
+    deckCard: { cardId: string; definitionId?: string },
     playerId: string,
     zone: "library" | "exile",
     counter: { nextInstanceId?: number }
 ): CardInstanceState {
-    const def = getDefinition(deckCard.cardId);
+    const def = getDefinition(deckCard.definitionId ?? deckCard.cardId);
     return {
         id: allocInstanceId(counter),
         card: { id: def.id },

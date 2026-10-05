@@ -60,12 +60,7 @@
 //         cap); #2246 ships the card on top of both.
 // ═════════════════════════════════════════════════════════════════════════════
 
-import type {
-    CardDefinition,
-    CardPrint,
-    Color,
-    SpellContext,
-} from "../../types";
+import type { CardDefinition, Color, SpellContext } from "../../types";
 import {
     AURA_AFFECTS_HOST,
     countDomain,
@@ -338,17 +333,6 @@ export const cryptAngel: CardDefinition = {
             ],
         }),
     ],
-};
-
-// cursedFlesh — INV reprint of the Exodus definition (CardPrint).
-// The card was first implemented here, against this printing; its home set is
-// its earliest paper printing (ADR 0041), so the mechanics live in
-// `exo/black.cards.ts`.
-export const cursedFleshInv: CardPrint = {
-    printId: "fb151ae8-9281-434d-ba8d-9ce34f0875eb", // INV 98
-    definitionId: "7433b9bf-ee6e-41fe-b826-0d20584198b1", // cursedFlesh (Exodus)
-    setCode: "inv",
-    rarity: "common",
 };
 
 // UNSHIPPED STUB (tracked-by: #3720) — Defiling Tears: "Until end of turn,
@@ -1059,28 +1043,6 @@ export const plagueSpitter: CardDefinition = {
     ],
 };
 
-// ravenousRats — INV reprint of the Portal Second Age definition (CardPrint).
-// The card was first implemented here, against this printing; its home set is
-// its earliest paper printing (ADR 0041), so the mechanics live in
-// `p02/black.cards.ts`.
-export const ravenousRatsInv: CardPrint = {
-    printId: "89e29069-add5-4099-b800-9f1e4402cc1a", // INV 120
-    definitionId: "8899244b-737a-43a9-9241-15a650b47bed", // ravenousRats (Portal Second Age)
-    setCode: "inv",
-    rarity: "common",
-};
-
-// recklessSpite — INV reprint of the Tempest definition (CardPrint).
-// The card was first implemented here, against this printing; its home set is
-// its earliest paper printing (ADR 0041), so the mechanics live in
-// `tmp/black.cards.ts`.
-export const recklessSpiteInv: CardPrint = {
-    printId: "2412497b-cae5-444d-9beb-7761d15cd5c5", // INV 121
-    definitionId: "9141daea-1f4f-4227-b7d7-20753e3cb4d4", // recklessSpite (Tempest)
-    setCode: "inv",
-    rarity: "uncommon",
-};
-
 // Recover — {2}{B} Sorcery. "Return target creature card from your
 // graveyard to your hand.\nDraw a card." (CR 400.7 zone change, CR 121.1
 // draw.) A plain spell target (`zone: "graveyard", controller: "you"`) — no
@@ -1131,21 +1093,6 @@ export const scavengedWeaponry: CardDefinition = {
     staticEffects: [
         { kind: "pt-buff", applies: AURA_AFFECTS_HOST, power: 1, toughness: 1 },
     ],
-};
-
-// Soul Burn — a reprint of the Ice Age card already implemented as
-// `soulBurn` in `sets/ice/black.cards.ts` (id eb8e00d2-…, whose "spend only
-// black and/or red mana on X" restriction ships since issue #3811). ADR 0043/0014: a
-// cross-set reprint is a `CardPrint` referencing the original
-// `CardDefinition`, not a duplicate definition. Only the primary English
-// printing (#124) is modelled — the two Chinese alt-art variants (#124s,
-// #124★) are out of scope (promo/alt-art variants generally aren't modelled
-// 1:1 in this catalogue).
-export const soulBurnInv: CardPrint = {
-    printId: "70515cd2-97d5-4491-a758-bc7188fdc6dc", // INV 124
-    definitionId: "eb8e00d2-2381-4d45-bed8-c9bf738a9419", // ICE Soul Burn
-    setCode: "inv",
-    rarity: "common",
 };
 
 // Spreading Plague — {4}{B} Enchantment. "Whenever a creature enters,

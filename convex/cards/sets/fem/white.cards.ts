@@ -9,7 +9,7 @@
 // of their mana cost (CR 202.2); lands and artifacts (no coloured cost) live in
 // colorless.ts.
 
-import type { CardDefinition, CardPrint, SpellContext } from "../../types";
+import type { CardDefinition, SpellContext } from "../../types";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 
@@ -45,27 +45,6 @@ export const combatMedic: CardDefinition = {
             ],
         },
     ],
-};
-
-export const combatMedicFemB: CardPrint = {
-    printId: "2a324a98-31c2-470a-b792-96b6b098a58c", // FEM 1b
-    definitionId: combatMedic.id,
-    setCode: "fem",
-    rarity: "common",
-};
-
-export const combatMedicFemC: CardPrint = {
-    printId: "ee9d1eac-3ac2-4881-a984-e40d87f60784", // FEM 1c
-    definitionId: combatMedic.id,
-    setCode: "fem",
-    rarity: "common",
-};
-
-export const combatMedicFemD: CardPrint = {
-    printId: "8f26c079-61ea-436d-89ae-2f1c6f863e91", // FEM 1d
-    definitionId: combatMedic.id,
-    setCode: "fem",
-    rarity: "common",
 };
 
 const FARRELS_MANTLE_ID = "af092da3-8713-4a59-86d3-827b942d6456"; // FEM 2
@@ -170,20 +149,6 @@ export const farrelsZealot: CardDefinition = {
             },
         },
     ],
-};
-
-export const farrelsZealotFemB: CardPrint = {
-    printId: "9e3aeee7-975c-419a-bfb3-45bb48ba6918", // FEM 3b
-    definitionId: farrelsZealot.id,
-    setCode: "fem",
-    rarity: "common",
-};
-
-export const farrelsZealotFemC: CardPrint = {
-    printId: "54252fd2-21a6-40d1-8515-697f18c78a06", // FEM 3c
-    definitionId: farrelsZealot.id,
-    setCode: "fem",
-    rarity: "common",
 };
 
 const FARRELITE_PRIEST_ID = "e11bf79b-a951-4d0c-acdf-d8ba5290a648"; // FEM 4
@@ -350,27 +315,6 @@ export const heroism: CardDefinition = {
     ],
 };
 
-export const icatianInfantryFemB: CardPrint = {
-    printId: "e0e4a9d2-ea43-46ac-8b8b-00496a478103", // FEM 7b
-    definitionId: "f95d42d8-ba75-43bf-81b8-b02374f03e83",
-    setCode: "fem",
-    rarity: "common",
-};
-
-export const icatianInfantryFemC: CardPrint = {
-    printId: "efac583d-a492-45ee-8c52-60a6422b2168", // FEM 7c
-    definitionId: "f95d42d8-ba75-43bf-81b8-b02374f03e83",
-    setCode: "fem",
-    rarity: "common",
-};
-
-export const icatianInfantryFemD: CardPrint = {
-    printId: "96b2a8d4-7c06-454c-9923-553294aada4f", // FEM 7d
-    definitionId: "f95d42d8-ba75-43bf-81b8-b02374f03e83",
-    setCode: "fem",
-    rarity: "common",
-};
-
 export const icatianJavelineers: CardDefinition = {
     id: "f04b8356-2384-4743-80dd-f15ca7ec65f7", // FEM 8a
     rarity: "common",
@@ -397,20 +341,6 @@ export const icatianJavelineers: CardDefinition = {
             effects: [{ op: "dealDamage", amount: 1, to: { target: 0 } }],
         },
     ],
-};
-
-export const icatianJavelineersFemB: CardPrint = {
-    printId: "c70f8f50-866a-4889-b986-48636225638a", // FEM 8b
-    definitionId: icatianJavelineers.id,
-    setCode: "fem",
-    rarity: "common",
-};
-
-export const icatianJavelineersFemC: CardPrint = {
-    printId: "2be5ab7a-e7db-4c09-8df2-6fe55fa4a116", // FEM 8c
-    definitionId: icatianJavelineers.id,
-    setCode: "fem",
-    rarity: "common",
 };
 
 export const icatianMoneychanger: CardDefinition = {
@@ -484,20 +414,6 @@ export const icatianMoneychanger: CardDefinition = {
     ],
 };
 
-export const icatianMoneychangerFemB: CardPrint = {
-    printId: "cbf9194c-8e50-4f50-9a87-3b339a5bc279", // FEM 10b
-    definitionId: icatianMoneychanger.id,
-    setCode: "fem",
-    rarity: "common",
-};
-
-export const icatianMoneychangerFemC: CardPrint = {
-    printId: "cf9521ae-6fac-4d86-9c60-adecaae5687d", // FEM 10c
-    definitionId: icatianMoneychanger.id,
-    setCode: "fem",
-    rarity: "common",
-};
-
 export const icatianPhalanx: CardDefinition = {
     id: "7bc02d30-3eef-4a48-8b11-b4f37219ab3a", // FEM 11
     rarity: "uncommon",
@@ -510,27 +426,6 @@ export const icatianPhalanx: CardDefinition = {
     power: 2,
     toughness: 4,
     staticAbilities: ["banding"],
-};
-
-export const icatianScoutFemB: CardPrint = {
-    printId: "e9db3442-01cb-4db2-ac33-8eca6880c315", // FEM 13b
-    definitionId: "86bf4aaa-a9b1-4798-a96b-c3e35afb77f7",
-    setCode: "fem",
-    rarity: "common",
-};
-
-export const icatianScoutFemC: CardPrint = {
-    printId: "6c461655-a05d-4eed-85b2-04d554f5ec50", // FEM 13c
-    definitionId: "86bf4aaa-a9b1-4798-a96b-c3e35afb77f7",
-    setCode: "fem",
-    rarity: "common",
-};
-
-export const icatianScoutFemD: CardPrint = {
-    printId: "db63ad7f-6dc4-4249-b360-46ec5569a5a9", // FEM 13d
-    definitionId: "86bf4aaa-a9b1-4798-a96b-c3e35afb77f7",
-    setCode: "fem",
-    rarity: "common",
 };
 
 // DIVERGENCE (tracked-by: #2119): the "Whenever this creature attacks, all
@@ -630,18 +525,4 @@ export const orderOfLeitbur: CardDefinition = {
             ],
         },
     ],
-};
-
-export const orderOfLeitburFemB: CardPrint = {
-    printId: "fb537b5a-d725-420d-bc15-0d54ba23331c", // FEM 16b
-    definitionId: orderOfLeitbur.id,
-    setCode: "fem",
-    rarity: "uncommon",
-};
-
-export const orderOfLeitburFemC: CardPrint = {
-    printId: "1373dea4-3565-4612-8505-ab8fba3ddb67", // FEM 16c
-    definitionId: orderOfLeitbur.id,
-    setCode: "fem",
-    rarity: "uncommon",
 };

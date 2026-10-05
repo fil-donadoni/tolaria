@@ -58,8 +58,8 @@ import { setCardSupertypeLookup } from "./supertypeLookup";
 // in-memory map and reads it synchronously. On the client the registry starts
 // empty and is populated via `preloadDefinitions` before the board renders.
 
-/** Combined lookup: every `CardDefinition.id` plus every `CardPrint.printId`
- *  resolves to the same underlying definition. Populated at module load (server)
+/** Combined lookup: every `CardDefinition.id` resolves to its definition; a
+ *  Print ID resolves to nothing (ADR 0140 §5). Populated at module load (server)
  *  or via `preloadDefinitions` (client). */
 const registry = new Map<string, CardDefinition>();
 
@@ -350,8 +350,8 @@ export function preloadDefinitions(defs: CardDefinition[]): void {
         // `setRegistryEntry`, for two reasons: this is the one BATCH funnel
         // every hydration path already goes through (the server catalogue's
         // `preloadDefinitions(allCards)`, the client's preload, and
-        // compiled-row hydration), while `setRegistryEntry` also serves print
-        // aliases and the test-only `withTemporaryDefinition` swap, where a
+        // compiled-row hydration), while `setRegistryEntry` also serves the
+        // test-only `withTemporaryDefinition` swap, where a
         // twin registered under a temporary definition would outlive the swap
         // it came in with.
         //
@@ -541,34 +541,13 @@ export const expandDefinition = (base: CardDefinition): CardDefinition => {
 type DefinitionSource = (cardId: string) => CardDefinition | null;
 let definitionSource: DefinitionSource | null = null;
 
-/** Print id → definition id, for a print whose definition lives only in the
- *  lazy source: wired on first lookup instead of at module load, so loading
- *  the catalogue reads nothing from the source. */
-const lazyPrintAliases = new Map<string, string>();
-
 /** Install the lazy definition source (issue #4165). `null` uninstalls it. */
 export function setLazyDefinitionSource(source: DefinitionSource | null): void {
     definitionSource = source;
 }
 
-/** Make `printId` resolve, on first lookup, to the definition the lazy source
- *  serves under `definitionId` — the SAME object, as `registerPrintAlias`
- *  guarantees for a resident definition. */
-export function registerLazyPrintAlias(
-    printId: string,
-    definitionId: string
-): void {
-    lazyPrintAliases.set(printId, definitionId);
-}
-
 function resolveFromSource(cardId: string): CardDefinition | undefined {
     if (definitionSource === null) return undefined;
-    const aliased = lazyPrintAliases.get(cardId);
-    if (aliased !== undefined && aliased !== cardId) {
-        const def = registry.get(aliased) ?? resolveFromSource(aliased);
-        if (def) setRegistryEntry(cardId, def);
-        return def;
-    }
     // A derived face resolves through its PARENT: the twin is minted by the
     // derivation `preloadDefinitions` runs, never stored. A parent that is
     // already resident registered its twins with it, so a miss here is an id
@@ -602,11 +581,10 @@ export const getDefinition = (cardId: string): CardDefinition => {
  *  `getDefinition` uses — so a keyword card arrives EXPANDED (ADR 0054) and is
  *  the SAME object `getDefinition(def.id)` returns.
  *
- *  The map keys BOTH definition ids and print-id aliases onto one object
- *  (`registerPrintAlias`), so reprints are dropped by keeping only the entry
- *  whose key IS the definition's own id. Insertion order therefore reproduces
- *  catalogue load order, which is what makes a "first match wins" consumer
- *  deterministic.
+ *  Only the entry whose key IS the definition's own id is yielded, so a
+ *  derived face registered under another key is not repeated. Insertion order
+ *  reproduces catalogue load order, which is what makes a "first match wins"
+ *  consumer deterministic.
  *
  *  Lazy on purpose. This is the registry-side sibling of `catalogue.ts`'s
  *  `getAllCards()`, which eagerly expands all ~1900 definitions and — being
@@ -646,19 +624,6 @@ export const registerTokenDefinition = (def: CardDefinition): void => {
     if (registry.has(def.id)) return;
     setRegistryEntry(def.id, def);
 };
-
-/** Makes `printId` resolve to the same `CardDefinition` object as
- *  `definitionId` already in the registry. Throws on unknown definitionId
- *  or duplicate printId. Used by `catalogue.ts` to wire reprint lookup. */
-export function registerPrintAlias(
-    printId: string,
-    definitionId: string
-): void {
-    const def = registry.get(definitionId);
-    if (!def) throw new Error(`Unknown definitionId: ${definitionId}`);
-    if (registry.has(printId)) throw new Error(`Duplicate card id: ${printId}`);
-    setRegistryEntry(printId, def);
-}
 
 /** Content-derived id for a synthesized token CardDefinition (CR 707.1). Two
  *  `createToken` calls with the same spec shape share one definition entry

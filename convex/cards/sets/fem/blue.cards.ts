@@ -9,12 +9,7 @@
 // of their mana cost (CR 202.2); lands and artifacts (no coloured cost) live in
 // colorless.ts.
 
-import type {
-    CardDefinition,
-    CardPrint,
-    SpellContext,
-    TokenSpec,
-} from "../../types";
+import type { CardDefinition, SpellContext, TokenSpec } from "../../types";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { stateTrigger } from "../../abilities/triggers/stateTrigger";
 
@@ -28,27 +23,6 @@ export const vodalianSoldiers: CardDefinition = {
     subtypes: ["Merfolk", "Soldier"],
     power: 1,
     toughness: 2,
-};
-
-export const vodalianSoldiersFemB: CardPrint = {
-    printId: "bc85a68c-14d6-4447-a894-0e48d1662bc3", // FEM 31b
-    definitionId: vodalianSoldiers.id,
-    setCode: "fem",
-    rarity: "common",
-};
-
-export const vodalianSoldiersFemC: CardPrint = {
-    printId: "d8d1ceac-bb75-4c46-9ab4-1ef623ed3027", // FEM 31c
-    definitionId: vodalianSoldiers.id,
-    setCode: "fem",
-    rarity: "common",
-};
-
-export const vodalianSoldiersFemD: CardPrint = {
-    printId: "99d22f83-1171-4b5c-8a72-956db26d7c60", // FEM 31d
-    definitionId: vodalianSoldiers.id,
-    setCode: "fem",
-    rarity: "common",
 };
 
 // No `imagePrintId` — Scryfall has no printed Camarid token for Homarid
@@ -153,27 +127,6 @@ export const homarid: CardDefinition = {
     ],
 };
 
-export const homaridFemB: CardPrint = {
-    printId: "cbb6c13f-6019-4ad5-9de6-07844c361b41", // FEM 19b
-    definitionId: homarid.id,
-    setCode: "fem",
-    rarity: "common",
-};
-
-export const homaridFemC: CardPrint = {
-    printId: "33536b0a-1cff-481f-b695-eadaf6897bf0", // FEM 19c
-    definitionId: homarid.id,
-    setCode: "fem",
-    rarity: "common",
-};
-
-export const homaridFemD: CardPrint = {
-    printId: "18f1cc24-a5fc-43cc-b558-ac7901c48b81", // FEM 19d
-    definitionId: homarid.id,
-    setCode: "fem",
-    rarity: "common",
-};
-
 export const tidalInfluence: CardDefinition = {
     id: "b2192c7b-ef6f-4ff6-9017-b1a125340517", // FEM 28
     rarity: "rare",
@@ -242,20 +195,6 @@ export const homaridWarrior: CardDefinition = {
             ],
         },
     ],
-};
-
-export const homaridWarriorFemB: CardPrint = {
-    printId: "c9a9bdcf-543b-4140-b836-9e222a4a9233", // FEM 22b
-    definitionId: homaridWarrior.id,
-    setCode: "fem",
-    rarity: "common",
-};
-
-export const homaridWarriorFemC: CardPrint = {
-    printId: "fb1cccdc-9c4d-4ef3-807b-278e6fd23230", // FEM 22c
-    definitionId: homaridWarrior.id,
-    setCode: "fem",
-    rarity: "common",
 };
 
 export const homaridSpawningBed: CardDefinition = {
@@ -393,20 +332,6 @@ export const highTide: CardDefinition = {
     },
 };
 
-export const highTideFemB: CardPrint = {
-    printId: "c2813677-91cc-4c8b-a8ea-403fa776c9f0", // FEM 18b
-    definitionId: highTide.id,
-    setCode: "fem",
-    rarity: "common",
-};
-
-export const highTideFemC: CardPrint = {
-    printId: "4af611e3-45d6-4aee-bf48-56598b14a242", // FEM 18c
-    definitionId: highTide.id,
-    setCode: "fem",
-    rarity: "common",
-};
-
 export const riverMerfolk: CardDefinition = {
     id: "27d7fa54-4b89-4a9a-b088-4b89c525c1ea", // FEM 24
     rarity: "common",
@@ -475,20 +400,6 @@ export const vodalianMage: CardDefinition = {
             ],
         },
     ],
-};
-
-export const vodalianMageFemB: CardPrint = {
-    printId: "a47beac4-161d-4f8e-9778-78293ff9b383", // FEM 30b
-    definitionId: vodalianMage.id,
-    setCode: "fem",
-    rarity: "common",
-};
-
-export const vodalianMageFemC: CardPrint = {
-    printId: "2b3cc91d-6f87-4f2e-b3c7-8181d19a1f0b", // FEM 30c
-    definitionId: vodalianMage.id,
-    setCode: "fem",
-    rarity: "common",
 };
 
 export const vodalianKnights: CardDefinition = {
@@ -760,27 +671,6 @@ export const merseine: CardDefinition = {
     ],
 };
 
-export const merseineFemB: CardPrint = {
-    printId: "5c7fb804-65ba-477e-93e8-eea101c1521e", // FEM 23b
-    definitionId: merseine.id,
-    setCode: "fem",
-    rarity: "common",
-};
-
-export const merseineFemC: CardPrint = {
-    printId: "2dd197f8-ced0-461a-9672-2720a7b70803", // FEM 23c
-    definitionId: merseine.id,
-    setCode: "fem",
-    rarity: "common",
-};
-
-export const merseineFemD: CardPrint = {
-    printId: "ae7a9e9a-d1f8-44c5-9f79-a1201acfb5fc", // FEM 23d
-    definitionId: merseine.id,
-    setCode: "fem",
-    rarity: "common",
-};
-
 export const tidalFlats: CardDefinition = {
     id: "2e820f3f-434e-4d09-91b9-0ebd6966b393", // FEM 27a (canonical art)
     rarity: "common",
@@ -844,18 +734,4 @@ export const tidalFlats: CardDefinition = {
             },
         },
     ],
-};
-
-export const tidalFlatsFemB: CardPrint = {
-    printId: "50e7d376-3e22-44aa-9c96-a3b8eb1568fe", // FEM 27b
-    definitionId: tidalFlats.id,
-    setCode: "fem",
-    rarity: "common",
-};
-
-export const tidalFlatsFemC: CardPrint = {
-    printId: "445c4767-6261-449c-bb57-713e2a2bb0bf", // FEM 27c
-    definitionId: tidalFlats.id,
-    setCode: "fem",
-    rarity: "common",
 };

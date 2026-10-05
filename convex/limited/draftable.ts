@@ -12,6 +12,13 @@ import { tryGetDefinition } from "../cards";
 import { dropFromSheet } from "./sheetFiltering";
 import type { BoosterConfig, BoosterSheet } from "./boosterTypes";
 
+/** Whether sheet card `id` is an implemented `CardDefinition`: its own id, or
+ *  — for a reprint — the Card ID the config's `printCardIds` names (a Print ID
+ *  is not in the registry, ADR 0140 §5). */
+function isImplemented(config: BoosterConfig, id: string): boolean {
+    return tryGetDefinition(config.printCardIds?.[id] ?? id) !== null;
+}
+
 /** Per-sheet Draftability floor (ADR 0059). Deliberately NOT a per-set
  *  average — see module doc comment. */
 const MIN_SHEET_COVERAGE = 0.8;
@@ -58,7 +65,9 @@ export function computeDraftability(config: BoosterConfig): DraftabilityResult {
 
     for (const [sheetName, sheet] of Object.entries(config.sheets)) {
         const ids = Object.keys(sheet.cards);
-        const missingCardIds = ids.filter((id) => !tryGetDefinition(id)).sort();
+        const missingCardIds = ids
+            .filter((id) => !isImplemented(config, id))
+            .sort();
         for (const id of missingCardIds) allMissing.add(id);
 
         const totalCards = ids.length;
@@ -104,7 +113,7 @@ export function dropUnimplementedCards(config: BoosterConfig): {
     for (const [sheetName, sheet] of Object.entries(config.sheets)) {
         const { sheet: filtered, droppedIds } = dropFromSheet(
             sheet,
-            (scryfallId) => !tryGetDefinition(scryfallId)
+            (scryfallId) => !isImplemented(config, scryfallId)
         );
         sheets[sheetName] = filtered;
         for (const id of droppedIds) allMissing.add(id);

@@ -2,12 +2,7 @@
 // `import * as inv from "./sets/inv/index.cards"` re-exports this module. Modern
 // Scryfall oracle text is authoritative (ADR 0004).
 
-import type {
-    CardDefinition,
-    CardPrint,
-    EffectOp,
-    StaticKeywordGrant,
-} from "../../types";
+import type { CardDefinition, EffectOp, StaticKeywordGrant } from "../../types";
 import { AURA_AFFECTS_HOST, EFFECT_AFFECTS_SELF } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { diedTrigger } from "../../abilities/triggers/diedTrigger";
@@ -274,17 +269,6 @@ export const explosiveGrowth: CardDefinition = {
             ],
         },
     ],
-};
-
-// harrow — INV reprint of the Tempest definition (CardPrint).
-// The card was first implemented here, against this printing; its home set is
-// its earliest paper printing (ADR 0041), so the mechanics live in
-// `tmp/green.cards.ts`.
-export const harrowInv: CardPrint = {
-    printId: "ed0f633e-7238-4d02-ad8b-06dd20453030", // INV 183
-    definitionId: "3c207142-4880-4935-9827-b91bc7d9d643", // harrow (Tempest)
-    setCode: "inv",
-    rarity: "common",
 };
 
 // Jade Leech — {2}{G}{G} Creature — Leech, 5/5. "Green spells you cast cost
@@ -764,18 +748,6 @@ export const thornscapeMaster: CardDefinition = {
     ],
 };
 
-// Tranquility — a reprint of the LEA original already implemented as
-// `tranquility` in `sets/lea/green.cards.ts` (id 774cc5a6-…). ADR 0043/0014: a
-// cross-set reprint is a `CardPrint` referencing the original
-// `CardDefinition`, not a duplicate definition (precedent: Soul Burn,
-// `inv/black.cards.ts`).
-export const tranquilityInv: CardPrint = {
-    printId: "97019ba5-ce2a-460c-8a4e-2b22053ced65", // INV Tranquility
-    definitionId: "774cc5a6-3a69-4812-add4-eb5eb6389238", // LEA Tranquility
-    setCode: "inv",
-    rarity: "common",
-};
-
 // Treefolk Healer — {4}{G} Creature — Treefolk Cleric, 2/3. "{2}{W}, {T}:
 // Prevent the next 2 damage that would be dealt to any target this turn."
 // (CR 615.1 prevention shield.)
@@ -887,17 +859,6 @@ export const whipSilk: CardDefinition = {
             ],
         },
     ],
-};
-
-// fertileGround — INV reprint of the Urza's Saga definition (CardPrint).
-// The card was first implemented here, against this printing; its home set is
-// its earliest paper printing (ADR 0041), so the mechanics live in
-// `usg/green.cards.ts`.
-export const fertileGroundInv: CardPrint = {
-    printId: "789e3582-b541-4916-ac7e-015214d7a27a", // INV 180
-    definitionId: "091dda35-59e5-456d-8804-61513a610aed", // fertileGround (Urza's Saga)
-    setCode: "inv",
-    rarity: "common",
 };
 
 // Kavu Titan — {1}{G} Creature — Kavu, 2/2. "Kicker {2}{G}. If this creature
@@ -1399,20 +1360,6 @@ export const elfhameSanctuary: CardDefinition = {
 //     manaCost: { X: 3, G: 1 },
 //     types: ["Enchantment"],
 // };
-
-// quirionElvesInv — INV reprint of the Mirage definition (CardPrint, ADR
-// 0041). First printed in Mirage — the mechanics (closing issue #1097 gap 4:
-// the ETB colour choice + two mana abilities) live in `mir/green.cards.ts`,
-// authored against THIS printing (issue #1097's INV free-tranche audit is
-// where the gap was originally surfaced). Behaviour tests stay with this INV
-// tranche (`inv/__tests__/green.test.ts`), importing the definition from its
-// home module.
-export const quirionElvesInv: CardPrint = {
-    printId: "c660a748-82a9-4d6a-8023-56aeafe1bdce", // INV 203
-    definitionId: "be9a64fb-1e8d-4ed8-b4c5-3d44db9c1d3b", // Quirion Elves (Mirage)
-    setCode: "inv",
-    rarity: "common",
-};
 
 // Restock — "Return two target cards from your graveyard to your hand.
 // Exile Restock." (CR 400.7 zone change; CR 608.2 "Exile ~".) The return

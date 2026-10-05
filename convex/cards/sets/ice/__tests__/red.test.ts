@@ -3,7 +3,6 @@
 // cites the CR section it exercises.
 
 import { describe, it, expect } from "vitest";
-import { shatterIce, stoneRainIce } from "../../ice/index.cards";
 import {
     validateDeclaredAttackers,
     validateDeclaredBlockers,
@@ -140,22 +139,6 @@ const island = getDefinition("90a57c0e-fa61-45ef-955d-d296403967d5");
 // ===========================================================================
 
 // --- Reprints (CardPrint wiring, ADR 0014) ---------------------------------
-
-describe("ICE Red reprints (CardPrint wiring, ADR 0014)", () => {
-    it("Shatter print resolves to the LEA definition", () => {
-        expect(getDefinition(shatterIce.printId).name).toBe("Shatter");
-        expect(shatterIce.definitionId).toBe(
-            "50dc7fc1-cb6a-4c68-b993-1a25cf16226e"
-        );
-        expect(shatterIce.setCode).toBe("ice");
-    });
-    it("Stone Rain print resolves to the LEA definition", () => {
-        expect(getDefinition(stoneRainIce.printId).name).toBe("Stone Rain");
-        expect(stoneRainIce.definitionId).toBe(
-            "57ff74cb-a2ed-4123-ac42-f72f9820049e"
-        );
-    });
-});
 
 // --- Anarchy (destroy all white permanents, CR 701.8 / 105.2) --------------
 
@@ -649,10 +632,6 @@ describe("ICE Red tranche registry parity", () => {
         for (const name of expected) {
             expect(getCardByName(name).name).toBe(name);
         }
-    });
-    it("registers the two Red reprints by print id", () => {
-        expect(getDefinition(shatterIce.printId).name).toBe("Shatter");
-        expect(getDefinition(stoneRainIce.printId).name).toBe("Stone Rain");
     });
 });
 

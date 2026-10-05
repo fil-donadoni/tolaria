@@ -3,7 +3,7 @@ import type { GenericMutationCtx, GenericQueryCtx } from "convex/server";
 import type { DataModel, Doc, Id } from "./_generated/dataModel";
 import { internalMutation, mutation, query } from "./_generated/server";
 import { getCurrentUserId } from "./auth";
-import { loadPrintRows } from "./cardPrintRows";
+import { fillDefinitionIds, loadPrintRows } from "./cardPrintRows";
 import { withDefinitionId } from "./cards/catalogue";
 import { makeResolveCardFromRows } from "./cards/printRows";
 import { storedDeckColumnLayoutValidator } from "./deckLayoutStorage";
@@ -194,8 +194,10 @@ export const create = mutation({
             name,
             format: args.format,
             colors: args.colors,
-            cards: args.cards.map(withDefinitionId),
-            sideboard: args.sideboard?.map(withDefinitionId),
+            cards: await fillDefinitionIds(ctx, args.cards),
+            sideboard: args.sideboard
+                ? await fillDefinitionIds(ctx, args.sideboard)
+                : undefined,
             description: args.description,
             featuredCardId: args.featuredCardId,
             limitedEventId: args.limitedEventId,
@@ -255,9 +257,12 @@ export const update = mutation({
         }
         if (args.patch.colors !== undefined) patch.colors = args.patch.colors;
         if (args.patch.cards !== undefined)
-            patch.cards = args.patch.cards.map(withDefinitionId);
+            patch.cards = await fillDefinitionIds(ctx, args.patch.cards);
         if (args.patch.sideboard !== undefined)
-            patch.sideboard = args.patch.sideboard.map(withDefinitionId);
+            patch.sideboard = await fillDefinitionIds(
+                ctx,
+                args.patch.sideboard
+            );
         if (args.patch.description !== undefined)
             patch.description = args.patch.description;
         if (args.patch.featuredCardId !== undefined)

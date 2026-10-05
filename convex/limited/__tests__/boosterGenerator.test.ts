@@ -11,6 +11,7 @@ import { makeRng } from "../../gre/rng";
 import { generateBooster } from "../boosterGenerator";
 import { dropUnimplementedCards } from "../draftable";
 import { tryGetDefinition } from "../../cards";
+import { getSheetPrintCardId } from "../registry";
 import type { BoosterConfig } from "../boosterTypes";
 
 const leaConfig = leaConfigJson as BoosterConfig;
@@ -100,7 +101,12 @@ describe("generateBooster (ADR 0055/0056)", () => {
                 for (const card of pack) {
                     // Every drawn card resolves to an implemented
                     // CardDefinition — no placeholder ever reaches the pack.
-                    expect(tryGetDefinition(card.scryfallId)).not.toBeNull();
+                    expect(
+                        tryGetDefinition(
+                            getSheetPrintCardId(card.scryfallId) ??
+                                card.scryfallId
+                        )
+                    ).not.toBeNull();
                     expect(missingCardIds).not.toContain(card.scryfallId);
                 }
             }

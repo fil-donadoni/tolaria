@@ -25,18 +25,29 @@ const run = (fn: unknown, ctx: MutationCtx, args: unknown): Promise<any> =>
         args
     );
 
-// Beta's Lightning Bolt is a PRINTING of the Alpha definition, so a filled
-// `definitionId` differs from the `cardId` the caller sent.
 const LIGHTNING_BOLT_LEA = "d573ef03-4730-45aa-93dd-e45ac1dbaf4a";
+// Beta's Lightning Bolt is a PRINTING of the Alpha definition: only its
+// `cardPrints` row says so (ADR 0140 §5), the registry no longer does.
 const LIGHTNING_BOLT_LEB = "b5d3dcab-2260-479d-9ef6-dfb92d4f6061";
-const BOLT = { cardId: LIGHTNING_BOLT_LEB, cardName: "Lightning Bolt" };
+const BOLT = { cardId: LIGHTNING_BOLT_LEA, cardName: "Lightning Bolt" };
 const FILLED = { ...BOLT, definitionId: LIGHTNING_BOLT_LEA };
+const BOLT_LEB = { cardId: LIGHTNING_BOLT_LEB, cardName: "Lightning Bolt" };
+const BOLT_LEB_ROW = {
+    _id: "print-leb-bolt",
+    printId: LIGHTNING_BOLT_LEB,
+    cardId: LIGHTNING_BOLT_LEA,
+    set: "leb",
+    rarity: "common",
+};
 
 const ALICE = "user-alice";
 
 function aliceDb() {
     return makeInMemoryDb(
-        { users: [{ _id: ALICE, nickname: "Alice", email: "a@example.com" }] },
+        {
+            users: [{ _id: ALICE, nickname: "Alice", email: "a@example.com" }],
+            cardPrints: [BOLT_LEB_ROW],
+        },
         { identitySubject: `${ALICE}|session` }
     );
 }
@@ -54,6 +65,21 @@ describe("deck writes store definitionId when the caller omits it (issue #4386)"
         const [row] = tables.userDecks;
         expect(row.cards).toEqual([FILLED]);
         expect(row.sideboard).toEqual([FILLED]);
+    });
+
+    it("userDecks.create resolves a Print ID through its cardPrints row", async () => {
+        const { ctx, tables } = aliceDb();
+        await run(create, ctx, {
+            name: "Burn",
+            format: "freeform",
+            colors: ["R"],
+            cards: [BOLT_LEB],
+            sideboard: [BOLT_LEB],
+        });
+        const [row] = tables.userDecks;
+        const filled = { ...BOLT_LEB, definitionId: LIGHTNING_BOLT_LEA };
+        expect(row.cards).toEqual([filled]);
+        expect(row.sideboard).toEqual([filled]);
     });
 
     it("userDecks.update fills Maindeck and Sideboard", async () => {

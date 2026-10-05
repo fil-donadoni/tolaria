@@ -16,6 +16,8 @@
 // use verbatim).
 import { tryGetDefinition } from "./cards/registry";
 import { resolveDeckCardMeta } from "./cards/catalogue";
+import type { ResolveCard } from "./formats";
+import { getSheetPrintCardId } from "./limited/registry";
 import type { ResolveCardMeta } from "./limited/eventLogic";
 
 /** Resolves a drawn Booster card's Scryfall id to the canonical Card ID +
@@ -26,12 +28,22 @@ import type { ResolveCardMeta } from "./limited/eventLogic";
  *  cannot resolve. Every caller turns that `null` into the id itself
  *  (`meta?.cardId ?? scryfallId`), so an unresolvable card keeps a stable
  *  identity and stays visible in the Pool rather than disappearing from it.
- *  The print alias (`catalogue.ts`) registers every printing in the registry, so a
- *  print-level Scryfall id resolves to its definition's canonical `cardId`,
- *  which is what a reprint's Pool entry must store. */
+ *  A Print ID is not in the registry (ADR 0140 §5): a printing resolves to its
+ *  Card ID through the `cardPrints` rows, at the server boundary
+ *  (`cards/printRows.ts`). What is resolved here without rows is a reprint on a
+ *  checked-in sheet (`BoosterConfig.printCardIds`) — the client's Draft Lab has
+ *  no table to read. */
 export const resolveCardMeta: ResolveCardMeta = (scryfallId) => {
-    const def = tryGetDefinition(scryfallId);
+    const cardId = getSheetPrintCardId(scryfallId) ?? scryfallId;
+    const def = tryGetDefinition(cardId);
     if (!def) return null;
-    const meta = resolveDeckCardMeta(scryfallId);
+    const meta = resolveDeckCardMeta(cardId);
     return meta ? { cardId: meta.cardId, cardName: def.name } : null;
 };
+
+/** `resolveDeckCardMeta` that also knows a checked-in sheet's reprints
+ *  (`BoosterConfig.printCardIds`) — the fallback a Limited resolver built from
+ *  `cardPrints` rows uses for an id the table has no row for (a deployment the
+ *  sync has not reached), so a sheet's own reprint never reads as unknown. */
+export const resolveSheetCardMeta: ResolveCard = (cardId) =>
+    resolveDeckCardMeta(getSheetPrintCardId(cardId) ?? cardId);

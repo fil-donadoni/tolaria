@@ -28,11 +28,7 @@ import { tryGetDefinition } from "../../convex/cards";
  *
  * Rule 1 is enforced structurally rather than from a list: a set-module import
  * is a violation exactly when the imported value IS a registry definition.
- * Reprint rows (`CardPrint`: `printId` + `definitionId`, never registered
- * under their own id) are not definitions and stay importable — that is what
- * the 2ED/3ED/FEM/ICE/LEB reprint-wiring tests assert ABOUT, and a list would
- * have to grow a line for every future reprint. The structural read is
- * deliberately shallow — a top-level `.id` on the imported value — because no
+ * The structural read is deliberately shallow — a top-level `.id` on the imported value — because no
  * set module today exports an array or object CONTAINING definitions; a module
  * that starts doing so needs this test taught about it, not an allowlist row.
  *
@@ -60,26 +56,6 @@ const ALLOWLIST = new Map([
         "the annihilator test asserts the DIFFERENCE between the raw module " +
             "export and what the seam serves (CR 702.86a, #2295) — reading " +
             "the unexpanded definition is the assertion",
-    ],
-    [
-        "convex/cards/sets/3ed/__tests__/colorless.test.ts::* as revised",
-        "sweeps the set's own exports to assert every REPRINT row wires to a " +
-            "definition — the namespace IS the subject, and it holds no " +
-            "definitions of its own",
-    ],
-]);
-
-/**
- * Files where the printed NAME is the key the assertion is about, not the way
- * a subject was obtained — a print-list sweep asking WHICH DEFINITIONS a set's
- * reprint rows map onto. There is no card under test in these, so nothing
- * here can survive its closure's retirement vacuously.
- */
-const NAME_KEYED_SWEEPS = new Map([
-    [
-        "convex/cards/sets/3ed/__tests__/colorless.test.ts",
-        "maps basic-land and ante NAMES to definition ids to partition the " +
-            "288-print Revised list (ADR 0010); the names are the assertion",
     ],
 ]);
 
@@ -218,7 +194,6 @@ describe("per-card tests resolve their subject through the registry seam", () =>
                 m.index,
                 m.index + m[0].length,
             ]);
-            if (NAME_KEYED_SWEEPS.has(file)) continue;
             for (const m of src.matchAll(NAME_READER)) {
                 if (exempt.some(([a, b]) => m.index >= a && m.index < b))
                     continue;

@@ -40,13 +40,9 @@ import {
 } from "../limited/eventProjection";
 import { getBoosterConfig } from "../limited/registry";
 import { saveSeats } from "../limitedSeatStore";
-
-const resolveCardMeta: ResolveCardMeta = (scryfallId) => {
-    const def = tryGetDefinition(scryfallId);
-    if (!def) return null;
-    const meta = resolveDeckCardMeta(scryfallId);
-    return meta ? { cardId: meta.cardId, cardName: def.name } : null;
-};
+// Production's resolver: LEA's basic lands are reprint prints, which the
+// registry no longer resolves (ADR 0140 §5) — the checked-in sheet does.
+import { resolveCardMeta } from "../limitedCardMeta";
 
 type Row = Record<string, unknown>;
 

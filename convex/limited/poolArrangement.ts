@@ -317,11 +317,15 @@ export function poolCopyPinKey(poolIndex: number): string {
 interface UnidentifiedCard {
     cardId: string;
     cardName: string;
+    /** The Card Definition `cardId`'s printing prints — a saved deck entry
+     *  carries it (ADR 0140 §5); the registry cannot resolve a Print ID. */
+    definitionId?: string;
 }
 
 /** The identity {@link assignPoolCopies} matches a saved entry to a Pool
  *  copy BY (issue #1629 fixup, findings F2/G2) — the CANONICAL definition id
- *  (`tryGetDefinition(cardId)?.id`), not the raw `cardId`. A saved Basic
+ *  (the entry's `definitionId`, else `tryGetDefinition(cardId)?.id`), not the
+ *  raw `cardId`. A saved Basic
  *  land's `cardId` is whichever PRINTING the player last picked from the art
  *  grid, which can differ from every printing the Pool itself holds — the two
  *  are supposed to diverge once art has been picked, so matching by raw
@@ -340,8 +344,10 @@ interface UnidentifiedCard {
  *  definition id instead fixes the re-art case with ZERO widening beyond it:
  *  a non-Basic's `cardId` never gets rewritten in place, so the definition-id
  *  match is exactly its old exact-cardId match, unchanged. */
-function poolMatchIdentity(cardId: string): string {
-    return tryGetDefinition(cardId)?.id ?? cardId;
+function poolMatchIdentity(card: UnidentifiedCard): string {
+    return (
+        card.definitionId ?? tryGetDefinition(card.cardId)?.id ?? card.cardId
+    );
 }
 
 /**
@@ -392,7 +398,7 @@ export function assignPoolCopies(
             Object.keys(placement.pins).length > 0
                 ? pinned // ascending within each bucket — deterministic
                 : plain;
-        const identity = poolMatchIdentity(placement.card.cardId);
+        const identity = poolMatchIdentity(placement.card);
         const bucket = into.get(identity) ?? [];
         bucket.push(placement.poolIndex);
         into.set(identity, bucket);
@@ -404,13 +410,13 @@ export function assignPoolCopies(
             ...(plain.get(identity) ?? []),
         ]);
     }
-    const take = (cardId: string): number | undefined =>
-        available.get(poolMatchIdentity(cardId))?.shift();
+    const take = (card: UnidentifiedCard): number | undefined =>
+        available.get(poolMatchIdentity(card))?.shift();
     const identify = (list: readonly UnidentifiedCard[]): PlainPoolCard[] =>
         list.map((card) => ({
             cardId: card.cardId,
             cardName: card.cardName,
-            poolIndex: take(card.cardId),
+            poolIndex: take(card),
         }));
     // Maindeck first — it is the zone whose Pins are rendered.
     const cards = identify(zones.cards);

@@ -5,25 +5,6 @@
 
 import { describe, it, expect } from "vitest";
 import {
-    brassclawOrcsFemB,
-    brassclawOrcsFemC,
-    brassclawOrcsFemD,
-    dwarvenSoldierFemB,
-    dwarvenSoldierFemC,
-    goblinChirurgeonFemB,
-    goblinChirurgeonFemC,
-    goblinGrenadeFemB,
-    goblinGrenadeFemC,
-    goblinWarDrumsFemB,
-    goblinWarDrumsFemC,
-    goblinWarDrumsFemD,
-    orcishSpyFemB,
-    orcishSpyFemC,
-    orcishVeteranFemB,
-    orcishVeteranFemC,
-    orcishVeteranFemD,
-} from "../index.cards";
-import {
     getDefinition,
     getCardByName,
     getAllCatalogueCards,
@@ -101,31 +82,6 @@ describe("FEM red registry parity + multi-art prints (ADR 0014)", () => {
             expect(getDefinition(def.id)).toBe(def);
             expect(getCardByName(def.name)).toBe(def);
             expect(getAllCatalogueCards()).toContain(def);
-        }
-    });
-
-    it("resolves every red alternate artwork to its shared definition", () => {
-        const printPairs: Array<[{ printId: string }, { id: string }]> = [
-            [goblinWarDrumsFemB, goblinWarDrums],
-            [goblinWarDrumsFemC, goblinWarDrums],
-            [goblinWarDrumsFemD, goblinWarDrums],
-            [goblinGrenadeFemB, goblinGrenade],
-            [goblinGrenadeFemC, goblinGrenade],
-            [goblinChirurgeonFemB, goblinChirurgeon],
-            [goblinChirurgeonFemC, goblinChirurgeon],
-            [brassclawOrcsFemB, brassclawOrcs],
-            [brassclawOrcsFemC, brassclawOrcs],
-            [brassclawOrcsFemD, brassclawOrcs],
-            [orcishVeteranFemB, orcishVeteran],
-            [orcishVeteranFemC, orcishVeteran],
-            [orcishVeteranFemD, orcishVeteran],
-            [orcishSpyFemB, orcishSpy],
-            [orcishSpyFemC, orcishSpy],
-            [dwarvenSoldierFemB, dwarvenSoldier],
-            [dwarvenSoldierFemC, dwarvenSoldier],
-        ];
-        for (const [print, def] of printPairs) {
-            expect(getDefinition(print.printId)).toBe(def);
         }
     });
 });

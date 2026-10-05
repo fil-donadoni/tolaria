@@ -4,20 +4,7 @@
 // only (definition shape, zone after resolution, projected wire-format).
 
 import { describe, it, expect } from "vitest";
-import {
-    homaridFemB,
-    homaridFemC,
-    homaridFemD,
-    merseineFemB,
-    vodalianSoldiersFemB,
-    vodalianSoldiersFemC,
-    vodalianSoldiersFemD,
-} from "../index.cards";
-import {
-    getAliasedPrintIds,
-    getDefinition,
-    getDefinitionSetCode,
-} from "../../../index";
+import { getDefinition } from "../../../index";
 import {
     processPendingActionTriggers,
     resolveTopOfStack,
@@ -65,12 +52,6 @@ const vodalianWarMachine = getDefinition(
 );
 const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 
-const ALL_FEM_PRINTS = [
-    vodalianSoldiersFemB,
-    vodalianSoldiersFemC,
-    vodalianSoldiersFemD,
-];
-
 // ---------------------------------------------------------------------------
 // Vanilla creature (CR 302 — Creature card as pure data: types/subtypes + P/T
 // only; values validated against Scryfall set:fem, modern Oracle).
@@ -110,33 +91,6 @@ describe("Vodalian Soldiers (vanilla creature, CR 302)", () => {
         expect(def.subtypes).toEqual(["Merfolk", "Soldier"]);
         expect(def.power).toBe(1);
         expect(def.toughness).toBe(2);
-    });
-});
-
-// ---------------------------------------------------------------------------
-// Multi-art prints (ADR 0014) — FEM's signature multi-artwork commons ship as
-// one shared CardDefinition plus one CardPrint per additional artwork. Every
-// artwork must resolve to the single definition and carry the fem set code.
-// ---------------------------------------------------------------------------
-
-describe("Vodalian Soldiers multi-art prints (ADR 0014)", () => {
-    it("resolves every alternate artwork to the shared definition", () => {
-        for (const print of ALL_FEM_PRINTS) {
-            expect(getDefinition(print.printId)).toBe(vodalianSoldiers);
-            expect(print.definitionId).toBe(vodalianSoldiers.id);
-        }
-    });
-
-    it("lists all FEM artworks as printings, original first (deck builder)", () => {
-        // The printing list is the `cardPrints` table's (issue #5106); this
-        // file owns the records, so assert the alias carries every FEM art.
-        expect(getDefinitionSetCode(vodalianSoldiers.id)).toBe("fem");
-        const aliased = getAliasedPrintIds(vodalianSoldiers.id);
-        for (const print of ALL_FEM_PRINTS) {
-            expect(print.setCode).toBe("fem");
-            expect(aliased).toContain(print.printId);
-        }
-        expect(aliased).toHaveLength(ALL_FEM_PRINTS.length);
     });
 });
 
@@ -277,13 +231,6 @@ describe("Homarid — tide counter P/T cycle (CR 611.2c, 603.6a, 603.8)", () => 
         )!;
         expect(getEffectivePower(projected, slim)).toBe(3);
         expect(getEffectiveToughness(projected, slim)).toBe(3);
-    });
-
-    it("resolves all four artworks to the shared definition (ADR 0014)", () => {
-        for (const print of [homaridFemB, homaridFemC, homaridFemD]) {
-            expect(getDefinition(print.printId)).toBe(homarid);
-            expect(print.setCode).toBe("fem");
-        }
     });
 });
 
@@ -804,10 +751,6 @@ describe("Merseine — net counters + dynamic cost K (CR 122, 502.1, 601.2f, 202
         expect(ability?.cost.manaEqualToEnchantedCreatureCost).toBe(true);
         expect(ability?.cost.removeCounter).toEqual({ type: "net", count: 1 });
         expect(ability?.activatableByEnchantedController).toBe(true);
-    });
-
-    it("resolves all four artworks to the shared definition (ADR 0014)", () => {
-        expect(getDefinition(merseineFemB.printId)).toBe(merseine);
     });
 });
 

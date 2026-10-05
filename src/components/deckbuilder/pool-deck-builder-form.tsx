@@ -313,7 +313,10 @@ export default function PoolDeckBuilderForm({
             // A tap names a physical copy, so the `pinKey` travels: the tile
             // the player touched is the one that leaves, Basic or not (issue
             // #1626 / PR #2320 review NB1).
-            const basicSubtype = basicLandSubtypeOf(cardId);
+            const basicSubtype = basicLandSubtypeOf(
+                cardId,
+                deck.cards.find((c) => c.cardId === cardId)
+            );
             if (basicSubtype !== null) {
                 handleRemoveBasic(basicSubtype, pinKey);
                 return;
@@ -327,7 +330,7 @@ export default function PoolDeckBuilderForm({
                 return applySplit(d, split);
             });
         },
-        [updateDeck, handleRemoveBasic]
+        [updateDeck, handleRemoveBasic, deck.cards]
     );
 
     // Sideboard-zone click/drop: always moves the card into the Maindeck

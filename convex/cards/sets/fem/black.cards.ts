@@ -11,7 +11,6 @@
 
 import type {
     CardDefinition,
-    CardPrint,
     EffectTokenSpec,
     SpellContext,
 } from "../../types";
@@ -33,27 +32,6 @@ const THRULL_TOKEN: EffectTokenSpec = {
     colors: ["B"],
 };
 
-export const armorThrullFemB: CardPrint = {
-    printId: "9c6120e6-ceb8-4eab-86b0-18d38ed97d8f", // FEM 33b
-    definitionId: "a98384d1-8e7d-4c41-9f23-47bc2ae2ad6a",
-    setCode: "fem",
-    rarity: "common",
-};
-
-export const armorThrullFemC: CardPrint = {
-    printId: "18a91ed4-131e-455b-a3bd-0bd42aa754e5", // FEM 33c
-    definitionId: "a98384d1-8e7d-4c41-9f23-47bc2ae2ad6a",
-    setCode: "fem",
-    rarity: "common",
-};
-
-export const armorThrullFemD: CardPrint = {
-    printId: "3d653ca4-c21f-4594-b900-2526a912001b", // FEM 33d
-    definitionId: "a98384d1-8e7d-4c41-9f23-47bc2ae2ad6a",
-    setCode: "fem",
-    rarity: "common",
-};
-
 export const basalThrull: CardDefinition = {
     id: "0c1d5d13-0160-48cb-8fac-dd86102569b4", // FEM 34a (canonical art)
     rarity: "common",
@@ -73,27 +51,6 @@ export const basalThrull: CardDefinition = {
             manaProduced: { B: 2 },
         },
     ],
-};
-
-export const basalThrullFemB: CardPrint = {
-    printId: "fcf60db5-4f69-4db4-9dc2-1a6fbdec0429", // FEM 34b
-    definitionId: basalThrull.id,
-    setCode: "fem",
-    rarity: "common",
-};
-
-export const basalThrullFemC: CardPrint = {
-    printId: "a86d9647-3a87-4620-aa07-26f996fc6fa3", // FEM 34c
-    definitionId: basalThrull.id,
-    setCode: "fem",
-    rarity: "common",
-};
-
-export const basalThrullFemD: CardPrint = {
-    printId: "b6908e4c-f94d-4b0d-b9a5-64c04751f108", // FEM 34d
-    definitionId: basalThrull.id,
-    setCode: "fem",
-    rarity: "common",
 };
 
 export const breedingPit: CardDefinition = {
@@ -229,27 +186,6 @@ export const hymnToTourach: CardDefinition = {
     effects: [{ op: "discardAtRandom", player: { target: 0 }, count: 2 }],
 };
 
-export const hymnToTourachFemB: CardPrint = {
-    printId: "8601f082-7e43-44ef-97d0-dead272b7eb4", // FEM 38b
-    definitionId: hymnToTourach.id,
-    setCode: "fem",
-    rarity: "common",
-};
-
-export const hymnToTourachFemC: CardPrint = {
-    printId: "58e125c6-81dc-4907-aad2-2ccd1cb166f0", // FEM 38c
-    definitionId: hymnToTourach.id,
-    setCode: "fem",
-    rarity: "common",
-};
-
-export const hymnToTourachFemD: CardPrint = {
-    printId: "5bc50e08-dd6f-4ea7-87f8-cce72bafb928", // FEM 38d
-    definitionId: hymnToTourach.id,
-    setCode: "fem",
-    rarity: "common",
-};
-
 const INITIATES_EBON_HAND_ID = "5be87527-3b8f-4529-afdb-a61ad4e787e1"; // FEM 39a
 
 export const initiatesOfTheEbonHand: CardDefinition = {
@@ -311,20 +247,6 @@ export const initiatesOfTheEbonHand: CardDefinition = {
     ],
 };
 
-export const initiatesOfTheEbonHandFemB: CardPrint = {
-    printId: "03c7dc01-46d0-42be-a1a9-48f69c846d12", // FEM 39b
-    definitionId: initiatesOfTheEbonHand.id,
-    setCode: "fem",
-    rarity: "common",
-};
-
-export const initiatesOfTheEbonHandFemC: CardPrint = {
-    printId: "62982970-e8b8-4659-bcf0-21aab662d89d", // FEM 39c
-    definitionId: initiatesOfTheEbonHand.id,
-    setCode: "fem",
-    rarity: "common",
-};
-
 export const mindstabThrull: CardDefinition = {
     id: "499a791f-ac4f-4a96-b59b-37043686a79a", // FEM 40a (canonical art)
     rarity: "common",
@@ -382,20 +304,6 @@ export const mindstabThrull: CardDefinition = {
             ],
         },
     ],
-};
-
-export const mindstabThrullFemB: CardPrint = {
-    printId: "781e4b62-3910-4ba1-9e72-e99de8523a94", // FEM 40b
-    definitionId: mindstabThrull.id,
-    setCode: "fem",
-    rarity: "common",
-};
-
-export const mindstabThrullFemC: CardPrint = {
-    printId: "923189c6-d407-4cc4-a062-2f09a4c7c1e3", // FEM 40c
-    definitionId: mindstabThrull.id,
-    setCode: "fem",
-    rarity: "common",
 };
 
 export const necrite: CardDefinition = {
@@ -461,20 +369,6 @@ export const necrite: CardDefinition = {
     ],
 };
 
-export const necriteFemB: CardPrint = {
-    printId: "e19a4d41-e7b0-48b3-8e2e-9ac00f119ce2", // FEM 41b
-    definitionId: necrite.id,
-    setCode: "fem",
-    rarity: "common",
-};
-
-export const necriteFemC: CardPrint = {
-    printId: "660ae99f-4e61-45fd-9436-855a38289c8b", // FEM 41c
-    definitionId: necrite.id,
-    setCode: "fem",
-    rarity: "common",
-};
-
 export const orderOfTheEbonHand: CardDefinition = {
     id: "9e51f5d8-a7cc-4720-8af5-e002bcfd78a0", // FEM 42a (canonical art)
     rarity: "common",
@@ -521,20 +415,6 @@ export const orderOfTheEbonHand: CardDefinition = {
             ],
         },
     ],
-};
-
-export const orderOfTheEbonHandFemB: CardPrint = {
-    printId: "60ffbb40-13c1-4d01-9421-95b2410d0d3b", // FEM 42b
-    definitionId: orderOfTheEbonHand.id,
-    setCode: "fem",
-    rarity: "common",
-};
-
-export const orderOfTheEbonHandFemC: CardPrint = {
-    printId: "22c32774-5507-4a60-9ed2-2a570f6ff8e3", // FEM 42c
-    definitionId: orderOfTheEbonHand.id,
-    setCode: "fem",
-    rarity: "common",
 };
 
 export const soulExchange: CardDefinition = {

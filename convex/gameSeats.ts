@@ -11,12 +11,23 @@ import { snapshotDeck, type MatchPlayer } from "./matches";
 export const ACTIVE_GAME_MESSAGE =
     "You already have an active game. Finish or leave it before starting another.";
 
+/** A deck entry on a seat: `cardId` is the CHOSEN printing (a Print ID, or the
+ *  Card ID itself for a default printing); `definitionId` is the Card
+ *  Definition it prints, filled at the server boundary from the `cardPrints`
+ *  rows just before the library is built (`withSeatDefinitionIds`, ADR 0140
+ *  §5). Absent on a stored deck snapshot — never persisted. */
+export type SeatDeckCard = {
+    cardId: string;
+    cardName: string;
+    definitionId?: string;
+};
+
 export type DeckInput = {
     id: string;
     name: string;
     format: string;
-    cards: { cardId: string; cardName: string }[];
-    sideboard?: { cardId: string; cardName: string }[];
+    cards: SeatDeckCard[];
+    sideboard?: SeatDeckCard[];
 };
 
 export type PlayerInput = {

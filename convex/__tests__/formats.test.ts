@@ -747,16 +747,30 @@ describe("validateDeck — end-to-end per Format (issue #512)", () => {
 });
 
 describe("validateDeck — wired to the REAL card registry (ADR 0036)", () => {
-    // Real ids from sets/lea.ts, sets/drk.ts and the 2ed reprint module.
+    // Real Card IDs from sets/lea.ts and sets/drk.ts; the 2ed/3ed ids are
+    // Print IDs, which only a `cardPrints` row resolves (ADR 0140 §5).
     const BOLT_LEA = "d573ef03-4730-45aa-93dd-e45ac1dbaf4a";
     const BOLT_2ED = "ff1b8fc5-604a-4449-a73d-861e53642a70";
     const BOLT_3ED = "cb9b9a9d-ae4c-4e04-bf9d-cae48f01292c";
     // Ancestral Recall — on the EC Restricted list. The lea id is the canonical
-    // CardDefinition id; the 2ed id is the Unlimited printId resolving to it.
+    // CardDefinition id; the 2ed id is the Unlimited Print ID of the same card.
     const ANCESTRAL_LEA = "70e7ddf2-5604-41e7-bb9d-ddd03d3e9d0b";
     const ANCESTRAL_2ED = "2dd41293-d7c8-4422-9f0c-b3e96350f5c9";
     const SQUIRE_DRK = "374df061-ebd2-4f1f-9a6e-7940a49197a9";
     const MOUNTAIN = "eace2c85-976c-425e-9800-5a6ccbd91b56";
+    const printRow = (
+        printId: string,
+        cardId: string,
+        set: string,
+        rarity: "common" | "rare"
+    ) => ({ printId, cardId, set, rarity });
+    const resolveWithRows = makeResolveCardFromRows(
+        indexPrintRows([
+            printRow(BOLT_2ED, BOLT_LEA, "2ed", "common"),
+            printRow(BOLT_3ED, BOLT_LEA, "3ed", "common"),
+            printRow(ANCESTRAL_2ED, ANCESTRAL_LEA, "2ed", "rare"),
+        ])
+    );
 
     it("the default resolver is the real registry resolver", () => {
         // A 60-card Old School deck of real lea cards + basics is legal with no
@@ -773,7 +787,7 @@ describe("validateDeck — wired to the REAL card registry (ADR 0036)", () => {
         expect(validateDeck(deck, "old-school").isLegal).toBe(true);
     });
 
-    it("accepts a 2ed (Unlimited) reprint in Old School via the real resolver (#560)", () => {
+    it("accepts a 2ed (Unlimited) reprint in Old School via its cardPrints row (#560)", () => {
         // 1 Unlimited Bolt + 59 basics = 60. Unlimited (2ed) is now an allowed
         // Old School set, so the deck validates end-to-end with no reasons.
         const deck: ValidatableDeck = {
@@ -782,12 +796,12 @@ describe("validateDeck — wired to the REAL card registry (ADR 0036)", () => {
                 ...Array.from({ length: 59 }, () => card(MOUNTAIN, "Mountain")),
             ],
         };
-        const result = validateDeck(deck, "old-school");
+        const result = validateDeck(deck, "old-school", resolveWithRows);
         expect(result.isLegal).toBe(true);
         expect(result.reasons).toEqual([]);
     });
 
-    it("accepts a 3ed (Revised) reprint in Old School via the real resolver (#561)", () => {
+    it("accepts a 3ed (Revised) reprint in Old School via its cardPrints row (#561)", () => {
         // 1 Revised Bolt + 59 basics = 60. Revised (3ed) is now an allowed Old
         // School set, so the deck validates end-to-end with no reasons.
         const deck: ValidatableDeck = {
@@ -796,7 +810,7 @@ describe("validateDeck — wired to the REAL card registry (ADR 0036)", () => {
                 ...Array.from({ length: 59 }, () => card(MOUNTAIN, "Mountain")),
             ],
         };
-        const result = validateDeck(deck, "old-school");
+        const result = validateDeck(deck, "old-school", resolveWithRows);
         expect(result.isLegal).toBe(true);
         expect(result.reasons).toEqual([]);
     });
@@ -814,7 +828,7 @@ describe("validateDeck — wired to the REAL card registry (ADR 0036)", () => {
                 ...Array.from({ length: 55 }, () => card(MOUNTAIN, "Mountain")),
             ],
         };
-        const result = validateDeck(deck, "old-school");
+        const result = validateDeck(deck, "old-school", resolveWithRows);
         expect(result.isLegal).toBe(false);
         expect(result.reasons.some((r) => r.code === "copy-limit")).toBe(true);
         // Exactly one copy-limit reason — the two printings share one budget.
@@ -831,7 +845,9 @@ describe("validateDeck — wired to the REAL card registry (ADR 0036)", () => {
                 ...Array.from({ length: 56 }, () => card(MOUNTAIN, "Mountain")),
             ],
         };
-        expect(validateDeck(legal, "old-school").isLegal).toBe(true);
+        expect(validateDeck(legal, "old-school", resolveWithRows).isLegal).toBe(
+            true
+        );
     });
 
     it("enforces the Restricted one-copy cap across the lea/2ed printings (#560)", () => {
@@ -845,7 +861,7 @@ describe("validateDeck — wired to the REAL card registry (ADR 0036)", () => {
                 ...Array.from({ length: 58 }, () => card(MOUNTAIN, "Mountain")),
             ],
         };
-        const result = validateDeck(deck, "old-school");
+        const result = validateDeck(deck, "old-school", resolveWithRows);
         expect(result.isLegal).toBe(false);
         expect(result.reasons.some((r) => r.code === "restricted")).toBe(true);
     });
@@ -919,20 +935,21 @@ describe("validateDeck — Premodern legality by Scryfall, REAL registry (issue 
     // validator would have rejected outright.
     const CITY_OF_BRASS_ARN = "f4e32327-380d-471e-813b-4c27477787ce";
 
+    const row = (printId: string, cardId: string, set: string) => ({
+        printId,
+        cardId,
+        set,
+        rarity: "common" as const,
+    });
+    const resolve = makeResolveCardFromRows(
+        indexPrintRows([
+            row(COUNTERSPELL_TMP, COUNTERSPELL_DEF, "tmp"),
+            row(BOLT_4ED, BOLT_DEF, "4ed"),
+            row(BALL_LIGHTNING_BTD, BALL_LIGHTNING_DEF, "btd"),
+        ])
+    );
+
     it("resolves each reprint printId to its canonical definition through its cardPrints row (unaffected by the legality change; issue #5106)", () => {
-        const row = (printId: string, cardId: string, set: string) => ({
-            printId,
-            cardId,
-            set,
-            rarity: "common" as const,
-        });
-        const resolve = makeResolveCardFromRows(
-            indexPrintRows([
-                row(COUNTERSPELL_TMP, COUNTERSPELL_DEF, "tmp"),
-                row(BOLT_4ED, BOLT_DEF, "4ed"),
-                row(BALL_LIGHTNING_BTD, BALL_LIGHTNING_DEF, "btd"),
-            ])
-        );
         const cs = resolve(COUNTERSPELL_TMP);
         expect(cs?.setCode).toBe("tmp");
         expect(cs?.cardId).toBe(COUNTERSPELL_DEF);
@@ -979,14 +996,14 @@ describe("validateDeck — Premodern legality by Scryfall, REAL registry (issue 
                 ...Array.from({ length: 57 }, () => card(MOUNTAIN, "Mountain")),
             ],
         };
-        const { isLegal, reasons } = validateDeck(deck, "premodern");
+        const { isLegal, reasons } = validateDeck(deck, "premodern", resolve);
         expect(reasons.some((r) => r.code === "premodern-illegal")).toBe(false);
         expect(reasons.some((r) => r.code === "set-unknown")).toBe(false);
         expect(isLegal).toBe(true);
         expect(reasons).toEqual([]);
     });
 
-    it("assertDeckLegal accepts the Premodern reprint deck via the real resolver", () => {
+    it("assertDeckLegal accepts the Premodern reprint deck via its cardPrints rows", () => {
         const deck = {
             name: "Premodern Reprints",
             format: "premodern",
@@ -997,7 +1014,7 @@ describe("validateDeck — Premodern legality by Scryfall, REAL registry (issue 
                 ...Array.from({ length: 57 }, () => card(MOUNTAIN, "Mountain")),
             ],
         };
-        expect(() => assertDeckLegal(deck)).not.toThrow();
+        expect(() => assertDeckLegal(deck, resolve)).not.toThrow();
     });
 });
 
@@ -1249,7 +1266,17 @@ describe("validateDeck — Old School full legality, REAL registry (issue #516)"
             card(BLACK_LOTUS_LEA, "Black Lotus"),
             card(BLACK_LOTUS_LEB, "Black Lotus (LEB)"),
         ]);
-        const reasons = validateDeck(deck, "old-school").reasons;
+        const resolve = makeResolveCardFromRows(
+            indexPrintRows([
+                {
+                    printId: BLACK_LOTUS_LEB,
+                    cardId: BLACK_LOTUS_LEA,
+                    set: "leb",
+                    rarity: "rare",
+                },
+            ])
+        );
+        const reasons = validateDeck(deck, "old-school", resolve).reasons;
         expect(reasons.some((r) => r.code === "restricted")).toBe(true);
     });
 

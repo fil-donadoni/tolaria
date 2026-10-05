@@ -5,7 +5,6 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2).
 import type {
     CardDefinition,
-    CardPrint,
     PermanentView,
     SpellContext,
     StaticEffectStateView,
@@ -864,14 +863,6 @@ export const fyndhornElves: CardDefinition = {
         }),
     ],
 };
-// Giant Growth — ICE reprint of the LEA instant (+3/+3 until end of turn).
-// CardPrint onto the LEA definition (ADR 0014).
-export const giantGrowthIce: CardPrint = {
-    printId: "431c9749-fd7b-4960-a910-8d41d3704e6c",
-    definitionId: "367dbefe-3366-408e-9fcf-7dc00f8cc201",
-    setCode: "ice",
-    rarity: "common",
-};
 // Gorilla Pack — {2}{G} 3/3 Ape. "This creature can't attack unless defending
 // player controls a Forest.\nWhen you control no Forests, sacrifice this
 // creature." The exact Sea Serpent (LEA) shape — a self `attack-restriction`
@@ -969,14 +960,6 @@ export const hotSprings: CardDefinition = {
             ],
         },
     ],
-};
-// Hurricane — ICE reprint of the LEA sorcery (X damage to each flier and each
-// player). CardPrint onto the LEA definition (ADR 0014).
-export const hurricaneIce: CardPrint = {
-    printId: "a8cc6db7-1f40-40e3-a7ea-92f1d05e2e3d",
-    definitionId: "52f5a19f-16e4-4d35-89e1-969ac8202f88",
-    setCode: "ice",
-    rarity: "uncommon",
 };
 // Johtull Wurm — "Whenever this creature becomes blocked, it gets -2/-1 until
 // end of turn for each creature blocking it beyond the first." (CR 509.1h
@@ -1076,14 +1059,6 @@ export const lhurgoyf: CardDefinition = {
             },
         },
     ],
-};
-// Lure — ICE reprint of the LEA Aura ("All creatures able to block enchanted
-// creature do so"). CardPrint onto the LEA definition (ADR 0014).
-export const lureIce: CardPrint = {
-    printId: "87af69ee-c2bb-46ea-8d36-d484d04a3c8a",
-    definitionId: "2a87b26e-0431-42e9-b44f-94ba8546111a",
-    setCode: "ice",
-    rarity: "uncommon",
 };
 // Nature's Lore — "Search your library for a Forest card, put that card onto the
 // battlefield, then shuffle." (CR 701.23 search; CR 400.7 put onto battlefield;
@@ -1187,14 +1162,6 @@ export const pyknite: CardDefinition = {
             ],
         }),
     ],
-};
-// Regeneration — ICE reprint of the LEA Aura ("{G}: Regenerate enchanted
-// creature"). CardPrint onto the LEA definition (ADR 0014).
-export const regenerationIce: CardPrint = {
-    printId: "1dacfaec-6b61-450d-a134-2087c38a298a",
-    definitionId: "b7b7aa34-b4f8-41b4-82ce-ab2e204c3bf4",
-    setCode: "ice",
-    rarity: "common",
 };
 // Rime Dryad — snow forestwalk (CR 702.14 / 205.4a): can't be blocked while the
 // defending player controls a snow Forest. The `snow forestwalk` keyword is
@@ -1751,15 +1718,6 @@ export const wiitigo: CardDefinition = {
             },
         }),
     ],
-};
-// Wild Growth — ICE reprint of the LEA Aura ("enchanted land's controller adds
-// an additional {G} when it's tapped for mana"). CardPrint onto the LEA
-// definition (ADR 0014).
-export const wildGrowthIce: CardPrint = {
-    printId: "f8047ab9-a0fc-4933-bcbc-e761aa0f622b",
-    definitionId: "fd896dfa-66c0-4327-8e5b-489bbe350c95",
-    setCode: "ice",
-    rarity: "common",
 };
 // Woolly Mammoths — "This creature has trample as long as you control a snow
 // land." (CR 205.4a snow supertype; CR 702.19 trample; CR 611/613 layer 6

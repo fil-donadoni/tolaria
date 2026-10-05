@@ -1,4 +1,4 @@
-import type { CardDefinition, CardPrint, Rarity } from "./types";
+import type { CardDefinition, Rarity } from "./types";
 // All set modules — imported once, populated into the runtime registry on
 // import (side-effect). This module is the heavyweight split-out from
 // `index.ts`; only imported by the Convex backend and by client pages that
@@ -13,8 +13,6 @@ import * as drk from "./sets/drk/index.cards";
 import * as fem from "./sets/fem/index.cards";
 import * as ice from "./sets/ice/index.cards";
 import * as jou from "./sets/jou/index.cards";
-import * as unlimited from "./sets/2ed/index.cards";
-import * as revised from "./sets/3ed/index.cards";
 // Vintage Cube card-draw / card-advantage tranche (issue #674)
 import * as lrw from "./sets/lrw/index.cards";
 import * as m10 from "./sets/m10/index.cards";
@@ -50,7 +48,6 @@ import * as mh3 from "./sets/mh3/index.cards";
 import * as chk from "./sets/chk/index.cards";
 import * as cmr from "./sets/cmr/index.cards";
 import * as ody from "./sets/ody/index.cards";
-import * as ema from "./sets/ema/index.cards";
 import * as usg from "./sets/usg/index.cards";
 import * as uds from "./sets/uds/index.cards";
 import * as plc from "./sets/plc/index.cards";
@@ -78,7 +75,6 @@ import * as neo from "./sets/neo/index.cards";
 import * as bok from "./sets/bok/index.cards";
 import * as roe from "./sets/roe/index.cards";
 import * as lci from "./sets/lci/index.cards";
-import * as soc from "./sets/soc/index.cards";
 import * as por from "./sets/por/index.cards";
 import * as p02 from "./sets/p02/index.cards";
 import * as phpr from "./sets/phpr/index.cards";
@@ -143,8 +139,6 @@ import * as ala from "./sets/ala/index.cards";
 import * as otj from "./sets/otj/index.cards";
 import * as hml from "./sets/hml/index.cards";
 import * as scg from "./sets/scg/index.cards";
-import * as fourthEdition from "./sets/4ed/index.cards";
-import * as beatdown from "./sets/btd/index.cards";
 import * as inv from "./sets/inv/index.cards";
 import * as all from "./sets/all/index.cards";
 import * as pcy from "./sets/pcy/index.cards";
@@ -159,8 +153,6 @@ import * as dst from "./sets/dst/index.cards";
 
 import {
     preloadDefinitions,
-    registerLazyPrintAlias,
-    registerPrintAlias,
     setLazyDefinitionSource,
     tryGetDefinition,
     getDefinition,
@@ -190,16 +182,6 @@ import { isTwinDefinitionId } from "./twinId";
 // `scripts/__tests__/compiled-pool-client-seam.test.ts`.
 import { compiledReadyDefinitions, packedCorpusLookup } from "./compiledPool";
 
-function isCardPrint(value: unknown): value is CardPrint {
-    return (
-        typeof value === "object" &&
-        value !== null &&
-        "printId" in value &&
-        "definitionId" in value &&
-        "setCode" in value
-    );
-}
-
 function isCardDefinition(value: unknown): value is CardDefinition {
     return (
         typeof value === "object" &&
@@ -222,8 +204,6 @@ const setModules: { code: string; exports: Record<string, unknown> }[] = [
     { code: "fem", exports: fem },
     { code: "ice", exports: ice },
     { code: "jou", exports: jou },
-    { code: "2ed", exports: unlimited },
-    { code: "3ed", exports: revised },
     { code: "lrw", exports: lrw },
     { code: "m10", exports: m10 },
     { code: "m11", exports: m11 },
@@ -256,7 +236,6 @@ const setModules: { code: string; exports: Record<string, unknown> }[] = [
     { code: "mh3", exports: mh3 },
     { code: "chk", exports: chk },
     { code: "ody", exports: ody },
-    { code: "ema", exports: ema },
     { code: "usg", exports: usg },
     { code: "uds", exports: uds },
     { code: "plc", exports: plc },
@@ -284,7 +263,6 @@ const setModules: { code: string; exports: Record<string, unknown> }[] = [
     { code: "bok", exports: bok },
     { code: "roe", exports: roe },
     { code: "lci", exports: lci },
-    { code: "soc", exports: soc },
     { code: "por", exports: por },
     { code: "p02", exports: p02 },
     { code: "phpr", exports: phpr },
@@ -350,8 +328,6 @@ const setModules: { code: string; exports: Record<string, unknown> }[] = [
     { code: "otj", exports: otj },
     { code: "hml", exports: hml },
     { code: "scg", exports: scg },
-    { code: "4ed", exports: fourthEdition },
-    { code: "btd", exports: beatdown },
     { code: "inv", exports: inv },
     { code: "all", exports: all },
     { code: "pcy", exports: pcy },
@@ -368,10 +344,6 @@ const setModules: { code: string; exports: Record<string, unknown> }[] = [
 
 const allCards: CardDefinition[] = setModules.flatMap((m) =>
     Object.values(m.exports).filter(isCardDefinition)
-);
-
-const allPrints: CardPrint[] = setModules.flatMap((m) =>
-    Object.values(m.exports).filter(isCardPrint)
 );
 
 // definitionId → home set code (the module the CardDefinition is declared in).
@@ -546,52 +518,7 @@ export function registerCompiledDefinitions(
     // The CLIENT calls this after module load (from the loading gate), so a
     // population memo taken earlier would be missing every compiled row.
     expandedCatalogueCards = null;
-    wirePrintAliases(rows.length > 0);
     return fresh.length;
-}
-
-// printId -> whether `registerPrintAlias` has already run for it — tracked
-// separately from the registry because `registerPrintAlias` itself throws on
-// a repeat call, and `wirePrintAliases` re-scans EVERY print on EVERY
-// `registerCompiledDefinitions` call (below).
-const aliasedPrintIds = new Set<string>();
-
-/**
- * Wire print-id → same-def-object lookups so `getDefinition(printId)`
- * returns the SAME object reference as `getDefinition(definitionId)` —
- * sharing the `expansionCache` (WeakMap) entry.
- *
- * Re-run on every `registerCompiledDefinitions` call, not just once at module
- * load (ADR 0114 §2, issue #4027): on the SERVER the bundled pool is the
- * whole compiled population and one pass resolves everything. On the CLIENT
- * `./compiledPool` is aliased to an empty array (ADR 0113 §2) — module load
- * calls this with NOTHING, so a retired card's reprint (definitionId now
- * served only by its compiled twin) cannot resolve yet, and must not throw:
- * the loading gate's later call, with the rows it FETCHED
- * (`src/lib/catalogueArtifact.ts`), is what actually hydrates it. Only a call
- * that hydrated real rows (`hydrated`) — the server's one call, or the
- * client's fetch-gate call — can conclude a leftover definitionId is
- * genuinely broken rather than merely not-yet-hydrated.
- */
-function wirePrintAliases(hydrated: boolean): CardPrint[] {
-    const unresolved: CardPrint[] = [];
-    for (const print of allPrints) {
-        if (aliasedPrintIds.has(print.printId)) continue;
-        const def = tryGetDefinition(print.definitionId);
-        if (!def) {
-            unresolved.push(print);
-            continue;
-        }
-        registerPrintAlias(print.printId, print.definitionId);
-        aliasedPrintIds.add(print.printId);
-    }
-    if (hydrated && unresolved.length > 0) {
-        const first = unresolved[0]!;
-        throw new Error(
-            `CardPrint ${first.printId} references unknown definitionId ${first.definitionId}`
-        );
-    }
-    return unresolved;
 }
 
 // Issue #4165 (PRD #4161) — the packed fallback, behind `PACKED_CORPUS_LOOKUP`
@@ -600,8 +527,7 @@ function wirePrintAliases(hydrated: boolean): CardPrint[] {
 // module load, exactly as it always was. On: NOTHING compiled is preloaded —
 // that per-request evaluation is the cost PRD #4161 removes — and
 // `getDefinition` resolves a compiled id from the packed corpus on first
-// lookup, one block at a time. A print whose definition lives only there is
-// wired lazily too, so loading this module inflates no block at all.
+// lookup, one block at a time, so loading this module inflates no block at all.
 //
 // With the switch on, the catalogue-wide populations fed from the compiled rows
 // (`compiledRegistered`, the name map, `definitionSetCode`) stay empty of them:
@@ -610,11 +536,6 @@ function wirePrintAliases(hydrated: boolean): CardPrint[] {
 if (packedCorpusLookup === null) {
     registerCompiledDefinitions(compiledReadyDefinitions);
 } else {
-    // Wired BEFORE the source is installed, so the resolution pass reads the
-    // resident map only; what it cannot resolve is a compiled-only definition.
-    for (const print of wirePrintAliases(false)) {
-        registerLazyPrintAlias(print.printId, print.definitionId);
-    }
     setLazyDefinitionSource(packedCorpusLookup.lookup);
 }
 
@@ -778,16 +699,6 @@ export interface CardPrinting {
     setCode: string;
 }
 
-/** The print ids the hand-written `CardPrint` records alias onto
- *  `definitionId` — the ALIAS's own contents, for the tests that pin its
- *  wiring (`packedCorpusLookup`, `limitedSeatStore`). Not a printing list:
- *  every consumer of printings reads the `cardPrints` table (issue #5106),
- *  and this goes with the alias in issue #4121. */
-export const getAliasedPrintIds = (definitionId: string): string[] =>
-    allPrints
-        .filter((print) => print.definitionId === definitionId)
-        .map((print) => print.printId);
-
 /** A Card Definition's own (first-printing) Set code — the one Set the
  *  registry knows without a printing list. Empty when unknown. */
 export const getDefinitionSetCode = (definitionId: string): string =>
@@ -802,7 +713,6 @@ export const isPrintedInSet = (cardId: string, setCode: string): boolean => {
 export const getAllSetCodes = (): string[] => {
     const codes = new Set<string>();
     for (const code of definitionSetCode.values()) codes.add(code);
-    for (const print of allPrints) codes.add(print.setCode);
     return [...codes].sort();
 };
 
@@ -841,14 +751,11 @@ type DeckCardArg = { cardId: string; cardName: string; definitionId?: string };
 
 /**
  * Fills a deck card entry's `definitionId` (Card Prints, ADR 0140/issue
- * #4117) when the caller omitted it — `cardId` here is the chosen PRINTING,
- * exactly the same overload `resolveDeckCardMeta` already unwinds to build a
- * Game's Library. So every write through `userDecks`/`presetDecks` ends up
- * with `definitionId` set, whether or not the client (deck builder, Limited
- * Auto-Build, deck import, …) was updated to send one — the field never
- * needs its OWN migration across every caller of those mutations. A `cardId`
- * the registry cannot resolve (a withdrawn/renamed printing) falls back to
- * itself rather than dropping the card.
+ * #4117) when the caller omitted it, from the registry: right for a Card ID,
+ * and for a Print ID it falls back to the id itself rather than dropping the
+ * card, because the registry no longer knows printings (issue #4121). A write
+ * that can reach the `cardPrints` rows resolves a printing there first
+ * (`fillDefinitionIds`, `convex/cardPrintRows.ts`).
  */
 export function withDefinitionId(card: DeckCardArg): Required<DeckCardArg> {
     if (card.definitionId) return card as Required<DeckCardArg>;

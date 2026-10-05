@@ -3,16 +3,6 @@
 // cites the CR section it exercises.
 
 import { describe, it, expect } from "vitest";
-import {
-    deathWardIce,
-    disenchantIce,
-    swordsToPlowsharesIce,
-    circleOfProtectionBlackIce,
-    circleOfProtectionBlueIce,
-    circleOfProtectionGreenIce,
-    circleOfProtectionRedIce,
-    circleOfProtectionWhiteIce,
-} from "../../ice/index.cards";
 import { getDefinition } from "../../../index";
 import {
     tryAutoCommitPendingCast,
@@ -152,41 +142,6 @@ const questingBeast = getDefinition("e41cf82d-3213-47ce-a015-6e51a8b07e4f");
 // ===========================================================================
 
 // --- Reprints (CardPrint onto existing definitions, ADR 0014) --------------
-
-describe("ICE White reprints (CardPrint wiring, ADR 0014)", () => {
-    it("Death Ward print resolves to the LEA definition", () => {
-        expect(getDefinition(deathWardIce.printId).name).toBe("Death Ward");
-        expect(deathWardIce.definitionId).toBe(
-            "fa5466cc-aa57-4a7f-8b21-d92b2fe02e13"
-        );
-        expect(deathWardIce.setCode).toBe("ice");
-    });
-    it("Disenchant print resolves to the LEA definition", () => {
-        expect(getDefinition(disenchantIce.printId).name).toBe("Disenchant");
-    });
-    it("Swords to Plowshares print resolves to the LEA definition", () => {
-        expect(getDefinition(swordsToPlowsharesIce.printId).name).toBe(
-            "Swords to Plowshares"
-        );
-    });
-    it("Circle of Protection cycle prints resolve to their definitions", () => {
-        expect(getDefinition(circleOfProtectionBlackIce.printId).name).toBe(
-            "Circle of Protection: Black"
-        );
-        expect(getDefinition(circleOfProtectionBlueIce.printId).name).toBe(
-            "Circle of Protection: Blue"
-        );
-        expect(getDefinition(circleOfProtectionGreenIce.printId).name).toBe(
-            "Circle of Protection: Green"
-        );
-        expect(getDefinition(circleOfProtectionRedIce.printId).name).toBe(
-            "Circle of Protection: Red"
-        );
-        expect(getDefinition(circleOfProtectionWhiteIce.printId).name).toBe(
-            "Circle of Protection: White"
-        );
-    });
-});
 
 // --- Armor of Faith (Aura: static +1/+1 + {W}:+0/+1, CR 613) ----------------
 

@@ -3,7 +3,6 @@
 // cites the CR section it exercises.
 
 import { describe, it, expect } from "vitest";
-import { islandIce, forestIce } from "../../ice/index.cards";
 import { collectAttackSacrificeTax } from "../../../../gre/combat";
 import {
     sacrificeCandidates,
@@ -555,7 +554,7 @@ describe("Earthlink — upkeep pay {2} or sac + dies→sac-land (CR 603.6a / 603
             controllerId: "p1",
             ownerId: "p1",
         });
-        const land = makeInstance(forestIce.printId, {
+        const land = makeInstance("6f1c8cb0-38eb-408b-94e8-16db83999b3b", {
             id: "p2-forest",
             controllerId: "p2",
             ownerId: "p2",
@@ -720,7 +719,7 @@ describe("Merieke Ri Berit — does-not-untap + {T} gain control + destroy-on-le
 
 describe("Monsoon — each end step: tap Islands + damage = count (CR 603.6a / 701.20a / 120.1)", () => {
     function makeIsland(id: string, controllerId: string) {
-        return makeInstance(islandIce.printId, {
+        return makeInstance("90a57c0e-fa61-45ef-955d-d296403967d5", {
             id,
             controllerId,
             ownerId: controllerId,

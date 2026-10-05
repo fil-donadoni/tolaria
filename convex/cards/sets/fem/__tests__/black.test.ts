@@ -5,25 +5,6 @@
 
 import { describe, it, expect } from "vitest";
 import {
-    armorThrullFemB,
-    armorThrullFemC,
-    armorThrullFemD,
-    basalThrullFemB,
-    basalThrullFemC,
-    basalThrullFemD,
-    hymnToTourachFemB,
-    hymnToTourachFemC,
-    hymnToTourachFemD,
-    initiatesOfTheEbonHandFemB,
-    initiatesOfTheEbonHandFemC,
-    mindstabThrullFemB,
-    mindstabThrullFemC,
-    necriteFemB,
-    necriteFemC,
-    orderOfTheEbonHandFemB,
-    orderOfTheEbonHandFemC,
-} from "../index.cards";
-import {
     getDefinition,
     getCardByName,
     getAllCatalogueCards,
@@ -34,7 +15,6 @@ import type {
     GameState,
     StackItem,
 } from "../../../../gre/state";
-import type { CardPrint } from "../../../types";
 import {
     getEffectivePower,
     getEffectiveToughness,
@@ -79,27 +59,6 @@ const thrullWizard = getDefinition("c4e732fb-cbef-4fd8-b704-e4d513a6cf2d");
 const tourachsChant = getDefinition("06883fd2-eccd-47c6-8c34-10d95e923685");
 const tourachsGate = getDefinition("d77f6401-a9fb-449c-b511-6fb837055bb4");
 const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
-
-// Multi-art black prints (C5) — each resolves to its shared definition.
-const C5_MULTI_ART_PRINTS: { print: CardPrint; defId: string }[] = [
-    { print: armorThrullFemB, defId: "a98384d1-8e7d-4c41-9f23-47bc2ae2ad6a" },
-    { print: armorThrullFemC, defId: "a98384d1-8e7d-4c41-9f23-47bc2ae2ad6a" },
-    { print: armorThrullFemD, defId: "a98384d1-8e7d-4c41-9f23-47bc2ae2ad6a" },
-    { print: basalThrullFemB, defId: basalThrull.id },
-    { print: basalThrullFemC, defId: basalThrull.id },
-    { print: basalThrullFemD, defId: basalThrull.id },
-    { print: hymnToTourachFemB, defId: hymnToTourach.id },
-    { print: hymnToTourachFemC, defId: hymnToTourach.id },
-    { print: hymnToTourachFemD, defId: hymnToTourach.id },
-    { print: initiatesOfTheEbonHandFemB, defId: initiatesOfTheEbonHand.id },
-    { print: initiatesOfTheEbonHandFemC, defId: initiatesOfTheEbonHand.id },
-    { print: mindstabThrullFemB, defId: mindstabThrull.id },
-    { print: mindstabThrullFemC, defId: mindstabThrull.id },
-    { print: necriteFemB, defId: necrite.id },
-    { print: necriteFemC, defId: necrite.id },
-    { print: orderOfTheEbonHandFemB, defId: orderOfTheEbonHand.id },
-    { print: orderOfTheEbonHandFemC, defId: orderOfTheEbonHand.id },
-];
 
 // ═══════════════════════════════════════════════════════════════════════════
 // C5 — Black: Thrulls & Order of the Ebon Hand (issue #572). One describe per
@@ -164,14 +123,6 @@ describe("FEM black registry parity + multi-art prints (ADR 0014)", () => {
             expect(getDefinition(def.id)).toBe(def);
             expect(getCardByName(def.name)).toBe(def);
             expect(getAllCatalogueCards()).toContain(def);
-        }
-    });
-
-    it("resolves every alternate artwork to the shared definition (fem set code)", () => {
-        for (const { print, defId } of C5_MULTI_ART_PRINTS) {
-            expect(print.definitionId).toBe(defId);
-            expect(getDefinition(print.printId).id).toBe(defId);
-            expect(print.setCode).toBe("fem");
         }
     });
 });

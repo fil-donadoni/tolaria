@@ -7,7 +7,6 @@ import { withDefinitionId } from "../cards/catalogue";
 // section), so the migration's row-patch DECISION is modeled here over a
 // hand-built row array, exactly as that precedent does for `format`.
 const LIGHTNING_BOLT_LEA = "d573ef03-4730-45aa-93dd-e45ac1dbaf4a";
-const LIGHTNING_BOLT_LEB = "b5d3dcab-2260-479d-9ef6-dfb92d4f6061";
 
 interface Row {
     _id: string;
@@ -44,7 +43,7 @@ describe("deck definitionId backfill (issue #4117, ADR 0140)", () => {
         const rows: Row[] = [
             {
                 _id: "a",
-                cards: [{ cardId: LIGHTNING_BOLT_LEB, cardName: "Bolt" }],
+                cards: [{ cardId: LIGHTNING_BOLT_LEA, cardName: "Bolt" }],
                 sideboard: [{ cardId: "no-such-print", cardName: "Ghost" }],
             },
         ];
@@ -61,7 +60,7 @@ describe("deck definitionId backfill (issue #4117, ADR 0140)", () => {
                 _id: "b",
                 cards: [
                     {
-                        cardId: LIGHTNING_BOLT_LEB,
+                        cardId: LIGHTNING_BOLT_LEA,
                         cardName: "Bolt",
                         definitionId: LIGHTNING_BOLT_LEA,
                     },
@@ -77,7 +76,7 @@ describe("deck definitionId backfill (issue #4117, ADR 0140)", () => {
         const rows: Row[] = [
             {
                 _id: "a",
-                cards: [{ cardId: LIGHTNING_BOLT_LEB, cardName: "Bolt" }],
+                cards: [{ cardId: LIGHTNING_BOLT_LEA, cardName: "Bolt" }],
             },
             {
                 _id: "b",

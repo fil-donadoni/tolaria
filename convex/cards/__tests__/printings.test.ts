@@ -200,13 +200,13 @@ describe("getAllSetCodes", () => {
 // `userDecks`/`presetDecks` write runs a deck card entry through so
 // `definitionId` is never actually absent at rest.
 describe("withDefinitionId (deck entry Card Prints split, issue #4117)", () => {
-    it("resolves a reprint's cardId (chosen printing) to its home definitionId", () => {
+    it("does not resolve a Print ID — only a cardPrints row does (issue #4121)", () => {
         expect(
             withDefinitionId({ cardId: LIGHTNING_BOLT_LEB, cardName: "Bolt" })
         ).toEqual({
             cardId: LIGHTNING_BOLT_LEB,
             cardName: "Bolt",
-            definitionId: LIGHTNING_BOLT_LEA,
+            definitionId: LIGHTNING_BOLT_LEB,
         });
     });
 

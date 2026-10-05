@@ -43,7 +43,7 @@ import { mvOfStackItem } from "../gre/targetFilters";
 import { manaValue } from "../gre/constants";
 
 const TREASURE_CRUISE = "7a59d4b1-6cf4-44ec-8a96-1bb7094fea21"; // {7}{U} Sorcery, delve
-const DISRUPT = "c000a02f-6b7e-4925-a938-59e645e980d7"; // {U} Instant, no delve
+const DISRUPT = "c6cc89b0-9acf-452b-ac1a-bc7e90eb32fc"; // {U} Instant, no delve
 const ISLAND = "90a57c0e-fa61-45ef-955d-d296403967d5"; // {T}: U
 const MOUNTAIN = "eace2c85-976c-425e-9800-5a6ccbd91b56"; // {T}: R
 

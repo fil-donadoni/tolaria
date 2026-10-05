@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /**
- * `bun run prints:sync [--dry-run|--equivalence]` — ADR 0140, issue #4116.
+ * `bun run prints:sync [--dry-run]` — ADR 0140, issue #4116.
  *
  * Reads Scryfall's `default_cards` bulk and keeps every printing of every
  * oracle id with a Card Definition (`data/card-index.json`), except oversized
@@ -12,7 +12,7 @@
  * (`cardPrints:upsertDefinitionTokensBatch`, issue #4120) — the row an object
  * on its default printing resolves its tokens through.
  *
- * Three modes:
+ * Two modes:
  *
  *   bun run prints:sync             — the real sync: writes to the LOCAL
  *                                      deployment (the primary checkout's
@@ -22,16 +22,6 @@
  *                                      count, token-link count and total
  *                                      bytes, WRITES NOTHING (no Convex call
  *                                      at all).
- *   bun run prints:sync --equivalence — compares the generated rows against
- *                                      the 1,409 hand-written `CardPrint`
- *                                      literals under `convex/cards/sets/**`
- *                                      and exits non-zero on any difference
- *                                      NOT covered by
- *                                      `data/prints-rarity-overrides.json`'s
- *                                      `printOverrides`. Also writes nothing.
- *
- * Rollout order (PRD #4115): this file lands with the hand-written records
- * still in place. They are deleted only once `--equivalence` is clean.
  */
 
 import { readFileSync } from "node:fs";
@@ -51,10 +41,6 @@ import {
     type DefinitionTokenRow,
 } from "./lib/prints-transform";
 import { loadRarityOverrides } from "./lib/prints-rarity";
-import {
-    collectHandwrittenPrints,
-    diffAgainstHandwritten,
-} from "./lib/prints-handwritten";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 // Convex mutation args carry at most 8 MB; batching also keeps one failed
@@ -103,43 +89,6 @@ function runDryRun(
                 summary.totalBytes / 1_000_000
             ).toFixed(2)} MB). Nothing written.`
     );
-}
-
-function runEquivalence(rows: readonly CardPrintRow[]): void {
-    const overrides = loadRarityOverrides();
-    const handwritten = collectHandwrittenPrints(
-        join(ROOT, "convex/cards/sets")
-    );
-    const generatedByPrintId = new Map(
-        rows.map((r) => [
-            r.printId,
-            { cardId: r.cardId, set: r.set, rarity: r.rarity },
-        ])
-    );
-    const coveredRarityOverridePrintIds = new Set(
-        Object.keys(overrides.printOverrides)
-    );
-    const diffs = diffAgainstHandwritten(
-        handwritten,
-        generatedByPrintId,
-        coveredRarityOverridePrintIds
-    );
-
-    console.log(
-        `EQUIVALENCE — ${handwritten.length} hand-written record(s) checked, ` +
-            `${diffs.length} uncovered difference(s).`
-    );
-    const SHOWN = 50;
-    for (const diff of diffs.slice(0, SHOWN)) {
-        console.log(
-            `  ${diff.file}: printId ${diff.printId} ${diff.field} ` +
-                `handwritten=${diff.handwritten} generated=${diff.generated ?? "<missing>"}`
-        );
-    }
-    if (diffs.length > SHOWN) {
-        console.log(`  … and ${diffs.length - SHOWN} more`);
-    }
-    if (diffs.length > 0) process.exitCode = 1;
 }
 
 function runWrite(
@@ -197,12 +146,6 @@ function upsertAll(fn: string, rows: readonly unknown[], what: string): void {
 
 async function main(): Promise<void> {
     const dryRun = process.argv.includes("--dry-run");
-    const equivalence = process.argv.includes("--equivalence");
-    if (dryRun && equivalence) {
-        throw new Error(
-            "prints-sync: pass --dry-run OR --equivalence, not both"
-        );
-    }
 
     const { rows, definitionTokens, scanned } = await buildRows();
     process.stderr.write(
@@ -210,7 +153,6 @@ async function main(): Promise<void> {
             `${definitionTokens.length} definition printing(s) link a token\n`
     );
 
-    if (equivalence) return runEquivalence(rows);
     if (dryRun) return runDryRun(rows, definitionTokens);
     return runWrite(rows, definitionTokens);
 }

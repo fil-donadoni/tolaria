@@ -3,11 +3,6 @@
 // cites the CR section it exercises.
 
 import { describe, it, expect } from "vitest";
-import {
-    counterspellIce,
-    powerSinkIce,
-    sleightOfMindIce,
-} from "../../ice/index.cards";
 import { matchesSpellFilter } from "../../../filters";
 import { getDefinition, getCardByName } from "../../../index";
 import {
@@ -159,26 +154,6 @@ const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
 // ===========================================================================
 
 // --- Reprints (CardPrint onto existing LEA definitions, ADR 0014) ----------
-
-describe("ICE Blue reprints (CardPrint wiring, ADR 0014)", () => {
-    it("Counterspell print resolves to the LEA definition", () => {
-        expect(getDefinition(counterspellIce.printId).name).toBe(
-            "Counterspell"
-        );
-        expect(counterspellIce.definitionId).toBe(
-            "0df55e3f-14de-46ef-b6b1-616618724d9e"
-        );
-        expect(counterspellIce.setCode).toBe("ice");
-    });
-    it("Power Sink print resolves to the LEA definition", () => {
-        expect(getDefinition(powerSinkIce.printId).name).toBe("Power Sink");
-    });
-    it("Sleight of Mind print resolves to the LEA definition", () => {
-        expect(getDefinition(sleightOfMindIce.printId).name).toBe(
-            "Sleight of Mind"
-        );
-    });
-});
 
 // --- Brainstorm (draw 3, put 2 on top, CR 121.1) ---------------------------
 

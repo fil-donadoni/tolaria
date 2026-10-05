@@ -8,9 +8,9 @@
 // A row is the authority on a PRINTING's Set and Rarity (CR 206 — rarity is a
 // printed characteristic, so a reprint may differ from its home set); the
 // Card Definition stays the authority on name, Basic and everything else.
-// A print id with no row falls back to `resolveDeckCardMeta` — the
-// hand-written alias — only until issue #4121 deletes it; after that the same
-// line degrades to the definition's own printing without a code change here.
+// A print id with no row falls back to `resolveDeckCardMeta`, which knows
+// Card IDs only (the hand-written alias went with issue #4121): the card
+// degrades to its definition's own printing.
 import { resolveDeckCardMeta } from "./catalogue";
 import { tryGetDefinition } from "./registry";
 import type { Rarity } from "./types";
@@ -38,11 +38,15 @@ export function indexPrintRows(rows: Iterable<PrintRow>): PrintRowIndex {
 /** `ResolveCard` over table rows: Set and Rarity of the CHOSEN printing come
  *  from its row (Old School judges Set, Alpha 40 caps by Rarity), the rest
  *  from the row's Card Definition. `null` for a row whose Card Definition is
- *  gone — out-of-pool, never a guess. */
-export function makeResolveCardFromRows(index: PrintRowIndex): ResolveCard {
+ *  gone — out-of-pool, never a guess. An id with no row goes to `fallback`
+ *  (default: the registry, which knows Card IDs only). */
+export function makeResolveCardFromRows(
+    index: PrintRowIndex,
+    fallback: ResolveCard = resolveDeckCardMeta
+): ResolveCard {
     return (cardId) => {
         const row = index.get(cardId);
-        if (!row) return resolveDeckCardMeta(cardId);
+        if (!row) return fallback(cardId);
         const def = tryGetDefinition(row.cardId);
         if (!def) return null;
         return {
@@ -61,9 +65,10 @@ export function makeResolveCardFromRows(index: PrintRowIndex): ResolveCard {
  *  — for an id neither the table nor the registry resolves; every caller
  *  turns that into the id itself (`convex/limitedCardMeta.ts`). */
 export function makeResolveCardMetaFromRows(
-    index: PrintRowIndex
+    index: PrintRowIndex,
+    fallback: ResolveCard = resolveDeckCardMeta
 ): ResolveCardMeta {
-    const resolve = makeResolveCardFromRows(index);
+    const resolve = makeResolveCardFromRows(index, fallback);
     return (scryfallId) => {
         const meta = resolve(scryfallId);
         if (!meta) return null;
@@ -72,4 +77,19 @@ export function makeResolveCardMetaFromRows(
             ? null
             : { cardId: meta.cardId, cardName: name };
     };
+}
+
+/** `cards` with each entry's `definitionId` filled from its printing's row —
+ *  the seam between a deck entry (`cardId` = the chosen printing) and game
+ *  setup, which never resolves a Print ID itself (ADR 0140 §5). An entry with
+ *  no row keeps whatever it carried: a Card ID needs none, and a printing the
+ *  sync never reached fails loudly at setup rather than turning into a
+ *  different card. */
+export function withRowDefinitionIds<
+    T extends { cardId: string; definitionId?: string },
+>(cards: readonly T[], index: PrintRowIndex): T[] {
+    return cards.map((card) => {
+        const definitionId = index.get(card.cardId)?.cardId;
+        return definitionId === undefined ? card : { ...card, definitionId };
+    });
 }

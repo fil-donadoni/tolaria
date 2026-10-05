@@ -43,7 +43,7 @@ export function resolveBasicLandCardIds(
         Forest: null,
     };
     for (const card of pool) {
-        const def = tryGetDefinition(card.cardId);
+        const def = definitionOfEntry(card.cardId, card);
         if (!def?.supertypes?.includes("Basic")) continue;
         for (const subtype of BASIC_LAND_SUBTYPES) {
             if (result[subtype] === null && def.subtypes?.includes(subtype)) {
@@ -73,6 +73,24 @@ export function resolveCanonicalBasicLandCardIds(): Record<
     return resolveBasicLandCardIds([]);
 }
 
+/** What an entry carries besides its `cardId` that names its Card
+ *  Definition: the registry no longer resolves a Print ID (ADR 0140, issue
+ *  #4121), so a printing is classified by its `definitionId`, else by its
+ *  `cardName` — every printing of a basic carries the basic's own name. */
+export interface BasicLandIdentity {
+    cardName?: string;
+    definitionId?: string;
+}
+
+function definitionOfEntry(cardId: string, hint: BasicLandIdentity) {
+    return (
+        tryGetDefinition(hint.definitionId ?? cardId) ??
+        (hint.cardName === undefined
+            ? undefined
+            : (tryGetCardByName(hint.cardName) ?? undefined))
+    );
+}
+
 /** The Basic subtype a cardId resolves to, or `null` if it isn't a Basic land
  *  at all — the ONE classifier every basics affordance keys off:
  *  `isBasicLandCardId`, the bar's counter (`countBasicLandCopies`) and the
@@ -85,8 +103,11 @@ export function resolveCanonicalBasicLandCardIds(): Record<
  *  Mountain definition. A counter that classifies by subtype paired with a
  *  remover that matched by `cardId` therefore counted copies it could never
  *  remove, and offered an ENABLED `−` button that silently did nothing. */
-export function basicLandSubtypeOf(cardId: string): BasicLandSubtype | null {
-    const def = tryGetDefinition(cardId);
+export function basicLandSubtypeOf(
+    cardId: string,
+    hint: BasicLandIdentity = {}
+): BasicLandSubtype | null {
+    const def = definitionOfEntry(cardId, hint);
     if (!def?.supertypes?.includes("Basic")) return null;
     for (const subtype of BASIC_LAND_SUBTYPES) {
         if (def.subtypes?.includes(subtype)) return subtype;
@@ -97,8 +118,11 @@ export function basicLandSubtypeOf(cardId: string): BasicLandSubtype | null {
 /** Is this cardId a Basic land? Basics are exempt from Pool membership (ADR
  *  0054/0055) — freely addable/removable in the Maindeck, unlike every other
  *  Pool-sourced card, which can only move between Main and Side. */
-export function isBasicLandCardId(cardId: string): boolean {
-    return basicLandSubtypeOf(cardId) !== null;
+export function isBasicLandCardId(
+    cardId: string,
+    hint?: BasicLandIdentity
+): boolean {
+    return basicLandSubtypeOf(cardId, hint) !== null;
 }
 
 /** The Maindeck's current copy count per Basic subtype (issue #1627) — what
@@ -111,7 +135,7 @@ export function isBasicLandCardId(cardId: string): boolean {
  *  ignored; an unresolvable cardId counts toward nothing rather than
  *  throwing. */
 export function countBasicLandCopies(
-    cards: readonly { cardId: string }[]
+    cards: readonly ({ cardId: string } & BasicLandIdentity)[]
 ): Record<BasicLandSubtype, number> {
     const counts: Record<BasicLandSubtype, number> = {
         Plains: 0,
@@ -121,7 +145,7 @@ export function countBasicLandCopies(
         Forest: 0,
     };
     for (const card of cards) {
-        const subtype = basicLandSubtypeOf(card.cardId);
+        const subtype = basicLandSubtypeOf(card.cardId, card);
         if (subtype !== null) counts[subtype]++;
     }
     return counts;
@@ -150,7 +174,7 @@ export function countBasicLandCopies(
  *    the fallback for a Maindeck that holds only Pool ones.
  */
 export function findBasicLandRemovalIndex(
-    cards: readonly { cardId: string; pinKey?: string }[],
+    cards: readonly ({ cardId: string; pinKey?: string } & BasicLandIdentity)[],
     subtype: BasicLandSubtype,
     pinKey?: string
 ): number {
@@ -160,7 +184,7 @@ export function findBasicLandRemovalIndex(
     }
     let pinnedFallback = -1;
     for (let i = cards.length - 1; i >= 0; i--) {
-        if (basicLandSubtypeOf(cards[i].cardId) !== subtype) continue;
+        if (basicLandSubtypeOf(cards[i].cardId, cards[i]) !== subtype) continue;
         if (cards[i].pinKey === undefined) return i;
         if (pinnedFallback < 0) pinnedFallback = i;
     }
@@ -348,12 +372,12 @@ export function applyBasicLandArtPreference(
  * the ids to remap.
  */
 export function rewriteBasicLandArt<
-    T extends { cardId: string; cardName: string },
+    T extends { cardId: string; cardName: string; definitionId?: string },
 >(cards: readonly T[], subtype: BasicLandSubtype, printId: string): T[] {
     let changed = false;
     const next = cards.map((card) => {
         if (card.cardId === printId) return card;
-        if (basicLandSubtypeOf(card.cardId) !== subtype) return card;
+        if (basicLandSubtypeOf(card.cardId, card) !== subtype) return card;
         changed = true;
         return { ...card, cardId: printId };
     });
@@ -366,7 +390,7 @@ export function rewriteBasicLandArt<
  *  OTHER saved deck (AC6), since this is a pure map over the caller's own
  *  in-memory `WorkingDeck`, not a query. */
 export function rewriteBasicLandArtInDeck<
-    T extends { cardId: string; cardName: string },
+    T extends { cardId: string; cardName: string; definitionId?: string },
 >(
     deck: { cards: readonly T[]; sideboard: readonly T[] },
     subtype: BasicLandSubtype,
@@ -389,7 +413,7 @@ export function rewriteBasicLandArtInDeck<
  *  `[]` when the zone holds no copy of `subtype` at all, or already holds
  *  only `printId` (nothing to remap). */
 export function basicLandArtCardIdsToRemap(
-    cards: readonly { cardId: string }[],
+    cards: readonly ({ cardId: string } & BasicLandIdentity)[],
     subtype: BasicLandSubtype,
     printId: string
 ): string[] {
@@ -397,7 +421,7 @@ export function basicLandArtCardIdsToRemap(
     for (const card of cards) {
         if (
             card.cardId !== printId &&
-            basicLandSubtypeOf(card.cardId) === subtype
+            basicLandSubtypeOf(card.cardId, card) === subtype
         ) {
             ids.add(card.cardId);
         }

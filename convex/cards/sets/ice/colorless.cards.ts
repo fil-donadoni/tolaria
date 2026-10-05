@@ -5,7 +5,6 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2).
 import type {
     CardDefinition,
-    CardPrint,
     Color,
     DelayedTriggerDef,
     PermanentView,
@@ -832,17 +831,6 @@ export const iceCauldron: CardDefinition = {
             },
         },
     ],
-};
-// Icy Manipulator — ICE reprint of the LEA definition (CardPrint, ADR 0014).
-// It was originally duplicated here as a second `CardDefinition`, which both
-// broke the one-definition-per-card rule and claimed ICE as its home set; the
-// card's earliest paper printing is Alpha (ADR 0041), so the mechanics live in
-// `lea/colorless.cards.ts` and ICE declares only this printing.
-export const icyManipulatorIce: CardPrint = {
-    printId: "1eda936f-7691-4440-9b83-eb0c6035b109",
-    definitionId: "29dc1596-a2e7-4d60-9f99-89babaef8a06", // icyManipulator (LEA)
-    setCode: "ice",
-    rarity: "uncommon",
 };
 // Infinite Hourglass — upkeep time-counter accrual + a counter-scaled anthem +
 // an any-player {3} counter-removal restricted to upkeep steps (CR 603.6a phase
@@ -2124,15 +2112,6 @@ export const veldt: CardDefinition = depletionDual({
     c1: "G",
     c2: "W",
 });
-// Plains — ICE reprint of the LEA basic land (CR 305.6 intrinsic mana ability).
-// CardPrint onto the LEA definition (ADR 0014); the stub id is the ICE print's
-// Scryfall id, used here as the printId.
-export const plainsIce: CardPrint = {
-    printId: "7b68bdb0-41cc-48f6-905e-7da1ff4ba5e0",
-    definitionId: "b1623d57-4729-4796-b3f7-f1837a05c6ed",
-    setCode: "ice",
-    rarity: "common",
-};
 // Snow-Covered Plains — basic land carrying the Snow supertype (CR 205.4a).
 // The intrinsic basic mana ability comes from the Plains subtype
 // (`LAND_SUBTYPE_MANA`); ICE snow is a TYPE reference only — there is no {S}
@@ -2145,13 +2124,6 @@ export const snowCoveredPlains: CardDefinition = {
     types: ["Land"],
     supertypes: ["Basic", "Snow"],
     subtypes: ["Plains"],
-};
-// Island — ICE reprint of the LEA basic land (CardPrint onto LEA, ADR 0014).
-export const islandIce: CardPrint = {
-    printId: "ef2d6fc9-ddad-4dd2-b218-afa1a5449b7e",
-    definitionId: "90a57c0e-fa61-45ef-955d-d296403967d5",
-    setCode: "ice",
-    rarity: "common",
 };
 export const snowCoveredIsland: CardDefinition = {
     id: "ad8b77cf-b53e-4da3-9c27-3851b7b25a98",
@@ -2171,20 +2143,7 @@ export const snowCoveredSwamp: CardDefinition = {
     supertypes: ["Basic", "Snow"],
     subtypes: ["Swamp"],
 };
-// Swamp — ICE reprint of the LEA basic land (CardPrint onto LEA, ADR 0014).
-export const swampIce: CardPrint = {
-    printId: "4695653a-5c4c-4ff3-b80c-f4b6c685f370",
-    definitionId: "6176936d-72e2-4205-8871-4c5a4f1cb2d8",
-    setCode: "ice",
-    rarity: "common",
-};
 // Mountain — ICE reprint of the LEA basic land (CardPrint onto LEA, ADR 0014).
-export const mountainIce: CardPrint = {
-    printId: "4ecf39c3-3b5f-4263-a7b5-9881bded3494",
-    definitionId: "eace2c85-976c-425e-9800-5a6ccbd91b56",
-    setCode: "ice",
-    rarity: "common",
-};
 export const snowCoveredMountain: CardDefinition = {
     id: "ccd3afb3-5574-4f2d-adbe-969a428f1c63",
     name: "Snow-Covered Mountain",
@@ -2193,13 +2152,6 @@ export const snowCoveredMountain: CardDefinition = {
     types: ["Land"],
     supertypes: ["Basic", "Snow"],
     subtypes: ["Mountain"],
-};
-// Forest — ICE reprint of the LEA basic land (CardPrint onto LEA, ADR 0014).
-export const forestIce: CardPrint = {
-    printId: "fbdcbd97-90a9-45ea-94f6-2a1c6faaf965",
-    definitionId: "6f1c8cb0-38eb-408b-94e8-16db83999b3b",
-    setCode: "ice",
-    rarity: "common",
 };
 export const snowCoveredForest: CardDefinition = {
     id: "4c0ad95c-d62c-4138-ada0-fa39a63a449e",

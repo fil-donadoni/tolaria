@@ -7,7 +7,7 @@
 // (printId) and resolves printId -> definitionId -> the shared CardDefinition
 // (ADR 0014).
 
-import type { CardDefinition, CardPrint } from "../../types";
+import type { CardDefinition } from "../../types";
 import { AURA_AFFECTS_HOST } from "../../types";
 
 // Time Warp — {3}{U}{U} Sorcery. "Target player takes an extra turn after
@@ -27,15 +27,6 @@ export const timeWarp: CardDefinition = {
     types: ["Sorcery"],
     targetRequirement: { type: "player", count: 1 },
     effects: [{ op: "extraTurn", player: { target: 0 } }],
-};
-
-// Counterspell — Premodern-legal reprint (Tempest, #980). Resolves to the LEA
-// CardDefinition; the printId is the TMP per-print Scryfall UUID.
-export const counterspellTmp: CardPrint = {
-    printId: "dacdd380-71cf-4832-bd02-3697501325f3",
-    definitionId: "0df55e3f-14de-46ef-b6b1-616618724d9e", // Counterspell
-    setCode: "tmp",
-    rarity: "common",
 };
 
 // Shimmering Wings — {U} Enchantment — Aura, enchant creature. "Enchanted

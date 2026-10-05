@@ -4,7 +4,6 @@
 
 export * from "./white.cards";
 export * from "./blue.cards";
-export * from "./black.cards";
 export * from "./red.cards";
 export * from "./green.cards";
 export * from "./multicolor.cards";

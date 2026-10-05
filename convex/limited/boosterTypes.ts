@@ -38,4 +38,12 @@ export interface BoosterConfig {
     boostersTotalWeight: number;
     boosters: BoosterVariant[];
     sheets: Record<string, BoosterSheet>;
+    /** Print ID → Card ID, for every sheet card whose printing is NOT its
+     *  Card Definition's own (a reprint: Alpha's basic lands, Ice Age's
+     *  Counterspell). A Print ID is not in the registry (ADR 0140 §5), so this
+     *  is how a checked-in sheet card is recognised as an implemented card
+     *  without a database read — the client's Draft Lab has none. Absent when
+     *  every sheet card is its definition's own printing. Written by the
+     *  importer from MTGJSON's oracle ids, never by hand. */
+    printCardIds?: Record<string, string>;
 }

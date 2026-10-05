@@ -34,6 +34,7 @@ import {
     seatRowNeedsInterning,
 } from "./limitedSeatStore";
 import { loadPrintIdsInSet, loadPrintRows } from "./cardPrintRows";
+import { resolveSheetCardMeta } from "./limitedCardMeta";
 import {
     makeResolveCardFromRows,
     makeResolveCardMetaFromRows,
@@ -754,9 +755,12 @@ async function loadEventCardResolvers(
     packSlots: readonly string[]
 ): Promise<EventCardResolvers> {
     const index = await loadPrintRows(ctx, eventSheetCardIds(packSlots));
-    const resolve = makeResolveCardFromRows(index);
+    const resolve = makeResolveCardFromRows(index, resolveSheetCardMeta);
     return {
-        resolveCardMeta: makeResolveCardMetaFromRows(index),
+        resolveCardMeta: makeResolveCardMetaFromRows(
+            index,
+            resolveSheetCardMeta
+        ),
         getCardEvalMeta: makeCardEvalMeta(resolve),
         getAutoBuildCardMeta: makeAutoBuildCardMeta(resolve),
     };

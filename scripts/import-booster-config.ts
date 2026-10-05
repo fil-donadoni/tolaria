@@ -52,7 +52,21 @@ if (!existsSync(inPath)) {
 const raw = JSON.parse(readFileSync(inPath, "utf-8"));
 const setData = raw.data as MtgjsonSetData;
 
-const config = buildBoosterConfig(setData, { boosterType });
+// Oracle id → the Card ID of its Card Definition, so a sheet card that is a
+// reprint of one carries its Card ID in `printCardIds` (ADR 0140 §5).
+const definitionIdByOracleId = new Map(
+    (
+        JSON.parse(readFileSync(resolve("data/card-index.json"), "utf-8")) as {
+            oracleId: string;
+            scryfallId: string;
+        }[]
+    ).map((row) => [row.oracleId, row.scryfallId])
+);
+
+const config = buildBoosterConfig(setData, {
+    boosterType,
+    definitionIdByOracleId,
+});
 
 const outPath = resolve(`data/boosters/${setCode.toLowerCase()}.json`);
 writeFileSync(outPath, JSON.stringify(config, null, 4) + "\n", "utf-8");

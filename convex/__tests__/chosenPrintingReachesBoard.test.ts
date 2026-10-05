@@ -13,7 +13,6 @@ import { buildInitialGameState, type PlayerInput } from "../game";
 import { createInitialGameState } from "../gre/setup";
 import { projectPublicState } from "../gameProjections";
 import { getCardByName, getDefinition } from "../cards";
-import { birdsOfParadise2ed } from "../cards/sets/2ed/green.cards";
 import { turnFaceDown } from "../gre/faceDown";
 import { NO_BOARD_LAYER_VIEW } from "../gre/layers";
 import {
@@ -29,8 +28,10 @@ import {
     makeState,
 } from "../cards/__tests__/setup.helper";
 
-const BIRDS = birdsOfParadise2ed.definitionId;
-const BIRDS_2ED_PRINT = birdsOfParadise2ed.printId;
+// Birds of Paradise and its Unlimited printing: the Print ID is a Scryfall id the
+// engine never resolves (ADR 0140 §5-6), so the test names it as a literal.
+const BIRDS = "55fe6449-1f23-43dc-adee-d144cd505b5c";
+const BIRDS_2ED_PRINT = "4e50454c-3927-4e7e-b4f6-7f5d5fd9b913";
 const MOUNTAIN = getCardByName("Mountain").id;
 
 function seat(id: string, cardIds: string[]): PlayerInput {
@@ -42,7 +43,14 @@ function seat(id: string, cardIds: string[]): PlayerInput {
             id: `${id}-deck`,
             name: "Deck",
             format: "freeform",
-            cards: cardIds.map((cardId) => ({ cardId, cardName: cardId })),
+            // `definitionId` is what the server boundary fills from the
+            // `cardPrints` rows (`withSeatDefinitionIds`); setup never
+            // resolves a Print ID itself.
+            cards: cardIds.map((cardId) => ({
+                cardId,
+                cardName: cardId,
+                definitionId: cardId === BIRDS_2ED_PRINT ? BIRDS : cardId,
+            })),
         },
     };
 }
