@@ -373,7 +373,7 @@ export function isLegalNamedCard(
     return !("error" in resolveNameChoice(state, head, name.trim()));
 }
 
-/** CR 201.3 / 201.4a / 614.1c — the ONE resolution of a submitted name against
+/** CR 201.4a / 614.1c — the ONE resolution of a submitted name against
  *  a `name-card` head: the canonical name to commit, or the user-facing reason
  *  it is illegal. Both doors ({@link isLegalNamedCard}, {@link
  *  applyNameCardSubmit}) read it, so picker and check cannot drift.
@@ -477,8 +477,8 @@ export function applyNameCardSubmit(
 
     const name = args.cardName.trim();
     if (name.length === 0) throw new Error("Name a card");
-    // CR 201.2 — the named card must exist; the catalogue is the canonical
-    // card name set. Every rule on the name lives in `resolveNameChoice`.
+    // The named card must exist; the catalogue is the canonical card name
+    // set. Every rule on the name lives in `resolveNameChoice`.
     const resolved = resolveNameChoice(state, head, name);
     if ("error" in resolved) throw new Error(resolved.error);
     const canonical = resolved.canonical;

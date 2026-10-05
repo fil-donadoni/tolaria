@@ -735,7 +735,7 @@ export type IndexedCardName =
 
 /** Name-a-card validation's lookup: resolves a name through the name index
  *  and the index's choosable names, building no definition and so opening no
- *  packed block (CR 201.3). The same verdict `tryGetCardByName` plus
+ *  packed block. The same verdict `tryGetCardByName` plus
  *  `hasName(def, def.name)` give, for a printed card. */
 export const lookupCardNameInIndex = (name: string): IndexedCardName => {
     const id = nameIndex.get(name.toLowerCase());
