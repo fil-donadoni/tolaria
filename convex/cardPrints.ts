@@ -278,7 +278,12 @@ export const earliestInSets = query({
         v.object({ cardId: v.string(), printId: v.string(), set: v.string() })
     ),
     handler: async (ctx, { cardIds, allowedSets }) => {
-        const wanted = [...new Set(cardIds.slice(0, MAX_EARLIEST_CARD_IDS))];
+        const wanted = [...new Set(cardIds)];
+        if (wanted.length > MAX_EARLIEST_CARD_IDS) {
+            throw new Error(
+                `earliestInSets reads at most ${MAX_EARLIEST_CARD_IDS} Card IDs per call`
+            );
+        }
         const found = await Promise.all(
             wanted.map(async (cardId) => {
                 for (const set of allowedSets) {

@@ -7,12 +7,12 @@ import type { BasicLandPrintRow } from "~/components/deckbuilder/basicLands";
  * The `cardPrints` rows of the basic-land art a user has stored (issue #5106,
  * `applyBasicLandArtPreference`'s legality check): at most five point reads,
  * one per subtype. Keeps the last loaded rows while a changed preference
- * re-queries, so a stored choice does not flash back to the default on every
- * pick.
+ * re-queries and reports `loading` meanwhile, so a stored choice does not
+ * flash back to the default on a fresh pick or on first render.
  */
 export function useBasicLandPreferenceRows(
     preference: Partial<Record<string, string>>
-): readonly BasicLandPrintRow[] {
+): { rows: readonly BasicLandPrintRow[]; loading: boolean } {
     const printIds = useMemo(
         () => [...new Set(Object.values(preference).flatMap((id) => id ?? []))],
         [preference]
@@ -23,5 +23,10 @@ export function useBasicLandPreferenceRows(
     );
     const [lastRows, setLastRows] = useState(rows);
     if (rows !== undefined && rows !== lastRows) setLastRows(rows);
-    return rows ?? lastRows ?? [];
+    return {
+        rows: rows ?? lastRows ?? [],
+        // The rows of the CURRENT ids are in flight: a caller keeps a stored
+        // id it has no row for yet rather than judge it illegal.
+        loading: printIds.length > 0 && rows === undefined,
+    };
 }

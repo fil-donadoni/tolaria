@@ -46,6 +46,7 @@ export default function DeckImportDialog({
     const [parsed, setParsed] = useState<ParsedDecklist | null>(null);
     const [copied, setCopied] = useState(false);
     const [parsing, setParsing] = useState(false);
+    const [printingsFailed, setPrintingsFailed] = useState(false);
     const fetchEarliest = useEarliestPrintFetcher();
     // Bumped on every edit/reset so a Parse still awaiting the table cannot
     // land its result over text the user has since changed.
@@ -54,6 +55,7 @@ export default function DeckImportDialog({
     const reset = useCallback(() => {
         parseEpoch.current++;
         setParsing(false);
+        setPrintingsFailed(false);
         setText("");
         setParsed(null);
         setCopied(false);
@@ -86,6 +88,7 @@ export default function DeckImportDialog({
             return;
         }
         setParsing(true);
+        setPrintingsFailed(false);
         try {
             const earliest = await fetchEarliest(
                 [...first.cards, ...first.sideboard].map((c) => c.cardId),
@@ -98,7 +101,9 @@ export default function DeckImportDialog({
         } catch {
             // The table is unreachable: import under the home printings, as a
             // Format with no printing of the card in its Sets would.
-            if (epoch === parseEpoch.current) setParsed(first);
+            if (epoch !== parseEpoch.current) return;
+            setPrintingsFailed(true);
+            setParsed(first);
         } finally {
             if (epoch === parseEpoch.current) setParsing(false);
         }
@@ -123,6 +128,7 @@ export default function DeckImportDialog({
                     onChange={(e) => {
                         parseEpoch.current++;
                         setParsing(false);
+                        setPrintingsFailed(false);
                         setText(e.target.value);
                         setParsed(null);
                         setCopied(false);
@@ -139,6 +145,13 @@ export default function DeckImportDialog({
                             {parsed.cards.length} maindeck ·{" "}
                             {parsed.sideboard.length} sideboard
                         </p>
+                        {printingsFailed && (
+                            <Banner tone="danger" role="alert">
+                                Printings could not be loaded — cards import
+                                under their original printing, which this format
+                                may not allow.
+                            </Banner>
+                        )}
                         {parsed.unresolved.length > 0 && (
                             <Banner tone="danger">
                                 <div className="flex items-start justify-between gap-2">

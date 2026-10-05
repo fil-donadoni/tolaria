@@ -229,13 +229,21 @@ export function legalBasicLandPrintings(
  *  when the preference was set) both read `false` here and fall through
  *  silently. `rows` are the `cardPrints` rows read for the stored ids
  *  (`cardPrints.getByPrintIds`); until they load, only the definition's own
- *  printing can pass. */
+ *  printing can pass — unless `trustUnloaded` (the rows are still loading),
+ *  when an id with no row yet is kept. */
 function isLegalBasicLandPrinting(
     subtype: BasicLandSubtype,
     printId: string,
     allowedSets: string[] | null,
-    rows: readonly BasicLandPrintRow[]
+    rows: readonly BasicLandPrintRow[],
+    trustUnloaded: boolean
 ): boolean {
+    // A stored id whose row is still in flight (a fresh pick, or the first
+    // render) is the user's own choice: keep it rather than flash back to the
+    // default, then re-judge once the row arrives.
+    if (trustUnloaded && !rows.some((row) => row.printId === printId)) {
+        return true;
+    }
     return legalBasicLandPrintings(subtype, rows, allowedSets).some(
         (p) => p.printId === printId
     );
@@ -283,7 +291,8 @@ export function applyBasicLandArtPreference(
     baseIds: Record<BasicLandSubtype, string | null>,
     preference: Partial<Record<BasicLandSubtype, string>>,
     allowedSets: string[] | null,
-    preferenceRows: readonly BasicLandPrintRow[] = []
+    preferenceRows: readonly BasicLandPrintRow[] = [],
+    trustUnloaded = false
 ): Record<BasicLandSubtype, string | null> {
     const result = { ...baseIds };
     for (const subtype of BASIC_LAND_SUBTYPES) {
@@ -294,7 +303,8 @@ export function applyBasicLandArtPreference(
                 subtype,
                 preferred,
                 allowedSets,
-                preferenceRows
+                preferenceRows,
+                trustUnloaded
             )
         )
             continue;

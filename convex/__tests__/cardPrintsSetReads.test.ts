@@ -92,6 +92,16 @@ describe("earliestInSets — the earliest allowed Set with a row, per Card ID", 
     });
 });
 
+describe("earliestInSets — the per-call cap", () => {
+    it("rejects more Card IDs than it reads rather than silently truncating", async () => {
+        const { ctx } = fakeCtx(rows);
+        const cardIds = Array.from({ length: 41 }, (_, i) => `c-${i}`);
+        await expect(
+            earliest(ctx, { cardIds, allowedSets: ["lea"] })
+        ).rejects.toThrow(/at most 40/);
+    });
+});
+
 describe("loadPrintIdsInSet — Limited's drafted-Set basics", () => {
     it("reads one indexed probe per Card ID and maps Card ID → print id", async () => {
         const { ctx, probes } = fakeCtx(rows);

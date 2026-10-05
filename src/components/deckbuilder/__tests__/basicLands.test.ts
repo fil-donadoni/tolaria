@@ -354,16 +354,38 @@ describe("applyBasicLandArtPreference (issue #1629 AC7/AC8: stored preference â†
         expect(result.Mountain).toBe(base.Mountain);
     });
 
-    it("a stored printing whose row has not loaded yet falls back until it does (#5106)", () => {
+    it("a stored printing whose row has not loaded yet is kept while loading, and falls back when loaded without it (#5106)", () => {
         const base = resolveCanonicalBasicLandCardIds();
         const pref = { Mountain: LEB_MOUNTAIN_PRINT };
-        expect(applyBasicLandArtPreference(base, pref, null, []).Mountain).toBe(
-            base.Mountain
-        );
+        // Loaded, no row for it: stale, falls back.
         expect(
-            applyBasicLandArtPreference(base, pref, null, PREFERENCE_ROWS)
-                .Mountain
+            applyBasicLandArtPreference(base, pref, null, [], false).Mountain
+        ).toBe(base.Mountain);
+        // Still loading: the user's own choice is kept, no flash to default.
+        expect(
+            applyBasicLandArtPreference(base, pref, null, [], true).Mountain
         ).toBe(LEB_MOUNTAIN_PRINT);
+        // Loaded with its row: legal.
+        expect(
+            applyBasicLandArtPreference(
+                base,
+                pref,
+                null,
+                PREFERENCE_ROWS,
+                false
+            ).Mountain
+        ).toBe(LEB_MOUNTAIN_PRINT);
+        // Loaded rows still judge an illegal Format: a row for ICE under a
+        // lea/leb Format is not trusted just because `loading` is set.
+        expect(
+            applyBasicLandArtPreference(
+                base,
+                { Mountain: ICE_MOUNTAIN_PRINT },
+                ["lea", "leb"],
+                PREFERENCE_ROWS,
+                true
+            ).Mountain
+        ).toBe(base.Mountain);
     });
 
     it("a stored preference that no longer resolves to any printing falls back silently (AC8)", () => {

@@ -26,7 +26,7 @@ import type { ResolveCardMeta } from "./limited/eventLogic";
  *  cannot resolve. Every caller turns that `null` into the id itself
  *  (`meta?.cardId ?? scryfallId`), so an unresolvable card keeps a stable
  *  identity and stays visible in the Pool rather than disappearing from it.
- *  `printById` (`catalogue.ts`) aliases every printing into the registry, so a
+ *  The print alias (`catalogue.ts`) registers every printing in the registry, so a
  *  print-level Scryfall id resolves to its definition's canonical `cardId`,
  *  which is what a reprint's Pool entry must store. */
 export const resolveCardMeta: ResolveCardMeta = (scryfallId) => {

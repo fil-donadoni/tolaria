@@ -547,16 +547,18 @@ export default function PoolDeckBuilderForm({
     const [basicLandArt, setBasicLandArt] = useState(() =>
         seededBasicLandArt()
     );
-    const basicLandArtRows = useBasicLandPreferenceRows(basicLandArt);
+    const { rows: basicLandArtRows, loading: basicLandArtLoading } =
+        useBasicLandPreferenceRows(basicLandArt);
     const basicCardIds = useMemo(
         () =>
             applyBasicLandArtPreference(
                 resolveBasicLandCardIds(pool),
                 basicLandArt,
                 FORMAT_RULES.limited.allowedSets,
-                basicLandArtRows
+                basicLandArtRows,
+                basicLandArtLoading
             ),
-        [pool, basicLandArt, basicLandArtRows]
+        [pool, basicLandArt, basicLandArtRows, basicLandArtLoading]
     );
     // The bar's per-subtype counter (issue #1627) — read straight off the
     // live Maindeck, so it updates on every add/remove exactly like every

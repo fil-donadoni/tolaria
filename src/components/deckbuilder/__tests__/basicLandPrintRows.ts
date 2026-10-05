@@ -62,10 +62,14 @@ export function useBasicLandPrintingsStub(
     };
 }
 
-/** Stands in for `useBasicLandPreferenceRows`: the rows of the stored ids. */
+/** Stands in for `useBasicLandPreferenceRows`: the rows of the stored ids,
+ *  already loaded. */
 export function useBasicLandPreferenceRowsStub(
     preference: Partial<Record<string, string>>
-): readonly BasicLandPrintRow[] {
+): { rows: readonly BasicLandPrintRow[]; loading: boolean } {
     const stored = new Set(Object.values(preference));
-    return MOUNTAIN_PRINT_ROWS.filter((row) => stored.has(row.printId));
+    return {
+        rows: MOUNTAIN_PRINT_ROWS.filter((row) => stored.has(row.printId)),
+        loading: false,
+    };
 }

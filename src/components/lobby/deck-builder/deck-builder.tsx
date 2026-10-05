@@ -895,16 +895,18 @@ export default function DeckBuilder({
     const [basicLandArt, setBasicLandArt] = useState(() =>
         seededBasicLandArt()
     );
-    const basicLandArtRows = useBasicLandPreferenceRows(basicLandArt);
+    const { rows: basicLandArtRows, loading: basicLandArtLoading } =
+        useBasicLandPreferenceRows(basicLandArt);
     const basicCardIds = useMemo(
         () =>
             applyBasicLandArtPreference(
                 resolveCanonicalBasicLandCardIds(),
                 basicLandArt,
                 FORMAT_RULES[deck.format].allowedSets,
-                basicLandArtRows
+                basicLandArtRows,
+                basicLandArtLoading
             ),
-        [basicLandArt, basicLandArtRows, deck.format]
+        [basicLandArt, basicLandArtRows, basicLandArtLoading, deck.format]
     );
     const basicCounts = useMemo(
         () => countBasicLandCopies(deck.cards),
