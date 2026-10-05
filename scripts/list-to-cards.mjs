@@ -182,7 +182,7 @@ function toIdentifier(name) {
 
 const arr = (a) => `[${a.map((s) => `"${s}"`).join(", ")}]`;
 
-/** TypeScript source for one card. Free → active `CardDefinition`; capability
+/** TypeScript source for one card. Free → active `defineCard` factory; capability
  *  → the same body, every line commented out, with a leading TODO. Throws on an
  *  unmodelled rarity (never silently drop it). Out-of-scope cards return "".  */
 export function emitCardSource(card) {
@@ -232,9 +232,9 @@ export function emitCardSource(card) {
     if (kw && kw.length) fields.push(`    staticAbilities: ${arr(kw)}`);
 
     const body = [
-        `export const ${toIdentifier(card.name)}: CardDefinition = {`,
+        `export const ${toIdentifier(card.name)} = defineCard(() => ({`,
         fields.join(",\n") + ",",
-        `};`,
+        `}));`,
     ].join("\n");
 
     if (bucket === "free") return body;
@@ -452,7 +452,7 @@ async function main() {
     mkdirSync(outDir, { recursive: true });
     // Colour modules sit at `<slug>.out/<set>/<colour>.cards.ts`, four levels deep, so
     // the type import reaches the repo's convex/ via four `..` segments.
-    const importLine = `import type { CardDefinition } from "../../../../convex/cards/types";`;
+    const importLine = `import { defineCard } from "../../../../convex/cards/types";`;
     for (const [set, cards] of [...bySet].sort()) {
         const sources = Object.fromEntries(COLOUR_MODULES.map((m) => [m, []]));
         for (const card of cards) {

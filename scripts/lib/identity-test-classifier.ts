@@ -623,6 +623,13 @@ interface Binding {
     cardRefs: CardRef[];
     /** The value IS a card definition (a lookup, an alias chain off one, a card-module import). */
     cardDef: boolean;
+    /**
+     * Imported from a card module: a bare reference is an eager definition,
+     * a zero-argument call `fooBar()` the built object of a `defineCard`
+     * factory (issue #4858) — either way a card definition, and the call
+     * itself no more behavioural than a field read.
+     */
+    cardExport?: boolean;
     /** Declared without an initialiser — filled in elsewhere (`beforeEach`), provenance unknown. */
     opaque: boolean;
     /**
@@ -657,10 +664,22 @@ function cardLookupRef(node: ts.Node): CardRef | null {
         : { id: arg.text };
 }
 
+/** `fooBar()` where `fooBar` is a card-module import: a `defineCard` factory read (issue #4858). */
+function isCardFactoryCall(expr: ts.Expression, bindings: Bindings): boolean {
+    const e = unwrap(expr);
+    if (!ts.isCallExpression(e) || e.arguments.length > 0) return false;
+    const callee = unwrap(e.expression);
+    return (
+        ts.isIdentifier(callee) &&
+        (bindings.get(callee.text)?.cardExport ?? false)
+    );
+}
+
 /** Is `expr` a card definition — a lookup, a definition binding, or a chain off one? */
 function isCardDefExpr(expr: ts.Expression, bindings: Bindings): boolean {
     const e = unwrap(expr);
     if (cardLookupRef(e)) return true;
+    if (isCardFactoryCall(e, bindings)) return true;
     if (ts.isIdentifier(e)) return bindings.get(e.text)?.cardDef ?? false;
     if (ts.isPropertyAccessExpression(e) || ts.isElementAccessExpression(e))
         return isCardDefExpr(e.expression, bindings);
@@ -690,6 +709,7 @@ function describeExpression(node: ts.Node, bindings: Bindings): Binding {
             if (
                 !viaHelper &&
                 !asymmetricMatcher &&
+                !isCardFactoryCall(n, bindings) &&
                 !isNeutralCallee(n.expression)
             )
                 out.callees.push(shortCalleeName(n.expression));
@@ -1118,6 +1138,7 @@ export function classifyTestBlocks(
                         callees: [],
                         cardRefs: [],
                         cardDef: true,
+                        cardExport: true,
                         opaque: false,
                     });
                 }

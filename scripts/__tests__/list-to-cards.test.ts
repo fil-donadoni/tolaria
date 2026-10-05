@@ -239,9 +239,13 @@ describe("emitCardSource", () => {
         id: "free-scryfall-id",
     };
 
-    it("emits an active CardDefinition for a free card (id, name, rarity)", () => {
+    it("emits an active defineCard factory for a free card (id, name, rarity)", () => {
         const src = emitCardSource(free);
-        expect(src).toContain("CardDefinition");
+        expect(src).toContain(
+            "export const savannahLions = defineCard(() => ({"
+        );
+        expect(src).toContain("}));");
+        expect(src).not.toContain(": CardDefinition");
         expect(src).toContain('id: "free-scryfall-id"');
         expect(src).toContain('name: "Savannah Lions"');
         expect(src).toContain('rarity: "rare"');
