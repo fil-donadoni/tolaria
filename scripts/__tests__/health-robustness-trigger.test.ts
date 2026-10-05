@@ -3,7 +3,13 @@
 // diff; the last block runs it against the real tree.
 import { afterAll, describe, expect, it } from "vitest";
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+    mkdirSync,
+    mkdtempSync,
+    readFileSync,
+    rmSync,
+    writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { batchTouchesBot } from "../lib/health-bot-refresh";
@@ -138,6 +144,27 @@ describe("robustnessMode — incremental audit", () => {
         expect(m.kind).toBe("none");
         expect(robustnessOwed(m)).toBe(false);
         expect(robustnessStepEnv(m)).toBeUndefined();
+    });
+});
+
+describe("wiring", () => {
+    const root = join(__dirname, "..", "..");
+    const read = (rel: string) => readFileSync(join(root, rel), "utf8");
+
+    it("the label filter's env name is the one the shard runner reads", () => {
+        expect(
+            read(
+                "convex/gre/ai/blade/__tests__/robustnessShardRunner.helper.ts"
+            )
+        ).toContain(`ENV.${ROBUSTNESS_LABELS_ENV}`);
+    });
+
+    it("health-main hands the mode's env to the audit step and records the mode", () => {
+        const src = read("scripts/health-main.ts");
+        expect(src).toContain("robustnessStepEnv(robustness)");
+        expect(src).toContain("ctx.robustness = describeRobustnessMode");
+        // The Bot Findings refresh keeps its own, wider predicate.
+        expect(src).toContain("batchTouchesBot(batch)");
     });
 });
 

@@ -106,8 +106,15 @@ export function registerRobustnessShard(shard: number): void {
             }
         }
 
-        for (const scenario of bladeShardSlice(must, shard)) {
-            if (only !== null && !only.has(scenario.label)) continue;
+        const audited = bladeShardSlice(must, shard).filter(
+            (s) => only === null || only.has(s.label)
+        );
+        // A filtered shard may own none of the entries; vitest reds a suite
+        // with no test in it.
+        if (shard !== 0 && audited.length === 0)
+            it.skip("no entry of the label filter in this shard", () => {});
+
+        for (const scenario of audited) {
             it(scenario.label, { timeout: ENTRY_TIMEOUT_MS }, () => {
                 const row = auditBladeScenario(scenario, vectors);
                 console.log(`[blade:robustness] ${formatRobustnessRow(row)}`);
