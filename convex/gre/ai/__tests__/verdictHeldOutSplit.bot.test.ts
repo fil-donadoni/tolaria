@@ -14,6 +14,8 @@ import {
     HELD_OUT_SPLIT_MODULUS,
     fitInputPairs,
     heldOutBucketOf,
+    minimalPairStandings,
+    pairSplitRefusals,
     positionKeyOf,
     scenarioKeyOf,
     testPositionKeysOf,
@@ -293,5 +295,62 @@ describe("a Minimal Pair falls on one side, as one unit (issue #3981, ADR 0148)"
         expect(() =>
             fitInputPairs([pairOf("half")], [half], NO_TEST_POSITIONS)
         ).toThrow(/half.*unknown/);
+    });
+
+    describe("refuses a half whose derived board is already judged on the other side (ADR 0148 § Split)", () => {
+        /** A second, unrelated judgement of `board`, with its own id. */
+        const judgedAt = (board: Verdict, id: string): Verdict => ({
+            ...board,
+            id,
+            answer: { kind: "right", rightIndexes: [0] },
+        });
+        const standingOf = (corpus: Verdict[], id: string) => {
+            const refusals = pairSplitRefusals(corpus, NO_TEST_POSITIONS);
+            return minimalPairStandings(
+                corpus.map((v) => ({
+                    verdictId: verdictIdOf(v),
+                    judgement: v,
+                    stored: true,
+                    splitRefusal: refusals.get(verdictIdOf(v)),
+                }))
+            ).get(verdictIdOf(corpus.find((v) => v.id === id)!));
+        };
+
+        it("names the reason, and never moves the judgement already assigned", () => {
+            // Anchor held-out → the half is held-out; the other judgement of
+            // the half's board hashes fit-side and keeps it.
+            const { anchor, half } = unit(heldOutBoard, fitBoard);
+            const prior = judgedAt(fitBoard, "prior");
+            const corpus = [anchor, half, prior];
+            const refusals = pairSplitRefusals(corpus, NO_TEST_POSITIONS);
+            expect([...refusals.keys()]).toEqual([verdictIdOf(half)]);
+            expect(refusals.get(verdictIdOf(half))).toMatch(
+                /already judged by prior on the fit side.*never re-sided/
+            );
+            expect(verdictSidesOf(corpus, NO_TEST_POSITIONS).get("prior")).toBe(
+                "fit"
+            );
+            expect(standingOf(corpus, "half")).toMatchObject({
+                kind: "incomplete",
+                why: expect.stringMatching(/already judged by prior/),
+            });
+            // Its anchor loses the pair with it.
+            expect(standingOf(corpus, "anchor")?.kind).toBe("incomplete");
+        });
+
+        it("forms the pair when the other judgement is on the anchor's own side", () => {
+            const { anchor, half } = unit(fitBoard, fitBoard);
+            const prior = judgedAt(fitBoard, "prior");
+            const corpus = [anchor, half, prior];
+            expect(pairSplitRefusals(corpus, NO_TEST_POSITIONS).size).toBe(0);
+            expect(standingOf(corpus, "half")?.kind).toBe("paired");
+        });
+
+        it("forms the pair when no other judgement shares the board", () => {
+            const { anchor, half } = unit(heldOutBoard, fitBoard);
+            expect(
+                pairSplitRefusals([anchor, half], NO_TEST_POSITIONS).size
+            ).toBe(0);
+        });
     });
 });

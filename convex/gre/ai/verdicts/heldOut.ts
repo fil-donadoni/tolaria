@@ -172,6 +172,49 @@ export function verdictSidesOf(
 }
 
 /**
+ * The Minimal Pairs the split refuses, by the right-hand half's verdict id
+ * (`verdictIdOf`), each with its reason (ADR 0148 § Split).
+ *
+ * A half inherits its anchor's side instead of hashing its own board, so the
+ * derived board can land beside a board someone ALREADY judged on the other
+ * side — and the fit would then read, on one side, a position the held-out side
+ * grades. "Nothing already assigned moves": the existing judgement keeps its
+ * side and the pair is not formed, never re-sided. Reads each half's unit and
+ * the verdicts sharing its scenario key, nothing else of the corpus.
+ */
+export function pairSplitRefusals(
+    verdicts: readonly Verdict[],
+    testPositions: ReadonlySet<string>,
+    modulus: number = HELD_OUT_SPLIT_MODULUS
+): Map<string, string> {
+    const sideOf = verdictSidesOf(verdicts, testPositions, modulus);
+    const byKey = new Map<string, Verdict[]>();
+    for (const v of verdicts) {
+        const key = scenarioKeyOf(v);
+        byKey.set(key, [...(byKey.get(key) ?? []), v]);
+    }
+    const out = new Map<string, string>();
+    for (const half of verdicts) {
+        if (half.pairOf === undefined) continue;
+        const side = sideOf.get(half.id);
+        if (side === undefined) continue;
+        const rival = (byKey.get(scenarioKeyOf(half)) ?? []).find(
+            (other) =>
+                other !== half && sideOf.get(other.id) === otherSide(side)
+        );
+        if (rival === undefined) continue;
+        out.set(
+            verdictIdOf(half),
+            `the derived board is already judged by ${rival.id} on the ${otherSide(side)} side of the held-out split, while its anchor ${half.pairOf.anchorId} is ${side}-side — the pair is refused, never re-sided (ADR 0148)`
+        );
+    }
+    return out;
+}
+
+const otherSide = (side: VerdictSide): VerdictSide =>
+    side === "fit" ? "held-out" : "fit";
+
+/**
  * The Weight Fit's input: the Eval Pairs of `pairs` whose Verdict resolves
  * fit-side (`verdictSidesOf`). Throws on a pair whose Verdict's side is
  * unknown — not in `verdicts`, or a half without its anchor — so a pair of

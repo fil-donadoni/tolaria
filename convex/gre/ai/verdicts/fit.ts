@@ -106,6 +106,7 @@ import {
     type Contradiction,
 } from "./report";
 import { verdictIdOf } from "./identity";
+import { pairSplitRefusals } from "./heldOut";
 import { minimalPairStandings } from "./minimalPair";
 import { DISCRIMINANT_KINDS, type Discriminant, type Verdict } from "./types";
 
@@ -873,7 +874,8 @@ function verdictOutcomes(
  */
 export function minimalPairFitOutcomes(
     verdicts: readonly Verdict[],
-    pairs: readonly Pick<EvalPair, "verdictId" | "delta">[]
+    pairs: readonly Pick<EvalPair, "verdictId" | "delta">[],
+    testPositions: ReadonlySet<string> = new Set()
 ): MinimalPairFitOutcome[] {
     const outcomeOf = verdictOutcomes(pairs);
     // Standings speak CONTENT hashes (`verdictIdOf` — a half's link names its
@@ -882,11 +884,13 @@ export function minimalPairFitOutcomes(
     // (`registry:<label>`), so map back at the edge (issue #4796 review).
     const hashes = verdicts.map(verdictIdOf);
     const idByHash = new Map(verdicts.map((v, i) => [hashes[i], v.id]));
+    const refusals = pairSplitRefusals(verdicts, testPositions);
     const standings = minimalPairStandings(
         verdicts.map((v, i) => ({
             verdictId: hashes[i],
             judgement: v,
             stored: v.source === "store",
+            splitRefusal: refusals.get(hashes[i]),
         }))
     );
     const out: MinimalPairFitOutcome[] = [];

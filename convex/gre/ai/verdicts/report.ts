@@ -64,6 +64,7 @@ import {
 } from "./features";
 import { evalPairsOf, type EvalPair } from "./evalPairs";
 import { verdictIdOf } from "./identity";
+import { pairSplitRefusals } from "./heldOut";
 import { minimalPairStandings } from "./minimalPair";
 import type { Verdict, VerdictGap } from "./types";
 
@@ -214,6 +215,9 @@ export function collectVerdictReport(
         weights?: EvalWeights;
         gaps?: VerdictGap[];
         onRow?: (row: VerdictRow) => void;
+        /** `testPositionKeysOf(<the registry>)`: the held-out split's
+         *  refusal of a pair needs the sides (ADR 0148 § Split). */
+        testPositions?: ReadonlySet<string>;
     } = {}
 ): VerdictReport {
     const weights = options.weights ?? DEFAULT_EVAL_WEIGHTS;
@@ -227,11 +231,16 @@ export function collectVerdictReport(
     // a verdict read from the store is upcast: a registry one is code, and an
     // authored one says exactly what its author wrote.
     const ids = verdicts.map(verdictIdOf);
+    const refusals = pairSplitRefusals(
+        verdicts,
+        options.testPositions ?? new Set()
+    );
     const standings = minimalPairStandings(
         verdicts.map((verdict, i) => ({
             verdictId: ids[i],
             judgement: verdict,
             stored: verdict.source === "store",
+            splitRefusal: refusals.get(ids[i]),
         }))
     );
 
