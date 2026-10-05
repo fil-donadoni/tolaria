@@ -3556,20 +3556,21 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         },
         spec: {
             cards: [
-                { name: "Zuran Orb", owner: "me", zone: "battlefield" },
+                { name: "Zuran Orb", owner: "opp", zone: "battlefield" },
                 {
                     name: "Titania, Protector of Argoth",
-                    owner: "me",
+                    owner: "opp",
                     zone: "battlefield",
                     summoningSick: false,
                 },
             ],
             phase: "PRECOMBAT_MAIN",
+            activePlayer: "opp",
             turn: 5,
             landCount: 5,
             libraryCount: 20,
         },
-        bot: "me",
+        bot: "opp",
         budget: { iterations: 200 },
         seeds: [0xb1ade, 1, 2, 3, 4],
         tier: "must",
@@ -3580,12 +3581,9 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
     },
     {
         label: "activation timing: converts a sacrifice engine at the opponent's end step",
-        classification: {
-            kind: "conditional",
-            discriminant: {
-                kind: "step",
-                detail: "the bot's own precombat main phase",
-            },
+        pairOf: {
+            anchor: "activation timing: holds a sacrifice engine through its own main phase",
+            discriminant: { kind: "step", detail: "the opponent's end step" },
         },
         spec: {
             cards: [
@@ -3598,15 +3596,14 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                 },
             ],
             phase: "END_STEP",
+            // The opponent's end step (CR 513.1): `me` is the active
+            // player, the bot (`opp`) holds priority.
+            activePlayer: "me",
+            priority: "opp",
             turn: 5,
             landCount: 5,
             libraryCount: 20,
         },
-        // `me` is always the ACTIVE player in a `ScenarioSpec`, so the seat
-        // holding the engine has to be `opp` for this to be the OPPONENT's end
-        // step from the bot's point of view. The built board hands priority to
-        // the active player; one `pass` walks it to the bot (CR 513.1).
-        setup: [{ kind: "pass", seat: "me" }],
         bot: "opp",
         budget: { iterations: 200 },
         seeds: [0xb1ade, 1, 2, 3, 4],
