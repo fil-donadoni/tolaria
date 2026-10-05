@@ -1360,6 +1360,48 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         note: 'Half 1 of the discriminating pair — PAIRED WITH "discriminating pair: casts Phyrexian Dreadnought WITH an out (Stifle)". Neither half is meaningful alone. Both halves pass at 400 iterations across 3 seeds.',
     },
     {
+        // FODDER BOARD, NO OUT (issue #4825) — the refusal Test Position that
+        // keeps "Dreadnought is castable" from reading as "always cast it".
+        // Same Dreadnought as the pair above, still no Stifle, but now the
+        // punisher cost (CR 118: sacrifice creatures with total power 12 or
+        // greater) CAN be paid without the Dreadnought itself.
+        //
+        // FAIRNESS BY CONSTRUCTION (ADR 0070 §1): four Hill Giants carry
+        // exactly the 12 power the trigger asks for. Casting pays for a 12/12
+        // trampler with the whole board — four bodies worth about 800 for one
+        // worth about 513 — and the position holds no lethal and no race the
+        // 12/12 decides (the opponent has an empty board and the default 20
+        // life). The narrow boards where this trade pays off are NOT asserted
+        // either way.
+        //
+        // BUDGET (ADR 0070 §2): the pair's own production-range 400, declared
+        // before the position was built and never raised to make it pass.
+        label: "refusal: does NOT cast Phyrexian Dreadnought onto a fodder board with no out",
+        spec: {
+            cards: [
+                { name: "Phyrexian Dreadnought", owner: "me", zone: "hand" },
+                ...Array.from({ length: 4 }, () => ({
+                    name: "Hill Giant",
+                    owner: "me" as const,
+                    zone: "battlefield" as const,
+                    summoningSick: false,
+                })),
+            ],
+            phase: "POSTCOMBAT_MAIN",
+            turn: 3,
+            landCount: 1,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2],
+        tier: "must",
+        expect: {
+            forbidden: [{ kind: "cast-spell", card: "Phyrexian Dreadnought" }],
+        },
+        note: 'Refusal entry for issue #4825, beside the empty-board refusal of the discriminating pair. Four Hill Giants (12 power) can pay the punisher cost, so the cast is legal and affordable — and a loss: four bodies for one 12/12. Casting it here is a Bot bug, never a reason to move the position. See "discriminating pair: casts Phyrexian Dreadnought WITH an out (Stifle)" for the play the pair exists to show.',
+    },
+    {
         // DISCRIMINATING PAIR, HALF 2 of 2 (issue #1487).
         // PAIRED WITH: "discriminating pair: does NOT cast Phyrexian
         // Dreadnought with no out". Same position plus one card (Stifle) and
