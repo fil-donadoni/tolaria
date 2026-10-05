@@ -249,7 +249,7 @@ function readVerdictFile(root: string): string | null {
  * a DIFFERENT sha (a race with another run) is refused too.
  */
 function runHealthGate(cwd: string): void {
-    spawnSync("bun", [HEALTH_MAIN, `--branch=${BASE_BRANCH}`], {
+    spawnSync("bun", [HEALTH_MAIN, `--branch=${BASE_BRANCH}`, "--ui-all"], {
         stdio: "inherit",
         cwd,
         env: netEnv(process.env),

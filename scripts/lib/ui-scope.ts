@@ -87,7 +87,7 @@ export const ROUTER_MODULE = "src/router.tsx";
 /** The build configuration; its closure shapes every route's bundle. */
 export const BUILD_CONFIG = "vite.config.ts";
 /** The lane's own walks, probe and floors. */
-const UI_GATE_DIR = "scripts/ui-gate/";
+export const UI_GATE_DIR = "scripts/ui-gate/";
 /** The one lane file that also holds per-surface definitions. */
 export const SURFACES_FILE = "scripts/ui-gate/surfaces.ts";
 

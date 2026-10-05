@@ -140,6 +140,12 @@ import {
 import { reachable, readEnvLocal } from "./lib/convex-reachable";
 import { waitForWalkWindow } from "./lib/health-walk-wait";
 import {
+    describeWalkPlan,
+    planHealthWalk,
+    walkEntriesFor,
+    type WalkPlan,
+} from "./lib/health-walk-plan";
+import {
     gateLockRoot,
     heavyHolderLine,
     heavyHolderLive,
@@ -183,6 +189,13 @@ interface LastRun {
      *  the offline gates, and the browser walk. */
     offline?: "green" | "red" | "infra";
     ui?: UiWalkState;
+    /** Which walk this run owed (issue #5076): `describeWalkPlan`'s text, for
+     *  `health:status`. */
+    walk?: string;
+    /** `running`, `phase: "walk"` only: the plan the walk phase executes, and
+     *  the last GREEN tip a scoped walk diffs against. */
+    walkPlan?: WalkPlan;
+    walkBase?: string;
     /** `running` only: `walk` once the offline gates passed and the walk is
      *  owed, off the heavy mutex (`--phase=walk`). */
     phase?: "walk";
@@ -232,26 +245,47 @@ function writeLast(dir: string, run: LastRun): void {
     writeFileSync(join(dir, "last.json"), JSON.stringify(run, null, 2));
 }
 
+/** The last GREEN tip, or `null` when none is recorded or readable. */
+function readGreenSha(root: string): string | null {
+    try {
+        const green = readFileSync(
+            join(root, ".claude/telemetry/green-sha"),
+            "utf8"
+        ).trim();
+        return green === "" ? null : green;
+    } catch {
+        return null;
+    }
+}
+
 /** Repo-relative paths that changed between the last GREEN tip and `tip` —
  *  the batch's diff. `null` when it cannot be taken: no green tip recorded, or
  *  it is no longer an ancestor-reachable object here. */
 function batchChangedFiles(root: string, tip: string): string[] | null {
-    let green: string;
-    try {
-        green = readFileSync(
-            join(root, ".claude/telemetry/green-sha"),
-            "utf8"
-        ).trim();
-    } catch {
-        return null;
-    }
-    if (green === "") return null;
+    const green = readGreenSha(root);
+    if (green === null) return null;
     const r = spawnSync("git", ["diff", "--name-only", `${green}..${tip}`], {
         encoding: "utf8",
         cwd: root,
     });
     if (r.status !== 0) return null;
     return r.stdout.split("\n").filter((line) => line !== "");
+}
+
+/** `check:ui --scope-only` at the tip, diffed from the last GREEN tip: its
+ *  output, or `null` when it did not run clean (the plan then walks full). */
+function scopeOnlyOutput(
+    wt: string,
+    green: string | null,
+    env: NodeJS.ProcessEnv
+): string | null {
+    if (green === null) return null;
+    const r = spawnSync(
+        "bun",
+        ["run", "check:ui", "--scope-only", `--base=${green}`],
+        { cwd: wt, env, encoding: "utf8", timeout: 180_000 }
+    );
+    return r.status === 0 ? `${r.stdout}\n${r.stderr}` : null;
 }
 
 /** Worktrees whose checked-out branch is already merged into origin/main —
@@ -312,7 +346,7 @@ function status(root: string): never {
         : `probation ${ledger.streak}/${UI_WALK_PROBATION_RUNS} non-infra walks — a walk failure is not RED`;
     if (last)
         console.log(
-            `  offline: ${last.offline ?? "unrecorded"} · ui: ${last.ui ?? "unrecorded"} (${probation})`
+            `  offline: ${last.offline ?? "unrecorded"} · ui: ${last.ui ?? "unrecorded"} (${probation})${last.walk ? `\n  walk: ${last.walk}` : ""}`
         );
     const stale = staleWorktrees(root);
     if (stale.length > 0) {
@@ -350,6 +384,15 @@ interface RunCtx {
     /** The record as it stood BEFORE this run's `running` record replaced
      *  it — what an infra verdict may have to keep (`infraRecordToKeep`). */
     previous: LastRun | null;
+    /** The walk this run owes, once planned (issue #5076). */
+    walkPlan?: WalkPlan;
+    /** The last GREEN tip the plan's batch diff started from. */
+    walkBase?: string | null;
+}
+
+/** The record fields that say which walk the run owed. */
+function walkFields(ctx: RunCtx): Pick<LastRun, "walk"> {
+    return ctx.walkPlan ? { walk: describeWalkPlan(ctx.walkPlan) } : {};
 }
 
 function finishInfra(
@@ -370,6 +413,7 @@ function finishInfra(
             infraCause: cause,
             reason: INFRA_REMEDY[cause],
             ...halves,
+            ...walkFields(ctx),
             ...(log ? { log } : {}),
         },
         previous: ctx.previous,
@@ -394,6 +438,7 @@ function finishRed(
         failedStep,
         log: ctx.logPath,
         ...halves,
+        ...walkFields(ctx),
     });
     writeFileSync(
         join(ctx.dir, "RED"),
@@ -414,6 +459,7 @@ function finishGreen(ctx: RunCtx, ui: UiWalkState): void {
         log: ctx.logPath,
         offline: "green",
         ui,
+        ...walkFields(ctx),
     });
     rmSync(join(ctx.dir, "RED"), { force: true });
     // The health gate IS the authoritative green record now (ADR 0110).
@@ -445,6 +491,7 @@ async function runWalk(ctx: RunCtx, walk: readonly string[]): Promise<void> {
         phase: "walk",
         offline: "green",
         ui: "walking",
+        ...walkFields(ctx),
         log: ctx.logPath,
         prior: priorOf(ctx.previous),
     });
@@ -579,7 +626,17 @@ async function walkPhase(root: string, dir: string): Promise<void> {
         );
         return;
     }
-    const walk = splitHealthGates(HEALTH_SCRIPTS).walk;
+    // The plan the offline phase made; a record without one (an older run)
+    // walks everything.
+    const plan: WalkPlan = last.walkPlan ?? {
+        kind: "full",
+        reason: "no walk plan recorded",
+    };
+    const walk = walkEntriesFor(
+        splitHealthGates(HEALTH_SCRIPTS).walk,
+        plan,
+        last.walkBase ?? null
+    );
     await runWalk(
         {
             root,
@@ -591,6 +648,8 @@ async function walkPhase(root: string, dir: string): Promise<void> {
             // The record the RUN replaced, not the `running` one between
             // its phases: an infra walk must keep a standing red record.
             previous: last.prior ?? null,
+            walkPlan: plan,
+            walkBase: last.walkBase ?? null,
         },
         walk
     );
@@ -672,15 +731,25 @@ async function main(): Promise<void> {
     // is never inside it (issue #4962).
     const env = healthGateEnv(process.env, { keepHold: underLock });
 
-    const refreshBot = batchTouchesBot(batchChangedFiles(root, tip));
+    const batch = batchChangedFiles(root, tip);
+    const greenBase = readGreenSha(root);
+    // `release` and an explicit `--ui-all` keep the full walk (issue #5076).
+    const forceAll = process.argv.includes("--ui-all");
+    const refreshBot = batchTouchesBot(batch);
     // A Bot batch also owes the Bot-only gates (issue #4875), after the rest.
     const scripts = HEALTH_SCRIPTS;
     const gates = healthGates(scripts, refreshBot);
     const { offline, walk } = splitHealthGates(gates);
     // The deployment `check:ui` needs, asked BEFORE ~40 minutes of gates
     // (issue #4943) — the same probe `check:ui` makes, on the URL it reads.
+    // A batch no cheap rule can place may still plan out to no walk, only
+    // once the tree is built: it preflights, a batch that is certainly
+    // skipped does not (the backend is not its business).
+    const certainSkip =
+        planHealthWalk({ forceAll, changed: batch, scopeOutput: () => null })
+            .kind === "skipped";
     const preflight = await convexPreflight({
-        gates,
+        gates: certainSkip ? offline : gates,
         url: process.env.VITE_CONVEX_URL ?? readEnvLocal(root).VITE_CONVEX_URL,
         probe: (url) => reachable(url, 5000),
     });
@@ -779,6 +848,19 @@ async function main(): Promise<void> {
                 break;
             }
         }
+        // The walk this batch owes, planned in the tree the offline gates
+        // proved (issue #5076): the scoper is the tip's own `check:ui`.
+        if (failedStep === undefined && walk.length > 0) {
+            ctx.walkBase = greenBase;
+            ctx.walkPlan = planHealthWalk({
+                forceAll,
+                changed: batch,
+                scopeOutput: () => scopeOnlyOutput(wt, greenBase, env),
+            });
+            console.log(
+                `health-main: walk plan — ${describeWalkPlan(ctx.walkPlan)}`
+            );
+        }
         // Only a batch that passed re-measures, and a refresh that fails or
         // is cut short leaves the page stale (marked so) instead of the tip
         // red: the measurement is a view of the Bot, not a gate on it. It
@@ -852,6 +934,12 @@ async function main(): Promise<void> {
         finishGreen(ctx, "not run");
         return;
     }
+    if (ctx.walkPlan?.kind === "skipped") {
+        // The offline half alone decides GREEN; the probation ledger neither
+        // advances nor resets (issue #5076).
+        finishGreen(ctx, "skipped");
+        return;
+    }
     if (phase === "offline") {
         // The walk is owed and the caller's hold must end first: the record
         // says so, and `--phase=walk` picks it up (`health-cadence detach`).
@@ -864,6 +952,9 @@ async function main(): Promise<void> {
             phase: "walk",
             offline: "green",
             ui: "pending",
+            ...walkFields(ctx),
+            walkPlan: ctx.walkPlan,
+            walkBase: ctx.walkBase ?? undefined,
             log: logPath,
             prior: priorOf(last),
         });
