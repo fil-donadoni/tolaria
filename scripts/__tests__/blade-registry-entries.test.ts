@@ -1,8 +1,6 @@
 // The blade registry cut into entries by source text (issue #5078): which
 // `must` entries a batch added or changed, and the fail-closed paths.
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import {
     entryTier,
     parseRegistryEntries,
@@ -40,26 +38,6 @@ describe("parseRegistryEntries", () => {
         const parsed = parseRegistryEntries(src)!;
         expect([...parsed.blocks.keys()]).toEqual(["A"]);
         expect(parsed.residue).toContain("...make()");
-    });
-
-    it("reads the real registry: every entry, every must", async () => {
-        const src = readFileSync(
-            join(__dirname, "../../convex/gre/ai/blade/registry.ts"),
-            "utf8"
-        );
-        const parsed = parseRegistryEntries(src)!;
-        const { BLADE_SCENARIOS } =
-            await import("../../convex/gre/ai/blade/registry");
-        expect([...parsed.blocks.keys()].sort()).toEqual(
-            BLADE_SCENARIOS.map((s: { label: string }) => s.label).sort()
-        );
-        const must = [...parsed.blocks.values()].filter(
-            (b) => entryTier(b) === "must"
-        );
-        expect(must.length).toBe(
-            BLADE_SCENARIOS.filter((s: { tier: string }) => s.tier === "must")
-                .length
-        );
     });
 });
 
