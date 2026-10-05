@@ -328,7 +328,6 @@
         {"id":"103.5","line":"/** Pre-game mulligan tracking (CR 103.5, London mulligan). Present only while","sites":1,"status":"baseline"},
         {"id":"103.5","line":"/** True while ANY player is bottoming cards after a mulligan (CR 103.5).","sites":1,"status":"baseline"},
         {"id":"103.5","line":"/** Zone-pick family + mulligan-bottom (CR 608.2 / 103.5): every valid","sites":1,"status":"confirmed","ruleHash":"12eaa4f953a69cd5"},
-        {"id":"103.5","line":"// (CR 103.5). Their rows would otherwise ride into the shape","sites":1,"status":"confirmed","ruleHash":"12eaa4f953a69cd5"},
         {"id":"103.5","line":"// (CR 103.5: \"until their opening hand would be zero cards\").","sites":1,"status":"baseline"},
         {"id":"103.5","line":"// CR 103.5 (issue #1714) — the opening hand is drawn BEFORE turn 1 begins,","sites":1,"status":"baseline"},
         {"id":"103.5","line":"// CR 103.5 / CR 117.3a — the mulligan procedure is PRE-GAME, and priority is","sites":1,"status":"baseline"},

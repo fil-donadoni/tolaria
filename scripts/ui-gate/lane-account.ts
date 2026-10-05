@@ -113,7 +113,6 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SCENARIO_FILES = [
     "stress-scenario.json",
     "yields-scenario.json",
-    "ai-trace-scenario.json",
     "board-scenario.json",
     "combat-scenario.json",
     "choice-scenario.json",
@@ -450,8 +449,10 @@ export function createLaneFleet(deps: LaneFleetDeps): LaneFleet {
                     email: account.email,
                     runId: account.runId,
                 });
-                // The contested position `admin-verdicts` opens (issue #3582):
-                // outbox rows owned by this account, removed with it.
+                // The contested position the `admin-verdicts` row opened (issue
+                // #3582; the row left the lane with issue #5075, the seed stays
+                // until its mutation is retired): outbox rows owned by this
+                // account, removed with it.
                 run("verdictResolutions:seedUiGateContestedPosition", {
                     email: account.email,
                 });

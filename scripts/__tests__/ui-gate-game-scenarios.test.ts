@@ -25,10 +25,7 @@
 // position must owe its input to seat one. `buildStateFromScenario`
 // (`convex/gre/scenarioBuilder.ts`) maps `"me"` to the first seat and `"opp"`
 // to the second, and the second is the Bot's (`-p2`, ADR 0001,
-// `bladeLoadBotSeatId`). `useVsAiDriver` acts only when the ENGINE says the
-// bot owes input — which is exactly what `computeExpectedInput` answers below
-// — so the ring the `game-debug-sheet-ai` surface measures is written by the
-// seam alone (`src/components/debug/__tests__/ai-trace-seam.bot.test.tsx`).
+// `bladeLoadBotSeatId`) — the seat `computeExpectedInput` must never name.
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -87,13 +84,12 @@ function baseState() {
 
 describe("check:ui declared positions (ADR 0132 §4)", () => {
     it("seeds one payload per game surface that loads a position", () => {
-        // Six today. The count is asserted so that ADDING a payload without
+        // Five today. The count is asserted so that ADDING a payload without
         // a surface, or a surface without a payload, is a decision somebody
         // makes on purpose rather than a diff nobody reads.
         expect(seeds.map((s) => s.label)).toEqual([
             "UI stress — full board, full hand, deep piles",
             "UI yields — two spells on the stack",
-            "UI AI trace — quiet board, priority on the human seat",
             "UI board — ordinary mid-game position",
             "UI combat — blocks owed on a confirmed attack",
             "UI choice — a card pick over the board, seven candidates",

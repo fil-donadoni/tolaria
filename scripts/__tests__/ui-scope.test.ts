@@ -9,6 +9,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import { createImportGraph } from "../lib/import-graph";
 import {
     computeUiScope,
+    isStaffOnlyRouteEntry,
     renderUiScope,
     type ScopeSurface,
 } from "../lib/ui-scope";
@@ -31,6 +32,8 @@ const FILES: Record<string, string> = {
         `import Game from "./routes/game.route";`,
         `import Census from "./routes/census.route";`,
         `import Orphan from "./routes/orphan.route";`,
+        `import AdminPanel from "./routes/admin/admin-panel.route";`,
+        `import DraftLab from "./routes/draft-lab.route";`,
         `import AppShell from "./components/chrome/app-shell";`,
     ].join("\n"),
     "src/components/chrome/app-shell.tsx": `import { NavLink } from "./nav-link";\n`,
@@ -45,6 +48,15 @@ const FILES: Record<string, string> = {
     // is reachable at runtime, and nothing walks it.
     "src/routes/orphan.route.tsx": `import { Widget } from "~/components/orphan-widget";\n`,
     "src/components/orphan-widget.tsx": `export const Widget = 1;\n`,
+    // Staff-only pages (the admin layout's, plus Draft Lab): mounted by the
+    // router, declared by NO surface. `admin-widget` is theirs alone;
+    // `deck-shelf` is shared with the lobby, `admin-tool` is shared by both
+    // staff pages, and `admin-shape` is named only through a type import.
+    "src/routes/admin/admin-panel.route.tsx": `import { AdminWidget } from "~/components/admin/admin-widget";\nimport { Tool } from "~/components/admin/admin-tool";\nimport { DeckShelf } from "~/components/deck-shelf";\nimport type { AdminShape } from "~/components/admin/admin-shape";\n`,
+    "src/routes/draft-lab.route.tsx": `import { Tool } from "~/components/admin/admin-tool";\n`,
+    "src/components/admin/admin-widget.tsx": `export const AdminWidget = 1;\n`,
+    "src/components/admin/admin-tool.tsx": `export const Tool = 1;\n`,
+    "src/components/admin/admin-shape.ts": `export type AdminShape = 1;\n`,
     // Named by the lobby in a type-only statement and by nothing at runtime:
     // the build erases the edge, so no screen runs its code.
     "src/components/shape.ts": `export type Shape = 1;\n`,
@@ -195,6 +207,46 @@ describe("computeUiScope — scoped", () => {
 
     it("an empty diff selects nothing", () => {
         expect(scopeOf()).toEqual({ kind: "scoped", surfaces: [] });
+    });
+});
+
+describe("computeUiScope — staff-only routes (issue #5075)", () => {
+    it("a module only a staff-only page imports contributes nothing — not full", () => {
+        for (const path of [
+            "src/routes/admin/admin-panel.route.tsx",
+            "src/routes/draft-lab.route.tsx",
+            "src/components/admin/admin-widget.tsx",
+            "src/components/admin/admin-tool.tsx",
+            "src/components/admin/admin-shape.ts",
+        ]) {
+            expect(scopeOf(path), path).toEqual({
+                kind: "scoped",
+                surfaces: [],
+            });
+        }
+    });
+
+    it("a module shared by a staff-only page and a product surface selects the product surface", () => {
+        expect(scopeOf("src/components/deck-shelf.tsx")).toEqual({
+            kind: "scoped",
+            surfaces: ["lobby"],
+        });
+    });
+
+    it("a staff-only module beside a product component selects exactly the product surfaces", () => {
+        expect(
+            scopeOf(
+                "src/components/admin/admin-widget.tsx",
+                "src/components/dialogs/pause-body.tsx"
+            )
+        ).toEqual({
+            kind: "scoped",
+            surfaces: ["game-board", "game-debug", "census", "dlg-pause"],
+        });
+    });
+
+    it("the rule places a module only the staff-only pages reach — an unrelated orphan route's module still selects full", () => {
+        expect(scopeOf("src/components/orphan-widget.tsx").kind).toBe("full");
     });
 });
 
@@ -366,5 +418,50 @@ describe("renderUiScope", () => {
         ).toBe(
             "scope (diff base origin/staging): SCOPED — 2 surface(s)\n  · lobby\n  · game-board"
         );
+    });
+});
+
+describe("isStaffOnlyRouteEntry (issue #5075)", () => {
+    it("takes the admin pages and Draft Lab; never the layout, the design-system page or a product route", () => {
+        for (const yes of [
+            "src/routes/admin/admin-index.route.tsx",
+            "src/routes/admin/admin-verdicts.route.tsx",
+            "src/routes/draft-lab.route.tsx",
+        ]) {
+            expect(isStaffOnlyRouteEntry(yes), yes).toBe(true);
+        }
+        for (const no of [
+            "src/routes/admin/admin-layout.route.tsx",
+            "src/routes/design-system.route.tsx",
+            "src/routes/design-system/section-a.tsx",
+            "src/routes/lobby.route.tsx",
+            "src/routes/admin/nested/x.route.tsx",
+        ]) {
+            expect(isStaffOnlyRouteEntry(no), no).toBe(false);
+        }
+    });
+});
+
+describe("the real router's admin layout (issue #5075)", () => {
+    it("every page mounted under it is staff-only, except the design-system page the lane keeps walking", () => {
+        const source = fs.readFileSync(
+            path.resolve(__dirname, "../../src/router.tsx"),
+            "utf8"
+        );
+        const blocks = source.split("createRoute({").slice(1);
+        const adminPages = blocks
+            .filter((b) => /getParentRoute: \(\) => adminRoute\b/.test(b))
+            .map((b) => /import\("\.\/(routes\/[^"]+)"\)/.exec(b)?.[1])
+            .map((m) => `src/${m}.tsx`);
+        expect(adminPages.length).toBeGreaterThan(8);
+        const unclassified = adminPages.filter(
+            (p) =>
+                !isStaffOnlyRouteEntry(p) &&
+                p !== "src/routes/design-system.route.tsx"
+        );
+        expect(
+            unclassified,
+            `admin-layout pages neither staff-only nor the design-system page: ${unclassified.join(", ")}`
+        ).toEqual([]);
     });
 });

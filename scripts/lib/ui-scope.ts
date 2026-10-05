@@ -36,7 +36,17 @@
  *     deployment serves, and never pushes Convex functions (ADR 0131
  *     amendment, issue #5074). A module the frontend DOES import is in a
  *     closure and was placed above;
+ *   - in no closure at all, but reachable ONLY from a STAFF-ONLY route entry
+ *     (`isStaffOnlyRouteEntry`: the admin pages, `/admin/draft-lab`) →
+ *     contributes nothing: staff tooling is out of `check:ui`'s scope, so no
+ *     surface walks it and its private modules must not force `full` (ADR 0131
+ *     amendment, owner ruling issue #5075). A module an admin page SHARES with
+ *     a product surface is in that surface's closure and was placed above;
  *   - otherwise → `full`.
+ *
+ * The tester debug sheet needs no rule of its own: `game.route.tsx` imports it,
+ * so its whole subtree sits in the game surfaces' closures and a change there
+ * still walks them (they render its edge toggle).
  *
  * A SURFACE'S CLOSURE is its route entries' import closure — except for a
  * SPECIMEN row (issue #4913). `/admin/design-system` mounts ~30 dialogs and
@@ -98,6 +108,22 @@ export interface ScopeSurface {
 export type UiScope =
     | { kind: "scoped"; surfaces: string[] }
     | { kind: "full"; reason: string };
+
+/**
+ * A route entry that is staff-only tooling (ADR 0131 amendment, issue #5075):
+ * a page of the admin layout, except the design-system page — which lives
+ * outside `src/routes/admin/` and stays walked, since its specimen rows are how
+ * in-game dialogs and pickers are measured — plus `/admin/draft-lab`, mounted
+ * under the same layout from a top-level route module. The layout module
+ * itself frames the design-system page too, so it is not staff-only.
+ */
+export function isStaffOnlyRouteEntry(path: string): boolean {
+    return (
+        /^src\/routes\/admin\/(?!admin-layout\.)[^/]+\.route\.tsx$/.test(
+            path
+        ) || path === "src/routes/draft-lab.route.tsx"
+    );
+}
 
 /** `src/routes/**\/*.route.tsx` — the naming the router's route modules carry. */
 export function isRouteModulePath(path: string): boolean {
@@ -201,6 +227,23 @@ export function computeUiScope({
         return reach.typed.has(path) && !reach.runtime.has(path);
     };
 
+    // Everything the staff-only routes reach, type-only edges included — a
+    // type change that matters fails `check:ts`, not a walk. Built on first
+    // use, and only for a path no surface closure contains.
+    let staffOnly: Set<string> | null = null;
+    const staffOnlyReachable = (path: string): boolean => {
+        if (staffOnly === null) {
+            staffOnly = new Set();
+            for (const entry of graph.importsOf(ROUTER_MODULE)) {
+                if (!isStaffOnlyRouteEntry(entry)) continue;
+                for (const file of graph.closureOf(entry, { types: true })) {
+                    staffOnly.add(file);
+                }
+            }
+        }
+        return staffOnly.has(path);
+    };
+
     const selected = new Set<string>();
     for (const path of [...changed].sort()) {
         if (path === SURFACES_FILE && surfaceEdits?.kind === "surfaces") {
@@ -235,6 +278,7 @@ export function computeUiScope({
         const hits = closures.filter((c) => c.files.has(path));
         if (hits.length === 0) {
             if (typeOnlyReachable(path)) continue;
+            if (staffOnlyReachable(path)) continue;
             if (isServerOnlyPath(path)) continue;
             return {
                 kind: "full",

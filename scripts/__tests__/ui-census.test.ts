@@ -26,10 +26,29 @@ import {
     debtFault,
     type CensusRow,
 } from "../lib/ui-census";
+import { isStaffOnlyRouteEntry } from "../lib/ui-scope";
 import { SURFACES } from "../ui-gate/surfaces";
 import { UNWALKED_SURFACES } from "../ui-gate/floors";
 
 const REPO_ROOT = path.resolve(__dirname, "..", "..");
+
+/** Staff-only tooling is out of `check:ui`'s scope — the owner's ruling (issue
+ *  #5075, ADR 0131 amendment): the admin pages, Draft Lab, the tester debug
+ *  sheet and the dialog only the admin banlist page opens. Not a product
+ *  screen, so no surface walks it. */
+const STAFF_ONLY_REASON =
+    "staff-only tooling, out of check:ui's scope by the owner's ruling (issue #5075, ADR 0131 amendment)";
+
+/** Every staff-only route module — the same predicate the scoper places by
+ *  (`isStaffOnlyRouteEntry`), so a new admin page is exempt here exactly when
+ *  its files stop forcing a full walk there. */
+function staffOnlyExemptions(): Record<string, string> {
+    return Object.fromEntries(
+        scanCensusElements(REPO_ROOT)
+            .filter((e) => e.kind === "route" && isStaffOnlyRouteEntry(e.file))
+            .map((e) => [e.file, STAFF_ONLY_REASON])
+    );
+}
 
 /**
  * EXEMPT — reviewed, and genuinely owed no measurement.
@@ -39,7 +58,11 @@ const REPO_ROOT = path.resolve(__dirname, "..", "..");
  * instruction to the design-system specimen page. A locational reason is
  * refused mechanically below.
  */
-const EXEMPT: Record<string, string> = {};
+const EXEMPT: Record<string, string> = {
+    ...staffOnlyExemptions(),
+    "src/components/debug/debug-sheet.tsx": STAFF_ONLY_REASON,
+    "src/components/lobby/banlist-cards-dialog.tsx": STAFF_ONLY_REASON,
+};
 
 /**
  * DEBT — reviewed, DOES owe a measurement, and has none.

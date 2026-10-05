@@ -90,9 +90,8 @@ serves it statically. Measured on one tree, same day: 1130s on the dev server,
 that was adopted — so the bundle is the default and `--serve=dev` is the
 escape. It is a **development-mode** bundle (`NODE_ENV=development`,
 `--mode development`): the lane measures the same app the dev server serves —
-`game-debug-sheet-ai` walks a seam installed only under `import.meta.env.DEV`,
-and the Infra Verdict reads React's development warnings — where a production
-build dropped both.
+the Infra Verdict reads React's development warnings, which a production
+build drops.
 
 **One census-page load per viewport** (issue #4687). Thirty-one rows are
 `/admin/design-system`: the page, the GameDialog live demo and the § 16–18
@@ -538,7 +537,7 @@ RECEIPT — full lane run, 23 surface(s) in scope (21 measured, 2 declared unwal
 PASS     auth-sign-in         1440x900x2   every floor at zero
 PASS     auth-sign-in         390x844x3    every floor at zero
 …
-PASS     admin-verdicts       1180x820x2   every floor at zero
+PASS     settings             1180x820x2   every floor at zero
 assert   auth-sign-in         1440x900x2   PASS email field
 assert   auth-sign-in         1440x900x2   PASS Sign In submit
 …
