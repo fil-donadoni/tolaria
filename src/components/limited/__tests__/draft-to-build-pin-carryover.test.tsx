@@ -53,6 +53,17 @@ const setPoolArrangementEntryMock = vi.hoisted(() =>
 const submitPickMock = vi.hoisted(() => vi.fn().mockResolvedValue(null));
 const selectDraftPickMock = vi.hoisted(() => vi.fn().mockResolvedValue(null));
 
+vi.mock("~/lib/useBasicLandPrintings", async () => ({
+    useBasicLandPrintings: (
+        await import("~/components/deckbuilder/__tests__/basicLandPrintRows")
+    ).useBasicLandPrintingsStub,
+}));
+vi.mock("~/lib/useBasicLandPreferenceRows", async () => ({
+    useBasicLandPreferenceRows: (
+        await import("~/components/deckbuilder/__tests__/basicLandPrintRows")
+    ).useBasicLandPreferenceRowsStub,
+}));
+
 vi.mock("@tanstack/react-router", () => ({ useNavigate: () => navigate }));
 
 vi.mock("~/hooks/useLimitedEvent", () => ({

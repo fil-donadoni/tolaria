@@ -7,7 +7,8 @@ import {
 } from "~/components/ui/popover";
 import { cn } from "~/lib/utils";
 import { pickerRingClass } from "~/lib/picker-ring";
-import { legalBasicLandPrintings, type BasicLandSubtype } from "./basicLands";
+import { useBasicLandPrintings } from "~/lib/useBasicLandPrintings";
+import type { BasicLandSubtype } from "./basicLands";
 
 interface BasicLandArtPickerProps {
     subtype: BasicLandSubtype;
@@ -44,7 +45,11 @@ export default function BasicLandArtPicker({
     disabled = false,
 }: BasicLandArtPickerProps) {
     const [open, setOpen] = useState(false);
-    const printings = legalBasicLandPrintings(subtype, allowedSets);
+    const { printings, canLoadMore, loadMore } = useBasicLandPrintings(
+        subtype,
+        allowedSets,
+        open
+    );
 
     return (
         <Popover open={open} onOpenChange={setOpen}>
@@ -114,6 +119,15 @@ export default function BasicLandArtPicker({
                             </button>
                         ))}
                     </div>
+                )}
+                {canLoadMore && (
+                    <button
+                        type="button"
+                        onClick={loadMore}
+                        className="mt-2 w-full text-[11px] text-text-muted underline"
+                    >
+                        Load more
+                    </button>
                 )}
             </PopoverContent>
         </Popover>

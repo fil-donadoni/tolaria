@@ -27,19 +27,11 @@
 // uses for the stored shape — over the value the REAL projection produces. A
 // field present in one and absent from the other fails here exactly as it fails
 // in production.
+import { makeResolveBasicLand } from "../limited/resolveBasicLand";
 import { describe, it, expect } from "vitest";
 import { limitedEventViewValidator } from "../limitedEvents";
-import {
-    resolveDeckCardMeta,
-    tryGetDefinition,
-    getCardByName,
-    getPrintingsForCard,
-} from "../cards";
-import {
-    basicLandsForColors,
-    getCardColorIdentity,
-    getPipCountsFromCost,
-} from "../cards/colors";
+import { resolveDeckCardMeta, tryGetDefinition } from "../cards";
+import { getCardColorIdentity, getPipCountsFromCost } from "../cards/colors";
 import { getDefinitionProducibleColors, manaValue } from "../gre/constants";
 import { makeRng } from "../gre/rng";
 import {
@@ -69,7 +61,6 @@ import { evaluateDeckStrength, type DeckStrength } from "../limited/matchSim";
 import { getRuntimeBoosterConfig } from "../limited/registry";
 import { openRound, type ResolveSeatStrength } from "../limited/rounds";
 import type { GetCardEvalMeta } from "../limited/botDrafter";
-import type { Color } from "../cards/types";
 import {
     validatorJsonOf,
     validationErrors,
@@ -121,14 +112,9 @@ const getAutoBuildCardMeta = (scryfallId: string) => {
 };
 
 function resolveBasicLandFor(setCode: string): ResolveBasicLand {
-    return (color: Color) => {
-        const name = basicLandsForColors([color])[0];
-        const def = getCardByName(name);
-        const printing = getPrintingsForCard(def.id).find(
-            (p) => p.setCode === setCode
-        );
-        return { cardId: printing?.printId ?? def.id, cardName: name };
-    };
+    // No `cardPrints` rows in a unit test: the LEA basics resolve to the
+    // definition's own printing, the same answer the table-less path gives.
+    return makeResolveBasicLand(setCode, new Map());
 }
 
 // ── A real event row, and the exact value the queries return for it ─────────

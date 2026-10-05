@@ -19,6 +19,20 @@ import type { LobbyDeck } from "~/lib/deckTypes";
 import type { StoredDeckColumnLayout } from "@convex/deckLayout";
 import DeckBuilder from "../deck-builder";
 
+vi.mock("~/lib/useEarliestPrintFetcher", () => ({
+    useEarliestPrintFetcher: () => async () => new Map(),
+}));
+vi.mock("~/lib/useBasicLandPrintings", async () => ({
+    useBasicLandPrintings: (
+        await import("~/components/deckbuilder/__tests__/basicLandPrintRows")
+    ).useBasicLandPrintingsStub,
+}));
+vi.mock("~/lib/useBasicLandPreferenceRows", async () => ({
+    useBasicLandPreferenceRows: (
+        await import("~/components/deckbuilder/__tests__/basicLandPrintRows")
+    ).useBasicLandPreferenceRowsStub,
+}));
+
 vi.mock("@tanstack/react-router", () => ({
     useNavigate: () => vi.fn(),
     useSearch: () => ({}),

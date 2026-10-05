@@ -3,7 +3,9 @@ import type { GenericMutationCtx, GenericQueryCtx } from "convex/server";
 import type { DataModel, Doc, Id } from "./_generated/dataModel";
 import { internalMutation, mutation, query } from "./_generated/server";
 import { getCurrentUserId } from "./auth";
+import { loadPrintRows } from "./cardPrintRows";
 import { withDefinitionId } from "./cards/catalogue";
+import { makeResolveCardFromRows } from "./cards/printRows";
 import { storedDeckColumnLayoutValidator } from "./deckLayoutStorage";
 import { loadBanlistOverridesByFormat } from "./decks";
 import { type FormatId, isFormatId, validateDeck } from "./formats";
@@ -81,10 +83,20 @@ export const listMine = query({
                     !row.limitedEventId ||
                     !row.limitedSeatId
                 ) {
+                    // The CHOSEN printing's Set and Rarity are the table's
+                    // (issue #5106): Old School judges Set, Alpha 40 Rarity.
+                    const resolve = makeResolveCardFromRows(
+                        await loadPrintRows(
+                            ctx,
+                            [...row.cards, ...(row.sideboard ?? [])].map(
+                                (c) => c.cardId
+                            )
+                        )
+                    );
                     const { isLegal, reasons } = validateDeck(
                         row,
                         row.format,
-                        undefined,
+                        resolve,
                         banlists[row.format]
                     );
                     return { ...row, isLegal, reasons };

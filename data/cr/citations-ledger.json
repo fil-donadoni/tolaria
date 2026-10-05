@@ -11533,7 +11533,6 @@
         {"id":"305.6","line":"* `{T}: Add C` (CR 305.6, folded in by `getManaTapOptionsDetailed` itself) —","sites":1,"status":"baseline"},
         {"id":"305.6","line":"* activated abilities; the intrinsic basic-subtype options survive (CR 305.6),","sites":1,"status":"baseline"},
         {"id":"305.6","line":"* activated one and the intrinsic Forest subtype, CR 305.6), so the tap routes","sites":1,"status":"baseline"},
-        {"id":"305.6","line":"* basic land NAME (CR 305.6), then `getPrintingsForCard` finds the","sites":1,"status":"baseline"},
         {"id":"305.6","line":"* basic land subtypes among lands `controllerId` controls (0–5, CR 305.6). A","sites":1,"status":"baseline"},
         {"id":"305.6","line":"* basic-land subtypes (CR 305.6), fixed `manaProduced` abilities, and","sites":1,"status":"baseline"},
         {"id":"305.6","line":"* basic-land-subtype pick (CR 305.6) carries no restriction. Used by the","sites":1,"status":"baseline"},

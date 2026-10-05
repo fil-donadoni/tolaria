@@ -33,20 +33,19 @@ import {
     saveSelection,
     seatRowNeedsInterning,
 } from "./limitedSeatStore";
-import { loadPrintRows } from "./cardPrintRows";
+import { loadPrintIdsInSet, loadPrintRows } from "./cardPrintRows";
 import {
     makeResolveCardFromRows,
     makeResolveCardMetaFromRows,
 } from "./cards/printRows";
 import type { ResolveCard } from "./formats";
 import type { ResolveCardMeta } from "./limited/eventLogic";
-import { getCardByName, getPrintingsForCard, tryGetDefinition } from "./cards";
+import { tryGetDefinition } from "./cards";
 import {
-    basicLandsForColors,
-    getCardColorIdentity,
-    getPipCountsFromCost,
-} from "./cards/colors";
-import type { Color } from "./cards/types";
+    basicLandCardIds,
+    makeResolveBasicLand,
+} from "./limited/resolveBasicLand";
+import { getCardColorIdentity, getPipCountsFromCost } from "./cards/colors";
 import { getDefinitionProducibleColors, manaValue } from "./gre/constants";
 import { freshSeed, makeRng } from "./gre/rng";
 import {
@@ -763,23 +762,17 @@ async function loadEventCardResolvers(
     };
 }
 
-/** Resolves ONE basic land of `color` to a `DeckCard` printed in `setCode`
- *  when a printing of that basic exists there, else falls back to the card's
- *  own canonical printing (issue #1115: "basics of the drafted set"). The
- *  only place `convex/limited/autoBuild.ts`'s injected `ResolveBasicLand`
- *  touches the card registry — `basicLandsForColors` (already used by the
- *  debug scenario builder, `convex/game.ts`) resolves a SINGLE color to its
- *  basic land NAME (CR 305.6), then `getPrintingsForCard` finds the
- *  drafted-set printing of that name. */
-function resolveBasicLandFor(setCode: string): ResolveBasicLand {
-    return (color: Color) => {
-        const name = basicLandsForColors([color])[0];
-        const def = getCardByName(name);
-        const printing = getPrintingsForCard(def.id).find(
-            (p) => p.setCode === setCode
-        );
-        return { cardId: printing?.printId ?? def.id, cardName: name };
-    };
+/** The drafted Set's `ResolveBasicLand` (issue #1115): one indexed read per
+ *  basic from `cardPrints` (issue #5106), none when there is no drafted Set. */
+async function loadBasicLandResolver(
+    ctx: QueryCtx | MutationCtx,
+    setCode: string
+): Promise<ResolveBasicLand> {
+    const printIdsInSet =
+        setCode === ""
+            ? new Map<string, string>()
+            : await loadPrintIdsInSet(ctx, basicLandCardIds(), setCode);
+    return makeResolveBasicLand(setCode, printIdsInSet);
 }
 
 /** ONE seat's Auto-Built deck (issue #1115's `computeBotAutoBuiltDeck` wired
@@ -823,7 +816,7 @@ export async function resolveSeatAutoBuiltDeck(
             draftCompletedAt: event.draftCompletedAt,
         },
         getAutoBuildCardMeta,
-        resolveBasicLandFor(event.packSlots[0] ?? "")
+        await loadBasicLandResolver(ctx, event.packSlots[0] ?? "")
     );
 }
 
@@ -1001,12 +994,15 @@ async function projectEventForViewer(
         completion.hasDeckBySeat,
         isAdmin
     );
-    const resolveBasicLand = resolveBasicLandFor(event.packSlots[0] ?? "");
     // Pools exist only once dealt; an `open` event (the lobby list's common
     // case) has nothing to resolve, so it pays no table reads.
     const { getAutoBuildCardMeta } = await loadEventCardResolvers(
         ctx,
         arePoolsDealt(event.status) ? event.packSlots : []
+    );
+    const resolveBasicLand = await loadBasicLandResolver(
+        ctx,
+        arePoolsDealt(event.status) ? (event.packSlots[0] ?? "") : ""
     );
     // Challenges (issue #1577) only exist once Pools do — skip the games read
     // entirely for `open` events (the lobby list's common case).
@@ -1076,7 +1072,10 @@ async function buildSeatStrengthResolver(
         draftCompletedAt: event.draftCompletedAt,
     };
     const getPickRating = await loadEventPickRating(ctx, event.packSlots);
-    const resolveBasicLand = resolveBasicLandFor(event.packSlots[0] ?? "");
+    const resolveBasicLand = await loadBasicLandResolver(
+        ctx,
+        event.packSlots[0] ?? ""
+    );
     const { getCardEvalMeta, getAutoBuildCardMeta } =
         await loadEventCardResolvers(ctx, event.packSlots);
     // Bot deck strength is Auto-Built from the seat's POOL, which no longer

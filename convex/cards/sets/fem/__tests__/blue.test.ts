@@ -13,7 +13,11 @@ import {
     vodalianSoldiersFemC,
     vodalianSoldiersFemD,
 } from "../index.cards";
-import { getDefinition, getPrintingsForCard } from "../../../index";
+import {
+    getAliasedPrintIds,
+    getDefinition,
+    getDefinitionSetCode,
+} from "../../../index";
 import {
     processPendingActionTriggers,
     resolveTopOfStack,
@@ -124,18 +128,15 @@ describe("Vodalian Soldiers multi-art prints (ADR 0014)", () => {
     });
 
     it("lists all FEM artworks as printings, original first (deck builder)", () => {
-        const printings = getPrintingsForCard(vodalianSoldiers.id);
-        expect(printings[0]).toEqual({
-            printId: vodalianSoldiers.id,
-            setCode: "fem",
-        });
+        // The printing list is the `cardPrints` table's (issue #5106); this
+        // file owns the records, so assert the alias carries every FEM art.
+        expect(getDefinitionSetCode(vodalianSoldiers.id)).toBe("fem");
+        const aliased = getAliasedPrintIds(vodalianSoldiers.id);
         for (const print of ALL_FEM_PRINTS) {
-            expect(printings).toContainEqual({
-                printId: print.printId,
-                setCode: "fem",
-            });
+            expect(print.setCode).toBe("fem");
+            expect(aliased).toContain(print.printId);
         }
-        expect(printings).toHaveLength(1 + ALL_FEM_PRINTS.length);
+        expect(aliased).toHaveLength(ALL_FEM_PRINTS.length);
     });
 });
 

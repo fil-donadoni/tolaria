@@ -15,7 +15,6 @@ import {
 import {
     applyBasicLandArtPreference,
     basicLandArtCardIdsToRemap,
-    basicLandPrintings,
     countBasicLandCopies,
     findBasicLandRemovalIndex,
     isBasicLandCardId,
@@ -39,6 +38,41 @@ const LEB_MOUNTAIN_PRINT = "7af9c715-8d72-4eae-b412-fc89138ff588";
 // A real ICE Mountain PRINT id — used to exercise a printing that's a real
 // registry entry but illegal under a Format that doesn't allow `ice`.
 const ICE_MOUNTAIN_PRINT = "4ecf39c3-3b5f-4263-a7b5-9881bded3494";
+
+// `cardPrints` rows of Mountain (issue #5106) — the table never holds the
+// definition's own LEA printing, so these are the 14 others of the 15 the
+// art grid shows: `lea×1, leb×3, ice×1, 2ed×3, 3ed×3, 4ed×3` plus the home one.
+const MOUNTAIN_ROW_SETS = [
+    "lea",
+    "leb",
+    "leb",
+    "leb",
+    "ice",
+    "2ed",
+    "2ed",
+    "2ed",
+    "3ed",
+    "3ed",
+    "3ed",
+    "4ed",
+    "4ed",
+    "4ed",
+];
+const MOUNTAIN_ROWS = MOUNTAIN_ROW_SETS.map((set, i) => ({
+    // The two real ids the preference tests below pin keep their own Set.
+    printId: set === "ice" ? ICE_MOUNTAIN_PRINT : `mountain-print-${i}-${set}`,
+    cardId: MOUNTAIN,
+    set,
+}));
+const LEB_MOUNTAIN_ROW = {
+    printId: LEB_MOUNTAIN_PRINT,
+    cardId: MOUNTAIN,
+    set: "leb",
+};
+const PREFERENCE_ROWS = [
+    LEB_MOUNTAIN_ROW,
+    MOUNTAIN_ROWS.find((r) => r.set === "ice")!,
+];
 
 function poolCard(cardId: string, cardName = cardId): LimitedPoolCard {
     return { scryfallId: cardId, cardId, cardName };
@@ -237,10 +271,15 @@ describe("findBasicLandRemovalIndex", () => {
 // `lea×2, leb×3, ice×1, 2ed×3, 3ed×3, 4ed×3` (verified against
 // `convex/cards/sets/**/colorless.ts`) — so the exact counts below are load-
 // bearing, not arbitrary.
-describe("basicLandPrintings / legalBasicLandPrintings (issue #1629 AC2/AC3)", () => {
-    it("basicLandPrintings returns every printing of the subtype's canonical definition", () => {
-        const printings = basicLandPrintings("Mountain");
+describe("legalBasicLandPrintings (issue #1629 AC2/AC3, table-backed #5106)", () => {
+    it("offers the definition's own printing first, then every row of the subtype's Card ID", () => {
+        const printings = legalBasicLandPrintings(
+            "Mountain",
+            MOUNTAIN_ROWS,
+            null
+        );
         expect(printings).toHaveLength(15);
+        expect(printings[0]).toEqual({ printId: MOUNTAIN, setCode: "lea" });
         expect(printings.map((p) => p.setCode).sort()).toEqual(
             [
                 "lea",
@@ -262,22 +301,30 @@ describe("basicLandPrintings / legalBasicLandPrintings (issue #1629 AC2/AC3)", (
         );
     });
 
-    it("legalBasicLandPrintings with allowedSets: null offers every printing, unfiltered (AC3: no set restriction)", () => {
-        expect(legalBasicLandPrintings("Mountain", null)).toEqual(
-            basicLandPrintings("Mountain")
-        );
+    it("drops a row that belongs to a DIFFERENT Card ID", () => {
+        const stray = { printId: "forest-print", cardId: FOREST, set: "lea" };
+        expect(
+            legalBasicLandPrintings("Mountain", [stray], null).map(
+                (p) => p.printId
+            )
+        ).toEqual([MOUNTAIN]);
     });
 
-    it("legalBasicLandPrintings narrows to the Format's allowed sets", () => {
-        const printings = legalBasicLandPrintings("Mountain", ["lea", "leb"]);
-        expect(printings).toHaveLength(5); // 2 lea + 3 leb
+    it("narrows to the Format's allowed sets", () => {
+        const printings = legalBasicLandPrintings("Mountain", MOUNTAIN_ROWS, [
+            "lea",
+            "leb",
+        ]);
+        expect(printings).toHaveLength(5); // home + 1 lea row + 3 leb
         expect(
             printings.every((p) => p.setCode === "lea" || p.setCode === "leb")
         ).toBe(true);
     });
 
     it("returns an empty grid when the Format allows none of the subtype's sets", () => {
-        expect(legalBasicLandPrintings("Mountain", ["rtr"])).toEqual([]);
+        expect(
+            legalBasicLandPrintings("Mountain", MOUNTAIN_ROWS, ["rtr"])
+        ).toEqual([]);
     });
 });
 
@@ -287,7 +334,8 @@ describe("applyBasicLandArtPreference (issue #1629 AC7/AC8: stored preference �
         const result = applyBasicLandArtPreference(
             base,
             { Mountain: LEB_MOUNTAIN_PRINT },
-            null
+            null,
+            PREFERENCE_ROWS
         );
         expect(result.Mountain).toBe(LEB_MOUNTAIN_PRINT);
         // Every other subtype is untouched.
@@ -300,9 +348,44 @@ describe("applyBasicLandArtPreference (issue #1629 AC7/AC8: stored preference �
         const result = applyBasicLandArtPreference(
             base,
             { Mountain: ICE_MOUNTAIN_PRINT },
-            ["lea", "leb"] // ice not allowed
+            ["lea", "leb"], // ice not allowed
+            PREFERENCE_ROWS
         );
         expect(result.Mountain).toBe(base.Mountain);
+    });
+
+    it("a stored printing whose row has not loaded yet is kept while loading, and falls back when loaded without it (#5106)", () => {
+        const base = resolveCanonicalBasicLandCardIds();
+        const pref = { Mountain: LEB_MOUNTAIN_PRINT };
+        // Loaded, no row for it: stale, falls back.
+        expect(
+            applyBasicLandArtPreference(base, pref, null, [], false).Mountain
+        ).toBe(base.Mountain);
+        // Still loading: the user's own choice is kept, no flash to default.
+        expect(
+            applyBasicLandArtPreference(base, pref, null, [], true).Mountain
+        ).toBe(LEB_MOUNTAIN_PRINT);
+        // Loaded with its row: legal.
+        expect(
+            applyBasicLandArtPreference(
+                base,
+                pref,
+                null,
+                PREFERENCE_ROWS,
+                false
+            ).Mountain
+        ).toBe(LEB_MOUNTAIN_PRINT);
+        // Loaded rows still judge an illegal Format: a row for ICE under a
+        // lea/leb Format is not trusted just because `loading` is set.
+        expect(
+            applyBasicLandArtPreference(
+                base,
+                { Mountain: ICE_MOUNTAIN_PRINT },
+                ["lea", "leb"],
+                PREFERENCE_ROWS,
+                true
+            ).Mountain
+        ).toBe(base.Mountain);
     });
 
     it("a stored preference that no longer resolves to any printing falls back silently (AC8)", () => {
@@ -310,7 +393,8 @@ describe("applyBasicLandArtPreference (issue #1629 AC7/AC8: stored preference �
         const result = applyBasicLandArtPreference(
             base,
             { Mountain: "not-a-real-printing-anymore" },
-            null
+            null,
+            PREFERENCE_ROWS
         );
         expect(result.Mountain).toBe(base.Mountain);
     });
@@ -322,7 +406,8 @@ describe("applyBasicLandArtPreference (issue #1629 AC7/AC8: stored preference �
         const result = applyBasicLandArtPreference(
             base,
             { Mountain: FOREST },
-            null
+            null,
+            PREFERENCE_ROWS
         );
         expect(result.Mountain).toBe(base.Mountain);
     });
@@ -331,7 +416,12 @@ describe("applyBasicLandArtPreference (issue #1629 AC7/AC8: stored preference �
         const pool = [poolCard(LEB_MOUNTAIN_PRINT, "Mountain")];
         const base = resolveBasicLandCardIds(pool);
         expect(base.Mountain).toBe(LEB_MOUNTAIN_PRINT);
-        const result = applyBasicLandArtPreference(base, {}, null);
+        const result = applyBasicLandArtPreference(
+            base,
+            {},
+            null,
+            PREFERENCE_ROWS
+        );
         expect(result.Mountain).toBe(LEB_MOUNTAIN_PRINT);
     });
 });

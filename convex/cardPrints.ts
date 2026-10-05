@@ -257,6 +257,53 @@ export const getByPrintIds = query({
     },
 });
 
+/** Most Card IDs one `earliestInSets` call reads — a client chunks a decklist
+ *  below it; each Card ID costs one indexed probe per allowed Set. */
+const MAX_EARLIEST_CARD_IDS = 40;
+
+/**
+ * The decklist import's printing pick (issue #5106): for each Card ID, the
+ * printing in the EARLIEST of `allowedSets` (list order is the Format's
+ * precedence) that has a row. Walks the Sets in order and stops at the first
+ * hit, so a basic land with ~1,000 printings costs one range probe per Set
+ * tried — never a scan of its rows. A Card ID's own printing has no row
+ * (`cardPrints` never holds it); the client weighs that one itself.
+ */
+export const earliestInSets = query({
+    args: {
+        cardIds: v.array(v.string()),
+        allowedSets: v.array(v.string()),
+    },
+    returns: v.array(
+        v.object({ cardId: v.string(), printId: v.string(), set: v.string() })
+    ),
+    handler: async (ctx, { cardIds, allowedSets }) => {
+        const wanted = [...new Set(cardIds)];
+        if (wanted.length > MAX_EARLIEST_CARD_IDS) {
+            throw new Error(
+                `earliestInSets reads at most ${MAX_EARLIEST_CARD_IDS} Card IDs per call`
+            );
+        }
+        const found = await Promise.all(
+            wanted.map(async (cardId) => {
+                for (const set of allowedSets) {
+                    const row = await ctx.db
+                        .query("cardPrints")
+                        .withIndex("by_cardId_set", (q) =>
+                            q.eq("cardId", cardId).eq("set", set)
+                        )
+                        .first();
+                    if (row) {
+                        return [{ cardId, printId: row.printId, set: row.set }];
+                    }
+                }
+                return [];
+            })
+        );
+        return found.flat();
+    },
+});
+
 /** The slim row `tokenPrintsForGame` ships. */
 export interface TokenPrintRowFields {
     printId: string;

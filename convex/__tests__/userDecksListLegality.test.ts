@@ -52,4 +52,45 @@ describe("userDecks.listMine — server-derived legality (issue #4854)", () => {
         expect(byName.premodern.isLegal).toBe(false);
         expect(byName.premodern.reasons.length).toBeGreaterThan(0);
     });
+
+    it("judges a pinned printing by its cardPrints row, not the definition's home Set (issue #5106)", async () => {
+        const row = (printId: string, set: string) => ({
+            _id: `cardPrints-${printId}`,
+            printId,
+            cardId: LIGHTNING_BOLT_LEA,
+            set,
+            rarity: "common",
+            digital: false,
+            promo: false,
+            tokenPrints: [],
+        });
+        const { ctx } = makeInMemoryDb(
+            {
+                users: [
+                    { _id: ALICE, nickname: "Alice", email: "a@example.com" },
+                ],
+                cardPrints: [row("p-in-pool", "lea"), row("p-out", "zzz")],
+            },
+            { identitySubject: `${ALICE}|session` }
+        );
+        for (const [name, printId] of [
+            ["pinned-in", "p-in-pool"],
+            ["pinned-out", "p-out"],
+        ]) {
+            await run(create, ctx as unknown as MutationCtx, {
+                name,
+                format: "old-school",
+                colors: ["R"],
+                cards: [{ cardId: printId, cardName: "Lightning Bolt" }],
+            });
+        }
+
+        const rows = await run(listMine, ctx as unknown as QueryCtx, {});
+        const byName = Object.fromEntries(rows.map((r: any) => [r.name, r]));
+        const setReasons = (name: string) =>
+            byName[name].reasons.filter((r: any) => /set/i.test(r.code));
+
+        expect(setReasons("pinned-in")).toEqual([]);
+        expect(setReasons("pinned-out").length).toBeGreaterThan(0);
+    });
 });

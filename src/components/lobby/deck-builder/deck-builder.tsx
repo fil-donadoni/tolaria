@@ -1,3 +1,4 @@
+import { useBasicLandPreferenceRows } from "~/lib/useBasicLandPreferenceRows";
 import { useDeckPrintResolver } from "~/lib/useDeckPrintResolver";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { DragDropManager } from "@dnd-kit/dom";
@@ -894,14 +895,18 @@ export default function DeckBuilder({
     const [basicLandArt, setBasicLandArt] = useState(() =>
         seededBasicLandArt()
     );
+    const { rows: basicLandArtRows, loading: basicLandArtLoading } =
+        useBasicLandPreferenceRows(basicLandArt);
     const basicCardIds = useMemo(
         () =>
             applyBasicLandArtPreference(
                 resolveCanonicalBasicLandCardIds(),
                 basicLandArt,
-                FORMAT_RULES[deck.format].allowedSets
+                FORMAT_RULES[deck.format].allowedSets,
+                basicLandArtRows,
+                basicLandArtLoading
             ),
-        [basicLandArt, deck.format]
+        [basicLandArt, basicLandArtRows, basicLandArtLoading, deck.format]
     );
     const basicCounts = useMemo(
         () => countBasicLandCopies(deck.cards),

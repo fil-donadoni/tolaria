@@ -1,8 +1,5 @@
-import {
-    getPrintingsForCard,
-    tryGetCardByName,
-    type CardPrinting,
-} from "@convex/cards/catalogue";
+import { tryGetCardByName, type CardPrinting } from "@convex/cards/catalogue";
+import { printingsWithHome } from "@convex/cards/printingList";
 import { tryGetDefinition } from "@convex/cards";
 import type { LimitedPoolCard } from "@convex/limited/eventTypes";
 import { BASIC_LAND_SUBTYPES, type BasicLandSubtype } from "~/lib/basicLands";
@@ -182,44 +179,72 @@ export function findBasicLandRemovalIndex(
 // `seededBasicLandArt` (mirrors `deckZoneColumnView.ts`'s
 // `seededColumnView`/`recordGroupingChange` split for Grouping/Ordering).
 
-/** Every printing of a Basic subtype's canonical `CardDefinition` — the art
- *  grid's full candidate list, before the Format filter. `[]` only in the
- *  pathological case where the catalogue has no definition for the subtype's
- *  name at all (mirrors `resolveBasicLandCardIds`'s own fallback). */
-export function basicLandPrintings(subtype: BasicLandSubtype): CardPrinting[] {
-    const def = tryGetCardByName(subtype);
-    if (!def) return [];
-    return getPrintingsForCard(def.id);
+/** The `cardPrints` row fields the art picker keys on — `getByPrintIds` /
+ *  `listByCardId` rows satisfy it. */
+export interface BasicLandPrintRow {
+    printId: string;
+    cardId: string;
+    set: string;
 }
 
-/** `basicLandPrintings` narrowed to what the deck's Format allows (issue
- *  #1629 AC3) — `allowedSets: null` (Freeform, Limited: Pool-scoped legality
- *  never restricts by set) offers every printing unfiltered. Keys on the
- *  printing's OWN `setCode`, never the subtype's canonical definition's set,
- *  so an LEB-printed Mountain is offered under an `["leb"]`-restricted
- *  Format even though the canonical Mountain definition is an LEA card. */
+/** The Card ID of a Basic subtype's canonical `CardDefinition` — what the art
+ *  grid's `cardPrints` query is keyed by (issue #5106). `null` only in the
+ *  pathological case where the catalogue has no definition for the subtype's
+ *  name at all (mirrors `resolveBasicLandCardIds`'s own fallback). */
+export function basicLandDefinitionId(
+    subtype: BasicLandSubtype
+): string | null {
+    return tryGetCardByName(subtype)?.id ?? null;
+}
+
+/** The art grid's candidates for a Basic subtype (issue #1629 AC2/AC3): the
+ *  definition's own printing, then the `cardPrints` rows read for it, narrowed
+ *  to what the deck's Format allows — `allowedSets: null` (Freeform, Limited:
+ *  Pool-scoped legality never restricts by set) offers every printing
+ *  unfiltered. Keys on the printing's OWN Set, never the subtype's canonical
+ *  definition's, so an LEB-printed Mountain is offered under an
+ *  `["leb"]`-restricted Format even though the canonical Mountain definition
+ *  is an LEA card. A basic has ~1,000 printings, so the rows arrive a page at
+ *  a time with the Format filter already applied inside the query
+ *  (`cardPrints.listByCardId`, PRD #4115 § cost). */
 export function legalBasicLandPrintings(
     subtype: BasicLandSubtype,
+    rows: readonly BasicLandPrintRow[],
     allowedSets: string[] | null
 ): CardPrinting[] {
-    const printings = basicLandPrintings(subtype);
-    if (allowedSets === null) return printings;
-    const allowed = new Set(allowedSets);
-    return printings.filter((p) => allowed.has(p.setCode));
+    const defId = basicLandDefinitionId(subtype);
+    if (defId === null) return [];
+    return printingsWithHome(
+        defId,
+        rows.filter((row) => row.cardId === defId),
+        allowedSets
+    );
 }
 
 /** Is `printId` a printing of `subtype`'s definition, AND legal under
  *  `allowedSets`? The single predicate a stored preference must pass before
  *  it is allowed to override the default resolution (issue #1629 AC8) — a
- *  stale id (the printing was retired from the catalogue) or a now-illegal
- *  one (the deck's Format changed, or was always narrower than when the
- *  preference was set) both read `false` here and fall through silently. */
+ *  stale id (no row, no longer the definition's own printing) or a
+ *  now-illegal one (the deck's Format changed, or was always narrower than
+ *  when the preference was set) both read `false` here and fall through
+ *  silently. `rows` are the `cardPrints` rows read for the stored ids
+ *  (`cardPrints.getByPrintIds`); until they load, only the definition's own
+ *  printing can pass — unless `trustUnloaded` (the rows are still loading),
+ *  when an id with no row yet is kept. */
 function isLegalBasicLandPrinting(
     subtype: BasicLandSubtype,
     printId: string,
-    allowedSets: string[] | null
+    allowedSets: string[] | null,
+    rows: readonly BasicLandPrintRow[],
+    trustUnloaded: boolean
 ): boolean {
-    return legalBasicLandPrintings(subtype, allowedSets).some(
+    // A stored id whose row is still in flight (a fresh pick, or the first
+    // render) is the user's own choice: keep it rather than flash back to the
+    // default, then re-judge once the row arrives.
+    if (trustUnloaded && !rows.some((row) => row.printId === printId)) {
+        return true;
+    }
+    return legalBasicLandPrintings(subtype, rows, allowedSets).some(
         (p) => p.printId === printId
     );
 }
@@ -265,13 +290,23 @@ export function recordBasicLandArtChoice(
 export function applyBasicLandArtPreference(
     baseIds: Record<BasicLandSubtype, string | null>,
     preference: Partial<Record<BasicLandSubtype, string>>,
-    allowedSets: string[] | null
+    allowedSets: string[] | null,
+    preferenceRows: readonly BasicLandPrintRow[] = [],
+    trustUnloaded = false
 ): Record<BasicLandSubtype, string | null> {
     const result = { ...baseIds };
     for (const subtype of BASIC_LAND_SUBTYPES) {
         const preferred = preference[subtype];
         if (preferred === undefined) continue;
-        if (!isLegalBasicLandPrinting(subtype, preferred, allowedSets))
+        if (
+            !isLegalBasicLandPrinting(
+                subtype,
+                preferred,
+                allowedSets,
+                preferenceRows,
+                trustUnloaded
+            )
+        )
             continue;
         result[subtype] = preferred;
     }

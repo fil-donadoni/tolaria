@@ -111,7 +111,8 @@ export type GetAutoBuildCardMeta = (
  *  canonical printing (`resolveDeckCardMeta`'s definition id) as a fallback.
  *  Injected so this module never touches the card registry directly (mirrors
  *  `GetAutoBuildCardMeta`); the real resolver (`convex/limitedEvents.ts`)
- *  binds it to the event's own drafted set via `getPrintingsForCard`. */
+ *  binds it to the event's own drafted set via `cardPrints`
+ *  (`makeResolveBasicLand`, `convex/limited/resolveBasicLand.ts`). */
 export type ResolveBasicLand = (color: TrueColor) => DeckCard;
 
 /** A completed Auto-Build (issue #1115): the playable Maindeck + the rest of

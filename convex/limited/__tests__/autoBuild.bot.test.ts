@@ -5,10 +5,10 @@
 // harness needed). A separate property test below asserts EVERY bot seat's
 // Auto-Built deck validates as `limited`-legal against its own Pool, over
 // many seeded Sealed AND Draft events.
+import { makeResolveBasicLand } from "../resolveBasicLand";
 import { describe, it, expect } from "vitest";
 import {
     getCardByName,
-    getPrintingsForCard,
     resolveDeckCardMeta,
     tryGetDefinition,
 } from "../../cards";
@@ -27,7 +27,6 @@ import {
     type AutoBuildEventContext,
     type GetAutoBuildCardMeta,
     type ResolveBasicLand,
-    type TrueColor,
 } from "../autoBuild";
 import type { CardProfile, GetCardProfile } from "../cardProfilesCore";
 import {
@@ -100,20 +99,9 @@ const getAutoBuildCardMeta: GetAutoBuildCardMeta = (scryfallId) => {
 };
 
 function resolveBasicLandFor(setCode: string): ResolveBasicLand {
-    return (color: TrueColor) => {
-        const name = {
-            W: "Plains",
-            U: "Island",
-            B: "Swamp",
-            R: "Mountain",
-            G: "Forest",
-        }[color];
-        const def = getCardByName(name);
-        const printing = getPrintingsForCard(def.id).find(
-            (p) => p.setCode === setCode
-        );
-        return { cardId: printing?.printId ?? def.id, cardName: name };
-    };
+    // No `cardPrints` rows in a unit test: the LEA basics resolve to the
+    // definition's own printing, the same answer the table-less path gives.
+    return makeResolveBasicLand(setCode, new Map());
 }
 const resolveBasicLand = resolveBasicLandFor("lea");
 

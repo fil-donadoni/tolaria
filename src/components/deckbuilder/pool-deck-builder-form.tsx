@@ -33,6 +33,7 @@ import { useUserDeckMutations } from "~/hooks/useUserDecks";
 import type { UserLobbyDeck } from "~/lib/deckTypes";
 import type { DeckCard, ZoneCard } from "~/types/game";
 import { computeDeckColors } from "~/lib/deckColors";
+import { useBasicLandPreferenceRows } from "~/lib/useBasicLandPreferenceRows";
 import {
     moveToMaindeck,
     moveToSideboard,
@@ -546,14 +547,18 @@ export default function PoolDeckBuilderForm({
     const [basicLandArt, setBasicLandArt] = useState(() =>
         seededBasicLandArt()
     );
+    const { rows: basicLandArtRows, loading: basicLandArtLoading } =
+        useBasicLandPreferenceRows(basicLandArt);
     const basicCardIds = useMemo(
         () =>
             applyBasicLandArtPreference(
                 resolveBasicLandCardIds(pool),
                 basicLandArt,
-                FORMAT_RULES.limited.allowedSets
+                FORMAT_RULES.limited.allowedSets,
+                basicLandArtRows,
+                basicLandArtLoading
             ),
-        [pool, basicLandArt]
+        [pool, basicLandArt, basicLandArtRows, basicLandArtLoading]
     );
     // The bar's per-subtype counter (issue #1627) — read straight off the
     // live Maindeck, so it updates on every add/remove exactly like every
