@@ -187,3 +187,17 @@ without knowing why — the case that cost the most before.
 Measured (before) from `.claude/telemetry/telemetry.db`, 2026-09-03 →
 2026-09-17; projected (after) from the lane timings in ADR 0136 § Decision 4
 and the health duration of the last GREEN `health:main`.
+
+## 5. Project skills only — the one local step
+
+Tolaria's skills are the project skills (ADR 0150): committed
+`.claude/settings.json` disables the `superpowers` plugin and hides every
+machine-level skill, and `scripts/__tests__/project-skills.test.ts` fails on a
+machine-level skill that is neither hidden nor a project skill — add
+`"<name>": "off"` under `skillOverrides` (or adopt the skill into
+`.claude/skills/` by copying it in).
+
+Skills synced from the owner's claude.ai account (`~/.claude/skills/synced/`)
+cannot be switched off from committed settings. If one shows up in a session,
+hide it locally, once, in `.claude/settings.local.json` (gitignored):
+`{ "skillOverrides": { "<name>": "off" } }`. Not gated.

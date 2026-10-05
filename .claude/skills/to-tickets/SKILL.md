@@ -7,7 +7,7 @@ description: Break a plan, spec, or the current conversation into a set of trace
 
 Break a plan, spec, or conversation into a set of **tickets** — tracer-bullet vertical slices, each declaring the tickets that **block** it.
 
-The issue tracker and triage label vocabulary should have been provided to you — run `/setup-matt-pocock-skills` if not.
+The issue tracker and triage label vocabulary are in `docs/agents/issue-tracker.md` and `docs/agents/triage-labels.md` — read them if you have not.
 
 ## Process
 
@@ -25,7 +25,7 @@ Look for opportunities to prefactor the code to make the implementation easier. 
 
 Break the work into **tracer bullet** tickets.
 
-Tickets may be **HITL** or **AFK**. HITL tickets require human interaction — an architectural decision, a design review, a manual verification step. AFK tickets can be implemented and merged without human interaction (the autonomous `/process-gh-issues` loop can grab them). Prefer AFK over HITL where possible.
+Tickets may be **HITL** or **AFK**. HITL tickets require human interaction — an architectural decision, a design review, a manual verification step. AFK tickets can be implemented and merged without human interaction (the `/next-issue` driver can grab them). Prefer AFK over HITL where possible.
 
 <vertical-slice-rules>
 
@@ -63,7 +63,7 @@ Iterate until the user approves the breakdown.
 
 ### 5. Publish the tickets to the configured tracker
 
-Publish the approved tickets. **How** depends on the tracker `/setup-matt-pocock-skills` configured — the tickets are the same either way, only the shape of the blocking edges changes:
+Publish the approved tickets. **How** depends on the tracker (`docs/agents/issue-tracker.md`) — the tickets are the same either way, only the shape of the blocking edges changes:
 
 - **Local files** → write one file per ticket under `.scratch/<feature-slug>/issues/<NN>-<slug>.md`, numbered from `01` in dependency order (blockers first). Each file's "Blocked by" lists the numbers/titles it depends on. Use the per-ticket file template below — one ticket per file, never a single combined file.
 - **A real issue tracker (GitHub, Linear, …)** → publish one issue per ticket in dependency order (blockers first) so each ticket's blocking edges can reference real identifiers. Every edge is written **twice — the native relationship AND the body's "Blocked by" section — never one instead of the other** (see below). Apply the `ready-for-agent` triage label unless instructed otherwise — the tickets are agent-grabbable by construction.
@@ -87,15 +87,15 @@ Rules:
 
     **Never hand-roll this read-back.** The shell loop that used to stand here matched the `## Blocked by` section only, so it reported parity on a body whose inline `depends on #N` the planner already read as a blocker; `queue:lint` compares against the planner's OWN parser.
 
-**Wire every ticket to its parent umbrella (GitHub tracker) — `gh issue edit <ticket> --parent <umbrella>`.** When the tickets were cut from an existing issue (a PRD, a tracker, a spec umbrella), the **native sub-issue edge is mandatory, not decorative**. `/process-gh-issues` sorts its queue by `parent.number ?? number` — oldest _lineage_ first — and reads `parent` from its cheap Stage-1 list call. A ticket with no parent edge sorts on its own number, so children cut today from a PRD opened months ago land at the **back** of the queue and their umbrella never converges. (The key is the parent's _number_, not its `createdAt` — the list payload's `parent` object carries no date.) The prose `Parent: #N` line in the template below is for humans; it is not the sort key and parsing it would force a body fetch for the whole queue.
+**Wire every ticket to its parent umbrella (GitHub tracker) — `gh issue edit <ticket> --parent <umbrella>`.** When the tickets were cut from an existing issue (a PRD, a tracker, a spec umbrella), the **native sub-issue edge is mandatory, not decorative**. `queue:plan` sorts its queue by `parent.number ?? number` — oldest _lineage_ first — and reads `parent` from its cheap Stage-1 list call. A ticket with no parent edge sorts on its own number, so children cut today from a PRD opened months ago land at the **back** of the queue and their umbrella never converges. (The key is the parent's _number_, not its `createdAt` — the list payload's `parent` object carries no date.) The prose `Parent: #N` line in the template below is for humans; it is not the sort key and parsing it would force a body fetch for the whole queue.
 
-Same call closes the loop at the other end: `subIssuesSummary.completed == total` is what lets `/process-gh-issues` close the umbrella when its last child lands, instead of leaving a discharged spec open forever.
+Same call closes the loop at the other end: `subIssuesSummary.completed == total` is what lets the umbrella close when its last child lands, instead of leaving a discharged spec open forever.
 
 Do **not** put `ready-for-agent` on the umbrella itself — it is a spec, not a work item, and the loop skips `prd`-labelled issues by design. The children carry the label; the lineage sort carries the priority.
 
 **Stamp every ticket at filing (GitHub tracker)** — the rule is `docs/agents/triage-labels.md` § Every new issue is stamped at filing, not restated here: a type (`bug` / `enhancement`) and exactly one `area:*` on every ticket, always; a `## Band` section in the body only on a ticket with no prioritised parent — a ticket wired under a prioritised umbrella takes its band from it and needs none. The calling skill hands you the area when it knows it; otherwise pick the one the ticket's files live in. Example: `gh issue create --title "…" --body "…" --label enhancement --label area:workflow --label ready-for-agent`.
 
-**Stamp the implement-model label by complexity (GitHub tracker).** `/process-gh-issues` runs each ticket's implement-subagent on the tier named by its `model:*` label, defaulting to **Sonnet** when none is present. Sonnet is safe for the bulk of work and the opus reviewer + full gate + catalogue guards catch correctness regressions — but a diff-review is weak at catching a **wrong abstraction**, so the one thing worth deciding here (where the design context is freshest) is: does this ticket set a pattern others will copy? Apply exactly one label:
+**Stamp the implement-model label by complexity (GitHub tracker).** `/next-issue` runs each ticket on the tier named by its `model:*` label, defaulting to **Sonnet** when none is present (`docs/agents/triage-labels.md` § Model-routing labels). Sonnet is safe for the bulk of work and the opus reviewer + full gate + catalogue guards catch correctness regressions — but a diff-review is weak at catching a **wrong abstraction**, so the one thing worth deciding here (where the design context is freshest) is: does this ticket set a pattern others will copy? Apply exactly one label:
 
 - `model:opus` — the ticket introduces a **new Op / primitive / cross-layer interaction / a shape later tickets will imitate**. Design mistakes here propagate; pay for the stronger implementer.
 - `model:fable` — **only** for genuinely architecture-setting work (a new subsystem, an ADR-level decision baked into code). Rare.
@@ -131,7 +131,7 @@ Do NOT close or modify any parent issue.
 
 <issue-template>
 
-<!-- For a HITL ticket, put `⚠️ HITL` on its own line at the very top of the body; omit for AFK. The `/process-gh-issues` loop leaves ⚠️-HITL PRs for human review instead of auto-merging. -->
+<!-- For a HITL ticket, put `⚠️ HITL` on its own line at the very top of the body; omit for AFK. The driver leaves ⚠️-HITL PRs for human review instead of auto-merging. -->
 
 ## Parent
 
@@ -155,10 +155,10 @@ The end-to-end behaviour this ticket makes work, from the user's perspective —
 - `path/or/glob/one`
 - `path/or/glob/two`
 
-Scheduling metadata, NOT implementation spec (exception to the no-file-paths rule above): the module/glob-level set of files this ticket will touch, used by the `/process-gh-issues` loop to batch file-disjoint tickets for parallel execution. Coarse is fine (`convex/cards/sets/ice/red.cards.ts`, `src/components/debug/**`); staleness is acceptable — the implementing agent is not bound by it. **Omit append-only registration points** (registry index re-exports, scenario/key lists every ticket appends to) — the loop excludes them from overlap by convention. Always include this section; if the ticket genuinely touches everything (broad refactor), write `- *` so the loop schedules it solo.
+Scheduling metadata, NOT implementation spec (exception to the no-file-paths rule above): the module/glob-level set of files this ticket will touch, used by `queue:plan` to batch file-disjoint tickets for parallel execution. Coarse is fine (`convex/cards/sets/ice/red.cards.ts`, `src/components/debug/**`); staleness is acceptable — the implementing agent is not bound by it. **Omit append-only registration points** (registry index re-exports, scenario/key lists every ticket appends to) — the loop excludes them from overlap by convention. Always include this section; if the ticket genuinely touches everything (broad refactor), write `- *` so the planner schedules it solo.
 
 </issue-template>
 
 In either form, avoid specific file paths or code snippets — they go stale fast. Exception: if a prototype produced a snippet that encodes a decision more precisely than prose can (state machine, reducer, schema, type shape), inline it and note briefly that it came from a prototype. Trim to the decision-rich parts — not a working demo, just the important bits.
 
-Work the frontier one ticket at a time with `/implement`, clearing context between tickets.
+Work the frontier one ticket at a time with `/next-issue`, clearing context between tickets.

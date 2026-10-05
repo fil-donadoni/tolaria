@@ -1,4 +1,23 @@
 {
+    "enabledPlugins": {
+        "superpowers@claude-plugins-official": false
+    },
+    "skillOverrides": {
+        "code-review": "off",
+        "grill-with-docs": "off",
+        "grilling": "off",
+        "handoff": "off",
+        "implement": "off",
+        "prototype": "off",
+        "research": "off",
+        "resolving-merge-conflicts": "off",
+        "tdd": "off",
+        "teach": "off",
+        "teach-me": "off",
+        "triage": "off",
+        "wayfinder": "off",
+        "write-a-skill": "off"
+    },
     "hooks": {
         "PreToolUse": [
             {
