@@ -229,8 +229,6 @@ const SHOT_ROOT = path.join(REPO_ROOT, ".claude", "telemetry", "ui-gate");
 
 const STRESS_SCENARIO_LABEL = "UI stress — full board, full hand, deep piles";
 const YIELDS_SCENARIO_LABEL = "UI yields — two spells on the stack";
-const AI_TRACE_SCENARIO_LABEL =
-    "UI AI trace — quiet board, priority on the human seat";
 const BOARD_SCENARIO_LABEL = "UI board — ordinary mid-game position";
 const COMBAT_SCENARIO_LABEL = "UI combat — blocks owed on a confirmed attack";
 const CHOICE_SCENARIO_LABEL =
@@ -438,12 +436,10 @@ function spawnVite(args: string[]): ChildProcess {
  * THE BUNDLE IS A DEVELOPMENT-MODE BUILD, not a production one: `NODE_ENV`
  * and `--mode` both `development`, so `import.meta.env.DEV` is true and React
  * is its development build. The lane must measure the SAME app the dev server
- * serves — `game-debug-sheet-ai` walks a seam installed only under
- * `import.meta.env.DEV` (`src/lib/ai/dev-trace-seam.ts`), and the Infra
- * Verdict reads React's development warnings off the console. A production
- * build dropped both (measured: the surface UNWALKED, 65/68). `--mode` alone
- * is not enough: Vite pins `NODE_ENV=production` for `build` unless the
- * environment already set it, and the seam was dead-code-eliminated.
+ * serves — the Infra Verdict reads React's development warnings off the
+ * console, and a production build drops them. `--mode` alone is not enough:
+ * Vite pins `NODE_ENV=production` for `build` unless the environment already
+ * set it.
  */
 async function startAppServer(
     mode: ServeMode,
@@ -1002,7 +998,6 @@ async function main(): Promise<number> {
                         baseUrl,
                         stressScenarioLabel: STRESS_SCENARIO_LABEL,
                         yieldsScenarioLabel: YIELDS_SCENARIO_LABEL,
-                        aiTraceScenarioLabel: AI_TRACE_SCENARIO_LABEL,
                         boardScenarioLabel: BOARD_SCENARIO_LABEL,
                         combatScenarioLabel: COMBAT_SCENARIO_LABEL,
                         choiceScenarioLabel: CHOICE_SCENARIO_LABEL,

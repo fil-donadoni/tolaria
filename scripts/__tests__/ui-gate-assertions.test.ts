@@ -31,13 +31,6 @@ function surface(
     return { id, asserts };
 }
 
-/** The accessible names a surface's role+name promises address. */
-function promisedNames(id: string): string[] {
-    return (SURFACES.find((s) => s.id === id)?.asserts ?? []).flatMap((a) =>
-        "name" in a.locator ? [a.locator.name] : []
-    );
-}
-
 /** One surface's promises as `<check> <locator>`, the form the per-surface
  *  entry-point lists below are written in. */
 function promised(id: string): string[] {
@@ -137,7 +130,7 @@ describe("check:ui surface table — Named Assertions", () => {
      * controls — plus the zone pile whose CTA carries `contrast`
      * (`docs/findings/2900-zone-cta-not-in-check-ui-dom.md`).
      */
-    it("the game, debug and admin surfaces promise their entry points", () => {
+    it("the game and design-system surfaces promise their entry points", () => {
         const owed: Record<string, readonly string[]> = {
             "game-board": [
                 'reachable [data-controller-primary="action"]',
@@ -155,28 +148,9 @@ describe("check:ui surface table — Named Assertions", () => {
                 "reachable role=button name=Flashback",
                 "contrast role=button name=Flashback",
             ],
-            "game-debug-sheet": [
-                "visible [data-debug-sheet-toggle]",
-                "visible [data-debug-sheet]",
-                "reachable role=textbox name=search scenarios",
-                "reachable role=button name=UI stress — full board, full hand, deep piles",
-            ],
-            "game-debug-sheet-ai": [
-                "visible [data-debug-sheet]",
-                "visible [data-ai-trace-body]",
-                "reachable role=button name=Judge this move",
-            ],
             "game-manage-yields": [
                 "visible [data-manage-yields-row]",
                 "reachable [data-manage-yields-remove]",
-            ],
-            "admin-card-profiles": [
-                "visible role=radiogroup name=Profile Scope",
-                "reachable role=button name=Mark reviewed & next",
-            ],
-            "admin-verdicts": [
-                "visible role=form name=Resolve this position",
-                "reachable role=button name=← All positions",
             ],
             "design-system": [
                 "visible role=heading name=Design system census",
@@ -286,66 +260,15 @@ describe("check:ui surface table — Named Assertions", () => {
     });
 
     /**
-     * Issue #4418's half: the rest of the `/admin` section and `/settings`,
-     * the eight screens the coverage census (issue #3420) recorded as
-     * measured at no viewport. Each is held to the entry points its runbook
-     * names (`docs/guides/ui-runbooks.md` § The rest of /admin, and
-     * /settings).
-     *
-     * Three of these encode a decision the obvious locator would have got
-     * wrong, and each is stated on the surface itself:
-     *
-     *  - `admin-index` promises its cards by the ROUTE each leads to, because
-     *    a card's accessible name is its title AND its description line;
-     *  - `admin-testers` promises the account list by seam, because the row's
-     *    control reads `Grant tester` or `Revoke tester` depending on the flag
-     *    the lane's own account carries;
-     *  - `settings` promises `<fieldset>` GROUPS rather than options, for the
-     *    same accessible-name reason as the index's cards.
+     * Issue #4418's half, reduced by issue #5075: `/settings`, the one screen
+     * left of the group the `/admin` pages used to share — they are staff-only
+     * tooling now and out of the lane's scope. It is held to the entry points
+     * its runbook names (`docs/guides/ui-runbooks.md` § /settings), promised
+     * by `<fieldset>` GROUPS rather than options, because an option's
+     * accessible name is its label AND its description line.
      */
-    it("the rest of the admin section and /settings promise their entry points", () => {
+    it("/settings promises its entry points", () => {
         expectPromised({
-            "admin-index": [
-                "visible role=heading name=Admin",
-                'reachable [data-admin-nav="/admin/scenarios"]',
-                'reachable [data-admin-nav="/admin/verdicts"]',
-            ],
-            "admin-scenarios": [
-                "visible role=heading name=Saved scenarios",
-                "reachable role=textbox name=Search scenarios\u2026",
-                "reachable role=button name=New scenario",
-            ],
-            "admin-banlists": [
-                "visible role=heading name=Banlist Sync",
-                "reachable role=button name=Sync from Scryfall",
-                "visible role=button name=View cards",
-            ],
-            "admin-pick-ratings": [
-                "visible role=radiogroup name=Rating Scope",
-                "reachable role=textbox name=Search cards",
-            ],
-            "admin-testers": [
-                "visible role=heading name=Accounts",
-                "visible [data-tester-row]",
-            ],
-            "admin-bug-reports": [
-                "visible role=heading name=Reports",
-                "reachable role=link name=\u2190 Admin",
-            ],
-            "admin-bot-findings": [
-                "visible role=heading name=Bot Findings",
-                "visible role=heading name=Cards",
-                "visible [data-bot-findings-measurement]",
-            ],
-            "admin-bot-findings-classes": [
-                "visible role=heading name=Classes",
-                "visible [data-bot-findings-class-filters]",
-            ],
-            "draft-lab": [
-                "reachable role=button name=Synthetic",
-                "reachable role=combobox name=Pack source",
-                "reachable role=button name=Start draft",
-            ],
             settings: [
                 "visible role=heading name=Settings",
                 "visible role=group name=Density",
@@ -602,10 +525,6 @@ describe("check:ui surface table — Named Assertions", () => {
             ],
             "deck-builder-delete-confirm": confirm,
             "deck-detail-delete-confirm": confirm,
-            "admin-banlist-cards": [
-                "visible role=dialog name=Premodern banlist",
-                "reachable [data-game-dialog-close]",
-            ],
             "game-concede-confirm": [
                 "visible role=dialog name=Concede match?",
                 "reachable role=button name=Cancel",
@@ -623,17 +542,6 @@ describe("check:ui surface table — Named Assertions", () => {
                 0
             );
         }
-    });
-
-    /** The stress row the debug-sheet promise names is the lane's own
-     *  payload's label — a renamed payload must move the promise with it. */
-    it("the debug sheet's scenario-row promise names the stress payload's label", async () => {
-        const { laneScenarioSeeds } =
-            await import("../ui-gate/lane-account.ts");
-        const stress = laneScenarioSeeds().find((seed) =>
-            seed.label.startsWith("UI stress")
-        );
-        expect(promisedNames("game-debug-sheet")).toContain(stress?.label);
     });
 
     it("refuses a surface that declares nothing and is not in the debt list", () => {

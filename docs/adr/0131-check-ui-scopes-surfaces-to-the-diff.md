@@ -7,7 +7,9 @@ accepted (2026-09-15, PRD #3625 slice B, issue #3628). Amends ADR 0104 §2
 #3627 (the scoper and the import graph) and issue #3626 (the per-run lane
 account). **Amended 2026-09-30 (issue #4913)**: the argument is re-made at
 SURFACE granularity for the specimen rows, type-only imports are no edge, and
-the full walk moves to batch health — § Amendment below.
+the full walk moves to batch health — § Amendment below. **Amended
+(issue #5075)**: staff-only tooling (the debug sheet, the `/admin` pages) is out
+of scope.
 
 ## Context
 
@@ -309,3 +311,56 @@ follow with no format change.
 A server change that alters what the deployment serves (a query's shape, a
 seeded row) can move a screen. That was already true of every SCOPED run, and
 is what the batch-health `--all` walk catches.
+
+## Amendment (issue #5075) — staff-only tooling is out of scope
+
+### The ruling
+
+The owner's ruling: the tester debug sheet and the `/admin` pages are internal
+tools, not product, and `check:ui` no longer walks them. Fourteen surfaces left
+the table — `game-debug-sheet`, `game-debug-sheet-ai`, `admin-index`,
+`admin-card-profiles`, `admin-verdicts`, `admin-scenarios`, `admin-banlists`,
+`admin-banlist-cards`, `admin-pick-ratings`, `admin-testers`,
+`admin-bug-reports`, `admin-bot-findings`, `admin-bot-findings-classes` and
+`draft-lab` — along with their Named Assertions, the AI-trace declared
+position (`ai-trace-scenario.json`) and the vs-AI game setup only
+`game-debug-sheet-ai` needed. The surface table goes from 82 rows to 68.
+`game-debug-sheet-ai` alone was the dearest surface of the full walk (~41 s
+per cell, 9 % of summed cell time).
+
+### What stays
+
+`/admin/design-system` and its specimen rows (`design-system`,
+`design-system-dialog`, `dlg-*`, `pick-*`) stay walked: they are how in-game
+dialogs and pickers are measured. The admin layout module frames that page, so
+it stays in its closure too.
+
+### The rule
+
+Dropping the rows would have put every admin-only module in "no surface's
+closure", and the scoper is fail-closed: each would force `full`. After the
+closure and type-only rules, before the server-only rule, a path that sits in
+no surface's closure but is reachable ONLY from a staff-only route entry
+**contributes nothing** (`isStaffOnlyRouteEntry`: `src/routes/admin/*.route.tsx`
+bar the layout, plus `src/routes/draft-lab.route.tsx`; the entries are read off
+the router's own imports). Reachability includes type-only edges, for the same
+reason as the type-only rule: a type change that matters fails `check:ts`.
+The closure rule still runs first — a module an admin page shares with a
+product surface selects that surface. A test pins the real router: every page
+mounted under the admin layout is staff-only or the design-system page, so a
+new admin page cannot silently fall out of the rule.
+
+### The debug sheet
+
+It needs no rule of its own. `game.route.tsx` imports it, so its whole
+subtree sits in the game surfaces' closures and a change there still walks
+them — they render its edge toggle. That is the conservative reading of "no
+gate for the debug sheet itself"; making the subtree contribute nothing would
+mean pruning the game closures at the sheet, and a regression in a shared
+module the sheet imports would then go unwalked. Revisit if the cost shows.
+
+### Residual
+
+An admin page can break a layout nobody measures; that is the accepted cost of
+the ruling. The census (`ui-census.test.ts`) exempts the same files by the
+same predicate, so the two cannot disagree.

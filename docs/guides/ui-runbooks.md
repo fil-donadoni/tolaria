@@ -177,21 +177,20 @@ never a code edit. Headless agents do not insert: they emit `{ label, spec }`
 in the PR body and `land` seeds it post-merge.
 
 **The scenarios the `check:ui` lane itself needs** are its game surfaces'
-DECLARED POSITIONS (ADR 0132 §4) — six payloads that ship in the repo, not as
+DECLARED POSITIONS (ADR 0132 §4) — five payloads that ship in the repo, not as
 a second source of truth for scenarios, but because a lane that cannot reach a
 surface reports a coverage hole, and re-deriving a position by hand on every
 deployment is how that hole stays open:
 
-| Payload                                  | Label                                                      | Surfaces                                               |
-| ---------------------------------------- | ---------------------------------------------------------- | ------------------------------------------------------ |
-| `scripts/ui-gate/stress-scenario.json`   | `UI stress — full board, full hand, deep piles`            | `game-stress`, `game-debug-sheet`, `game-card-preview` |
-| `scripts/ui-gate/yields-scenario.json`   | `UI yields — two spells on the stack`                      | `game-manage-yields`                                   |
-| `scripts/ui-gate/ai-trace-scenario.json` | `UI AI trace — quiet board, priority on the human seat`    | `game-debug-sheet-ai`                                  |
-| `scripts/ui-gate/board-scenario.json`    | `UI board — ordinary mid-game position`                    | `game-board`, `game-zone-pile`                         |
-| `scripts/ui-gate/combat-scenario.json`   | `UI combat — blocks owed on a confirmed attack`            | `game-combat`                                          |
-| `scripts/ui-gate/choice-scenario.json`   | `UI choice — a card pick over the board, seven candidates` | `game-choice-prompt`                                   |
+| Payload                                | Label                                                      | Surfaces                           |
+| -------------------------------------- | ---------------------------------------------------------- | ---------------------------------- |
+| `scripts/ui-gate/stress-scenario.json` | `UI stress — full board, full hand, deep piles`            | `game-stress`, `game-card-preview` |
+| `scripts/ui-gate/yields-scenario.json` | `UI yields — two spells on the stack`                      | `game-manage-yields`               |
+| `scripts/ui-gate/board-scenario.json`  | `UI board — ordinary mid-game position`                    | `game-board`, `game-zone-pile`     |
+| `scripts/ui-gate/combat-scenario.json` | `UI combat — blocks owed on a confirmed attack`            | `game-combat`                      |
+| `scripts/ui-gate/choice-scenario.json` | `UI choice — a card pick over the board, seven candidates` | `game-choice-prompt`               |
 
-**The lane seeds all six itself, at bootstrap** (issue #3652), beside the
+**The lane seeds all five itself, at bootstrap** (issue #3652), beside the
 Limited fixtures — so a fresh deployment needs no hand-seeding. Unlike the
 fixtures they are not run-scoped: `seedScenarioDirect` upserts by label and the
 payload is a constant, so two concurrent runs write the same bytes to the same
@@ -205,62 +204,14 @@ bunx convex run debugScenarios:seedScenarioDirect \
 Upsert-by-label, so re-running it is safe; the row itself stays
 deployment-local (ADR 0044). `scripts/__tests__/ui-gate-stress-scenario.test.ts`
 holds the stress label and its card names to the catalogue;
-`ui-gate-game-scenarios.test.ts` holds all six to §4 — each writes BOTH
+`ui-gate-game-scenarios.test.ts` holds all five to §4 — each writes BOTH
 `activePlayer` and `priority` down rather than inheriting either, and each
 rebuilds into a position the engine owes its input to the **human** seat, which
-is what keeps the coin toss, the dealt hand and (in the vs-AI game) the Bot out
+is what keeps the coin toss, the dealt hand and the Bot out
 of what the probe measures. Note that the human seat is not always the ACTIVE
 one: `combat-scenario.json` declares `activePlayer: "opp"` because a block is a
 turn-based action owed to the defending player (CR 509.1a), so the seat that
 owes the decision is the seat that is not attacking.
-
-## Open the debug sheet's AI trace, in a vs-AI game (2026-09-12)
-
-The `AI trace` box is mounted only for a vs-AI game (`debug-sheet.tsx`), so on
-the solo game every other board runbook here deals, this screen does not exist.
-It is the `game-debug-sheet-ai` surface (issue #3492), and it is the one walk in
-the lane that ENDS a match — its own, never one it found.
-
-1. From an EMPTY lobby (no active-game banner — the Loadout's primary plate is
-   disabled while the account holds any game, `src/lib/lobbyGate.ts`): click the
-   `Play vs Bot` Mode Tile.
-2. Select a tile from the **`Preset decks`** shelf, not `Your decks`. A preset
-   is a real 60-card list; the first selectable tile in the lobby is whatever
-   the account happens to own, and a two-card freeform leftover deals both seats
-   an empty library — the game ends on `The game is a draw` before the first
-   prompt.
-3. Click the Loadout's primary plate, then `Play vs AI` in the setup dialog.
-4. Answer the pregame prompts until **no modal is left**: the coin toss is a
-   `GameDialog` with four states (`pregame-dialog.tsx`), only one of which has a
-   button, and the bot answers its own half asynchronously. Then `Keep` the
-   opening hand. `dialog.tsx`'s scrim is `fixed inset-0`, so a dialog still up
-   makes step 5 impossible while looking like a layout bug.
-5. Click the slim edge tab at the left edge (`[data-debug-sheet-toggle]`, a `»`
-   chevron above the controller bar) or press <kbd>`</kbd>. The sheet's open
-flag persists per device in `tolaria:debugSheetOpen`, so check
-`aria-expanded` before clicking rather than toggling blind.
-6. **Load the declared position** (ADR 0132 §4, issue #3652) — the sheet's
-   `Scenarios` list, then
-   `UI AI trace — quiet board, priority on the human seat`. It parks both the
-   turn and priority on your own seat, so the Bot is owed no input and stops
-   playing underneath you. Without it every reading below is a function of the
-   coin toss and of how long you took.
-7. The `AI trace` box sits at the top of the sheet. Its open body is
-   `[data-ai-trace-body]`; sections run ring → escalation log → outcome log.
-8. **Measuring?** Seed the ring instead of clearing it:
-   `window.__tolariaAiTrace.seed()` in the console pushes three fixed decisions
-   through the same `pushAiTrace` the vs-AI driver calls
-   (`src/lib/ai/dev-trace-seam.ts`, dev builds only). It clears first, so it is
-   safe to re-run. A LIVE ring cannot be measured twice — its row count is a
-   function of how long you took, and two runs of one unchanged tree measured
-   `ctrls n13 small12` then `ctrls n21 small19` at 1440x900x2; an empty one
-   measures the box in the state no tester ever opens it in.
-9. **Afterwards, end the game you created** — `Concede Match` on the lobby
-   banner, then the confirm dialog's own `Concede Match`. An active game left
-   behind gates the vs-AI dialog shut for that account's next walk. The lane
-   ends its own for the same reason, within the run: its later surfaces need
-   the dialog. It no longer affects other sessions, since each `check:ui` run
-   has its own account (issue #3626).
 
 ## Sign in from cold (2026-08-19)
 
@@ -501,44 +452,26 @@ empty; `pick-cast-cost` promises the plate `visible`, not `reachable`.
 **`selectable-card` is inline**, not a layer: the opener mounts the card below
 the opener grid, and the walk scrolls it on screen before the probe measures.
 
-## The rest of /admin, and /settings (2026-09-23)
+## /settings (2026-09-23)
 
-The eight screens the coverage census (issue #3420) recorded as measured at no
-viewport, walked since issue #4418. Each is one navigation with no click
-sequence in front of it — they are pages reached by URL:
+Walked since issue #4418: one navigation, no click sequence in front of it — a
+page reached by URL. `/settings` is Density, Motion, Phase stops and Card
+preview default, and it is NOT under the admin gate: it is a general-user route
+(`src/router.tsx`).
 
-| Route                 | Screen                                                                                                                |
-| --------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `/admin`              | Admin index — one card per admin page, off `ADMIN_NAV` (`src/lib/adminNav.ts`), the same list the header menu renders |
-| `/admin/scenarios`    | Scenario library (ADR 0044) — the saved-setup list, its filter, `New scenario`, `Clean up ephemeral`                  |
-| `/admin/banlists`     | Banlist sync — one row per banlist Format, each with `View cards` and `Sync from Scryfall`                            |
-| `/admin/pick-ratings` | Pick Ratings editor — the Rating Scope radiogroup over a searchable card list                                         |
-| `/admin/testers`      | Tester roles — every account, and the control that grants or revokes the role                                         |
-| `/admin/bug-reports`  | Bug report evidence — the report list beside the selected report's detail, read-only                                  |
-| `/admin/bot-findings` | Bot Findings (ADR 0141) — the Cards panel: measured-vs-total line, one row per card the Bot does not play             |
-| `/admin/draft-lab`    | Draft Lab — Synthetic/Replay tabs, pack source, seed, `Start draft`                                                   |
-| `/settings`           | Settings — Density, Motion, Phase stops, Card preview default                                                         |
+**The `/admin/*` pages are not walked** (issue #5075): they are staff-only
+tooling, out of `check:ui`'s scope by the owner's ruling (ADR 0131 amendment),
+and so is the tester debug sheet. `/admin/design-system` stays — its specimen
+rows are how in-game dialogs and pickers are measured.
 
-**Assert the PAGE's `h1`, never `main`.** Every `/admin/*` page renders inside
-`AdminLayoutRoute`, whose gate answers a non-admin with the 404 screen — and
-the 404 screen renders its own `main`, so a `main`-only check measures the
-not-found page and reports green. That failure was measured while writing the
-`design-system` walk and is the same shape here.
+**Assert the PAGE's `h1`, never `main`** on any page that can render behind a
+gate: a gate answers a non-admin with the 404 screen, which renders its own
+`main`, so a `main`-only check measures the not-found page and reports green.
 
-**`/settings` is NOT under the admin gate** — it is a general-user route
-(`src/router.tsx`), so it is the one screen in this group a non-admin reaches.
-
-**None of these walks writes anything.** `Sync from Scryfall`, `Grant tester`,
-`Clean up ephemeral` and `Start draft` are all left unpressed: the lane is
-non-destructive by construction (`scripts/ui-gate/surfaces.ts`), and a draft
-started in the browser would put a moving screen under the probe.
-
-**Two promises are addressed by seam rather than by name**, because the
-obvious locator would have been a promise about the deployment instead of
-about the screen: `[data-admin-nav="<route>"]` for an index card (whose
-accessible name is its title AND its description) and `[data-tester-row]` for
-an account row (whose button reads `Grant tester` or `Revoke tester` depending
-on the flag the lane's own account carries).
+The walk writes nothing, and the lane is non-destructive by construction
+(`scripts/ui-gate/surfaces.ts`). Its promises are `<fieldset>` GROUPS rather
+than options, because an option's accessible name is its label AND its
+description line.
 
 ## The seeded Limited fixture the lane walks (2026-08-26)
 
