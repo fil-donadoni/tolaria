@@ -52,16 +52,23 @@ import { setCardSupertypeLookup } from "./supertypeLookup";
 // cache + DB read (ADR 0046) without any consumer noticing, because the
 // return type never changes shape.
 //
-// Hydration-at-entry: the `registry` Map is populated once, synchronously, at
-// module evaluation time — i.e. once per cold Convex isolate, before any
-// mutation runs. Every mutation entry point therefore sees an already-hydrated,
-// in-memory map and reads it synchronously. On the client the registry starts
-// empty and is populated via `preloadDefinitions` before the board renders.
+// Hydration on first request (issue #4856): the `registry` Map starts empty
+// and a catalogue card enters it the first time it is looked up, from the lazy
+// source `catalogue.ts` installs at load (the Definition Index locates it);
+// the lookup stays synchronous, because the data is already in memory and
+// only its registration is deferred. On the client the compiled rows enter
+// through `preloadDefinitions` once fetched, before the board renders.
 
 /** Combined lookup: every `CardDefinition.id` resolves to its definition; a
- *  Print ID resolves to nothing (ADR 0140 §5). Populated at module load (server)
- *  or via `preloadDefinitions` (client). */
+ *  Print ID resolves to nothing (ADR 0140 §5). Filled on first request through
+ *  the lazy source, or via `preloadDefinitions` (client compiled rows). */
 const registry = new Map<string, CardDefinition>();
+
+/** Parent id → the ids of the derived faces `preloadDefinitions` registered
+ *  with it, in registration order — so {@link registeredDefinitions} yields a
+ *  card's twins right after the card, as the eager preload's insertion order
+ *  did (issue #4856). */
+const twinIdsByParent = new Map<string, readonly string[]>();
 
 /** CR 113.6c (issue #2391) — the registry keys whose definition declares
  *  `offBattlefieldCharacteristics`. Exists purely so the hot readers in
@@ -345,6 +352,7 @@ export const declaresCastPermission = (cardId: string): boolean =>
 export function preloadDefinitions(defs: CardDefinition[]): void {
     for (const def of defs) {
         setRegistryEntry(def.id, def);
+        const twinIds: string[] = [];
         // CR 715.2 / 722.2 (ADR 0120 §2) — THE seam where an inset spell's
         // TWIN definition enters the registry. Here, and not in
         // `setRegistryEntry`, for two reasons: this is the one BATCH funnel
@@ -361,7 +369,10 @@ export function preloadDefinitions(defs: CardDefinition[]): void {
         // `check:index` and `getAllCardNames` cannot see it (CR 715.2c — one
         // card is one card).
         const twin = insetSpellTwinDefinition(def);
-        if (twin) setRegistryEntry(twin.id, twin);
+        if (twin) {
+            setRegistryEntry(twin.id, twin);
+            twinIds.push(twin.id);
+        }
         // CR 709.3b (ADR 0121 §2) — the same seam for a SPLIT card's two
         // halves: "while on the stack, only the characteristics of the half
         // being cast exist", so each half is a real definition under
@@ -371,7 +382,10 @@ export function preloadDefinitions(defs: CardDefinition[]): void {
         // `getAllCardNames` keep seeing exactly one Wax // Wane.
         for (const side of SPLIT_HALF_SIDES) {
             const half = splitHalfTwinDefinition(def, side);
-            if (half) setRegistryEntry(half.id, half);
+            if (half) {
+                setRegistryEntry(half.id, half);
+                twinIds.push(half.id);
+            }
         }
         // CR 712.8f (ADR 0122 §1) — the same seam for a MODAL double-faced
         // card's back face: "while a modal double-faced permanent is on the
@@ -384,7 +398,11 @@ export function preloadDefinitions(defs: CardDefinition[]): void {
         // Stupor and deck legality, the Limited pool, `check:index` and
         // `getAllCardNames` learn nothing new.
         const modalBack = modalBackTwinDefinition(def);
-        if (modalBack) setRegistryEntry(modalBack.id, modalBack);
+        if (modalBack) {
+            setRegistryEntry(modalBack.id, modalBack);
+            twinIds.push(modalBack.id);
+        }
+        if (twinIds.length > 0) twinIdsByParent.set(def.id, twinIds);
     }
 }
 
@@ -526,12 +544,12 @@ export const expandDefinition = (base: CardDefinition): CardDefinition => {
 };
 
 // Issue #4165 (PRD #4161) — the LAZY source behind the resident map. When
-// one is installed (`catalogue.ts`, behind `PACKED_CORPUS_LOOKUP`), a miss in
-// `registry` asks it before token synthesis: resident entry, then the source,
-// then `maybeSynthesizeToken`. A hand-written definition therefore keeps
-// winning over a compiled row for the same card (ADR 0108) — the source is
-// never asked for an id the map already holds — and a token or a hand-written
-// card pays nothing new.
+// one is installed (`catalogue.ts`, at module load, reading the Definition
+// Index — issue #4856), a miss in `registry` asks it before token synthesis:
+// resident entry, then the source, then `maybeSynthesizeToken`. The source
+// answers a hand-written id before a compiled one, so a hand-written
+// definition keeps winning over a compiled row for the same card (ADR 0108),
+// and a token pays nothing new.
 //
 // A row the source returns is registered through `preloadDefinitions`, the
 // SAME batch funnel the eager path uses, so its derived faces (the `#`-suffixed
@@ -540,10 +558,19 @@ export const expandDefinition = (base: CardDefinition): CardDefinition => {
 // is also the per-request memo: the next lookup of that id is a map hit.
 type DefinitionSource = (cardId: string) => CardDefinition | null;
 let definitionSource: DefinitionSource | null = null;
+/** Every id the source can serve, in catalogue order — what
+ *  {@link registeredDefinitions} enumerates before the resident map, so a
+ *  catalogue-wide reader still sees definitions nobody has looked up yet. */
+let sourceIds: (() => Iterable<string>) | null = null;
 
-/** Install the lazy definition source (issue #4165). `null` uninstalls it. */
-export function setLazyDefinitionSource(source: DefinitionSource | null): void {
+/** Install the lazy definition source (issue #4165), with the ids it serves
+ *  (issue #4856). `null` uninstalls it. */
+export function setLazyDefinitionSource(
+    source: DefinitionSource | null,
+    ids: (() => Iterable<string>) | null = null
+): void {
     definitionSource = source;
+    sourceIds = source === null ? null : ids;
 }
 
 function resolveFromSource(cardId: string): CardDefinition | undefined {
@@ -582,9 +609,10 @@ export const getDefinition = (cardId: string): CardDefinition => {
  *  the SAME object `getDefinition(def.id)` returns.
  *
  *  Only the entry whose key IS the definition's own id is yielded, so a
- *  derived face registered under another key is not repeated. Insertion order
- *  reproduces catalogue load order, which is what makes a "first match wins"
- *  consumer deterministic.
+ *  derived face registered under another key is not repeated. The catalogue
+ *  comes first, in Definition Index order (issue #4856), resolved as it is
+ *  yielded — which is what makes a "first match wins" consumer deterministic
+ *  whatever has been looked up before it.
  *
  *  Lazy on purpose. This is the registry-side sibling of `catalogue.ts`'s
  *  `getAllCards()`, which eagerly expands all ~1900 definitions and — being
@@ -592,12 +620,42 @@ export const getDefinition = (cardId: string): CardDefinition => {
  *  (`client.ts`). A consumer that stops at the first hit should not have to
  *  pull the catalogue in to get one name.
  *
- *  Hydration is the caller's problem, exactly as it is for `getDefinition`:
- *  a Convex isolate hydrates at module load; the client hydrates through
- *  `src/main.tsx`'s catalogue side-effect import. */
+ *  The catalogue's side-effect import is the caller's problem, exactly as it
+ *  is for `getDefinition`: it is what installs the lazy source. */
 export function* registeredDefinitions(): Generator<CardDefinition> {
+    // Issue #4856 — the lazy source's ids first: with definitions resolved on
+    // first request, the map holds only what has been asked for, and a
+    // catalogue-wide reader must not depend on that. Then everything else the
+    // map holds (a runtime token, the face-down sentinel, a client's fetched
+    // compiled rows), once.
+    const listed = new Set<string>();
+    if (sourceIds !== null) {
+        for (const id of sourceIds()) {
+            listed.add(id);
+            const def = resolveRaw(id);
+            if (!def || def.id !== id) continue;
+            yield expandDefinition(def);
+            for (const twinId of twinIdsByParent.get(id) ?? []) {
+                const twin = registry.get(twinId);
+                if (twin?.id !== twinId || listed.has(twinId)) continue;
+                listed.add(twinId);
+                yield expandDefinition(twin);
+            }
+        }
+    }
     for (const [id, def] of registry) {
-        if (id === def.id) yield expandDefinition(def);
+        if (id === def.id && !listed.has(id)) yield expandDefinition(def);
+    }
+}
+
+/** The ids whose definition is RESIDENT — registered, by a preload or by a
+ *  lazy-source resolution — in registration order. Unlike
+ *  {@link registeredDefinitions} it resolves nothing: the observable a test
+ *  reads to prove that loading the catalogue made nothing resident (issue
+ *  #4856), or that a request materialised only the cards it touched. */
+export function* residentDefinitionIds(): Generator<string> {
+    for (const [id, def] of registry) {
+        if (id === def.id) yield id;
     }
 }
 
@@ -868,12 +926,21 @@ setRegistryEntry(FACE_DOWN_CARD_ID, {
  *  `TokenTriggeredEventKind`s — anything else (a `PHASE_BEGIN` trigger, a
  *  targeted trigger) would come back as a never-firing stub. A back face is
  *  not a token: the card that declares it is in this same registry, so the
- *  real ability objects are recoverable instead of reconstructed. Scans only
- *  printed definitions that declare a back face, and only on a registry miss
- *  (the result is memoized with the synthesized definition). */
+ *  real ability objects are recoverable instead of reconstructed. Asks the
+ *  Definition Index first (issue #4856): it names the declaring card for every
+ *  printed definition, resolved or not. Then scans the printed definitions the
+ *  map holds that the index does not cover (a client's fetched compiled rows,
+ *  a test's registration). Only on a registry miss (the result is memoized
+ *  with the synthesized definition). */
 function printedBackFaceTriggers(
     cardId: string
 ): TriggeredAbility[] | undefined {
+    const ownerId = printedBackFaceOwner?.(cardId);
+    if (ownerId !== undefined) {
+        const owner = registry.get(ownerId) ?? resolveFromSource(ownerId);
+        const triggers = owner?.backFace?.triggeredAbilities;
+        if (triggers?.length) return triggers;
+    }
     for (const [id, def] of registry) {
         const backFace = def.backFace;
         if (id !== def.id || !backFace?.triggeredAbilities?.length) continue;
@@ -883,6 +950,19 @@ function printedBackFaceTriggers(
         }
     }
     return undefined;
+}
+
+/** The Definition Index's printed back-face lookup (issue #4856): a back
+ *  face's content-derived token id → the id of the printed card declaring it.
+ *  Installed by `catalogue.ts`; `null` in a graph with no catalogue. */
+let printedBackFaceOwner: ((tokenId: string) => string | undefined) | null =
+    null;
+
+/** Install the printed back-face lookup. `null` uninstalls it. */
+export function setPrintedBackFaceIndex(
+    lookup: ((tokenId: string) => string | undefined) | null
+): void {
+    printedBackFaceOwner = lookup;
 }
 
 /** Lazy synthesis of a token CardDefinition from a content-derived id
