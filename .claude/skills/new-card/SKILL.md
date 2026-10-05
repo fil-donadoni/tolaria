@@ -241,10 +241,8 @@ unlocks, and writing it by hand buys one card and leaves the other N-1.
 still owes this rule", and it is legitimate only for a card a Target needs
 BEFORE its scheduled rule lands — an exception argued in the PR, not a default.
 Its shape is strict (`scripts/lib/compiler-gap-markers.ts`), it sits in the
-comment paragraph directly above the card's anchor — `export const x =
-defineCard(() => ({ … }))`, the **factory shape every new hand-written card
-uses** (issue #4858; the eager `export const x: CardDefinition = { … }` is
-still recognised) — and it names the OPEN gap issue:
+comment paragraph directly above the card's `x = defineCard(…)` anchor
+(#4858), and it names the OPEN gap issue:
 
 ```ts
 // compiler-gap: <the exact Oracle fragment> (#<grammar gap issue>)
@@ -275,8 +273,7 @@ title keeps the bare name; in the body the card is the link
 bun run gaps:sync --dry-run >"$SCRATCHPAD/gaps.log" 2>&1; echo "exit=$?"; grep -n "hand-tail" "$SCRATCHPAD/gaps.log"
 ```
 
-The marker goes in the comment paragraph directly above the anchor (the
-`defineCard` line, `import { defineCard } from "../../types"`) and names
+The marker goes in the comment paragraph directly above the anchor and names
 that issue, which the card's own PR closes:
 
 ```ts

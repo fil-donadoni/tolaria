@@ -150,8 +150,7 @@ golden go red, revert. **Assert the break applied** (`grep -c` the broken text
 
 ## 5. Gold precision over the hand-written catalogue
 
-Every hand-written card — `defineCard(() => ({ … }))` factory or eager
-`CardDefinition` export alike (issue #4858) — is compiled from its own Oracle text and compared
+Every hand-written card is compiled from its own Oracle text and compared
 (`convex/oracle/__tests__/gold.test.ts`, ADR 0105 § 4): of the cards the
 compiler accepts, 100 % must match. A new rule that reads a hand-written card
 differently reds it. Adjudicate — do not relax:

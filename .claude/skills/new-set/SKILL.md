@@ -270,10 +270,8 @@ One question per turn, recommended answer stated each time. Drive it to:
   rollout versus left `hand-tail` for the migration queue. Default: **none**
   hand-written — the residue ticket records the tail, it does not author it.
   Hand-writing is justified per card (a Target card a deck actually needs), and
-  every hand-written card carries its `compiler-gap: <fragment> (#issue)` or
-  `hand-tail:` marker naming an OPEN gap issue. A hand-written card is
-  declared `export const x = defineCard(() => ({ … }))` (issue #4858); the set
-  importers (`json-to-cards`, `list-to-cards`) already emit that shape.
+  every `defineCard` card carries its `compiler-gap: <fragment> (#issue)` or
+  `hand-tail:` marker naming an OPEN gap issue.
 - **Out-of-scope** — unmodelled layouts; ante/subgame (ADR 0010); 3+ player.
   Named card by card, subtracted from the acceptance denominator explicitly.
 
