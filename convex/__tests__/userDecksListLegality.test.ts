@@ -55,6 +55,7 @@ describe("userDecks.listMine — server-derived legality (issue #4854)", () => {
 
     it("judges a pinned printing by its cardPrints row, not the definition's home Set (issue #5106)", async () => {
         const row = (printId: string, set: string) => ({
+            _id: `cardPrints-${printId}`,
             printId,
             cardId: LIGHTNING_BOLT_LEA,
             set,
