@@ -309,14 +309,15 @@ describe("a pool that grows when the heavy holder leaves (issue #5023)", () => {
     });
 
     it("runPool never stops a running lane when the limit answers lower", async () => {
-        let calls = 0;
+        let finished = 0;
         const lanes: number[] = [];
         await runPool(
             Array.from({ length: 9 }, (_, i) => i),
-            () => (calls++ === 0 ? 3 : 1),
+            () => (finished === 0 ? 3 : 1),
             async (_item, _i, lane) => {
                 lanes.push(lane);
                 await new Promise((r) => setTimeout(r, 5));
+                finished += 1;
             }
         );
         // The last three items still run on all three lanes.
