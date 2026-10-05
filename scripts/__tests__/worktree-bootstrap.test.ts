@@ -72,10 +72,18 @@ describe("worktree bootstrap wiring", () => {
             }
         };
         walk(path.join(REPO_ROOT, "scripts", "bootstrap-worktree.ts"));
-        // The seed helper is the one relative import today; the walk must
+        // The seed helper is a relative import; the walk must
         // have reached it, or the transitive rule guards nothing.
         expect([...seen]).toContain(
             path.join(REPO_ROOT, "scripts", "lib", "worktree-seed.ts")
+        );
+        // So must the generated-API refresh (issue #5077) and the entry-point
+        // discovery it compares against.
+        expect([...seen]).toContain(
+            path.join(REPO_ROOT, "scripts", "lib", "generated-api.ts")
+        );
+        expect([...seen]).toContain(
+            path.join(REPO_ROOT, "scripts", "lib", "convex-entry-points.ts")
         );
     });
 });
