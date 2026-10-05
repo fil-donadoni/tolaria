@@ -44,6 +44,9 @@ export type MinimalPairMember = {
     /** Read from the Verdict Store — where an unclassified `forbidden` is an
      *  incomplete Conditional Verdict (the upcast, header). */
     stored: boolean;
+    /** Why the held-out split refuses this right-hand half (`pairSplitRefusals`):
+     *  its derived board is already judged on the other side. */
+    splitRefusal?: string;
 };
 
 export type MinimalPairStanding =
@@ -79,7 +82,7 @@ function halfDefect(
     if (!sameDiscriminant(classification.discriminant, link.discriminant)) {
         return `right-hand half of ${link.anchorId} names the Discriminant (${describe(link.discriminant)}), but its anchor names (${describe(classification.discriminant)}) — one pair, one Discriminant (ADR 0148)`;
     }
-    return null;
+    return half.splitRefusal ?? null;
 }
 
 /**

@@ -45,6 +45,8 @@ import {
     type StoreObject,
     type Verdict,
     type VerdictJudgement,
+    heldOutBucketOf,
+    scenarioKeyOf,
 } from "../verdicts";
 
 const END_STEP: Discriminant = { kind: "step", detail: "opponent's end step" };
@@ -303,6 +305,57 @@ describe("promotion reads a Minimal Pair as one unit (issue #4793)", () => {
         expect([...plan.lock.verdictIds].sort()).toEqual([anchor, half].sort());
     });
 
+    it("keeps both out when the half's board is already judged on the other side of the held-out split (issue #4798)", async () => {
+        const sideOfTurn = (turn: number) =>
+            heldOutBucketOf(scenarioKeyOf(board(turn))) === 0
+                ? "held-out"
+                : "fit";
+        const turns = Array.from({ length: 200 }, (_, i) => i + 1);
+        const anchorTurn = turns[0];
+        const halfTurn = turns.find(
+            (t) => sideOfTurn(t) !== sideOfTurn(anchorTurn)
+        )!;
+        const a = conditional(anchorTurn);
+        // Another judgement of the half's board — different candidates, so a
+        // different position, attested, and on the board's own hash side.
+        const prior: VerdictJudgement = {
+            ...board(halfTurn),
+            candidates: [{ key: '{"kind":"pass"}', description: "pass" }],
+            answer: { kind: "right", rightIndexes: [0] },
+        };
+
+        const store = createMemoryVerdictStore();
+        await stored(store, a);
+        const half = await stored(store, halfOf(a, halfTurn), ["prod-a:bob"]);
+        await stored(store, prior, ["prod-a:carol"]);
+        const validation = await validate(store);
+        const row = validation.rows.find((r) => r.verdictId === half)!;
+        expect(row.status).toBe("incomplete-pair");
+        expect(row.reasons[0]).toMatch(/already judged.*never re-sided/);
+        // The anchor goes with it; the unrelated judgement is untouched.
+        expect(planPromotion(null, validation).lock.verdictIds).toEqual([
+            verdictIdOf(prior),
+        ]);
+
+        // The fit report applies the same refusal to the same corpus.
+        const report = collectVerdictReport(
+            [a, halfOf(a, halfTurn), prior].map(readBack),
+            { testPositions: new Set() }
+        );
+        expect(report.incomplete.map((r) => r.why)).toEqual([
+            expect.stringMatching(/no right-hand half/),
+            expect.stringMatching(/already judged.*never re-sided/),
+        ]);
+
+        // Without the other judgement the same pair is promoted.
+        const clean = createMemoryVerdictStore();
+        await stored(clean, a);
+        await stored(clean, halfOf(a, halfTurn), ["prod-a:bob"]);
+        expect(
+            planPromotion(null, await validate(clean)).lock.verdictIds
+        ).toHaveLength(2);
+    });
+
     it("keeps both out when the half is contested, unattested or names another reason", async () => {
         const a = conditional(1);
         const contestedStore = createMemoryVerdictStore();
@@ -388,7 +441,10 @@ describe("Eval Pair derivation skips an incomplete Conditional Verdict (issue #4
     )!;
 
     it("yields pairs unclassified, none once classified conditional and unpaired", () => {
-        expect(collectVerdictReport([real]).pairs.length).toBeGreaterThan(0);
+        expect(
+            collectVerdictReport([real], { testPositions: new Set() }).pairs
+                .length
+        ).toBeGreaterThan(0);
 
         const now: Verdict = {
             ...real,
@@ -396,12 +452,17 @@ describe("Eval Pair derivation skips an incomplete Conditional Verdict (issue #4
             source: "authored",
             classification: { kind: "conditional", discriminant: END_STEP },
         };
-        const report = collectVerdictReport([now]);
+        const report = collectVerdictReport([now], {
+            testPositions: new Set(),
+        });
         // Out of the fit, so out of the coverage census: counted, it would
         // read as a covered class with no pairs.
         expect(censusByClass(report, [now]).totals.verdicts).toBe(0);
         expect(
-            censusByClass(collectVerdictReport([real]), [real]).totals.verdicts
+            censusByClass(
+                collectVerdictReport([real], { testPositions: new Set() }),
+                [real]
+            ).totals.verdicts
         ).toBe(1);
         expect(report.pairs).toEqual([]);
         expect(report.rows).toEqual([]);
@@ -415,8 +476,17 @@ describe("Eval Pair derivation skips an incomplete Conditional Verdict (issue #4
 
     it("upcasts a stored unclassified forbidden, and leaves the registry's alone", () => {
         const fromStore: Verdict = { ...real, source: "store" };
-        expect(collectVerdictReport([fromStore]).pairs).toEqual([]);
-        expect(collectVerdictReport([fromStore]).incomplete).toHaveLength(1);
-        expect(collectVerdictReport([real]).incomplete).toEqual([]);
+        expect(
+            collectVerdictReport([fromStore], { testPositions: new Set() })
+                .pairs
+        ).toEqual([]);
+        expect(
+            collectVerdictReport([fromStore], { testPositions: new Set() })
+                .incomplete
+        ).toHaveLength(1);
+        expect(
+            collectVerdictReport([real], { testPositions: new Set() })
+                .incomplete
+        ).toEqual([]);
     });
 });

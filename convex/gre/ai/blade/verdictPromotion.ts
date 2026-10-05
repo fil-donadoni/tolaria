@@ -113,9 +113,11 @@ export function runVerdictPromotionStep(
     }
 
     const corpus = lockedVerdictCorpus(plan.lock, plan.entries, scenarios);
+    const testPositions = testPositionKeysOf(scenarios);
     const before = collectVerdictReport(corpus.verdicts, {
         gaps: corpus.gaps,
         weights: FIT_BASE_EVAL_WEIGHTS,
+        testPositions,
     });
     if (before.errors.length > 0) {
         throw new Error(
@@ -128,11 +130,7 @@ export function runVerdictPromotionStep(
     // the held-out side's pairs never reach `fitWeights`. Everything else
     // below — the re-derived report, Minimal Pairs — reads the whole corpus.
     const result = fitWeights(
-        fitInputPairs(
-            before.pairs,
-            corpus.verdicts,
-            testPositionKeysOf(scenarios)
-        ),
+        fitInputPairs(before.pairs, corpus.verdicts, testPositions),
         FIT_BASE_EVAL_WEIGHTS
     );
     // The report's pairs are RE-DERIVED at the fitted vector, as
@@ -140,6 +138,7 @@ export function runVerdictPromotionStep(
     const after = collectVerdictReport(corpus.verdicts, {
         gaps: corpus.gaps,
         weights: result.weights,
+        testPositions,
     });
     const added = new Set(plan.added);
 
@@ -156,7 +155,11 @@ export function runVerdictPromotionStep(
             // Read against the RE-DERIVED `after` pairs, the engine-real
             // number — never the fit's own first-order `outcomes` (`fit.ts`
             // header, decision 1; `after`'s own comment a few lines up).
-            minimalPairs: minimalPairFitOutcomes(corpus.verdicts, after.pairs),
+            minimalPairs: minimalPairFitOutcomes(
+                corpus.verdicts,
+                after.pairs,
+                testPositions
+            ),
             movement: FITTABLE_WEIGHT_KEYS.map((key) => ({
                 key,
                 committed: weightValue(DEFAULT_EVAL_WEIGHTS, key),
@@ -220,6 +223,7 @@ function fitReportOverLock(
     const report = collectVerdictReport(corpus.verdicts, {
         gaps: corpus.gaps,
         weights: DEFAULT_EVAL_WEIGHTS,
+        testPositions: testPositionKeysOf(scenarios),
     });
     if (report.errors.length > 0) {
         throw new Error(

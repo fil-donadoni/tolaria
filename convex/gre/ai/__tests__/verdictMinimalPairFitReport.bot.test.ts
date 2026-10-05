@@ -18,7 +18,7 @@ import {
     SATISFIED_EPS,
     formatMinimalPairSection,
     formatPromotionReport,
-    minimalPairFitOutcomes,
+    minimalPairFitOutcomes as minimalPairFitOutcomesAt,
     minimalPairTally,
     verdictIdOf,
     type Discriminant,
@@ -26,6 +26,12 @@ import {
     type PromotionPlan,
     type Verdict,
 } from "../verdicts";
+
+/** No registry: none of these verdicts is a Test Position. */
+const minimalPairFitOutcomes = (
+    verdicts: Parameters<typeof minimalPairFitOutcomesAt>[0],
+    pairs: Parameters<typeof minimalPairFitOutcomesAt>[1]
+) => minimalPairFitOutcomesAt(verdicts, pairs, new Set());
 
 const STEP: Discriminant = { kind: "step", detail: "opponent's end step" };
 const ABOVE = SATISFIED_EPS * 10;

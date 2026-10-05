@@ -124,6 +124,7 @@ describe.runIf(RUN)("weight fit (runner)", () => {
         // from the last answer and the weights ratchet away from anything a
         // human chose, one trust region per run (`evalWeights.ts`).
         const before = collectVerdictReport(verdicts, {
+            testPositions: testPositionKeysOf(BLADE_SCENARIOS),
             gaps,
             weights: FIT_BASE_EVAL_WEIGHTS,
         });
@@ -148,6 +149,7 @@ describe.runIf(RUN)("weight fit (runner)", () => {
         // (the `latentBoardFor` ratio, a clamp a weight walked into) is
         // priced by the engine rather than predicted by the fit.
         const after = collectVerdictReport(verdicts, {
+            testPositions: testPositionKeysOf(BLADE_SCENARIOS),
             gaps,
             weights: result.weights,
         });
@@ -165,6 +167,7 @@ describe.runIf(RUN)("weight fit (runner)", () => {
         const incumbent = upToDate
             ? after
             : collectVerdictReport(verdicts, {
+                  testPositions: testPositionKeysOf(BLADE_SCENARIOS),
                   gaps,
                   weights: DEFAULT_EVAL_WEIGHTS,
               });

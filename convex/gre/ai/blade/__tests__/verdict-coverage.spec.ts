@@ -87,7 +87,10 @@ describe.runIf(RUN)("verdict coverage (runner)", () => {
         // The committed corpus (issue #3584): the registry, then the Verdict
         // Lock — the same reader the reproducibility guard fits over.
         const { verdicts, gaps } = await committedVerdictCorpus(scenarios);
-        const report = collectVerdictReport(verdicts, { gaps });
+        const report = collectVerdictReport(verdicts, {
+            testPositions: new Set(),
+            gaps,
+        });
         const census = censusByClass(report, verdicts);
         console.log(`\n${formatCensus(census)}`);
 
