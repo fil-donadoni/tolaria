@@ -820,7 +820,8 @@ async function main(): Promise<void> {
     ctx.robustness = describeRobustnessMode(robustness);
     // The audit is asked for here and run after the verdict (issue #5079).
     writeAuditRequest(dir, tip, robustness, robustnessOwed(robustness));
-    const gates = HEALTH_SCRIPTS;
+    const scripts = HEALTH_SCRIPTS;
+    const gates = scripts;
     const { offline, walk } = splitHealthGates(gates);
     // The deployment `check:ui` needs, asked BEFORE ~40 minutes of gates
     // (issue #4943) — the same probe `check:ui` makes, on the URL it reads.
