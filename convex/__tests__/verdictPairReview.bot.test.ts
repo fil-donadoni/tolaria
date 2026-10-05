@@ -14,7 +14,8 @@ import {
     type VerdictJudgement,
 } from "../gre/ai/verdicts/identity";
 import type { ScenarioSpec } from "../debugScenarioSpec";
-import type { Discriminant } from "../gre/ai/verdicts/types";
+import { verdictSideOf } from "../gre/ai/verdicts/heldOut";
+import type { Discriminant, Verdict } from "../gre/ai/verdicts/types";
 import {
     pairQueueOf,
     openVerdictOf,
@@ -247,6 +248,104 @@ describe("the admin's pair filter", () => {
             answer: { kind: "right", rightIndexes: [0] },
         };
         expect(pairListOf(sourcesOf(row(plain, "alice")))).toEqual([]);
+    });
+});
+
+describe("the admin's pair filter and the held-out split (issue #5093)", () => {
+    const sideOf = (j: VerdictJudgement): "fit" | "held-out" =>
+        verdictSideOf(
+            { ...j, id: "probe", author: "", createdAt: "", source: "store" },
+            new Set()
+        );
+
+    /** A pair on `turn`, and a second judgement of the half's board that
+     *  shares no position with it (another candidate list), so the half is
+     *  refused by the split, never contested. */
+    function unitAt(turn: number) {
+        const anchor: VerdictJudgement = {
+            ...ANCHOR,
+            spec: { ...ANCHOR.spec, turn },
+        };
+        const half: VerdictJudgement = {
+            ...HALF,
+            spec: { ...HALF_SPEC, turn },
+            pairOf: {
+                anchorId: verdictIdOf(anchor),
+                discriminant: DISCRIMINANT,
+            },
+        };
+        const prior: VerdictJudgement = {
+            ...half,
+            candidates: [...CANDIDATES, { key: "{}", description: "other" }],
+            answer: { kind: "right", rightIndexes: [0] },
+        };
+        delete prior.pairOf;
+        return { anchor, half, prior };
+    }
+
+    /** The first turn whose anchor board and half board hash as asked. */
+    function unitOn(
+        anchorSide: "fit" | "held-out",
+        priorSide: "fit" | "held-out"
+    ) {
+        for (let turn = 1; turn < 500; turn++) {
+            const u = unitAt(turn);
+            if (
+                sideOf(u.anchor) === anchorSide &&
+                sideOf(u.prior) === priorSide
+            )
+                return u;
+        }
+        throw new Error("no turn hashes to that pair of sides in 500 turns");
+    }
+
+    const listOf = (u: ReturnType<typeof unitAt>, registry: Verdict[] = []) =>
+        pairListOf(
+            sourcesOf(
+                row(u.anchor, "alice"),
+                row(u.half, "bob"),
+                row(u.prior, "carol")
+            ),
+            registry
+        );
+
+    it("lists a split-refused half and its anchor incomplete, naming the reason", () => {
+        const u = unitOn("held-out", "fit");
+        const list = listOf(u);
+        const half = list.find((e) => e.verdictId === verdictIdOf(u.half))!;
+        const anchor = list.find((e) => e.verdictId === verdictIdOf(u.anchor))!;
+        expect(half.kind).toBe("incomplete");
+        expect(half.why).toMatch(
+            /already judged by .* on the fit side.*never re-sided/
+        );
+        expect(anchor.kind).toBe("incomplete");
+    });
+
+    it("lists the pair complete when the other judgement is on the anchor's side", () => {
+        const u = unitOn("fit", "fit");
+        expect(
+            listOf(u)
+                .filter((e) => e.role !== undefined)
+                .map((e) => e.kind)
+        ).toEqual(["complete-pair", "complete-pair"]);
+    });
+
+    it("reads the registry's Verdicts: an anchor on a Test Position board is fit-side", () => {
+        const u = unitOn("held-out", "held-out");
+        const kindsOf = (registry: Verdict[]) =>
+            listOf(u, registry)
+                .filter((e) => e.role !== undefined || e.kind === "incomplete")
+                .map((e) => e.kind);
+        expect(kindsOf([])).not.toContain("incomplete");
+        const registered: Verdict = {
+            ...u.anchor,
+            id: "registry:anchor-board",
+            author: "blade-registry",
+            createdAt: "2026-09-05T00:00:00.000Z",
+            source: "registry",
+        };
+        delete registered.classification;
+        expect(kindsOf([registered])).toContain("incomplete");
     });
 });
 

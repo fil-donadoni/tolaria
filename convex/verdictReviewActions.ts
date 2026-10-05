@@ -30,6 +30,7 @@ import {
     VERDICT_STORE_WRITE_KEY_ENV,
     verdictStoreWriterFromDeploymentEnv,
 } from "./verdictStoreGcsWriter";
+import { verdictsFromRegistry } from "./gre/ai/verdicts/registrySource";
 import { verdictDeploymentOf, type OutboxRow } from "./verdictsOutbox";
 import type { ResolutionOutboxRow } from "./verdictResolutionsOutbox";
 import {
@@ -160,7 +161,7 @@ export const pairList = action({
     returns: v.any(),
     handler: async (ctx) => {
         const { sources } = await loadReview(ctx);
-        return pairListOf(sources);
+        return pairListOf(sources, verdictsFromRegistry().verdicts);
     },
 });
 

@@ -20,6 +20,7 @@
 // Pure: the `"use node"` action binds it to the store and the tables.
 
 import { verdictIdOf, type VerdictJudgement } from "./gre/ai/verdicts/identity";
+import { judgementSplitRefusals } from "./gre/ai/verdicts/heldOut";
 import { minimalPairStandings } from "./gre/ai/verdicts/minimalPair";
 import {
     quarantineContestedPositions,
@@ -572,10 +573,16 @@ export type PairListEntry = {
  * read — attested and uncontested, or accepted by a resolution — so a pair the
  * fit would not see as complete is not listed as one. A classified verdict that
  * is not among them (contested, rejected, unattested) is listed incomplete,
- * with the reason; an Absolute Verdict stays in its own group, since that is a
+ * with the reason; so is a half the held-out split refuses (its derived board is
+ * already judged on the other side, ADR 0148 § Split), and with it its anchor.
+ * `registry` is the blade registry's Verdicts, which that refusal reads beside
+ * the store's judgements, as Promotion's does; an Absolute Verdict stays in its own group, since that is a
  * claim about the judgement and not about the pair.
  */
-export function pairListOf(sources: ReviewSources): PairListEntry[] {
+export function pairListOf(
+    sources: ReviewSources,
+    registry: readonly Verdict[] = []
+): PairListEntry[] {
     const all = distinctVerdicts(sources);
     const q = quarantineContestedPositions(
         sources.verdicts,
@@ -587,14 +594,16 @@ export function pairListOf(sources: ReviewSources): PairListEntry[] {
         q.contested.flatMap((c) => c.verdicts.map((v) => v.verdictId))
     );
     const rejected = rejectedIdsOf(sources);
+    const members = [...all.entries()]
+        .filter(([verdictId]) => live.has(verdictId))
+        .map(([verdictId, judgement]) => ({ verdictId, judgement }));
+    const refusals = judgementSplitRefusals(members, registry);
     const standings = minimalPairStandings(
-        [...all.entries()]
-            .filter(([verdictId]) => live.has(verdictId))
-            .map(([verdictId, judgement]) => ({
-                verdictId,
-                judgement,
-                stored: true,
-            }))
+        members.map((m) => ({
+            ...m,
+            stored: true,
+            splitRefusal: refusals.get(m.verdictId),
+        }))
     );
     const out: PairListEntry[] = [];
     for (const [verdictId, judgement] of all) {
