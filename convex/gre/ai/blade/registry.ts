@@ -471,11 +471,9 @@ function activationIsDiscouraged(
 // half; a half repeats its anchor's constant, which the derivation compares
 // field for field. An anchor with no half beside it is conditional debt: its
 // pair prose (kept, see each entry's PAIRED WITH) did not differ by this
-// Discriminant only, or its other half is no `moves` verdict. A pair whose
-// anchor is itself a `moves` verdict (entomb, free put) is left unclassified
-// instead: a `moves` verdict rules no move out, so nothing says it is wrong
-// NOW, and demoting it out of the fit moved `graveyardReachFraction` enough to
-// flip a noise-pinned reach guard.
+// Discriminant only, or its other half is no `moves` verdict. Every entry is
+// classified since issue #4797 (`RegistryBladeScenario`); one whose
+// Discriminant appears only once below, or inline, is conditional debt.
 const DENSE_LIBRARY: Discriminant = {
     kind: "other",
     detail: "a library of twenty creatures where the anchor's holds twenty lands",
@@ -491,10 +489,6 @@ const STIFLE_BACKUP: Discriminant = {
 const TITANIA_PAYOFF: Discriminant = {
     kind: "card",
     detail: "Titania, Protector of Argoth on the battlefield",
-};
-const OWN_BESTOW_HOST: Discriminant = {
-    kind: "card",
-    detail: "an own creature to bestow onto",
 };
 const EXTRA_PLAINS: Discriminant = { kind: "card", detail: "one extra Plains" };
 
@@ -6979,7 +6973,10 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         // must never be is the bot's PREFERENCE over the same Aura on its own
         // creature, or over simply casting the 1/1.
         label: "cast mode: never bestows the Aura onto the OPPONENT's creature",
-        classification: { kind: "conditional", discriminant: OWN_BESTOW_HOST },
+        // Absolute (issue #4797 review): removing the Bot's own host gives
+        // its partner's board, where bestowing onto the opponent is still
+        // wrong — no single change makes the gift right.
+        classification: { kind: "absolute" },
         spec: {
             cards: [
                 { name: "Springheart Nantuko", owner: "me", zone: "hand" },
