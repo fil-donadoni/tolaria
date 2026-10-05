@@ -3,7 +3,7 @@
         {
             "label": "keep mana open: casts Accumulated Knowledge at the opponent's end step",
             "tier": "must",
-            "needsSetup": true
+            "needsSetup": false
         }
     ],
     "Aladdin's Ring": [
@@ -69,6 +69,13 @@
             "needsSetup": false
         }
     ],
+    "Colossus of Sardia": [
+        {
+            "label": "entomb: buries the reanimation target, not the self-reachable card",
+            "tier": "must",
+            "needsSetup": true
+        }
+    ],
     "Containment Priest": [
         {
             "label": "flash permanent NEGATIVE CONTROL: casts Containment Priest as the only surviving block",
@@ -78,7 +85,7 @@
         {
             "label": "keep mana open: casts Containment Priest at the opponent's end step",
             "tier": "must",
-            "needsSetup": true
+            "needsSetup": false
         }
     ],
     "Damnation": [
@@ -213,7 +220,7 @@
         {
             "label": "keep mana open: casts Impulse at the opponent's end step",
             "tier": "must",
-            "needsSetup": true
+            "needsSetup": false
         }
     ],
     "Incinerate": [
@@ -253,6 +260,13 @@
         },
         {
             "label": "informed defender: DOES block when the attacker's open land cannot PAY for the trick",
+            "tier": "must",
+            "needsSetup": true
+        }
+    ],
+    "Island Fish Jasconius": [
+        {
+            "label": "entomb: buries the reanimation target, not the self-reachable card",
             "tier": "must",
             "needsSetup": true
         }
@@ -345,6 +359,13 @@
             "needsSetup": false
         }
     ],
+    "Polar Kraken": [
+        {
+            "label": "entomb: buries the reanimation target, not the self-reachable card",
+            "tier": "must",
+            "needsSetup": true
+        }
+    ],
     "Polluted Delta": [
         {
             "label": "charter: cracks its fetchland for the only answer to a trigger on the stack",
@@ -420,13 +441,6 @@
             "label": "sorcery-speed permanent: deploys a Seal with the mana open and nothing else to do",
             "tier": "must",
             "needsSetup": false
-        }
-    ],
-    "Sengir Vampire": [
-        {
-            "label": "entomb: buries the reanimation target, not one of eight lands",
-            "tier": "must",
-            "needsSetup": true
         }
     ],
     "Serra Angel": [
@@ -589,7 +603,7 @@
         {
             "label": "activation timing: converts a sacrifice engine at the opponent's end step",
             "tier": "must",
-            "needsSetup": true
+            "needsSetup": false
         },
         {
             "label": "discriminating pair: activates Zuran Orb when Titania pays the land off (issue #2686)",
