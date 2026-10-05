@@ -1896,11 +1896,10 @@ owner is elsewhere are pointers.
   tokens in a single call; the per-bucket cost (`gh` 919 tokens a call
   against `git` 512) is in the § Context hygiene baseline above.
 - **Never poll.** 437 `sleep N; echo` round-trips were measured in one week
-  of the § Context hygiene baseline window.
+  of session telemetry.
 - **A pass never ends its turn waiting** (issue #4763). Observed four times
-  in two AFK runs, twice leaving a `MERGEABLE` PR that nothing landed: the
-  pass ended its turn "waiting for `oracle:compile`" or on a `land` retry, and
-  under `claude -p` the process went with it, claim held.
+  in two runs, twice leaving a `MERGEABLE` PR that nothing landed: under
+  `claude -p` the end of the turn is the end of the process, claim held.
 - **Commit before you break anything** (issue #2789). Both failure modes were
   observed the first time the single-session skill ran for real: reverting a
   proof-of-failure break with `git checkout` wiped the whole uncommitted
@@ -1910,10 +1909,10 @@ owner is elsewhere are pointers.
   proof.
 - **The `cards` short path** (ADR 0136 §8). Best observed: 24 minutes wall,
   ~4 of them implementing.
-- **Model routing by label only.** Area-based escalation put half the queue
-  on Opus for no measured quality gain: `docs/agents/workflow-token-economics.md`.
-  Underpowered attempts on a labelled issue paid for themselves again in
-  review rounds in the same 2026-08 data; the criterion lives in
+- **Model routing by label only.** A 2026-08 audit found area-based
+  escalation had put half the queue on Opus for no measured quality gain, and
+  that underpowered attempts on a labelled issue paid for themselves again in
+  review rounds. Why the skill does not restate the criterion:
   `docs/agents/triage-labels.md` § Model-routing labels escalate by exception.
 - **No pre-PR gate**: ADR 0136 §1 and § No pre-PR gate above (the base moved
   at 2.5 PR/h during a pre-PR lane run).

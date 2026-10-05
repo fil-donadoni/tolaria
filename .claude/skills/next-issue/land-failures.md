@@ -37,6 +37,8 @@ MERGED PR it only does housekeeping.
   tip comes before landing new work. Under RED `land` refuses a PR that is not
   a declared repair unless run with `--red-ok` — a session already mid-issue
   finishes as a stated, counted act (issue #4964).
+- **Run from the base branch.** `land` lands the branch you are on: run it
+  from the PR's worktree.
 - **Base is not the base branch.** `gh pr edit <PR#> --base <base>`, then
   re-issue.
 - **`could not fast-forward local <base>`.** That line is the whole handover:

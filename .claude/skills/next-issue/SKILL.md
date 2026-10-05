@@ -80,7 +80,8 @@ verdict — landed, or a failure reported as a failure.
 --pretty` picks the top unclaimed `ready-for-agent` issue (band → standalone
   before slice → own priority → bugs → oldest). The band is the parent
   umbrella's when it carries one; a `priorityBand` echo names it. "Finish PRD #N" is `--lineage <N>`,
-  never a hand-picked batch.
+  never a hand-picked batch (non-umbrella or childless target → non-zero exit,
+  no fallback to the whole queue).
 - `queue:plan` refuses on **cap** (live claims at `sessions.cap`; stop) or on
   a **RED** health marker (exit: `bun run health:fix` instead of a pick).
 - Read the issue and its comments IN FULL. Its `Target files:` section (one
@@ -102,13 +103,14 @@ Say the tier in one line, then:
 
 - `model:opus` / `model:fable` on a lower-tier session → **stop**; tell the
   user to relaunch (`claude --model opus`). Never "try anyway".
-- Unlabelled → proceed on this tier.
+- Unlabelled → proceed on this tier. A higher tier than the label asks for
+  is never a reason to stop.
 - Unlabelled, but the issue meets the label's criterion (a wrong mental model
   no gate catches) → `gh issue edit N --add-label model:opus` FIRST, then
   stop or continue. Same if review later finds such a defect.
 
-**Done when:** the tier is stated and either matches the label or the pass
-has stopped.
+**Done when:** the tier is stated and matches or exceeds the label's (no
+label = Sonnet), or the pass has stopped.
 
 ## 2. Claim + worktree
 
@@ -118,8 +120,8 @@ has stopped.
 - `cd "$(bun run --silent wt:new N)"` (`--fix` for bugs): a fresh worktree
   branched from `origin/<base>`, never a standing one.
 
-**Done when:** `queue:claim` printed `claimed` and the shell is in the new
-worktree.
+**Done when:** `queue:claim` printed `claimed issue #N` and the shell is in
+the issue's worktree (fresh, or the dead pass's branch on `--resume`).
 
 ## 3. Implement — in THIS context
 
@@ -166,8 +168,10 @@ guarding test has been seen red.
 | docs/markdown only                           | no review                  |
 
 One reviewer subagent (`description: "review PR …"`, explicit `model`),
-scoped to the diff. Fix blocking findings HERE, re-run the targeted tests,
-answer in the PR thread. No re-review round.
+scoped to the diff plus whatever context it asks to read. Fix blocking
+findings HERE, re-run the targeted tests,
+answer in the PR thread. No re-review round. A wrong-mental-model finding
+(not a mechanical slip) → `model:opus` on the issue, per §1.
 
 **Done when:** every blocking finding is fixed and committed, or the row
 says no review.
@@ -189,10 +193,11 @@ says no review.
   command re-attach from anywhere after `land` deletes the worktree.
 - Exit 75 → re-issue the identical command. Never end the turn on a 75.
 - Diff under `convex/cards/sets/` → `bun run seed:preset --all` after the
-  merge.
+  merge (idempotent; no deployment → nothing owed).
 - Issue not auto-closed → close it with a one-line comment.
 
-**Done when:** `land` exited 0 with the PR merged and the issue closed.
+**Done when:** `land` exited 0 with the PR merged, the issue closed, and
+`seed:preset --all` run if owed.
 
 ## 6. Report
 
@@ -200,6 +205,6 @@ Five lines, no more: issue, PR, what landed, what the review caught (or
 "clean"), anything flagged for the user. Quote `land`'s lane receipt in the
 "what landed" line — `lane: ran` or
 `lane: skipped (gated <sha> against <base>)` (ADR 0136 §2). Then STOP — one
-issue per invocation.
+issue per invocation; the user (or the AFK driver) decides on a next one.
 
 **Done when:** the five lines are written.

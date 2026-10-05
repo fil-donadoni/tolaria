@@ -71,7 +71,10 @@ function skillFiles(skill: string): string[] {
         for (const entry of fs.readdirSync(path.join(dir, rel)).sort()) {
             const child = rel ? path.join(rel, entry) : entry;
             if (fs.statSync(path.join(dir, child)).isDirectory()) walk(child);
-            else out.push(child);
+            // Tracked files only: an untracked `.DS_Store` or editor swap
+            // file is not part of the skill and must not red its census.
+            else if (isTracked(path.join(".claude", "skills", skill, child)))
+                out.push(child);
         }
     };
     walk("");

@@ -98,7 +98,7 @@ const ON_DEMAND_CEILING_BYTES = 24_850;
  * signs. Lower a row whenever a manifest shrinks.
  *
  * `next-issue` was 23,658 bytes / 394 lines before issue #5100 split it and
- * 10,302 after; its ceiling keeps ~2% headroom. Every other row is its
+ * 10,807 after; its ceiling keeps ~2% headroom. Every other row is its
  * measured size, no headroom.
  *
  * Discovered from git, so a new skill with no row here goes red the day it
@@ -118,7 +118,7 @@ const SKILL_MANIFEST_CEILING_BYTES: Record<string, number> = {
     "new-op": 15_073,
     "new-qa-issue": 16_518,
     "new-set": 32_806,
-    "next-issue": 10_500,
+    "next-issue": 11_000,
     "to-prd": 6_076,
     "to-tickets": 13_587,
 };
