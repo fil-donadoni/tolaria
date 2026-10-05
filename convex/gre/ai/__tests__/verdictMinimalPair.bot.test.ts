@@ -431,14 +431,19 @@ describe("reclassifying an old forbidden goes through a resolution (issue #4793)
 });
 
 describe("Eval Pair derivation skips an incomplete Conditional Verdict (issue #4793)", () => {
-    // A real registry position whose forbidden answer yields pairs today, and
-    // which the registry leaves unclassified (issue #4796 classifies some).
-    const real = verdictsFromRegistry().verdicts.find(
+    // A real registry position whose forbidden answer yields pairs today,
+    // read as it was before ADR 0148. Every registry entry is classified now
+    // (issue #4797), so the unclassified reading is the absolute one with its
+    // classification dropped — an absolute verdict is fitted exactly as an
+    // unclassified one was.
+    const absolute = verdictsFromRegistry().verdicts.find(
         (v) =>
             v.answer.kind === "forbidden" &&
-            v.classification === undefined &&
+            v.classification?.kind === "absolute" &&
             evalPairsOf(v).pairs.length > 0
     )!;
+    const real: Verdict = { ...absolute };
+    delete real.classification;
 
     it("yields pairs unclassified, none once classified conditional and unpaired", () => {
         expect(
